@@ -195,6 +195,7 @@ export function ConsultaDetalheClient({
             })}
           </div>
         )}
+      </div>
 
       {canEdit && (
         <div className="pt-4 border-t border-border">
