@@ -3,12 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { updateAppointment, deleteAppointment } from "../../actions";
-import { Copy, Check, Calendar, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Copy, Check, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import type { FormFieldDefinition } from "@/lib/form-types";
 
 type FormInstance = {
@@ -38,25 +36,9 @@ function formatResponseValue(
   return String(value);
 }
 
-function toLocalDateInput(iso: string): string {
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function toLocalTimeInput(iso: string): string {
-  const d = new Date(iso);
-  const h = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${h}:${min}`;
-}
-
 export function ConsultaDetalheClient({
   appointmentId,
   appointmentStatus,
-  appointmentScheduledAt,
   formInstances,
   baseUrl,
   canEdit,
@@ -72,9 +54,6 @@ export function ConsultaDetalheClient({
   const [status, setStatus] = useState(appointmentStatus);
   const [updating, setUpdating] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
-  const [showReagendar, setShowReagendar] = useState(false);
-  const [reagendarDate, setReagendarDate] = useState(() => toLocalDateInput(appointmentScheduledAt));
-  const [reagendarTime, setReagendarTime] = useState(() => toLocalTimeInput(appointmentScheduledAt));
   const [expandedFormId, setExpandedFormId] = useState<string | null>(null);
 
   const origin = typeof window !== "undefined" ? window.location.origin : baseUrl || "";
@@ -85,20 +64,6 @@ export function ConsultaDetalheClient({
     const res = await updateAppointment(appointmentId, { status: newStatus });
     if (!res.error) setStatus(newStatus);
     setUpdating(false);
-  }
-
-  async function handleReagendar(e: React.FormEvent) {
-    e.preventDefault();
-    setUpdating(true);
-    const localDate = new Date(`${reagendarDate}T${reagendarTime}:00`);
-    const res = await updateAppointment(appointmentId, {
-      scheduled_at: localDate.toISOString(),
-    });
-    setUpdating(false);
-    if (!res.error) {
-      setShowReagendar(false);
-      router.refresh();
-    }
   }
 
   async function handleExcluir() {
@@ -119,77 +84,6 @@ export function ConsultaDetalheClient({
 
   return (
     <div className="space-y-6">
-      {canEdit && (
-        <Card>
-          <CardHeader>
-            <h2 className="font-semibold">Ações</h2>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowReagendar(true)}
-              disabled={updating}
-            >
-              <Calendar className="h-4 w-4 mr-2" />
-              Reagendar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExcluir}
-              disabled={updating}
-              className="text-destructive hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Excluir agendamento
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {showReagendar && (
-        <Card>
-          <CardHeader className="pb-2">
-            <h2 className="font-semibold">Reagendar</h2>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleReagendar} className="space-y-4">
-              <div className="flex flex-wrap gap-4 items-end">
-                <div className="space-y-2">
-                  <Label>Nova data</Label>
-                  <Input
-                    type="date"
-                    value={reagendarDate}
-                    onChange={(e) => setReagendarDate(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Novo horário</Label>
-                  <Input
-                    type="time"
-                    value={reagendarTime}
-                    onChange={(e) => setReagendarTime(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" disabled={updating}>
-                  {updating ? "Salvando…" : "Salvar"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setShowReagendar(false)}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
       {canEdit && (
         <Card>
           <CardHeader>
@@ -301,7 +195,21 @@ export function ConsultaDetalheClient({
             })}
           </div>
         )}
-      </div>
+
+      {canEdit && (
+        <div className="pt-4 border-t border-border">
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={handleExcluir}
+            disabled={updating}
+            className="w-full max-w-md mx-auto flex text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/50"
+          >
+            <Trash2 className="h-5 w-5 mr-2" />
+            Excluir agendamento
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

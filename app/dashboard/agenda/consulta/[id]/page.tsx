@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConsultaDetalheClient } from "./consulta-detalhe-client";
+import { DataHoraReagendar } from "./data-hora-reagendar";
 import { ArrowLeft } from "lucide-react";
 
 export default async function ConsultaDetalhePage({
@@ -101,13 +102,11 @@ export default async function ConsultaDetalhePage({
             <h2 className="font-semibold">Consulta</h2>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p>
-              <span className="text-muted-foreground">Data/hora:</span>{" "}
-              {new Date(appointment.scheduled_at).toLocaleString("pt-BR", {
-                dateStyle: "short",
-                timeStyle: "short",
-              })}
-            </p>
+            <DataHoraReagendar
+              scheduledAt={appointment.scheduled_at}
+              appointmentId={id}
+              canEdit={profile.role === "admin" || profile.role === "secretaria"}
+            />
             <p>
               <span className="text-muted-foreground">Paciente:</span>{" "}
               {patient?.full_name}

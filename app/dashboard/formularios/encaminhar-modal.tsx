@@ -75,29 +75,34 @@ export function EncaminharModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-card border border-border rounded-lg shadow-lg max-w-md w-full max-h-[90vh] overflow-y-auto text-foreground">
-        <div className="p-4 border-b border-border flex items-center justify-between bg-card">
-          <h2 className="font-semibold text-foreground">Encaminhar: {templateName}</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/10"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div className="relative bg-white border border-gray-200 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto z-10">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
+          <h2 className="font-semibold text-gray-900">Encaminhar: {templateName}</h2>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="p-4 space-y-4 bg-card text-foreground">
-          <p className="text-sm text-muted-foreground">
+        <div className="p-4 space-y-4">
+          <p className="text-sm text-gray-600">
             Escolha o paciente e a consulta. O link gerado poderá ser enviado ao
             paciente (no futuro, por WhatsApp ou e-mail).
           </p>
           {error && (
-            <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
+            <p className="text-sm text-red-600 bg-red-50 p-2 rounded-md">
               {error}
             </p>
           )}
 
           <div className="space-y-2">
-            <Label className="text-foreground">Paciente</Label>
+            <Label className="text-gray-900">Paciente</Label>
             <select
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+              className="h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900"
               value={patientId}
               onChange={(e) => onPatientChange(e.target.value)}
             >
@@ -111,20 +116,20 @@ export function EncaminharModal({
           </div>
 
           {loadingAppointments && (
-            <p className="text-sm text-muted-foreground">Carregando consultas…</p>
+            <p className="text-sm text-gray-500">Carregando consultas…</p>
           )}
 
           {patientId && !loadingAppointments && (
             <div className="space-y-2">
-              <Label className="text-foreground">Consulta</Label>
+              <Label className="text-gray-900">Consulta</Label>
               {appointments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-gray-500">
                   Este paciente não tem consultas agendadas ou confirmadas.
                   Agende uma consulta primeiro na Agenda.
                 </p>
               ) : (
                 <select
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                  className="h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900"
                   value={appointmentId}
                   onChange={(e) => {
                     setAppointmentId(e.target.value);
@@ -158,9 +163,9 @@ export function EncaminharModal({
           )}
 
           {link && (
-            <div className="space-y-2 pt-2 border-t border-border">
-              <Label className="text-foreground">Link para o paciente</Label>
-              <p className="text-sm text-muted-foreground break-all bg-muted/50 p-2 rounded">
+            <div className="space-y-2 pt-2 border-t border-gray-200">
+              <Label className="text-gray-900">Link para o paciente</Label>
+              <p className="text-sm text-gray-600 break-all bg-gray-100 p-2 rounded">
                 {typeof window !== "undefined"
                   ? window.location.origin + link
                   : link}
