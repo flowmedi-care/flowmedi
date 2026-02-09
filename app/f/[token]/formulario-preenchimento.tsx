@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { FormFieldDefinition, FormFieldType } from "@/lib/form-types";
+import { Check } from "lucide-react";
 
 type FieldDef = FormFieldDefinition & { id: string };
 
@@ -152,20 +153,35 @@ function FieldRender({
             {field.label}
             {required && " *"}
           </Label>
-          <div className="space-y-2">
-            {(field.options ?? []).map((opt) => (
-              <label key={opt} className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name={id}
-                  value={opt}
-                  checked={(value as string) === opt}
-                  onChange={() => onChange(opt)}
-                  required={required}
-                />
-                {opt}
-              </label>
-            ))}
+          <div className="space-y-2" role="radiogroup" aria-label={field.label}>
+            {(field.options ?? []).map((opt) => {
+              const isSelected = (value as string) === opt;
+              return (
+                <label
+                  key={opt}
+                  className="flex items-center gap-2 rounded border border-input px-3 py-2 cursor-pointer hover:bg-muted/50 has-[:focus]:ring-2 has-[:focus]:ring-ring"
+                >
+                  <input
+                    type="radio"
+                    name={id}
+                    value={opt}
+                    checked={isSelected}
+                    onChange={() => onChange(opt)}
+                    required={required}
+                    className="sr-only"
+                  />
+                  <span
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-primary"
+                    aria-hidden
+                  >
+                    {isSelected ? (
+                      <Check className="h-3 w-3 text-primary" strokeWidth={3} />
+                    ) : null}
+                  </span>
+                  <span>{opt}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
       );
@@ -177,23 +193,38 @@ function FieldRender({
             {field.label}
             {required && " *"}
           </Label>
-          <div className="space-y-2">
-            {(field.options ?? []).map((opt) => (
-              <label key={opt} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={arr.includes(opt)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      onChange([...arr, opt]);
-                    } else {
-                      onChange(arr.filter((x) => x !== opt));
-                    }
-                  }}
-                />
-                {opt}
-              </label>
-            ))}
+          <div className="space-y-2" role="group" aria-label={field.label}>
+            {(field.options ?? []).map((opt) => {
+              const isChecked = arr.includes(opt);
+              return (
+                <label
+                  key={opt}
+                  className="flex items-center gap-2 rounded border border-input px-3 py-2 cursor-pointer hover:bg-muted/50 has-[:focus]:ring-2 has-[:focus]:ring-ring"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        onChange([...arr, opt]);
+                      } else {
+                        onChange(arr.filter((x) => x !== opt));
+                      }
+                    }}
+                    className="sr-only"
+                  />
+                  <span
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 border-primary"
+                    aria-hidden
+                  >
+                    {isChecked ? (
+                      <Check className="h-3 w-3 text-primary" strokeWidth={3} />
+                    ) : null}
+                  </span>
+                  <span>{opt}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
       );
