@@ -2,6 +2,28 @@
 
 SaaS para clínicas: agenda central, formulários clínicos e comunicação com o paciente.
 
+## Estrutura do repositório
+
+O projeto Next.js está **nesta pasta** (`flowmedi/`).  
+Se você está na pasta pai (`Flowmedi`), entre na pasta do app antes de rodar comandos:
+
+```bash
+cd flowmedi
+npm install
+npm run dev
+```
+
+## Deploy no Vercel
+
+Para não dar **404 NOT_FOUND**, configure o **Root Directory** do projeto no Vercel:
+
+1. Vercel Dashboard → seu projeto → **Settings** → **General**
+2. Em **Root Directory**, clique em **Edit**
+3. Defina como: **`flowmedi`**
+4. Save e faça um novo **Redeploy**
+
+Assim o Vercel passa a usar a pasta onde estão `package.json`, `app/`, etc.
+
 ## Stack
 
 - **Next.js 15** (App Router), **TypeScript**, **Tailwind CSS**
@@ -9,9 +31,9 @@ SaaS para clínicas: agenda central, formulários clínicos e comunicação com 
 - **shadcn/ui** (componentes em `components/ui`)
 - Deploy: **Vercel**
 
-## Como rodar
+## Como rodar localmente
 
-1. **Instalar dependências**
+1. **Instalar dependências** (dentro da pasta `flowmedi`):
    ```bash
    npm install
    ```
@@ -23,11 +45,8 @@ SaaS para clínicas: agenda central, formulários clínicos e comunicação com 
 
 3. **Variáveis de ambiente**
    - Copie `.env.example` para `.env.local`.
-   - Preencha:
-     ```
-     NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
-     NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-anon-key
-     ```
+   - Preencha `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+   - No Vercel: **Settings → Environment Variables** e adicione as mesmas variáveis.
 
 4. **Subir o app**
    ```bash
