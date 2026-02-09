@@ -22,16 +22,25 @@ export default async function DashboardLayout({
     .eq("id", user.id)
     .single();
 
-  if (!profile) {
-    redirect("/dashboard/onboarding");
-  }
-  if (profile.active === false) {
+  if (profile?.active === false) {
     redirect("/acesso-removido");
+  }
+
+  const profileSafe = profile
+    ? { ...profile, active: profile.active ?? true }
+    : null;
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-muted/30">
+        {children}
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
-      <DashboardNav user={user} profile={profile} />
+      <DashboardNav user={user} profile={profileSafe} />
       <main className="flex-1 p-4 md:p-6 bg-muted/30">{children}</main>
     </div>
   );
