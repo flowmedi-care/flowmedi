@@ -35,6 +35,14 @@ const STATUS_LABEL: Record<string, string> = {
   cancelada: "Cancelada",
 };
 
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "success" | "warning" | "destructive"> = {
+  agendada: "outline",
+  confirmada: "default",
+  realizada: "success",
+  falta: "warning",
+  cancelada: "destructive",
+};
+
 export function AgendaClient({
   appointments,
   patients,
@@ -71,7 +79,8 @@ export function AgendaClient({
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const scheduledAt = `${form.date}T${form.time}:00`;
+    const localDate = new Date(`${form.date}T${form.time}:00`);
+    const scheduledAt = localDate.toISOString();
     const res = await createAppointment(
       form.patientId,
       form.doctorId,
@@ -295,15 +304,7 @@ export function AgendaClient({
                               {pendingForms} form. pendente(s)
                             </Badge>
                           )}
-                          <Badge
-                            variant={
-                              a.status === "realizada"
-                                ? "success"
-                                : a.status === "cancelada" || a.status === "falta"
-                                  ? "secondary"
-                                  : "default"
-                            }
-                          >
+                          <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
                             {STATUS_LABEL[a.status] ?? a.status}
                           </Badge>
                         </div>

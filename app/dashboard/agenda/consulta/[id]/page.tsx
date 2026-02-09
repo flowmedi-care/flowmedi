@@ -128,10 +128,13 @@ export default async function ConsultaDetalhePage({
                 variant={
                   appointment.status === "realizada"
                     ? "success"
-                    : appointment.status === "cancelada" ||
-                        appointment.status === "falta"
-                      ? "secondary"
-                      : "default"
+                    : appointment.status === "cancelada"
+                      ? "destructive"
+                      : appointment.status === "falta"
+                        ? "warning"
+                        : appointment.status === "confirmada"
+                          ? "default"
+                          : "outline"
                 }
               >
                 {appointment.status}
@@ -171,6 +174,7 @@ export default async function ConsultaDetalhePage({
       <ConsultaDetalheClient
         appointmentId={id}
         appointmentStatus={appointment.status}
+        appointmentScheduledAt={appointment.scheduled_at}
         formInstances={formInstances}
         baseUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
         canEdit={profile.role === "admin" || profile.role === "secretaria"}

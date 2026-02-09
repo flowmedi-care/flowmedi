@@ -3,7 +3,9 @@ import { cn } from "@/lib/utils";
 
 const Badge = React.forwardRef<
   HTMLSpanElement,
-  React.HTMLAttributes<HTMLSpanElement> & { variant?: "default" | "secondary" | "outline" | "success" }
+  React.HTMLAttributes<HTMLSpanElement> & {
+    variant?: "default" | "secondary" | "outline" | "success" | "warning" | "destructive";
+  }
 >(({ className, variant = "default", ...props }, ref) => (
   <span
     ref={ref}
@@ -13,6 +15,8 @@ const Badge = React.forwardRef<
       variant === "secondary" && "bg-secondary text-secondary-foreground",
       variant === "outline" && "border border-input bg-background",
       variant === "success" && "bg-green-600 text-white",
+      variant === "warning" && "bg-amber-500 text-white",
+      variant === "destructive" && "bg-red-600 text-white",
       className
     )}
     {...props}
