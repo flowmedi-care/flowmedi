@@ -76,14 +76,14 @@ export function EncaminharModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-card border border-border rounded-lg shadow-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold">Encaminhar: {templateName}</h2>
+      <div className="bg-card border border-border rounded-lg shadow-lg max-w-md w-full max-h-[90vh] overflow-y-auto text-foreground">
+        <div className="p-4 border-b border-border flex items-center justify-between bg-card">
+          <h2 className="font-semibold text-foreground">Encaminhar: {templateName}</h2>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-4 bg-card text-foreground">
           <p className="text-sm text-muted-foreground">
             Escolha o paciente e a consulta. O link gerado poderá ser enviado ao
             paciente (no futuro, por WhatsApp ou e-mail).
@@ -95,9 +95,9 @@ export function EncaminharModal({
           )}
 
           <div className="space-y-2">
-            <Label>Paciente</Label>
+            <Label className="text-foreground">Paciente</Label>
             <select
-              className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
               value={patientId}
               onChange={(e) => onPatientChange(e.target.value)}
             >
@@ -116,7 +116,7 @@ export function EncaminharModal({
 
           {patientId && !loadingAppointments && (
             <div className="space-y-2">
-              <Label>Consulta</Label>
+              <Label className="text-foreground">Consulta</Label>
               {appointments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Este paciente não tem consultas agendadas ou confirmadas.
@@ -124,7 +124,7 @@ export function EncaminharModal({
                 </p>
               ) : (
                 <select
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
                   value={appointmentId}
                   onChange={(e) => {
                     setAppointmentId(e.target.value);
@@ -159,7 +159,7 @@ export function EncaminharModal({
 
           {link && (
             <div className="space-y-2 pt-2 border-t border-border">
-              <Label>Link para o paciente</Label>
+              <Label className="text-foreground">Link para o paciente</Label>
               <p className="text-sm text-muted-foreground break-all bg-muted/50 p-2 rounded">
                 {typeof window !== "undefined"
                   ? window.location.origin + link

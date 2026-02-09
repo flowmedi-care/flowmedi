@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { FileText, Plus, Pencil, Send } from "lucide-react";
+import { FileText, Pencil, Send, Trash2 } from "lucide-react";
 import { EncaminharModal } from "./encaminhar-modal";
+import { deleteFormTemplate } from "./actions";
 
 type TemplateRow = {
   id: string;
@@ -22,10 +24,20 @@ export function FormulariosListClient({
   templates: TemplateRow[];
   patients: PatientOption[];
 }) {
+  const router = useRouter();
   const [encaminharTemplate, setEncaminharTemplate] = useState<{
     id: string;
     name: string;
   } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDeleteTemplate(id: string, name: string) {
+    if (!confirm(`Tem certeza que deseja excluir o formulário "${name}"?`)) return;
+    setDeletingId(id);
+    const res = await deleteFormTemplate(id);
+    setDeletingId(null);
+    if (!res.error) router.refresh();
+  }
 
   return (
     <>
@@ -74,6 +86,16 @@ export function FormulariosListClient({
                         <Pencil className="h-4 w-4" />
                       </Button>
                     </Link>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteTemplate(t.id, t.name)}
+                      disabled={deletingId === t.id}
+                      title="Excluir formulário"
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </li>
               ))}

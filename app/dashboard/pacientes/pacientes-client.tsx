@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { createPatient, updatePatient, type PatientInsert, type PatientUpdate } from "./actions";
-import { Search, UserPlus, Pencil, X } from "lucide-react";
+import { createPatient, updatePatient, deletePatient, type PatientInsert, type PatientUpdate } from "./actions";
+import { Search, UserPlus, Pencil, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type Patient = {
@@ -27,9 +28,11 @@ export function PacientesClient({
 }) {
   const [patients, setPatients] = useState<Patient[]>(initialPatients);
   const [search, setSearch] = useState("");
+  const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<PatientInsert & { id?: string }>({
     full_name: "",
@@ -77,6 +80,18 @@ export function PacientesClient({
     setEditingId(null);
     setIsNew(false);
     setError(null);
+  }
+
+  async function handleDeletePatient(p: Patient) {
+    if (!confirm("Tem certeza que deseja excluir o cadastro deste paciente?")) return;
+    setDeletingId(p.id);
+    const res = await deletePatient(p.id);
+    setDeletingId(null);
+    if (!res.error) {
+      router.refresh();
+    } else {
+      setError(res.error);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -287,14 +302,25 @@ export function PacientesClient({
                       {[p.email, p.phone].filter(Boolean).join(" · ") || "—"}
                     </p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openEdit(p)}
-                    className="shrink-0"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEdit(p)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeletePatient(p)}
+                      disabled={deletingId === p.id}
+                      title="Excluir cadastro"
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>

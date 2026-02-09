@@ -112,7 +112,14 @@ export function AgendaClient({
             className="w-40"
           />
         </div>
-        <Button onClick={() => setShowForm(true)}>
+        <Button
+          onClick={() => {
+            setShowForm(true);
+            if (doctors.length === 1) {
+              setForm((f) => ({ ...f, doctorId: doctors[0].id }));
+            }
+          }}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Nova consulta
         </Button>
