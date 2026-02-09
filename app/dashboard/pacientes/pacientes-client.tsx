@@ -202,7 +202,7 @@ export function PacientesClient({
                   <Input
                     id="birth_date"
                     type="date"
-                    value={form.birth_date}
+                    value={form.birth_date ?? ""}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, birth_date: e.target.value }))
                     }
@@ -215,7 +215,7 @@ export function PacientesClient({
                   <Input
                     id="email"
                     type="email"
-                    value={form.email}
+                    value={form.email ?? ""}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, email: e.target.value }))
                     }
@@ -227,7 +227,7 @@ export function PacientesClient({
                   <Input
                     id="phone"
                     type="tel"
-                    value={form.phone}
+                    value={form.phone ?? ""}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, phone: e.target.value }))
                     }
@@ -239,7 +239,7 @@ export function PacientesClient({
                 <Label htmlFor="notes">Observações</Label>
                 <Textarea
                   id="notes"
-                  value={form.notes}
+                  value={form.notes ?? ""}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, notes: e.target.value }))
                   }
