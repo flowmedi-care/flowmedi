@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { AgendaClient } from "./agenda-client";
+import { AgendaClient, type AppointmentRow } from "./agenda-client";
 
 export default async function AgendaPage() {
   const supabase = await createClient();
@@ -59,18 +59,40 @@ export default async function AgendaPage() {
     .eq("clinic_id", clinicId)
     .order("name");
 
-  const rows = (appointments ?? []).map((a: Record<string, unknown>) => ({
-    id: a.id,
-    scheduled_at: a.scheduled_at,
-    status: a.status,
-    notes: a.notes,
-    patient: Array.isArray(a.patient) ? a.patient[0] : a.patient,
-    doctor: Array.isArray(a.doctor) ? a.doctor[0] : a.doctor,
-    appointment_type: Array.isArray(a.appointment_type)
+  const rows: AppointmentRow[] = (appointments ?? []).map((a: Record<string, unknown>) => {
+    const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
+    const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
+    const appointmentType = Array.isArray(a.appointment_type)
       ? a.appointment_type[0]
-      : a.appointment_type,
-    form_instances: a.form_instances ?? [],
-  }));
+      : a.appointment_type;
+    const formInstances = Array.isArray(a.form_instances) ? a.form_instances : [];
+    return {
+      id: String(a.id ?? ""),
+      scheduled_at: String(a.scheduled_at ?? ""),
+      status: String(a.status ?? ""),
+      notes: a.notes != null ? String(a.notes) : null,
+      patient: {
+        id: String((patient as { id?: unknown })?.id ?? ""),
+        full_name: String((patient as { full_name?: unknown })?.full_name ?? ""),
+      },
+      doctor: {
+        id: String((doctor as { id?: unknown })?.id ?? ""),
+        full_name: (doctor as { full_name?: unknown })?.full_name != null
+          ? String((doctor as { full_name?: unknown }).full_name)
+          : null,
+      },
+      appointment_type: appointmentType
+        ? {
+            id: String((appointmentType as { id?: unknown })?.id ?? ""),
+            name: String((appointmentType as { name?: unknown })?.name ?? ""),
+          }
+        : null,
+      form_instances: formInstances.map((fi: { id?: unknown; status?: unknown }) => ({
+        id: String(fi?.id ?? ""),
+        status: String(fi?.status ?? ""),
+      })),
+    };
+  });
 
   return (
     <div className="space-y-4">
