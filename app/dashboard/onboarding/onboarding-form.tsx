@@ -7,13 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
-export function OnboardingForm({
-  userId,
-  userEmail,
-}: {
-  userId: string;
-  userEmail: string;
-}) {
+export function OnboardingForm() {
   const router = useRouter();
   const [clinicName, setClinicName] = useState("");
   const [fullName, setFullName] = useState("");
@@ -26,28 +20,13 @@ export function OnboardingForm({
     setLoading(true);
     const supabase = createClient();
 
-    const { data: clinic, error: clinicErr } = await supabase
-      .from("clinics")
-      .insert({ name: clinicName })
-      .select("id")
-      .single();
-
-    if (clinicErr || !clinic) {
-      setError(clinicErr?.message ?? "Erro ao criar clínica");
-      setLoading(false);
-      return;
-    }
-
-    const { error: profileErr } = await supabase.from("profiles").insert({
-      id: userId,
-      email: userEmail,
-      full_name: fullName || null,
-      role: "admin",
-      clinic_id: clinic.id,
+    const { data: clinicId, error: rpcErr } = await supabase.rpc("create_clinic_and_profile", {
+      p_clinic_name: clinicName,
+      p_full_name: fullName || null,
     });
 
-    if (profileErr) {
-      setError(profileErr.message);
+    if (rpcErr || !clinicId) {
+      setError(rpcErr?.message ?? "Erro ao criar clínica");
       setLoading(false);
       return;
     }

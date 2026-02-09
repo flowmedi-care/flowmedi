@@ -26,7 +26,7 @@ export default async function OnboardingPage() {
         Você será o administrador. Depois poderá convidar médicos e
         secretárias.
       </p>
-      <OnboardingForm userId={user.id} userEmail={user.email ?? ""} />
+      <OnboardingForm />
     </div>
   );
 }

@@ -143,7 +143,7 @@ CREATE POLICY "Clínica update por clinic_id" ON public.clinics
     id IN (SELECT clinic_id FROM public.profiles WHERE id = auth.uid())
   );
 CREATE POLICY "Clínica insert onboarding" ON public.clinics
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
 -- Perfis: usuário vê/atualiza o próprio; pode inserir próprio perfil (onboarding)
 CREATE POLICY "Perfil próprio" ON public.profiles FOR SELECT USING (id = auth.uid());

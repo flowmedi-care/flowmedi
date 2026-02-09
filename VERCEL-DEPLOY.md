@@ -2,6 +2,20 @@
 
 Se **`/`** retorna **404** ou o build termina em **14ms** (“Build Completed in /vercel/output [14ms]”), o Vercel **não está rodando o Next.js** — está usando o comando errado e não gera a aplicação.
 
+## 0. "No framework detected" — definir manualmente
+
+Se o Vercel mostra **No framework detected**, defina o framework à mão:
+
+1. Vercel Dashboard → seu projeto → **Settings** → **General**
+2. Na seção **Build & Development Settings**, clique em **Override**
+3. **Framework Preset:** escolha **Next.js**
+4. **Build Command:** deixe em branco (o `vercel.json` usa `npm run build`) ou preencha `npm run build`
+5. **Output Directory:** deixe em branco
+6. **Install Command:** deixe em branco (ou `npm install`)
+7. Salve e faça um **Redeploy**
+
+Assim o Vercel passa a tratar o projeto como Next.js mesmo quando a detecção automática falha.
+
 ## 1. Root Directory
 
 No seu repo **flowmedi-care/flowmedi** o projeto Next.js está **na raiz** (tem `app/`, `package.json` na raiz). Então no Vercel o **Root Directory** deve ficar **vazio** (ou `.`).
