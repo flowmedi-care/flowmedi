@@ -1,0 +1,55 @@
+import { createClient } from "@/lib/supabase/server";
+import { notFound } from "next/navigation";
+import { FormularioPreenchimento } from "./formulario-preenchimento";
+
+export default async function FormularioPublicoPage({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) {
+  const { token } = await params;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_form_by_token", {
+    p_token: token,
+  });
+
+  if (error) {
+    console.error("get_form_by_token", error);
+    notFound();
+  }
+
+  if (!data?.found) notFound();
+  if (data.expired) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+        <div className="text-center">
+          <h1 className="text-xl font-semibold text-foreground">
+            Link expirado
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Este link de formulário não está mais válido. Entre em contato com a
+            clínica para receber um novo link.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const definition = Array.isArray(data.definition) ? data.definition : [];
+  const responses = (data.responses ?? {}) as Record<string, unknown>;
+
+  return (
+    <div className="min-h-screen bg-muted/30 py-8 px-4">
+      <div className="max-w-xl mx-auto">
+        <FormularioPreenchimento
+          templateName={data.template_name ?? "Formulário"}
+          definition={definition}
+          initialResponses={responses}
+          instanceId={data.id}
+          token={token}
+          readOnly={data.status === "respondido"}
+        />
+      </div>
+    </div>
+  );
+}

@@ -1,21 +1,39 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { PacientesClient, type Patient } from "./pacientes-client";
 
-export default function PacientesPage() {
+export default async function PacientesPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/entrar");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) redirect("/dashboard");
+
+  const { data: rows } = await supabase
+    .from("patients")
+    .select("id, full_name, email, phone, birth_date, notes, created_at")
+    .eq("clinic_id", profile.clinic_id)
+    .order("full_name");
+
+  const patients: Patient[] = (rows ?? []).map((r) => ({
+    id: r.id,
+    full_name: r.full_name,
+    email: r.email,
+    phone: r.phone,
+    birth_date: r.birth_date,
+    notes: r.notes,
+    created_at: r.created_at,
+  }));
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold text-foreground">Pacientes</h1>
-      <Card>
-        <CardHeader>
-          <p className="text-sm text-muted-foreground">
-            Cadastro de pacientes, histórico de consultas e consentimento LGPD.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Módulo de pacientes em desenvolvimento.
-          </p>
-        </CardContent>
-      </Card>
+      <PacientesClient initialPatients={patients} />
     </div>
   );
 }
