@@ -42,6 +42,7 @@ Assim o Vercel passa a usar a pasta onde estão `package.json`, `app/`, etc.
    - Crie um projeto em [supabase.com](https://supabase.com).
    - No **SQL Editor**, execute o conteúdo de `supabase/schema.sql`.
    - Em **Project Settings → API**, copie a **URL** e a **anon key**.
+   - **MVP:** em **Authentication → Providers → Email**, desative **Confirm email**. Assim o usuário entra logo após criar conta (a tela já pede senha 2x para confirmar).
 
 3. **Variáveis de ambiente**
    - Copie `.env.example` para `.env.local`.

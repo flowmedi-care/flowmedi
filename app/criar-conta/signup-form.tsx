@@ -11,6 +11,7 @@ export function SignUpForm({ redirectTo }: { redirectTo?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,6 +22,14 @@ export function SignUpForm({ redirectTo }: { redirectTo?: string }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (password !== confirmPassword) {
+      setError("As duas senhas não coincidem.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("A senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
     setLoading(true);
     const supabase = createClient();
     const { error: err } = await supabase.auth.signUp({
@@ -82,6 +91,19 @@ export function SignUpForm({ redirectTo }: { redirectTo?: string }) {
           autoComplete="new-password"
         />
         <p className="text-xs text-muted-foreground">Mínimo 6 caracteres</p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="confirmPassword">Confirmar senha</Label>
+        <Input
+          id="confirmPassword"
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          minLength={6}
+          autoComplete="new-password"
+          placeholder="Digite a senha novamente"
+        />
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "Criando…" : "Criar conta"}
