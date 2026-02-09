@@ -29,7 +29,7 @@ export default async function EquipePage() {
 
   const members = (membersRaw ?? []).filter((p) => p.active !== false);
 
-  const { data: invites } = await supabase
+  const { data: invitesRaw } = await supabase
     .from("invites")
     .select("id, email, role, expires_at, created_at")
     .eq("clinic_id", clinicId)
@@ -37,13 +37,18 @@ export default async function EquipePage() {
     .gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false });
 
+  const memberEmails = new Set((members ?? []).map((m) => m.email?.toLowerCase()).filter(Boolean));
+  const invites = (invitesRaw ?? []).filter(
+    (i) => !memberEmails.has(i.email?.toLowerCase() ?? "")
+  );
+
   return (
     <div className="space-y-8">
       <h1 className="text-xl font-semibold text-foreground">Equipe</h1>
       <EquipeClient
         clinicId={clinicId}
         members={members ?? []}
-        invites={invites ?? []}
+        invites={invites}
         currentUserId={user.id}
       />
     </div>

@@ -198,6 +198,7 @@ export function EquipeClient({
         <Card>
           <CardHeader>
             <h2 className="font-medium text-foreground">Convites pendentes</h2>
+            <p className="text-sm text-muted-foreground">Quem ainda não aceitou o link. Quem já entrou aparece em Membros da equipe.</p>
           </CardHeader>
           <CardContent>
             <ul className="divide-y divide-border">
@@ -207,8 +208,15 @@ export function EquipeClient({
                     <p className="text-sm text-foreground">{i.email}</p>
                     <p className="text-xs text-muted-foreground capitalize">{ROLE_LABEL[i.role] ?? i.role} · expira {new Date(i.expires_at).toLocaleDateString("pt-BR")}</p>
                   </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => cancelInvite(i.id)}>
-                    Cancelar convite
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => cancelInvite(i.id)}
+                    title="Excluir este convite (o link deixa de funcionar)"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Excluir
                   </Button>
                 </li>
               ))}
