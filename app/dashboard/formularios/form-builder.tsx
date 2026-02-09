@@ -11,6 +11,7 @@ import {
   type FormFieldType,
   isChoiceType,
   hasPlaceholder,
+  hasOptions,
   hasMinMax,
 } from "@/lib/form-types";
 import { Plus, Trash2 } from "lucide-react";
