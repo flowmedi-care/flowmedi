@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Calendar,
   Users,
+  UserPlus,
   FileText,
   Settings,
   CreditCard,
@@ -21,6 +22,7 @@ type Profile = {
   full_name: string | null;
   role: string;
   clinic_id: string;
+  active?: boolean;
 } | null;
 
 export function DashboardNav({
@@ -76,6 +78,15 @@ export function DashboardNav({
         {isAdmin && (
           <>
             <div className="my-2 border-t border-border" />
+            <Link href="/dashboard/equipe">
+              <Button
+                variant={pathname === "/dashboard/equipe" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+              >
+                <UserPlus className="h-4 w-4" />
+                Equipe
+              </Button>
+            </Link>
             <Link href="/dashboard/configuracoes">
               <Button
                 variant={pathname === "/dashboard/configuracoes" ? "secondary" : "ghost"}

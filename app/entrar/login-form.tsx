@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
-export function LoginForm() {
+export function LoginForm({ redirectTo }: { redirectTo?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +29,8 @@ export function LoginForm() {
       return;
     }
     router.refresh();
-    router.push("/dashboard");
+    const path = redirectTo && redirectTo.startsWith("/") ? redirectTo : "/dashboard";
+    router.push(path);
   }
 
   return (

@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { SignUpForm } from "./signup-form";
 
-export default function CriarContaPage() {
+export default async function CriarContaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirect?: string }>;
+}) {
+  const params = await searchParams;
+  const redirect = typeof params.redirect === "string" ? params.redirect : undefined;
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-border">
@@ -21,10 +28,10 @@ export default function CriarContaPage() {
               Comece a usar o FlowMedi na sua clínica
             </p>
           </div>
-          <SignUpForm />
+          <SignUpForm redirectTo={redirect} />
           <p className="text-center text-sm text-muted-foreground">
             Já tem conta?{" "}
-            <Link href="/entrar" className="text-primary hover:underline">
+            <Link href={redirect ? `/entrar?redirect=${encodeURIComponent(redirect)}` : "/entrar"} className="text-primary hover:underline">
               Entrar
             </Link>
           </p>

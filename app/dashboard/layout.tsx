@@ -18,9 +18,16 @@ export default async function DashboardLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, role, clinic_id")
+    .select("id, full_name, role, clinic_id, active")
     .eq("id", user.id)
     .single();
+
+  if (!profile) {
+    redirect("/dashboard/onboarding");
+  }
+  if (profile.active === false) {
+    redirect("/acesso-removido");
+  }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">

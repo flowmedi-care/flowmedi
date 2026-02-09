@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { LoginForm } from "./login-form";
 
-export default function EntrarPage() {
+export default async function EntrarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirect?: string }>;
+}) {
+  const params = await searchParams;
+  const redirect = typeof params.redirect === "string" ? params.redirect : undefined;
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-border">
@@ -19,10 +26,10 @@ export default function EntrarPage() {
               Acesse o dashboard da sua clínica
             </p>
           </div>
-          <LoginForm />
+          <LoginForm redirectTo={redirect} />
           <p className="text-center text-sm text-muted-foreground">
             Não tem conta?{" "}
-            <Link href="/criar-conta" className="text-primary hover:underline">
+            <Link href={redirect ? `/criar-conta?redirect=${encodeURIComponent(redirect)}` : "/criar-conta"} className="text-primary hover:underline">
               Criar conta
             </Link>
           </p>

@@ -7,13 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
-export function SignUpForm() {
+export function SignUpForm({ redirectTo }: { redirectTo?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const finalRedirect = redirectTo && redirectTo.startsWith("/") ? `${origin}${redirectTo}` : `${origin}/dashboard`;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,7 +28,7 @@ export function SignUpForm() {
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: finalRedirect,
       },
     });
     setLoading(false);
@@ -34,7 +37,7 @@ export function SignUpForm() {
       return;
     }
     router.refresh();
-    router.push("/dashboard");
+    router.push(redirectTo && redirectTo.startsWith("/") ? redirectTo : "/dashboard");
   }
 
   return (
