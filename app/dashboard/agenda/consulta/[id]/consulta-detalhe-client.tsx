@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { updateAppointment, deleteAppointment } from "../../actions";
 import { Copy, Check, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import type { FormFieldDefinition } from "@/lib/form-types";
@@ -55,6 +56,7 @@ export function ConsultaDetalheClient({
   const [updating, setUpdating] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [expandedFormId, setExpandedFormId] = useState<string | null>(null);
+  const [showExcluirConfirm, setShowExcluirConfirm] = useState(false);
 
   const origin = typeof window !== "undefined" ? window.location.origin : baseUrl || "";
   const linkBase = origin ? `${origin}/f/` : "/f/";
@@ -67,11 +69,17 @@ export function ConsultaDetalheClient({
   }
 
   async function handleExcluir() {
-    if (!confirm("Tem certeza que deseja excluir este agendamento?")) return;
+    setShowExcluirConfirm(true);
+  }
+
+  async function confirmExcluir() {
     setUpdating(true);
     const res = await deleteAppointment(appointmentId);
     setUpdating(false);
-    if (!res.error) router.push("/dashboard/agenda");
+    if (!res.error) {
+      setShowExcluirConfirm(false);
+      router.push("/dashboard/agenda");
+    }
   }
 
   function copyLink(token: string) {
@@ -211,6 +219,17 @@ export function ConsultaDetalheClient({
           </Button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={showExcluirConfirm}
+        title="Excluir agendamento"
+        message="Tem certeza que deseja excluir este agendamento?"
+        confirmLabel="Excluir"
+        variant="destructive"
+        loading={updating}
+        onConfirm={confirmExcluir}
+        onCancel={() => setShowExcluirConfirm(false)}
+      />
     </div>
   );
 }

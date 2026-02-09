@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPatient, updatePatient, deletePatient, type PatientInsert, type PatientUpdate } from "./actions";
 import { Search, UserPlus, Pencil, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ export function PacientesClient({
   const [isNew, setIsNew] = useState(false);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [patientToExcluir, setPatientToExcluir] = useState<Patient | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<PatientInsert & { id?: string }>({
     full_name: "",
@@ -82,15 +84,21 @@ export function PacientesClient({
     setError(null);
   }
 
-  async function handleDeletePatient(p: Patient) {
-    if (!confirm("Tem certeza que deseja excluir o cadastro deste paciente?")) return;
-    setDeletingId(p.id);
-    const res = await deletePatient(p.id);
+  function openExcluirConfirm(p: Patient) {
+    setPatientToExcluir(p);
+  }
+
+  async function handleConfirmExcluirPatient() {
+    if (!patientToExcluir) return;
+    setDeletingId(patientToExcluir.id);
+    const res = await deletePatient(patientToExcluir.id);
     setDeletingId(null);
     if (!res.error) {
+      setPatientToExcluir(null);
       router.refresh();
     } else {
       setError(res.error);
+      setPatientToExcluir(null);
     }
   }
 
@@ -313,7 +321,7 @@ export function PacientesClient({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeletePatient(p)}
+                      onClick={() => openExcluirConfirm(p)}
                       disabled={deletingId === p.id}
                       title="Excluir cadastro"
                       className="text-destructive hover:text-destructive"
@@ -327,6 +335,17 @@ export function PacientesClient({
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={!!patientToExcluir}
+        title="Excluir cadastro"
+        message="Tem certeza que deseja excluir o cadastro deste paciente?"
+        confirmLabel="Excluir"
+        variant="destructive"
+        loading={deletingId !== null}
+        onConfirm={handleConfirmExcluirPatient}
+        onCancel={() => setPatientToExcluir(null)}
+      />
     </div>
   );
 }

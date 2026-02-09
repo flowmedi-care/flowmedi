@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FileText, Pencil, Send, Trash2 } from "lucide-react";
 import { EncaminharModal } from "./encaminhar-modal";
 import { deleteFormTemplate } from "./actions";
@@ -30,13 +31,21 @@ export function FormulariosListClient({
     name: string;
   } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmExcluir, setConfirmExcluir] = useState<{ id: string; name: string } | null>(null);
 
-  async function handleDeleteTemplate(id: string, name: string) {
-    if (!confirm(`Tem certeza que deseja excluir o formulário "${name}"?`)) return;
-    setDeletingId(id);
-    const res = await deleteFormTemplate(id);
+  function openExcluirConfirm(id: string, name: string) {
+    setConfirmExcluir({ id, name });
+  }
+
+  async function handleConfirmExcluirTemplate() {
+    if (!confirmExcluir) return;
+    setDeletingId(confirmExcluir.id);
+    const res = await deleteFormTemplate(confirmExcluir.id);
     setDeletingId(null);
-    if (!res.error) router.refresh();
+    if (!res.error) {
+      setConfirmExcluir(null);
+      router.refresh();
+    }
   }
 
   return (
@@ -89,7 +98,7 @@ export function FormulariosListClient({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeleteTemplate(t.id, t.name)}
+                      onClick={() => openExcluirConfirm(t.id, t.name)}
                       disabled={deletingId === t.id}
                       title="Excluir formulário"
                       className="text-destructive hover:text-destructive"
@@ -112,6 +121,21 @@ export function FormulariosListClient({
           onClose={() => setEncaminharTemplate(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!confirmExcluir}
+        title="Excluir formulário"
+        message={
+          confirmExcluir
+            ? `Tem certeza que deseja excluir o formulário "${confirmExcluir.name}"?`
+            : ""
+        }
+        confirmLabel="Excluir"
+        variant="destructive"
+        loading={deletingId !== null}
+        onConfirm={handleConfirmExcluirTemplate}
+        onCancel={() => setConfirmExcluir(null)}
+      />
     </>
   );
 }

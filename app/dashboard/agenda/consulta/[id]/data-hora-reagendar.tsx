@@ -54,9 +54,11 @@ export function DataHoraReagendar({
 
   return (
     <>
-      <p className="flex flex-wrap items-center gap-2">
-        <span className="text-muted-foreground">Data/hora:</span>{" "}
-        <span>{formatted}</span>
+      <p className="flex flex-wrap items-center justify-between gap-2">
+        <span>
+          <span className="text-muted-foreground">Data/hora:</span>{" "}
+          <span>{formatted}</span>
+        </span>
         {canEdit && (
           <Button
             type="button"
