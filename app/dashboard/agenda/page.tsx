@@ -50,7 +50,7 @@ export default async function AgendaPage() {
     .from("profiles")
     .select("id, full_name")
     .eq("clinic_id", clinicId)
-    .eq("role", "medico")
+    .in("role", ["medico", "admin"])
     .order("full_name");
 
   const { data: appointmentTypes } = await supabase

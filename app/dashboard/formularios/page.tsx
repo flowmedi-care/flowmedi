@@ -2,8 +2,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { FileText, Plus, Pencil } from "lucide-react";
+import { Plus } from "lucide-react";
+import { FormulariosListClient } from "./formularios-list-client";
 
 export default async function FormulariosPage() {
   const supabase = await createClient();
@@ -43,6 +43,17 @@ export default async function FormulariosPage() {
     };
   });
 
+  const { data: patients } = await supabase
+    .from("patients")
+    .select("id, full_name")
+    .eq("clinic_id", profile.clinic_id)
+    .order("full_name");
+
+  const patientOptions = (patients ?? []).map((p) => ({
+    id: p.id,
+    full_name: p.full_name,
+  }));
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -54,45 +65,7 @@ export default async function FormulariosPage() {
           </Button>
         </Link>
       </div>
-      <Card>
-        <CardHeader>
-          <p className="text-sm text-muted-foreground">
-            Templates de formulário. Vincule a um tipo de consulta para que
-            sejam aplicados automaticamente ao agendar.
-          </p>
-        </CardHeader>
-        <CardContent>
-          {!templates.length ? (
-            <p className="text-sm text-muted-foreground py-4">
-              Nenhum formulário. Crie um para usar na agenda.
-            </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {templates.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-center justify-between py-3 first:pt-0"
-                >
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{t.name}</span>
-                    {t.appointment_type_name && (
-                      <span className="text-sm text-muted-foreground">
-                        → {t.appointment_type_name}
-                      </span>
-                    )}
-                  </div>
-                  <Link href={`/dashboard/formularios/${t.id}/editar`}>
-                    <Button variant="ghost" size="sm">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <FormulariosListClient templates={templates} patients={patientOptions} />
     </div>
   );
 }
