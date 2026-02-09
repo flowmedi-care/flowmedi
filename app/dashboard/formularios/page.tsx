@@ -17,7 +17,7 @@ export default async function FormulariosPage() {
     .single();
   if (!profile?.clinic_id) redirect("/dashboard");
 
-  const { data: templates } = await supabase
+  const { data: templatesRaw } = await supabase
     .from("form_templates")
     .select(`
       id,
@@ -27,6 +27,21 @@ export default async function FormulariosPage() {
     `)
     .eq("clinic_id", profile.clinic_id)
     .order("name");
+
+  type TemplateRow = {
+    id: string;
+    name: string;
+    appointment_type_name: string | null;
+  };
+  const templates: TemplateRow[] = (templatesRaw ?? []).map((t: Record<string, unknown>) => {
+    const at = Array.isArray(t.appointment_types) ? t.appointment_types[0] : t.appointment_types;
+    const typeName = (at as { name?: string } | null)?.name ?? null;
+    return {
+      id: String(t.id),
+      name: String(t.name),
+      appointment_type_name: typeName,
+    };
+  });
 
   return (
     <div className="space-y-4">
@@ -47,13 +62,13 @@ export default async function FormulariosPage() {
           </p>
         </CardHeader>
         <CardContent>
-          {!templates?.length ? (
+          {!templates.length ? (
             <p className="text-sm text-muted-foreground py-4">
               Nenhum formulário. Crie um para usar na agenda.
             </p>
           ) : (
             <ul className="divide-y divide-border">
-              {templates.map((t: { id: string; name: string; appointment_type_id: string | null; appointment_types: { name: string } | null }) => (
+              {templates.map((t) => (
                 <li
                   key={t.id}
                   className="flex items-center justify-between py-3 first:pt-0"
@@ -61,9 +76,9 @@ export default async function FormulariosPage() {
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">{t.name}</span>
-                    {t.appointment_types && (
+                    {t.appointment_type_name && (
                       <span className="text-sm text-muted-foreground">
-                        → {t.appointment_types.name}
+                        → {t.appointment_type_name}
                       </span>
                     )}
                   </div>
