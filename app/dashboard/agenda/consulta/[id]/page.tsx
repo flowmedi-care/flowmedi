@@ -64,15 +64,25 @@ export default async function ConsultaDetalhePage({
     ? appointment.appointment_type[0]
     : appointment.appointment_type;
 
-  const formInstances = (instances ?? []).map((fi: Record<string, unknown>) => {
+  type FormInstanceItem = {
+    id: string;
+    status: string;
+    link_token: string | null;
+    responses: Record<string, unknown>;
+    template_name: string;
+    definition: (import("@/lib/form-types").FormFieldDefinition & { id: string })[];
+  };
+
+  const formInstances: FormInstanceItem[] = (instances ?? []).map((fi: Record<string, unknown>) => {
     const ft = Array.isArray(fi.form_template) ? fi.form_template[0] : fi.form_template;
+    const ftObj = ft as { name?: string; definition?: unknown } | null;
     return {
-      id: fi.id,
-      status: fi.status,
-      link_token: fi.link_token,
-      responses: fi.responses ?? {},
-      template_name: (ft as { name?: string })?.name ?? "",
-      definition: (ft as { definition?: unknown })?.definition ?? [],
+      id: String(fi.id ?? ""),
+      status: String(fi.status ?? ""),
+      link_token: fi.link_token != null ? String(fi.link_token) : null,
+      responses: (fi.responses as Record<string, unknown>) ?? {},
+      template_name: ftObj?.name ?? "",
+      definition: (Array.isArray(ftObj?.definition) ? ftObj.definition : []) as FormInstanceItem["definition"],
     };
   });
 
@@ -162,9 +172,8 @@ export default async function ConsultaDetalhePage({
         appointmentId={id}
         appointmentStatus={appointment.status}
         formInstances={formInstances}
-        baseUrl={baseUrl}
-        canEdit={profile.role === "admin" || profile.role === "secretaria"}
         baseUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
+        canEdit={profile.role === "admin" || profile.role === "secretaria"}
       />
     </div>
   );
