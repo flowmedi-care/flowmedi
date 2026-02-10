@@ -165,7 +165,8 @@ export function AgendaClient({
     start <= end ? [start, end] : [end, start];
   const calendarDate = rangeStart;
 
-  // Filtrar appointments pelo período selecionado
+  // Filtrar appointments pelo período apenas para visualização
+  // Mas manter todos os appointments disponíveis para drag and drop
   const appointmentsInPeriod = useMemo(() => {
     const ymdStart = toYMD(rangeStart);
     const ymdEnd = toYMD(rangeEnd);
@@ -174,6 +175,9 @@ export function AgendaClient({
       return d >= ymdStart && d <= ymdEnd;
     });
   }, [appointments, rangeStart, rangeEnd]);
+
+  // Para drag and drop, usar todos os appointments (não apenas do período)
+  const allAppointmentsForDrag = appointments;
 
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -199,7 +203,8 @@ export function AgendaClient({
       targetDate = targetId;
     } else {
       // É outro appointment - pegar o dayId do data
-      const targetAppointment = appointmentsInPeriod.find((a) => a.id === targetId);
+      // Buscar em todos os appointments
+      const targetAppointment = allAppointmentsForDrag.find((a) => a.id === targetId);
       if (targetAppointment) {
         targetDate = targetAppointment.scheduled_at.slice(0, 10);
       }
@@ -221,7 +226,10 @@ export function AgendaClient({
       });
 
       if (!res.error) {
+        // Usar router.refresh() ao invés de reload para manter estado
         window.location.reload();
+      } else {
+        alert(`Erro ao reagendar: ${res.error}`);
       }
     }
     setDraggedAppointment(null);
@@ -229,7 +237,8 @@ export function AgendaClient({
 
   function handleDragStart(event: DragStartEvent) {
     const appointmentId = event.active.id as string;
-    const appointment = appointmentsInPeriod.find((a) => a.id === appointmentId);
+    // Buscar em todos os appointments, não apenas no período
+    const appointment = allAppointmentsForDrag.find((a) => a.id === appointmentId);
     setDraggedAppointment(appointment || null);
   }
 
@@ -451,34 +460,34 @@ export function AgendaClient({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {viewMode === "timeline" && (
-          <TimelineListView
-            appointments={appointmentsInPeriod}
-            dateInicio={rangeStart}
-            dateFim={rangeEnd}
-            today={today}
-            granularity={timelineGranularity}
-          />
-        )}
-        {viewMode === "calendar" && calendarGranularity === "week" && (
-          <CalendarWeekView
-            appointments={appointmentsInPeriod}
-            currentDate={calendarDate}
-            today={today}
-          />
-        )}
-        {viewMode === "calendar" && calendarGranularity === "month" && (
-          <CalendarMonthView
-            appointments={appointmentsInPeriod}
-            currentDate={calendarDate}
-            today={today}
-            onSelectDay={(day) => {
-              setDateInicio(toYMD(day));
-              setDateFim(toYMD(day));
-              setViewMode("timeline");
-            }}
-          />
-        )}
+      {viewMode === "timeline" && (
+        <TimelineListView
+          appointments={allAppointmentsForDrag}
+          dateInicio={rangeStart}
+          dateFim={rangeEnd}
+          today={today}
+          granularity={timelineGranularity}
+        />
+      )}
+      {viewMode === "calendar" && calendarGranularity === "week" && (
+        <CalendarWeekView
+          appointments={allAppointmentsForDrag}
+          currentDate={calendarDate}
+          today={today}
+        />
+      )}
+      {viewMode === "calendar" && calendarGranularity === "month" && (
+        <CalendarMonthView
+          appointments={allAppointmentsForDrag}
+          currentDate={calendarDate}
+          today={today}
+          onSelectDay={(day) => {
+            setDateInicio(toYMD(day));
+            setDateFim(toYMD(day));
+            setViewMode("timeline");
+          }}
+        />
+      )}
         <DragOverlay>
           {draggedAppointment ? (
             <div className="opacity-50">
@@ -505,6 +514,8 @@ function TimelineListView({
   today: Date;
   granularity: TimelineGranularity;
 }) {
+  // Usar todos os appointments para construir byDay (não apenas do período)
+  // Isso permite drag and drop mesmo quando appointments estão fora do período visualizado
   const byDay = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
     appointments.forEach((a) => {
@@ -539,8 +550,8 @@ function TimelineListView({
   // Dia: só 1 dia (usa dateInicio)
   if (granularity === "day") {
     const d = dateInicio;
-    const list = byDay[toYMD(d)] ?? [];
     const dayId = toYMD(d);
+    const list = byDay[dayId] ?? [];
     return (
       <Card>
         <CardHeader>
@@ -757,6 +768,7 @@ function CalendarWeekView({
   today: Date;
 }) {
   const weekDays = useMemo(() => getWeekDates(currentDate), [currentDate]);
+  // Usar todos os appointments, não apenas do período filtrado
   const byDayHour = useMemo(() => {
     const map: Record<string, Record<number, AppointmentRow[]>> = {};
     weekDays.forEach((d) => {
@@ -877,6 +889,7 @@ function CalendarMonthView({
   onSelectDay: (d: Date) => void;
 }) {
   const grid = getMonthCalendarGrid(currentDate);
+  // Usar todos os appointments, não apenas do período filtrado
   const byDay = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
     appointments.forEach((a) => {
