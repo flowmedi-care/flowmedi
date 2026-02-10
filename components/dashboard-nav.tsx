@@ -54,13 +54,13 @@ export function DashboardNav({
   ];
 
   return (
-    <aside className="w-full md:w-56 border-b md:border-b-0 md:border-r border-border bg-card flex flex-col">
-      <div className="p-4 border-b border-border">
+    <aside className="w-full md:w-56 h-screen md:h-full border-b md:border-b-0 md:border-r border-border bg-card flex flex-col overflow-hidden">
+      <div className="p-4 border-b border-border flex-shrink-0">
         <Link href="/dashboard" className="font-semibold text-foreground">
           FlowMedi
         </Link>
       </div>
-      <nav className="flex-1 p-2 space-y-1">
+      <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           const show = !item.roles || item.roles.includes(profile?.role ?? "");
           if (!show) return null;
@@ -132,7 +132,7 @@ export function DashboardNav({
           </>
         )}
       </nav>
-      <div className="p-2 border-t border-border">
+      <div className="p-2 border-t border-border flex-shrink-0">
         <p className="text-xs text-muted-foreground px-2 truncate" title={user.email}>
           {user.email}
         </p>

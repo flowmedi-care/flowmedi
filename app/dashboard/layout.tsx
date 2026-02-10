@@ -39,9 +39,9 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="h-screen flex flex-col md:flex-row overflow-hidden">
       <DashboardNav user={user} profile={profileSafe} />
-      <main className="flex-1 p-4 md:p-6 bg-muted/30">{children}</main>
+      <main className="flex-1 p-4 md:p-6 bg-muted/30 overflow-y-auto">{children}</main>
     </div>
   );
 }

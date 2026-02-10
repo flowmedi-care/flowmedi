@@ -108,6 +108,12 @@ export function PacientesClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPatient]);
 
+  // Debug: verificar quando search muda
+  useEffect(() => {
+    console.log("🔍 Estado search mudou:", search);
+    console.log("📋 Total de pacientes:", patients.length);
+  }, [search, patients]);
+
   async function loadPatientExams(patientId: string) {
     setLoadingExams(true);
     const result = await getPatientExams(patientId);
@@ -136,16 +142,21 @@ export function PacientesClient({
 
   // Filtrar pacientes em tempo real conforme digita
   const filtered = useMemo(() => {
-    if (!search.trim()) return patients;
+    console.log("🔍 Filtrando pacientes - search:", search, "total pacientes:", patients.length);
+    if (!search.trim()) {
+      console.log("✅ Sem busca - retornando todos os pacientes");
+      return patients;
+    }
     const searchLower = search.toLowerCase().trim();
     const searchNumbers = search.replace(/\D/g, "");
-    return patients.filter((p) => {
-      return (
-        p.full_name.toLowerCase().includes(searchLower) ||
-        (p.email && p.email.toLowerCase().includes(searchLower)) ||
-        (p.phone && p.phone.replace(/\D/g, "").includes(searchNumbers))
-      );
+    const result = patients.filter((p) => {
+      const matchesName = p.full_name.toLowerCase().includes(searchLower);
+      const matchesEmail = p.email && p.email.toLowerCase().includes(searchLower);
+      const matchesPhone = p.phone && p.phone.replace(/\D/g, "").includes(searchNumbers);
+      return matchesName || matchesEmail || matchesPhone;
     });
+    console.log("📊 Resultado da busca:", result.length, "pacientes encontrados");
+    return result;
   }, [patients, search]);
 
   const filteredNonRegistered = nonRegisteredList.filter(
@@ -324,7 +335,11 @@ export function PacientesClient({
           <Input
             placeholder="Buscar por nome, e-mail ou telefone..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              console.log("✏️ Campo de busca alterado:", newValue);
+              setSearch(newValue);
+            }}
             className="pl-9"
           />
         </div>
