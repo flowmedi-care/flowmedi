@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { FormularioPreenchimento } from "./formulario-preenchimento";
+import { LogoImage } from "@/components/logo-image";
 
 export default async function FormularioPublicoPage({
   params,
@@ -92,14 +93,10 @@ export default async function FormularioPublicoPage({
         <div className="max-w-xl mx-auto space-y-4">
           {clinicLogoUrl && (
             <div className="flex justify-center mb-4">
-              <img
+              <LogoImage
                 src={clinicLogoUrl}
                 alt="Logo da clínica"
                 className="max-h-24 max-w-full object-contain"
-                onError={(e) => {
-                  // Esconde a imagem se não carregar
-                  e.currentTarget.style.display = 'none';
-                }}
               />
             </div>
           )}

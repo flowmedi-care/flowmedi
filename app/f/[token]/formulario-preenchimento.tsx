@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { FormFieldDefinition, FormFieldType } from "@/lib/form-types";
 import { Check } from "lucide-react";
+import { LogoImage } from "@/components/logo-image";
 
 type FieldDef = FormFieldDefinition & { id: string };
 
@@ -393,14 +394,10 @@ export function FormularioPreenchimento({
         </form>
         {doctorLogoUrl && (
           <div className="flex justify-center mt-6 pt-6 border-t border-border">
-            <img
+            <LogoImage
               src={doctorLogoUrl}
               alt="Logo do médico"
               className="max-h-20 max-w-full object-contain"
-              onError={(e) => {
-                // Esconde a imagem se não carregar
-                e.currentTarget.style.display = 'none';
-              }}
             />
           </div>
         )}
