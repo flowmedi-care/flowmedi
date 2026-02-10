@@ -258,6 +258,7 @@ export function FormularioPreenchimento({
   token,
   readOnly,
   doctorLogoUrl,
+  doctorLogoScale,
   patientData,
 }: {
   templateName: string;
@@ -267,6 +268,7 @@ export function FormularioPreenchimento({
   token: string;
   readOnly?: boolean;
   doctorLogoUrl?: string | null;
+  doctorLogoScale?: number;
   patientData?: PatientData | null;
 }) {
   // Garantir que patientData seja sempre um objeto válido
@@ -398,6 +400,7 @@ export function FormularioPreenchimento({
               src={doctorLogoUrl}
               alt="Logo do médico"
               className="max-h-20 max-w-full object-contain"
+              scale={doctorLogoScale ?? 100}
             />
           </div>
         )}

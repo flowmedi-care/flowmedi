@@ -12,7 +12,9 @@ DECLARE
   v_row record;
   v_result json;
   v_clinic_logo text;
+  v_clinic_scale int;
   v_doctor_logo text;
+  v_doctor_scale int;
   v_patient_name text;
   v_patient_email text;
   v_patient_phone text;
@@ -35,13 +37,17 @@ BEGIN
     RETURN json_build_object('found', false);
   END IF;
   
-  -- Buscar logo da clínica
-  SELECT logo_url INTO v_clinic_logo
+  -- Buscar logo e escala da clínica (inicializar como NULL)
+  v_clinic_logo := NULL;
+  v_clinic_scale := 100;
+  SELECT logo_url, COALESCE(logo_scale, 100) INTO v_clinic_logo, v_clinic_scale
   FROM clinics
   WHERE id = v_row.clinic_id;
   
-  -- Buscar logo do médico
-  SELECT logo_url INTO v_doctor_logo
+  -- Buscar logo e escala do médico (inicializar como NULL)
+  v_doctor_logo := NULL;
+  v_doctor_scale := 100;
+  SELECT logo_url, COALESCE(logo_scale, 100) INTO v_doctor_logo, v_doctor_scale
   FROM profiles
   WHERE id = v_row.doctor_id;
   
@@ -77,7 +83,9 @@ BEGIN
     'template_name', COALESCE(v_row.template_name, 'Formulário'),
     'definition', COALESCE(v_row.definition, '[]'::jsonb),
     'clinic_logo_url', v_clinic_logo,
+    'clinic_logo_scale', COALESCE(v_clinic_scale, 100),
     'doctor_logo_url', v_doctor_logo,
+    'doctor_logo_scale', COALESCE(v_doctor_scale, 100),
     'patient_name', v_patient_name,
     'patient_email', v_patient_email,
     'patient_phone', v_patient_phone,

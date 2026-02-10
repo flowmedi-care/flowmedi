@@ -9,7 +9,7 @@ export default async function PerfilPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, role, logo_url")
+    .select("id, full_name, role, logo_url, logo_scale")
     .eq("id", user.id)
     .single();
 
@@ -23,7 +23,10 @@ export default async function PerfilPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold text-foreground">Meu Perfil</h1>
-      <PerfilClient doctorLogoUrl={profile.logo_url ?? null} />
+      <PerfilClient 
+        doctorLogoUrl={profile.logo_url ?? null} 
+        doctorLogoScale={profile.logo_scale ?? 100}
+      />
     </div>
   );
 }

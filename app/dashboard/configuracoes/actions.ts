@@ -163,6 +163,57 @@ export async function deleteDoctorLogo() {
   return { error: null };
 }
 
+export async function updateClinicLogoScale(scale: number) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") {
+    return { error: "Apenas administradores podem ajustar a escala da logo da clínica." };
+  }
+
+  // Validar escala
+  if (scale < 50 || scale > 200) {
+    return { error: "A escala deve estar entre 50% e 200%." };
+  }
+
+  const { error } = await supabase
+    .from("clinics")
+    .update({ logo_scale: scale })
+    .eq("id", profile.clinic_id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/configuracoes");
+  return { error: null };
+}
+
+export async function updateDoctorLogoScale(scale: number) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  // Validar escala
+  if (scale < 50 || scale > 200) {
+    return { error: "A escala deve estar entre 50% e 200%." };
+  }
+
+  // Usa função RPC para contornar problemas de RLS
+  const { error } = await supabase.rpc("update_profile_logo_scale", {
+    p_user_id: user.id,
+    p_logo_scale: scale,
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/perfil");
+  return { error: null };
+}
+
 export async function createAppointmentType(name: string, duration_minutes: number) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

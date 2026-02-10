@@ -84,9 +84,15 @@ export default async function FormularioPublicoPage({
     const clinicLogoUrl = (data.clinic_logo_url && typeof data.clinic_logo_url === 'string') 
       ? data.clinic_logo_url 
       : null;
+    const clinicLogoScale = (typeof data.clinic_logo_scale === 'number' && data.clinic_logo_scale >= 50 && data.clinic_logo_scale <= 200)
+      ? data.clinic_logo_scale
+      : 100;
     const doctorLogoUrl = (data.doctor_logo_url && typeof data.doctor_logo_url === 'string') 
       ? data.doctor_logo_url 
       : null;
+    const doctorLogoScale = (typeof data.doctor_logo_scale === 'number' && data.doctor_logo_scale >= 50 && data.doctor_logo_scale <= 200)
+      ? data.doctor_logo_scale
+      : 100;
 
     return (
       <div className="min-h-screen bg-muted/30 py-8 px-4">
@@ -97,6 +103,7 @@ export default async function FormularioPublicoPage({
                 src={clinicLogoUrl}
                 alt="Logo da clínica"
                 className="max-h-24 max-w-full object-contain"
+                scale={clinicLogoScale}
               />
             </div>
           )}
@@ -108,6 +115,7 @@ export default async function FormularioPublicoPage({
             token={token}
             readOnly={status === "respondido"}
             doctorLogoUrl={doctorLogoUrl}
+            doctorLogoScale={doctorLogoScale}
             patientData={patientData}
           />
         </div>

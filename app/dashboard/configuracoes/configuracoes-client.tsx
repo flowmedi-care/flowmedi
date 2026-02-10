@@ -23,9 +23,11 @@ export type AppointmentTypeRow = {
 export function ConfiguracoesClient({
   appointmentTypes,
   clinicLogoUrl,
+  clinicLogoScale,
 }: {
   appointmentTypes: AppointmentTypeRow[];
   clinicLogoUrl: string | null;
+  clinicLogoScale: number;
 }) {
   const [types, setTypes] = useState<AppointmentTypeRow[]>(appointmentTypes);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -113,6 +115,7 @@ export function ConfiguracoesClient({
         <CardContent>
           <LogoUpload
             currentLogoUrl={clinicLogoUrl}
+            currentScale={clinicLogoScale}
             type="clinic"
           />
         </CardContent>

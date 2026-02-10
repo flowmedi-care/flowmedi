@@ -4,18 +4,22 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { uploadClinicLogo, uploadDoctorLogo, deleteClinicLogo, deleteDoctorLogo } from "./actions";
+import { uploadClinicLogo, uploadDoctorLogo, deleteClinicLogo, deleteDoctorLogo, updateClinicLogoScale, updateDoctorLogoScale } from "./actions";
 import { Upload, X, Loader2 } from "lucide-react";
 
 export function LogoUpload({
   currentLogoUrl,
+  currentScale,
   type,
 }: {
   currentLogoUrl: string | null;
+  currentScale: number;
   type: "clinic" | "doctor";
 }) {
   const [logoUrl, setLogoUrl] = useState<string | null>(currentLogoUrl);
+  const [scale, setScale] = useState<number>(currentScale);
   const [uploading, setUploading] = useState(false);
+  const [savingScale, setSavingScale] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -85,6 +89,28 @@ export function LogoUpload({
     }
   }
 
+  async function handleScaleChange(newScale: number) {
+    setScale(newScale);
+    setSavingScale(true);
+    setError(null);
+    
+    try {
+      const res = type === "clinic"
+        ? await updateClinicLogoScale(newScale)
+        : await updateDoctorLogoScale(newScale);
+
+      if ("error" in res && res.error) {
+        setError(res.error);
+        setScale(currentScale); // Reverter se der erro
+      }
+    } catch (err) {
+      setError("Erro ao salvar escala.");
+      setScale(currentScale);
+    } finally {
+      setSavingScale(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {error && (
@@ -94,25 +120,53 @@ export function LogoUpload({
       )}
       
       {logoUrl && (
-        <div className="relative inline-block">
-          <div className="w-32 h-32 border border-border rounded-lg overflow-hidden bg-muted flex items-center justify-center">
-            <img
-              src={logoUrl}
-              alt="Logo"
-              className="max-w-full max-h-full object-contain"
-            />
+        <div className="space-y-4">
+          <div className="relative inline-block">
+            <div className="w-32 h-32 border border-border rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+              <img
+                src={logoUrl}
+                alt="Logo"
+                className="max-w-full max-h-full object-contain"
+                style={{ transform: `scale(${scale / 100})` }}
+              />
+            </div>
+            {!uploading && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="absolute -top-2 -right-2"
+                onClick={handleDelete}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-          {!uploading && (
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              className="absolute -top-2 -right-2"
-              onClick={handleDelete}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
+          
+          <div className="space-y-2 max-w-xs">
+            <Label htmlFor={`logo-scale-${type}`}>
+              Escala da logo: {scale}%
+            </Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                id={`logo-scale-${type}`}
+                min="50"
+                max="200"
+                step="5"
+                value={scale}
+                onChange={(e) => handleScaleChange(parseInt(e.target.value, 10))}
+                disabled={savingScale}
+                className="flex-1"
+              />
+              <span className="text-sm text-muted-foreground w-12 text-right">
+                {scale}%
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Ajuste o tamanho da logo (50% a 200%). Padrão: 100%.
+            </p>
+          </div>
         </div>
       )}
 

@@ -5,8 +5,10 @@ import { LogoUpload } from "../configuracoes/logo-upload";
 
 export function PerfilClient({
   doctorLogoUrl,
+  doctorLogoScale,
 }: {
   doctorLogoUrl: string | null;
+  doctorLogoScale: number;
 }) {
   return (
     <div className="space-y-6">
@@ -20,6 +22,7 @@ export function PerfilClient({
         <CardContent>
           <LogoUpload
             currentLogoUrl={doctorLogoUrl}
+            currentScale={doctorLogoScale}
             type="doctor"
           />
         </CardContent>
