@@ -89,12 +89,15 @@ export default async function ConsultaDetalhePage({
     };
   });
 
+  // Redirecionar médicos para o dashboard, outros para a agenda
+  const backUrl = profile.role === "medico" ? "/dashboard" : "/dashboard/agenda";
+
   return (
     <div className="space-y-6">
-      <Link href="/dashboard/agenda">
+      <Link href={backUrl}>
         <Button variant="ghost" size="sm">
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar à agenda
+          {profile.role === "medico" ? "Voltar ao dashboard" : "Voltar à agenda"}
         </Button>
       </Link>
 

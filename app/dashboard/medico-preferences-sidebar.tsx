@@ -71,7 +71,7 @@ export function MedicoPreferencesSidebar() {
         variant="outline"
         size="sm"
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 right-4 z-50 shadow-lg"
+        className="fixed bottom-4 right-4 z-50 shadow-lg bg-background hover:bg-muted"
       >
         <Settings className="h-4 w-4 mr-2" />
         Preferências

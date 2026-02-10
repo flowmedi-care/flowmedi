@@ -413,55 +413,6 @@ export function MedicoDashboardClient({
         </Card>
       )}
 
-      {/* Alertas - Formulários Pendentes */}
-      {pendingForms.length > 0 && (
-        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900">
-          <CardHeader className="flex flex-row items-center gap-2 pb-3">
-            <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-            <span className="font-semibold text-orange-900 dark:text-orange-100">
-              Formulários Pendentes
-            </span>
-            <Badge
-              variant="outline"
-              className="ml-auto bg-orange-100 dark:bg-orange-900/50"
-            >
-              {pendingForms.length}
-            </Badge>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-orange-800 dark:text-orange-200 mb-4">
-              Os seguintes pacientes ainda não preencheram os formulários:
-            </p>
-            <div className="space-y-2">
-              {pendingForms.map((form) => (
-                <Link
-                  key={form.appointment_id}
-                  href={`/dashboard/agenda/consulta/${form.appointment_id}`}
-                  className="block p-3 rounded-md bg-white dark:bg-gray-900 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm text-foreground">
-                        {form.patient_name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDateTime(form.scheduled_at)}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className="bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200"
-                    >
-                      {form.status === "pendente" ? "Pendente" : "Incompleto"}
-                    </Badge>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Consultas do Dia */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -621,6 +572,55 @@ export function MedicoDashboardClient({
           </div>
         )}
       </div>
+
+      {/* Alertas - Formulários Pendentes */}
+      {pendingForms.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900">
+          <CardHeader className="flex flex-row items-center gap-2 pb-3">
+            <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            <span className="font-semibold text-orange-900 dark:text-orange-100">
+              Formulários Pendentes
+            </span>
+            <Badge
+              variant="outline"
+              className="ml-auto bg-orange-100 dark:bg-orange-900/50"
+            >
+              {pendingForms.length}
+            </Badge>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-orange-800 dark:text-orange-200 mb-4">
+              Os seguintes pacientes ainda não preencheram os formulários:
+            </p>
+            <div className="space-y-2">
+              {pendingForms.map((form) => (
+                <Link
+                  key={form.appointment_id}
+                  href={`/dashboard/agenda/consulta/${form.appointment_id}`}
+                  className="block p-3 rounded-md bg-white dark:bg-gray-900 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm text-foreground">
+                        {form.patient_name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDateTime(form.scheduled_at)}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200"
+                    >
+                      {form.status === "pendente" ? "Pendente" : "Incompleto"}
+                    </Badge>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Calendário Semanal */}
       <WeeklyCalendar appointments={weeklyAppointments} loading={loadingWeekly} />
