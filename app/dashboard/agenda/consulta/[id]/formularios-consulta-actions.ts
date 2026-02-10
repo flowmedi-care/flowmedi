@@ -95,6 +95,53 @@ export async function linkFormToAppointment(
   return { error: null };
 }
 
+export async function unlinkFormFromAppointment(
+  formInstanceId: string
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || !["admin", "secretaria", "medico"].includes(profile.role)) {
+    return { error: "Você não tem permissão para desvincular formulários." };
+  }
+
+  // Verificar se a instância pertence à mesma clínica
+  const { data: instance } = await supabase
+    .from("form_instances")
+    .select("appointment_id, form_template:form_templates!inner(clinic_id)")
+    .eq("id", formInstanceId)
+    .single();
+
+  if (!instance) {
+    return { error: "Formulário não encontrado." };
+  }
+
+  const template = Array.isArray(instance.form_template)
+    ? instance.form_template[0]
+    : instance.form_template;
+
+  if (template.clinic_id !== profile.clinic_id) {
+    return { error: "Você não tem permissão para desvincular este formulário." };
+  }
+
+  const { error: deleteError } = await supabase
+    .from("form_instances")
+    .delete()
+    .eq("id", formInstanceId);
+
+  if (deleteError) return { error: deleteError.message };
+
+  revalidatePath(`/dashboard/agenda/consulta/${instance.appointment_id}`);
+  return { error: null };
+}
+
 export async function submitFormPresentially(
   formInstanceId: string,
   responses: Record<string, unknown>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStatusBadgeClassName } from "./agenda/status-utils";
+import {
+  getDoctorMetricsByPeriod,
+  getWeeklyAppointments,
+  type Period,
+} from "./medico-dashboard-actions";
 
 type Appointment = {
   id: string;
@@ -44,19 +50,86 @@ type PendingForm = {
 export function MedicoDashboardClient({
   appointments,
   pendingForms,
-  metrics,
+  metrics: initialMetrics,
   nextAppointment,
+  doctorId,
+  clinicId,
 }: {
   appointments: Appointment[];
   pendingForms: PendingForm[];
   metrics: {
     totalToday: number;
+    total: number;
     completed: number;
     remaining: number;
     pendingForms: number;
   };
   nextAppointment: Appointment | null;
+  doctorId: string;
+  clinicId: string;
 }) {
+  const [period, setPeriod] = useState<Period>("daily");
+  const [metrics, setMetrics] = useState(initialMetrics);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+  const [weeklyAppointments, setWeeklyAppointments] = useState<
+    Array<{
+      id: string;
+      scheduled_at: string;
+      status: string;
+      patient: { full_name: string };
+      appointment_type: { name: string } | null;
+    }>
+  >([]);
+  const [loadingWeekly, setLoadingWeekly] = useState(false);
+
+  useEffect(() => {
+    if (period !== "daily") {
+      loadMetricsByPeriod();
+    } else {
+      setMetrics({
+        total: initialMetrics.totalToday,
+        completed: initialMetrics.completed,
+        remaining: initialMetrics.remaining,
+        pendingForms: initialMetrics.pendingForms,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
+
+  useEffect(() => {
+    loadWeeklyAppointments();
+  }, []);
+
+  async function loadMetricsByPeriod() {
+    setLoadingMetrics(true);
+    const result = await getDoctorMetricsByPeriod(doctorId, clinicId, period);
+    if (result.data) {
+      setMetrics(result.data);
+    }
+    setLoadingMetrics(false);
+  }
+
+  async function loadWeeklyAppointments() {
+    setLoadingWeekly(true);
+    const result = await getWeeklyAppointments(doctorId, clinicId);
+    if (result.data) {
+      setWeeklyAppointments(result.data);
+    }
+    setLoadingWeekly(false);
+  }
+
+  function getPeriodLabel(p: Period): string {
+    switch (p) {
+      case "daily":
+        return "Hoje";
+      case "weekly":
+        return "Semana";
+      case "monthly":
+        return "Mês";
+      case "yearly":
+        return "Ano";
+    }
+  }
   function formatTime(dateString: string): string {
     return new Date(dateString).toLocaleTimeString("pt-BR", {
       hour: "2-digit",
@@ -101,8 +174,30 @@ export function MedicoDashboardClient({
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Dashboard do Médico</h1>
         <p className="text-muted-foreground text-sm">
-          Consultas e informações do dia de hoje
+          {period === "daily"
+            ? "Consultas e informações do dia de hoje"
+            : period === "weekly"
+              ? "Consultas e informações da semana atual"
+              : period === "monthly"
+                ? "Consultas e informações do mês atual"
+                : "Consultas e informações do ano atual"}
         </p>
+      </div>
+
+      {/* Filtro de Período */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">Período:</span>
+        {(["daily", "weekly", "monthly", "yearly"] as Period[]).map((p) => (
+          <Button
+            key={p}
+            variant={period === p ? "default" : "outline"}
+            size="sm"
+            onClick={() => setPeriod(p)}
+            disabled={loadingMetrics}
+          >
+            {getPeriodLabel(p)}
+          </Button>
+        ))}
       </div>
 
       {/* Métricas */}
@@ -111,13 +206,15 @@ export function MedicoDashboardClient({
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-muted-foreground">
-                Total Hoje
+                Total {getPeriodLabel(period)}
               </span>
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.totalToday}</div>
+            <div className="text-2xl font-bold">
+              {loadingMetrics ? "..." : metrics.total}
+            </div>
           </CardContent>
         </Card>
 
@@ -131,7 +228,9 @@ export function MedicoDashboardClient({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{metrics.completed}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {loadingMetrics ? "..." : metrics.completed}
+            </div>
           </CardContent>
         </Card>
 
@@ -145,7 +244,9 @@ export function MedicoDashboardClient({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.remaining}</div>
+            <div className="text-2xl font-bold">
+              {loadingMetrics ? "..." : metrics.remaining}
+            </div>
           </CardContent>
         </Card>
 
@@ -160,7 +261,7 @@ export function MedicoDashboardClient({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {metrics.pendingForms}
+              {loadingMetrics ? "..." : metrics.pendingForms}
             </div>
           </CardContent>
         </Card>
@@ -351,13 +452,15 @@ export function MedicoDashboardClient({
               </div>
             )}
 
-            {/* Consultas Passadas */}
-            {pastAppointments.length > 0 && (
+            {/* Consultas Passadas - Apenas realizadas */}
+            {pastAppointments.filter((a) => a.status === "realizada").length > 0 && (
               <div className="space-y-2 pt-4 border-t border-border">
                 <p className="text-sm font-medium text-muted-foreground">
                   Consultas Realizadas
                 </p>
-                {pastAppointments.map((appointment) => (
+                {pastAppointments
+                  .filter((a) => a.status === "realizada")
+                  .map((appointment) => (
                   <Link
                     key={appointment.id}
                     href={`/dashboard/agenda/consulta/${appointment.id}`}
@@ -400,6 +503,158 @@ export function MedicoDashboardClient({
           </div>
         )}
       </div>
+
+      {/* Calendário Semanal */}
+      <WeeklyCalendar appointments={weeklyAppointments} loading={loadingWeekly} />
     </div>
+  );
+}
+
+function WeeklyCalendar({
+  appointments,
+  loading,
+}: {
+  appointments: Array<{
+    id: string;
+    scheduled_at: string;
+    status: string;
+    patient: { full_name: string };
+    appointment_type: { name: string } | null;
+  }>;
+  loading: boolean;
+}) {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - dayOfWeek);
+  weekStart.setHours(0, 0, 0, 0);
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + i);
+    return date;
+  });
+
+  function formatTime(dateString: string): string {
+    return new Date(dateString).toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function formatDate(date: Date): string {
+    return date.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+    });
+  }
+
+  function getDayName(date: Date): string {
+    return date.toLocaleDateString("pt-BR", { weekday: "short" });
+  }
+
+  function isToday(date: Date): boolean {
+    const today = new Date();
+    return (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    );
+  }
+
+  function getAppointmentsForDay(day: Date) {
+    const dayStart = new Date(day);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(day);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    return appointments.filter((apt) => {
+      const aptDate = new Date(apt.scheduled_at);
+      return aptDate >= dayStart && aptDate <= dayEnd;
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <h2 className="text-xl font-semibold">Calendário Semanal</h2>
+        <p className="text-sm text-muted-foreground">
+          {formatDate(days[0])} - {formatDate(days[6])}
+        </p>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Carregando calendário...
+          </div>
+        ) : (
+          <div className="grid grid-cols-7 gap-2">
+            {days.map((day, index) => {
+              const dayAppointments = getAppointmentsForDay(day);
+              const isTodayDate = isToday(day);
+
+              return (
+                <div
+                  key={index}
+                  className={cn(
+                    "border rounded-lg p-2 min-h-[120px]",
+                    isTodayDate && "border-primary bg-primary/5"
+                  )}
+                >
+                  <div className="mb-2">
+                    <p
+                      className={cn(
+                        "text-xs font-medium",
+                        isTodayDate && "text-primary font-semibold"
+                      )}
+                    >
+                      {getDayName(day)}
+                    </p>
+                    <p
+                      className={cn(
+                        "text-lg font-bold",
+                        isTodayDate && "text-primary"
+                      )}
+                    >
+                      {day.getDate()}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    {dayAppointments.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Sem consultas</p>
+                    ) : (
+                      dayAppointments.map((apt) => (
+                        <Link
+                          key={apt.id}
+                          href={`/dashboard/agenda/consulta/${apt.id}`}
+                          className="block p-1.5 rounded text-xs bg-muted hover:bg-muted/80 transition-colors"
+                        >
+                          <p className="font-medium truncate">{apt.patient.full_name}</p>
+                          <p className="text-muted-foreground">{formatTime(apt.scheduled_at)}</p>
+                          <Badge
+                            className={cn(
+                              "text-xs mt-1",
+                              getStatusBadgeClassName(apt.status)
+                            )}
+                          >
+                            {apt.status === "realizada"
+                              ? "Realizada"
+                              : apt.status === "agendada"
+                                ? "Agendada"
+                                : apt.status === "confirmada"
+                                  ? "Confirmada"
+                                  : apt.status}
+                          </Badge>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

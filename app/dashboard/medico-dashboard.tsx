@@ -120,8 +120,16 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
     <MedicoDashboardClient
       appointments={appointmentsToday}
       pendingForms={pendingForms}
-      metrics={metrics}
+      metrics={{
+        totalToday: metrics.totalToday,
+        total: metrics.totalToday,
+        completed: metrics.completed,
+        remaining: metrics.remaining,
+        pendingForms: metrics.pendingForms,
+      }}
       nextAppointment={nextAppointment || null}
+      doctorId={doctorId}
+      clinicId={clinicId}
     />
   );
 }

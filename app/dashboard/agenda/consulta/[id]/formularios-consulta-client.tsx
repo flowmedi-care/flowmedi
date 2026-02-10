@@ -10,9 +10,11 @@ import {
   getFormTemplatesForAppointment,
   linkFormToAppointment,
   submitFormPresentially,
+  unlinkFormFromAppointment,
 } from "./formularios-consulta-actions";
 import type { FormInstanceItem } from "./page";
-import { Plus, Edit2 } from "lucide-react";
+import { Plus, Edit2, X } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FormularioPreenchimentoPresencial } from "./formulario-preenchimento-presencial";
 
 export function FormulariosConsultaClient({
@@ -33,6 +35,7 @@ export function FormulariosConsultaClient({
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [linking, setLinking] = useState(false);
   const [editingFormId, setEditingFormId] = useState<string | null>(null);
+  const [unlinkingFormId, setUnlinkingFormId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,6 +64,26 @@ export function FormulariosConsultaClient({
       setError(result.error);
     } else {
       setSelectedTemplate("");
+      router.refresh();
+      await loadAvailableTemplates();
+    }
+    setLinking(false);
+  }
+
+  async function handleUnlinkForm(formInstanceId: string) {
+    setUnlinkingFormId(formInstanceId);
+  }
+
+  async function confirmUnlink() {
+    if (!unlinkingFormId) return;
+
+    setLinking(true);
+    setError(null);
+    const result = await unlinkFormFromAppointment(unlinkingFormId);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setUnlinkingFormId(null);
       router.refresh();
       await loadAvailableTemplates();
     }
@@ -178,16 +201,29 @@ export function FormulariosConsultaClient({
                       {fi.status}
                     </Badge>
                   </div>
-                  {isDoctor && !isRespondido && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditingFormId(fi.id)}
-                    >
-                      <Edit2 className="h-4 w-4 mr-2" />
-                      Responder presencialmente
-                    </Button>
-                  )}
+                  <div className="flex gap-2">
+                    {isDoctor && !isRespondido && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingFormId(fi.id)}
+                      >
+                        <Edit2 className="h-4 w-4 mr-2" />
+                        Responder presencialmente
+                      </Button>
+                    )}
+                    {(isDoctor || canEdit) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUnlinkForm(fi.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Desvincular
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="pt-0 space-y-3 border-t border-border">
                   {fi.definition.length === 0 ? (
@@ -210,6 +246,17 @@ export function FormulariosConsultaClient({
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={unlinkingFormId !== null}
+        title="Desvincular formulário"
+        message="Tem certeza que deseja desvincular este formulário? Esta ação não pode ser desfeita."
+        confirmLabel="Desvincular"
+        variant="destructive"
+        loading={linking}
+        onConfirm={confirmUnlink}
+        onCancel={() => setUnlinkingFormId(null)}
+      />
     </div>
   );
 }
