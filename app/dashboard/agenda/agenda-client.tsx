@@ -82,7 +82,7 @@ const STATUS_VARIANT: Record<
 };
 
 // Cores de fundo para calendário baseadas no status
-function getStatusBackgroundColor(status: string): string {
+export function getStatusBackgroundColor(status: string): string {
   const statusLower = status.toLowerCase();
   switch (statusLower) {
     case "agendada":
@@ -105,7 +105,7 @@ function getStatusBackgroundColor(status: string): string {
 }
 
 // Cores de texto para calendário baseadas no status
-function getStatusTextColor(status: string): string {
+export function getStatusTextColor(status: string): string {
   const statusLower = status.toLowerCase();
   switch (statusLower) {
     case "agendada":
@@ -125,6 +125,14 @@ function getStatusTextColor(status: string): string {
     default:
       return "text-foreground";
   }
+}
+
+// Cores de badge baseadas no status (para usar com Badge component)
+export function getStatusBadgeClassName(status: string): string {
+  const statusLower = status.toLowerCase();
+  const bgColor = getStatusBackgroundColor(status);
+  const textColor = getStatusTextColor(status);
+  return `${bgColor} ${textColor} font-semibold`;
 }
 
 type ViewMode = "timeline" | "calendar";
@@ -1242,10 +1250,37 @@ function DraggableAppointmentItem({
         </button>
         <Link
           href={`/dashboard/agenda/consulta/${appointment.id}`}
-          className="flex-1 flex items-center justify-between gap-4 min-w-0"
+          className="flex-1 flex items-center gap-1.5 min-w-0"
         >
-          <AppointmentContent appointment={appointment} />
+          <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="font-medium tabular-nums shrink-0">
+            {new Date(appointment.scheduled_at).toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+          <span className="truncate">{appointment.patient.full_name}</span>
+          {appointment.appointment_type && (
+            <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
+              · {appointment.appointment_type.name}
+            </span>
+          )}
         </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          {(appointment.form_instances?.filter((f) => f.status === "pendente").length ?? 0) > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              {appointment.form_instances?.filter((f) => f.status === "pendente").length ?? 0} form.
+            </Badge>
+          )}
+          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+            <StatusBadgeDropdown
+              appointment={appointment}
+              onStatusChange={() => {
+                // Callback vazio, o router.refresh() já atualiza
+              }}
+            />
+          </div>
+        </div>
       </div>
     </li>
   );
@@ -1321,7 +1356,14 @@ function StatusBadgeDropdown({
         }}
         className="inline-flex items-center gap-1"
       >
-        <Badge variant={STATUS_VARIANT[appointment.status] ?? "secondary"} className="text-xs cursor-pointer hover:opacity-80">
+        <Badge
+          variant={STATUS_VARIANT[appointment.status] ?? "secondary"}
+          className={cn(
+            "text-xs cursor-pointer hover:opacity-80 font-semibold",
+            getStatusBackgroundColor(appointment.status),
+            getStatusTextColor(appointment.status)
+          )}
+        >
           {STATUS_LABEL[appointment.status] ?? appointment.status}
         </Badge>
         <ChevronDown className="h-3 w-3 text-muted-foreground" />

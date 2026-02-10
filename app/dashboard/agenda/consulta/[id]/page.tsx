@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { ConsultaDetalheClient } from "./consulta-detalhe-client";
 import { DataHoraReagendar } from "./data-hora-reagendar";
 import { ArrowLeft } from "lucide-react";
+import { getStatusBadgeClassName } from "../../agenda-client";
+import { cn } from "@/lib/utils";
 
 export default async function ConsultaDetalhePage({
   params,
@@ -123,20 +125,18 @@ export default async function ConsultaDetalhePage({
             )}
             <p>
               <span className="text-muted-foreground">Status:</span>{" "}
-              <Badge
-                variant={
-                  appointment.status === "realizada"
-                    ? "success"
-                    : appointment.status === "cancelada"
-                      ? "destructive"
+              <Badge className={cn(getStatusBadgeClassName(appointment.status))}>
+                {appointment.status === "agendada"
+                  ? "Agendada"
+                  : appointment.status === "confirmada"
+                    ? "Confirmada"
+                    : appointment.status === "realizada"
+                      ? "Realizada"
                       : appointment.status === "falta"
-                        ? "warning"
-                        : appointment.status === "confirmada"
-                          ? "default"
-                          : "outline"
-                }
-              >
-                {appointment.status}
+                        ? "Falta"
+                        : appointment.status === "cancelada"
+                          ? "Cancelada"
+                          : appointment.status}
               </Badge>
             </p>
             {appointment.notes && (

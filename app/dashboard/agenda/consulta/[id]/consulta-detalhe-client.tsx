@@ -9,6 +9,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { updateAppointment, deleteAppointment } from "../../actions";
 import { Copy, Check, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import type { FormFieldDefinition } from "@/lib/form-types";
+import { getStatusBackgroundColor, getStatusTextColor } from "../../agenda-client";
+import { cn } from "@/lib/utils";
 
 type FormInstance = {
   id: string;
@@ -100,17 +102,36 @@ export function ConsultaDetalheClient({
           <CardContent>
             <div className="flex flex-wrap gap-2">
               {["agendada", "confirmada", "realizada", "falta", "cancelada"].map(
-                (s) => (
-                  <Button
-                    key={s}
-                    variant={status === s ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleStatusChange(s)}
-                    disabled={updating}
-                  >
-                    {s}
-                  </Button>
-                )
+                (s) => {
+                  const isActive = status === s;
+                  const bgColor = getStatusBackgroundColor(s);
+                  const textColor = getStatusTextColor(s);
+                  return (
+                    <Button
+                      key={s}
+                      variant={isActive ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleStatusChange(s)}
+                      disabled={updating}
+                      className={cn(
+                        isActive && bgColor,
+                        isActive && textColor,
+                        isActive && "font-semibold",
+                        !isActive && "hover:opacity-80"
+                      )}
+                    >
+                      {s === "agendada"
+                        ? "Agendada"
+                        : s === "confirmada"
+                          ? "Confirmada"
+                          : s === "realizada"
+                            ? "Realizada"
+                            : s === "falta"
+                              ? "Falta"
+                              : "Cancelada"}
+                    </Button>
+                  );
+                }
               )}
             </div>
           </CardContent>
