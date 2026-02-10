@@ -9,10 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPatient, updatePatient, deletePatient, registerPatientFromPublicForm, type PatientInsert, type PatientUpdate } from "./actions";
-import { Search, UserPlus, Pencil, Trash2, X, UserCheck, User } from "lucide-react";
+import { Search, UserPlus, Pencil, Trash2, X, UserCheck, User, Download, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExamesClient } from "../exames/exames-client";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { getPatientExams, getExamSignedUrl, type PatientExam } from "../exames/actions";
 
 export type Patient = {
   id: string;
@@ -74,6 +75,8 @@ export function PacientesClient({
   const [registeringEmail, setRegisteringEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [patientExams, setPatientExams] = useState<PatientExam[]>([]);
+  const [loadingExams, setLoadingExams] = useState(false);
   const searchParams = useSearchParams();
   const [form, setForm] = useState<PatientInsert & { id?: string; custom_fields?: Record<string, unknown> }>({
     full_name: "",
@@ -95,6 +98,40 @@ export function PacientesClient({
       router.replace(newUrl.pathname + newUrl.search, { scroll: false });
     }
   }, [searchParams, isNew, editingId, router]);
+
+  // Carregar exames quando um paciente for selecionado
+  useEffect(() => {
+    if (selectedPatient && userRole === "medico") {
+      loadPatientExams(selectedPatient.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPatient, userRole]);
+
+  async function loadPatientExams(patientId: string) {
+    setLoadingExams(true);
+    const result = await getPatientExams(patientId);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setPatientExams(result.data || []);
+    }
+    setLoadingExams(false);
+  }
+
+  async function handleDownloadExam(exam: PatientExam) {
+    const result = await getExamSignedUrl(exam.file_url);
+    if (result.error) {
+      setError(result.error);
+    } else if (result.url) {
+      window.open(result.url, "_blank");
+    }
+  }
+
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
 
   const filtered = patients.filter(
     (p) =>
@@ -543,27 +580,29 @@ export function PacientesClient({
                 Nenhum paciente cadastrado ou nenhum resultado para a busca.
               </p>
             ) : userRole === "medico" ? (
-              // Visualização de contatos para médicos
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {filtered.map((p) => (
-                  <Card
-                    key={p.id}
-                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => setSelectedPatient(p)}
-                  >
-                    <CardContent className="pt-6 pb-4 flex flex-col items-center text-center">
-                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                        <User className="h-8 w-8 text-primary" />
-                      </div>
-                      <p className="font-medium text-sm truncate w-full">{p.full_name}</p>
-                      {p.phone && (
-                        <p className="text-xs text-muted-foreground mt-1 truncate w-full">
-                          {p.phone}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
+              // Visualização de contatos para médicos (altura fixa com scroll)
+              <div className="h-[600px] overflow-y-auto pr-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {filtered.map((p) => (
+                    <Card
+                      key={p.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => setSelectedPatient(p)}
+                    >
+                      <CardContent className="pt-6 pb-4 flex flex-col items-center text-center">
+                        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                          <User className="h-8 w-8 text-primary" />
+                        </div>
+                        <p className="font-medium text-sm truncate w-full">{p.full_name}</p>
+                        {p.phone && (
+                          <p className="text-xs text-muted-foreground mt-1 truncate w-full">
+                            {p.phone}
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               </div>
             ) : (
               <ul className="divide-y divide-border">
@@ -673,16 +712,19 @@ export function PacientesClient({
       {/* Modal de detalhes do paciente para médicos */}
       {userRole === "medico" && (
         <Dialog open={!!selectedPatient} onOpenChange={(open) => !open && setSelectedPatient(null)}>
-          <DialogContent title={selectedPatient?.full_name || "Detalhes do Paciente"}>
+          <DialogContent 
+            title={selectedPatient?.full_name || "Detalhes do Paciente"}
+            onClose={() => setSelectedPatient(null)}
+          >
             {selectedPatient && (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div className="flex items-center justify-center mb-4">
                   <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
                     <User className="h-10 w-10 text-primary" />
                   </div>
                 </div>
                 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Nome completo</p>
                     <p className="text-base">{selectedPatient.full_name}</p>
@@ -731,6 +773,57 @@ export function PacientesClient({
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Seção de Documentos/Exames */}
+                <div className="pt-4 border-t border-border">
+                  <h3 className="text-base font-semibold mb-3 flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Documentos
+                  </h3>
+                  {loadingExams ? (
+                    <p className="text-sm text-muted-foreground py-4">Carregando documentos...</p>
+                  ) : patientExams.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4">Nenhum documento encontrado.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {patientExams.map((exam) => (
+                        <div
+                          key={exam.id}
+                          className="flex items-center justify-between p-3 rounded-md border border-border hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{exam.file_name}</p>
+                            <div className="flex items-center gap-3 mt-1">
+                              {exam.exam_type && (
+                                <span className="text-xs text-muted-foreground">{exam.exam_type}</span>
+                              )}
+                              <span className="text-xs text-muted-foreground">
+                                {formatFileSize(exam.file_size)}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(exam.created_at).toLocaleDateString("pt-BR")}
+                              </span>
+                            </div>
+                            {exam.description && (
+                              <p className="text-xs text-muted-foreground mt-1 truncate">
+                                {exam.description}
+                              </p>
+                            )}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadExam(exam)}
+                            className="ml-3 shrink-0"
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Baixar
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

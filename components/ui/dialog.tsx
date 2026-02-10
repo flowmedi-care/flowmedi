@@ -13,6 +13,7 @@ interface DialogProps {
 
 interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;
+  onClose?: () => void;
 }
 
 const Dialog = ({ open, onOpenChange, children }: DialogProps) => {
@@ -43,19 +44,29 @@ const Dialog = ({ open, onOpenChange, children }: DialogProps) => {
 };
 
 const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
-  ({ className, title, children, ...props }, ref) => {
+  ({ className, title, children, onClose, ...props }, ref) => {
     return (
       <div
         ref={ref}
         className={cn(
-          "relative z-50 w-full max-w-lg max-h-[90vh] overflow-y-auto bg-background rounded-lg border border-border shadow-lg",
+          "relative z-50 w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-background rounded-lg border border-border shadow-lg",
           className
         )}
         {...props}
       >
         {title && (
-          <div className="flex items-center justify-between p-6 border-b border-border">
+          <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-background z-10">
             <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+            {onClose && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         )}
         <div className="p-6">{children}</div>
