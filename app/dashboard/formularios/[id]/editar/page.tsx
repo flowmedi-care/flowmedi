@@ -22,7 +22,7 @@ export default async function EditarFormularioPage({
 
   const { data: template } = await supabase
     .from("form_templates")
-    .select("id, name, definition, appointment_type_id, is_public")
+    .select("id, name, definition, appointment_type_id, is_public, public_doctor_id")
     .eq("id", id)
     .eq("clinic_id", profile.clinic_id)
     .single();
@@ -35,6 +35,13 @@ export default async function EditarFormularioPage({
     .eq("clinic_id", profile.clinic_id)
     .order("name");
 
+  const { data: doctors } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("role", "medico")
+    .order("full_name");
+
   const definition = (template.definition ?? []) as FormFieldDefinition[];
 
   return (
@@ -44,7 +51,9 @@ export default async function EditarFormularioPage({
       initialDefinition={Array.isArray(definition) ? definition : []}
       initialAppointmentTypeId={template.appointment_type_id}
       initialIsPublic={template.is_public ?? false}
+      initialPublicDoctorId={template.public_doctor_id}
       appointmentTypes={(types ?? []).map((t) => ({ id: t.id, name: t.name }))}
+      doctors={(doctors ?? []).map((d) => ({ id: d.id, full_name: d.full_name }))}
     />
   );
 }

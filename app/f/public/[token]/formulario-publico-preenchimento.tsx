@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import type { FormFieldDefinition } from "@/lib/form-types";
 import { Check } from "lucide-react";
+import { LogoImage } from "@/components/logo-image";
 
 type FieldDef = FormFieldDefinition & { id: string };
 
@@ -33,20 +34,22 @@ export function FormularioPublicoPreenchimento({
   templateName,
   definition,
   initialResponses,
-  instanceId,
-  token,
-  readOnly,
+  templateId,
   basicData,
   customFields = [],
+  doctorLogoUrl,
+  doctorLogoScale,
+  doctorName,
 }: {
   templateName: string;
   definition: FieldDef[];
   initialResponses: Record<string, unknown>;
-  instanceId: string;
-  token: string;
-  readOnly?: boolean;
+  templateId: string;
   basicData: BasicData;
   customFields?: CustomField[];
+  doctorLogoUrl?: string | null;
+  doctorLogoScale?: number;
+  doctorName?: string | null;
 }) {
   const [step, setStep] = useState<"basic" | "form">(
     basicData.name && basicData.email ? "form" : "basic"
@@ -79,16 +82,9 @@ export function FormularioPublicoPreenchimento({
 
   async function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (readOnly) return;
     setError(null);
     setLoading(true);
     const supabase = createClient();
-    
-    // Combinar respostas do formulário com campos customizados
-    const allResponses = {
-      ...responses,
-      ...customFieldsValues,
-    };
     
     // Separar campos customizados das respostas do formulário
     const formResponses: Record<string, unknown> = {};
@@ -101,20 +97,21 @@ export function FormularioPublicoPreenchimento({
       }
     });
     
-    // Respostas do formulário são todas as outras
-    Object.keys(allResponses).forEach((key) => {
+    // Respostas do formulário são todas as outras (não customizadas)
+    Object.keys(responses).forEach((key) => {
       if (!customFieldsData.hasOwnProperty(key)) {
-        formResponses[key] = allResponses[key];
+        formResponses[key] = responses[key];
       }
     });
     
-    const { data, error: rpcError } = await supabase.rpc("submit_form_by_token", {
-      p_token: token,
-      p_responses: formResponses,
+    // Criar nova instância pública para esta resposta
+    const { data, error: rpcError } = await supabase.rpc("create_public_form_instance", {
+      p_template_id: templateId,
       p_submitter_name: basicForm.name.trim(),
       p_submitter_email: basicForm.email.trim(),
       p_submitter_phone: basicForm.phone.trim() || null,
       p_submitter_birth_date: basicForm.birth_date || null,
+      p_responses: formResponses,
       p_custom_fields: Object.keys(customFieldsData).length > 0 ? customFieldsData : null,
     });
     if (rpcError) {
@@ -308,9 +305,6 @@ export function FormularioPublicoPreenchimento({
     <Card>
       <CardHeader>
         <CardTitle>{templateName}</CardTitle>
-        {readOnly && (
-          <p className="text-sm text-muted-foreground">Este formulário já foi respondido.</p>
-        )}
       </CardHeader>
       <CardContent>
         <form onSubmit={handleFormSubmit} className="space-y-6">
@@ -323,15 +317,26 @@ export function FormularioPublicoPreenchimento({
               field={field}
               value={responses[field.id]}
               onChange={(v) => setResponse(field.id, v)}
-              readOnly={readOnly}
+              readOnly={false}
             />
           ))}
-          {!readOnly && (
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? "Enviando…" : "Enviar formulário"}
-            </Button>
-          )}
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? "Enviando…" : "Enviar formulário"}
+          </Button>
         </form>
+        {doctorLogoUrl && (
+          <div className="flex flex-col items-center mt-12 pt-8 pb-4 border-t border-border">
+            {doctorName && (
+              <p className="text-sm text-muted-foreground mb-4">{doctorName}</p>
+            )}
+            <LogoImage
+              src={doctorLogoUrl}
+              alt="Assinatura do médico"
+              className="max-h-20 max-w-full object-contain"
+              scale={doctorLogoScale ?? 100}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -16,8 +16,34 @@ export default async function FormularioPublicoPage({
     }
 
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("get_form_by_token", {
-      p_token: token,
+    
+    // Tentar interpretar token como template_id (UUID) ou como link_token antigo
+    let templateId: string | null = null;
+    let isOldToken = false;
+    
+    // Verificar se é UUID (template_id) ou token antigo
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(token)) {
+      templateId = token;
+    } else {
+      // Token antigo - buscar instância
+      isOldToken = true;
+      const { data: oldData, error: oldError } = await supabase.rpc("get_form_by_token", {
+        p_token: token,
+      });
+      if (oldError || !oldData?.found || !oldData?.is_public) {
+        notFound();
+      }
+      templateId = oldData.form_template_id;
+    }
+    
+    if (!templateId) {
+      notFound();
+    }
+
+    // Buscar template público diretamente
+    const { data, error } = await supabase.rpc("get_public_form_template", {
+      p_template_id: templateId,
     });
 
     if (error || !data) {
@@ -28,42 +54,16 @@ export default async function FormularioPublicoPage({
       notFound();
     }
 
-    if (data.expired) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-          <div className="text-center">
-            <h1 className="text-xl font-semibold text-foreground">Link expirado</h1>
-            <p className="text-muted-foreground mt-2">
-              Este link de formulário não está mais válido. Entre em contato com a
-              clínica para receber um novo link.
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    // Validar que é um formulário público
-    if (!data.is_public) {
-      notFound();
-    }
-
     // Validar e sanitizar dados
     const definition = Array.isArray(data.definition) ? data.definition : [];
-    const responses = (data.responses && typeof data.responses === "object")
-      ? (data.responses as Record<string, unknown>)
-      : {};
+    const responses: Record<string, unknown> = {}; // Sempre vazio para nova resposta
 
     const templateName =
       (data.template_name && typeof data.template_name === "string" && data.template_name.trim())
         ? data.template_name.trim()
         : "Formulário";
 
-    const instanceId =
-      (data.id && typeof data.id === "string" && data.id.trim()) ? data.id.trim() : "";
-
-    if (!instanceId) {
-      notFound();
-    }
+    const templateIdStr = String(data.template_id || templateId);
 
     const status = (data.status && typeof data.status === "string") ? data.status : "pendente";
     const clinicLogoUrl =
@@ -99,24 +99,30 @@ export default async function FormularioPublicoPage({
       customFields = (fields ?? []) as typeof customFields;
     }
 
-    // Dados básicos já preenchidos (se houver)
+    // Dados básicos sempre vazios para formulários públicos (nova resposta)
     const basicData = {
-      name: (data.patient_name && typeof data.patient_name === "string" && data.patient_name.trim())
-        ? data.patient_name.trim()
-        : null,
-      email:
-        (data.patient_email && typeof data.patient_email === "string" && data.patient_email.trim())
-          ? data.patient_email.trim()
-          : null,
-      phone:
-        (data.patient_phone && typeof data.patient_phone === "string" && data.patient_phone.trim())
-          ? data.patient_phone.trim()
-          : null,
-      birth_date: null as string | null,
-      age: (typeof data.patient_age === "number" && !isNaN(data.patient_age) && data.patient_age > 0)
-        ? data.patient_age
-        : null,
+      name: null,
+      email: null,
+      phone: null,
+      birth_date: null,
+      age: null,
     };
+
+    // Dados do médico associado
+    const doctorLogoUrl =
+      (data.doctor_logo_url && typeof data.doctor_logo_url === "string")
+        ? data.doctor_logo_url
+        : null;
+    const doctorLogoScale =
+      typeof data.doctor_logo_scale === "number" &&
+      data.doctor_logo_scale >= 50 &&
+      data.doctor_logo_scale <= 200
+        ? data.doctor_logo_scale
+        : 100;
+    const doctorName =
+      (data.doctor_name && typeof data.doctor_name === "string" && data.doctor_name.trim())
+        ? data.doctor_name.trim()
+        : null;
 
     return (
       <div className="min-h-screen bg-muted/30 py-8 px-4">
@@ -136,11 +142,12 @@ export default async function FormularioPublicoPage({
               templateName={templateName}
               definition={definition}
               initialResponses={responses}
-              instanceId={instanceId}
-              token={token}
-              readOnly={status === "respondido"}
+              templateId={templateIdStr}
               basicData={basicData}
               customFields={customFields}
+              doctorLogoUrl={doctorLogoUrl}
+              doctorLogoScale={doctorLogoScale}
+              doctorName={doctorName}
             />
           </div>
         </div>

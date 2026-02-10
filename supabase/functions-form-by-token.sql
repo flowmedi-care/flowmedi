@@ -1,6 +1,68 @@
 -- Funções para acesso público ao formulário por link_token (sem login)
 -- Execute no SQL Editor do Supabase
 
+-- Retorna template público diretamente (para formulários públicos que permitem múltiplas respostas)
+CREATE OR REPLACE FUNCTION public.get_public_form_template(p_template_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_row record;
+  v_result json;
+  v_clinic_logo text;
+  v_clinic_scale int;
+  v_doctor_logo text;
+  v_doctor_scale int;
+  v_doctor_name text;
+BEGIN
+  -- Buscar template público
+  SELECT ft.id, ft.name, ft.definition, ft.clinic_id, ft.public_doctor_id
+  INTO v_row
+  FROM form_templates ft
+  WHERE ft.id = p_template_id
+    AND ft.is_public = true
+  LIMIT 1;
+
+  IF v_row.id IS NULL THEN
+    RETURN json_build_object('found', false);
+  END IF;
+  
+  -- Buscar logo e escala da clínica
+  v_clinic_logo := NULL;
+  v_clinic_scale := 100;
+  SELECT logo_url, COALESCE(logo_scale, 100) INTO v_clinic_logo, v_clinic_scale
+  FROM clinics
+  WHERE id = v_row.clinic_id;
+  
+  -- Buscar logo, escala e nome do médico associado (se houver)
+  v_doctor_logo := NULL;
+  v_doctor_scale := 100;
+  v_doctor_name := NULL;
+  IF v_row.public_doctor_id IS NOT NULL THEN
+    SELECT logo_url, COALESCE(logo_scale, 100), full_name 
+    INTO v_doctor_logo, v_doctor_scale, v_doctor_name
+    FROM profiles
+    WHERE id = v_row.public_doctor_id;
+  END IF;
+
+  v_result := json_build_object(
+    'found', true,
+    'template_id', v_row.id::text,
+    'template_name', COALESCE(v_row.name, 'Formulário'),
+    'definition', COALESCE(v_row.definition, '[]'::jsonb),
+    'clinic_id', v_row.clinic_id::text,
+    'clinic_logo_url', v_clinic_logo,
+    'clinic_logo_scale', COALESCE(v_clinic_scale, 100),
+    'doctor_logo_url', v_doctor_logo,
+    'doctor_logo_scale', COALESCE(v_doctor_scale, 100),
+    'doctor_name', v_doctor_name
+  );
+  RETURN v_result;
+END;
+$$;
+
 -- Retorna a instância do formulário e o template para exibir/preencher
 -- Suporta tanto link_token (formulários vinculados) quanto public_link_token (formulários públicos)
 CREATE OR REPLACE FUNCTION public.get_form_by_token(p_token text)
@@ -179,6 +241,72 @@ BEGIN
 END;
 $$;
 
+-- Função para criar nova instância pública ao submeter
+CREATE OR REPLACE FUNCTION public.create_public_form_instance(
+  p_template_id uuid,
+  p_submitter_name text,
+  p_submitter_email text,
+  p_submitter_phone text DEFAULT NULL,
+  p_submitter_birth_date date DEFAULT NULL,
+  p_responses jsonb DEFAULT '{}'::jsonb,
+  p_custom_fields jsonb DEFAULT NULL
+)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_template_clinic_id uuid;
+  v_instance_id uuid;
+  v_public_token text;
+BEGIN
+  -- Verificar se template é público
+  SELECT clinic_id INTO v_template_clinic_id
+  FROM form_templates
+  WHERE id = p_template_id AND is_public = true;
+  
+  IF v_template_clinic_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Template não encontrado ou não é público');
+  END IF;
+
+  -- Gerar token único para esta instância
+  v_public_token := 'pub_' || p_template_id::text || '_' || uuid_generate_v4()::text || '_' || extract(epoch from now())::text;
+  v_public_token := replace(v_public_token, '-', '');
+
+  -- Criar nova instância pública
+  INSERT INTO form_instances (
+    appointment_id,
+    form_template_id,
+    status,
+    public_link_token,
+    link_expires_at,
+    responses,
+    public_submitter_name,
+    public_submitter_email,
+    public_submitter_phone,
+    public_submitter_birth_date,
+    public_submitter_custom_fields
+  ) VALUES (
+    NULL,
+    p_template_id,
+    'respondido',
+    v_public_token,
+    (now() + interval '365 days'),
+    p_responses,
+    p_submitter_name,
+    p_submitter_email,
+    p_submitter_phone,
+    p_submitter_birth_date,
+    COALESCE(p_custom_fields, '{}'::jsonb)
+  ) RETURNING id INTO v_instance_id;
+
+  RETURN json_build_object('success', true, 'instance_id', v_instance_id::text);
+END;
+$$;
+
 -- Permite execução anônima (anon role)
 GRANT EXECUTE ON FUNCTION public.get_form_by_token(text) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_public_form_template(uuid) TO anon;
 GRANT EXECUTE ON FUNCTION public.submit_form_by_token(text, jsonb, text, text, text, date, jsonb) TO anon;
+GRANT EXECUTE ON FUNCTION public.create_public_form_instance(uuid, text, text, text, date, jsonb, jsonb) TO anon;

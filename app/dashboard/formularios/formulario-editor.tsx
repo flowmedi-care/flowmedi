@@ -13,20 +13,26 @@ import { ArrowLeft } from "lucide-react";
 
 type AppointmentTypeOption = { id: string; name: string };
 
+type DoctorOption = { id: string; full_name: string | null };
+
 export function FormularioEditor({
   templateId,
   initialName,
   initialDefinition,
   initialAppointmentTypeId,
   initialIsPublic,
+  initialPublicDoctorId,
   appointmentTypes,
+  doctors,
 }: {
   templateId: string | null;
   initialName: string;
   initialDefinition: FormFieldDefinition[];
   initialAppointmentTypeId: string | null;
   initialIsPublic?: boolean;
+  initialPublicDoctorId?: string | null;
   appointmentTypes: AppointmentTypeOption[];
+  doctors: DoctorOption[];
 }) {
   const [name, setName] = useState(initialName);
   const [definition, setDefinition] = useState<FormFieldDefinition[]>(initialDefinition);
@@ -34,6 +40,7 @@ export function FormularioEditor({
     initialAppointmentTypeId
   );
   const [isPublic, setIsPublic] = useState(initialIsPublic ?? false);
+  const [publicDoctorId, setPublicDoctorId] = useState<string | null>(initialPublicDoctorId ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +56,8 @@ export function FormularioEditor({
         name,
         definition,
         appointmentTypeId,
-        isPublic
+        isPublic,
+        publicDoctorId
       );
       if (res.error) {
         setError(res.error);
@@ -135,9 +143,30 @@ export function FormularioEditor({
               </Label>
             </div>
             {isPublic && (
-              <p className="text-sm text-muted-foreground">
-                Quando ativado, este formulário pode ser compartilhado publicamente (ex: Instagram) e também pode ser enviado para pacientes agendados.
-              </p>
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Quando ativado, este formulário pode ser compartilhado publicamente (ex: Instagram) e também pode ser enviado para pacientes agendados.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="public_doctor">Médico associado (para assinatura no formulário público)</Label>
+                  <select
+                    id="public_doctor"
+                    className="h-9 w-full max-w-xs rounded-md border border-input bg-transparent px-3 text-sm"
+                    value={publicDoctorId ?? ""}
+                    onChange={(e) => setPublicDoctorId(e.target.value || null)}
+                  >
+                    <option value="">Nenhum</option>
+                    {doctors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.full_name || d.id.slice(0, 8)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    A assinatura do médico aparecerá no final do formulário público.
+                  </p>
+                </div>
+              </>
             )}
             <FormBuilder
               definition={definition}

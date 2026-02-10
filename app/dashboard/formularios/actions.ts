@@ -8,7 +8,8 @@ export async function createFormTemplate(
   name: string,
   definition: FormTemplateDefinition,
   appointmentTypeId: string | null,
-  isPublic: boolean = false
+  isPublic: boolean = false,
+  publicDoctorId: string | null = null
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -26,6 +27,7 @@ export async function createFormTemplate(
     definition: definition as unknown as Record<string, unknown>[],
     appointment_type_id: appointmentTypeId || null,
     is_public: isPublic,
+    public_doctor_id: publicDoctorId || null,
   });
   if (error) return { error: error.message };
   revalidatePath("/dashboard/formularios");
@@ -37,7 +39,8 @@ export async function updateFormTemplate(
   name: string,
   definition: FormTemplateDefinition,
   appointmentTypeId: string | null,
-  isPublic: boolean = false
+  isPublic: boolean = false,
+  publicDoctorId: string | null = null
 ) {
   const supabase = await createClient();
   const { error } = await supabase
@@ -47,6 +50,7 @@ export async function updateFormTemplate(
       definition: definition as unknown as Record<string, unknown>[],
       appointment_type_id: appointmentTypeId || null,
       is_public: isPublic,
+      public_doctor_id: publicDoctorId || null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -150,44 +154,16 @@ export async function createOrGetPublicFormLink(
     return { error: "Este formulário não permite uso público.", link: null, isNew: false };
   }
 
-  // Buscar instância pública existente (sem appointment_id)
-  const { data: existing } = await supabase
-    .from("form_instances")
-    .select("public_link_token")
-    .eq("form_template_id", formTemplateId)
-    .is("appointment_id", null)
-    .maybeSingle();
-
-  if (existing?.public_link_token) {
-    return {
-      error: null,
-      link: `/f/public/${existing.public_link_token}`,
-      isNew: false,
-    };
-  }
-
-  // Criar nova instância pública
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 365); // Links públicos podem durar mais tempo
-
-  const publicToken = generatePublicLinkToken();
-  const { data: inserted, error } = await supabase
-    .from("form_instances")
-    .insert({
-      appointment_id: null,
-      form_template_id: formTemplateId,
-      status: "pendente",
-      public_link_token: publicToken,
-      link_expires_at: expiresAt.toISOString(),
-      responses: {},
-    })
-    .select("public_link_token")
-    .single();
-
-  if (error) return { error: error.message, link: null, isNew: false };
+  // Para formulários públicos, o link é baseado no template, não em uma instância específica
+  // Cada pessoa que acessa cria sua própria instância ao submeter
+  // Criamos um token único baseado no template para o link público
+  const publicToken = `pub_template_${formTemplateId}_${Date.now().toString(36)}`;
+  
+  // O link público sempre aponta para o template, não para uma instância específica
+  // A instância será criada quando a pessoa submeter o formulário
   return {
     error: null,
-    link: inserted?.public_link_token ? `/f/public/${inserted.public_link_token}` : null,
+    link: `/f/public/${formTemplateId}`,
     isNew: true,
   };
 }
