@@ -620,8 +620,8 @@ export async function registerPatientFromPipeline(pipelineId: string) {
   return { error: null, patientId };
 }
 
-// Remover do pipeline quando agendar (mover para compliance)
-export async function removeFromPipelineOnAppointment(pipelineId: string) {
+// Marcar como concluído (remover do pipeline)
+export async function markPipelineAsCompleted(pipelineId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Não autorizado." };
@@ -629,19 +629,11 @@ export async function removeFromPipelineOnAppointment(pipelineId: string) {
   // Buscar item do pipeline
   const { data: pipelineItem } = await supabase
     .from("non_registered_pipeline")
-    .select("id, email")
+    .select("id, stage")
     .eq("id", pipelineId)
     .single();
 
   if (!pipelineItem) return { error: "Item não encontrado." };
-
-  // Deletar do pipeline (agora vai para compliance)
-  const { error: deleteError } = await supabase
-    .from("non_registered_pipeline")
-    .delete()
-    .eq("id", pipelineId);
-
-  if (deleteError) return { error: deleteError.message };
 
   // Registrar histórico antes de deletar
   const { error: historyError } = await supabase
@@ -650,12 +642,20 @@ export async function removeFromPipelineOnAppointment(pipelineId: string) {
       pipeline_id: pipelineId,
       action_by: user.id,
       action_type: "archived",
-      notes: "Removido do pipeline - consulta agendada",
+      notes: "Marcado como concluído - removido do pipeline",
     });
 
   if (historyError) {
     console.error("Erro ao registrar histórico:", historyError);
   }
+
+  // Deletar do pipeline (agora vai para compliance normal)
+  const { error: deleteError } = await supabase
+    .from("non_registered_pipeline")
+    .delete()
+    .eq("id", pipelineId);
+
+  if (deleteError) return { error: deleteError.message };
 
   revalidatePath("/dashboard");
   return { error: null };

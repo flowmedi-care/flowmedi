@@ -112,26 +112,30 @@ export async function createAppointment(
   if (patient?.email) {
     const { data: pipelineItem } = await supabase
       .from("non_registered_pipeline")
-      .select("id")
+      .select("id, stage")
       .eq("email", patient.email.toLowerCase().trim())
       .maybeSingle();
 
     if (pipelineItem) {
-      // Remover do pipeline (agora vai para compliance)
-      await supabase
-        .from("non_registered_pipeline")
-        .delete()
-        .eq("id", pipelineItem.id);
+      // Se estiver em "cadastrado", mover para "agendado"
+      if (pipelineItem.stage === "cadastrado") {
+        await supabase
+          .from("non_registered_pipeline")
+          .update({ stage: "agendado" })
+          .eq("id", pipelineItem.id);
 
-      // Registrar histórico
-      await supabase
-        .from("non_registered_history")
-        .insert({
-          pipeline_id: pipelineItem.id,
-          action_by: user.id,
-          action_type: "archived",
-          notes: "Removido do pipeline - consulta agendada",
-        });
+        // Registrar histórico
+        await supabase
+          .from("non_registered_history")
+          .insert({
+            pipeline_id: pipelineItem.id,
+            action_by: user.id,
+            action_type: "stage_change",
+            old_stage: "cadastrado",
+            new_stage: "agendado",
+            notes: "Consulta agendada",
+          });
+      }
     }
   }
 

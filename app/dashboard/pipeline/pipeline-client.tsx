@@ -30,7 +30,7 @@ import {
   addPipelineNote,
   updateNextAction,
   registerPatientFromPipeline,
-  removeFromPipelineOnAppointment,
+  markPipelineAsCompleted,
   type PipelineItem,
   type PipelineStage,
 } from "./actions";
@@ -144,8 +144,21 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
   };
 
   const handleRegisterPatient = async (item: PipelineItem) => {
+    // Otimistic update
+    setItems((prev) =>
+      prev.map((i) => 
+        i.id === item.id ? { ...i, stage: "cadastrado" as PipelineStage } : i
+      )
+    );
+
     const result = await registerPatientFromPipeline(item.id);
     if (result.error) {
+      // Revert on error
+      setItems((prev) =>
+        prev.map((i) => 
+          i.id === item.id ? { ...i, stage: item.stage } : i
+        )
+      );
       toast(`Erro ao cadastrar: ${result.error}`, "error");
     } else {
       toast("Paciente cadastrado com sucesso", "success");
@@ -157,6 +170,18 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
     // Redirecionar para agenda com paciente pré-selecionado via email
     // A agenda vai buscar o paciente pelo email se necessário
     router.push(`/dashboard/agenda?new=true&patientEmail=${encodeURIComponent(item.email)}`);
+  };
+
+  const handleMarkAsCompleted = async (item: PipelineItem) => {
+    const result = await markPipelineAsCompleted(item.id);
+    if (result.error) {
+      toast(`Erro: ${result.error}`, "error");
+    } else {
+      toast("Marcado como concluído", "success");
+      // Remover do estado local
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      router.refresh();
+    }
   };
 
   const stages: PipelineStage[] = [
@@ -212,6 +237,7 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
               onChangeStage={handleChangeStage}
               onRegister={handleRegisterPatient}
               onSchedule={handleScheduleAppointment}
+              onMarkAsCompleted={handleMarkAsCompleted}
             />
           ))}
         </div>
@@ -272,6 +298,7 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
               onChangeStage={handleChangeStage}
               onRegister={handleRegisterPatient}
               onSchedule={handleScheduleAppointment}
+              onMarkAsCompleted={handleMarkAsCompleted}
             />
           ))}
         </div>
@@ -283,6 +310,7 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
               isDragging
               onRegister={handleRegisterPatient}
               onSchedule={handleScheduleAppointment}
+              onMarkAsCompleted={handleMarkAsCompleted}
             />
           ) : null}
         </DragOverlay>
@@ -325,6 +353,7 @@ function KanbanColumn({
   onChangeStage,
   onRegister,
   onSchedule,
+  onMarkAsCompleted,
 }: {
   stage: PipelineStage;
   items: PipelineItem[];
@@ -332,6 +361,7 @@ function KanbanColumn({
   onChangeStage: (itemId: string, newStage: PipelineStage) => void;
   onRegister?: (item: PipelineItem) => void;
   onSchedule?: (item: PipelineItem) => void;
+  onMarkAsCompleted?: (item: PipelineItem) => void;
 }) {
   const { setNodeRef } = useDroppable({
     id: stage,
@@ -360,6 +390,7 @@ function KanbanColumn({
               onChangeStage={onChangeStage}
               onRegister={onRegister}
               onSchedule={onSchedule}
+              onMarkAsCompleted={onMarkAsCompleted}
             />
           ))}
         </SortableContext>
@@ -374,12 +405,14 @@ function SortablePipelineCard({
   onChangeStage,
   onRegister,
   onSchedule,
+  onMarkAsCompleted,
 }: {
   item: PipelineItem;
   onSelect: () => void;
   onChangeStage: (itemId: string, newStage: PipelineStage) => void;
   onRegister?: (item: PipelineItem) => void;
   onSchedule?: (item: PipelineItem) => void;
+  onMarkAsCompleted?: (item: PipelineItem) => void;
 }) {
   const {
     attributes,
@@ -404,6 +437,7 @@ function SortablePipelineCard({
         onChangeStage={onChangeStage}
         onRegister={onRegister}
         onSchedule={onSchedule}
+        onMarkAsCompleted={onMarkAsCompleted}
       />
     </div>
   );
@@ -416,6 +450,7 @@ function PipelineCard({
   onChangeStage,
   onRegister,
   onSchedule,
+  onMarkAsCompleted,
 }: {
   item: PipelineItem;
   isDragging?: boolean;
@@ -423,6 +458,7 @@ function PipelineCard({
   onChangeStage?: (itemId: string, newStage: PipelineStage) => void;
   onRegister?: (item: PipelineItem) => void;
   onSchedule?: (item: PipelineItem) => void;
+  onMarkAsCompleted?: (item: PipelineItem) => void;
 }) {
   return (
     <Card
@@ -484,6 +520,21 @@ function PipelineCard({
             Agendar
           </Button>
         )}
+        {item.stage === "agendado" && (
+          <Button
+            size="sm"
+            className="w-full mt-2 bg-green-600 hover:bg-green-700"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onMarkAsCompleted) {
+                onMarkAsCompleted(item);
+              }
+            }}
+          >
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Marcar como concluído
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
@@ -495,12 +546,14 @@ function PipelineListItem({
   onChangeStage,
   onRegister,
   onSchedule,
+  onMarkAsCompleted,
 }: {
   item: PipelineItem;
   onSelect: () => void;
   onChangeStage: (itemId: string, newStage: PipelineStage) => void;
   onRegister?: (item: PipelineItem) => void;
   onSchedule?: (item: PipelineItem) => void;
+  onMarkAsCompleted?: (item: PipelineItem) => void;
 }) {
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -541,6 +594,16 @@ function PipelineListItem({
               >
                 <Calendar className="h-4 w-4 mr-1" />
                 Agendar
+              </Button>
+            )}
+            {item.stage === "agendado" && onMarkAsCompleted && (
+              <Button
+                size="sm"
+                className="bg-green-600 hover:bg-green-700"
+                onClick={() => onMarkAsCompleted(item)}
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Concluir
               </Button>
             )}
             <select
