@@ -152,29 +152,33 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
     return acc;
   }, {} as Record<PipelineStage, PipelineItem[]>);
 
+  const ViewToggleButtons = () => (
+    <div className="flex gap-2">
+      <Button
+        variant={viewMode === "list" ? "default" : "outline"}
+        size="sm"
+        onClick={() => setViewMode("list")}
+      >
+        <List className="h-4 w-4 mr-2" />
+        Lista
+      </Button>
+      <Button
+        variant={viewMode === "kanban" ? "default" : "outline"}
+        size="sm"
+        onClick={() => setViewMode("kanban")}
+      >
+        <LayoutGrid className="h-4 w-4 mr-2" />
+        Kanban
+      </Button>
+    </div>
+  );
+
   if (viewMode === "list") {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Não Cadastrados</h2>
-          <div className="flex gap-2">
-            <Button
-              variant={viewMode === "list" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode("list")}
-            >
-              <List className="h-4 w-4 mr-2" />
-              Lista
-            </Button>
-            <Button
-              variant={viewMode === "kanban" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode("kanban")}
-            >
-              <LayoutGrid className="h-4 w-4 mr-2" />
-              Kanban
-            </Button>
-          </div>
+          <ViewToggleButtons />
         </div>
 
         <div className="space-y-2">
@@ -225,24 +229,7 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Não Cadastrados</h2>
-        <div className="flex gap-2">
-          <Button
-            variant={viewMode === "list" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("list")}
-          >
-            <List className="h-4 w-4 mr-2" />
-            Lista
-          </Button>
-          <Button
-            variant={viewMode === "kanban" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("kanban")}
-          >
-            <LayoutGrid className="h-4 w-4 mr-2" />
-            Kanban
-          </Button>
-        </div>
+        <ViewToggleButtons />
       </div>
 
       <DndContext
