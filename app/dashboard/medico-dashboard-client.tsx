@@ -510,8 +510,7 @@ export function MedicoDashboardClient({
                               <div
                                 className={cn(
                                   "text-lg font-semibold min-w-[60px]",
-                                  isNext && "text-primary",
-                                  isPast && "text-orange-600"
+                                  isNext && "text-primary"
                                 )}
                               >
                                 {formatTime(appointment.scheduled_at)}
