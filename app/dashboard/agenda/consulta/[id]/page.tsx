@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConsultaTabsClient } from "./consulta-tabs-client";
 import { DataHoraReagendar } from "./data-hora-reagendar";
-import { ArrowLeft } from "lucide-react";
+import { BackButton } from "./back-button";
 import { getStatusBadgeClassName } from "../../status-utils";
 import { cn } from "@/lib/utils";
 
@@ -89,17 +89,9 @@ export default async function ConsultaDetalhePage({
     };
   });
 
-  // Redirecionar médicos para o dashboard, outros para a agenda
-  const backUrl = profile.role === "medico" ? "/dashboard" : "/dashboard/agenda";
-
   return (
     <div className="space-y-6">
-      <Link href={backUrl}>
-        <Button variant="ghost" size="sm">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          {profile.role === "medico" ? "Voltar ao dashboard" : "Voltar à agenda"}
-        </Button>
-      </Link>
+      <BackButton />
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>

@@ -9,9 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPatient, updatePatient, deletePatient, registerPatientFromPublicForm, type PatientInsert, type PatientUpdate } from "./actions";
-import { Search, UserPlus, Pencil, Trash2, X, UserCheck } from "lucide-react";
+import { Search, UserPlus, Pencil, Trash2, X, UserCheck, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExamesClient } from "../exames/exames-client";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export type Patient = {
   id: string;
@@ -53,10 +54,12 @@ export function PacientesClient({
   initialPatients,
   customFields,
   nonRegistered = [],
+  userRole,
 }: {
   initialPatients: Patient[];
   customFields: CustomField[];
   nonRegistered?: NonRegisteredSubmitter[];
+  userRole: string;
 }) {
   const [activeTab, setActiveTab] = useState<"registered" | "nonRegistered">("registered");
   const [patients, setPatients] = useState<Patient[]>(initialPatients);
@@ -70,6 +73,7 @@ export function PacientesClient({
   const [patientToExcluir, setPatientToExcluir] = useState<Patient | null>(null);
   const [registeringEmail, setRegisteringEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const searchParams = useSearchParams();
   const [form, setForm] = useState<PatientInsert & { id?: string; custom_fields?: Record<string, unknown> }>({
     full_name: "",
@@ -538,6 +542,29 @@ export function PacientesClient({
               <p className="text-sm text-muted-foreground py-4">
                 Nenhum paciente cadastrado ou nenhum resultado para a busca.
               </p>
+            ) : userRole === "medico" ? (
+              // Visualização de contatos para médicos
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {filtered.map((p) => (
+                  <Card
+                    key={p.id}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => setSelectedPatient(p)}
+                  >
+                    <CardContent className="pt-6 pb-4 flex flex-col items-center text-center">
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                        <User className="h-8 w-8 text-primary" />
+                      </div>
+                      <p className="font-medium text-sm truncate w-full">{p.full_name}</p>
+                      {p.phone && (
+                        <p className="text-xs text-muted-foreground mt-1 truncate w-full">
+                          {p.phone}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             ) : (
               <ul className="divide-y divide-border">
                 {filtered.map((p) => (
@@ -642,6 +669,102 @@ export function PacientesClient({
         onConfirm={handleConfirmExcluirPatient}
         onCancel={() => setPatientToExcluir(null)}
       />
+
+      {/* Modal de detalhes do paciente para médicos */}
+      {userRole === "medico" && (
+        <Dialog open={!!selectedPatient} onOpenChange={(open) => !open && setSelectedPatient(null)}>
+          <DialogContent title={selectedPatient?.full_name || "Detalhes do Paciente"}>
+            {selectedPatient && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-center mb-4">
+                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-10 w-10 text-primary" />
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Nome completo</p>
+                    <p className="text-base">{selectedPatient.full_name}</p>
+                  </div>
+                  
+                  {selectedPatient.email && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">E-mail</p>
+                      <p className="text-base">{selectedPatient.email}</p>
+                    </div>
+                  )}
+                  
+                  {selectedPatient.phone && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Telefone</p>
+                      <p className="text-base">{selectedPatient.phone}</p>
+                    </div>
+                  )}
+                  
+                  {selectedPatient.birth_date && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Data de nascimento</p>
+                      <p className="text-base">
+                        {new Date(selectedPatient.birth_date).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {selectedPatient.notes && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Observações</p>
+                      <p className="text-base whitespace-pre-wrap">{selectedPatient.notes}</p>
+                    </div>
+                  )}
+                  
+                  {customFields.length > 0 && selectedPatient.custom_fields && (
+                    <div className="pt-4 border-t border-border">
+                      <p className="text-sm font-medium text-muted-foreground mb-2">Informações Adicionais</p>
+                      {customFields.map((field) => {
+                        const value = selectedPatient.custom_fields?.[field.field_name];
+                        if (!value) return null;
+                        return (
+                          <div key={field.id} className="mb-2">
+                            <p className="text-sm font-medium text-muted-foreground">{field.field_label}</p>
+                            <p className="text-base">{String(value)}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex gap-2 pt-4 border-t border-border">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedPatient(null);
+                      openEdit(selectedPatient);
+                    }}
+                    className="flex-1"
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setSelectedPatient(null);
+                      openExcluirConfirm(selectedPatient);
+                    }}
+                    className="flex-1"
+                    disabled={deletingId === selectedPatient.id}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Excluir
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

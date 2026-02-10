@@ -10,7 +10,7 @@ export default async function PacientesPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id")
+    .select("clinic_id, role")
     .eq("id", user.id)
     .single();
   if (!profile?.clinic_id) redirect("/dashboard");
@@ -49,6 +49,7 @@ export default async function PacientesPage() {
         initialPatients={patients} 
         customFields={customFields ?? []}
         nonRegistered={nonRegistered}
+        userRole={profile?.role || "admin"}
       />
     </div>
   );

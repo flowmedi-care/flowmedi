@@ -25,7 +25,6 @@ import {
   getDoctorPreferences,
   type DoctorPreferences,
 } from "./medico-preferences-actions";
-import { MedicoPreferencesSidebar } from "./medico-preferences-sidebar";
 
 type Appointment = {
   id: string;
@@ -624,9 +623,6 @@ export function MedicoDashboardClient({
 
       {/* Calendário Semanal */}
       <WeeklyCalendar appointments={weeklyAppointments} loading={loadingWeekly} />
-
-      {/* Sidebar de Preferências */}
-      <MedicoPreferencesSidebar />
     </div>
   );
 }
