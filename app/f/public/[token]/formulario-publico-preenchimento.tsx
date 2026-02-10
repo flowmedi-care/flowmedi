@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
-import type { FieldDef } from "@/lib/form-types";
+import type { FormFieldDefinition } from "@/lib/form-types";
 import { Check } from "lucide-react";
+
+type FieldDef = FormFieldDefinition & { id: string };
 
 type BasicData = {
   name: string | null;
@@ -219,7 +221,7 @@ function FieldRender({
   const required = field.required ?? false;
 
   switch (field.type) {
-    case "text":
+    case "short_text":
       return (
         <div className="space-y-2">
           <Label htmlFor={id}>
@@ -231,12 +233,13 @@ function FieldRender({
             type="text"
             value={(value as string) ?? ""}
             onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder}
             required={required}
             readOnly={readOnly}
           />
         </div>
       );
-    case "textarea":
+    case "long_text":
       return (
         <div className="space-y-2">
           <Label htmlFor={id}>
@@ -248,8 +251,10 @@ function FieldRender({
             className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             value={(value as string) ?? ""}
             onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder}
             required={required}
             readOnly={readOnly}
+            rows={4}
           />
         </div>
       );
@@ -280,11 +285,51 @@ function FieldRender({
           <Input
             id={id}
             type="number"
-            value={(value as number) ?? ""}
-            onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+            min={field.min}
+            max={field.max}
+            value={(value as number | string) ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              onChange(v === "" ? "" : Number(v));
+            }}
+            placeholder={field.placeholder}
             required={required}
             readOnly={readOnly}
           />
+        </div>
+      );
+    case "yes_no":
+      return (
+        <div className="space-y-2">
+          <Label>
+            {field.label}
+            {required && " *"}
+          </Label>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name={id}
+                value="yes"
+                checked={(value as string) === "yes"}
+                onChange={() => onChange("yes")}
+                required={required}
+                disabled={readOnly}
+              />
+              Sim
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name={id}
+                value="no"
+                checked={(value as string) === "no"}
+                onChange={() => onChange("no")}
+                disabled={readOnly}
+              />
+              Não
+            </label>
+          </div>
         </div>
       );
     case "single_choice":
