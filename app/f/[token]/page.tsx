@@ -38,6 +38,14 @@ export default async function FormularioPublicoPage({
   const definition = Array.isArray(data.definition) ? data.definition : [];
   const responses = (data.responses ?? {}) as Record<string, unknown>;
 
+  // Debug: verificar se os dados do paciente estão chegando
+  console.log("Patient data:", {
+    name: data.patient_name,
+    email: data.patient_email,
+    phone: data.patient_phone,
+    age: data.patient_age,
+  });
+
   return (
     <div className="min-h-screen bg-muted/30 py-8 px-4">
       <div className="max-w-xl mx-auto space-y-4">
@@ -47,6 +55,10 @@ export default async function FormularioPublicoPage({
               src={data.clinic_logo_url}
               alt="Logo da clínica"
               className="max-h-24 max-w-full object-contain"
+              onError={(e) => {
+                // Esconde a imagem se não carregar
+                e.currentTarget.style.display = 'none';
+              }}
             />
           </div>
         )}
@@ -58,6 +70,12 @@ export default async function FormularioPublicoPage({
           token={token}
           readOnly={data.status === "respondido"}
           doctorLogoUrl={data.doctor_logo_url ?? null}
+          patientData={{
+            name: data.patient_name ?? null,
+            email: data.patient_email ?? null,
+            phone: data.patient_phone ?? null,
+            age: data.patient_age ?? null,
+          }}
         />
       </div>
     </div>

@@ -243,6 +243,13 @@ function FieldRender({
   }
 }
 
+type PatientData = {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  age: number | null;
+};
+
 export function FormularioPreenchimento({
   templateName,
   definition,
@@ -250,6 +257,7 @@ export function FormularioPreenchimento({
   token,
   readOnly,
   doctorLogoUrl,
+  patientData,
 }: {
   templateName: string;
   definition: FieldDef[];
@@ -258,6 +266,7 @@ export function FormularioPreenchimento({
   token: string;
   readOnly?: boolean;
   doctorLogoUrl?: string | null;
+  patientData?: PatientData;
 }) {
   const [responses, setResponses] = useState<Record<string, unknown>>(initialResponses);
   const [loading, setLoading] = useState(false);
@@ -303,6 +312,11 @@ export function FormularioPreenchimento({
     );
   }
 
+  // Extrair primeiro nome do paciente para mensagem personalizada
+  const patientFirstName = patientData?.name 
+    ? patientData.name.split(' ')[0] 
+    : null;
+
   return (
     <Card>
       <CardHeader>
@@ -310,10 +324,45 @@ export function FormularioPreenchimento({
         <p className="text-sm text-muted-foreground">
           {readOnly
             ? "Você já respondeu este formulário."
-            : "Preencha os campos abaixo."}
+            : patientFirstName
+              ? `Olá ${patientFirstName}, preencha as informações abaixo.`
+              : "Preencha os campos abaixo."}
         </p>
       </CardHeader>
       <CardContent>
+        {/* Informações básicas do paciente (somente leitura) */}
+        {patientData && (patientData.name || patientData.email || patientData.phone || patientData.age !== null) && (
+          <div className="mb-6 pb-6 border-b border-border">
+            <h2 className="text-sm font-medium text-foreground mb-4">Informações do Paciente</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {patientData.name && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Nome completo</Label>
+                  <p className="text-sm font-medium">{patientData.name}</p>
+                </div>
+              )}
+              {patientData.age !== null && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Idade</Label>
+                  <p className="text-sm font-medium">{patientData.age} anos</p>
+                </div>
+              )}
+              {patientData.email && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">E-mail</Label>
+                  <p className="text-sm font-medium">{patientData.email}</p>
+                </div>
+              )}
+              {patientData.phone && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Telefone</Label>
+                  <p className="text-sm font-medium">{patientData.phone}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
             <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
@@ -341,6 +390,10 @@ export function FormularioPreenchimento({
               src={doctorLogoUrl}
               alt="Logo do médico"
               className="max-h-20 max-w-full object-contain"
+              onError={(e) => {
+                // Esconde a imagem se não carregar
+                e.currentTarget.style.display = 'none';
+              }}
             />
           </div>
         )}
