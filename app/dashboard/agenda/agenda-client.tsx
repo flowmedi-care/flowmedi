@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { createAppointment, updateAppointment } from "./actions";
+import { createAppointment, updateAppointment, updateUserPreferences } from "./actions";
+import { useRouter } from "next/navigation";
 import { Plus, CalendarClock, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -91,20 +92,33 @@ export function AgendaClient({
   patients,
   doctors,
   appointmentTypes,
+  initialPreferences,
 }: {
   appointments: AppointmentRow[];
   patients: PatientOption[];
   doctors: DoctorOption[];
   appointmentTypes: AppointmentTypeOption[];
+  initialPreferences?: {
+    viewMode: ViewMode;
+    timelineGranularity: TimelineGranularity;
+    calendarGranularity: CalendarGranularity;
+  };
 }) {
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("timeline");
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    initialPreferences?.viewMode || "timeline"
+  );
   const [timelineGranularity, setTimelineGranularity] =
-    useState<TimelineGranularity>("day");
+    useState<TimelineGranularity>(
+      initialPreferences?.timelineGranularity || "day"
+    );
   const [calendarGranularity, setCalendarGranularity] =
-    useState<CalendarGranularity>("week");
+    useState<CalendarGranularity>(
+      initialPreferences?.calendarGranularity || "week"
+    );
   const [dateInicio, setDateInicio] = useState(() => todayYMD());
   const [dateFim, setDateFim] = useState(() => todayYMD());
   const [draggedAppointment, setDraggedAppointment] =
@@ -154,7 +168,7 @@ export function AgendaClient({
       time: "09:00",
       notes: "",
     });
-    window.location.reload();
+    router.refresh();
     setLoading(false);
   }
 
@@ -226,8 +240,8 @@ export function AgendaClient({
       });
 
       if (!res.error) {
-        // Usar router.refresh() ao invés de reload para manter estado
-        window.location.reload();
+        // Usar router.refresh() para atualizar dados sem perder estado
+        router.refresh();
       } else {
         alert(`Erro ao reagendar: ${res.error}`);
       }
@@ -250,7 +264,11 @@ export function AgendaClient({
           <div className="flex items-center gap-2">
             <select
               value={viewMode}
-              onChange={(e) => setViewMode(e.target.value as ViewMode)}
+              onChange={async (e) => {
+                const newMode = e.target.value as ViewMode;
+                setViewMode(newMode);
+                await updateUserPreferences({ agenda_view_mode: newMode });
+              }}
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="timeline">Timeline</option>
@@ -259,9 +277,13 @@ export function AgendaClient({
             {viewMode === "timeline" && (
               <select
                 value={timelineGranularity}
-                onChange={(e) =>
-                  setTimelineGranularity(e.target.value as TimelineGranularity)
-                }
+                onChange={async (e) => {
+                  const newGran = e.target.value as TimelineGranularity;
+                  setTimelineGranularity(newGran);
+                  await updateUserPreferences({
+                    agenda_timeline_granularity: newGran,
+                  });
+                }}
                 className="h-9 rounded-md border border-input bg-background px-3 text-sm"
               >
                 <option value="day">Dia</option>
@@ -272,9 +294,13 @@ export function AgendaClient({
             {viewMode === "calendar" && (
               <select
                 value={calendarGranularity}
-                onChange={(e) =>
-                  setCalendarGranularity(e.target.value as CalendarGranularity)
-                }
+                onChange={async (e) => {
+                  const newGran = e.target.value as CalendarGranularity;
+                  setCalendarGranularity(newGran);
+                  await updateUserPreferences({
+                    agenda_calendar_granularity: newGran,
+                  });
+                }}
                 className="h-9 rounded-md border border-input bg-background px-3 text-sm"
               >
                 <option value="week">Semana</option>

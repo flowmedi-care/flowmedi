@@ -9,10 +9,12 @@ export default async function AgendaPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id")
+    .select("clinic_id, preferences")
     .eq("id", user.id)
     .single();
   if (!profile?.clinic_id) redirect("/dashboard");
+
+  const preferences = (profile?.preferences as Record<string, unknown>) || {};
 
   const clinicId = profile.clinic_id;
 
@@ -111,6 +113,11 @@ export default async function AgendaPage() {
           id: t.id,
           name: t.name,
         }))}
+        initialPreferences={{
+          viewMode: (preferences.agenda_view_mode as "timeline" | "calendar") || "timeline",
+          timelineGranularity: (preferences.agenda_timeline_granularity as "day" | "week" | "month") || "day",
+          calendarGranularity: (preferences.agenda_calendar_granularity as "week" | "month") || "week",
+        }}
       />
     </div>
   );

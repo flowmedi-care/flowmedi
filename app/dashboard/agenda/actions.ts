@@ -100,3 +100,35 @@ export async function deleteAppointment(id: string) {
   revalidatePath("/dashboard/agenda");
   return { error: null };
 }
+
+export async function updateUserPreferences(preferences: {
+  agenda_view_mode?: "timeline" | "calendar";
+  agenda_timeline_granularity?: "day" | "week" | "month";
+  agenda_calendar_granularity?: "week" | "month";
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  // Buscar preferências atuais
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("preferences")
+    .eq("id", user.id)
+    .single();
+
+  const currentPrefs = (profile?.preferences as Record<string, unknown>) || {};
+  const newPrefs = { ...currentPrefs, ...preferences };
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      preferences: newPrefs,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/agenda");
+  return { error: null };
+}
