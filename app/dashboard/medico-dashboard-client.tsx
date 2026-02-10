@@ -69,7 +69,13 @@ export function MedicoDashboardClient({
   clinicId: string;
 }) {
   const [period, setPeriod] = useState<Period>("daily");
-  const [metrics, setMetrics] = useState(initialMetrics);
+  const [metrics, setMetrics] = useState({
+    totalToday: initialMetrics.totalToday,
+    total: initialMetrics.total,
+    completed: initialMetrics.completed,
+    remaining: initialMetrics.remaining,
+    pendingForms: initialMetrics.pendingForms,
+  });
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [weeklyAppointments, setWeeklyAppointments] = useState<
     Array<{
@@ -87,6 +93,7 @@ export function MedicoDashboardClient({
       loadMetricsByPeriod();
     } else {
       setMetrics({
+        totalToday: initialMetrics.totalToday,
         total: initialMetrics.totalToday,
         completed: initialMetrics.completed,
         remaining: initialMetrics.remaining,
@@ -104,7 +111,13 @@ export function MedicoDashboardClient({
     setLoadingMetrics(true);
     const result = await getDoctorMetricsByPeriod(doctorId, clinicId, period);
     if (result.data) {
-      setMetrics(result.data);
+      setMetrics({
+        totalToday: result.data.total,
+        total: result.data.total,
+        completed: result.data.completed,
+        remaining: result.data.remaining,
+        pendingForms: result.data.pendingForms,
+      });
     }
     setLoadingMetrics(false);
   }
