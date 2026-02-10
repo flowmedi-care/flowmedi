@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, type ReactNode } from "react";
+import { useState, useMemo, useRef, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { createAppointment, updateAppointment, updateUserPreferences } from "./actions";
 import { useRouter } from "next/navigation";
-import { Plus, CalendarClock, GripVertical } from "lucide-react";
+import { Plus, CalendarClock, GripVertical, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DndContext,
@@ -87,13 +87,13 @@ function getStatusBackgroundColor(status: string): string {
   switch (statusLower) {
     case "agendada":
     case "agendado":
-      return "bg-amber-50 dark:bg-amber-950/20"; // bege claro
+      return "bg-blue-50 dark:bg-blue-950/20"; // azul claro
     case "confirmada":
     case "confirmado":
       return "bg-green-50 dark:bg-green-950/20"; // verde claro
     case "realizada":
     case "realizado":
-      return "bg-blue-50 dark:bg-blue-950/20"; // azul
+      return "bg-purple-50 dark:bg-purple-950/20"; // roxo
     case "falta":
       return "bg-yellow-50 dark:bg-yellow-950/20"; // amarelo
     case "cancelada":
@@ -110,13 +110,13 @@ function getStatusTextColor(status: string): string {
   switch (statusLower) {
     case "agendada":
     case "agendado":
-      return "text-amber-700 dark:text-amber-300";
+      return "text-blue-700 dark:text-blue-300";
     case "confirmada":
     case "confirmado":
       return "text-green-700 dark:text-green-300";
     case "realizada":
     case "realizado":
-      return "text-blue-700 dark:text-blue-300";
+      return "text-purple-700 dark:text-purple-300";
     case "falta":
       return "text-yellow-700 dark:text-yellow-300";
     case "cancelada":
@@ -1209,7 +1209,7 @@ function DraggableAppointmentItem({
         </button>
         <Link
           href={`/dashboard/agenda/consulta/${appointment.id}`}
-          className="flex-1 truncate text-xs"
+          className="flex-1 truncate text-xs font-semibold"
           title={`${new Date(appointment.scheduled_at).toLocaleTimeString("pt-BR", {
             hour: "2-digit",
             minute: "2-digit",
@@ -1251,6 +1251,108 @@ function DraggableAppointmentItem({
   );
 }
 
+function StatusBadgeDropdown({
+  appointment,
+  onStatusChange,
+}: {
+  appointment: AppointmentRow;
+  onStatusChange: (newStatus: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  async function handleStatusChange(newStatus: string) {
+    if (newStatus === appointment.status) {
+      setIsOpen(false);
+      return;
+    }
+
+    const res = await updateAppointment(appointment.id, {
+      status: newStatus,
+    });
+
+    if (!res.error) {
+      onStatusChange(newStatus);
+      router.refresh();
+    } else {
+      alert(`Erro ao alterar status: ${res.error}`);
+    }
+
+    setIsOpen(false);
+  }
+
+  const statusOptions = [
+    { value: "agendada", label: "Agendada" },
+    { value: "confirmada", label: "Confirmada" },
+    { value: "realizada", label: "Realizada" },
+    { value: "falta", label: "Falta" },
+    { value: "cancelada", label: "Cancelada" },
+  ];
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        onMouseDown={(e) => {
+          // Prevenir que o drag and drop seja ativado ao clicar no badge
+          e.stopPropagation();
+        }}
+        className="inline-flex items-center gap-1"
+      >
+        <Badge variant={STATUS_VARIANT[appointment.status] ?? "secondary"} className="text-xs cursor-pointer hover:opacity-80">
+          {STATUS_LABEL[appointment.status] ?? appointment.status}
+        </Badge>
+        <ChevronDown className="h-3 w-3 text-muted-foreground" />
+      </button>
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 z-[100] bg-popover border border-border rounded-md shadow-md min-w-[120px]">
+          <div className="p-1">
+            {statusOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleStatusChange(option.value);
+                }}
+                className={cn(
+                  "w-full text-left px-2 py-1.5 text-xs rounded-sm hover:bg-accent transition-colors",
+                  appointment.status === option.value && "bg-accent font-medium"
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AppointmentContent({ appointment: a }: { appointment: AppointmentRow }) {
   const time = new Date(a.scheduled_at).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
@@ -1258,6 +1360,7 @@ function AppointmentContent({ appointment: a }: { appointment: AppointmentRow })
   });
   const pendingForms =
     a.form_instances?.filter((f) => f.status === "pendente").length ?? 0;
+  const router = useRouter();
 
   return (
     <>
@@ -1277,9 +1380,12 @@ function AppointmentContent({ appointment: a }: { appointment: AppointmentRow })
             {pendingForms} form.
           </Badge>
         )}
-        <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"} className="text-xs">
-          {STATUS_LABEL[a.status] ?? a.status}
-        </Badge>
+        <StatusBadgeDropdown
+          appointment={a}
+          onStatusChange={() => {
+            // Callback vazio, o router.refresh() já atualiza
+          }}
+        />
       </div>
     </>
   );
@@ -1319,9 +1425,12 @@ function AppointmentListItem({
             {pendingForms} form.
           </Badge>
         )}
-        <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"} className="text-xs">
-          {STATUS_LABEL[a.status] ?? a.status}
-        </Badge>
+        <StatusBadgeDropdown
+          appointment={a}
+          onStatusChange={() => {
+            // Callback vazio, o router.refresh() já atualiza
+          }}
+        />
       </div>
     </>
   );
