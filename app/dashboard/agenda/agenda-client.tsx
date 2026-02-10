@@ -34,6 +34,8 @@ import {
   getStartOfWeek,
   getWeekDates,
   getStartOfMonth,
+  getEndOfMonth,
+  getEndOfWeek,
   getMonthCalendarGrid,
   addDays,
   isSameDay,
@@ -126,6 +128,60 @@ export function AgendaClient({
   const [dateFim, setDateFim] = useState(() => todayYMD());
   const [draggedAppointment, setDraggedAppointment] =
     useState<AppointmentRow | null>(null);
+
+  // Calcular dateFim automaticamente baseado na granularidade
+  // Usar ref para evitar recalcular quando dateFim é alterado manualmente pelo usuário
+  const dateFimManuallySet = useRef(false);
+  
+  useEffect(() => {
+    // Resetar flag quando mudar granularidade ou viewMode
+    dateFimManuallySet.current = false;
+  }, [viewMode, timelineGranularity, calendarGranularity]);
+
+  useEffect(() => {
+    // Se dateFim foi alterado manualmente, não recalcular automaticamente
+    if (dateFimManuallySet.current) {
+      return;
+    }
+
+    if (viewMode === "timeline") {
+      const inicioDate = new Date(dateInicio + "T12:00:00");
+      let novoFim: Date;
+
+      if (timelineGranularity === "day") {
+        // Dia: dateFim = dateInicio
+        novoFim = inicioDate;
+      } else if (timelineGranularity === "week") {
+        // Semana: dateFim = dateInicio + 7 dias
+        novoFim = addDays(inicioDate, 7);
+      } else if (timelineGranularity === "month") {
+        // Mês: dateFim = fim do mês de dateInicio
+        novoFim = getEndOfMonth(inicioDate);
+      } else {
+        novoFim = inicioDate;
+      }
+
+      const novoFimYMD = toYMD(novoFim);
+      setDateFim(novoFimYMD);
+    } else if (viewMode === "calendar") {
+      const inicioDate = new Date(dateInicio + "T12:00:00");
+      let novoFim: Date;
+
+      if (calendarGranularity === "week") {
+        // Semana: sempre mostra a semana completa (segunda a domingo)
+        novoFim = getEndOfWeek(inicioDate);
+      } else if (calendarGranularity === "month") {
+        // Mês: sempre mostra o mês completo
+        novoFim = getEndOfMonth(inicioDate);
+      } else {
+        novoFim = inicioDate;
+      }
+
+      const novoFimYMD = toYMD(novoFim);
+      setDateFim(novoFimYMD);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateInicio, viewMode, timelineGranularity, calendarGranularity]);
   const [form, setForm] = useState({
     patientId: "",
     doctorId: "",
@@ -328,6 +384,7 @@ export function AgendaClient({
                   await updateUserPreferences({
                     agenda_timeline_granularity: newGran,
                   });
+                  // O useEffect vai recalcular o dateFim automaticamente
                 }}
                 className="h-9 rounded-md border border-input bg-background px-3 text-sm"
               >
@@ -345,6 +402,7 @@ export function AgendaClient({
                   await updateUserPreferences({
                     agenda_calendar_granularity: newGran,
                   });
+                  // O useEffect vai recalcular o dateFim automaticamente
                 }}
                 className="h-9 rounded-md border border-input bg-background px-3 text-sm"
               >
@@ -355,37 +413,110 @@ export function AgendaClient({
           </div>
 
           <div className="flex items-center gap-2">
-            <Label htmlFor="date_inicio" className="text-muted-foreground text-sm">
-              De
-            </Label>
-            <Input
-              id="date_inicio"
-              type="date"
-              value={dateInicio}
-              onChange={(e) => setDateInicio(e.target.value)}
-              className="w-40"
-            />
-            <Label htmlFor="date_fim" className="text-muted-foreground text-sm">
-              até
-            </Label>
-            <Input
-              id="date_fim"
-              type="date"
-              value={dateFim}
-              onChange={(e) => setDateFim(e.target.value)}
-              className="w-40"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const t = todayYMD();
-                setDateInicio(t);
-                setDateFim(t);
-              }}
-            >
-              Hoje
-            </Button>
+            {viewMode === "timeline" && timelineGranularity === "day" ? (
+              // Timeline Dia: apenas um campo
+              <>
+                <Label htmlFor="date_inicio" className="text-muted-foreground text-sm">
+                  Data
+                </Label>
+                <Input
+                  id="date_inicio"
+                  type="date"
+                  value={dateInicio}
+                  onChange={(e) => setDateInicio(e.target.value)}
+                  className="w-40"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const today = todayYMD();
+                    setDateInicio(today);
+                  }}
+                >
+                  Hoje
+                </Button>
+              </>
+            ) : (
+              // Timeline Semana/Mês ou Calendário: campos De/Até
+              <>
+                <Label htmlFor="date_inicio" className="text-muted-foreground text-sm">
+                  De
+                </Label>
+                <Input
+                  id="date_inicio"
+                  type="date"
+                  value={dateInicio}
+                  onChange={(e) => {
+                    const novoInicio = e.target.value;
+                    setDateInicio(novoInicio);
+                    
+                    // Para calendário, recalcular automaticamente
+                    if (viewMode === "calendar") {
+                      const inicioDate = new Date(novoInicio + "T12:00:00");
+                      let novoFim: Date;
+                      if (calendarGranularity === "week") {
+                        novoFim = getEndOfWeek(inicioDate);
+                      } else if (calendarGranularity === "month") {
+                        novoFim = getEndOfMonth(inicioDate);
+                      } else {
+                        novoFim = inicioDate;
+                      }
+                      setDateFim(toYMD(novoFim));
+                    }
+                  }}
+                  className="w-40"
+                />
+                {viewMode === "timeline" ? (
+                  // Timeline: permite editar o "até"
+                  <>
+                    <Label htmlFor="date_fim" className="text-muted-foreground text-sm">
+                      até
+                    </Label>
+                    <Input
+                      id="date_fim"
+                      type="date"
+                      value={dateFim}
+                      min={dateInicio}
+                      onChange={(e) => {
+                        const novoFim = e.target.value;
+                        // Validar que não seja anterior ao início
+                        if (novoFim >= dateInicio) {
+                          dateFimManuallySet.current = true;
+                          setDateFim(novoFim);
+                        }
+                      }}
+                      className="w-40"
+                    />
+                  </>
+                ) : (
+                  // Calendário: mostra "até" mas não permite editar (readonly)
+                  <>
+                    <Label htmlFor="date_fim" className="text-muted-foreground text-sm">
+                      até
+                    </Label>
+                    <Input
+                      id="date_fim"
+                      type="date"
+                      value={dateFim}
+                      readOnly
+                      className="w-40 bg-muted cursor-not-allowed"
+                    />
+                  </>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const today = todayYMD();
+                    setDateInicio(today);
+                    // O useEffect vai calcular o dateFim automaticamente
+                  }}
+                >
+                  Hoje
+                </Button>
+              </>
+            )}
           </div>
 
           <Button
