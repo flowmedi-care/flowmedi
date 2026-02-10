@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,6 +69,7 @@ export function PacientesClient({
   const [patientToExcluir, setPatientToExcluir] = useState<Patient | null>(null);
   const [registeringEmail, setRegisteringEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
   const [form, setForm] = useState<PatientInsert & { id?: string; custom_fields?: Record<string, unknown> }>({
     full_name: "",
     email: "",
@@ -77,6 +78,18 @@ export function PacientesClient({
     notes: "",
     custom_fields: {},
   });
+
+  // Abrir formulário se vier ?new=true na URL
+  useEffect(() => {
+    const shouldOpenForm = searchParams.get("new") === "true";
+    if (shouldOpenForm && !isNew && !editingId) {
+      openNew();
+      // Limpar query params
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete("new");
+      router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+    }
+  }, [searchParams, isNew, editingId, router]);
 
   const filtered = patients.filter(
     (p) =>
@@ -116,7 +129,7 @@ export function PacientesClient({
     router.refresh();
   }
 
-  function openNew() {
+  const openNew = () => {
     setEditingId(null);
     setIsNew(true);
     const initialCustomFields: Record<string, unknown> = {};
@@ -138,7 +151,7 @@ export function PacientesClient({
       custom_fields: initialCustomFields,
     });
     setError(null);
-  }
+  };
 
   function openEdit(p: Patient) {
     setIsNew(false);

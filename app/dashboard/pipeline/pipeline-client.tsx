@@ -48,6 +48,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/toast";
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
   novo_contato: "Novo Contato",
@@ -110,8 +111,9 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
       setItems((prev) =>
         prev.map((i) => (i.id === itemId ? { ...i, stage: item.stage } : i))
       );
-      alert(`Erro: ${result.error}`);
+      toast(`Erro ao mover: ${result.error}`, "error");
     } else {
+      toast("Etapa atualizada com sucesso", "success");
       router.refresh();
     }
   };
@@ -121,8 +123,9 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
 
     const result = await addPipelineNote(selectedItem.id, noteText);
     if (result.error) {
-      alert(`Erro: ${result.error}`);
+      toast(`Erro: ${result.error}`, "error");
     } else {
+      toast("Nota adicionada com sucesso", "success");
       setShowNoteDialog(false);
       setNoteText("");
       setSelectedItem(null);
@@ -133,8 +136,9 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
   const handleChangeStage = async (itemId: string, newStage: PipelineStage) => {
     const result = await changePipelineStage(itemId, newStage);
     if (result.error) {
-      alert(`Erro: ${result.error}`);
+      toast(`Erro: ${result.error}`, "error");
     } else {
+      toast("Etapa atualizada com sucesso", "success");
       router.refresh();
     }
   };
@@ -142,8 +146,9 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
   const handleRegisterPatient = async (item: PipelineItem) => {
     const result = await registerPatientFromPipeline(item.id);
     if (result.error) {
-      alert(`Erro: ${result.error}`);
+      toast(`Erro ao cadastrar: ${result.error}`, "error");
     } else {
+      toast("Paciente cadastrado com sucesso", "success");
       router.refresh();
     }
   };

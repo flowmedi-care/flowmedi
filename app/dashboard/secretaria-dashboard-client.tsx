@@ -97,7 +97,7 @@ export function SecretariaDashboardClient({
             </CardContent>
           </Card>
         </Link>
-        <Link href="/dashboard/pacientes?action=new">
+        <Link href="/dashboard/pacientes?new=true">
           <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center gap-2 pb-2">
               <UserPlus className="h-5 w-5 text-primary" />

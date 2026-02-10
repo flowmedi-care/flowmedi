@@ -589,7 +589,15 @@ export async function registerPatientFromPipeline(pipelineId: string) {
     .eq("id", pipelineId);
 
   if (updatePipelineError) {
-    console.error("Erro ao atualizar pipeline:", updatePipelineError);
+    // Se o erro for de constraint, pode ser que o banco ainda tenha a constraint antiga
+    // Tentar retornar erro mais amigável
+    if (updatePipelineError.code === "23514") {
+      return { 
+        error: "Erro ao atualizar etapa. Execute a migration fix-pipeline-stages.sql no Supabase.", 
+        patientId: null 
+      };
+    }
+    return { error: updatePipelineError.message, patientId: null };
   }
 
   // Registrar histórico
