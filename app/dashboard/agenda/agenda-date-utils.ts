@@ -1,0 +1,120 @@
+/**
+ * Helpers para agenda: semana começa na segunda-feira (padrão BR).
+ */
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Segunda = 0 (JS domingo = 0). Ajuste para que segunda seja o primeiro dia da semana. */
+function getMondayOfWeek(d: Date): Date {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+export function getStartOfWeek(d: Date): Date {
+  const m = getMondayOfWeek(d);
+  return new Date(m.getFullYear(), m.getMonth(), m.getDate(), 0, 0, 0, 0);
+}
+
+export function getEndOfWeek(d: Date): Date {
+  const start = getStartOfWeek(d);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
+/** Retorna as 7 datas (seg a dom) da semana que contém `d`. */
+export function getWeekDates(d: Date): Date[] {
+  const start = getStartOfWeek(d);
+  const dates: Date[] = [];
+  for (let i = 0; i < 7; i++) {
+    const x = new Date(start);
+    x.setDate(x.getDate() + i);
+    dates.push(x);
+  }
+  return dates;
+}
+
+export function getStartOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+}
+
+export function getEndOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+}
+
+/** Retorna um array de semanas do mês; cada semana é um array de 7 Date | null (null = dia fora do mês). */
+export function getMonthCalendarGrid(d: Date): (Date | null)[][] {
+  const start = getStartOfMonth(d);
+  const end = getEndOfMonth(d);
+  const firstMonday = getStartOfWeek(start);
+  const weeks: (Date | null)[][] = [];
+  let current = new Date(firstMonday);
+
+  while (current <= end || weeks.length === 0) {
+    const week: (Date | null)[] = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(current);
+      day.setDate(current.getDate() + i);
+      week.push(day.getMonth() === d.getMonth() ? day : null);
+    }
+    weeks.push(week);
+    current.setDate(current.getDate() + 7);
+    if (current > end && weeks.length >= 1) break;
+  }
+  return weeks;
+}
+
+export function addDays(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+export function addWeeks(d: Date, n: number): Date {
+  return addDays(d, n * 7);
+}
+
+export function addMonths(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setMonth(r.getMonth() + n);
+  return r;
+}
+
+export function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+export function toYMD(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+export function formatWeekRange(startOfWeek: Date): string {
+  const end = addDays(startOfWeek, 6);
+  const fmt = (x: Date) =>
+    x.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  return `${fmt(startOfWeek)} – ${fmt(end)}`;
+}
+
+export function formatMonthYear(d: Date): string {
+  return d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+}
+
+export function formatDayShort(d: Date): string {
+  return d.toLocaleDateString("pt-BR", { weekday: "short" });
+}
+
+/** Horas no dia para grade (ex.: 7–20). */
+export function getHourSlots(startHour = 7, endHour = 20): number[] {
+  const slots: number[] = [];
+  for (let h = startHour; h <= endHour; h++) slots.push(h);
+  return slots;
+}

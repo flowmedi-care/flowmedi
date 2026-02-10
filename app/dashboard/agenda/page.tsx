@@ -16,10 +16,10 @@ export default async function AgendaPage() {
 
   const clinicId = profile.clinic_id;
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfWeek = new Date(startOfDay);
-  endOfWeek.setDate(endOfWeek.getDate() + 14);
+  // Suporte a navegação por semana/mês: ~4 meses (1 antes, 3 à frente)
+  const now = new Date();
+  const startRange = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const endRange = new Date(now.getFullYear(), now.getMonth() + 3, 0, 23, 59, 59, 999);
 
   const { data: appointments } = await supabase
     .from("appointments")
@@ -36,8 +36,8 @@ export default async function AgendaPage() {
     `
     )
     .eq("clinic_id", clinicId)
-    .gte("scheduled_at", startOfDay.toISOString())
-    .lte("scheduled_at", endOfWeek.toISOString())
+    .gte("scheduled_at", startRange.toISOString())
+    .lte("scheduled_at", endRange.toISOString())
     .order("scheduled_at");
 
   const { data: patients } = await supabase
