@@ -10,6 +10,7 @@ import { updateAppointment, deleteAppointment } from "../../actions";
 import { Copy, Check, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import type { FormFieldDefinition } from "@/lib/form-types";
 import { getStatusBackgroundColor, getStatusTextColor } from "../../status-utils";
+import { ConsultationNotesClient } from "./consultation-notes-client";
 import { cn } from "@/lib/utils";
 
 type FormInstance = {
@@ -45,6 +46,7 @@ export function ConsultaDetalheClient({
   formInstances,
   baseUrl,
   canEdit,
+  isDoctor,
 }: {
   appointmentId: string;
   appointmentStatus: string;
@@ -52,6 +54,7 @@ export function ConsultaDetalheClient({
   formInstances: FormInstance[];
   baseUrl: string;
   canEdit: boolean;
+  isDoctor: boolean;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(appointmentStatus);
@@ -94,7 +97,45 @@ export function ConsultaDetalheClient({
 
   return (
     <div className="space-y-6">
-      {canEdit && (
+      {/* Toggle de status para médicos (apenas realizada/falta) */}
+      {isDoctor && (
+        <Card>
+          <CardHeader>
+            <h2 className="font-semibold">Status da consulta</h2>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <Button
+                variant={status === "realizada" ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleStatusChange("realizada")}
+                disabled={updating}
+                className={cn(
+                  status === "realizada" && "bg-green-600 hover:bg-green-700 text-white",
+                  status === "realizada" && "font-semibold"
+                )}
+              >
+                ✓ Realizada
+              </Button>
+              <Button
+                variant={status === "falta" ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleStatusChange("falta")}
+                disabled={updating}
+                className={cn(
+                  status === "falta" && "bg-red-600 hover:bg-red-700 text-white",
+                  status === "falta" && "font-semibold"
+                )}
+              >
+                ✗ Falta
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Alterar status completo (admin/secretaria) */}
+      {canEdit && !isDoctor && (
         <Card>
           <CardHeader>
             <h2 className="font-semibold">Alterar status</h2>
@@ -137,6 +178,12 @@ export function ConsultaDetalheClient({
           </CardContent>
         </Card>
       )}
+
+      {/* Posts da consulta (tipo Facebook) */}
+      <div>
+        <h2 className="font-semibold text-lg mb-4">Registro da consulta</h2>
+        <ConsultationNotesClient appointmentId={appointmentId} isDoctor={isDoctor} />
+      </div>
 
       {/* Formulários removidos - agora em aba separada */}
       {formInstances.length > 0 && (

@@ -122,13 +122,18 @@ export async function uploadPatientExam(
   const examType = formData.get("exam_type") as string | null;
   const description = formData.get("description") as string | null;
 
+  // Garantir que clinic_id está definido
+  if (!profile.clinic_id) {
+    return { error: "Clínica não encontrada no perfil do usuário.", examId: null };
+  }
+
   // Criar registro do exame primeiro para obter o ID
   const { data: exam, error: insertError } = await supabase
     .from("patient_exams")
     .insert({
       patient_id: patientId,
       appointment_id: appointmentId || null,
-      clinic_id: profile.clinic_id,
+      clinic_id: profile.clinic_id, // Garantir que clinic_id está sempre presente
       file_url: "", // Será atualizado após upload
       file_name: file.name,
       file_size: file.size,
@@ -138,11 +143,22 @@ export async function uploadPatientExam(
       uploaded_by: user.id,
       uploaded_by_role: profile.role,
     })
-    .select("id")
+    .select("id, clinic_id")
     .single();
 
   if (insertError || !exam) {
+    console.error("Erro ao inserir exame:", insertError);
     return { error: insertError?.message || "Erro ao criar registro do exame.", examId: null };
+  }
+
+  // Verificar se clinic_id foi salvo corretamente
+  if (!exam.clinic_id) {
+    console.error("Exame inserido sem clinic_id:", exam);
+    // Tentar atualizar com clinic_id do paciente como fallback
+    await supabase
+      .from("patient_exams")
+      .update({ clinic_id: patient.clinic_id })
+      .eq("id", exam.id);
   }
 
   // Fazer upload do arquivo

@@ -182,7 +182,12 @@ $$;
 
 -- Submete as respostas do formulário (por token)
 -- Suporta tanto link_token quanto public_link_token
-CREATE OR REPLACE FUNCTION public.submit_form_by_token(
+-- Primeiro, remover todas as versões antigas da função para evitar ambiguidade
+DROP FUNCTION IF EXISTS public.submit_form_by_token(text, jsonb);
+DROP FUNCTION IF EXISTS public.submit_form_by_token(text, jsonb, text, text, text, date);
+DROP FUNCTION IF EXISTS public.submit_form_by_token(text, jsonb, text, text, text, date, jsonb);
+
+CREATE FUNCTION public.submit_form_by_token(
   p_token text, 
   p_responses jsonb,
   p_submitter_name text DEFAULT NULL,
@@ -309,5 +314,6 @@ $$;
 -- Permite execução anônima (anon role)
 GRANT EXECUTE ON FUNCTION public.get_form_by_token(text) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_form_template(uuid) TO anon;
+-- Grant para a função com todos os parâmetros (incluindo opcionais)
 GRANT EXECUTE ON FUNCTION public.submit_form_by_token(text, jsonb, text, text, text, date, jsonb) TO anon;
 GRANT EXECUTE ON FUNCTION public.create_public_form_instance(uuid, text, text, text, date, jsonb, jsonb) TO anon;

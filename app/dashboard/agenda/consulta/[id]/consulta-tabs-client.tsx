@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConsultaDetalheClient } from "./consulta-detalhe-client";
 import { ExamesClient } from "../../../exames/exames-client";
+import { FormulariosConsultaClient } from "./formularios-consulta-client";
 import { cn } from "@/lib/utils";
 import type { FormInstanceItem } from "./page";
 
@@ -19,6 +20,7 @@ export function ConsultaTabsClient({
   formInstances,
   baseUrl,
   canEdit,
+  isDoctor,
 }: {
   appointmentId: string;
   appointmentStatus: string;
@@ -33,6 +35,7 @@ export function ConsultaTabsClient({
   formInstances: FormInstanceItem[];
   baseUrl: string;
   canEdit: boolean;
+  isDoctor: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("consulta");
 
@@ -73,6 +76,7 @@ export function ConsultaTabsClient({
             formInstances={formInstances}
             baseUrl={baseUrl}
             canEdit={canEdit}
+            isDoctor={isDoctor}
           />
         )}
 
@@ -126,76 +130,12 @@ export function ConsultaTabsClient({
         )}
 
         {activeTab === "formularios" && (
-          <div className="space-y-4">
-            <h2 className="font-semibold">Formulários</h2>
-            {formInstances.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    Nenhum formulário vinculado a esta consulta.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {formInstances.map((fi) => {
-                  const isExpanded = true; // Sempre expandido na aba
-                  return (
-                    <Card key={fi.id}>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium">{fi.template_name}</h3>
-                          <Badge
-                            variant={
-                              fi.status === "respondido"
-                                ? "success"
-                                : fi.status === "incompleto"
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                          >
-                            {fi.status}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pt-0 space-y-3 border-t border-border">
-                        {fi.definition.length === 0 ? (
-                          <p className="text-sm text-muted-foreground py-2">
-                            Sem campos definidos.
-                          </p>
-                        ) : (
-                          fi.definition.map((field) => (
-                            <div key={field.id}>
-                              <p className="text-sm text-muted-foreground">
-                                {field.label}
-                              </p>
-                              <p className="font-medium">
-                                {(() => {
-                                  const value = fi.responses[field.id];
-                                  if (value == null || value === "") return "—";
-                                  if (field.type === "multiple_choice" && Array.isArray(value)) {
-                                    return value.join(", ");
-                                  }
-                                  if (field.type === "date" && typeof value === "string") {
-                                    try {
-                                      return new Date(value).toLocaleDateString("pt-BR");
-                                    } catch {
-                                      return value;
-                                    }
-                                  }
-                                  return String(value);
-                                })()}
-                              </p>
-                            </div>
-                          ))
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <FormulariosConsultaClient
+            appointmentId={appointmentId}
+            formInstances={formInstances}
+            isDoctor={isDoctor}
+            canEdit={canEdit}
+          />
         )}
 
         {activeTab === "exames" && (
