@@ -165,6 +165,7 @@ export async function updateAppointment(
     .eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard");
   revalidatePath(`/dashboard/agenda/consulta/${id}`);
   return { error: null };
 }
