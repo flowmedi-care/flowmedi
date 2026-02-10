@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConsultaDetalheClient } from "./consulta-detalhe-client";
 import { DataHoraReagendar } from "./data-hora-reagendar";
 import { ArrowLeft } from "lucide-react";
-import { getStatusBadgeClassName } from "../../agenda-client";
+import { getStatusBadgeClassName } from "../../status-utils";
 import { cn } from "@/lib/utils";
 
 export default async function ConsultaDetalhePage({

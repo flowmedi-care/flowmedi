@@ -46,6 +46,7 @@ import {
   getWeekStartForPeriod,
   localDateToISO,
 } from "./agenda-date-utils";
+import { getStatusBackgroundColor, getStatusTextColor } from "./status-utils";
 
 export type AppointmentRow = {
   id: string;
@@ -80,60 +81,6 @@ const STATUS_VARIANT: Record<
   falta: "warning",
   cancelada: "destructive",
 };
-
-// Cores de fundo para calendário baseadas no status
-export function getStatusBackgroundColor(status: string): string {
-  const statusLower = status.toLowerCase();
-  switch (statusLower) {
-    case "agendada":
-    case "agendado":
-      return "bg-blue-50 dark:bg-blue-950/20"; // azul claro
-    case "confirmada":
-    case "confirmado":
-      return "bg-green-50 dark:bg-green-950/20"; // verde claro
-    case "realizada":
-    case "realizado":
-      return "bg-purple-50 dark:bg-purple-950/20"; // roxo
-    case "falta":
-      return "bg-yellow-50 dark:bg-yellow-950/20"; // amarelo
-    case "cancelada":
-    case "cancelado":
-      return "bg-red-50 dark:bg-red-950/20"; // vermelho
-    default:
-      return "bg-muted/50";
-  }
-}
-
-// Cores de texto para calendário baseadas no status
-export function getStatusTextColor(status: string): string {
-  const statusLower = status.toLowerCase();
-  switch (statusLower) {
-    case "agendada":
-    case "agendado":
-      return "text-blue-700 dark:text-blue-300";
-    case "confirmada":
-    case "confirmado":
-      return "text-green-700 dark:text-green-300";
-    case "realizada":
-    case "realizado":
-      return "text-purple-700 dark:text-purple-300";
-    case "falta":
-      return "text-yellow-700 dark:text-yellow-300";
-    case "cancelada":
-    case "cancelado":
-      return "text-red-700 dark:text-red-300";
-    default:
-      return "text-foreground";
-  }
-}
-
-// Cores de badge baseadas no status (para usar com Badge component)
-export function getStatusBadgeClassName(status: string): string {
-  const statusLower = status.toLowerCase();
-  const bgColor = getStatusBackgroundColor(status);
-  const textColor = getStatusTextColor(status);
-  return `${bgColor} ${textColor} font-semibold`;
-}
 
 type ViewMode = "timeline" | "calendar";
 type TimelineGranularity = "day" | "week" | "month";
@@ -1369,25 +1316,32 @@ function StatusBadgeDropdown({
         <ChevronDown className="h-3 w-3 text-muted-foreground" />
       </button>
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1 z-[100] bg-popover border border-border rounded-md shadow-md min-w-[120px]">
+        <div className="absolute right-0 top-full mt-1 z-[100] bg-background border border-border rounded-md shadow-lg min-w-[120px]">
           <div className="p-1">
-            {statusOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleStatusChange(option.value);
-                }}
-                className={cn(
-                  "w-full text-left px-2 py-1.5 text-xs rounded-sm hover:bg-accent transition-colors",
-                  appointment.status === option.value && "bg-accent font-medium"
-                )}
-              >
-                {option.label}
-              </button>
-            ))}
+            {statusOptions.map((option) => {
+              const bgColor = getStatusBackgroundColor(option.value);
+              const textColor = getStatusTextColor(option.value);
+              const isActive = appointment.status === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleStatusChange(option.value);
+                  }}
+                  className={cn(
+                    "w-full text-left px-2 py-1.5 text-xs rounded-sm transition-colors font-semibold",
+                    isActive
+                      ? `${bgColor} ${textColor}`
+                      : "bg-background hover:bg-muted text-foreground"
+                  )}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

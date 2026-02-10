@@ -9,7 +9,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { updateAppointment, deleteAppointment } from "../../actions";
 import { Copy, Check, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import type { FormFieldDefinition } from "@/lib/form-types";
-import { getStatusBackgroundColor, getStatusTextColor } from "../../agenda-client";
+import { getStatusBackgroundColor, getStatusTextColor } from "../../status-utils";
 import { cn } from "@/lib/utils";
 
 type FormInstance = {
