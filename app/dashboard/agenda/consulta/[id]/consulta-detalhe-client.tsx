@@ -138,13 +138,10 @@ export function ConsultaDetalheClient({
         </Card>
       )}
 
-      <div className="space-y-4">
-        <h2 className="font-semibold">Formulários</h2>
-        {formInstances.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Nenhum formulário vinculado a esta consulta.
-          </p>
-        ) : (
+      {/* Formulários removidos - agora em aba separada */}
+      {formInstances.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="font-semibold">Formulários</h2>
           <div className="space-y-2">
             {formInstances.map((fi) => {
               const isExpanded = expandedFormId === fi.id;
@@ -223,8 +220,8 @@ export function ConsultaDetalheClient({
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {canEdit && (
         <div className="pt-4 border-t border-border">

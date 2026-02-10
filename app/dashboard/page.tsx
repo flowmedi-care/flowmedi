@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Calendar, FileText, Users, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SecretariaDashboard } from "./secretaria-dashboard";
+import { MedicoDashboard } from "./medico-dashboard";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -54,7 +55,12 @@ export default async function DashboardPage() {
     return <SecretariaDashboard profile={profile} />;
   }
 
-  // Dashboard padrão para admin e médico
+  // Se for médico, usar dashboard específico
+  if (profile.role === "medico") {
+    return <MedicoDashboard profile={profile} />;
+  }
+
+  // Dashboard padrão para admin
   return (
     <div className="space-y-8">
       <div>

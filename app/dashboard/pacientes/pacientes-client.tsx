@@ -11,6 +11,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPatient, updatePatient, deletePatient, registerPatientFromPublicForm, type PatientInsert, type PatientUpdate } from "./actions";
 import { Search, UserPlus, Pencil, Trash2, X, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ExamesClient } from "../exames/exames-client";
 
 export type Patient = {
   id: string;
@@ -509,6 +510,18 @@ export function PacientesClient({
                 </Button>
               </div>
             </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Seção de Exames - Mostrar quando editando um paciente existente */}
+      {editingId && !isNew && (
+        <Card>
+          <CardHeader>
+            <h2 className="font-semibold">Exames do Paciente</h2>
+          </CardHeader>
+          <CardContent>
+            <ExamesClient patientId={editingId} canEdit={true} />
           </CardContent>
         </Card>
       )}

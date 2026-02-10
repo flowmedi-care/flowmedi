@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ConsultaDetalheClient } from "./consulta-detalhe-client";
+import { ConsultaTabsClient } from "./consulta-tabs-client";
 import { DataHoraReagendar } from "./data-hora-reagendar";
 import { ArrowLeft } from "lucide-react";
 import { getStatusBadgeClassName } from "../../status-utils";
@@ -67,7 +67,7 @@ export default async function ConsultaDetalhePage({
     ? appointment.appointment_type[0]
     : appointment.appointment_type;
 
-  type FormInstanceItem = {
+  export type FormInstanceItem = {
     id: string;
     status: string;
     link_token: string | null;
@@ -170,10 +170,17 @@ export default async function ConsultaDetalhePage({
         </Card>
       </div>
 
-      <ConsultaDetalheClient
+      <ConsultaTabsClient
         appointmentId={id}
         appointmentStatus={appointment.status}
         appointmentScheduledAt={appointment.scheduled_at}
+        patientId={patient?.id ?? ""}
+        patientData={{
+          full_name: patient?.full_name ?? "",
+          email: patient?.email ?? null,
+          phone: patient?.phone ?? null,
+          birth_date: patient?.birth_date ?? null,
+        }}
         formInstances={formInstances}
         baseUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
         canEdit={profile.role === "admin" || profile.role === "secretaria"}
