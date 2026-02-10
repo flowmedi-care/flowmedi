@@ -133,18 +133,20 @@ export function FormBuilder({
   }
 
   return (
-    <div className="space-y-2">
-      <Label>Campos do formulário</Label>
-      <p className="text-sm text-muted-foreground mb-2">
-        Adicione os campos e escolha o tipo de input para cada um.
-      </p>
-      <ul className="space-y-2">
-        {definition.map((field) => (
-          <li
-            key={field.id}
-            className="border border-border rounded-lg p-3 bg-card"
-          >
-            <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-4">
+      {definition.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <p className="text-sm">Nenhum campo adicionado ainda</p>
+          <p className="text-xs mt-1">Clique em "Adicionar campo" para começar</p>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {definition.map((field) => (
+            <li
+              key={field.id}
+              className="border border-border rounded-lg p-4 bg-card hover:border-primary/50 transition-colors"
+            >
+              <div className="flex flex-wrap items-center gap-2">
               <select
                 className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
                 value={field.type}
@@ -262,15 +264,17 @@ export function FormBuilder({
                 )}
               </div>
             )}
-          </li>
-        ))}
-      </ul>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
       <Button
         type="button"
         variant="outline"
-        size="sm"
         onClick={addField}
         disabled={disabled}
+        className="w-full sm:w-auto"
       >
         <Plus className="h-4 w-4 mr-2" />
         Adicionar campo

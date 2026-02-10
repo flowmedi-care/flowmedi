@@ -79,79 +79,114 @@ export function FormularioEditor({
 
   return (
     <div className="space-y-6">
-      <Link href="/dashboard/formularios">
-        <Button variant="ghost" size="sm">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar
-        </Button>
-      </Link>
-      <Card>
-        <CardHeader>
-          <h2 className="font-semibold">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">
             {isEdit ? "Editar formulário" : "Novo formulário"}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Defina o nome e os campos. Opcionalmente vincule a um tipo de
-            consulta para que este formulário seja aplicado ao agendar.
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isEdit 
+              ? "Atualize as informações e campos do formulário"
+              : "Crie um novo formulário para coletar informações dos pacientes"
+            }
           </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
-                {error}
-              </p>
-            )}
+        </div>
+        <Link href="/dashboard/formularios">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar
+          </Button>
+        </Link>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+            <p className="text-sm text-destructive font-medium">{error}</p>
+          </div>
+        )}
+
+        {/* Seção: Informações Básicas */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold">Informações básicas</h2>
+            <p className="text-sm text-muted-foreground">
+              Defina o nome e a vinculação do formulário
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="template_name">Nome do formulário</Label>
+              <Label htmlFor="template_name">
+                Nome do formulário <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="template_name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ex.: Anamnese geral"
                 required
+                className="max-w-md"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="appointment_type">Tipo de consulta (opcional)</Label>
+              <Label htmlFor="appointment_type">Tipo de consulta</Label>
               <select
                 id="appointment_type"
-                className="h-9 w-full max-w-xs rounded-md border border-input bg-transparent px-3 text-sm"
+                className="h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm"
                 value={appointmentTypeId ?? ""}
                 onChange={(e) =>
                   setAppointmentTypeId(e.target.value || null)
                 }
               >
-                <option value="">Nenhum</option>
+                <option value="">Nenhum (formulário genérico)</option>
                 {appointmentTypes.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
                   </option>
                 ))}
               </select>
+              <p className="text-xs text-muted-foreground">
+                Se vinculado a um tipo de consulta, este formulário será aplicado automaticamente ao agendar
+              </p>
             </div>
-            <div className="flex items-center space-x-2 pt-2">
+          </CardContent>
+        </Card>
+
+        {/* Seção: Configurações Públicas */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold">Uso público</h2>
+            <p className="text-sm text-muted-foreground">
+              Configure se este formulário pode ser compartilhado publicamente
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start space-x-3">
               <input
                 type="checkbox"
                 id="is_public"
                 checked={isPublic}
                 onChange={(e) => setIsPublic(e.target.checked)}
-                className="h-4 w-4 rounded border-input"
+                className="h-4 w-4 mt-0.5 rounded border-input"
               />
-              <Label htmlFor="is_public" className="cursor-pointer">
-                Permitir uso público (pode ser compartilhado sem agendamento)
-              </Label>
-            </div>
-            {isPublic && (
-              <>
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="is_public" className="cursor-pointer font-medium">
+                  Permitir uso público
+                </Label>
                 <p className="text-sm text-muted-foreground">
-                  Quando ativado, este formulário pode ser compartilhado publicamente (ex: Instagram) e também pode ser enviado para pacientes agendados.
+                  Quando ativado, este formulário pode ser compartilhado publicamente (ex: Instagram) 
+                  e também pode ser enviado para pacientes agendados.
                 </p>
+              </div>
+            </div>
+            
+            {isPublic && (
+              <div className="mt-4 pt-4 border-t border-border space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="public_doctor">Médico associado (para assinatura no formulário público)</Label>
+                  <Label htmlFor="public_doctor">Médico associado</Label>
                   <select
                     id="public_doctor"
-                    className="h-9 w-full max-w-xs rounded-md border border-input bg-transparent px-3 text-sm"
+                    className="h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm"
                     value={publicDoctorId ?? ""}
                     onChange={(e) => setPublicDoctorId(e.target.value || null)}
                   >
@@ -163,29 +198,43 @@ export function FormularioEditor({
                     ))}
                   </select>
                   <p className="text-xs text-muted-foreground">
-                    A assinatura do médico aparecerá no final do formulário público.
+                    A assinatura do médico aparecerá no final do formulário público
                   </p>
                 </div>
-              </>
+              </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Seção: Campos do Formulário */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold">Campos do formulário</h2>
+            <p className="text-sm text-muted-foreground">
+              Adicione e configure os campos que serão exibidos no formulário
+            </p>
+          </CardHeader>
+          <CardContent>
             <FormBuilder
               definition={definition}
               onChange={setDefinition}
               disabled={loading}
             />
-            <div className="flex gap-2">
-              <Button type="submit" disabled={loading}>
-                {loading ? "Salvando…" : isEdit ? "Salvar" : "Criar formulário"}
-              </Button>
-              <Link href="/dashboard/formularios">
-                <Button type="button" variant="outline">
-                  Cancelar
-                </Button>
-              </Link>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Ações */}
+        <div className="flex items-center justify-between pt-4 border-t">
+          <Link href="/dashboard/formularios">
+            <Button type="button" variant="ghost">
+              Cancelar
+            </Button>
+          </Link>
+          <Button type="submit" disabled={loading} size="lg">
+            {loading ? "Salvando…" : isEdit ? "Salvar alterações" : "Criar formulário"}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }
