@@ -112,14 +112,15 @@ export function LogoUpload({
   }
 
   return (
-    <div className="space-y-4">
-      {error && (
-        <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
-          {error}
-        </p>
-      )}
-      
-      {logoUrl && (
+    <>
+      <div className="space-y-4">
+        {error && (
+          <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
+            {error}
+          </p>
+        )}
+        
+        {logoUrl && (
         <div className="space-y-4">
           <div className="flex justify-center">
             <div className="relative inline-block">
@@ -131,17 +132,18 @@ export function LogoUpload({
                   style={{ transform: `scale(${scale / 100})` }}
                 />
               </div>
-            {!uploading && (
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                className="absolute -top-2 -right-2"
-                onClick={handleDelete}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+              {!uploading && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="absolute -top-2 -right-2"
+                  onClick={handleDelete}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
           
           <div className="space-y-3 pt-4 border-t border-border max-w-md">
@@ -179,33 +181,6 @@ export function LogoUpload({
                   />
                 </div>
               </div>
-              <style dangerouslySetInnerHTML={{__html: `
-                #logo-scale-${type}::-webkit-slider-thumb {
-                  appearance: none;
-                  width: 18px;
-                  height: 18px;
-                  border-radius: 50%;
-                  background: hsl(var(--primary));
-                  cursor: pointer;
-                  border: 2px solid hsl(var(--background));
-                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-                  position: relative;
-                  z-index: 20;
-                }
-                #logo-scale-${type}::-moz-range-thumb {
-                  width: 18px;
-                  height: 18px;
-                  border-radius: 50%;
-                  background: hsl(var(--primary));
-                  cursor: pointer;
-                  border: 2px solid hsl(var(--background));
-                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-                }
-                #logo-scale-${type}:disabled {
-                  opacity: 0.5;
-                  cursor: not-allowed;
-                }
-              `}} />
               <p className="text-xs text-muted-foreground">
                 Ajuste o tamanho da logo (50% a 200%). Padrão: 100%.
               </p>
@@ -235,6 +210,34 @@ export function LogoUpload({
           Formatos aceitos: JPEG, PNG, WebP. Tamanho máximo: 5MB.
         </p>
       </div>
-    </div>
+      </div>
+      <style dangerouslySetInnerHTML={{__html: `
+        #logo-scale-${type}::-webkit-slider-thumb {
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: hsl(var(--primary));
+          cursor: pointer;
+          border: 2px solid hsl(var(--background));
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          position: relative;
+          z-index: 20;
+        }
+        #logo-scale-${type}::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: hsl(var(--primary));
+          cursor: pointer;
+          border: 2px solid hsl(var(--background));
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        #logo-scale-${type}:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      `}} />
+    </>
   );
 }
