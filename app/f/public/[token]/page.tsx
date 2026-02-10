@@ -77,6 +77,28 @@ export default async function FormularioPublicoPage({
         ? data.clinic_logo_scale
         : 100;
 
+    // Buscar campos customizados que devem aparecer no formulário público
+    const clinicId = data.clinic_id ? String(data.clinic_id) : null;
+    let customFields: Array<{
+      id: string;
+      field_name: string;
+      field_type: "text" | "number" | "date" | "textarea" | "select";
+      field_label: string;
+      required: boolean;
+      options: string[] | null;
+      display_order: number;
+    }> = [];
+
+    if (clinicId) {
+      const { data: fields } = await supabase
+        .from("patient_custom_fields")
+        .select("id, field_name, field_type, field_label, required, options, display_order")
+        .eq("clinic_id", clinicId)
+        .eq("include_in_public_form", true)
+        .order("display_order");
+      customFields = (fields ?? []) as typeof customFields;
+    }
+
     // Dados básicos já preenchidos (se houver)
     const basicData = {
       name: (data.patient_name && typeof data.patient_name === "string" && data.patient_name.trim())
@@ -118,6 +140,7 @@ export default async function FormularioPublicoPage({
               token={token}
               readOnly={status === "respondido"}
               basicData={basicData}
+              customFields={customFields}
             />
           </div>
         </div>

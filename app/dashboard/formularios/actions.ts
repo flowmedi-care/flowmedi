@@ -213,6 +213,7 @@ export async function getNonRegisteredSubmitters() {
       public_submitter_email,
       public_submitter_phone,
       public_submitter_birth_date,
+      public_submitter_custom_fields,
       status,
       created_at,
       form_template_id,
@@ -236,6 +237,7 @@ export async function getNonRegisteredSubmitters() {
       name: string | null;
       phone: string | null;
       birth_date: string | null;
+      custom_fields: Record<string, unknown>;
       forms: Array<{
         id: string;
         template_name: string;
@@ -261,6 +263,7 @@ export async function getNonRegisteredSubmitters() {
         name: (item.public_submitter_name as string) || null,
         phone: (item.public_submitter_phone as string) || null,
         birth_date: (item.public_submitter_birth_date as string) || null,
+        custom_fields: {},
         forms: [],
         latest_form_date: String(item.created_at || ""),
       });
@@ -273,6 +276,12 @@ export async function getNonRegisteredSubmitters() {
       status: String(item.status || "pendente"),
       created_at: String(item.created_at || ""),
     });
+
+    // Combinar campos customizados de todas as instâncias
+    if (item.public_submitter_custom_fields) {
+      const customFields = item.public_submitter_custom_fields as Record<string, unknown>;
+      Object.assign(entry.custom_fields, customFields);
+    }
 
     // Atualizar data mais recente
     if (String(item.created_at || "") > entry.latest_form_date) {

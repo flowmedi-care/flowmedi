@@ -100,6 +100,7 @@ BEGIN
     'id', COALESCE(v_row.id::text, ''),
     'appointment_id', CASE WHEN v_row.appointment_id IS NOT NULL THEN v_row.appointment_id::text ELSE NULL END,
     'form_template_id', COALESCE(v_row.form_template_id::text, ''),
+    'clinic_id', COALESCE(v_row.clinic_id::text, ''),
     'status', COALESCE(v_row.status, 'pendente'),
     'responses', COALESCE(v_row.responses, '{}'::jsonb),
     'template_name', COALESCE(v_row.template_name, 'Formulário'),
@@ -125,7 +126,8 @@ CREATE OR REPLACE FUNCTION public.submit_form_by_token(
   p_submitter_name text DEFAULT NULL,
   p_submitter_email text DEFAULT NULL,
   p_submitter_phone text DEFAULT NULL,
-  p_submitter_birth_date date DEFAULT NULL
+  p_submitter_birth_date date DEFAULT NULL,
+  p_custom_fields jsonb DEFAULT NULL
 )
 RETURNS json
 LANGUAGE plpgsql
@@ -162,6 +164,7 @@ BEGIN
         public_submitter_email = COALESCE(p_submitter_email, public_submitter_email),
         public_submitter_phone = COALESCE(p_submitter_phone, public_submitter_phone),
         public_submitter_birth_date = COALESCE(p_submitter_birth_date, public_submitter_birth_date),
+        public_submitter_custom_fields = COALESCE(p_custom_fields, public_submitter_custom_fields, '{}'::jsonb),
         updated_at = now()
     WHERE id = v_id;
   ELSE
@@ -178,4 +181,4 @@ $$;
 
 -- Permite execução anônima (anon role)
 GRANT EXECUTE ON FUNCTION public.get_form_by_token(text) TO anon;
-GRANT EXECUTE ON FUNCTION public.submit_form_by_token(text, jsonb, text, text, text, date) TO anon;
+GRANT EXECUTE ON FUNCTION public.submit_form_by_token(text, jsonb, text, text, text, date, jsonb) TO anon;

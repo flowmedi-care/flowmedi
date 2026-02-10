@@ -23,6 +23,7 @@ export type CustomFieldRow = {
   required: boolean;
   options: string[] | null;
   display_order: number;
+  include_in_public_form?: boolean;
 };
 
 export function CamposPacientesClient({
@@ -44,6 +45,7 @@ export function CamposPacientesClient({
     required: false,
     options: [],
     display_order: fields.length,
+    include_in_public_form: false,
   });
   const [optionsText, setOptionsText] = useState("");
 
@@ -59,6 +61,7 @@ export function CamposPacientesClient({
       required: false,
       options: [],
       display_order: fields.length,
+      include_in_public_form: false,
     });
     setOptionsText("");
     setError(null);
@@ -75,6 +78,7 @@ export function CamposPacientesClient({
       required: f.required,
       options: f.options || [],
       display_order: f.display_order,
+      include_in_public_form: f.include_in_public_form ?? false,
     });
     setOptionsText((f.options || []).join(", "));
     setError(null);
@@ -127,6 +131,7 @@ export function CamposPacientesClient({
       required: form.required,
       options: form.field_type === "select" ? options : undefined,
       display_order: form.display_order,
+      include_in_public_form: form.include_in_public_form ?? false,
     };
 
     if (isNew) {
@@ -255,6 +260,20 @@ export function CamposPacientesClient({
                 />
                 <Label htmlFor="required" className="cursor-pointer">
                   Campo obrigatório
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="include_in_public_form"
+                  checked={form.include_in_public_form ?? false}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, include_in_public_form: e.target.checked }))
+                  }
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="include_in_public_form" className="cursor-pointer">
+                  Incluir em formulários públicos
                 </Label>
               </div>
               <div className="flex gap-2">

@@ -10,6 +10,7 @@ export type CustomFieldInsert = {
   required: boolean;
   options?: string[];
   display_order: number;
+  include_in_public_form?: boolean;
 };
 
 export type CustomFieldUpdate = Partial<CustomFieldInsert>;
@@ -37,6 +38,7 @@ export async function createCustomField(data: CustomFieldInsert) {
     required: data.required,
     options: data.options || null,
     display_order: data.display_order,
+    include_in_public_form: data.include_in_public_form ?? false,
   });
 
   if (error) return { error: error.message };

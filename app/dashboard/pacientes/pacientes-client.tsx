@@ -38,6 +38,7 @@ export type NonRegisteredSubmitter = {
   name: string | null;
   phone: string | null;
   birth_date: string | null;
+  custom_fields?: Record<string, unknown>;
   forms: Array<{
     id: string;
     template_name: string;
@@ -102,6 +103,7 @@ export function PacientesClient({
       full_name: nr.name || "Sem nome",
       phone: nr.phone,
       birth_date: nr.birth_date,
+      custom_fields: nr.custom_fields,
     });
     setRegisteringEmail(null);
     if (res.error) {

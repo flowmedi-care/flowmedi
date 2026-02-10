@@ -19,6 +19,16 @@ type BasicData = {
   age: number | null;
 };
 
+type CustomField = {
+  id: string;
+  field_name: string;
+  field_type: "text" | "number" | "date" | "textarea" | "select";
+  field_label: string;
+  required: boolean;
+  options: string[] | null;
+  display_order: number;
+};
+
 export function FormularioPublicoPreenchimento({
   templateName,
   definition,
@@ -27,6 +37,7 @@ export function FormularioPublicoPreenchimento({
   token,
   readOnly,
   basicData,
+  customFields = [],
 }: {
   templateName: string;
   definition: FieldDef[];
@@ -35,6 +46,7 @@ export function FormularioPublicoPreenchimento({
   token: string;
   readOnly?: boolean;
   basicData: BasicData;
+  customFields?: CustomField[];
 }) {
   const [step, setStep] = useState<"basic" | "form">(
     basicData.name && basicData.email ? "form" : "basic"
@@ -45,6 +57,7 @@ export function FormularioPublicoPreenchimento({
     phone: basicData.phone || "",
     birth_date: basicData.birth_date || "",
   });
+  const [customFieldsValues, setCustomFieldsValues] = useState<Record<string, unknown>>({});
   const [responses, setResponses] = useState<Record<string, unknown>>(initialResponses);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,13 +83,39 @@ export function FormularioPublicoPreenchimento({
     setError(null);
     setLoading(true);
     const supabase = createClient();
+    
+    // Combinar respostas do formulário com campos customizados
+    const allResponses = {
+      ...responses,
+      ...customFieldsValues,
+    };
+    
+    // Separar campos customizados das respostas do formulário
+    const formResponses: Record<string, unknown> = {};
+    const customFieldsData: Record<string, unknown> = {};
+    
+    // Campos customizados têm prefixo baseado no field_name
+    customFields.forEach((field) => {
+      if (customFieldsValues[field.field_name] !== undefined) {
+        customFieldsData[field.field_name] = customFieldsValues[field.field_name];
+      }
+    });
+    
+    // Respostas do formulário são todas as outras
+    Object.keys(allResponses).forEach((key) => {
+      if (!customFieldsData.hasOwnProperty(key)) {
+        formResponses[key] = allResponses[key];
+      }
+    });
+    
     const { data, error: rpcError } = await supabase.rpc("submit_form_by_token", {
       p_token: token,
-      p_responses: responses,
+      p_responses: formResponses,
       p_submitter_name: basicForm.name.trim(),
       p_submitter_email: basicForm.email.trim(),
       p_submitter_phone: basicForm.phone.trim() || null,
       p_submitter_birth_date: basicForm.birth_date || null,
+      p_custom_fields: Object.keys(customFieldsData).length > 0 ? customFieldsData : null,
     });
     if (rpcError) {
       setError(rpcError.message);
@@ -164,6 +203,98 @@ export function FormularioPublicoPreenchimento({
                 onChange={(e) => setBasicForm((f) => ({ ...f, birth_date: e.target.value }))}
               />
             </div>
+            
+            {customFields.length > 0 && (
+              <div className="space-y-4 pt-4 border-t border-border">
+                <h3 className="font-medium text-sm">Informações Adicionais</h3>
+                {customFields.map((field) => {
+                  const fieldValue = customFieldsValues[field.field_name] ?? "";
+                  return (
+                    <div key={field.id} className="space-y-2">
+                      <Label htmlFor={`custom_${field.field_name}`}>
+                        {field.field_label}
+                        {field.required && <span className="text-destructive"> *</span>}
+                      </Label>
+                      {field.field_type === "textarea" ? (
+                        <textarea
+                          id={`custom_${field.field_name}`}
+                          className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          value={String(fieldValue)}
+                          onChange={(e) =>
+                            setCustomFieldsValues((f) => ({
+                              ...f,
+                              [field.field_name]: e.target.value,
+                            }))
+                          }
+                          required={field.required}
+                          rows={3}
+                        />
+                      ) : field.field_type === "select" ? (
+                        <select
+                          id={`custom_${field.field_name}`}
+                          className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                          value={String(fieldValue)}
+                          onChange={(e) =>
+                            setCustomFieldsValues((f) => ({
+                              ...f,
+                              [field.field_name]: e.target.value,
+                            }))
+                          }
+                          required={field.required}
+                        >
+                          <option value="">Selecione</option>
+                          {(field.options || []).map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      ) : field.field_type === "date" ? (
+                        <Input
+                          id={`custom_${field.field_name}`}
+                          type="date"
+                          value={String(fieldValue)}
+                          onChange={(e) =>
+                            setCustomFieldsValues((f) => ({
+                              ...f,
+                              [field.field_name]: e.target.value,
+                            }))
+                          }
+                          required={field.required}
+                        />
+                      ) : field.field_type === "number" ? (
+                        <Input
+                          id={`custom_${field.field_name}`}
+                          type="number"
+                          value={String(fieldValue)}
+                          onChange={(e) =>
+                            setCustomFieldsValues((f) => ({
+                              ...f,
+                              [field.field_name]: e.target.value === "" ? "" : Number(e.target.value),
+                            }))
+                          }
+                          required={field.required}
+                        />
+                      ) : (
+                        <Input
+                          id={`custom_${field.field_name}`}
+                          type="text"
+                          value={String(fieldValue)}
+                          onChange={(e) =>
+                            setCustomFieldsValues((f) => ({
+                              ...f,
+                              [field.field_name]: e.target.value,
+                            }))
+                          }
+                          required={field.required}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
             <Button type="submit" className="w-full">
               Continuar
             </Button>

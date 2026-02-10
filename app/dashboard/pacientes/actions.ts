@@ -80,6 +80,7 @@ export async function registerPatientFromPublicForm(
     full_name: string;
     phone?: string | null;
     birth_date?: string | null;
+    custom_fields?: Record<string, unknown>;
   }
 ) {
   const supabase = await createClient();
@@ -105,6 +106,30 @@ export async function registerPatientFromPublicForm(
 
   let patientId: string;
 
+  // Combinar campos customizados passados com os das instâncias públicas
+  const combinedCustomFields: Record<string, unknown> = { ...(data.custom_fields || {}) };
+
+  // Buscar campos customizados de todas as instâncias públicas deste email
+  const { data: publicInstances } = await supabase
+    .from("form_instances")
+    .select(`
+      public_submitter_custom_fields,
+      form_templates!inner (
+        clinic_id
+      )
+    `)
+    .is("appointment_id", null)
+    .eq("public_submitter_email", email)
+    .eq("form_templates.clinic_id", profile.clinic_id)
+    .not("public_submitter_custom_fields", "is", null);
+
+  // Combinar todos os campos customizados de todas as instâncias
+  (publicInstances ?? []).forEach((instance) => {
+    if (instance.public_submitter_custom_fields) {
+      Object.assign(combinedCustomFields, instance.public_submitter_custom_fields);
+    }
+  });
+
   if (existing) {
     // Atualizar paciente existente
     patientId = existing.id;
@@ -114,6 +139,7 @@ export async function registerPatientFromPublicForm(
         full_name: data.full_name,
         phone: data.phone || null,
         birth_date: data.birth_date || null,
+        custom_fields: Object.keys(combinedCustomFields).length > 0 ? combinedCustomFields : undefined,
         updated_at: new Date().toISOString(),
       })
       .eq("id", patientId);
@@ -128,6 +154,7 @@ export async function registerPatientFromPublicForm(
         email: email,
         phone: data.phone || null,
         birth_date: data.birth_date || null,
+        custom_fields: Object.keys(combinedCustomFields).length > 0 ? combinedCustomFields : {},
       })
       .select("id")
       .single();
@@ -135,27 +162,6 @@ export async function registerPatientFromPublicForm(
     if (!newPatient) return { error: "Erro ao criar paciente.", patientId: null };
     patientId = newPatient.id;
   }
-
-  // Vincular formulários públicos deste email ao paciente
-  // Buscar todas as instâncias públicas com este email
-  const { data: publicInstances } = await supabase
-    .from("form_instances")
-    .select(`
-      id,
-      form_template_id,
-      responses,
-      status,
-      form_templates!inner (
-        clinic_id
-      )
-    `)
-    .is("appointment_id", null)
-    .eq("public_submitter_email", email)
-    .eq("form_templates.clinic_id", profile.clinic_id);
-
-  // Para cada instância pública, criar uma nova instância vinculada quando houver agendamento
-  // Por enquanto, apenas marcamos que o paciente já respondeu esses formulários
-  // Quando criar agendamento, verificaremos se já existe resposta
 
   revalidatePath("/dashboard/pacientes");
   return { error: null, patientId };

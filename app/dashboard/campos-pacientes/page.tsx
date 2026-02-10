@@ -19,7 +19,7 @@ export default async function CamposPacientesPage() {
 
   const { data: fields } = await supabase
     .from("patient_custom_fields")
-    .select("id, field_name, field_type, field_label, required, options, display_order")
+    .select("id, field_name, field_type, field_label, required, options, display_order, include_in_public_form")
     .eq("clinic_id", profile.clinic_id)
     .order("display_order");
 
