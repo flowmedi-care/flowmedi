@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { createAppointment, updateAppointment, updateUserPreferences } from "./actions";
 import { useRouter } from "next/navigation";
-import { Plus, CalendarClock, GripVertical, ChevronDown } from "lucide-react";
+import { Plus, CalendarClock, GripVertical, ChevronDown, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DndContext,
@@ -108,6 +108,8 @@ export function AgendaClient({
     viewMode: ViewMode;
     timelineGranularity: TimelineGranularity;
     calendarGranularity: CalendarGranularity;
+    statusFilter?: string[];
+    formFilter?: "confirmados_sem_formulario" | "confirmados_com_formulario" | null;
   };
 }) {
   const router = useRouter();
@@ -160,6 +162,12 @@ export function AgendaClient({
     useState<CalendarGranularity>(
       initialPreferences?.calendarGranularity || "week"
     );
+  const [statusFilter, setStatusFilter] = useState<string[]>(
+    initialPreferences?.statusFilter || []
+  );
+  const [formFilter, setFormFilter] = useState<"confirmados_sem_formulario" | "confirmados_com_formulario" | null>(
+    initialPreferences?.formFilter || null
+  );
   const [dateInicio, setDateInicio] = useState(() => todayYMD());
   const [dateFim, setDateFim] = useState(() => todayYMD());
   const [draggedAppointment, setDraggedAppointment] =
@@ -275,16 +283,40 @@ export function AgendaClient({
     start <= end ? [start, end] : [end, start];
   const calendarDate = rangeStart;
 
-  // Filtrar appointments pelo período apenas para visualização
+  // Filtrar appointments pelo período e filtros apenas para visualização
   // Mas manter todos os appointments disponíveis para drag and drop
   const appointmentsInPeriod = useMemo(() => {
     const ymdStart = toYMD(rangeStart);
     const ymdEnd = toYMD(rangeEnd);
     return appointments.filter((a) => {
+      // Filtro por período
       const d = a.scheduled_at.slice(0, 10);
-      return d >= ymdStart && d <= ymdEnd;
+      if (d < ymdStart || d > ymdEnd) return false;
+
+      // Filtro por status (se nenhum selecionado, mostra todos)
+      if (statusFilter.length > 0 && !statusFilter.includes(a.status)) {
+        return false;
+      }
+
+      // Filtro por formulários
+      if (formFilter) {
+        const hasForms = (a.form_instances?.length ?? 0) > 0;
+        const hasAnsweredForms = (a.form_instances?.some(fi => fi.status === "respondido") ?? false);
+        
+        if (formFilter === "confirmados_sem_formulario") {
+          // Confirmados que ainda não preencheram formulários
+          if (a.status !== "confirmada") return false;
+          if (hasAnsweredForms) return false;
+        } else if (formFilter === "confirmados_com_formulario") {
+          // Confirmados que já preencheram formulários
+          if (a.status !== "confirmada") return false;
+          if (!hasAnsweredForms) return false;
+        }
+      }
+
+      return true;
     });
-  }, [appointments, rangeStart, rangeEnd]);
+  }, [appointments, rangeStart, rangeEnd, statusFilter, formFilter]);
 
   // Para drag and drop, usar todos os appointments (não apenas do período)
   const allAppointmentsForDrag = appointments;
@@ -553,6 +585,66 @@ export function AgendaClient({
                   Hoje
                 </Button>
               </>
+            )}
+          </div>
+
+          {/* Filtros */}
+          <div className="flex items-center gap-2 border-l pl-4">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground font-medium">Filtros:</span>
+            </div>
+            <div className="flex items-center gap-1 flex-wrap">
+              {Object.entries(STATUS_LABEL).map(([value, label]) => (
+                <Button
+                  key={value}
+                  variant={statusFilter.includes(value) ? "default" : "outline"}
+                  size="sm"
+                  onClick={async () => {
+                    const newFilter = statusFilter.includes(value)
+                      ? statusFilter.filter(s => s !== value)
+                      : [...statusFilter, value];
+                    setStatusFilter(newFilter);
+                    await updateUserPreferences({ agenda_status_filter: newFilter });
+                  }}
+                  className="h-8 text-xs"
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            <select
+              value={formFilter || ""}
+              onChange={async (e) => {
+                const value = e.target.value as "confirmados_sem_formulario" | "confirmados_com_formulario" | "";
+                const newFilter = value === "" ? null : value;
+                setFormFilter(newFilter);
+                await updateUserPreferences({ agenda_form_filter: newFilter });
+              }}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs min-w-[180px]"
+            >
+              <option value="">Todos os formulários</option>
+              <option value="confirmados_sem_formulario">Confirmados sem formulário</option>
+              <option value="confirmados_com_formulario">Confirmados com formulário</option>
+            </select>
+            {(statusFilter.length > 0 || formFilter) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  setStatusFilter([]);
+                  setFormFilter(null);
+                  await updateUserPreferences({ 
+                    agenda_status_filter: [],
+                    agenda_form_filter: null 
+                  });
+                }}
+                className="h-8 text-xs"
+                title="Limpar filtros"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Limpar
+              </Button>
             )}
           </div>
 

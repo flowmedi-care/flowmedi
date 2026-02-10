@@ -118,6 +118,8 @@ export default async function AgendaPage() {
           viewMode: (preferences.agenda_view_mode as "timeline" | "calendar") || "timeline",
           timelineGranularity: (preferences.agenda_timeline_granularity as "day" | "week" | "month") || "day",
           calendarGranularity: (preferences.agenda_calendar_granularity as "week" | "month") || "week",
+          statusFilter: (preferences.agenda_status_filter as string[]) || [],
+          formFilter: (preferences.agenda_form_filter as "confirmados_sem_formulario" | "confirmados_com_formulario" | null) || null,
         }}
       />
     </div>

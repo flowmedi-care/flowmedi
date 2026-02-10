@@ -182,6 +182,8 @@ export async function updateUserPreferences(preferences: {
   agenda_view_mode?: "timeline" | "calendar";
   agenda_timeline_granularity?: "day" | "week" | "month";
   agenda_calendar_granularity?: "week" | "month";
+  agenda_status_filter?: string[];
+  agenda_form_filter?: "confirmados_sem_formulario" | "confirmados_com_formulario" | null;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
