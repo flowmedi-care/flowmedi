@@ -25,7 +25,7 @@ export default async function ConfiguracoesPage() {
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("logo_url, logo_scale")
+    .select("logo_url, logo_scale, compliance_confirmation_days")
     .eq("id", profile.clinic_id)
     .single();
 
@@ -38,6 +38,7 @@ export default async function ConfiguracoesPage() {
         }))}
         clinicLogoUrl={clinic?.logo_url ?? null}
         clinicLogoScale={clinic?.logo_scale ?? 100}
+        complianceConfirmationDays={clinic?.compliance_confirmation_days ?? null}
       />
   );
 }

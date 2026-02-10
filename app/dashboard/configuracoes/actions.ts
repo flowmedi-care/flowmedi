@@ -279,3 +279,34 @@ export async function deleteAppointmentType(id: string) {
   revalidatePath("/dashboard/configuracoes");
   return { error: null };
 }
+
+export async function updateComplianceConfirmationDays(days: number | null) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") {
+    return { error: "Apenas administradores podem atualizar as configurações de compliance." };
+  }
+
+  // Validar valor: null (desabilitado) ou número entre 0 e 30
+  if (days !== null && (days < 0 || days > 30)) {
+    return { error: "O número de dias deve estar entre 0 e 30, ou deixe vazio para desabilitar." };
+  }
+
+  const { error } = await supabase
+    .from("clinics")
+    .update({ compliance_confirmation_days: days })
+    .eq("id", profile.clinic_id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/configuracoes");
+  revalidatePath("/dashboard");
+  return { error: null };
+}

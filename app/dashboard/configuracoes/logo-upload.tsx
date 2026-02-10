@@ -157,12 +157,14 @@ export function LogoUpload({
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex-1 relative">
+                <div className="flex-1 relative flex items-center">
                   <div 
-                    className="absolute h-2 rounded-lg left-0 top-0 pointer-events-none"
+                    className="absolute h-2 rounded-lg left-0 pointer-events-none"
                     style={{
                       width: `${((scale - 50) / (200 - 50)) * 100}%`,
                       background: 'hsl(var(--primary))',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
                     }}
                   />
                   <input
@@ -211,33 +213,38 @@ export function LogoUpload({
         </p>
       </div>
       </div>
-      <style dangerouslySetInnerHTML={{__html: `
-        #logo-scale-${type}::-webkit-slider-thumb {
-          appearance: none;
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background: hsl(var(--primary));
-          cursor: pointer;
-          border: 2px solid hsl(var(--background));
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-          position: relative;
-          z-index: 20;
-        }
-        #logo-scale-${type}::-moz-range-thumb {
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background: hsl(var(--primary));
-          cursor: pointer;
-          border: 2px solid hsl(var(--background));
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-        #logo-scale-${type}:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-      `}} />
+          <style dangerouslySetInnerHTML={{__html: `
+            #logo-scale-${type} {
+              height: 8px;
+            }
+            #logo-scale-${type}::-webkit-slider-thumb {
+              appearance: none;
+              width: 18px;
+              height: 18px;
+              border-radius: 50%;
+              background: hsl(var(--primary));
+              cursor: pointer;
+              border: 2px solid hsl(var(--background));
+              box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+              margin-top: -5px;
+            }
+            #logo-scale-${type}::-moz-range-thumb {
+              width: 18px;
+              height: 18px;
+              border-radius: 50%;
+              background: hsl(var(--primary));
+              cursor: pointer;
+              border: 2px solid hsl(var(--background));
+              box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            }
+            #logo-scale-${type}::-moz-range-track {
+              height: 8px;
+            }
+            #logo-scale-${type}:disabled {
+              opacity: 0.5;
+              cursor: not-allowed;
+            }
+          `}} />
     </>
   );
 }
