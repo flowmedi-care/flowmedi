@@ -271,8 +271,9 @@ BEGIN
   END IF;
 
   -- Gerar token único para esta instância
-  v_public_token := 'pub_' || p_template_id::text || '_' || uuid_generate_v4()::text || '_' || extract(epoch from now())::text;
-  v_public_token := replace(v_public_token, '-', '');
+  -- Usar template_id + timestamp + número aleatório (funções nativas, não precisa de extensões)
+  -- O ID da instância (UUID gerado automaticamente) já garante unicidade no banco
+  v_public_token := 'pub_' || replace(p_template_id::text, '-', '') || '_' || floor(extract(epoch from now()) * 1000)::text || '_' || floor(random() * 1000000000)::text;
 
   -- Criar nova instância pública
   INSERT INTO form_instances (

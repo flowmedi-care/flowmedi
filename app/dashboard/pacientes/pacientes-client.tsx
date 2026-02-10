@@ -110,9 +110,9 @@ export function PacientesClient({
       setError(res.error);
       return;
     }
-    // Remover da lista de não-cadastrados
+    // Remover da lista de não-cadastrados localmente
     setNonRegisteredList((prev) => prev.filter((n) => n.email !== nr.email));
-    // Atualizar página para mostrar paciente cadastrado
+    // Recarregar dados do servidor para atualizar ambas as listas
     router.refresh();
   }
 

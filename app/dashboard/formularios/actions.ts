@@ -180,6 +180,24 @@ export async function getNonRegisteredSubmitters() {
     .single();
   if (!profile?.clinic_id) return { error: "Clínica não encontrada.", data: null };
 
+  // Buscar emails de pacientes já cadastrados nesta clínica
+  const { data: registeredPatients } = await supabase
+    .from("patients")
+    .select("email")
+    .eq("clinic_id", profile.clinic_id)
+    .not("email", "is", null);
+
+  // Criar Set com emails normalizados (lowercase, trimmed) para comparação rápida
+  const registeredEmails = new Set<string>();
+  (registeredPatients ?? []).forEach((p) => {
+    if (p.email) {
+      const normalized = p.email.toLowerCase().trim();
+      if (normalized) {
+        registeredEmails.add(normalized);
+      }
+    }
+  });
+
   // Buscar instâncias públicas com dados do submissor
   const { data, error } = await supabase
     .from("form_instances")
@@ -227,6 +245,12 @@ export async function getNonRegisteredSubmitters() {
   (data ?? []).forEach((item: Record<string, unknown>) => {
     const email = String(item.public_submitter_email || "");
     if (!email) return;
+
+    // Filtrar: se o email já está cadastrado como paciente, não incluir em não-cadastrados
+    const emailLower = email.toLowerCase().trim();
+    if (registeredEmails.has(emailLower)) {
+      return; // Pular este item, já está cadastrado
+    }
 
     const template = Array.isArray(item.form_templates)
       ? item.form_templates[0]

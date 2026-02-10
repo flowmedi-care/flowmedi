@@ -324,17 +324,19 @@ export function FormularioPublicoPreenchimento({
             {loading ? "Enviando…" : "Enviar formulário"}
           </Button>
         </form>
-        {doctorLogoUrl && (
+        {(doctorLogoUrl || doctorName) && (
           <div className="flex flex-col items-center mt-12 pt-8 pb-4 border-t border-border">
             {doctorName && (
               <p className="text-sm text-muted-foreground mb-4">{doctorName}</p>
             )}
-            <LogoImage
-              src={doctorLogoUrl}
-              alt="Assinatura do médico"
-              className="max-h-20 max-w-full object-contain"
-              scale={doctorLogoScale ?? 100}
-            />
+            {doctorLogoUrl && (
+              <LogoImage
+                src={doctorLogoUrl}
+                alt="Assinatura do médico"
+                className="max-h-20 max-w-full object-contain"
+                scale={doctorLogoScale ?? 100}
+              />
+            )}
           </div>
         )}
       </CardContent>
