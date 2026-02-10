@@ -45,7 +45,7 @@ export function LogoUpload({
         ? await uploadClinicLogo(formData)
         : await uploadDoctorLogo(formData);
 
-      if (res.error) {
+      if ("error" in res) {
         setError(res.error);
         setUploading(false);
         return;
@@ -66,18 +66,23 @@ export function LogoUpload({
     if (!confirm("Tem certeza que deseja remover a logo?")) return;
 
     setUploading(true);
-    const res = type === "clinic"
-      ? await deleteClinicLogo()
-      : await deleteDoctorLogo();
+    try {
+      const res = type === "clinic"
+        ? await deleteClinicLogo()
+        : await deleteDoctorLogo();
 
-    if (res.error) {
-      setError(res.error);
+      if ("error" in res && res.error) {
+        setError(res.error);
+        setUploading(false);
+        return;
+      }
+
+      setLogoUrl(null);
+      window.location.reload();
+    } catch (err) {
+      setError("Erro ao remover a logo.");
       setUploading(false);
-      return;
     }
-
-    setLogoUrl(null);
-    window.location.reload();
   }
 
   return (
