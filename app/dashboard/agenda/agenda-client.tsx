@@ -169,6 +169,11 @@ export function AgendaClient({
   const [formFilter, setFormFilter] = useState<"confirmados_sem_formulario" | "confirmados_com_formulario" | null>(
     initialPreferences?.formFilter || null
   );
+
+  // Debug: log quando filtros mudarem
+  useEffect(() => {
+    console.log("🔄 Estado dos filtros atualizado:", { statusFilter, formFilter });
+  }, [statusFilter, formFilter]);
   const [dateInicio, setDateInicio] = useState(() => todayYMD());
   const [dateFim, setDateFim] = useState(() => todayYMD());
   const [draggedAppointment, setDraggedAppointment] =
@@ -290,10 +295,20 @@ export function AgendaClient({
     const ymdStart = toYMD(rangeStart);
     const ymdEnd = toYMD(rangeEnd);
     
+    // Debug logs
+    console.log("🔍 Filtragem:", {
+      totalAppointments: appointments.length,
+      statusFilter,
+      formFilter,
+      dateRange: { start: ymdStart, end: ymdEnd },
+    });
+    
     const filtered = appointments.filter((a) => {
       // Filtro por período
       const d = a.scheduled_at.slice(0, 10);
-      if (d < ymdStart || d > ymdEnd) return false;
+      if (d < ymdStart || d > ymdEnd) {
+        return false;
+      }
 
       // Filtro por status (se nenhum selecionado, mostra todos)
       if (statusFilter.length > 0 && !statusFilter.includes(a.status)) {
@@ -303,7 +318,9 @@ export function AgendaClient({
       // Filtro por formulários
       if (formFilter) {
         // Verificar se a consulta está confirmada (requisito para filtro de formulários)
-        if (a.status !== "confirmada") return false;
+        if (a.status !== "confirmada") {
+          return false;
+        }
         
         const formInstances = a.form_instances || [];
         const hasAnsweredForms = formInstances.some(fi => fi.status === "respondido");
@@ -311,16 +328,22 @@ export function AgendaClient({
         if (formFilter === "confirmados_sem_formulario") {
           // Confirmados que ainda não preencheram formulários
           // Não deve ter formulários respondidos
-          if (hasAnsweredForms) return false;
+          if (hasAnsweredForms) {
+            return false;
+          }
         } else if (formFilter === "confirmados_com_formulario") {
           // Confirmados que já preencheram formulários
           // Deve ter pelo menos um formulário respondido
-          if (!hasAnsweredForms) return false;
+          if (!hasAnsweredForms) {
+            return false;
+          }
         }
       }
 
       return true;
     });
+    
+    console.log("✅ Resultado filtrado:", filtered.length, "de", appointments.length);
     
     return filtered;
   }, [appointments, rangeStart, rangeEnd, statusFilter, formFilter]);
@@ -435,7 +458,23 @@ export function AgendaClient({
 
   return (
     <div className="space-y-6">
-      {/* Toolbar: modo, granularidade (calendário), período, nova consulta */}
+      {/* Header com título e botão Nova consulta */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-foreground">Agenda</h1>
+        <Button
+          onClick={() => {
+            setShowForm(true);
+            if (doctors.length === 1) {
+              setForm((f) => ({ ...f, doctorId: doctors[0].id }));
+            }
+          }}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Nova consulta
+        </Button>
+      </div>
+
+      {/* Toolbar: modo, granularidade (calendário), período, filtros */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
@@ -600,29 +639,20 @@ export function AgendaClient({
             <AgendaFilters
               statusFilter={statusFilter}
               formFilter={formFilter}
-              onStatusChange={async (statuses) => {
+              onStatusChange={(statuses) => {
+                console.log("📝 Status filter changed:", statuses);
                 setStatusFilter(statuses);
-                await updateUserPreferences({ agenda_status_filter: statuses });
+                // Salvar preferências de forma assíncrona sem bloquear
+                updateUserPreferences({ agenda_status_filter: statuses }).catch(console.error);
               }}
-              onFormChange={async (filter) => {
+              onFormChange={(filter) => {
+                console.log("📝 Form filter changed:", filter);
                 setFormFilter(filter);
-                await updateUserPreferences({ agenda_form_filter: filter });
+                // Salvar preferências de forma assíncrona sem bloquear
+                updateUserPreferences({ agenda_form_filter: filter }).catch(console.error);
               }}
             />
           </div>
-
-          <Button
-            className="ml-auto"
-            onClick={() => {
-              setShowForm(true);
-              if (doctors.length === 1) {
-                setForm((f) => ({ ...f, doctorId: doctors[0].id }));
-              }
-            }}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Nova consulta
-          </Button>
         </div>
       </div>
 

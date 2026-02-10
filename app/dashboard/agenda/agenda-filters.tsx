@@ -49,11 +49,11 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
   }, [isOpen]);
 
   const toggleStatus = (status: string) => {
-    if (selectedStatuses.includes(status)) {
-      onStatusChange(selectedStatuses.filter((s) => s !== status));
-    } else {
-      onStatusChange([...selectedStatuses, status]);
-    }
+    const newStatuses = selectedStatuses.includes(status)
+      ? selectedStatuses.filter((s) => s !== status)
+      : [...selectedStatuses, status];
+    console.log("🔄 Toggle status:", status, "→", newStatuses);
+    onStatusChange(newStatuses);
   };
 
   const selectAll = () => {
@@ -222,6 +222,7 @@ function FormFilter({ selectedFilter, onFilterChange }: FormFilterProps) {
                         isSelected && "bg-primary/5"
                       )}
                       onClick={() => {
+                        console.log("🔄 Form filter changed:", option.value);
                         onFilterChange(option.value);
                         setIsOpen(false);
                       }}

@@ -98,7 +98,6 @@ export default async function AgendaPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-foreground">Agenda</h1>
       <AgendaClient
         appointments={rows}
         patients={(patients ?? []).map((p) => ({
