@@ -144,8 +144,6 @@ export function MedicoDashboardClient({
     }
   }
 
-  const now = new Date();
-
   function formatTime(dateString: string): string {
     return new Date(dateString).toLocaleTimeString("pt-BR", {
       hour: "2-digit",
@@ -177,6 +175,7 @@ export function MedicoDashboardClient({
   }
 
   const now = new Date();
+  
   // Consultas de hoje: apenas agendadas e confirmadas (independente do horário)
   // Isso permite que o médico tenha controle mesmo se atrasar
   const upcomingAppointments = appointments.filter(
