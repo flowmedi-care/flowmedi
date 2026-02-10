@@ -88,11 +88,11 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
       </Button>
 
       {isOpen && (
-        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg bg-background border border-border" style={{ backgroundColor: 'var(--background)' }}>
-          <CardContent className="p-2 bg-background" style={{ backgroundColor: 'var(--background)' }}>
-            <div className="space-y-1 bg-background" style={{ backgroundColor: 'var(--background)' }}>
+        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg border border-border" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
+          <CardContent className="p-2" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
+            <div className="space-y-1" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
               {/* Header com ações */}
-              <div className="flex items-center justify-between px-2 py-1.5 border-b border-border bg-background" style={{ backgroundColor: 'var(--background)' }}>
+              <div className="flex items-center justify-between px-2 py-1.5 border-b border-border" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
                 <span className="text-xs font-medium text-muted-foreground">Status</span>
                 <div className="flex items-center gap-1">
                   {!allSelected && (
@@ -115,17 +115,17 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
               </div>
 
               {/* Lista de checkboxes */}
-              <div className="max-h-64 overflow-y-auto bg-background" style={{ backgroundColor: 'var(--background)' }}>
+              <div className="max-h-64 overflow-y-auto" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
                 {Object.entries(STATUS_LABEL).map(([value, label]) => {
                   const isChecked = selectedStatuses.includes(value);
                   return (
                     <label
                       key={value}
                       className={cn(
-                        "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 transition-colors bg-background",
+                        "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 transition-colors",
                         isChecked && "bg-primary/5"
                       )}
-                      style={{ backgroundColor: isChecked ? undefined : 'var(--background)' }}
+                      style={{ backgroundColor: isChecked ? 'hsl(var(--primary) / 0.05)' : 'hsl(var(--background))', opacity: 1 }}
                     >
                       <input
                         type="checkbox"
@@ -186,7 +186,7 @@ function FormFilter({ selectedFilter, onFilterChange }: FormFilterProps) {
     { value: "confirmados_com_formulario" as const, label: "Confirmados com formulário" },
   ];
 
-  const selectedLabel = options.find((opt) => opt.value === selectedFilter)?.label || "Todos os formulários";
+  const selectedLabel = options.find((opt) => opt.value === selectedFilter)?.label || "Formulários";
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -200,28 +200,28 @@ function FormFilter({ selectedFilter, onFilterChange }: FormFilterProps) {
         )}
       >
         <Filter className="h-3.5 w-3.5" />
-        <span className="text-xs">{selectedLabel}</span>
+        <span className="text-xs">{selectedFilter ? selectedLabel : "Formulários"}</span>
         <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} />
       </Button>
 
       {isOpen && (
-        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg bg-background border border-border" style={{ backgroundColor: 'var(--background)' }}>
-          <CardContent className="p-2 bg-background" style={{ backgroundColor: 'var(--background)' }}>
-            <div className="space-y-1 bg-background" style={{ backgroundColor: 'var(--background)' }}>
-              <div className="px-2 py-1.5 border-b border-border bg-background" style={{ backgroundColor: 'var(--background)' }}>
+        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg border border-border" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
+          <CardContent className="p-2" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
+            <div className="space-y-1" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
+              <div className="px-2 py-1.5 border-b border-border" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
                 <span className="text-xs font-medium text-muted-foreground">Formulários</span>
               </div>
-              <div className="bg-background" style={{ backgroundColor: 'var(--background)' }}>
+              <div style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
                 {options.map((option) => {
                   const isSelected = option.value === selectedFilter;
                   return (
                     <label
                       key={option.value || "all"}
                       className={cn(
-                        "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 transition-colors bg-background",
+                        "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 transition-colors",
                         isSelected && "bg-primary/5"
                       )}
-                      style={{ backgroundColor: isSelected ? undefined : 'var(--background)' }}
+                      style={{ backgroundColor: isSelected ? 'hsl(var(--primary) / 0.05)' : 'hsl(var(--background))', opacity: 1 }}
                       onClick={() => {
                         onFilterChange(option.value);
                         setIsOpen(false);
