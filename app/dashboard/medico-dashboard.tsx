@@ -106,7 +106,7 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
   ).length;
   const remainingCount = appointmentsToday.length - completedCount;
   const nextAppointment = appointmentsToday.find(
-    (a) => new Date(a.scheduled_at) > now && a.status !== "cancelada"
+    (a) => new Date(a.scheduled_at) > new Date() && a.status !== "cancelada"
   );
 
   const metrics = {

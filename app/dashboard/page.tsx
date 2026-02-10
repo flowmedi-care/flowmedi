@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role, clinic_id")
+    .select("id, full_name, role, clinic_id")
     .eq("id", user?.id ?? "")
     .single();
 
