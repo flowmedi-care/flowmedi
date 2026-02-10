@@ -173,21 +173,24 @@ export function FormulariosListClient({
       )}
 
       {publicLinkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <h2 className="font-semibold">Link público</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPublicLinkModal(null)}
-                >
-                  ×
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setPublicLinkModal(null)}
+            aria-hidden
+          />
+          <div className="relative bg-background border border-border rounded-lg shadow-xl max-w-md w-full z-10">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <h2 className="font-semibold">Link público</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPublicLinkModal(null)}
+              >
+                ×
+              </Button>
+            </div>
+            <div className="p-4 space-y-4">
               {publicLinkModal.loading ? (
                 <p className="text-sm text-muted-foreground">Gerando link...</p>
               ) : publicLinkModal.link ? (
@@ -215,8 +218,8 @@ export function FormulariosListClient({
                   Erro ao gerar link. Verifique se o formulário permite uso público.
                 </p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       )}
 
