@@ -17,7 +17,8 @@ export async function AdminDashboard({
   const clinicId = profile.clinic_id;
 
   // Buscar médicos da clínica
-  const { data: doctors } = await createClient()
+  const supabase = await createClient();
+  const { data: doctors } = await supabase
     .from("profiles")
     .select("id, full_name")
     .eq("clinic_id", clinicId)
