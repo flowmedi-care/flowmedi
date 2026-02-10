@@ -61,6 +61,7 @@ const STATUS_VARIANT: Record<
 };
 
 type ViewMode = "timeline" | "calendar";
+type TimelineGranularity = "day" | "week" | "month";
 type CalendarGranularity = "week" | "month";
 
 function todayYMD() {
@@ -82,6 +83,8 @@ export function AgendaClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("timeline");
+  const [timelineGranularity, setTimelineGranularity] =
+    useState<TimelineGranularity>("day");
   const [calendarGranularity, setCalendarGranularity] =
     useState<CalendarGranularity>("week");
   const [dateInicio, setDateInicio] = useState(() => todayYMD());
@@ -130,7 +133,20 @@ export function AgendaClient({
 
   const start = new Date(dateInicio + "T12:00:00");
   const end = new Date(dateFim + "T12:00:00");
-  const calendarDate = start;
+  // Garantir início <= fim
+  const [rangeStart, rangeEnd] =
+    start <= end ? [start, end] : [end, start];
+  const calendarDate = rangeStart;
+
+  // Filtrar appointments pelo período selecionado
+  const appointmentsInPeriod = useMemo(() => {
+    const ymdStart = toYMD(rangeStart);
+    const ymdEnd = toYMD(rangeEnd);
+    return appointments.filter((a) => {
+      const d = a.scheduled_at.slice(0, 10);
+      return d >= ymdStart && d <= ymdEnd;
+    });
+  }, [appointments, rangeStart, rangeEnd]);
 
   return (
     <div className="space-y-6">
@@ -143,9 +159,22 @@ export function AgendaClient({
               onChange={(e) => setViewMode(e.target.value as ViewMode)}
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             >
-              <option value="timeline">Timeline (lista)</option>
+              <option value="timeline">Timeline</option>
               <option value="calendar">Calendário</option>
             </select>
+            {viewMode === "timeline" && (
+              <select
+                value={timelineGranularity}
+                onChange={(e) =>
+                  setTimelineGranularity(e.target.value as TimelineGranularity)
+                }
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="day">Dia</option>
+                <option value="week">Semana</option>
+                <option value="month">Mês</option>
+              </select>
+            )}
             {viewMode === "calendar" && (
               <select
                 value={calendarGranularity}
@@ -333,22 +362,23 @@ export function AgendaClient({
       {/* Conteúdo da visão */}
       {viewMode === "timeline" && (
         <TimelineListView
-          appointments={appointments}
-          dateInicio={start}
-          dateFim={end}
+          appointments={appointmentsInPeriod}
+          dateInicio={rangeStart}
+          dateFim={rangeEnd}
           today={today}
+          granularity={timelineGranularity}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "week" && (
         <CalendarWeekView
-          appointments={appointments}
+          appointments={appointmentsInPeriod}
           currentDate={calendarDate}
           today={today}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "month" && (
         <CalendarMonthView
-          appointments={appointments}
+          appointments={appointmentsInPeriod}
           currentDate={calendarDate}
           today={today}
           onSelectDay={(day) => {
@@ -362,17 +392,19 @@ export function AgendaClient({
   );
 }
 
-/** Lista hierárquica: Mês → Semana (01-07) → Segunda dia 1 → consultas */
+/** Timeline com granularidade: Dia (1 dia) | Semana (segunda 8, terça 9...) | Mês (janeiro, fev) */
 function TimelineListView({
   appointments,
   dateInicio,
   dateFim,
   today,
+  granularity,
 }: {
   appointments: AppointmentRow[];
   dateInicio: Date;
   dateFim: Date;
   today: Date;
+  granularity: TimelineGranularity;
 }) {
   const byDay = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
@@ -394,25 +426,112 @@ function TimelineListView({
     () => iterateDays(dateInicio, dateFim),
     [dateInicio, dateFim]
   );
-
-  // Agrupar por mês, depois por semana do mês, depois listar dias
-  const structure = useMemo(() => {
-    const byMonth: Record<
-      string,
-      Record<string, Date[]>
-    > = {};
+  const byMonth = useMemo(() => {
+    const map: Record<string, Date[]> = {};
     days.forEach((d) => {
       const mKey = `${d.getFullYear()}-${d.getMonth()}`;
-      const { weekNum } = getWeekOfMonthLabel(d);
-      const wKey = String(weekNum);
-      if (!byMonth[mKey]) byMonth[mKey] = {};
-      if (!byMonth[mKey][wKey]) byMonth[mKey][wKey] = [];
-      byMonth[mKey][wKey].push(d);
+      if (!map[mKey]) map[mKey] = [];
+      map[mKey].push(d);
     });
-    return byMonth;
+    return map;
   }, [days]);
+  const monthOrder = Object.keys(byMonth).sort();
 
-  const monthOrder = Object.keys(structure).sort();
+  // Dia: só 1 dia (usa dateInicio)
+  if (granularity === "day") {
+    const d = dateInicio;
+    const list = byDay[toYMD(d)] ?? [];
+    return (
+      <Card>
+        <CardHeader>
+          <p className="text-sm text-muted-foreground capitalize">
+            {d.toLocaleDateString("pt-BR", {
+              weekday: "long",
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })}
+          </p>
+        </CardHeader>
+        <CardContent>
+          {list.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">
+              Nenhuma consulta nesta data.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {list.map((a) => (
+                <AppointmentListItem key={a.id} appointment={a} />
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Semana: cada dia no período como "Segunda (8)", "Terça (9)", "Segunda (15)"...
+  if (granularity === "week") {
+    if (days.length === 0) {
+      return (
+        <Card>
+          <CardContent className="py-8">
+            <p className="text-sm text-muted-foreground text-center">
+              Período inválido. Ajuste as datas.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+    return (
+      <Card>
+        <CardHeader>
+          <p className="text-sm text-muted-foreground">
+            Dias no período. Clique em uma consulta para abrir.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-4 list-none p-0 m-0">
+            {days.map((d) => {
+              const dayLabel = `${formatDayShort(d)} (${d.getDate()})`;
+              const list = byDay[toYMD(d)] ?? [];
+              return (
+                <li
+                  key={toYMD(d)}
+                  className={cn(
+                    "rounded px-2 py-2",
+                    isSameDay(d, today) && "bg-primary/5"
+                  )}
+                >
+                  <p
+                    className={cn(
+                      "text-sm font-medium mb-1",
+                      isSameDay(d, today) && "text-primary"
+                    )}
+                  >
+                    {dayLabel}
+                  </p>
+                  {list.length === 0 ? (
+                    <p className="text-xs text-muted-foreground pl-2">
+                      Nenhuma consulta
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {list.map((a) => (
+                        <AppointmentListItem key={a.id} appointment={a} />
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Mês: Janeiro, Fevereiro... no período
   if (monthOrder.length === 0) {
     return (
       <Card>
@@ -429,7 +548,7 @@ function TimelineListView({
     <Card>
       <CardHeader>
         <p className="text-sm text-muted-foreground">
-          Lista hierárquica: mês → semana → dia. Clique em uma consulta para abrir.
+          Meses no período. Clique em uma consulta para abrir.
         </p>
       </CardHeader>
       <CardContent>
@@ -438,63 +557,46 @@ function TimelineListView({
             const [y, m] = mKey.split("-").map(Number);
             const monthDate = new Date(y, m, 1);
             const monthLabel = formatMonthYear(monthDate);
-            const weeks = structure[mKey];
-            const weekKeys = Object.keys(weeks).sort((a, b) =>
-              Number(a) - Number(b)
-            );
+            const monthDays = byMonth[mKey];
             return (
-              <li key={mKey} className="space-y-3">
+              <li key={mKey} className="space-y-2">
                 <h3 className="font-semibold text-base capitalize">
                   {monthLabel}
                 </h3>
-                <ul className="space-y-4 list-none pl-4 border-l-2 border-muted">
-                  {weekKeys.map((wKey) => {
-                    const weekDays = weeks[wKey];
-                    const firstDay = weekDays[0];
-                    const { label: weekLabel } = getWeekOfMonthLabel(firstDay);
+                <ul className="space-y-2 list-none pl-4 border-l-2 border-muted">
+                  {monthDays.map((d) => {
+                    const dayLabel = `${formatDayShort(d)} (${d.getDate()})`;
+                    const list = byDay[toYMD(d)] ?? [];
                     return (
-                      <li key={wKey} className="space-y-2">
-                        <p className="text-sm font-medium text-muted-foreground">
-                          {weekLabel}
+                      <li
+                        key={toYMD(d)}
+                        className={cn(
+                          "rounded px-2 py-1",
+                          isSameDay(d, today) && "bg-primary/5"
+                        )}
+                      >
+                        <p
+                          className={cn(
+                            "text-sm font-medium",
+                            isSameDay(d, today) && "text-primary"
+                          )}
+                        >
+                          {dayLabel}
                         </p>
-                        <ul className="space-y-1 list-none pl-4">
-                          {weekDays.map((d) => {
-                            const dayLabel = `${formatDayShort(d)} dia ${d.getDate()}`;
-                            const list = byDay[toYMD(d)] ?? [];
-                            return (
-                              <li
-                                key={toYMD(d)}
-                                className={cn(
-                                  "rounded px-2 py-1",
-                                  isSameDay(d, today) && "bg-primary/5"
-                                )}
-                              >
-                                <p
-                                  className={cn(
-                                    "text-sm font-medium",
-                                    isSameDay(d, today) && "text-primary"
-                                  )}
-                                >
-                                  {dayLabel}
-                                </p>
-                                {list.length === 0 ? (
-                                  <p className="text-xs text-muted-foreground pl-2">
-                                    Nenhuma consulta
-                                  </p>
-                                ) : (
-                                  <ul className="divide-y divide-border mt-1">
-                                    {list.map((a) => (
-                                      <AppointmentListItem
-                                        key={a.id}
-                                        appointment={a}
-                                      />
-                                    ))}
-                                  </ul>
-                                )}
-                              </li>
-                            );
-                          })}
-                        </ul>
+                        {list.length === 0 ? (
+                          <p className="text-xs text-muted-foreground pl-2">
+                            Nenhuma consulta
+                          </p>
+                        ) : (
+                          <ul className="divide-y divide-border mt-1">
+                            {list.map((a) => (
+                              <AppointmentListItem
+                                key={a.id}
+                                appointment={a}
+                              />
+                            ))}
+                          </ul>
+                        )}
                       </li>
                     );
                   })}
