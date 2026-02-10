@@ -780,7 +780,6 @@ export function AgendaClient({
       {viewMode === "calendar" && calendarGranularity === "week" && (
         <CalendarWeekView
           appointments={appointmentsInPeriod}
-          allAppointmentsForDrag={allAppointmentsForDrag}
           currentDate={calendarDate}
           today={today}
         />
@@ -788,7 +787,6 @@ export function AgendaClient({
       {viewMode === "calendar" && calendarGranularity === "month" && (
         <CalendarMonthView
           appointments={appointmentsInPeriod}
-          allAppointmentsForDrag={allAppointmentsForDrag}
           currentDate={calendarDate}
           today={today}
           onSelectDay={(day) => {
@@ -1083,12 +1081,10 @@ const HOUR_SLOTS = getHourSlots(7, 20);
 
 function CalendarWeekView({
   appointments,
-  allAppointmentsForDrag,
   currentDate,
   today,
 }: {
   appointments: AppointmentRow[];
-  allAppointmentsForDrag: AppointmentRow[];
   currentDate: Date;
   today: Date;
 }) {
