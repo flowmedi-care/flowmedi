@@ -105,9 +105,10 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
     (a) => a.status === "realizada"
   ).length;
   const remainingCount = appointmentsToday.length - completedCount;
-  const nextAppointment = appointmentsToday.find(
-    (a) => new Date(a.scheduled_at) > new Date() && a.status !== "cancelada"
-  );
+  // Próxima consulta: primeira agendada ou confirmada ordenada por horário
+  const nextAppointment = appointmentsToday
+    .filter((a) => a.status === "agendada" || a.status === "confirmada")
+    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0];
 
   const metrics = {
     totalToday: appointmentsToday.length,

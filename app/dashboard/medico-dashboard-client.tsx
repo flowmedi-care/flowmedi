@@ -143,6 +143,9 @@ export function MedicoDashboardClient({
         return "Ano";
     }
   }
+
+  const now = new Date();
+
   function formatTime(dateString: string): string {
     return new Date(dateString).toLocaleTimeString("pt-BR", {
       hour: "2-digit",
@@ -174,11 +177,14 @@ export function MedicoDashboardClient({
   }
 
   const now = new Date();
+  // Consultas de hoje: apenas agendadas e confirmadas (independente do horário)
+  // Isso permite que o médico tenha controle mesmo se atrasar
   const upcomingAppointments = appointments.filter(
-    (a) => new Date(a.scheduled_at) > now && a.status !== "cancelada"
+    (a) => a.status === "agendada" || a.status === "confirmada"
   );
+  // Consultas realizadas ou falta vão para baixo
   const pastAppointments = appointments.filter(
-    (a) => new Date(a.scheduled_at) <= now || a.status === "realizada"
+    (a) => a.status === "realizada" || a.status === "falta"
   );
 
   return (
@@ -281,7 +287,7 @@ export function MedicoDashboardClient({
       </div>
 
       {/* Próxima Consulta em Destaque */}
-      {nextAppointment && (
+      {nextAppointment && (nextAppointment.status === "agendada" || nextAppointment.status === "confirmada") && (
         <Card className="border-primary/50 bg-primary/5">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -375,7 +381,7 @@ export function MedicoDashboardClient({
           </Link>
         </div>
 
-        {appointments.length === 0 ? (
+        {upcomingAppointments.length === 0 && pastAppointments.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center">
               <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
@@ -386,12 +392,17 @@ export function MedicoDashboardClient({
           </Card>
         ) : (
           <div className="space-y-3">
-            {/* Consultas Futuras */}
+            {/* Consultas Agendadas/Confirmadas (em cima) */}
             {upcomingAppointments.length > 0 && (
               <div className="space-y-2">
-                {upcomingAppointments.map((appointment) => {
+                {upcomingAppointments
+                  .sort((a, b) => 
+                    new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+                  )
+                  .map((appointment) => {
                   const isNext =
                     nextAppointment?.id === appointment.id;
+                  const isPast = new Date(appointment.scheduled_at) < now;
                   return (
                     <Link
                       key={appointment.id}
@@ -400,7 +411,8 @@ export function MedicoDashboardClient({
                       <Card
                         className={cn(
                           "hover:bg-muted/50 transition-colors cursor-pointer",
-                          isNext && "border-primary/50 bg-primary/5"
+                          isNext && "border-primary/50 bg-primary/5",
+                          isPast && "border-orange-200 bg-orange-50/50 dark:bg-orange-950/10"
                         )}
                       >
                         <CardContent className="pt-4">
@@ -409,7 +421,8 @@ export function MedicoDashboardClient({
                               <div
                                 className={cn(
                                   "text-lg font-semibold min-w-[60px]",
-                                  isNext && "text-primary"
+                                  isNext && "text-primary",
+                                  isPast && "text-orange-600"
                                 )}
                               >
                                 {formatTime(appointment.scheduled_at)}
@@ -420,6 +433,11 @@ export function MedicoDashboardClient({
                                   {isNext && (
                                     <Badge variant="secondary" className="text-xs">
                                       Próxima
+                                    </Badge>
+                                  )}
+                                  {isPast && (
+                                    <Badge variant="outline" className="text-xs bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200">
+                                      Atrasada
                                     </Badge>
                                   )}
                                   <Badge
@@ -465,14 +483,16 @@ export function MedicoDashboardClient({
               </div>
             )}
 
-            {/* Consultas Passadas - Apenas realizadas */}
-            {pastAppointments.filter((a) => a.status === "realizada").length > 0 && (
+            {/* Consultas Realizadas ou Falta (em baixo) */}
+            {pastAppointments.length > 0 && (
               <div className="space-y-2 pt-4 border-t border-border">
                 <p className="text-sm font-medium text-muted-foreground">
-                  Consultas Realizadas
+                  Consultas Realizadas / Falta
                 </p>
                 {pastAppointments
-                  .filter((a) => a.status === "realizada")
+                  .sort((a, b) => 
+                    new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
+                  )
                   .map((appointment) => (
                   <Link
                     key={appointment.id}
@@ -495,6 +515,8 @@ export function MedicoDashboardClient({
                                 >
                                   {appointment.status === "realizada"
                                     ? "Realizada"
+                                    : appointment.status === "falta"
+                                    ? "Falta"
                                     : appointment.status}
                                 </Badge>
                               </div>
