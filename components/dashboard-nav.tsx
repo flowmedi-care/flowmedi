@@ -13,6 +13,7 @@ import {
   Settings,
   CreditCard,
   LogOut,
+  FileEdit,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -75,6 +76,20 @@ export function DashboardNav({
             </Link>
           );
         })}
+        {isMedico && (
+          <>
+            <div className="my-2 border-t border-border" />
+            <Link href="/dashboard/perfil">
+              <Button
+                variant={pathname === "/dashboard/perfil" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+              >
+                <Users className="h-4 w-4" />
+                Meu Perfil
+              </Button>
+            </Link>
+          </>
+        )}
         {isAdmin && (
           <>
             <div className="my-2 border-t border-border" />
@@ -85,6 +100,15 @@ export function DashboardNav({
               >
                 <UserPlus className="h-4 w-4" />
                 Equipe
+              </Button>
+            </Link>
+            <Link href="/dashboard/campos-pacientes">
+              <Button
+                variant={pathname === "/dashboard/campos-pacientes" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+              >
+                <FileEdit className="h-4 w-4" />
+                Campos de Pacientes
               </Button>
             </Link>
             <Link href="/dashboard/configuracoes">

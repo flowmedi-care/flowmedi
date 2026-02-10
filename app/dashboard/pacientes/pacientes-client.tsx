@@ -19,13 +19,26 @@ export type Patient = {
   phone: string | null;
   birth_date: string | null;
   notes: string | null;
+  custom_fields?: Record<string, unknown>;
   created_at: string;
+};
+
+export type CustomField = {
+  id: string;
+  field_name: string;
+  field_type: "text" | "number" | "date" | "textarea" | "select";
+  field_label: string;
+  required: boolean;
+  options: string[] | null;
+  display_order: number;
 };
 
 export function PacientesClient({
   initialPatients,
+  customFields,
 }: {
   initialPatients: Patient[];
+  customFields: CustomField[];
 }) {
   const [patients, setPatients] = useState<Patient[]>(initialPatients);
   const [search, setSearch] = useState("");
@@ -36,12 +49,13 @@ export function PacientesClient({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [patientToExcluir, setPatientToExcluir] = useState<Patient | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState<PatientInsert & { id?: string }>({
+  const [form, setForm] = useState<PatientInsert & { id?: string; custom_fields?: Record<string, unknown> }>({
     full_name: "",
     email: "",
     phone: "",
     birth_date: "",
     notes: "",
+    custom_fields: {},
   });
 
   const filtered = patients.filter(
@@ -54,12 +68,23 @@ export function PacientesClient({
   function openNew() {
     setEditingId(null);
     setIsNew(true);
+    const initialCustomFields: Record<string, unknown> = {};
+    customFields.forEach((field) => {
+      if (field.field_type === "select") {
+        initialCustomFields[field.field_name] = "";
+      } else if (field.field_type === "number") {
+        initialCustomFields[field.field_name] = "";
+      } else {
+        initialCustomFields[field.field_name] = "";
+      }
+    });
     setForm({
       full_name: "",
       email: "",
       phone: "",
       birth_date: "",
       notes: "",
+      custom_fields: initialCustomFields,
     });
     setError(null);
   }
@@ -67,6 +92,10 @@ export function PacientesClient({
   function openEdit(p: Patient) {
     setIsNew(false);
     setEditingId(p.id);
+    const initialCustomFields: Record<string, unknown> = {};
+    customFields.forEach((field) => {
+      initialCustomFields[field.field_name] = p.custom_fields?.[field.field_name] ?? "";
+    });
     setForm({
       id: p.id,
       full_name: p.full_name,
@@ -74,6 +103,7 @@ export function PacientesClient({
       phone: p.phone ?? "",
       birth_date: p.birth_date ?? "",
       notes: p.notes ?? "",
+      custom_fields: initialCustomFields,
     });
     setError(null);
   }
@@ -113,6 +143,7 @@ export function PacientesClient({
         phone: form.phone || null,
         birth_date: form.birth_date || null,
         notes: form.notes || null,
+        custom_fields: form.custom_fields || {},
       });
       if (res.error) {
         setError(res.error);
@@ -142,6 +173,7 @@ export function PacientesClient({
         phone: form.phone || null,
         birth_date: form.birth_date || null,
         notes: form.notes || null,
+        custom_fields: form.custom_fields || {},
       };
       const res = await updatePatient(editingId, update);
       if (res.error) {
@@ -270,6 +302,112 @@ export function PacientesClient({
                   rows={2}
                 />
               </div>
+              
+              {customFields.length > 0 && (
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <h3 className="font-medium text-sm">Informações Adicionais</h3>
+                  {customFields.map((field) => {
+                    const fieldValue = form.custom_fields?.[field.field_name] ?? "";
+                    return (
+                      <div key={field.id} className="space-y-2">
+                        <Label htmlFor={`custom_${field.field_name}`}>
+                          {field.field_label}
+                          {field.required && " *"}
+                        </Label>
+                        {field.field_type === "textarea" ? (
+                          <Textarea
+                            id={`custom_${field.field_name}`}
+                            value={String(fieldValue)}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                custom_fields: {
+                                  ...f.custom_fields,
+                                  [field.field_name]: e.target.value,
+                                },
+                              }))
+                            }
+                            required={field.required}
+                            rows={3}
+                          />
+                        ) : field.field_type === "select" ? (
+                          <select
+                            id={`custom_${field.field_name}`}
+                            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                            value={String(fieldValue)}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                custom_fields: {
+                                  ...f.custom_fields,
+                                  [field.field_name]: e.target.value,
+                                },
+                              }))
+                            }
+                            required={field.required}
+                          >
+                            <option value="">Selecione</option>
+                            {(field.options || []).map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        ) : field.field_type === "date" ? (
+                          <Input
+                            id={`custom_${field.field_name}`}
+                            type="date"
+                            value={String(fieldValue)}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                custom_fields: {
+                                  ...f.custom_fields,
+                                  [field.field_name]: e.target.value,
+                                },
+                              }))
+                            }
+                            required={field.required}
+                          />
+                        ) : field.field_type === "number" ? (
+                          <Input
+                            id={`custom_${field.field_name}`}
+                            type="number"
+                            value={String(fieldValue)}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                custom_fields: {
+                                  ...f.custom_fields,
+                                  [field.field_name]: e.target.value === "" ? "" : Number(e.target.value),
+                                },
+                              }))
+                            }
+                            required={field.required}
+                          />
+                        ) : (
+                          <Input
+                            id={`custom_${field.field_name}`}
+                            type="text"
+                            value={String(fieldValue)}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                custom_fields: {
+                                  ...f.custom_fields,
+                                  [field.field_name]: e.target.value,
+                                },
+                              }))
+                            }
+                            required={field.required}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              
               <div className="flex gap-2">
                 <Button type="submit" disabled={loading}>
                   {loading ? "Salvando…" : isNew ? "Cadastrar" : "Salvar"}

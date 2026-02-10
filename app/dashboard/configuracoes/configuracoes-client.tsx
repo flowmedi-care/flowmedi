@@ -12,6 +12,7 @@ import {
 } from "./actions";
 import { Plus, Pencil, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LogoUpload } from "./logo-upload";
 
 export type AppointmentTypeRow = {
   id: string;
@@ -21,8 +22,10 @@ export type AppointmentTypeRow = {
 
 export function ConfiguracoesClient({
   appointmentTypes,
+  clinicLogoUrl,
 }: {
   appointmentTypes: AppointmentTypeRow[];
+  clinicLogoUrl: string | null;
 }) {
   const [types, setTypes] = useState<AppointmentTypeRow[]>(appointmentTypes);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -100,6 +103,21 @@ export function ConfiguracoesClient({
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <h2 className="font-semibold">Logo da Clínica</h2>
+          <p className="text-sm text-muted-foreground">
+            A logo da clínica aparecerá no topo dos formulários enviados aos pacientes.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <LogoUpload
+            currentLogoUrl={clinicLogoUrl}
+            type="clinic"
+          />
+        </CardContent>
+      </Card>
+      
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">

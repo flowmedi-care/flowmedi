@@ -9,6 +9,7 @@ export type PatientInsert = {
   phone?: string | null;
   birth_date?: string | null;
   notes?: string | null;
+  custom_fields?: Record<string, unknown>;
 };
 
 export type PatientUpdate = Partial<PatientInsert>;
@@ -43,16 +44,20 @@ export async function createPatient(data: PatientInsert) {
 
 export async function updatePatient(id: string, data: PatientUpdate) {
   const supabase = await createClient();
+  const updateData: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  
+  if (data.full_name !== undefined) updateData.full_name = data.full_name;
+  if (data.email !== undefined) updateData.email = data.email ?? null;
+  if (data.phone !== undefined) updateData.phone = data.phone ?? null;
+  if (data.birth_date !== undefined) updateData.birth_date = data.birth_date || null;
+  if (data.notes !== undefined) updateData.notes = data.notes ?? null;
+  if (data.custom_fields !== undefined) updateData.custom_fields = data.custom_fields || {};
+
   const { error } = await supabase
     .from("patients")
-    .update({
-      full_name: data.full_name,
-      email: data.email ?? undefined,
-      phone: data.phone ?? undefined,
-      birth_date: data.birth_date || null,
-      notes: data.notes ?? undefined,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq("id", id);
 
   if (error) return { error: error.message };

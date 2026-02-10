@@ -11,18 +11,33 @@ AS $$
 DECLARE
   v_row record;
   v_result json;
+  v_clinic_logo text;
+  v_doctor_logo text;
 BEGIN
   SELECT fi.id, fi.appointment_id, fi.form_template_id, fi.status, fi.responses, fi.link_expires_at,
-         ft.name AS template_name, ft.definition
+         ft.name AS template_name, ft.definition,
+         ft.clinic_id,
+         a.doctor_id
   INTO v_row
   FROM form_instances fi
   JOIN form_templates ft ON ft.id = fi.form_template_id
+  JOIN appointments a ON a.id = fi.appointment_id
   WHERE fi.link_token = p_token
   LIMIT 1;
 
   IF v_row.id IS NULL THEN
     RETURN json_build_object('found', false);
   END IF;
+  
+  -- Buscar logo da clínica
+  SELECT logo_url INTO v_clinic_logo
+  FROM clinics
+  WHERE id = v_row.clinic_id;
+  
+  -- Buscar logo do médico
+  SELECT logo_url INTO v_doctor_logo
+  FROM profiles
+  WHERE id = v_row.doctor_id;
 
   IF v_row.link_expires_at IS NOT NULL AND v_row.link_expires_at < now() THEN
     RETURN json_build_object('found', true, 'expired', true);
@@ -37,7 +52,9 @@ BEGIN
     'status', v_row.status,
     'responses', COALESCE(v_row.responses, '{}'::jsonb),
     'template_name', v_row.template_name,
-    'definition', v_row.definition
+    'definition', v_row.definition,
+    'clinic_logo_url', v_clinic_logo,
+    'doctor_logo_url', v_doctor_logo
   );
   RETURN v_result;
 END;

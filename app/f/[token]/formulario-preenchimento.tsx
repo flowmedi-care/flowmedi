@@ -249,6 +249,7 @@ export function FormularioPreenchimento({
   initialResponses,
   token,
   readOnly,
+  doctorLogoUrl,
 }: {
   templateName: string;
   definition: FieldDef[];
@@ -256,6 +257,7 @@ export function FormularioPreenchimento({
   instanceId: string;
   token: string;
   readOnly?: boolean;
+  doctorLogoUrl?: string | null;
 }) {
   const [responses, setResponses] = useState<Record<string, unknown>>(initialResponses);
   const [loading, setLoading] = useState(false);
@@ -333,6 +335,15 @@ export function FormularioPreenchimento({
             </Button>
           )}
         </form>
+        {doctorLogoUrl && (
+          <div className="flex justify-center mt-6 pt-6 border-t border-border">
+            <img
+              src={doctorLogoUrl}
+              alt="Logo do médico"
+              className="max-h-20 max-w-full object-contain"
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

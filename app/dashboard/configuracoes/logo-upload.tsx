@@ -1,0 +1,137 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { uploadClinicLogo, uploadDoctorLogo, deleteClinicLogo, deleteDoctorLogo } from "./actions";
+import { Upload, X, Loader2 } from "lucide-react";
+
+export function LogoUpload({
+  currentLogoUrl,
+  type,
+}: {
+  currentLogoUrl: string | null;
+  type: "clinic" | "doctor";
+}) {
+  const [logoUrl, setLogoUrl] = useState<string | null>(currentLogoUrl);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tipo de arquivo
+    if (!file.type.startsWith("image/")) {
+      setError("Por favor, selecione um arquivo de imagem.");
+      return;
+    }
+
+    // Validar tamanho (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError("A imagem deve ter no máximo 5MB.");
+      return;
+    }
+
+    setError(null);
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = type === "clinic" 
+        ? await uploadClinicLogo(formData)
+        : await uploadDoctorLogo(formData);
+
+      if (res.error) {
+        setError(res.error);
+        setUploading(false);
+        return;
+      }
+
+      if (res.url) {
+        setLogoUrl(res.url);
+        window.location.reload();
+      }
+    } catch (err) {
+      setError("Erro ao fazer upload da imagem.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("Tem certeza que deseja remover a logo?")) return;
+
+    setUploading(true);
+    const res = type === "clinic"
+      ? await deleteClinicLogo()
+      : await deleteDoctorLogo();
+
+    if (res.error) {
+      setError(res.error);
+      setUploading(false);
+      return;
+    }
+
+    setLogoUrl(null);
+    window.location.reload();
+  }
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
+          {error}
+        </p>
+      )}
+      
+      {logoUrl && (
+        <div className="relative inline-block">
+          <div className="w-32 h-32 border border-border rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+            <img
+              src={logoUrl}
+              alt="Logo"
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
+          {!uploading && (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="absolute -top-2 -right-2"
+              onClick={handleDelete}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <Label htmlFor={`logo-upload-${type}`}>
+          {logoUrl ? "Alterar logo" : "Enviar logo"}
+        </Label>
+        <div className="flex items-center gap-2">
+          <Input
+            id={`logo-upload-${type}`}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleFileSelect}
+            disabled={uploading}
+            className="cursor-pointer"
+          />
+          {uploading && (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Formatos aceitos: JPEG, PNG, WebP. Tamanho máximo: 5MB.
+        </p>
+      </div>
+    </div>
+  );
+}

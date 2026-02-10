@@ -23,6 +23,12 @@ export default async function ConfiguracoesPage() {
     .eq("clinic_id", profile.clinic_id)
     .order("name");
 
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("logo_url")
+    .eq("id", profile.clinic_id)
+    .single();
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold text-foreground">Configurações</h1>
@@ -32,6 +38,7 @@ export default async function ConfiguracoesPage() {
           name: t.name,
           duration_minutes: t.duration_minutes ?? 30,
         }))}
+        clinicLogoUrl={clinic?.logo_url ?? null}
       />
     </div>
   );
