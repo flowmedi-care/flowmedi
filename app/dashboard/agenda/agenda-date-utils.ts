@@ -2,8 +2,6 @@
  * Helpers para agenda: semana começa na segunda-feira (padrão BR).
  */
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /** Segunda = 0 (JS domingo = 0). Ajuste para que segunda seja o primeiro dia da semana. */
 function getMondayOfWeek(d: Date): Date {
   const date = new Date(d);
@@ -93,8 +91,12 @@ export function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
+/** Data local em YYYY-MM-DD (evita bug de UTC em fusos como Brasil). */
 export function toYMD(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export function formatWeekRange(startOfWeek: Date): string {
@@ -117,4 +119,28 @@ export function getHourSlots(startHour = 7, endHour = 20): number[] {
   const slots: number[] = [];
   for (let h = startHour; h <= endHour; h++) slots.push(h);
   return slots;
+}
+
+/** Retorna o número da semana no mês (1–5) e intervalo dd-dd. Ex: Semana 1 (01-07). */
+export function getWeekOfMonthLabel(d: Date): { weekNum: number; label: string } {
+  const day = d.getDate();
+  const weekNum = Math.ceil(day / 7);
+  const startDay = (weekNum - 1) * 7 + 1;
+  const endDay = Math.min(weekNum * 7, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate());
+  const label = `Semana ${weekNum} (${String(startDay).padStart(2, "0")}-${String(endDay).padStart(2, "0")})`;
+  return { weekNum, label };
+}
+
+/** Itera os dias entre start e end (inclusive). */
+export function iterateDays(start: Date, end: Date): Date[] {
+  const days: Date[] = [];
+  const cur = new Date(start);
+  cur.setHours(0, 0, 0, 0);
+  const endNorm = new Date(end);
+  endNorm.setHours(23, 59, 59, 999);
+  while (cur <= endNorm) {
+    days.push(new Date(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return days;
 }

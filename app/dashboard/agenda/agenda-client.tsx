@@ -9,14 +9,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { createAppointment } from "./actions";
-import {
-  Plus,
-  CalendarClock,
-  LayoutList,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { Plus, CalendarClock, LayoutList, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getStartOfWeek,
@@ -24,14 +17,13 @@ import {
   getStartOfMonth,
   getMonthCalendarGrid,
   addDays,
-  addWeeks,
-  addMonths,
   isSameDay,
   toYMD,
-  formatWeekRange,
   formatMonthYear,
   formatDayShort,
   getHourSlots,
+  getWeekOfMonthLabel,
+  iterateDays,
 } from "./agenda-date-utils";
 
 export type AppointmentRow = {
@@ -69,8 +61,11 @@ const STATUS_VARIANT: Record<
 };
 
 type ViewMode = "timeline" | "calendar";
-type TimelineGranularity = "day" | "week" | "month";
 type CalendarGranularity = "week" | "month";
+
+function todayYMD() {
+  return toYMD(new Date());
+}
 
 export function AgendaClient({
   appointments,
@@ -87,67 +82,20 @@ export function AgendaClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("timeline");
-  const [timelineGranularity, setTimelineGranularity] =
-    useState<TimelineGranularity>("day");
   const [calendarGranularity, setCalendarGranularity] =
     useState<CalendarGranularity>("week");
-  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [dateInicio, setDateInicio] = useState(() => todayYMD());
+  const [dateFim, setDateFim] = useState(() => todayYMD());
   const [form, setForm] = useState({
     patientId: "",
     doctorId: "",
     appointmentTypeId: "",
-    date: new Date().toISOString().slice(0, 10),
+    date: todayYMD(),
     time: "09:00",
     notes: "",
   });
 
   const today = useMemo(() => new Date(), []);
-
-  const periodLabel =
-    viewMode === "timeline"
-      ? timelineGranularity === "day"
-        ? currentDate.toLocaleDateString("pt-BR", {
-            weekday: "long",
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          })
-        : timelineGranularity === "week"
-          ? formatWeekRange(getStartOfWeek(currentDate))
-          : formatMonthYear(currentDate)
-      : calendarGranularity === "week"
-        ? formatWeekRange(getStartOfWeek(currentDate))
-        : formatMonthYear(currentDate);
-
-  function goPrev() {
-    if (viewMode === "timeline") {
-      if (timelineGranularity === "day") setCurrentDate((d) => addDays(d, -1));
-      else if (timelineGranularity === "week")
-        setCurrentDate((d) => addWeeks(d, -1));
-      else setCurrentDate((d) => addMonths(d, -1));
-    } else {
-      if (calendarGranularity === "week")
-        setCurrentDate((d) => addWeeks(d, -1));
-      else setCurrentDate((d) => addMonths(d, -1));
-    }
-  }
-
-  function goNext() {
-    if (viewMode === "timeline") {
-      if (timelineGranularity === "day") setCurrentDate((d) => addDays(d, 1));
-      else if (timelineGranularity === "week")
-        setCurrentDate((d) => addWeeks(d, 1));
-      else setCurrentDate((d) => addMonths(d, 1));
-    } else {
-      if (calendarGranularity === "week")
-        setCurrentDate((d) => addWeeks(d, 1));
-      else setCurrentDate((d) => addMonths(d, 1));
-    }
-  }
-
-  function goToday() {
-    setCurrentDate(new Date());
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -172,7 +120,7 @@ export function AgendaClient({
       patientId: "",
       doctorId: "",
       appointmentTypeId: "",
-      date: new Date().toISOString().slice(0, 10),
+      date: todayYMD(),
       time: "09:00",
       notes: "",
     });
@@ -180,129 +128,74 @@ export function AgendaClient({
     setLoading(false);
   }
 
+  const start = new Date(dateInicio + "T12:00:00");
+  const end = new Date(dateFim + "T12:00:00");
+  const calendarDate = start;
+
   return (
     <div className="space-y-6">
-      {/* Toolbar: modo + granularidade + navegação */}
+      {/* Toolbar: modo, granularidade (calendário), período, nova consulta */}
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-muted-foreground mr-1">
-            Visualização:
-          </span>
-          <div className="flex rounded-lg border border-input bg-muted/30 p-0.5">
-            <button
-              type="button"
-              onClick={() => setViewMode("timeline")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                viewMode === "timeline"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <select
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value as ViewMode)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             >
-              <LayoutList className="h-4 w-4" />
-              Timeline
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("calendar")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                viewMode === "calendar"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <CalendarDays className="h-4 w-4" />
-              Calendário
-            </button>
+              <option value="timeline">Timeline (lista)</option>
+              <option value="calendar">Calendário</option>
+            </select>
+            {viewMode === "calendar" && (
+              <select
+                value={calendarGranularity}
+                onChange={(e) =>
+                  setCalendarGranularity(e.target.value as CalendarGranularity)
+                }
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="week">Semana</option>
+                <option value="month">Mês</option>
+              </select>
+            )}
           </div>
 
-          {viewMode === "timeline" && (
-            <div className="flex rounded-lg border border-input bg-muted/30 p-0.5">
-              {(["day", "week", "month"] as const).map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setTimelineGranularity(g)}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors",
-                    timelineGranularity === g
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {g === "day" ? "Dia" : g === "week" ? "Semana" : "Mês"}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {viewMode === "calendar" && (
-            <div className="flex rounded-lg border border-input bg-muted/30 p-0.5">
-              <button
-                type="button"
-                onClick={() => setCalendarGranularity("week")}
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                  calendarGranularity === "week"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Semana
-              </button>
-              <button
-                type="button"
-                onClick={() => setCalendarGranularity("month")}
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                  calendarGranularity === "month"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Mês
-              </button>
-            </div>
-          )}
-
-          <div className="flex items-center gap-1 ml-auto">
-            <Button variant="outline" size="icon" onClick={goPrev} className="h-8 w-8">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="date_inicio" className="text-muted-foreground text-sm">
+              De
+            </Label>
+            <Input
+              id="date_inicio"
+              type="date"
+              value={dateInicio}
+              onChange={(e) => setDateInicio(e.target.value)}
+              className="w-40"
+            />
+            <Label htmlFor="date_fim" className="text-muted-foreground text-sm">
+              até
+            </Label>
+            <Input
+              id="date_fim"
+              type="date"
+              value={dateFim}
+              onChange={(e) => setDateFim(e.target.value)}
+              className="w-40"
+            />
             <Button
               variant="outline"
               size="sm"
-              onClick={goToday}
-              className="capitalize"
+              onClick={() => {
+                const t = todayYMD();
+                setDateInicio(t);
+                setDateFim(t);
+              }}
             >
               Hoje
             </Button>
-            <Button variant="outline" size="icon" onClick={goNext} className="h-8 w-8">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <span className="min-w-[180px] text-center text-sm font-medium text-foreground capitalize">
-              {periodLabel}
-            </span>
           </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-4 justify-between">
-          {viewMode === "timeline" && timelineGranularity === "day" && (
-            <div className="flex items-center gap-2">
-              <Label htmlFor="date_filter" className="whitespace-nowrap">
-                Data
-              </Label>
-              <Input
-                id="date_filter"
-                type="date"
-                value={toYMD(currentDate)}
-                onChange={(e) => setCurrentDate(new Date(e.target.value + "T12:00:00"))}
-                className="w-40"
-              />
-            </div>
-          )}
           <Button
+            className="ml-auto"
             onClick={() => {
               setShowForm(true);
               if (doctors.length === 1) {
@@ -438,47 +331,30 @@ export function AgendaClient({
       )}
 
       {/* Conteúdo da visão */}
-      {viewMode === "timeline" && timelineGranularity === "day" && (
-        <TimelineDayView
+      {viewMode === "timeline" && (
+        <TimelineListView
           appointments={appointments}
-          currentDate={currentDate}
+          dateInicio={start}
+          dateFim={end}
           today={today}
-        />
-      )}
-      {viewMode === "timeline" && timelineGranularity === "week" && (
-        <TimelineWeekView
-          appointments={appointments}
-          currentDate={currentDate}
-          today={today}
-        />
-      )}
-      {viewMode === "timeline" && timelineGranularity === "month" && (
-        <TimelineMonthView
-          appointments={appointments}
-          currentDate={currentDate}
-          today={today}
-          onSelectDay={(day) => {
-            setCurrentDate(day);
-            setTimelineGranularity("day");
-          }}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "week" && (
         <CalendarWeekView
           appointments={appointments}
-          currentDate={currentDate}
+          currentDate={calendarDate}
           today={today}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "month" && (
         <CalendarMonthView
           appointments={appointments}
-          currentDate={currentDate}
+          currentDate={calendarDate}
           today={today}
           onSelectDay={(day) => {
-            setCurrentDate(day);
+            setDateInicio(toYMD(day));
+            setDateFim(toYMD(day));
             setViewMode("timeline");
-            setTimelineGranularity("day");
           }}
         />
       )}
@@ -486,65 +362,24 @@ export function AgendaClient({
   );
 }
 
-function TimelineDayView({
+/** Lista hierárquica: Mês → Semana (01-07) → Segunda dia 1 → consultas */
+function TimelineListView({
   appointments,
-  currentDate,
+  dateInicio,
+  dateFim,
   today,
 }: {
   appointments: AppointmentRow[];
-  currentDate: Date;
+  dateInicio: Date;
+  dateFim: Date;
   today: Date;
 }) {
-  const dayStr = toYMD(currentDate);
-  const filtered = appointments
-    .filter((a) => a.scheduled_at.slice(0, 10) === dayStr)
-    .sort(
-      (a, b) =>
-        new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
-    );
-
-  return (
-    <Card>
-      <CardHeader>
-        <p className="text-sm text-muted-foreground">
-          Consultas do dia. Clique para ver detalhes e formulários.
-        </p>
-      </CardHeader>
-      <CardContent>
-        {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4">
-            Nenhuma consulta nesta data.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {filtered.map((a) => (
-              <AppointmentListItem key={a.id} appointment={a} />
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function TimelineWeekView({
-  appointments,
-  currentDate,
-  today,
-}: {
-  appointments: AppointmentRow[];
-  currentDate: Date;
-  today: Date;
-}) {
-  const weekDays = useMemo(() => getWeekDates(currentDate), [currentDate]);
   const byDay = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
-    weekDays.forEach((d) => {
-      map[toYMD(d)] = [];
-    });
     appointments.forEach((a) => {
       const key = a.scheduled_at.slice(0, 10);
-      if (map[key]) map[key].push(a);
+      if (!map[key]) map[key] = [];
+      map[key].push(a);
     });
     Object.keys(map).forEach((k) => {
       map[k].sort(
@@ -553,155 +388,121 @@ function TimelineWeekView({
       );
     });
     return map;
-  }, [appointments, weekDays]);
-
-  return (
-    <Card>
-      <CardHeader>
-        <p className="text-sm text-muted-foreground">
-          Consultas por dia da semana. Clique em uma consulta para abrir.
-        </p>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="grid grid-cols-7 border-b border-border">
-          {weekDays.map((d) => (
-            <div
-              key={toYMD(d)}
-              className={cn(
-                "p-2 border-r border-border last:border-r-0 text-center",
-                isSameDay(d, today) && "bg-primary/5"
-              )}
-            >
-              <div className="text-xs font-medium text-muted-foreground uppercase">
-                {formatDayShort(d)}
-              </div>
-              <div
-                className={cn(
-                  "text-lg font-semibold",
-                  isSameDay(d, today) && "text-primary"
-                )}
-              >
-                {d.getDate()}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 min-h-[200px]">
-          {weekDays.map((d) => (
-            <div
-              key={toYMD(d)}
-              className={cn(
-                "p-2 border-r border-border last:border-r-0 min-h-[120px]",
-                isSameDay(d, today) && "bg-primary/5"
-              )}
-            >
-              {(byDay[toYMD(d)] ?? []).map((a) => (
-                <AppointmentListItem key={a.id} appointment={a} compact />
-              ))}
-              {(byDay[toYMD(d)] ?? []).length === 0 && (
-                <p className="text-xs text-muted-foreground">Sem consultas</p>
-              )}
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function TimelineMonthView({
-  appointments,
-  currentDate,
-  today,
-  onSelectDay,
-}: {
-  appointments: AppointmentRow[];
-  currentDate: Date;
-  today: Date;
-  onSelectDay: (d: Date) => void;
-}) {
-  const grid = getMonthCalendarGrid(currentDate);
-  const byDay = useMemo(() => {
-    const map: Record<string, AppointmentRow[]> = {};
-    appointments.forEach((a) => {
-      const key = a.scheduled_at.slice(0, 10);
-      if (!map[key]) map[key] = [];
-      map[key].push(a);
-    });
-    return map;
   }, [appointments]);
 
+  const days = useMemo(
+    () => iterateDays(dateInicio, dateFim),
+    [dateInicio, dateFim]
+  );
+
+  // Agrupar por mês, depois por semana do mês, depois listar dias
+  const structure = useMemo(() => {
+    const byMonth: Record<
+      string,
+      Record<string, Date[]>
+    > = {};
+    days.forEach((d) => {
+      const mKey = `${d.getFullYear()}-${d.getMonth()}`;
+      const { weekNum } = getWeekOfMonthLabel(d);
+      const wKey = String(weekNum);
+      if (!byMonth[mKey]) byMonth[mKey] = {};
+      if (!byMonth[mKey][wKey]) byMonth[mKey][wKey] = [];
+      byMonth[mKey][wKey].push(d);
+    });
+    return byMonth;
+  }, [days]);
+
+  const monthOrder = Object.keys(structure).sort();
+  if (monthOrder.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <p className="text-sm text-muted-foreground text-center">
+            Selecione o período (data inicial e final) para ver as consultas.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <p className="text-sm text-muted-foreground">
-          Clique em um dia para ver as consultas ou mudar para a visão Dia.
+          Lista hierárquica: mês → semana → dia. Clique em uma consulta para abrir.
         </p>
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="grid grid-cols-7 border-b border-border">
-          {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((label) => (
-            <div
-              key={label}
-              className="p-2 border-r border-border last:border-r-0 text-center text-xs font-medium text-muted-foreground"
-            >
-              {label}
-            </div>
-          ))}
-        </div>
-        {grid.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 border-b border-border last:border-b-0">
-            {week.map((day, di) => (
-              <div
-                key={di}
-                className={cn(
-                  "min-h-[88px] p-1.5 border-r border-border last:border-r-0",
-                  !day && "bg-muted/30",
-                  day && isSameDay(day, today) && "bg-primary/5"
-                )}
-              >
-                {day ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => onSelectDay(day)}
-                      className={cn(
-                        "w-7 h-7 rounded-full text-sm font-medium flex items-center justify-center hover:bg-muted",
-                        isSameDay(day, today) && "bg-primary text-primary-foreground"
-                      )}
-                    >
-                      {day.getDate()}
-                    </button>
-                    <div className="mt-0.5 space-y-0.5">
-                      {(byDay[toYMD(day)] ?? []).slice(0, 3).map((a) => (
-                        <Link
-                          key={a.id}
-                          href={`/dashboard/agenda/consulta/${a.id}`}
-                          className="block text-xs truncate rounded px-1 py-0.5 bg-muted hover:bg-muted/80"
-                          title={`${new Date(a.scheduled_at).toLocaleTimeString("pt-BR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })} ${a.patient.full_name}`}
-                        >
-                          {new Date(a.scheduled_at).toLocaleTimeString("pt-BR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}{" "}
-                          {a.patient.full_name}
-                        </Link>
-                      ))}
-                      {(byDay[toYMD(day)] ?? []).length > 3 && (
-                        <span className="text-xs text-muted-foreground">
-                          +{(byDay[toYMD(day)] ?? []).length - 3}
-                        </span>
-                      )}
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ))}
+      <CardContent>
+        <ul className="space-y-6 list-none p-0 m-0">
+          {monthOrder.map((mKey) => {
+            const [y, m] = mKey.split("-").map(Number);
+            const monthDate = new Date(y, m, 1);
+            const monthLabel = formatMonthYear(monthDate);
+            const weeks = structure[mKey];
+            const weekKeys = Object.keys(weeks).sort((a, b) =>
+              Number(a) - Number(b)
+            );
+            return (
+              <li key={mKey} className="space-y-3">
+                <h3 className="font-semibold text-base capitalize">
+                  {monthLabel}
+                </h3>
+                <ul className="space-y-4 list-none pl-4 border-l-2 border-muted">
+                  {weekKeys.map((wKey) => {
+                    const weekDays = weeks[wKey];
+                    const firstDay = weekDays[0];
+                    const { label: weekLabel } = getWeekOfMonthLabel(firstDay);
+                    return (
+                      <li key={wKey} className="space-y-2">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          {weekLabel}
+                        </p>
+                        <ul className="space-y-1 list-none pl-4">
+                          {weekDays.map((d) => {
+                            const dayLabel = `${formatDayShort(d)} dia ${d.getDate()}`;
+                            const list = byDay[toYMD(d)] ?? [];
+                            return (
+                              <li
+                                key={toYMD(d)}
+                                className={cn(
+                                  "rounded px-2 py-1",
+                                  isSameDay(d, today) && "bg-primary/5"
+                                )}
+                              >
+                                <p
+                                  className={cn(
+                                    "text-sm font-medium",
+                                    isSameDay(d, today) && "text-primary"
+                                  )}
+                                >
+                                  {dayLabel}
+                                </p>
+                                {list.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground pl-2">
+                                    Nenhuma consulta
+                                  </p>
+                                ) : (
+                                  <ul className="divide-y divide-border mt-1">
+                                    {list.map((a) => (
+                                      <AppointmentListItem
+                                        key={a.id}
+                                        appointment={a}
+                                      />
+                                    ))}
+                                  </ul>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            );
+          })}
+        </ul>
       </CardContent>
     </Card>
   );
