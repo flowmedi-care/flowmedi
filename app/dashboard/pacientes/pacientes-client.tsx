@@ -108,11 +108,6 @@ export function PacientesClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPatient]);
 
-  // Debug: verificar quando search muda
-  useEffect(() => {
-    console.log("🔍 Estado search mudou:", search);
-    console.log("📋 Total de pacientes:", patients.length);
-  }, [search, patients]);
 
   async function loadPatientExams(patientId: string) {
     setLoadingExams(true);
@@ -142,21 +137,36 @@ export function PacientesClient({
 
   // Filtrar pacientes em tempo real conforme digita
   const filtered = useMemo(() => {
-    console.log("🔍 Filtrando pacientes - search:", search, "total pacientes:", patients.length);
-    if (!search.trim()) {
-      console.log("✅ Sem busca - retornando todos os pacientes");
+    const searchValue = search.trim();
+    
+    if (!searchValue) {
       return patients;
     }
-    const searchLower = search.toLowerCase().trim();
-    const searchNumbers = search.replace(/\D/g, "");
-    const result = patients.filter((p) => {
-      const matchesName = p.full_name.toLowerCase().includes(searchLower);
-      const matchesEmail = p.email && p.email.toLowerCase().includes(searchLower);
-      const matchesPhone = p.phone && p.phone.replace(/\D/g, "").includes(searchNumbers);
-      return matchesName || matchesEmail || matchesPhone;
+    
+    const searchLower = searchValue.toLowerCase();
+    const searchNumbers = searchValue.replace(/\D/g, "");
+    
+    return patients.filter((p) => {
+      // Buscar no nome
+      if (p.full_name.toLowerCase().includes(searchLower)) {
+        return true;
+      }
+      
+      // Buscar no email (se existir)
+      if (p.email && p.email.toLowerCase().includes(searchLower)) {
+        return true;
+      }
+      
+      // Buscar no telefone (se existir e a busca tiver números)
+      if (searchNumbers.length > 0 && p.phone) {
+        const phoneNumbers = p.phone.replace(/\D/g, "");
+        if (phoneNumbers.includes(searchNumbers)) {
+          return true;
+        }
+      }
+      
+      return false;
     });
-    console.log("📊 Resultado da busca:", result.length, "pacientes encontrados");
-    return result;
   }, [patients, search]);
 
   const filteredNonRegistered = nonRegisteredList.filter(
@@ -337,7 +347,6 @@ export function PacientesClient({
             value={search}
             onChange={(e) => {
               const newValue = e.target.value;
-              console.log("✏️ Campo de busca alterado:", newValue);
               setSearch(newValue);
             }}
             className="pl-9"
