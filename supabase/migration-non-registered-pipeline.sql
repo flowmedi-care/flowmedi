@@ -147,7 +147,7 @@ CREATE TRIGGER trigger_update_non_registered_pipeline_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_non_registered_pipeline_updated_at();
 
--- ========== COMENTÁRIOS ==========
+-- ========== COMENTÁRIOSaaaaa ==========
 COMMENT ON TABLE public.non_registered_pipeline IS 'Pipeline de gestão de pessoas não cadastradas que preencheram formulários públicos';
 COMMENT ON COLUMN public.non_registered_pipeline.stage IS 'Etapa atual: novo_contato, aguardando_retorno, agendado, registrado, arquivado';
 COMMENT ON TABLE public.non_registered_history IS 'Histórico de ações realizadas no pipeline de não cadastrados';
