@@ -18,7 +18,8 @@ import { PipelineClient } from "./pipeline/pipeline-client";
 import { PreferencesClient } from "./preferences/preferences-client";
 import type { PipelineItem } from "./pipeline/actions";
 import type { DashboardPreferences } from "./preferences/actions";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { StatusToggle } from "./medico-dashboard-status-toggle";
 
 export function SecretariaDashboardClient({
   complianceAppointments,
@@ -52,6 +53,12 @@ export function SecretariaDashboardClient({
   preferences: DashboardPreferences;
 }) {
   const [showPreferences, setShowPreferences] = useState(false);
+  const [appointmentsState, setAppointmentsState] = useState(upcomingAppointments);
+
+  // Atualizar estado quando appointments mudarem
+  useEffect(() => {
+    setAppointmentsState(upcomingAppointments);
+  }, [upcomingAppointments]);
 
   return (
     <div className="space-y-8">
@@ -273,9 +280,9 @@ export function SecretariaDashboardClient({
             </div>
           </CardHeader>
           <CardContent>
-            {upcomingAppointments.length > 0 ? (
+            {appointmentsState.length > 0 ? (
               <div className="space-y-2">
-                {upcomingAppointments.map((appointment) => {
+                {appointmentsState.map((appointment) => {
                   const scheduledDate = new Date(appointment.scheduled_at);
                   const formattedDate = scheduledDate.toLocaleDateString("pt-BR", {
                     day: "2-digit",
@@ -287,12 +294,14 @@ export function SecretariaDashboardClient({
                     minute: "2-digit",
                   });
                   return (
-                    <Link
+                    <div
                       key={appointment.id}
-                      href={`/dashboard/agenda/consulta/${appointment.id}`}
-                      className="block p-3 rounded-md border hover:bg-muted/50 transition-colors"
+                      className="flex items-center justify-between p-3 rounded-md border hover:bg-muted/50 transition-colors"
                     >
-                      <div className="flex items-center justify-between">
+                      <Link
+                        href={`/dashboard/agenda/consulta/${appointment.id}`}
+                        className="flex-1"
+                      >
                         <div>
                           <p className="font-medium text-sm">
                             {appointment.patient.full_name}
@@ -303,19 +312,22 @@ export function SecretariaDashboardClient({
                               ` • Dr(a). ${appointment.doctor.full_name}`}
                           </p>
                         </div>
-                        <Badge
-                          variant={
-                            appointment.status === "confirmada"
-                              ? "success"
-                              : appointment.status === "agendada"
-                              ? "warning"
-                              : "outline"
-                          }
-                        >
-                          {appointment.status}
-                        </Badge>
+                      </Link>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <StatusToggle
+                          appointmentId={appointment.id}
+                          currentStatus={appointment.status}
+                          onStatusChange={(newStatus) => {
+                            setAppointmentsState((prev) =>
+                              prev.map((a) =>
+                                a.id === appointment.id ? { ...a, status: newStatus } : a
+                              )
+                            );
+                          }}
+                          size="sm"
+                        />
                       </div>
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
