@@ -710,18 +710,18 @@ function TimelineListView({
   // Sempre começa na segunda anterior ao início (similar à semana)
   if (granularity === "month") {
     if (monthOrderAdjusted.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-8">
-          <p className="text-sm text-muted-foreground text-center">
-            Selecione o período (data inicial e final) para ver as consultas.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
+      return (
+        <Card>
+          <CardContent className="py-8">
+            <p className="text-sm text-muted-foreground text-center">
+              Selecione o período (data inicial e final) para ver as consultas.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
 
-  return (
+    return (
     <Card>
       <CardHeader>
         <p className="text-sm text-muted-foreground">
@@ -794,6 +794,10 @@ function TimelineListView({
       </CardContent>
     </Card>
   );
+  }
+
+  // Se nenhuma granularidade foi selecionada (não deveria acontecer)
+  return null;
 }
 
 const HOUR_SLOTS = getHourSlots(7, 20);
