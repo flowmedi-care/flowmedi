@@ -96,9 +96,9 @@ export default async function FormularioPublicoPage({
 
     return (
       <div className="min-h-screen bg-muted/30 py-8 px-4">
-        <div className="max-w-xl mx-auto space-y-4">
+        <div className="max-w-xl mx-auto">
           {clinicLogoUrl && (
-            <div className="flex justify-center mb-4">
+            <div className="flex justify-center mb-12">
               <LogoImage
                 src={clinicLogoUrl}
                 alt="Logo da clínica"
@@ -107,7 +107,8 @@ export default async function FormularioPublicoPage({
               />
             </div>
           )}
-          <FormularioPreenchimento
+          <div className={clinicLogoUrl ? "mt-4" : ""}>
+            <FormularioPreenchimento
             templateName={templateName}
             definition={definition}
             initialResponses={responses}
@@ -118,6 +119,7 @@ export default async function FormularioPublicoPage({
             doctorLogoScale={doctorLogoScale}
             patientData={patientData}
           />
+          </div>
         </div>
       </div>
     );

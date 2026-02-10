@@ -23,12 +23,19 @@ export function LogoImage({
   const safeScale = Math.max(50, Math.min(200, scale));
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={className}
-      style={{ transform: `scale(${safeScale / 100})` }}
-      onError={() => setHasError(true)}
-    />
+    <div 
+      className="inline-block" 
+      style={{ 
+        transform: `scale(${safeScale / 100})`, 
+        transformOrigin: 'center'
+      }}
+    >
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        onError={() => setHasError(true)}
+      />
+    </div>
   );
 }
