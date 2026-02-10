@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,16 +135,18 @@ export function PacientesClient({
   }
 
   // Filtrar pacientes em tempo real conforme digita
-  const filtered = patients.filter((p) => {
-    if (!search.trim()) return true;
+  const filtered = useMemo(() => {
+    if (!search.trim()) return patients;
     const searchLower = search.toLowerCase().trim();
     const searchNumbers = search.replace(/\D/g, "");
-    return (
-      p.full_name.toLowerCase().includes(searchLower) ||
-      (p.email && p.email.toLowerCase().includes(searchLower)) ||
-      (p.phone && p.phone.replace(/\D/g, "").includes(searchNumbers))
-    );
-  });
+    return patients.filter((p) => {
+      return (
+        p.full_name.toLowerCase().includes(searchLower) ||
+        (p.email && p.email.toLowerCase().includes(searchLower)) ||
+        (p.phone && p.phone.replace(/\D/g, "").includes(searchNumbers))
+      );
+    });
+  }, [patients, search]);
 
   const filteredNonRegistered = nonRegisteredList.filter(
     (nr) =>
