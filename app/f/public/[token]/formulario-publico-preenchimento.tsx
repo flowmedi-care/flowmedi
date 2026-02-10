@@ -137,19 +137,14 @@ export function FormularioPublicoPreenchimento({
           <p className="text-center text-sm text-muted-foreground mt-2">
             Entraremos em contato em breve.
           </p>
-          {(doctorLogoUrl || doctorName) && (
+          {doctorLogoUrl && (
             <div className="flex flex-col items-center mt-8 pt-8 border-t border-border">
-              {doctorName && (
-                <p className="text-sm text-muted-foreground mb-4">{doctorName}</p>
-              )}
-              {doctorLogoUrl && (
-                <LogoImage
-                  src={doctorLogoUrl}
-                  alt="Assinatura do médico"
-                  className="max-h-20 max-w-full object-contain"
-                  scale={doctorLogoScale ?? 100}
-                />
-              )}
+              <LogoImage
+                src={doctorLogoUrl}
+                alt="Assinatura do médico"
+                className="max-h-20 max-w-full object-contain"
+                scale={doctorLogoScale ?? 100}
+              />
             </div>
           )}
         </CardContent>
@@ -311,19 +306,14 @@ export function FormularioPublicoPreenchimento({
               Continuar
             </Button>
           </form>
-          {(doctorLogoUrl || doctorName) && (
+          {doctorLogoUrl && (
             <div className="flex flex-col items-center mt-8 pt-8 border-t border-border">
-              {doctorName && (
-                <p className="text-sm text-muted-foreground mb-4">{doctorName}</p>
-              )}
-              {doctorLogoUrl && (
-                <LogoImage
-                  src={doctorLogoUrl}
-                  alt="Assinatura do médico"
-                  className="max-h-20 max-w-full object-contain"
-                  scale={doctorLogoScale ?? 100}
-                />
-              )}
+              <LogoImage
+                src={doctorLogoUrl}
+                alt="Assinatura do médico"
+                className="max-h-20 max-w-full object-contain"
+                scale={doctorLogoScale ?? 100}
+              />
             </div>
           )}
         </CardContent>
@@ -354,19 +344,14 @@ export function FormularioPublicoPreenchimento({
             {loading ? "Enviando…" : "Enviar formulário"}
           </Button>
         </form>
-        {(doctorLogoUrl || doctorName) && (
+        {doctorLogoUrl && (
           <div className="flex flex-col items-center mt-12 pt-8 pb-4 border-t border-border">
-            {doctorName && (
-              <p className="text-sm text-muted-foreground mb-4">{doctorName}</p>
-            )}
-            {doctorLogoUrl && (
-              <LogoImage
-                src={doctorLogoUrl}
-                alt="Assinatura do médico"
-                className="max-h-20 max-w-full object-contain"
-                scale={doctorLogoScale ?? 100}
-              />
-            )}
+            <LogoImage
+              src={doctorLogoUrl}
+              alt="Assinatura do médico"
+              className="max-h-20 max-w-full object-contain"
+              scale={doctorLogoScale ?? 100}
+            />
           </div>
         )}
       </CardContent>
