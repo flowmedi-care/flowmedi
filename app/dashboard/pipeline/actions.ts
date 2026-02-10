@@ -44,6 +44,7 @@ export type PipelineItem = {
 };
 
 // Sincronizar não cadastrados do form_instances para o pipeline
+// NOTA: Esta função é chamada durante o render, então não deve usar revalidatePath
 export async function syncNonRegisteredToPipeline() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -110,7 +111,8 @@ export async function syncNonRegisteredToPipeline() {
     }
   }
 
-  revalidatePath("/dashboard");
+  // Não usar revalidatePath aqui pois esta função é chamada durante o render
+  // A revalidação será feita pelas ações do usuário (changePipelineStage, etc)
   return { error: null };
 }
 
