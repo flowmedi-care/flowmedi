@@ -213,17 +213,27 @@ export function AgendaClient({
     }
 
     // Verificar se é um dayId (YYYY-MM-DD) ou um appointment ID
-    // Também pode ser um ID único como "2026-02-09-14" (dayId-hour)
+    // Também pode ser um ID único como "2026-02-09-14" (dayId-hour) no calendário semanal
     let targetDate: string | null = null;
+    let targetHour: number | null = null;
     
     // Tentar extrair dayId do over.data primeiro (se for um DroppableDay)
     const overData = (over.data.current as { dayId?: string; type?: string }) || {};
     if (overData.type === "day" && overData.dayId) {
       // DroppableDay sempre tem dayId nos dados
       targetDate = overData.dayId;
+      // Se o uniqueId tem formato dayId-hour, extrair a hora
+      if (targetId.match(/^\d{4}-\d{2}-\d{2}-\d+$/)) {
+        const parts = targetId.split("-");
+        targetHour = parseInt(parts[3], 10);
+      }
     } else if (targetId.match(/^\d{4}-\d{2}-\d{2}(-\d+)?$/)) {
-      // É um dayId ou dayId-hour - extrair apenas a parte da data
-      targetDate = targetId.split("-").slice(0, 3).join("-");
+      // É um dayId ou dayId-hour - extrair a data e possivelmente a hora
+      const parts = targetId.split("-");
+      targetDate = parts.slice(0, 3).join("-");
+      if (parts.length > 3) {
+        targetHour = parseInt(parts[3], 10);
+      }
     } else {
       // É outro appointment - neste caso, vamos buscar o DroppableDay pai
       // Mas primeiro, vamos tentar encontrar o appointment e usar seu dayId
@@ -233,6 +243,7 @@ export function AgendaClient({
         // Se arrastamos sobre um appointment, usar o dayId desse appointment
         // Isso mantém o comportamento de reordenar dentro do mesmo dia
         targetDate = targetAppointment.scheduled_at.slice(0, 10);
+        // Não mudamos a hora quando arrastamos sobre outro appointment
       } else {
         // Se não encontramos, pode ser que o drop foi em uma área vazia
         // mas o over.id não é um dayId válido - neste caso, não fazer nada
@@ -248,15 +259,26 @@ export function AgendaClient({
 
     // Usar data local para evitar problemas de timezone
     const oldDate = new Date(draggedAppointment.scheduled_at);
-    // Criar data local a partir do targetDate (YYYY-MM-DD)
-    const [year, month, day] = targetDate.split("-").map(Number);
+    const oldDateStr = draggedAppointment.scheduled_at.slice(0, 10);
     const oldHour = oldDate.getHours();
     const oldMinute = oldDate.getMinutes();
 
-    // Só reagendar se mudou de dia
-    if (targetDate !== draggedAppointment.scheduled_at.slice(0, 10)) {
+    // Criar data local a partir do targetDate (YYYY-MM-DD)
+    const [year, month, day] = targetDate.split("-").map(Number);
+    
+    // Determinar a nova hora e minuto
+    // Se targetHour foi extraído (arrastou verticalmente no calendário semanal), usar essa hora
+    // Caso contrário, manter a hora original
+    const newHour = targetHour !== null ? targetHour : oldHour;
+    const newMinute = targetHour !== null ? 0 : oldMinute; // Quando muda de hora, definir minutos como 0
+
+    // Reagendar se mudou de dia OU se mudou de hora (no calendário semanal)
+    const dateChanged = targetDate !== oldDateStr;
+    const hourChanged = targetHour !== null && targetHour !== oldHour;
+    
+    if (dateChanged || hourChanged) {
       // Converter para ISO string preservando a data local (evita problemas de timezone)
-      const isoString = localDateToISO(year, month, day, oldHour, oldMinute);
+      const isoString = localDateToISO(year, month, day, newHour, newMinute);
       const res = await updateAppointment(draggedAppointment.id, {
         scheduled_at: isoString,
       });
