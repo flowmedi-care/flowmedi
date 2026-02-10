@@ -62,13 +62,19 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   }, []);
 
   const startCheckout = async () => {
-    const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-    if (!pk) {
-      alert("Stripe não configurado (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY).");
-      return;
-    }
     setLoadingCheckout(true);
     try {
+      let pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+      if (!pk) {
+        const configRes = await fetch("/api/stripe/config");
+        const config = await configRes.json();
+        pk = config.publishableKey ?? null;
+      }
+      if (!pk) {
+        alert("Stripe não configurado. Verifique NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY no Vercel.");
+        setLoadingCheckout(false);
+        return;
+      }
       const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
