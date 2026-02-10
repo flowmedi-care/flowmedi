@@ -10,6 +10,15 @@ import { ArrowLeft } from "lucide-react";
 import { getStatusBadgeClassName } from "../../status-utils";
 import { cn } from "@/lib/utils";
 
+export type FormInstanceItem = {
+  id: string;
+  status: string;
+  link_token: string | null;
+  responses: Record<string, unknown>;
+  template_name: string;
+  definition: (import("@/lib/form-types").FormFieldDefinition & { id: string })[];
+};
+
 export default async function ConsultaDetalhePage({
   params,
 }: {
@@ -66,15 +75,6 @@ export default async function ConsultaDetalhePage({
   const appointmentType = Array.isArray(appointment.appointment_type)
     ? appointment.appointment_type[0]
     : appointment.appointment_type;
-
-  export type FormInstanceItem = {
-    id: string;
-    status: string;
-    link_token: string | null;
-    responses: Record<string, unknown>;
-    template_name: string;
-    definition: (import("@/lib/form-types").FormFieldDefinition & { id: string })[];
-  };
 
   const formInstances: FormInstanceItem[] = (instances ?? []).map((fi: Record<string, unknown>) => {
     const ft = Array.isArray(fi.form_template) ? fi.form_template[0] : fi.form_template;
