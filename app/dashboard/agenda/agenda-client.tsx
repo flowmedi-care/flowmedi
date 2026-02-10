@@ -564,6 +564,29 @@ function TimelineListView({
     return map;
   }, [appointments]);
 
+  // Calcular dados para semana e mês (sempre, para não violar regras dos hooks)
+  const weekStart = useMemo(() => getWeekStartForPeriod(dateInicio), [dateInicio]);
+  const weekDays = useMemo(
+    () => iterateDays(weekStart, dateFim),
+    [weekStart, dateFim]
+  );
+
+  const monthStart = useMemo(() => getWeekStartForPeriod(dateInicio), [dateInicio]);
+  const monthDays = useMemo(
+    () => iterateDays(monthStart, dateFim),
+    [monthStart, dateFim]
+  );
+  const byMonthAdjusted = useMemo(() => {
+    const map: Record<string, Date[]> = {};
+    monthDays.forEach((d) => {
+      const mKey = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!map[mKey]) map[mKey] = [];
+      map[mKey].push(d);
+    });
+    return map;
+  }, [monthDays]);
+  const monthOrderAdjusted = Object.keys(byMonthAdjusted).sort();
+
   // Dia: só 1 dia (usa dateInicio)
   if (granularity === "day") {
     const d = dateInicio;
@@ -612,8 +635,6 @@ function TimelineListView({
   // Semana: cada dia no período como "Segunda (8)", "Terça (9)", "Segunda (15)"...
   // Sempre começa na segunda anterior ao início
   if (granularity === "week") {
-    const weekStart = getWeekStartForPeriod(dateInicio);
-    const weekDays = iterateDays(weekStart, dateFim);
     if (weekDays.length === 0) {
       return (
         <Card>
@@ -687,23 +708,8 @@ function TimelineListView({
 
   // Mês: Janeiro, Fevereiro... no período
   // Sempre começa na segunda anterior ao início (similar à semana)
-  const monthStart = getWeekStartForPeriod(dateInicio);
-  const monthDays = useMemo(
-    () => iterateDays(monthStart, dateFim),
-    [monthStart, dateFim]
-  );
-  const byMonthAdjusted = useMemo(() => {
-    const map: Record<string, Date[]> = {};
-    monthDays.forEach((d) => {
-      const mKey = `${d.getFullYear()}-${d.getMonth()}`;
-      if (!map[mKey]) map[mKey] = [];
-      map[mKey].push(d);
-    });
-    return map;
-  }, [monthDays]);
-  const monthOrderAdjusted = Object.keys(byMonthAdjusted).sort();
-
-  if (monthOrderAdjusted.length === 0) {
+  if (granularity === "month") {
+    if (monthOrderAdjusted.length === 0) {
     return (
       <Card>
         <CardContent className="py-8">
