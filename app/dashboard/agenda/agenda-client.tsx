@@ -564,13 +564,6 @@ function TimelineListView({
     return map;
   }, [appointments]);
 
-  // Para granularidade mês, sempre começar na segunda anterior
-  const monthStart = getWeekStartForPeriod(dateInicio);
-  const days = useMemo(
-    () => iterateDays(monthStart, dateFim),
-    [monthStart, dateFim]
-  );
-
   // Dia: só 1 dia (usa dateInicio)
   if (granularity === "day") {
     const d = dateInicio;
