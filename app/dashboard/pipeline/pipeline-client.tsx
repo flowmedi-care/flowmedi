@@ -29,6 +29,8 @@ import {
   changePipelineStage,
   addPipelineNote,
   updateNextAction,
+  registerPatientFromPipeline,
+  removeFromPipelineOnAppointment,
   type PipelineItem,
   type PipelineStage,
 } from "./actions";
@@ -50,17 +52,15 @@ import { cn } from "@/lib/utils";
 const STAGE_LABELS: Record<PipelineStage, string> = {
   novo_contato: "Novo Contato",
   aguardando_retorno: "Aguardando Retorno",
+  cadastrado: "Cadastrado",
   agendado: "Agendado",
-  registrado: "Registrado",
-  arquivado: "Arquivado",
 };
 
 const STAGE_COLORS: Record<PipelineStage, string> = {
   novo_contato: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   aguardando_retorno: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  cadastrado: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   agendado: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  registrado: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-  arquivado: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
 };
 
 type ViewMode = "list" | "kanban";
@@ -139,12 +139,26 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
     }
   };
 
+  const handleRegisterPatient = async (item: PipelineItem) => {
+    const result = await registerPatientFromPipeline(item.id);
+    if (result.error) {
+      alert(`Erro: ${result.error}`);
+    } else {
+      router.refresh();
+    }
+  };
+
+  const handleScheduleAppointment = (item: PipelineItem) => {
+    // Redirecionar para agenda com paciente pré-selecionado via email
+    // A agenda vai buscar o paciente pelo email se necessário
+    router.push(`/dashboard/agenda?new=true&patientEmail=${encodeURIComponent(item.email)}`);
+  };
+
   const stages: PipelineStage[] = [
     "novo_contato",
     "aguardando_retorno",
+    "cadastrado",
     "agendado",
-    "registrado",
-    "arquivado",
   ];
 
   const itemsByStage = stages.reduce((acc, stage) => {
@@ -258,6 +272,8 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
             <PipelineCard
               item={items.find((i) => i.id === activeId)!}
               isDragging
+              onRegister={handleRegisterPatient}
+              onSchedule={handleScheduleAppointment}
             />
           ) : null}
         </DragOverlay>
@@ -329,6 +345,8 @@ function KanbanColumn({
               item={item}
               onSelect={() => onSelectItem(item)}
               onChangeStage={onChangeStage}
+              onRegister={handleRegisterPatient}
+              onSchedule={handleScheduleAppointment}
             />
           ))}
         </SortableContext>
@@ -341,10 +359,14 @@ function SortablePipelineCard({
   item,
   onSelect,
   onChangeStage,
+  onRegister,
+  onSchedule,
 }: {
   item: PipelineItem;
   onSelect: () => void;
   onChangeStage: (itemId: string, newStage: PipelineStage) => void;
+  onRegister?: (item: PipelineItem) => void;
+  onSchedule?: (item: PipelineItem) => void;
 }) {
   const {
     attributes,
@@ -367,6 +389,8 @@ function SortablePipelineCard({
         isDragging={isDragging}
         onSelect={onSelect}
         onChangeStage={onChangeStage}
+        onRegister={onRegister}
+        onSchedule={onSchedule}
       />
     </div>
   );
@@ -377,23 +401,26 @@ function PipelineCard({
   isDragging = false,
   onSelect,
   onChangeStage,
+  onRegister,
+  onSchedule,
 }: {
   item: PipelineItem;
   isDragging?: boolean;
   onSelect?: () => void;
   onChangeStage?: (itemId: string, newStage: PipelineStage) => void;
+  onRegister?: (item: PipelineItem) => void;
+  onSchedule?: (item: PipelineItem) => void;
 }) {
   return (
     <Card
       className={cn(
-        "cursor-pointer hover:shadow-md transition-shadow",
+        "hover:shadow-md transition-shadow",
         isDragging && "opacity-50"
       )}
-      onClick={onSelect}
     >
       <CardContent className="p-3 space-y-2">
         <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 cursor-pointer" onClick={onSelect}>
             <p className="text-sm font-medium truncate">
               {item.name || "Sem nome"}
             </p>
@@ -415,6 +442,34 @@ function PipelineCard({
           <p className="text-xs text-muted-foreground italic">
             Próxima: {item.next_action}
           </p>
+        )}
+        {/* Botões de ação por etapa */}
+        {item.stage === "aguardando_retorno" && onRegister && (
+          <Button
+            size="sm"
+            className="w-full mt-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRegister(item);
+            }}
+          >
+            <UserPlus className="h-3 w-3 mr-1" />
+            Cadastrar
+          </Button>
+        )}
+        {item.stage === "cadastrado" && onSchedule && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full mt-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSchedule(item);
+            }}
+          >
+            <Calendar className="h-3 w-3 mr-1" />
+            Agendar
+          </Button>
         )}
       </CardContent>
     </Card>

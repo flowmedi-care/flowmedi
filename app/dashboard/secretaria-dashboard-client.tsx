@@ -84,7 +84,7 @@ export function SecretariaDashboardClient({
 
       {/* Quick Actions */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Link href="/dashboard/agenda?action=new">
+        <Link href="/dashboard/agenda?new=true">
           <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center gap-2 pb-2">
               <Calendar className="h-5 w-5 text-primary" />

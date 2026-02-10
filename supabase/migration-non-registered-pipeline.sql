@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS public.non_registered_pipeline (
   phone text,
   birth_date date,
   custom_fields jsonb DEFAULT '{}',
-  stage text NOT NULL DEFAULT 'novo_contato' CHECK (stage IN ('novo_contato', 'aguardando_retorno', 'agendado', 'registrado', 'arquivado')),
+  stage text NOT NULL DEFAULT 'novo_contato' CHECK (stage IN ('novo_contato', 'aguardando_retorno', 'cadastrado', 'agendado')),
   last_contact_at timestamptz,
   next_action text,
   notes text,
@@ -61,6 +61,11 @@ ALTER TABLE public.non_registered_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dashboard_preferences ENABLE ROW LEVEL SECURITY;
 
 -- ========== POLÍTICAS RLS PARA PIPELINE ==========
+-- Remover políticas existentes se houver
+DROP POLICY IF EXISTS "pipeline_select_clinic" ON public.non_registered_pipeline;
+DROP POLICY IF EXISTS "pipeline_insert_clinic" ON public.non_registered_pipeline;
+DROP POLICY IF EXISTS "pipeline_update_clinic" ON public.non_registered_pipeline;
+
 -- Secretárias e admins podem ver pipeline da própria clínica
 CREATE POLICY "pipeline_select_clinic"
   ON public.non_registered_pipeline FOR SELECT
@@ -92,6 +97,10 @@ CREATE POLICY "pipeline_update_clinic"
   );
 
 -- ========== POLÍTICAS RLS PARA HISTÓRICO ==========
+-- Remover políticas existentes se houver
+DROP POLICY IF EXISTS "history_select_clinic" ON public.non_registered_history;
+DROP POLICY IF EXISTS "history_insert_clinic" ON public.non_registered_history;
+
 -- Secretárias e admins podem ver histórico da própria clínica
 CREATE POLICY "history_select_clinic"
   ON public.non_registered_history FOR SELECT
@@ -120,6 +129,11 @@ CREATE POLICY "history_insert_clinic"
   );
 
 -- ========== POLÍTICAS RLS PARA PREFERÊNCIAS ==========
+-- Remover políticas existentes se houver
+DROP POLICY IF EXISTS "preferences_select_own" ON public.dashboard_preferences;
+DROP POLICY IF EXISTS "preferences_insert_own" ON public.dashboard_preferences;
+DROP POLICY IF EXISTS "preferences_update_own" ON public.dashboard_preferences;
+
 -- Cada usuário pode ver e gerenciar suas próprias preferências
 CREATE POLICY "preferences_select_own"
   ON public.dashboard_preferences FOR SELECT
@@ -142,13 +156,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_non_registered_pipeline_updated_at ON public.non_registered_pipeline;
 CREATE TRIGGER trigger_update_non_registered_pipeline_updated_at
   BEFORE UPDATE ON public.non_registered_pipeline
   FOR EACH ROW
   EXECUTE FUNCTION update_non_registered_pipeline_updated_at();
 
--- ========== COMENTÁRIOSaaaaa ==========
+-- ========== COMENTÁRIOS ==========
 COMMENT ON TABLE public.non_registered_pipeline IS 'Pipeline de gestão de pessoas não cadastradas que preencheram formulários públicos';
-COMMENT ON COLUMN public.non_registered_pipeline.stage IS 'Etapa atual: novo_contato, aguardando_retorno, agendado, registrado, arquivado';
+COMMENT ON COLUMN public.non_registered_pipeline.stage IS 'Etapa atual: novo_contato, aguardando_retorno, cadastrado, agendado';
 COMMENT ON TABLE public.non_registered_history IS 'Histórico de ações realizadas no pipeline de não cadastrados';
 COMMENT ON TABLE public.dashboard_preferences IS 'Preferências de visualização do dashboard por usuário';

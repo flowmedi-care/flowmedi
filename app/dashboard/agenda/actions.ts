@@ -102,7 +102,41 @@ export async function createAppointment(
     }
   }
 
+  // Verificar se paciente estava no pipeline e remover
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("email")
+    .eq("id", patientId)
+    .single();
+
+  if (patient?.email) {
+    const { data: pipelineItem } = await supabase
+      .from("non_registered_pipeline")
+      .select("id")
+      .eq("email", patient.email.toLowerCase().trim())
+      .maybeSingle();
+
+    if (pipelineItem) {
+      // Remover do pipeline (agora vai para compliance)
+      await supabase
+        .from("non_registered_pipeline")
+        .delete()
+        .eq("id", pipelineItem.id);
+
+      // Registrar histórico
+      await supabase
+        .from("non_registered_history")
+        .insert({
+          pipeline_id: pipelineItem.id,
+          action_by: user.id,
+          action_type: "archived",
+          notes: "Removido do pipeline - consulta agendada",
+        });
+    }
+  }
+
   revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard");
   return { data: { id: appointment.id }, error: null };
 }
 

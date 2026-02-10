@@ -6,9 +6,8 @@ import { revalidatePath } from "next/cache";
 export type PipelineStage = 
   | "novo_contato" 
   | "aguardando_retorno" 
-  | "agendado" 
-  | "registrado" 
-  | "arquivado";
+  | "cadastrado" 
+  | "agendado";
 
 export type PipelineItem = {
   id: string;
@@ -489,6 +488,166 @@ export async function updateNextAction(
     .eq("id", pipelineId);
 
   if (updateError) return { error: updateError.message };
+
+  revalidatePath("/dashboard");
+  return { error: null };
+}
+
+// Cadastrar paciente do pipeline
+export async function registerPatientFromPipeline(pipelineId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", patientId: null };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", patientId: null };
+
+  // Buscar dados do pipeline
+  const { data: pipelineItem } = await supabase
+    .from("non_registered_pipeline")
+    .select("*")
+    .eq("id", pipelineId)
+    .single();
+
+  if (!pipelineItem) return { error: "Item do pipeline não encontrado.", patientId: null };
+
+  // Verificar se já existe paciente com este email
+  const { data: existing } = await supabase
+    .from("patients")
+    .select("id")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("email", pipelineItem.email)
+    .maybeSingle();
+
+  let patientId: string;
+
+  // Combinar campos customizados
+  const combinedCustomFields: Record<string, unknown> = { ...(pipelineItem.custom_fields || {}) };
+
+  // Buscar campos customizados de todas as instâncias públicas deste email
+  const { data: publicInstances } = await supabase
+    .from("form_instances")
+    .select(`
+      public_submitter_custom_fields,
+      form_templates!inner (
+        clinic_id
+      )
+    `)
+    .is("appointment_id", null)
+    .eq("public_submitter_email", pipelineItem.email)
+    .eq("form_templates.clinic_id", profile.clinic_id)
+    .not("public_submitter_custom_fields", "is", null);
+
+  (publicInstances ?? []).forEach((instance: any) => {
+    if (instance.public_submitter_custom_fields) {
+      Object.assign(combinedCustomFields, instance.public_submitter_custom_fields);
+    }
+  });
+
+  if (existing) {
+    // Atualizar paciente existente
+    patientId = existing.id;
+    const { error: updateError } = await supabase
+      .from("patients")
+      .update({
+        full_name: pipelineItem.name || "Sem nome",
+        phone: pipelineItem.phone || null,
+        birth_date: pipelineItem.birth_date || null,
+        custom_fields: Object.keys(combinedCustomFields).length > 0 ? combinedCustomFields : undefined,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", patientId);
+    if (updateError) return { error: updateError.message, patientId: null };
+  } else {
+    // Criar novo paciente
+    const { data: newPatient, error: insertError } = await supabase
+      .from("patients")
+      .insert({
+        clinic_id: profile.clinic_id,
+        full_name: pipelineItem.name || "Sem nome",
+        email: pipelineItem.email,
+        phone: pipelineItem.phone || null,
+        birth_date: pipelineItem.birth_date || null,
+        custom_fields: Object.keys(combinedCustomFields).length > 0 ? combinedCustomFields : {},
+      })
+      .select("id")
+      .single();
+    if (insertError) return { error: insertError.message, patientId: null };
+    if (!newPatient) return { error: "Erro ao criar paciente.", patientId: null };
+    patientId = newPatient.id;
+  }
+
+  // Atualizar pipeline para etapa "cadastrado"
+  const { error: updatePipelineError } = await supabase
+    .from("non_registered_pipeline")
+    .update({ stage: "cadastrado" })
+    .eq("id", pipelineId);
+
+  if (updatePipelineError) {
+    console.error("Erro ao atualizar pipeline:", updatePipelineError);
+  }
+
+  // Registrar histórico
+  const { error: historyError } = await supabase
+    .from("non_registered_history")
+    .insert({
+      pipeline_id: pipelineId,
+      action_by: user.id,
+      action_type: "registered",
+      new_stage: "cadastrado",
+      notes: "Paciente cadastrado",
+    });
+
+  if (historyError) {
+    console.error("Erro ao registrar histórico:", historyError);
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/pacientes");
+  return { error: null, patientId };
+}
+
+// Remover do pipeline quando agendar (mover para compliance)
+export async function removeFromPipelineOnAppointment(pipelineId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  // Buscar item do pipeline
+  const { data: pipelineItem } = await supabase
+    .from("non_registered_pipeline")
+    .select("id, email")
+    .eq("id", pipelineId)
+    .single();
+
+  if (!pipelineItem) return { error: "Item não encontrado." };
+
+  // Deletar do pipeline (agora vai para compliance)
+  const { error: deleteError } = await supabase
+    .from("non_registered_pipeline")
+    .delete()
+    .eq("id", pipelineId);
+
+  if (deleteError) return { error: deleteError.message };
+
+  // Registrar histórico antes de deletar
+  const { error: historyError } = await supabase
+    .from("non_registered_history")
+    .insert({
+      pipeline_id: pipelineId,
+      action_by: user.id,
+      action_type: "archived",
+      notes: "Removido do pipeline - consulta agendada",
+    });
+
+  if (historyError) {
+    console.error("Erro ao registrar histórico:", historyError);
+  }
 
   revalidatePath("/dashboard");
   return { error: null };

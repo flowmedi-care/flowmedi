@@ -44,7 +44,7 @@ export default async function AgendaPage() {
 
   const { data: patients } = await supabase
     .from("patients")
-    .select("id, full_name")
+    .select("id, full_name, email")
     .eq("clinic_id", clinicId)
     .order("full_name");
 
@@ -104,6 +104,7 @@ export default async function AgendaPage() {
         patients={(patients ?? []).map((p) => ({
           id: p.id,
           full_name: p.full_name,
+          email: p.email || undefined,
         }))}
         doctors={(doctors ?? []).map((d) => ({
           id: d.id,

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect, type ReactNode } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,7 +62,7 @@ export type AppointmentRow = {
   form_instances?: { id: string; status: string }[];
 };
 
-export type PatientOption = { id: string; full_name: string };
+export type PatientOption = { id: string; full_name: string; email?: string };
 export type DoctorOption = { id: string; full_name: string | null };
 export type AppointmentTypeOption = { id: string; name: string };
 
@@ -110,9 +111,44 @@ export function AgendaClient({
   };
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Verificar se deve abrir o formulário automaticamente
+  useEffect(() => {
+    const shouldOpenForm = searchParams.get("new") === "true";
+    const patientIdParam = searchParams.get("patientId");
+    const patientEmailParam = searchParams.get("patientEmail");
+    
+    if (shouldOpenForm || patientIdParam || patientEmailParam) {
+      setShowForm(true);
+      
+      // Se tem patientId, pré-selecionar
+      if (patientIdParam) {
+        const patient = patients.find((p) => p.id === patientIdParam);
+        if (patient) {
+          setForm((prev) => ({ ...prev, patientId: patient.id }));
+        }
+      }
+      
+      // Se tem patientEmail, buscar e pré-selecionar
+      if (patientEmailParam && !patientIdParam) {
+        const patient = patients.find((p) => p.email?.toLowerCase() === patientEmailParam.toLowerCase());
+        if (patient) {
+          setForm((prev) => ({ ...prev, patientId: patient.id }));
+        }
+      }
+      
+      // Limpar query params após usar
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete("new");
+      newUrl.searchParams.delete("patientId");
+      newUrl.searchParams.delete("patientEmail");
+      router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+    }
+  }, [searchParams, router, patients]);
   const [viewMode, setViewMode] = useState<ViewMode>(
     initialPreferences?.viewMode || "timeline"
   );
@@ -190,6 +226,7 @@ export function AgendaClient({
     time: "09:00",
     notes: "",
   });
+
 
   const today = useMemo(() => new Date(), []);
   const sensors = useSensors(
