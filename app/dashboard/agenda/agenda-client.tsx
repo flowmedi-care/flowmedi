@@ -21,6 +21,7 @@ import {
   useSensors,
   PointerSensor,
   closestCenter,
+  pointerWithin,
   useDroppable,
 } from "@dnd-kit/core";
 import {
@@ -212,16 +213,31 @@ export function AgendaClient({
     }
 
     // Verificar se é um dayId (YYYY-MM-DD) ou um appointment ID
+    // Também pode ser um ID único como "2026-02-09-14" (dayId-hour)
     let targetDate: string | null = null;
-    if (targetId.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      // É um dayId
-      targetDate = targetId;
+    
+    // Tentar extrair dayId do over.data primeiro (se for um DroppableDay)
+    const overData = (over.data.current as { dayId?: string; type?: string }) || {};
+    if (overData.type === "day" && overData.dayId) {
+      // DroppableDay sempre tem dayId nos dados
+      targetDate = overData.dayId;
+    } else if (targetId.match(/^\d{4}-\d{2}-\d{2}(-\d+)?$/)) {
+      // É um dayId ou dayId-hour - extrair apenas a parte da data
+      targetDate = targetId.split("-").slice(0, 3).join("-");
     } else {
-      // É outro appointment - pegar o dayId do data
-      // Buscar em todos os appointments
+      // É outro appointment - neste caso, vamos buscar o DroppableDay pai
+      // Mas primeiro, vamos tentar encontrar o appointment e usar seu dayId
+      // Isso funciona quando arrastamos sobre um appointment no mesmo dia
       const targetAppointment = allAppointmentsForDrag.find((a) => a.id === targetId);
       if (targetAppointment) {
+        // Se arrastamos sobre um appointment, usar o dayId desse appointment
+        // Isso mantém o comportamento de reordenar dentro do mesmo dia
         targetDate = targetAppointment.scheduled_at.slice(0, 10);
+      } else {
+        // Se não encontramos, pode ser que o drop foi em uma área vazia
+        // mas o over.id não é um dayId válido - neste caso, não fazer nada
+        setDraggedAppointment(null);
+        return;
       }
     }
 
@@ -488,7 +504,7 @@ export function AgendaClient({
       {/* Conteúdo da visão */}
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={pointerWithin}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
@@ -885,12 +901,14 @@ function CalendarWeekView({
                 {weekDays.map((d) => {
                   const dayId = toYMD(d);
                   const hourAppointments = byDayHour[dayId]?.[hour] ?? [];
+                  const uniqueDropId = `${dayId}-${hour}`;
                   return (
                     <DroppableDay
-                      key={`${dayId}-${hour}`}
+                      key={uniqueDropId}
                       dayId={dayId}
+                      uniqueId={uniqueDropId}
                       className={cn(
-                        "p-1 border-r border-border last:border-r-0 min-h-[48px]",
+                        "p-1 border-r border-border last:border-r-0 min-h-[48px] relative flex flex-col",
                         isSameDay(d, today) && "bg-primary/5"
                       )}
                     >
@@ -899,18 +917,20 @@ function CalendarWeekView({
                           items={hourAppointments.map((a) => a.id)}
                           strategy={verticalListSortingStrategy}
                         >
-                          {hourAppointments.map((a) => (
-                            <DraggableAppointmentItem
-                              key={a.id}
-                              appointment={a}
-                              dayId={dayId}
-                              compact
-                            />
-                          ))}
+                          <div className="flex flex-col gap-0.5">
+                            {hourAppointments.map((a) => (
+                              <DraggableAppointmentItem
+                                key={a.id}
+                                appointment={a}
+                                dayId={dayId}
+                                compact
+                              />
+                            ))}
+                          </div>
                         </SortableContext>
                       ) : (
-                        // Célula vazia também é drop zone
-                        <div className="min-h-[20px]" />
+                        // Célula vazia também é drop zone - precisa ter conteúdo mínimo
+                        <div className="min-h-[20px] w-full flex-1" />
                       )}
                     </DroppableDay>
                   );
@@ -1039,16 +1059,20 @@ function DroppableDay({
   dayId,
   children,
   className,
+  uniqueId,
 }: {
   dayId: string;
   children: ReactNode;
   className?: string;
+  uniqueId?: string; // ID único para evitar conflitos quando há múltiplos drop zones do mesmo dia
 }) {
+  // Usar uniqueId se fornecido, senão usar dayId
+  const dropId = uniqueId || dayId;
   const { setNodeRef, isOver } = useDroppable({
-    id: dayId,
+    id: dropId,
     data: {
       type: "day",
-      dayId,
+      dayId, // Sempre passar dayId nos dados para extrair depois
     },
   });
 
