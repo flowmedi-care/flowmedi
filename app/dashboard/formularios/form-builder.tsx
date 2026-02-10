@@ -264,7 +264,6 @@ export function FormBuilder({
                 )}
               </div>
             )}
-              </div>
             </li>
           ))}
         </ul>
