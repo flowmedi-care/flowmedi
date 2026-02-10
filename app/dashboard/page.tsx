@@ -1,12 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import Link from "next/link";
-import { Calendar, FileText, Users, AlertTriangle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { SecretariaDashboard } from "./secretaria-dashboard";
 import { MedicoDashboard } from "./medico-dashboard";
+import { AdminDashboard } from "./admin-dashboard";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; doctorId?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -48,8 +50,6 @@ export default async function DashboardPage() {
     );
   }
 
-  const name = profile.full_name || user?.email?.split("@")[0] || "Usuário";
-
   // Se for secretária, usar dashboard específico
   if (profile.role === "secretaria") {
     return <SecretariaDashboard profile={profile} />;
@@ -60,57 +60,6 @@ export default async function DashboardPage() {
     return <MedicoDashboard profile={profile} />;
   }
 
-  // Dashboard padrão para admin
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">
-          Olá, {name}
-        </h1>
-        <p className="text-muted-foreground capitalize">Papel: {profile.role}</p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Link href="/dashboard/agenda">
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <CardHeader className="flex flex-row items-center gap-2 pb-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              <span className="font-medium">Agenda</span>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Ver consultas do dia, semana ou mês.
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/dashboard/pacientes">
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <CardHeader className="flex flex-row items-center gap-2 pb-2">
-              <Users className="h-5 w-5 text-primary" />
-              <span className="font-medium">Pacientes</span>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Cadastro e histórico de pacientes.
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/dashboard/formularios">
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <CardHeader className="flex flex-row items-center gap-2 pb-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <span className="font-medium">Formulários</span>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Formulários clínicos e status de preenchimento.
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
-    </div>
-  );
+  // Dashboard do admin: visão secretaria + visão médico
+  return <AdminDashboard profile={profile} searchParams={searchParams} />;
 }
