@@ -123,10 +123,11 @@ export async function uploadDoctorLogo(formData: FormData) {
     return uploadResult;
   }
 
-  const { error } = await supabase
-    .from("profiles")
-    .update({ logo_url: uploadResult.url })
-    .eq("id", user.id);
+  // Usa função RPC para contornar problemas de RLS
+  const { error } = await supabase.rpc("update_profile_logo_url", {
+    p_user_id: user.id,
+    p_logo_url: uploadResult.url,
+  });
 
   if (error) return { error: error.message };
   revalidatePath("/dashboard/perfil");
@@ -151,10 +152,11 @@ export async function deleteDoctorLogo() {
     }
   }
 
-  const { error } = await supabase
-    .from("profiles")
-    .update({ logo_url: null })
-    .eq("id", user.id);
+  // Usa função RPC para contornar problemas de RLS
+  const { error } = await supabase.rpc("update_profile_logo_url", {
+    p_user_id: user.id,
+    p_logo_url: null,
+  });
 
   if (error) return { error: error.message };
   revalidatePath("/dashboard/perfil");
