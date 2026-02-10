@@ -45,7 +45,13 @@ BEGIN
   FROM profiles
   WHERE id = v_row.doctor_id;
   
-  -- Buscar dados do paciente
+  -- Buscar dados do paciente (inicializar variáveis como NULL)
+  v_patient_name := NULL;
+  v_patient_email := NULL;
+  v_patient_phone := NULL;
+  v_patient_birth_date := NULL;
+  v_patient_age := NULL;
+  
   SELECT full_name, email, phone, birth_date
   INTO v_patient_name, v_patient_email, v_patient_phone, v_patient_birth_date
   FROM patients
@@ -54,8 +60,6 @@ BEGIN
   -- Calcular idade se tiver data de nascimento
   IF v_patient_birth_date IS NOT NULL THEN
     v_patient_age := EXTRACT(YEAR FROM age(v_patient_birth_date));
-  ELSE
-    v_patient_age := NULL;
   END IF;
 
   IF v_row.link_expires_at IS NOT NULL AND v_row.link_expires_at < now() THEN

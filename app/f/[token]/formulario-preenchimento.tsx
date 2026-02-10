@@ -266,8 +266,15 @@ export function FormularioPreenchimento({
   token: string;
   readOnly?: boolean;
   doctorLogoUrl?: string | null;
-  patientData?: PatientData;
+  patientData?: PatientData | null;
 }) {
+  // Garantir que patientData seja sempre um objeto válido
+  const safePatientData: PatientData = patientData || {
+    name: null,
+    email: null,
+    phone: null,
+    age: null,
+  };
   const [responses, setResponses] = useState<Record<string, unknown>>(initialResponses);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -313,8 +320,8 @@ export function FormularioPreenchimento({
   }
 
   // Extrair primeiro nome do paciente para mensagem personalizada
-  const patientFirstName = patientData?.name 
-    ? patientData.name.split(' ')[0] 
+  const patientFirstName = safePatientData?.name 
+    ? safePatientData.name.split(' ')[0] 
     : null;
 
   return (
@@ -331,32 +338,32 @@ export function FormularioPreenchimento({
       </CardHeader>
       <CardContent>
         {/* Informações básicas do paciente (somente leitura) */}
-        {patientData && (patientData.name || patientData.email || patientData.phone || patientData.age !== null) && (
+        {(safePatientData.name || safePatientData.email || safePatientData.phone || safePatientData.age !== null) && (
           <div className="mb-6 pb-6 border-b border-border">
             <h2 className="text-sm font-medium text-foreground mb-4">Informações do Paciente</h2>
             <div className="grid gap-4 sm:grid-cols-2">
-              {patientData.name && (
+              {safePatientData.name && (
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Nome completo</Label>
-                  <p className="text-sm font-medium">{patientData.name}</p>
+                  <p className="text-sm font-medium">{safePatientData.name}</p>
                 </div>
               )}
-              {patientData.age !== null && (
+              {safePatientData.age !== null && (
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Idade</Label>
-                  <p className="text-sm font-medium">{patientData.age} anos</p>
+                  <p className="text-sm font-medium">{safePatientData.age} anos</p>
                 </div>
               )}
-              {patientData.email && (
+              {safePatientData.email && (
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">E-mail</Label>
-                  <p className="text-sm font-medium">{patientData.email}</p>
+                  <p className="text-sm font-medium">{safePatientData.email}</p>
                 </div>
               )}
-              {patientData.phone && (
+              {safePatientData.phone && (
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Telefone</Label>
-                  <p className="text-sm font-medium">{patientData.phone}</p>
+                  <p className="text-sm font-medium">{safePatientData.phone}</p>
                 </div>
               )}
             </div>
