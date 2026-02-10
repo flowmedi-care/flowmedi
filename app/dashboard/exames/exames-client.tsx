@@ -257,8 +257,14 @@ export function ExamesClient({
 
       {/* Modal de Upload */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4" onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setShowUploadModal(false);
+            setUploadForm({ file: null, exam_type: "", description: "" });
+            setError(null);
+          }
+        }}>
+          <Card className="w-full max-w-md z-[101] bg-background" onClick={(e) => e.stopPropagation()}>
             <CardHeader className="flex flex-row items-center justify-between">
               <h3 className="font-semibold">Adicionar Exame</h3>
               <Button
@@ -319,6 +325,12 @@ export function ExamesClient({
                     rows={3}
                   />
                 </div>
+
+                {error && (
+                  <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+                    {error}
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   <Button type="submit" disabled={uploading || !uploadForm.file}>

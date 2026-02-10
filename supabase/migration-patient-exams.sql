@@ -28,6 +28,12 @@ CREATE INDEX IF NOT EXISTS idx_patient_exams_created_at ON public.patient_exams(
 -- ========== RLS (Row Level Security) ==========
 ALTER TABLE public.patient_exams ENABLE ROW LEVEL SECURITY;
 
+-- Remove políticas antigas se existirem
+DROP POLICY IF EXISTS "Patient exams read clinic" ON public.patient_exams;
+DROP POLICY IF EXISTS "Patient exams insert secretaria admin" ON public.patient_exams;
+DROP POLICY IF EXISTS "Patient exams update secretaria admin" ON public.patient_exams;
+DROP POLICY IF EXISTS "Patient exams delete secretaria admin" ON public.patient_exams;
+
 -- Membros da clínica podem ler exames de pacientes da mesma clínica
 CREATE POLICY "Patient exams read clinic"
   ON public.patient_exams
@@ -35,7 +41,7 @@ CREATE POLICY "Patient exams read clinic"
   USING (
     clinic_id IN (
       SELECT clinic_id FROM public.profiles 
-      WHERE id = auth.uid() AND COALESCE(active, true) = true
+      WHERE id = auth.uid()
     )
   );
 
@@ -48,7 +54,6 @@ CREATE POLICY "Patient exams insert secretaria admin"
       SELECT clinic_id FROM public.profiles 
       WHERE id = auth.uid() 
       AND role IN ('admin', 'secretaria')
-      AND COALESCE(active, true) = true
     )
   );
 
@@ -61,7 +66,6 @@ CREATE POLICY "Patient exams update secretaria admin"
       SELECT clinic_id FROM public.profiles 
       WHERE id = auth.uid() 
       AND role IN ('admin', 'secretaria')
-      AND COALESCE(active, true) = true
     )
   )
   WITH CHECK (
@@ -69,7 +73,6 @@ CREATE POLICY "Patient exams update secretaria admin"
       SELECT clinic_id FROM public.profiles 
       WHERE id = auth.uid() 
       AND role IN ('admin', 'secretaria')
-      AND COALESCE(active, true) = true
     )
   );
 
@@ -82,6 +85,5 @@ CREATE POLICY "Patient exams delete secretaria admin"
       SELECT clinic_id FROM public.profiles 
       WHERE id = auth.uid() 
       AND role IN ('admin', 'secretaria')
-      AND COALESCE(active, true) = true
     )
   );

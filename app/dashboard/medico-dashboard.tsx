@@ -9,13 +9,12 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
   const clinicId = profile.clinic_id;
   const doctorId = profile.id;
 
-  // Buscar consultas do dia atual
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Buscar consultas do dia atual (considerando timezone local)
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-  const { data: appointments } = await supabase
+  const { data: appointments, error: appointmentsError } = await supabase
     .from("appointments")
     .select(
       `
@@ -29,9 +28,14 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
     )
     .eq("clinic_id", clinicId)
     .eq("doctor_id", doctorId)
-    .gte("scheduled_at", today.toISOString())
-    .lt("scheduled_at", tomorrow.toISOString())
+    .gte("scheduled_at", todayStart.toISOString())
+    .lte("scheduled_at", todayEnd.toISOString())
     .order("scheduled_at", { ascending: true });
+
+  // Log para debug (remover em produção)
+  if (appointmentsError) {
+    console.error("Erro ao buscar consultas:", appointmentsError);
+  }
 
   // Buscar formulários pendentes
   const { data: formInstances } = await supabase

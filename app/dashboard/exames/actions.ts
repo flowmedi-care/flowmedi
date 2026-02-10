@@ -78,16 +78,9 @@ async function uploadExamToStorage(
 
   if (error) return { error: error.message };
 
-  // Gerar URL assinada (válida por 1 hora, pode ser ajustada)
-  const { data: signedUrlData } = await supabase.storage
-    .from("exams")
-    .createSignedUrl(path, 3600); // 1 hora
-
-  if (!signedUrlData?.signedUrl) {
-    return { error: "Erro ao gerar URL do arquivo." };
-  }
-
-  return { url: signedUrlData.signedUrl, path };
+  // Não precisamos gerar URL assinada no upload, apenas retornar o path
+  // A URL assinada será gerada quando necessário (no download)
+  return { url: path, path };
 }
 
 export async function uploadPatientExam(

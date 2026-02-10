@@ -18,8 +18,7 @@ CREATE POLICY "Exams upload secretaria admin"
     bucket_id = 'exams' AND
     auth.uid() IN (
       SELECT id FROM public.profiles 
-      WHERE role IN ('admin', 'secretaria') 
-      AND COALESCE(active, true) = true
+      WHERE role IN ('admin', 'secretaria')
     )
   );
 
@@ -30,16 +29,14 @@ CREATE POLICY "Exams update secretaria admin"
     bucket_id = 'exams' AND
     auth.uid() IN (
       SELECT id FROM public.profiles 
-      WHERE role IN ('admin', 'secretaria') 
-      AND COALESCE(active, true) = true
+      WHERE role IN ('admin', 'secretaria')
     )
   )
   WITH CHECK (
     bucket_id = 'exams' AND
     auth.uid() IN (
       SELECT id FROM public.profiles 
-      WHERE role IN ('admin', 'secretaria') 
-      AND COALESCE(active, true) = true
+      WHERE role IN ('admin', 'secretaria')
     )
   );
 
@@ -50,8 +47,7 @@ CREATE POLICY "Exams delete secretaria admin"
     bucket_id = 'exams' AND
     auth.uid() IN (
       SELECT id FROM public.profiles 
-      WHERE role IN ('admin', 'secretaria') 
-      AND COALESCE(active, true) = true
+      WHERE role IN ('admin', 'secretaria')
     )
   );
 
@@ -66,6 +62,5 @@ CREATE POLICY "Exams read clinic members"
       INNER JOIN public.profiles p ON p.clinic_id = pe.clinic_id
       WHERE pe.file_url LIKE '%' || storage.objects.name || '%'
       AND p.id = auth.uid()
-      AND COALESCE(p.active, true) = true
     )
   );
