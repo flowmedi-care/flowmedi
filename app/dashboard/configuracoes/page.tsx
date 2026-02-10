@@ -30,9 +30,7 @@ export default async function ConfiguracoesPage() {
     .single();
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-foreground">Configurações</h1>
-      <ConfiguracoesClient
+    <ConfiguracoesClient
         appointmentTypes={(types ?? []).map((t) => ({
           id: t.id,
           name: t.name,
@@ -41,6 +39,5 @@ export default async function ConfiguracoesPage() {
         clinicLogoUrl={clinic?.logo_url ?? null}
         clinicLogoScale={clinic?.logo_scale ?? 100}
       />
-    </div>
   );
 }

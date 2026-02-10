@@ -121,15 +121,16 @@ export function LogoUpload({
       
       {logoUrl && (
         <div className="space-y-4">
-          <div className="relative inline-block">
-            <div className="w-32 h-32 border border-border rounded-lg overflow-hidden bg-muted flex items-center justify-center">
-              <img
-                src={logoUrl}
-                alt="Logo"
-                className="max-w-full max-h-full object-contain"
-                style={{ transform: `scale(${scale / 100})` }}
-              />
-            </div>
+          <div className="flex justify-center">
+            <div className="relative inline-block">
+              <div className="w-32 h-32 border border-border rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="max-w-full max-h-full object-contain"
+                  style={{ transform: `scale(${scale / 100})` }}
+                />
+              </div>
             {!uploading && (
               <Button
                 type="button"
@@ -154,18 +155,57 @@ export function LogoUpload({
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  id={`logo-scale-${type}`}
-                  min="50"
-                  max="200"
-                  step="5"
-                  value={scale}
-                  onChange={(e) => handleScaleChange(parseInt(e.target.value, 10))}
-                  disabled={savingScale}
-                  className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer"
-                />
+                <div className="flex-1 relative">
+                  <div 
+                    className="absolute h-2 rounded-lg left-0 top-0 pointer-events-none"
+                    style={{
+                      width: `${((scale - 50) / (200 - 50)) * 100}%`,
+                      background: 'hsl(var(--primary))',
+                    }}
+                  />
+                  <input
+                    type="range"
+                    id={`logo-scale-${type}`}
+                    min="50"
+                    max="200"
+                    step="5"
+                    value={scale}
+                    onChange={(e) => handleScaleChange(parseInt(e.target.value, 10))}
+                    disabled={savingScale}
+                    className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer relative z-10"
+                    style={{
+                      background: 'transparent',
+                    }}
+                  />
+                </div>
               </div>
+              <style dangerouslySetInnerHTML={{__html: `
+                #logo-scale-${type}::-webkit-slider-thumb {
+                  appearance: none;
+                  width: 18px;
+                  height: 18px;
+                  border-radius: 50%;
+                  background: hsl(var(--primary));
+                  cursor: pointer;
+                  border: 2px solid hsl(var(--background));
+                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+                  position: relative;
+                  z-index: 20;
+                }
+                #logo-scale-${type}::-moz-range-thumb {
+                  width: 18px;
+                  height: 18px;
+                  border-radius: 50%;
+                  background: hsl(var(--primary));
+                  cursor: pointer;
+                  border: 2px solid hsl(var(--background));
+                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+                }
+                #logo-scale-${type}:disabled {
+                  opacity: 0.5;
+                  cursor: not-allowed;
+                }
+              `}} />
               <p className="text-xs text-muted-foreground">
                 Ajuste o tamanho da logo (50% a 200%). Padrão: 100%.
               </p>
