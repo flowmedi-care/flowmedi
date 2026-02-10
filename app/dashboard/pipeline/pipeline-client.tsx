@@ -205,6 +205,8 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
                 setShowNoteDialog(true);
               }}
               onChangeStage={handleChangeStage}
+              onRegister={handleRegisterPatient}
+              onSchedule={handleScheduleAppointment}
             />
           ))}
         </div>
@@ -263,6 +265,8 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
                 setShowNoteDialog(true);
               }}
               onChangeStage={handleChangeStage}
+              onRegister={handleRegisterPatient}
+              onSchedule={handleScheduleAppointment}
             />
           ))}
         </div>
@@ -314,11 +318,15 @@ function KanbanColumn({
   items,
   onSelectItem,
   onChangeStage,
+  onRegister,
+  onSchedule,
 }: {
   stage: PipelineStage;
   items: PipelineItem[];
   onSelectItem: (item: PipelineItem) => void;
   onChangeStage: (itemId: string, newStage: PipelineStage) => void;
+  onRegister?: (item: PipelineItem) => void;
+  onSchedule?: (item: PipelineItem) => void;
 }) {
   const { setNodeRef } = useDroppable({
     id: stage,
@@ -345,8 +353,8 @@ function KanbanColumn({
               item={item}
               onSelect={() => onSelectItem(item)}
               onChangeStage={onChangeStage}
-              onRegister={handleRegisterPatient}
-              onSchedule={handleScheduleAppointment}
+              onRegister={onRegister}
+              onSchedule={onSchedule}
             />
           ))}
         </SortableContext>
@@ -480,10 +488,14 @@ function PipelineListItem({
   item,
   onSelect,
   onChangeStage,
+  onRegister,
+  onSchedule,
 }: {
   item: PipelineItem;
   onSelect: () => void;
   onChangeStage: (itemId: string, newStage: PipelineStage) => void;
+  onRegister?: (item: PipelineItem) => void;
+  onSchedule?: (item: PipelineItem) => void;
 }) {
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -507,6 +519,25 @@ function PipelineListItem({
             <Button variant="outline" size="sm" onClick={onSelect}>
               <MessageSquare className="h-4 w-4" />
             </Button>
+            {item.stage === "aguardando_retorno" && onRegister && (
+              <Button
+                size="sm"
+                onClick={() => onRegister(item)}
+              >
+                <UserPlus className="h-4 w-4 mr-1" />
+                Cadastrar
+              </Button>
+            )}
+            {item.stage === "cadastrado" && onSchedule && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onSchedule(item)}
+              >
+                <Calendar className="h-4 w-4 mr-1" />
+                Agendar
+              </Button>
+            )}
             <select
               value={item.stage}
               onChange={(e) => onChangeStage(item.id, e.target.value as PipelineStage)}
