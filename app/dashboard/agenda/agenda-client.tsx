@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,9 +8,26 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { createAppointment } from "./actions";
-import { Plus, CalendarClock, LayoutList, CalendarDays } from "lucide-react";
+import { createAppointment, updateAppointment } from "./actions";
+import { Plus, CalendarClock, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  useSensor,
+  useSensors,
+  PointerSensor,
+  closestCenter,
+  useDroppable,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   getStartOfWeek,
   getWeekDates,
@@ -24,6 +41,7 @@ import {
   getHourSlots,
   getWeekOfMonthLabel,
   iterateDays,
+  getWeekStartForPeriod,
 } from "./agenda-date-utils";
 
 export type AppointmentRow = {
@@ -89,6 +107,8 @@ export function AgendaClient({
     useState<CalendarGranularity>("week");
   const [dateInicio, setDateInicio] = useState(() => todayYMD());
   const [dateFim, setDateFim] = useState(() => todayYMD());
+  const [draggedAppointment, setDraggedAppointment] =
+    useState<AppointmentRow | null>(null);
   const [form, setForm] = useState({
     patientId: "",
     doctorId: "",
@@ -99,6 +119,13 @@ export function AgendaClient({
   });
 
   const today = useMemo(() => new Date(), []);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -147,6 +174,64 @@ export function AgendaClient({
       return d >= ymdStart && d <= ymdEnd;
     });
   }, [appointments, rangeStart, rangeEnd]);
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || !draggedAppointment) {
+      setDraggedAppointment(null);
+      return;
+    }
+
+    // over.id pode ser o ID do appointment (se drop no mesmo dia) ou o dayId (se drop em outro dia)
+    const targetId = over.id as string;
+    const activeId = active.id as string;
+
+    // Se drop no mesmo item, não faz nada
+    if (targetId === activeId) {
+      setDraggedAppointment(null);
+      return;
+    }
+
+    // Verificar se é um dayId (YYYY-MM-DD) ou um appointment ID
+    let targetDate: string | null = null;
+    if (targetId.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // É um dayId
+      targetDate = targetId;
+    } else {
+      // É outro appointment - pegar o dayId do data
+      const targetAppointment = appointmentsInPeriod.find((a) => a.id === targetId);
+      if (targetAppointment) {
+        targetDate = targetAppointment.scheduled_at.slice(0, 10);
+      }
+    }
+
+    if (!targetDate) {
+      setDraggedAppointment(null);
+      return;
+    }
+
+    const oldDate = new Date(draggedAppointment.scheduled_at);
+    const newDate = new Date(targetDate);
+    newDate.setHours(oldDate.getHours(), oldDate.getMinutes(), 0, 0);
+
+    // Só reagendar se mudou de dia
+    if (targetDate !== draggedAppointment.scheduled_at.slice(0, 10)) {
+      const res = await updateAppointment(draggedAppointment.id, {
+        scheduled_at: newDate.toISOString(),
+      });
+
+      if (!res.error) {
+        window.location.reload();
+      }
+    }
+    setDraggedAppointment(null);
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    const appointmentId = event.active.id as string;
+    const appointment = appointmentsInPeriod.find((a) => a.id === appointmentId);
+    setDraggedAppointment(appointment || null);
+  }
 
   return (
     <div className="space-y-6">
@@ -360,34 +445,48 @@ export function AgendaClient({
       )}
 
       {/* Conteúdo da visão */}
-      {viewMode === "timeline" && (
-        <TimelineListView
-          appointments={appointmentsInPeriod}
-          dateInicio={rangeStart}
-          dateFim={rangeEnd}
-          today={today}
-          granularity={timelineGranularity}
-        />
-      )}
-      {viewMode === "calendar" && calendarGranularity === "week" && (
-        <CalendarWeekView
-          appointments={appointmentsInPeriod}
-          currentDate={calendarDate}
-          today={today}
-        />
-      )}
-      {viewMode === "calendar" && calendarGranularity === "month" && (
-        <CalendarMonthView
-          appointments={appointmentsInPeriod}
-          currentDate={calendarDate}
-          today={today}
-          onSelectDay={(day) => {
-            setDateInicio(toYMD(day));
-            setDateFim(toYMD(day));
-            setViewMode("timeline");
-          }}
-        />
-      )}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        {viewMode === "timeline" && (
+          <TimelineListView
+            appointments={appointmentsInPeriod}
+            dateInicio={rangeStart}
+            dateFim={rangeEnd}
+            today={today}
+            granularity={timelineGranularity}
+          />
+        )}
+        {viewMode === "calendar" && calendarGranularity === "week" && (
+          <CalendarWeekView
+            appointments={appointmentsInPeriod}
+            currentDate={calendarDate}
+            today={today}
+          />
+        )}
+        {viewMode === "calendar" && calendarGranularity === "month" && (
+          <CalendarMonthView
+            appointments={appointmentsInPeriod}
+            currentDate={calendarDate}
+            today={today}
+            onSelectDay={(day) => {
+              setDateInicio(toYMD(day));
+              setDateFim(toYMD(day));
+              setViewMode("timeline");
+            }}
+          />
+        )}
+        <DragOverlay>
+          {draggedAppointment ? (
+            <div className="opacity-50">
+              <AppointmentListItem appointment={draggedAppointment} />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 }
@@ -441,6 +540,7 @@ function TimelineListView({
   if (granularity === "day") {
     const d = dateInicio;
     const list = byDay[toYMD(d)] ?? [];
+    const dayId = toYMD(d);
     return (
       <Card>
         <CardHeader>
@@ -454,25 +554,39 @@ function TimelineListView({
           </p>
         </CardHeader>
         <CardContent>
-          {list.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">
-              Nenhuma consulta nesta data.
-            </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {list.map((a) => (
-                <AppointmentListItem key={a.id} appointment={a} />
-              ))}
-            </ul>
-          )}
+          <DroppableDay dayId={dayId} className="min-h-[100px]">
+            {list.length === 0 ? (
+              <div className="py-4 text-sm text-muted-foreground">
+                Nenhuma consulta nesta data.
+              </div>
+            ) : (
+              <SortableContext
+                items={list.map((a) => a.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <ul className="divide-y divide-border">
+                  {list.map((a) => (
+                    <DraggableAppointmentItem
+                      key={a.id}
+                      appointment={a}
+                      dayId={dayId}
+                    />
+                  ))}
+                </ul>
+              </SortableContext>
+            )}
+          </DroppableDay>
         </CardContent>
       </Card>
     );
   }
 
   // Semana: cada dia no período como "Segunda (8)", "Terça (9)", "Segunda (15)"...
+  // Sempre começa na segunda anterior ao início
   if (granularity === "week") {
-    if (days.length === 0) {
+    const weekStart = getWeekStartForPeriod(dateInicio);
+    const weekDays = iterateDays(weekStart, dateFim);
+    if (weekDays.length === 0) {
       return (
         <Card>
           <CardContent className="py-8">
@@ -487,41 +601,53 @@ function TimelineListView({
       <Card>
         <CardHeader>
           <p className="text-sm text-muted-foreground">
-            Dias no período. Clique em uma consulta para abrir.
+            Arraste consultas para reagendar. Clique para ver detalhes.
           </p>
         </CardHeader>
         <CardContent>
           <ul className="space-y-4 list-none p-0 m-0">
-            {days.map((d) => {
+            {weekDays.map((d) => {
               const dayLabel = `${formatDayShort(d)} (${d.getDate()})`;
               const list = byDay[toYMD(d)] ?? [];
+              const dayId = toYMD(d);
               return (
-                <li
-                  key={toYMD(d)}
-                  className={cn(
-                    "rounded px-2 py-2",
-                    isSameDay(d, today) && "bg-primary/5"
-                  )}
-                >
-                  <p
+                <li key={dayId}>
+                  <DroppableDay
+                    dayId={dayId}
                     className={cn(
-                      "text-sm font-medium mb-1",
-                      isSameDay(d, today) && "text-primary"
+                      "rounded px-2 py-2 min-h-[60px]",
+                      isSameDay(d, today) && "bg-primary/5"
                     )}
                   >
-                    {dayLabel}
-                  </p>
-                  {list.length === 0 ? (
-                    <p className="text-xs text-muted-foreground pl-2">
-                      Nenhuma consulta
+                    <p
+                      className={cn(
+                        "text-sm font-medium mb-1",
+                        isSameDay(d, today) && "text-primary"
+                      )}
+                    >
+                      {dayLabel}
                     </p>
-                  ) : (
-                    <ul className="divide-y divide-border">
-                      {list.map((a) => (
-                        <AppointmentListItem key={a.id} appointment={a} />
-                      ))}
-                    </ul>
-                  )}
+                    {list.length === 0 ? (
+                      <p className="text-xs text-muted-foreground pl-2">
+                        Nenhuma consulta
+                      </p>
+                    ) : (
+                      <SortableContext
+                        items={list.map((a) => a.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <ul className="divide-y divide-border">
+                          {list.map((a) => (
+                            <DraggableAppointmentItem
+                              key={a.id}
+                              appointment={a}
+                              dayId={dayId}
+                            />
+                          ))}
+                        </ul>
+                      </SortableContext>
+                    )}
+                  </DroppableDay>
                 </li>
               );
             })}
@@ -567,36 +693,45 @@ function TimelineListView({
                   {monthDays.map((d) => {
                     const dayLabel = `${formatDayShort(d)} (${d.getDate()})`;
                     const list = byDay[toYMD(d)] ?? [];
+                    const dayId = toYMD(d);
                     return (
-                      <li
-                        key={toYMD(d)}
-                        className={cn(
-                          "rounded px-2 py-1",
-                          isSameDay(d, today) && "bg-primary/5"
-                        )}
-                      >
-                        <p
+                      <li key={dayId}>
+                        <DroppableDay
+                          dayId={dayId}
                           className={cn(
-                            "text-sm font-medium",
-                            isSameDay(d, today) && "text-primary"
+                            "rounded px-2 py-1 min-h-[60px]",
+                            isSameDay(d, today) && "bg-primary/5"
                           )}
                         >
-                          {dayLabel}
-                        </p>
-                        {list.length === 0 ? (
-                          <p className="text-xs text-muted-foreground pl-2">
-                            Nenhuma consulta
+                          <p
+                            className={cn(
+                              "text-sm font-medium",
+                              isSameDay(d, today) && "text-primary"
+                            )}
+                          >
+                            {dayLabel}
                           </p>
-                        ) : (
-                          <ul className="divide-y divide-border mt-1">
-                            {list.map((a) => (
-                              <AppointmentListItem
-                                key={a.id}
-                                appointment={a}
-                              />
-                            ))}
-                          </ul>
-                        )}
+                          {list.length === 0 ? (
+                            <p className="text-xs text-muted-foreground pl-2">
+                              Nenhuma consulta
+                            </p>
+                          ) : (
+                            <SortableContext
+                              items={list.map((a) => a.id)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              <ul className="divide-y divide-border mt-1">
+                                {list.map((a) => (
+                                  <DraggableAppointmentItem
+                                    key={a.id}
+                                    appointment={a}
+                                    dayId={dayId}
+                                  />
+                                ))}
+                              </ul>
+                            </SortableContext>
+                          )}
+                        </DroppableDay>
                       </li>
                     );
                   })}
@@ -691,19 +826,36 @@ function CalendarWeekView({
                 {hour.toString().padStart(2, "0")}:00
               </div>
               <div className="grid grid-cols-7 border-border">
-                {weekDays.map((d) => (
-                  <div
-                    key={toYMD(d)}
-                    className={cn(
-                      "p-1 border-r border-border last:border-r-0",
-                      isSameDay(d, today) && "bg-primary/5"
-                    )}
-                  >
-                    {(byDayHour[toYMD(d)]?.[hour] ?? []).map((a) => (
-                      <AppointmentListItem key={a.id} appointment={a} compact />
-                    ))}
-                  </div>
-                ))}
+                {weekDays.map((d) => {
+                  const dayId = toYMD(d);
+                  const hourAppointments = byDayHour[dayId]?.[hour] ?? [];
+                  return (
+                    <DroppableDay
+                      key={dayId}
+                      dayId={dayId}
+                      className={cn(
+                        "p-1 border-r border-border last:border-r-0 min-h-[48px]",
+                        isSameDay(d, today) && "bg-primary/5"
+                      )}
+                    >
+                      {hourAppointments.length > 0 ? (
+                        <SortableContext
+                          items={hourAppointments.map((a) => a.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          {hourAppointments.map((a) => (
+                            <DraggableAppointmentItem
+                              key={a.id}
+                              appointment={a}
+                              dayId={dayId}
+                              compact
+                            />
+                          ))}
+                        </SortableContext>
+                      ) : null}
+                    </DroppableDay>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -780,30 +932,38 @@ function CalendarMonthView({
                     >
                       {day.getDate()}
                     </button>
-                    <div className="mt-1 space-y-1 flex-1 overflow-hidden">
-                      {(byDay[toYMD(day)] ?? []).slice(0, 4).map((a) => (
-                        <Link
-                          key={a.id}
-                          href={`/dashboard/agenda/consulta/${a.id}`}
-                          className="block text-xs truncate rounded px-1.5 py-0.5 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
-                          title={`${new Date(a.scheduled_at).toLocaleTimeString("pt-BR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })} ${a.patient.full_name}`}
+                    <DroppableDay
+                      dayId={toYMD(day)}
+                      className="mt-1 space-y-1 flex-1 overflow-hidden min-h-[60px]"
+                    >
+                      {(byDay[toYMD(day)] ?? []).length > 0 && (
+                        <SortableContext
+                          items={(byDay[toYMD(day)] ?? []).map((ap) => ap.id)}
+                          strategy={verticalListSortingStrategy}
                         >
-                          {new Date(a.scheduled_at).toLocaleTimeString("pt-BR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}{" "}
-                          {a.patient.full_name}
-                        </Link>
-                      ))}
+                          {(byDay[toYMD(day)] ?? []).slice(0, 4).map((a) => {
+                            const dayId = toYMD(day);
+                            return (
+                              <div
+                                key={a.id}
+                                className="rounded px-1.5 py-0.5 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 mb-0.5"
+                              >
+                                <DraggableAppointmentItem
+                                  appointment={a}
+                                  dayId={dayId}
+                                  compact
+                                />
+                              </div>
+                            );
+                          })}
+                        </SortableContext>
+                      )}
                       {(byDay[toYMD(day)] ?? []).length > 4 && (
                         <span className="text-xs text-muted-foreground">
                           +{(byDay[toYMD(day)] ?? []).length - 4} mais
                         </span>
                       )}
-                    </div>
+                    </DroppableDay>
                   </>
                 ) : null}
               </div>
@@ -812,6 +972,160 @@ function CalendarMonthView({
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+function DroppableDay({
+  dayId,
+  children,
+  className,
+}: {
+  dayId: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: dayId,
+    data: {
+      type: "day",
+      dayId,
+    },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        className,
+        isOver && "bg-primary/10 ring-2 ring-primary ring-offset-2"
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DraggableAppointmentItem({
+  appointment,
+  dayId,
+  compact,
+}: {
+  appointment: AppointmentRow;
+  dayId: string;
+  compact?: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: appointment.id,
+    data: {
+      type: "appointment",
+      appointment,
+      dayId,
+    },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  if (compact) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="flex items-center gap-1"
+      >
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
+          type="button"
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
+        <Link
+          href={`/dashboard/agenda/consulta/${appointment.id}`}
+          className="flex-1 truncate text-xs"
+          title={`${new Date(appointment.scheduled_at).toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })} ${appointment.patient.full_name}`}
+        >
+          {new Date(appointment.scheduled_at).toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}{" "}
+          {appointment.patient.full_name}
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="py-3 first:pt-0"
+    >
+      <div className="flex items-center gap-2 hover:bg-muted/50 -mx-2 px-2 py-1 rounded group">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
+          type="button"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <Link
+          href={`/dashboard/agenda/consulta/${appointment.id}`}
+          className="flex-1 flex items-center justify-between gap-4 min-w-0"
+        >
+          <AppointmentContent appointment={appointment} />
+        </Link>
+      </div>
+    </li>
+  );
+}
+
+function AppointmentContent({ appointment: a }: { appointment: AppointmentRow }) {
+  const time = new Date(a.scheduled_at).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const pendingForms =
+    a.form_instances?.filter((f) => f.status === "pendente").length ?? 0;
+
+  return (
+    <>
+      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className="font-medium tabular-nums shrink-0">{time}</span>
+        <span className="truncate">{a.patient.full_name}</span>
+        {a.appointment_type && (
+          <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
+            · {a.appointment_type.name}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-2 shrink-0 ml-auto">
+        {pendingForms > 0 && (
+          <Badge variant="secondary" className="text-xs">
+            {pendingForms} form.
+          </Badge>
+        )}
+        <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"} className="text-xs">
+          {STATUS_LABEL[a.status] ?? a.status}
+        </Badge>
+      </div>
+    </>
   );
 }
 
@@ -830,20 +1144,20 @@ function AppointmentListItem({
     a.form_instances?.filter((f) => f.status === "pendente").length ?? 0;
 
   const content = (
-    <div className="flex flex-wrap items-center justify-between gap-1">
-      <div className="flex items-center gap-1.5 min-w-0">
+    <>
+      <div className="flex items-center gap-1.5 min-w-0 flex-1">
         {!compact && (
           <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
         )}
         <span className="font-medium tabular-nums shrink-0">{time}</span>
         <span className="truncate">{a.patient.full_name}</span>
         {a.appointment_type && (
-          <span className="text-xs text-muted-foreground shrink-0">
+          <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
             · {a.appointment_type.name}
           </span>
         )}
       </div>
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-2 shrink-0 ml-auto">
         {pendingForms > 0 && (
           <Badge variant="secondary" className="text-xs">
             {pendingForms} form.
@@ -853,14 +1167,14 @@ function AppointmentListItem({
           {STATUS_LABEL[a.status] ?? a.status}
         </Badge>
       </div>
-    </div>
+    </>
   );
 
   if (compact) {
     return (
       <Link
         href={`/dashboard/agenda/consulta/${a.id}`}
-        className="block text-xs rounded border border-border bg-card px-1.5 py-1 hover:bg-muted/50 mb-0.5"
+        className="block text-xs rounded border border-border bg-card px-1.5 py-1 hover:bg-muted/50 mb-0.5 flex items-center justify-between gap-2"
       >
         {content}
       </Link>
@@ -871,7 +1185,7 @@ function AppointmentListItem({
     <li className="py-3 first:pt-0">
       <Link
         href={`/dashboard/agenda/consulta/${a.id}`}
-        className="flex flex-wrap items-center justify-between gap-2 hover:bg-muted/50 -mx-2 px-2 py-1 rounded"
+        className="flex items-center justify-between gap-4 hover:bg-muted/50 -mx-2 px-2 py-1 rounded min-w-0"
       >
         {content}
       </Link>

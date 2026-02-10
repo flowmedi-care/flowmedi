@@ -144,3 +144,8 @@ export function iterateDays(start: Date, end: Date): Date[] {
   }
   return days;
 }
+
+/** Para granularidade semana: sempre começa na segunda anterior ao início. */
+export function getWeekStartForPeriod(start: Date): Date {
+  return getStartOfWeek(start);
+}
