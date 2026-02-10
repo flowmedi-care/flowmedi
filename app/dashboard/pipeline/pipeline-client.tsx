@@ -285,7 +285,7 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 overflow-x-auto">
+        <div className="flex justify-between gap-4 overflow-x-auto">
           {stages.map((stage) => (
             <KanbanColumn
               key={stage}
@@ -369,7 +369,7 @@ function KanbanColumn({
   const itemIds = items.map((item) => item.id);
 
   return (
-    <div className="flex flex-col space-y-2">
+    <div className="flex flex-col space-y-2 flex-1 min-w-0">
       <div className="flex items-center justify-between p-2">
         <h3 className="text-sm font-semibold">{STAGE_LABELS[stage]}</h3>
         <Badge variant="outline">{items.length}</Badge>
@@ -377,7 +377,7 @@ function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          "min-h-[200px] rounded-lg border-2 border-dashed p-2 space-y-2",
+          "min-h-[200px] rounded-lg border-2 border-dashed p-2 space-y-2 flex-1",
           items.length === 0 && "border-gray-300 dark:border-gray-700"
         )}
       >
@@ -520,15 +520,14 @@ function PipelineCard({
             Agendar
           </Button>
         )}
-        {item.stage === "agendado" && (
+        {item.stage === "agendado" && onMarkAsCompleted && (
           <Button
             size="sm"
-            className="w-full mt-2 bg-green-600 hover:bg-green-700"
+            variant="outline"
+            className="w-full mt-2 border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-900/20"
             onClick={(e) => {
               e.stopPropagation();
-              if (onMarkAsCompleted) {
-                onMarkAsCompleted(item);
-              }
+              onMarkAsCompleted(item);
             }}
           >
             <CheckCircle className="h-3 w-3 mr-1" />
@@ -599,7 +598,8 @@ function PipelineListItem({
             {item.stage === "agendado" && onMarkAsCompleted && (
               <Button
                 size="sm"
-                className="bg-green-600 hover:bg-green-700"
+                variant="outline"
+                className="border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-900/20"
                 onClick={() => onMarkAsCompleted(item)}
               >
                 <CheckCircle className="h-4 w-4 mr-1" />
