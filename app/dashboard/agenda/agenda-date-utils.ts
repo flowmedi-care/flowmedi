@@ -149,3 +149,22 @@ export function iterateDays(start: Date, end: Date): Date[] {
 export function getWeekStartForPeriod(start: Date): Date {
   return getStartOfWeek(start);
 }
+
+/** Converte data local para ISO string preservando o dia (evita problemas de timezone). */
+export function localDateToISO(year: number, month: number, day: number, hour: number, minute: number): string {
+  // Criar data local às 12:00 (meio-dia) para evitar problemas de timezone
+  // Meio-dia raramente muda de dia quando convertido para UTC
+  const localDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+  // Ajustar para a hora desejada preservando o dia
+  localDate.setHours(hour, minute, 0, 0);
+  // Verificar se o dia mudou após setHours (pode acontecer em edge cases)
+  // Se mudou, usar meio-dia e ajustar manualmente
+  if (localDate.getDate() !== day || localDate.getMonth() !== month - 1) {
+    // Se o dia mudou, criar novamente com hora segura
+    const safeDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+    // Ajustar hora preservando o dia
+    safeDate.setHours(hour, minute, 0, 0);
+    return safeDate.toISOString();
+  }
+  return localDate.toISOString();
+}

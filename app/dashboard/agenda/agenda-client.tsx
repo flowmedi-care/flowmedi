@@ -43,6 +43,7 @@ import {
   getWeekOfMonthLabel,
   iterateDays,
   getWeekStartForPeriod,
+  localDateToISO,
 } from "./agenda-date-utils";
 
 export type AppointmentRow = {
@@ -229,14 +230,19 @@ export function AgendaClient({
       return;
     }
 
+    // Usar data local para evitar problemas de timezone
     const oldDate = new Date(draggedAppointment.scheduled_at);
-    const newDate = new Date(targetDate);
-    newDate.setHours(oldDate.getHours(), oldDate.getMinutes(), 0, 0);
+    // Criar data local a partir do targetDate (YYYY-MM-DD)
+    const [year, month, day] = targetDate.split("-").map(Number);
+    const oldHour = oldDate.getHours();
+    const oldMinute = oldDate.getMinutes();
 
     // Só reagendar se mudou de dia
     if (targetDate !== draggedAppointment.scheduled_at.slice(0, 10)) {
+      // Converter para ISO string preservando a data local (evita problemas de timezone)
+      const isoString = localDateToISO(year, month, day, oldHour, oldMinute);
       const res = await updateAppointment(draggedAppointment.id, {
-        scheduled_at: newDate.toISOString(),
+        scheduled_at: isoString,
       });
 
       if (!res.error) {
@@ -558,20 +564,12 @@ function TimelineListView({
     return map;
   }, [appointments]);
 
+  // Para granularidade mês, sempre começar na segunda anterior
+  const monthStart = getWeekStartForPeriod(dateInicio);
   const days = useMemo(
-    () => iterateDays(dateInicio, dateFim),
-    [dateInicio, dateFim]
+    () => iterateDays(monthStart, dateFim),
+    [monthStart, dateFim]
   );
-  const byMonth = useMemo(() => {
-    const map: Record<string, Date[]> = {};
-    days.forEach((d) => {
-      const mKey = `${d.getFullYear()}-${d.getMonth()}`;
-      if (!map[mKey]) map[mKey] = [];
-      map[mKey].push(d);
-    });
-    return map;
-  }, [days]);
-  const monthOrder = Object.keys(byMonth).sort();
 
   // Dia: só 1 dia (usa dateInicio)
   if (granularity === "day") {
@@ -695,7 +693,24 @@ function TimelineListView({
   }
 
   // Mês: Janeiro, Fevereiro... no período
-  if (monthOrder.length === 0) {
+  // Sempre começa na segunda anterior ao início (similar à semana)
+  const monthStart = getWeekStartForPeriod(dateInicio);
+  const monthDays = useMemo(
+    () => iterateDays(monthStart, dateFim),
+    [monthStart, dateFim]
+  );
+  const byMonthAdjusted = useMemo(() => {
+    const map: Record<string, Date[]> = {};
+    monthDays.forEach((d) => {
+      const mKey = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!map[mKey]) map[mKey] = [];
+      map[mKey].push(d);
+    });
+    return map;
+  }, [monthDays]);
+  const monthOrderAdjusted = Object.keys(byMonthAdjusted).sort();
+
+  if (monthOrderAdjusted.length === 0) {
     return (
       <Card>
         <CardContent className="py-8">
@@ -716,18 +731,18 @@ function TimelineListView({
       </CardHeader>
       <CardContent>
         <ul className="space-y-6 list-none p-0 m-0">
-          {monthOrder.map((mKey) => {
+          {monthOrderAdjusted.map((mKey) => {
             const [y, m] = mKey.split("-").map(Number);
             const monthDate = new Date(y, m, 1);
             const monthLabel = formatMonthYear(monthDate);
-            const monthDays = byMonth[mKey];
+            const monthDaysList = byMonthAdjusted[mKey];
             return (
               <li key={mKey} className="space-y-2">
                 <h3 className="font-semibold text-base capitalize">
                   {monthLabel}
                 </h3>
                 <ul className="space-y-2 list-none pl-4 border-l-2 border-muted">
-                  {monthDays.map((d) => {
+                  {monthDaysList.map((d) => {
                     const dayLabel = `${formatDayShort(d)} (${d.getDate()})`;
                     const list = byDay[toYMD(d)] ?? [];
                     const dayId = toYMD(d);
@@ -869,7 +884,7 @@ function CalendarWeekView({
                   const hourAppointments = byDayHour[dayId]?.[hour] ?? [];
                   return (
                     <DroppableDay
-                      key={dayId}
+                      key={`${dayId}-${hour}`}
                       dayId={dayId}
                       className={cn(
                         "p-1 border-r border-border last:border-r-0 min-h-[48px]",
@@ -890,7 +905,10 @@ function CalendarWeekView({
                             />
                           ))}
                         </SortableContext>
-                      ) : null}
+                      ) : (
+                        // Célula vazia também é drop zone
+                        <div className="min-h-[20px]" />
+                      )}
                     </DroppableDay>
                   );
                 })}
@@ -975,7 +993,7 @@ function CalendarMonthView({
                       dayId={toYMD(day)}
                       className="mt-1 space-y-1 flex-1 overflow-hidden min-h-[60px]"
                     >
-                      {(byDay[toYMD(day)] ?? []).length > 0 && (
+                      {(byDay[toYMD(day)] ?? []).length > 0 ? (
                         <SortableContext
                           items={(byDay[toYMD(day)] ?? []).map((ap) => ap.id)}
                           strategy={verticalListSortingStrategy}
@@ -996,7 +1014,7 @@ function CalendarMonthView({
                             );
                           })}
                         </SortableContext>
-                      )}
+                      ) : null}
                       {(byDay[toYMD(day)] ?? []).length > 4 && (
                         <span className="text-xs text-muted-foreground">
                           +{(byDay[toYMD(day)] ?? []).length - 4} mais
