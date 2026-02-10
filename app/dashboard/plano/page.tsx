@@ -7,7 +7,7 @@ export default async function PlanoPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/entrar");
+  if (!user) redirect("/entrar?redirect=/dashboard/plano");
 
   const { data: profile } = await supabase
     .from("profiles")

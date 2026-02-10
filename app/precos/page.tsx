@@ -22,16 +22,16 @@ const plans = [
   {
     name: "Profissional",
     description: "Clínicas em crescimento",
-    price: "Em breve",
-    period: "",
+    price: "R$ 99",
+    period: "mês",
     features: [
       "Múltiplos médicos",
       "WhatsApp transacional",
       "E-mail automático",
       "Formulários ilimitados",
     ],
-    cta: "Avisar quando lançar",
-    href: "#",
+    cta: "Assinar Pro",
+    href: "/dashboard/plano",
     highlighted: true,
   },
 ];
@@ -67,7 +67,7 @@ export default function PrecosPage() {
             Planos para sua clínica
           </h1>
           <p className="mt-2 text-muted-foreground">
-            Comece grátis. Recursos avançados em breve.
+            Comece grátis. Assine o Pro quando precisar de mais recursos.
           </p>
         </div>
 

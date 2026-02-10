@@ -172,20 +172,28 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!isPro && plan.proStripePriceId && (
-            <Button onClick={startCheckout} disabled={loadingCheckout}>
-              {loadingCheckout ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Preparando checkout…
-                </>
-              ) : (
-                <>
-                  <CreditCard className="h-4 w-4" />
-                  Assinar Pro
-                </>
+          {!isPro && (
+            <>
+              <Button onClick={startCheckout} disabled={loadingCheckout}>
+                {loadingCheckout ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Preparando checkout…
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="h-4 w-4" />
+                    Assinar Pro
+                  </>
+                )}
+              </Button>
+              {!plan.proStripePriceId && (
+                <p className="text-sm text-muted-foreground">
+                  Se o checkout não abrir, configure o preço do plano Pro no Stripe e o campo{" "}
+                  <code className="text-xs">stripe_price_id</code> na tabela <code className="text-xs">plans</code> no Supabase.
+                </p>
               )}
-            </Button>
+            </>
           )}
           {isPro && (
             <div className="flex flex-wrap gap-2">
