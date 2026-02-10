@@ -81,6 +81,52 @@ const STATUS_VARIANT: Record<
   cancelada: "destructive",
 };
 
+// Cores de fundo para calendário baseadas no status
+function getStatusBackgroundColor(status: string): string {
+  const statusLower = status.toLowerCase();
+  switch (statusLower) {
+    case "agendada":
+    case "agendado":
+      return "bg-amber-50 dark:bg-amber-950/20"; // bege claro
+    case "confirmada":
+    case "confirmado":
+      return "bg-green-50 dark:bg-green-950/20"; // verde claro
+    case "realizada":
+    case "realizado":
+      return "bg-blue-50 dark:bg-blue-950/20"; // azul
+    case "falta":
+      return "bg-yellow-50 dark:bg-yellow-950/20"; // amarelo
+    case "cancelada":
+    case "cancelado":
+      return "bg-red-50 dark:bg-red-950/20"; // vermelho
+    default:
+      return "bg-muted/50";
+  }
+}
+
+// Cores de texto para calendário baseadas no status
+function getStatusTextColor(status: string): string {
+  const statusLower = status.toLowerCase();
+  switch (statusLower) {
+    case "agendada":
+    case "agendado":
+      return "text-amber-700 dark:text-amber-300";
+    case "confirmada":
+    case "confirmado":
+      return "text-green-700 dark:text-green-300";
+    case "realizada":
+    case "realizado":
+      return "text-blue-700 dark:text-blue-300";
+    case "falta":
+      return "text-yellow-700 dark:text-yellow-300";
+    case "cancelada":
+    case "cancelado":
+      return "text-red-700 dark:text-red-300";
+    default:
+      return "text-foreground";
+  }
+}
+
 type ViewMode = "timeline" | "calendar";
 type TimelineGranularity = "day" | "week" | "month";
 type CalendarGranularity = "week" | "month";
@@ -1046,10 +1092,7 @@ function CalendarMonthView({
                           {(byDay[toYMD(day)] ?? []).slice(0, 4).map((a) => {
                             const dayId = toYMD(day);
                             return (
-                              <div
-                                key={a.id}
-                                className="rounded px-1.5 py-0.5 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 mb-0.5"
-                              >
+                              <div key={a.id} className="mb-0.5">
                                 <DraggableAppointmentItem
                                   appointment={a}
                                   dayId={dayId}
@@ -1143,11 +1186,18 @@ function DraggableAppointmentItem({
   };
 
   if (compact) {
+    const bgColor = getStatusBackgroundColor(appointment.status);
+    const textColor = getStatusTextColor(appointment.status);
     return (
       <div
         ref={setNodeRef}
         style={style}
-        className="flex items-center gap-1"
+        className={cn(
+          "flex items-center gap-1 rounded px-1.5 py-0.5",
+          bgColor,
+          textColor,
+          "hover:opacity-80 transition-opacity"
+        )}
       >
         <button
           {...attributes}
