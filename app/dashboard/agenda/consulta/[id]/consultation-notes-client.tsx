@@ -17,10 +17,14 @@ import { cn } from "@/lib/utils";
 
 export function ConsultationNotesClient({
   appointmentId,
-  isDoctor,
+  canAddPosts,
+  canEditAnyNote,
+  currentUserId,
 }: {
   appointmentId: string;
-  isDoctor: boolean;
+  canAddPosts: boolean;
+  canEditAnyNote: boolean;
+  currentUserId: string | null;
 }) {
   const [notes, setNotes] = useState<ConsultationNote[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,7 +146,7 @@ export function ConsultationNotesClient({
       )}
 
       {/* Formulário de criação */}
-      {isDoctor && !editingId && (
+      {canAddPosts && !editingId && (
         <Card>
           <CardContent className="pt-6">
             {!showCreateForm ? (
@@ -196,7 +200,7 @@ export function ConsultationNotesClient({
           <CardContent className="py-8 text-center">
             <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              Nenhum post ainda. {isDoctor && "Seja o primeiro a escrever sobre esta consulta!"}
+              Nenhum post ainda. {canAddPosts && "Seja o primeiro a escrever sobre esta consulta!"}
             </p>
           </CardContent>
         </Card>
@@ -238,7 +242,7 @@ export function ConsultationNotesClient({
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <p className="font-semibold text-sm">
-                            {note.doctor_name || "Médico"}
+                            {note.doctor_name || "Autor"}
                           </p>
                           <span className="text-xs text-muted-foreground">
                             {formatDate(note.created_at)}
@@ -247,7 +251,7 @@ export function ConsultationNotesClient({
                         </div>
                         <p className="text-sm whitespace-pre-wrap">{note.content}</p>
                       </div>
-                      {isDoctor && (
+                      {(canEditAnyNote || (currentUserId && note.doctor_id === currentUserId)) && (
                         <div className="flex gap-1">
                           <Button
                             variant="ghost"

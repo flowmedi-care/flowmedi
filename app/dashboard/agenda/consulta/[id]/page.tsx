@@ -180,6 +180,7 @@ export default async function ConsultaDetalhePage({
         baseUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
         canEdit={profile.role === "admin" || profile.role === "secretaria"}
         isDoctor={profile.role === "medico"}
+        currentUserId={user?.id ?? null}
       />
     </div>
   );

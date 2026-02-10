@@ -68,8 +68,8 @@ export async function createConsultationNote(
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role !== "medico") {
-    return { error: "Apenas médicos podem criar posts da consulta.", data: null };
+  if (!profile || !["medico", "admin", "secretaria"].includes(profile.role)) {
+    return { error: "Apenas médicos, administradores e secretárias podem criar posts da consulta.", data: null };
   }
 
   if (!profile.clinic_id) {
@@ -128,20 +128,27 @@ export async function updateConsultationNote(
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role !== "medico") {
-    return { error: "Apenas médicos podem editar posts da consulta." };
+  if (!profile || !["medico", "admin", "secretaria"].includes(profile.role)) {
+    return { error: "Apenas médicos, administradores e secretárias podem editar posts da consulta." };
   }
 
-  // Verificar se o post pertence ao médico
   const { data: note } = await supabase
     .from("consultation_notes")
-    .select("id, appointment_id, doctor_id")
+    .select("id, appointment_id, doctor_id, clinic_id")
     .eq("id", noteId)
-    .eq("doctor_id", user.id)
     .single();
 
-  if (!note) {
-    return { error: "Post não encontrado ou você não tem permissão para editá-lo." };
+  if (!note || note.clinic_id !== profile.clinic_id) {
+    return { error: "Post não encontrado ou não pertence à sua clínica." };
+  }
+
+  const canEdit =
+    profile.role === "admin" ||
+    profile.role === "secretaria" ||
+    (profile.role === "medico" && note.doctor_id === user.id);
+
+  if (!canEdit) {
+    return { error: "Você só pode editar seus próprios posts." };
   }
 
   const { error } = await supabase
@@ -151,7 +158,7 @@ export async function updateConsultationNote(
       updated_at: new Date().toISOString(),
     })
     .eq("id", noteId)
-    .eq("doctor_id", user.id);
+    .eq("clinic_id", profile.clinic_id);
 
   if (error) return { error: error.message };
 
@@ -172,27 +179,34 @@ export async function deleteConsultationNote(
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role !== "medico") {
-    return { error: "Apenas médicos podem deletar posts da consulta." };
+  if (!profile || !["medico", "admin", "secretaria"].includes(profile.role)) {
+    return { error: "Apenas médicos, administradores e secretárias podem deletar posts da consulta." };
   }
 
-  // Verificar se o post pertence ao médico
   const { data: note } = await supabase
     .from("consultation_notes")
-    .select("id, appointment_id, doctor_id")
+    .select("id, appointment_id, doctor_id, clinic_id")
     .eq("id", noteId)
-    .eq("doctor_id", user.id)
     .single();
 
-  if (!note) {
-    return { error: "Post não encontrado ou você não tem permissão para deletá-lo." };
+  if (!note || note.clinic_id !== profile.clinic_id) {
+    return { error: "Post não encontrado ou não pertence à sua clínica." };
+  }
+
+  const canDelete =
+    profile.role === "admin" ||
+    profile.role === "secretaria" ||
+    (profile.role === "medico" && note.doctor_id === user.id);
+
+  if (!canDelete) {
+    return { error: "Você só pode deletar seus próprios posts." };
   }
 
   const { error } = await supabase
     .from("consultation_notes")
     .delete()
     .eq("id", noteId)
-    .eq("doctor_id", user.id);
+    .eq("clinic_id", profile.clinic_id);
 
   if (error) return { error: error.message };
 

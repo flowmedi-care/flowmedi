@@ -47,6 +47,7 @@ export function ConsultaDetalheClient({
   baseUrl,
   canEdit,
   isDoctor,
+  currentUserId,
 }: {
   appointmentId: string;
   appointmentStatus: string;
@@ -55,6 +56,7 @@ export function ConsultaDetalheClient({
   baseUrl: string;
   canEdit: boolean;
   isDoctor: boolean;
+  currentUserId: string | null;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(appointmentStatus);
@@ -182,7 +184,12 @@ export function ConsultaDetalheClient({
       {/* Posts da consulta (tipo Facebook) */}
       <div>
         <h2 className="font-semibold text-lg mb-4">Registro da consulta</h2>
-        <ConsultationNotesClient appointmentId={appointmentId} isDoctor={isDoctor} />
+        <ConsultationNotesClient
+          appointmentId={appointmentId}
+          canAddPosts={isDoctor || canEdit}
+          canEditAnyNote={canEdit}
+          currentUserId={currentUserId}
+        />
       </div>
 
       {/* Formulários removidos - agora em aba separada */}

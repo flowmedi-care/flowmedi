@@ -21,6 +21,7 @@ export function ConsultaTabsClient({
   baseUrl,
   canEdit,
   isDoctor,
+  currentUserId,
 }: {
   appointmentId: string;
   appointmentStatus: string;
@@ -36,6 +37,7 @@ export function ConsultaTabsClient({
   baseUrl: string;
   canEdit: boolean;
   isDoctor: boolean;
+  currentUserId: string | null;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("consulta");
 
@@ -77,6 +79,7 @@ export function ConsultaTabsClient({
             baseUrl={baseUrl}
             canEdit={canEdit}
             isDoctor={isDoctor}
+            currentUserId={currentUserId}
           />
         )}
 
