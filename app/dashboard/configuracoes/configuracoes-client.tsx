@@ -105,9 +105,16 @@ export function ConfiguracoesClient({
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Configurações</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Gerencie as configurações gerais da clínica
+        </p>
+      </div>
+
       <Card>
         <CardHeader>
-          <h2 className="font-semibold">Logo da Clínica</h2>
+          <h2 className="text-lg font-semibold">Logo da Clínica</h2>
           <p className="text-sm text-muted-foreground">
             A logo da clínica aparecerá no topo dos formulários enviados aos pacientes.
           </p>
@@ -124,66 +131,75 @@ export function ConfiguracoesClient({
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
-            <h2 className="font-semibold">Tipos de consulta</h2>
-            <Button variant="outline" size="sm" onClick={openNew}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo tipo
-            </Button>
+            <div>
+              <h2 className="text-lg font-semibold">Tipos de consulta</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Defina os tipos (ex.: consulta geral, retorno, procedimento). A
+                secretária escolhe o tipo ao agendar; formulários podem ser
+                vinculados a cada tipo.
+              </p>
+            </div>
+            {!showForm && (
+              <Button variant="outline" onClick={openNew}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo tipo
+              </Button>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground">
-            Defina os tipos (ex.: consulta geral, retorno, procedimento). A
-            secretária escolhe o tipo ao agendar; formulários podem ser
-            vinculados a cada tipo.
-          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           {showForm && (
             <form
               onSubmit={handleSubmit}
-              className="flex flex-wrap items-end gap-4 p-4 rounded-lg border border-border bg-muted/30"
+              className="p-4 rounded-lg border border-border bg-muted/30 space-y-4"
             >
               {error && (
-                <p className="w-full text-sm text-destructive bg-destructive/10 p-2 rounded-md">
+                <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
                   {error}
                 </p>
               )}
-              <div className="space-y-2 min-w-[200px]">
-                <Label htmlFor="type_name">Nome</Label>
-                <Input
-                  id="type_name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ex.: Consulta geral"
-                  required
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="type_name">Nome *</Label>
+                  <Input
+                    id="type_name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ex.: Consulta geral"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="duration">Duração (minutos) *</Label>
+                  <Input
+                    id="duration"
+                    type="number"
+                    min={5}
+                    max={240}
+                    value={duration}
+                    onChange={(e) =>
+                      setDuration(parseInt(e.target.value, 10) || 30)
+                    }
+                    required
+                  />
+                </div>
               </div>
-              <div className="space-y-2 w-28">
-                <Label htmlFor="duration">Duração (min)</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  min={5}
-                  max={240}
-                  value={duration}
-                  onChange={(e) =>
-                    setDuration(parseInt(e.target.value, 10) || 30)
-                  }
-                />
+              <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                <Button type="button" variant="ghost" onClick={cancelForm}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Salvando…" : isNew ? "Criar tipo" : "Salvar alterações"}
+                </Button>
               </div>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Salvando…" : isNew ? "Criar" : "Salvar"}
-              </Button>
-              <Button type="button" variant="ghost" onClick={cancelForm}>
-                <X className="h-4 w-4" />
-              </Button>
             </form>
           )}
 
           {types.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">
-              Nenhum tipo de consulta cadastrado. Adicione um para usar na
-              agenda.
-            </p>
+            <div className="text-center py-12 text-muted-foreground">
+              <p className="text-sm mb-1">Nenhum tipo de consulta cadastrado</p>
+              <p className="text-xs">Adicione um tipo para usar na agenda</p>
+            </div>
           ) : (
             <ul className="divide-y divide-border">
               {types.map((t) => (

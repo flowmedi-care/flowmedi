@@ -143,29 +143,33 @@ export function LogoUpload({
             )}
           </div>
           
-          <div className="space-y-2 max-w-xs">
-            <Label htmlFor={`logo-scale-${type}`}>
-              Escala da logo: {scale}%
-            </Label>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                id={`logo-scale-${type}`}
-                min="50"
-                max="200"
-                step="5"
-                value={scale}
-                onChange={(e) => handleScaleChange(parseInt(e.target.value, 10))}
-                disabled={savingScale}
-                className="flex-1"
-              />
-              <span className="text-sm text-muted-foreground w-12 text-right">
-                {scale}%
-              </span>
+          <div className="space-y-3 pt-4 border-t border-border max-w-md">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor={`logo-scale-${type}`} className="font-medium">
+                  Escala da logo
+                </Label>
+                <span className="text-sm font-medium text-muted-foreground">
+                  {scale}%
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  id={`logo-scale-${type}`}
+                  min="50"
+                  max="200"
+                  step="5"
+                  value={scale}
+                  onChange={(e) => handleScaleChange(parseInt(e.target.value, 10))}
+                  disabled={savingScale}
+                  className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Ajuste o tamanho da logo (50% a 200%). Padrão: 100%.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Ajuste o tamanho da logo (50% a 200%). Padrão: 100%.
-            </p>
           </div>
         </div>
       )}

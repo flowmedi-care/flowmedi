@@ -179,25 +179,27 @@ export function CamposPacientesClient({
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <h2 className="font-semibold">Campos Customizados</h2>
-            <Button variant="outline" size="sm" onClick={openNew}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo campo
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Os campos básicos (nome, email, telefone, data de nascimento, observações) são sempre exibidos. 
-            Adicione campos adicionais que aparecerão para todos ao cadastrar pacientes.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {showForm && (
+      <div>
+        <h1 className="text-2xl font-semibold">Campos Customizados</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Personalize os campos de cadastro de pacientes. Os campos básicos (nome, email, telefone, data de nascimento, observações) são sempre exibidos.
+        </p>
+      </div>
+
+      {showForm && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold">
+              {isNew ? "Novo campo customizado" : "Editar campo"}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Configure o campo que aparecerá para todos ao cadastrar pacientes
+            </p>
+          </CardHeader>
+          <CardContent>
             <form
               onSubmit={handleSubmit}
-              className="p-4 rounded-lg border border-border bg-muted/30 space-y-4"
+              className="space-y-5"
             >
               {error && (
                 <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
@@ -248,49 +250,86 @@ export function CamposPacientesClient({
                   />
                 </div>
               )}
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="required"
-                  checked={form.required}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, required: e.target.checked }))
-                  }
-                  className="h-4 w-4 rounded border-input"
-                />
-                <Label htmlFor="required" className="cursor-pointer">
-                  Campo obrigatório
-                </Label>
+              
+              <div className="pt-2 space-y-3 border-t border-border">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="required"
+                    checked={form.required}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, required: e.target.checked }))
+                    }
+                    className="h-4 w-4 mt-0.5 rounded border-input"
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="required" className="cursor-pointer font-medium">
+                      Campo obrigatório
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      O paciente precisará preencher este campo ao se cadastrar
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="include_in_public_form"
+                    checked={form.include_in_public_form ?? false}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, include_in_public_form: e.target.checked }))
+                    }
+                    className="h-4 w-4 mt-0.5 rounded border-input"
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="include_in_public_form" className="cursor-pointer font-medium">
+                      Incluir em formulários públicos
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Este campo aparecerá nos formulários públicos antes dos campos do template
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="include_in_public_form"
-                  checked={form.include_in_public_form ?? false}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, include_in_public_form: e.target.checked }))
-                  }
-                  className="h-4 w-4 rounded border-input"
-                />
-                <Label htmlFor="include_in_public_form" className="cursor-pointer">
-                  Incluir em formulários públicos
-                </Label>
-              </div>
-              <div className="flex gap-2">
-                <Button type="submit" disabled={loading}>
-                  {loading ? "Salvando…" : isNew ? "Criar" : "Salvar"}
-                </Button>
+              <div className="flex items-center justify-end gap-2 pt-4 border-t">
                 <Button type="button" variant="ghost" onClick={cancelForm}>
-                  <X className="h-4 w-4" />
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Salvando…" : isNew ? "Criar campo" : "Salvar alterações"}
                 </Button>
               </div>
             </form>
-          )}
+          </CardContent>
+        </Card>
+      )}
 
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-semibold">Campos cadastrados</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {fields.length === 0 
+                  ? "Nenhum campo customizado cadastrado ainda"
+                  : `${fields.length} ${fields.length === 1 ? 'campo' : 'campos'} cadastrado${fields.length === 1 ? '' : 's'}`
+                }
+              </p>
+            </div>
+            {!showForm && (
+              <Button variant="outline" onClick={openNew}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo campo
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
           {fields.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">
-              Nenhum campo customizado cadastrado. Adicione campos para personalizar o cadastro de pacientes.
-            </p>
+            <div className="text-center py-12 text-muted-foreground">
+              <p className="text-sm mb-1">Nenhum campo customizado cadastrado</p>
+              <p className="text-xs">Adicione campos para personalizar o cadastro de pacientes</p>
+            </div>
           ) : (
             <ul className="divide-y divide-border">
               {fields.map((f) => (
