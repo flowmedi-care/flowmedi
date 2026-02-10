@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPatient, updatePatient, deletePatient, registerPatientFromPublicForm, type PatientInsert, type PatientUpdate } from "./actions";
-import { Search, UserPlus, Pencil, Trash2, X, UserCheck, User, Download, FileText } from "lucide-react";
+import { Search, UserPlus, Pencil, Trash2, X, UserCheck, User, Download, FileText, Grid3x3, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExamesClient } from "../exames/exames-client";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -77,6 +77,7 @@ export function PacientesClient({
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientExams, setPatientExams] = useState<PatientExam[]>([]);
   const [loadingExams, setLoadingExams] = useState(false);
+  const [viewMode, setViewMode] = useState<"contacts" | "list">("contacts");
   const searchParams = useSearchParams();
   const [form, setForm] = useState<PatientInsert & { id?: string; custom_fields?: Record<string, unknown> }>({
     full_name: "",
@@ -99,13 +100,13 @@ export function PacientesClient({
     }
   }, [searchParams, isNew, editingId, router]);
 
-  // Carregar exames quando um paciente for selecionado
+  // Carregar exames quando um paciente for selecionado (para todos os usuários)
   useEffect(() => {
-    if (selectedPatient && userRole === "medico") {
+    if (selectedPatient) {
       loadPatientExams(selectedPatient.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPatient, userRole]);
+  }, [selectedPatient]);
 
   async function loadPatientExams(patientId: string) {
     setLoadingExams(true);
@@ -133,12 +134,17 @@ export function PacientesClient({
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   }
 
-  const filtered = patients.filter(
-    (p) =>
-      p.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.email && p.email.toLowerCase().includes(search.toLowerCase())) ||
-      (p.phone && p.phone.replace(/\D/g, "").includes(search.replace(/\D/g, "")))
-  );
+  // Filtrar pacientes em tempo real conforme digita
+  const filtered = patients.filter((p) => {
+    if (!search.trim()) return true;
+    const searchLower = search.toLowerCase().trim();
+    const searchNumbers = search.replace(/\D/g, "");
+    return (
+      p.full_name.toLowerCase().includes(searchLower) ||
+      (p.email && p.email.toLowerCase().includes(searchLower)) ||
+      (p.phone && p.phone.replace(/\D/g, "").includes(searchNumbers))
+    );
+  });
 
   const filteredNonRegistered = nonRegisteredList.filter(
     (nr) =>
@@ -320,12 +326,32 @@ export function PacientesClient({
             className="pl-9"
           />
         </div>
-        {activeTab === "registered" && (
-          <Button onClick={openNew}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Novo paciente
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {activeTab === "registered" && (
+            <>
+              <Button
+                variant={viewMode === "contacts" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("contacts")}
+                title="Visualização de contatos"
+              >
+                <Grid3x3 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("list")}
+                title="Visualização em lista"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button onClick={openNew}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Novo paciente
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Abas */}
@@ -579,8 +605,8 @@ export function PacientesClient({
               <p className="text-sm text-muted-foreground py-4">
                 Nenhum paciente cadastrado ou nenhum resultado para a busca.
               </p>
-            ) : userRole === "medico" ? (
-              // Visualização de contatos para médicos (altura fixa com scroll)
+            ) : viewMode === "contacts" ? (
+              // Visualização de contatos (padrão para todos)
               <div className="h-[600px] overflow-y-auto pr-2">
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {filtered.map((p) => (
@@ -709,8 +735,8 @@ export function PacientesClient({
         onCancel={() => setPatientToExcluir(null)}
       />
 
-      {/* Modal de detalhes do paciente para médicos */}
-      {userRole === "medico" && (
+      {/* Modal de detalhes do paciente (para todos os usuários) */}
+      {selectedPatient && (
         <Dialog open={!!selectedPatient} onOpenChange={(open) => !open && setSelectedPatient(null)}>
           <DialogContent 
             title={selectedPatient?.full_name || "Detalhes do Paciente"}
@@ -840,18 +866,20 @@ export function PacientesClient({
                     <Pencil className="h-4 w-4 mr-2" />
                     Editar
                   </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      setSelectedPatient(null);
-                      openExcluirConfirm(selectedPatient);
-                    }}
-                    className="flex-1"
-                    disabled={deletingId === selectedPatient.id}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Excluir
-                  </Button>
+                  {(userRole === "admin" || userRole === "secretaria") && (
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        setSelectedPatient(null);
+                        openExcluirConfirm(selectedPatient);
+                      }}
+                      className="flex-1"
+                      disabled={deletingId === selectedPatient.id}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir
+                    </Button>
+                  )}
                 </div>
               </div>
             )}

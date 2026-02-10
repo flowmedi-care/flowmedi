@@ -360,31 +360,29 @@ export function MedicoDashboardClient({
                               {formatTime(appointment.scheduled_at)}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium text-sm truncate">
-                                  {appointment.patient.full_name}
-                                </p>
-                                <div onClick={(e) => e.stopPropagation()}>
-                                  <StatusToggle
-                                    appointmentId={appointment.id}
-                                    currentStatus={appointment.status}
-                                    onStatusChange={(newStatus) => {
-                                      setAppointmentsState((prev) =>
-                                        prev.map((a) =>
-                                          a.id === appointment.id ? { ...a, status: newStatus } : a
-                                        )
-                                      );
-                                    }}
-                                    size="sm"
-                                  />
-                                </div>
-                              </div>
+                              <p className="font-medium text-sm truncate">
+                                {appointment.patient.full_name}
+                              </p>
                               {appointment.appointment_type && (
                                 <p className="text-xs text-muted-foreground truncate">
                                   {appointment.appointment_type.name}
                                 </p>
                               )}
                             </div>
+                          </div>
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <StatusToggle
+                              appointmentId={appointment.id}
+                              currentStatus={appointment.status}
+                              onStatusChange={(newStatus) => {
+                                setAppointmentsState((prev) =>
+                                  prev.map((a) =>
+                                    a.id === appointment.id ? { ...a, status: newStatus } : a
+                                  )
+                                );
+                              }}
+                              size="sm"
+                            />
                           </div>
                         </div>
                       </CardContent>
@@ -409,22 +407,7 @@ export function MedicoDashboardClient({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium text-lg">{nextAppointment.patient.full_name}</p>
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <StatusToggle
-                        appointmentId={nextAppointment.id}
-                        currentStatus={nextAppointment.status}
-                        onStatusChange={(newStatus) => {
-                          setAppointmentsState((prev) =>
-                            prev.map((a) =>
-                              a.id === nextAppointment.id ? { ...a, status: newStatus } : a
-                            )
-                          );
-                        }}
-                      />
-                    </div>
-                  </div>
+                  <p className="font-medium text-lg">{nextAppointment.patient.full_name}</p>
                   <p className="text-sm text-muted-foreground">
                     {formatDateTime(nextAppointment.scheduled_at)}
                   </p>
@@ -434,12 +417,27 @@ export function MedicoDashboardClient({
                     </p>
                   )}
                 </div>
-                <Link href={`/dashboard/agenda/consulta/${nextAppointment.id}`}>
-                  <Button size="sm">
-                    Ver Detalhes
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </Link>
+                <div className="flex items-center gap-2">
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <StatusToggle
+                      appointmentId={nextAppointment.id}
+                      currentStatus={nextAppointment.status}
+                      onStatusChange={(newStatus) => {
+                        setAppointmentsState((prev) =>
+                          prev.map((a) =>
+                            a.id === nextAppointment.id ? { ...a, status: newStatus } : a
+                          )
+                        );
+                      }}
+                    />
+                  </div>
+                  <Link href={`/dashboard/agenda/consulta/${nextAppointment.id}`}>
+                    <Button size="sm">
+                      Ver Detalhes
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -507,20 +505,6 @@ export function MedicoDashboardClient({
                                       Próxima
                                     </Badge>
                                   )}
-                                  <div onClick={(e) => e.stopPropagation()}>
-                                    <StatusToggle
-                                      appointmentId={appointment.id}
-                                      currentStatus={appointment.status}
-                                      onStatusChange={(newStatus) => {
-                                        setAppointmentsState((prev) =>
-                                          prev.map((a) =>
-                                            a.id === appointment.id ? { ...a, status: newStatus } : a
-                                          )
-                                        );
-                                      }}
-                                      size="sm"
-                                    />
-                                  </div>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                                   {appointment.appointment_type && (
@@ -543,7 +527,23 @@ export function MedicoDashboardClient({
                                 )}
                               </div>
                             </div>
-                            <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <StatusToggle
+                                  appointmentId={appointment.id}
+                                  currentStatus={appointment.status}
+                                  onStatusChange={(newStatus) => {
+                                    setAppointmentsState((prev) =>
+                                      prev.map((a) =>
+                                        a.id === appointment.id ? { ...a, status: newStatus } : a
+                                      )
+                                    );
+                                  }}
+                                  size="sm"
+                                />
+                              </div>
+                              <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -576,23 +576,7 @@ export function MedicoDashboardClient({
                               {formatTime(appointment.scheduled_at)}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="font-medium">{appointment.patient.full_name}</p>
-                                <div onClick={(e) => e.stopPropagation()}>
-                                  <StatusToggle
-                                    appointmentId={appointment.id}
-                                    currentStatus={appointment.status}
-                                    onStatusChange={(newStatus) => {
-                                      setAppointmentsState((prev) =>
-                                        prev.map((a) =>
-                                          a.id === appointment.id ? { ...a, status: newStatus } : a
-                                        )
-                                      );
-                                    }}
-                                    size="sm"
-                                  />
-                                </div>
-                              </div>
+                              <p className="font-medium">{appointment.patient.full_name}</p>
                               {appointment.appointment_type && (
                                 <p className="text-xs text-muted-foreground">
                                   {appointment.appointment_type.name}
@@ -600,7 +584,23 @@ export function MedicoDashboardClient({
                               )}
                             </div>
                           </div>
-                          <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <StatusToggle
+                                appointmentId={appointment.id}
+                                currentStatus={appointment.status}
+                                onStatusChange={(newStatus) => {
+                                  setAppointmentsState((prev) =>
+                                    prev.map((a) =>
+                                      a.id === appointment.id ? { ...a, status: newStatus } : a
+                                    )
+                                  );
+                                }}
+                                size="sm"
+                              />
+                            </div>
+                            <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
