@@ -169,11 +169,6 @@ export function AgendaClient({
   const [formFilter, setFormFilter] = useState<"confirmados_sem_formulario" | "confirmados_com_formulario" | null>(
     initialPreferences?.formFilter || null
   );
-
-  // Debug: log quando filtros mudarem
-  useEffect(() => {
-    console.log("🔄 Estado dos filtros atualizado:", { statusFilter, formFilter });
-  }, [statusFilter, formFilter]);
   const [dateInicio, setDateInicio] = useState(() => todayYMD());
   const [dateFim, setDateFim] = useState(() => todayYMD());
   const [draggedAppointment, setDraggedAppointment] =
@@ -295,14 +290,6 @@ export function AgendaClient({
     const ymdStart = toYMD(rangeStart);
     const ymdEnd = toYMD(rangeEnd);
     
-    // Debug logs
-    console.log("🔍 Filtragem:", {
-      totalAppointments: appointments.length,
-      statusFilter,
-      formFilter,
-      dateRange: { start: ymdStart, end: ymdEnd },
-    });
-    
     const filtered = appointments.filter((a) => {
       // Filtro por período
       const d = a.scheduled_at.slice(0, 10);
@@ -342,8 +329,6 @@ export function AgendaClient({
 
       return true;
     });
-    
-    console.log("✅ Resultado filtrado:", filtered.length, "de", appointments.length);
     
     return filtered;
   }, [appointments, rangeStart, rangeEnd, statusFilter, formFilter]);
@@ -640,13 +625,11 @@ export function AgendaClient({
               statusFilter={statusFilter}
               formFilter={formFilter}
               onStatusChange={(statuses) => {
-                console.log("📝 Status filter changed:", statuses);
                 setStatusFilter(statuses);
                 // Salvar preferências de forma assíncrona sem bloquear
                 updateUserPreferences({ agenda_status_filter: statuses }).catch(console.error);
               }}
               onFormChange={(filter) => {
-                console.log("📝 Form filter changed:", filter);
                 setFormFilter(filter);
                 // Salvar preferências de forma assíncrona sem bloquear
                 updateUserPreferences({ agenda_form_filter: filter }).catch(console.error);
@@ -786,7 +769,8 @@ export function AgendaClient({
       >
       {viewMode === "timeline" && (
         <TimelineListView
-          appointments={allAppointmentsForDrag}
+          appointments={appointmentsInPeriod}
+          allAppointmentsForDrag={allAppointmentsForDrag}
           dateInicio={rangeStart}
           dateFim={rangeEnd}
           today={today}
@@ -795,14 +779,16 @@ export function AgendaClient({
       )}
       {viewMode === "calendar" && calendarGranularity === "week" && (
         <CalendarWeekView
-          appointments={allAppointmentsForDrag}
+          appointments={appointmentsInPeriod}
+          allAppointmentsForDrag={allAppointmentsForDrag}
           currentDate={calendarDate}
           today={today}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "month" && (
         <CalendarMonthView
-          appointments={allAppointmentsForDrag}
+          appointments={appointmentsInPeriod}
+          allAppointmentsForDrag={allAppointmentsForDrag}
           currentDate={calendarDate}
           today={today}
           onSelectDay={(day) => {
@@ -827,19 +813,20 @@ export function AgendaClient({
 /** Timeline com granularidade: Dia (1 dia) | Semana (segunda 8, terça 9...) | Mês (janeiro, fev) */
 function TimelineListView({
   appointments,
+  allAppointmentsForDrag,
   dateInicio,
   dateFim,
   today,
   granularity,
 }: {
   appointments: AppointmentRow[];
+  allAppointmentsForDrag: AppointmentRow[];
   dateInicio: Date;
   dateFim: Date;
   today: Date;
   granularity: TimelineGranularity;
 }) {
-  // Usar todos os appointments para construir byDay (não apenas do período)
-  // Isso permite drag and drop mesmo quando appointments estão fora do período visualizado
+  // Usar appointments filtrados para exibir, mas todos para drag and drop
   const byDay = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
     appointments.forEach((a) => {
@@ -1096,15 +1083,17 @@ const HOUR_SLOTS = getHourSlots(7, 20);
 
 function CalendarWeekView({
   appointments,
+  allAppointmentsForDrag,
   currentDate,
   today,
 }: {
   appointments: AppointmentRow[];
+  allAppointmentsForDrag: AppointmentRow[];
   currentDate: Date;
   today: Date;
 }) {
   const weekDays = useMemo(() => getWeekDates(currentDate), [currentDate]);
-  // Usar todos os appointments, não apenas do período filtrado
+  // Usar appointments filtrados para exibição
   const byDayHour = useMemo(() => {
     const map: Record<string, Record<number, AppointmentRow[]>> = {};
     weekDays.forEach((d) => {
@@ -1232,7 +1221,7 @@ function CalendarMonthView({
   onSelectDay: (d: Date) => void;
 }) {
   const grid = getMonthCalendarGrid(currentDate);
-  // Usar todos os appointments, não apenas do período filtrado
+  // Usar appointments filtrados para exibição
   const byDay = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
     appointments.forEach((a) => {

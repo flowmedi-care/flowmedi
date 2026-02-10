@@ -52,7 +52,6 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
     const newStatuses = selectedStatuses.includes(status)
       ? selectedStatuses.filter((s) => s !== status)
       : [...selectedStatuses, status];
-    console.log("🔄 Toggle status:", status, "→", newStatuses);
     onStatusChange(newStatuses);
   };
 
@@ -89,11 +88,11 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
       </Button>
 
       {isOpen && (
-        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg">
-          <CardContent className="p-2">
-            <div className="space-y-1">
+        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg bg-background border border-border" style={{ backgroundColor: 'var(--background)' }}>
+          <CardContent className="p-2 bg-background" style={{ backgroundColor: 'var(--background)' }}>
+            <div className="space-y-1 bg-background" style={{ backgroundColor: 'var(--background)' }}>
               {/* Header com ações */}
-              <div className="flex items-center justify-between px-2 py-1.5 border-b border-border">
+              <div className="flex items-center justify-between px-2 py-1.5 border-b border-border bg-background" style={{ backgroundColor: 'var(--background)' }}>
                 <span className="text-xs font-medium text-muted-foreground">Status</span>
                 <div className="flex items-center gap-1">
                   {!allSelected && (
@@ -116,16 +115,17 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
               </div>
 
               {/* Lista de checkboxes */}
-              <div className="max-h-64 overflow-y-auto">
+              <div className="max-h-64 overflow-y-auto bg-background" style={{ backgroundColor: 'var(--background)' }}>
                 {Object.entries(STATUS_LABEL).map(([value, label]) => {
                   const isChecked = selectedStatuses.includes(value);
                   return (
                     <label
                       key={value}
                       className={cn(
-                        "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 transition-colors",
+                        "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 transition-colors bg-background",
                         isChecked && "bg-primary/5"
                       )}
+                      style={{ backgroundColor: isChecked ? undefined : 'var(--background)' }}
                     >
                       <input
                         type="checkbox"
@@ -205,24 +205,24 @@ function FormFilter({ selectedFilter, onFilterChange }: FormFilterProps) {
       </Button>
 
       {isOpen && (
-        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg">
-          <CardContent className="p-2">
-            <div className="space-y-1">
-              <div className="px-2 py-1.5 border-b border-border">
+        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg bg-background border border-border" style={{ backgroundColor: 'var(--background)' }}>
+          <CardContent className="p-2 bg-background" style={{ backgroundColor: 'var(--background)' }}>
+            <div className="space-y-1 bg-background" style={{ backgroundColor: 'var(--background)' }}>
+              <div className="px-2 py-1.5 border-b border-border bg-background" style={{ backgroundColor: 'var(--background)' }}>
                 <span className="text-xs font-medium text-muted-foreground">Formulários</span>
               </div>
-              <div>
+              <div className="bg-background" style={{ backgroundColor: 'var(--background)' }}>
                 {options.map((option) => {
                   const isSelected = option.value === selectedFilter;
                   return (
                     <label
                       key={option.value || "all"}
                       className={cn(
-                        "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 transition-colors",
+                        "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 transition-colors bg-background",
                         isSelected && "bg-primary/5"
                       )}
+                      style={{ backgroundColor: isSelected ? undefined : 'var(--background)' }}
                       onClick={() => {
-                        console.log("🔄 Form filter changed:", option.value);
                         onFilterChange(option.value);
                         setIsOpen(false);
                       }}
