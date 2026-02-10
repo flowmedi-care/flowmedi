@@ -6,14 +6,16 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { FileText, Pencil, Send, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { FileText, Pencil, Send, Trash2, Link2 } from "lucide-react";
 import { EncaminharModal } from "./encaminhar-modal";
-import { deleteFormTemplate } from "./actions";
+import { deleteFormTemplate, createOrGetPublicFormLink } from "./actions";
 
 type TemplateRow = {
   id: string;
   name: string;
   appointment_type_name: string | null;
+  is_public: boolean;
 };
 
 type PatientOption = { id: string; full_name: string };
@@ -29,6 +31,12 @@ export function FormulariosListClient({
   const [encaminharTemplate, setEncaminharTemplate] = useState<{
     id: string;
     name: string;
+  } | null>(null);
+  const [publicLinkModal, setPublicLinkModal] = useState<{
+    templateId: string;
+    templateName: string;
+    link: string | null;
+    loading: boolean;
   } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmExcluir, setConfirmExcluir] = useState<{ id: string; name: string } | null>(null);
@@ -46,6 +54,33 @@ export function FormulariosListClient({
       setConfirmExcluir(null);
       router.refresh();
     }
+  }
+
+  async function handleGeneratePublicLink(templateId: string, templateName: string) {
+    setPublicLinkModal({
+      templateId,
+      templateName,
+      link: null,
+      loading: true,
+    });
+    const res = await createOrGetPublicFormLink(templateId);
+    setPublicLinkModal({
+      templateId,
+      templateName,
+      link: res.link,
+      loading: false,
+    });
+  }
+
+  function copyPublicLink() {
+    if (!publicLinkModal?.link) return;
+    const fullUrl =
+      typeof window !== "undefined"
+        ? window.location.origin + publicLinkModal.link
+        : publicLinkModal.link;
+    navigator.clipboard.writeText(fullUrl).then(() => {
+      // Feedback visual pode ser adicionado aqui
+    });
   }
 
   return (
@@ -78,8 +113,23 @@ export function FormulariosListClient({
                         → {t.appointment_type_name}
                       </span>
                     )}
+                    {t.is_public && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                        Público
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
+                    {t.is_public && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleGeneratePublicLink(t.id, t.name)}
+                        title="Gerar link público"
+                      >
+                        <Link2 className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -120,6 +170,54 @@ export function FormulariosListClient({
           patients={patients}
           onClose={() => setEncaminharTemplate(null)}
         />
+      )}
+
+      {publicLinkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <h2 className="font-semibold">Link público</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPublicLinkModal(null)}
+                >
+                  ×
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {publicLinkModal.loading ? (
+                <p className="text-sm text-muted-foreground">Gerando link...</p>
+              ) : publicLinkModal.link ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Compartilhe este link publicamente (ex: Instagram, site):
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={
+                        typeof window !== "undefined"
+                          ? window.location.origin + publicLinkModal.link
+                          : publicLinkModal.link
+                      }
+                      readOnly
+                      className="font-mono text-xs"
+                    />
+                    <Button onClick={copyPublicLink} size="sm">
+                      Copiar
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-destructive">
+                  Erro ao gerar link. Verifique se o formulário permite uso público.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       <ConfirmDialog

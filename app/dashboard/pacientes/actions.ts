@@ -72,3 +72,91 @@ export async function deletePatient(id: string) {
   revalidatePath("/dashboard/pacientes");
   return { error: null };
 }
+
+// Cadastra paciente a partir de não-cadastrado e vincula formulários públicos
+export async function registerPatientFromPublicForm(
+  email: string,
+  data: {
+    full_name: string;
+    phone?: string | null;
+    birth_date?: string | null;
+  }
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", patientId: null };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) {
+    return { error: "Clínica não encontrada.", patientId: null };
+  }
+
+  // Verificar se já existe paciente com este email
+  const { data: existing } = await supabase
+    .from("patients")
+    .select("id")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("email", email)
+    .maybeSingle();
+
+  let patientId: string;
+
+  if (existing) {
+    // Atualizar paciente existente
+    patientId = existing.id;
+    const { error: updateError } = await supabase
+      .from("patients")
+      .update({
+        full_name: data.full_name,
+        phone: data.phone || null,
+        birth_date: data.birth_date || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", patientId);
+    if (updateError) return { error: updateError.message, patientId: null };
+  } else {
+    // Criar novo paciente
+    const { data: newPatient, error: insertError } = await supabase
+      .from("patients")
+      .insert({
+        clinic_id: profile.clinic_id,
+        full_name: data.full_name,
+        email: email,
+        phone: data.phone || null,
+        birth_date: data.birth_date || null,
+      })
+      .select("id")
+      .single();
+    if (insertError) return { error: insertError.message, patientId: null };
+    if (!newPatient) return { error: "Erro ao criar paciente.", patientId: null };
+    patientId = newPatient.id;
+  }
+
+  // Vincular formulários públicos deste email ao paciente
+  // Buscar todas as instâncias públicas com este email
+  const { data: publicInstances } = await supabase
+    .from("form_instances")
+    .select(`
+      id,
+      form_template_id,
+      responses,
+      status,
+      form_templates!inner (
+        clinic_id
+      )
+    `)
+    .is("appointment_id", null)
+    .eq("public_submitter_email", email)
+    .eq("form_templates.clinic_id", profile.clinic_id);
+
+  // Para cada instância pública, criar uma nova instância vinculada quando houver agendamento
+  // Por enquanto, apenas marcamos que o paciente já respondeu esses formulários
+  // Quando criar agendamento, verificaremos se já existe resposta
+
+  revalidatePath("/dashboard/pacientes");
+  return { error: null, patientId };
+}

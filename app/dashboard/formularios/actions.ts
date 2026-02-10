@@ -7,7 +7,8 @@ import type { FormTemplateDefinition } from "@/lib/form-types";
 export async function createFormTemplate(
   name: string,
   definition: FormTemplateDefinition,
-  appointmentTypeId: string | null
+  appointmentTypeId: string | null,
+  isPublic: boolean = false
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -24,6 +25,7 @@ export async function createFormTemplate(
     name: name.trim(),
     definition: definition as unknown as Record<string, unknown>[],
     appointment_type_id: appointmentTypeId || null,
+    is_public: isPublic,
   });
   if (error) return { error: error.message };
   revalidatePath("/dashboard/formularios");
@@ -34,7 +36,8 @@ export async function updateFormTemplate(
   id: string,
   name: string,
   definition: FormTemplateDefinition,
-  appointmentTypeId: string | null
+  appointmentTypeId: string | null,
+  isPublic: boolean = false
 ) {
   const supabase = await createClient();
   const { error } = await supabase
@@ -43,6 +46,7 @@ export async function updateFormTemplate(
       name: name.trim(),
       definition: definition as unknown as Record<string, unknown>[],
       appointment_type_id: appointmentTypeId || null,
+      is_public: isPublic,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -111,6 +115,175 @@ export async function getAppointmentsByPatient(patientId: string) {
 
 function generateLinkToken(): string {
   return crypto.randomUUID().replace(/-/g, "") + Date.now().toString(36);
+}
+
+function generatePublicLinkToken(): string {
+  return "pub_" + crypto.randomUUID().replace(/-/g, "") + Date.now().toString(36);
+}
+
+// Gera ou retorna link público de um formulário
+export async function createOrGetPublicFormLink(
+  formTemplateId: string
+): Promise<{ error: string | null; link: string | null; isNew: boolean }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", link: null, isNew: false };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", link: null, isNew: false };
+
+  // Verificar se o template permite uso público
+  const { data: template } = await supabase
+    .from("form_templates")
+    .select("is_public, clinic_id")
+    .eq("id", formTemplateId)
+    .single();
+
+  if (!template) return { error: "Template não encontrado.", link: null, isNew: false };
+  if (template.clinic_id !== profile.clinic_id) {
+    return { error: "Não autorizado.", link: null, isNew: false };
+  }
+  if (!template.is_public) {
+    return { error: "Este formulário não permite uso público.", link: null, isNew: false };
+  }
+
+  // Buscar instância pública existente (sem appointment_id)
+  const { data: existing } = await supabase
+    .from("form_instances")
+    .select("public_link_token")
+    .eq("form_template_id", formTemplateId)
+    .is("appointment_id", null)
+    .maybeSingle();
+
+  if (existing?.public_link_token) {
+    return {
+      error: null,
+      link: `/f/public/${existing.public_link_token}`,
+      isNew: false,
+    };
+  }
+
+  // Criar nova instância pública
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 365); // Links públicos podem durar mais tempo
+
+  const publicToken = generatePublicLinkToken();
+  const { data: inserted, error } = await supabase
+    .from("form_instances")
+    .insert({
+      appointment_id: null,
+      form_template_id: formTemplateId,
+      status: "pendente",
+      public_link_token: publicToken,
+      link_expires_at: expiresAt.toISOString(),
+      responses: {},
+    })
+    .select("public_link_token")
+    .single();
+
+  if (error) return { error: error.message, link: null, isNew: false };
+  return {
+    error: null,
+    link: inserted?.public_link_token ? `/f/public/${inserted.public_link_token}` : null,
+    isNew: true,
+  };
+}
+
+// Busca não-cadastrados (pessoas que preencheram formulários públicos)
+export async function getNonRegisteredSubmitters() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: null };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", data: null };
+
+  // Buscar instâncias públicas com dados do submissor
+  const { data, error } = await supabase
+    .from("form_instances")
+    .select(`
+      id,
+      public_submitter_name,
+      public_submitter_email,
+      public_submitter_phone,
+      public_submitter_birth_date,
+      status,
+      created_at,
+      form_template_id,
+      form_templates!inner (
+        name,
+        clinic_id
+      )
+    `)
+    .is("appointment_id", null)
+    .not("public_submitter_email", "is", null)
+    .eq("form_templates.clinic_id", profile.clinic_id)
+    .order("created_at", { ascending: false });
+
+  if (error) return { error: error.message, data: null };
+
+  // Agrupar por email (pode ter múltiplos formulários)
+  const grouped = new Map<
+    string,
+    {
+      email: string;
+      name: string | null;
+      phone: string | null;
+      birth_date: string | null;
+      forms: Array<{
+        id: string;
+        template_name: string;
+        status: string;
+        created_at: string;
+      }>;
+      latest_form_date: string;
+    }
+  >();
+
+  (data ?? []).forEach((item: Record<string, unknown>) => {
+    const email = String(item.public_submitter_email || "");
+    if (!email) return;
+
+    const template = Array.isArray(item.form_templates)
+      ? item.form_templates[0]
+      : item.form_templates;
+    const templateName = (template as { name?: string } | null)?.name || "Formulário";
+
+    if (!grouped.has(email)) {
+      grouped.set(email, {
+        email,
+        name: (item.public_submitter_name as string) || null,
+        phone: (item.public_submitter_phone as string) || null,
+        birth_date: (item.public_submitter_birth_date as string) || null,
+        forms: [],
+        latest_form_date: String(item.created_at || ""),
+      });
+    }
+
+    const entry = grouped.get(email)!;
+    entry.forms.push({
+      id: String(item.id),
+      template_name: templateName,
+      status: String(item.status || "pendente"),
+      created_at: String(item.created_at || ""),
+    });
+
+    // Atualizar data mais recente
+    if (String(item.created_at || "") > entry.latest_form_date) {
+      entry.latest_form_date = String(item.created_at || "");
+    }
+  });
+
+  return {
+    error: null,
+    data: Array.from(grouped.values()),
+  };
 }
 
 export async function ensureFormInstanceAndGetLink(

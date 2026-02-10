@@ -23,6 +23,7 @@ export default async function FormulariosPage() {
       id,
       name,
       appointment_type_id,
+      is_public,
       appointment_types ( name )
     `)
     .eq("clinic_id", profile.clinic_id)
@@ -32,6 +33,7 @@ export default async function FormulariosPage() {
     id: string;
     name: string;
     appointment_type_name: string | null;
+    is_public: boolean;
   };
   const templates: TemplateRow[] = (templatesRaw ?? []).map((t: Record<string, unknown>) => {
     const at = Array.isArray(t.appointment_types) ? t.appointment_types[0] : t.appointment_types;
@@ -40,6 +42,7 @@ export default async function FormulariosPage() {
       id: String(t.id),
       name: String(t.name),
       appointment_type_name: typeName,
+      is_public: Boolean(t.is_public ?? false),
     };
   });
 

@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { createPatient, updatePatient, deletePatient, type PatientInsert, type PatientUpdate } from "./actions";
-import { Search, UserPlus, Pencil, Trash2, X } from "lucide-react";
+import { createPatient, updatePatient, deletePatient, registerPatientFromPublicForm, type PatientInsert, type PatientUpdate } from "./actions";
+import { Search, UserPlus, Pencil, Trash2, X, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type Patient = {
@@ -33,14 +33,32 @@ export type CustomField = {
   display_order: number;
 };
 
+export type NonRegisteredSubmitter = {
+  email: string;
+  name: string | null;
+  phone: string | null;
+  birth_date: string | null;
+  forms: Array<{
+    id: string;
+    template_name: string;
+    status: string;
+    created_at: string;
+  }>;
+  latest_form_date: string;
+};
+
 export function PacientesClient({
   initialPatients,
   customFields,
+  nonRegistered = [],
 }: {
   initialPatients: Patient[];
   customFields: CustomField[];
+  nonRegistered?: NonRegisteredSubmitter[];
 }) {
+  const [activeTab, setActiveTab] = useState<"registered" | "nonRegistered">("registered");
   const [patients, setPatients] = useState<Patient[]>(initialPatients);
+  const [nonRegisteredList, setNonRegisteredList] = useState<NonRegisteredSubmitter[]>(nonRegistered);
   const [search, setSearch] = useState("");
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -48,6 +66,7 @@ export function PacientesClient({
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [patientToExcluir, setPatientToExcluir] = useState<Patient | null>(null);
+  const [registeringEmail, setRegisteringEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<PatientInsert & { id?: string; custom_fields?: Record<string, unknown> }>({
     full_name: "",
@@ -64,6 +83,36 @@ export function PacientesClient({
       (p.email && p.email.toLowerCase().includes(search.toLowerCase())) ||
       (p.phone && p.phone.replace(/\D/g, "").includes(search.replace(/\D/g, "")))
   );
+
+  const filteredNonRegistered = nonRegisteredList.filter(
+    (nr) =>
+      (nr.name && nr.name.toLowerCase().includes(search.toLowerCase())) ||
+      nr.email.toLowerCase().includes(search.toLowerCase()) ||
+      (nr.phone && nr.phone.replace(/\D/g, "").includes(search.replace(/\D/g, "")))
+  );
+
+  async function handleRegisterPatient(nr: NonRegisteredSubmitter) {
+    if (!nr.email) {
+      setError("Email não encontrado.");
+      return;
+    }
+    setRegisteringEmail(nr.email);
+    setError(null);
+    const res = await registerPatientFromPublicForm(nr.email, {
+      full_name: nr.name || "Sem nome",
+      phone: nr.phone,
+      birth_date: nr.birth_date,
+    });
+    setRegisteringEmail(null);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    // Remover da lista de não-cadastrados
+    setNonRegisteredList((prev) => prev.filter((n) => n.email !== nr.email));
+    // Atualizar página para mostrar paciente cadastrado
+    router.refresh();
+  }
 
   function openNew() {
     setEditingId(null);
@@ -214,10 +263,38 @@ export function PacientesClient({
             className="pl-9"
           />
         </div>
-        <Button onClick={openNew}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Novo paciente
-        </Button>
+        {activeTab === "registered" && (
+          <Button onClick={openNew}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Novo paciente
+          </Button>
+        )}
+      </div>
+
+      {/* Abas */}
+      <div className="flex gap-2 border-b border-border">
+        <button
+          onClick={() => setActiveTab("registered")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+            activeTab === "registered"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Cadastrados ({patients.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("nonRegistered")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+            activeTab === "nonRegistered"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Não Cadastrados ({nonRegisteredList.length})
+        </button>
       </div>
 
       {showForm && (
@@ -421,58 +498,111 @@ export function PacientesClient({
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <p className="text-sm text-muted-foreground">
-            {filtered.length} paciente(s) encontrado(s)
-          </p>
-        </CardHeader>
-        <CardContent>
-          {filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">
-              Nenhum paciente cadastrado ou nenhum resultado para a busca.
+      {activeTab === "registered" ? (
+        <Card>
+          <CardHeader>
+            <p className="text-sm text-muted-foreground">
+              {filtered.length} paciente(s) encontrado(s)
             </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {filtered.map((p) => (
-                <li
-                  key={p.id}
-                  className={cn(
-                    "flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0",
-                    editingId === p.id && "bg-muted/50 -mx-2 px-2 rounded"
-                  )}
-                >
-                  <div>
-                    <p className="font-medium">{p.full_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {[p.email, p.phone].filter(Boolean).join(" · ") || "—"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEdit(p)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openExcluirConfirm(p)}
-                      disabled={deletingId === p.id}
-                      title="Excluir cadastro"
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            {filtered.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4">
+                Nenhum paciente cadastrado ou nenhum resultado para a busca.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {filtered.map((p) => (
+                  <li
+                    key={p.id}
+                    className={cn(
+                      "flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0",
+                      editingId === p.id && "bg-muted/50 -mx-2 px-2 rounded"
+                    )}
+                  >
+                    <div>
+                      <p className="font-medium">{p.full_name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {[p.email, p.phone].filter(Boolean).join(" · ") || "—"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEdit(p)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openExcluirConfirm(p)}
+                        disabled={deletingId === p.id}
+                        title="Excluir cadastro"
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <p className="text-sm text-muted-foreground">
+              {filteredNonRegistered.length} pessoa(s) encontrada(s) que preencheram formulários públicos
+            </p>
+          </CardHeader>
+          <CardContent>
+            {filteredNonRegistered.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4">
+                Nenhuma pessoa não cadastrada encontrada.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {filteredNonRegistered.map((nr) => (
+                  <li
+                    key={nr.email}
+                    className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium">{nr.name || "Sem nome"}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {[nr.email, nr.phone].filter(Boolean).join(" · ") || nr.email}
+                      </p>
+                      {nr.birth_date && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Nascimento: {new Date(nr.birth_date).toLocaleDateString("pt-BR")}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {nr.forms.length} formulário(s) respondido(s)
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleRegisterPatient(nr)}
+                        disabled={registeringEmail === nr.email}
+                        title="Cadastrar paciente"
+                      >
+                        <UserCheck className="h-4 w-4 mr-1" />
+                        {registeringEmail === nr.email ? "Cadastrando..." : "Cadastrar"}
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <ConfirmDialog
         open={!!patientToExcluir}

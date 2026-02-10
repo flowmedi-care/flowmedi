@@ -18,12 +18,14 @@ export function FormularioEditor({
   initialName,
   initialDefinition,
   initialAppointmentTypeId,
+  initialIsPublic,
   appointmentTypes,
 }: {
   templateId: string | null;
   initialName: string;
   initialDefinition: FormFieldDefinition[];
   initialAppointmentTypeId: string | null;
+  initialIsPublic?: boolean;
   appointmentTypes: AppointmentTypeOption[];
 }) {
   const [name, setName] = useState(initialName);
@@ -31,6 +33,7 @@ export function FormularioEditor({
   const [appointmentTypeId, setAppointmentTypeId] = useState<string | null>(
     initialAppointmentTypeId
   );
+  const [isPublic, setIsPublic] = useState(initialIsPublic ?? false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +48,8 @@ export function FormularioEditor({
         templateId,
         name,
         definition,
-        appointmentTypeId
+        appointmentTypeId,
+        isPublic
       );
       if (res.error) {
         setError(res.error);
@@ -55,7 +59,7 @@ export function FormularioEditor({
       window.location.href = "/dashboard/formularios";
       return;
     }
-    const res = await createFormTemplate(name, definition, appointmentTypeId);
+    const res = await createFormTemplate(name, definition, appointmentTypeId, isPublic);
     if (res.error) {
       setError(res.error);
       setLoading(false);
@@ -118,6 +122,23 @@ export function FormularioEditor({
                 ))}
               </select>
             </div>
+            <div className="flex items-center space-x-2 pt-2">
+              <input
+                type="checkbox"
+                id="is_public"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
+              />
+              <Label htmlFor="is_public" className="cursor-pointer">
+                Permitir uso público (pode ser compartilhado sem agendamento)
+              </Label>
+            </div>
+            {isPublic && (
+              <p className="text-sm text-muted-foreground">
+                Quando ativado, este formulário pode ser compartilhado publicamente (ex: Instagram) e também pode ser enviado para pacientes agendados.
+              </p>
+            )}
             <FormBuilder
               definition={definition}
               onChange={setDefinition}

@@ -48,19 +48,57 @@ export async function createAppointment(
       .eq("appointment_type_id", appointmentTypeId);
 
     if (templates?.length) {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
+      // Buscar email do paciente para verificar se já respondeu formulários públicos
+      const { data: patient } = await supabase
+        .from("patients")
+        .select("email")
+        .eq("id", patientId)
+        .single();
 
-      await supabase.from("form_instances").insert(
-        templates.map((t) => ({
-          appointment_id: appointment.id,
-          form_template_id: t.id,
-          status: "pendente",
-          link_token: generateLinkToken(),
-          link_expires_at: expiresAt.toISOString(),
-          responses: {},
-        }))
+      const patientEmail = patient?.email;
+
+      // Para cada template, verificar se já existe resposta pública
+      const instancesToCreate = await Promise.all(
+        templates.map(async (t) => {
+          let status = "pendente";
+          let responses: Record<string, unknown> = {};
+          let linkToken = generateLinkToken();
+
+          // Se paciente tem email, verificar se já respondeu este formulário publicamente
+          if (patientEmail) {
+            const { data: publicInstance } = await supabase
+              .from("form_instances")
+              .select("responses, status")
+              .eq("form_template_id", t.id)
+              .is("appointment_id", null)
+              .eq("public_submitter_email", patientEmail)
+              .eq("status", "respondido")
+              .maybeSingle();
+
+            if (publicInstance && publicInstance.responses) {
+              // Paciente já respondeu este formulário publicamente
+              status = "respondido";
+              responses = (publicInstance.responses as Record<string, unknown>) || {};
+              // Não precisa de link_token se já está respondido
+              linkToken = generateLinkToken(); // Ainda geramos para compatibilidade
+            }
+          }
+
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 30);
+
+          return {
+            appointment_id: appointment.id,
+            form_template_id: t.id,
+            status,
+            link_token: linkToken,
+            link_expires_at: expiresAt.toISOString(),
+            responses,
+          };
+        })
       );
+
+      await supabase.from("form_instances").insert(instancesToCreate);
     }
   }
 

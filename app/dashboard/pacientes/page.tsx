@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PacientesClient, type Patient } from "./pacientes-client";
+import { getNonRegisteredSubmitters } from "../formularios/actions";
 
 export default async function PacientesPage() {
   const supabase = await createClient();
@@ -37,12 +38,17 @@ export default async function PacientesPage() {
     created_at: r.created_at,
   }));
 
+  // Buscar não-cadastrados
+  const nonRegisteredRes = await getNonRegisteredSubmitters();
+  const nonRegistered = nonRegisteredRes.data || [];
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold text-foreground">Pacientes</h1>
       <PacientesClient 
         initialPatients={patients} 
         customFields={customFields ?? []}
+        nonRegistered={nonRegistered}
       />
     </div>
   );
