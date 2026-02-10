@@ -55,8 +55,8 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
     )
     .eq("appointments.doctor_id", doctorId)
     .eq("appointments.clinic_id", clinicId)
-    .gte("appointments.scheduled_at", today.toISOString())
-    .lt("appointments.scheduled_at", tomorrow.toISOString())
+    .gte("appointments.scheduled_at", todayStart.toISOString())
+    .lte("appointments.scheduled_at", todayEnd.toISOString())
     .in("status", ["pendente", "incompleto"]);
 
   // Processar consultas
@@ -101,7 +101,6 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
   });
 
   // Calcular métricas
-  const now = new Date();
   const completedCount = appointmentsToday.filter(
     (a) => a.status === "realizada"
   ).length;
