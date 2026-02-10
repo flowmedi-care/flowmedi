@@ -339,7 +339,7 @@ export function FormularioPreenchimento({
               : "Preencha os campos abaixo."}
         </p>
       </CardHeader>
-      <CardContent>
+      <CardContent className={doctorLogoUrl ? "pb-6" : ""}>
         {/* Informações básicas do paciente (somente leitura) */}
         {(safePatientData.name || safePatientData.email || safePatientData.phone || safePatientData.age !== null) && (
           <div className="mb-6 pb-6 border-b border-border">
@@ -395,7 +395,7 @@ export function FormularioPreenchimento({
           )}
         </form>
         {doctorLogoUrl && (
-          <div className="flex justify-center mt-6 pt-6 border-t border-border">
+          <div className="flex justify-center mt-12 pt-8 pb-4 border-t border-border">
             <LogoImage
               src={doctorLogoUrl}
               alt="Logo do médico"
