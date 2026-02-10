@@ -138,13 +138,15 @@ export function FormularioPublicoPreenchimento({
             Entraremos em contato em breve.
           </p>
           {doctorLogoUrl && (
-            <div className="flex flex-col items-center mt-8 pt-8 border-t border-border">
-              <LogoImage
-                src={doctorLogoUrl}
-                alt="Assinatura do médico"
-                className="max-h-20 max-w-full object-contain"
-                scale={doctorLogoScale ?? 100}
-              />
+            <div className="flex flex-col items-center mt-8 pt-8 border-t border-border overflow-hidden">
+              <div className="max-h-16 overflow-hidden">
+                <LogoImage
+                  src={doctorLogoUrl}
+                  alt="Assinatura do médico"
+                  className="max-h-16 max-w-full object-contain"
+                  scale={doctorLogoScale ?? 100}
+                />
+              </div>
             </div>
           )}
         </CardContent>
@@ -307,13 +309,15 @@ export function FormularioPublicoPreenchimento({
             </Button>
           </form>
           {doctorLogoUrl && (
-            <div className="flex flex-col items-center mt-8 pt-8 border-t border-border">
-              <LogoImage
-                src={doctorLogoUrl}
-                alt="Assinatura do médico"
-                className="max-h-20 max-w-full object-contain"
-                scale={doctorLogoScale ?? 100}
-              />
+            <div className="flex flex-col items-center mt-8 pt-8 border-t border-border overflow-hidden">
+              <div className="max-h-16 overflow-hidden">
+                <LogoImage
+                  src={doctorLogoUrl}
+                  alt="Assinatura do médico"
+                  className="max-h-16 max-w-full object-contain"
+                  scale={doctorLogoScale ?? 100}
+                />
+              </div>
             </div>
           )}
         </CardContent>
@@ -345,13 +349,15 @@ export function FormularioPublicoPreenchimento({
           </Button>
         </form>
         {doctorLogoUrl && (
-          <div className="flex flex-col items-center mt-12 pt-8 pb-4 border-t border-border">
-            <LogoImage
-              src={doctorLogoUrl}
-              alt="Assinatura do médico"
-              className="max-h-20 max-w-full object-contain"
-              scale={doctorLogoScale ?? 100}
-            />
+          <div className="flex flex-col items-center mt-12 pt-8 pb-4 border-t border-border overflow-hidden">
+            <div className="max-h-16 overflow-hidden">
+              <LogoImage
+                src={doctorLogoUrl}
+                alt="Assinatura do médico"
+                className="max-h-16 max-w-full object-contain"
+                scale={doctorLogoScale ?? 100}
+              />
+            </div>
           </div>
         )}
       </CardContent>
