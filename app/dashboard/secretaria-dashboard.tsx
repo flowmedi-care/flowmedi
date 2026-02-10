@@ -144,7 +144,7 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
     };
   }
 
-  // Buscar próximas consultas
+  // Buscar consultas do dia
   let upcomingAppointments: Array<{
     id: string;
     scheduled_at: string;
@@ -155,8 +155,10 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
 
   if (preferences.show_upcoming_appointments) {
     const now = new Date();
-    const nextWeek = new Date(now);
-    nextWeek.setDate(nextWeek.getDate() + 7);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
 
     const { data: appointments } = await supabase
       .from("appointments")
@@ -170,10 +172,9 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
       `
       )
       .eq("clinic_id", clinicId)
-      .gte("scheduled_at", now.toISOString())
-      .lte("scheduled_at", nextWeek.toISOString())
-      .order("scheduled_at", { ascending: true })
-      .limit(5);
+      .gte("scheduled_at", todayStart.toISOString())
+      .lte("scheduled_at", todayEnd.toISOString())
+      .order("scheduled_at", { ascending: true });
 
     if (appointments) {
       upcomingAppointments = appointments.map((a: any) => {

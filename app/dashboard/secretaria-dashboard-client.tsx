@@ -259,21 +259,21 @@ export function SecretariaDashboardClient({
         </div>
       )}
 
-      {/* Próximas Consultas */}
-      {preferences.show_upcoming_appointments &&
-        upcomingAppointments.length > 0 && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <span className="font-semibold">Próximas Consultas</span>
-                <Link href="/dashboard/agenda">
-                  <Button variant="outline" size="sm">
-                    Ver todas
-                  </Button>
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent>
+      {/* Consultas do Dia */}
+      {preferences.show_upcoming_appointments && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold">Consultas do Dia</span>
+              <Link href="/dashboard/agenda">
+                <Button variant="outline" size="sm">
+                  Ver todas
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {upcomingAppointments.length > 0 ? (
               <div className="space-y-2">
                 {upcomingAppointments.map((appointment) => {
                   const scheduledDate = new Date(appointment.scheduled_at);
@@ -319,52 +319,14 @@ export function SecretariaDashboardClient({
                   );
                 })}
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-      {/* Links rápidos */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Link href="/dashboard/agenda">
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <CardHeader className="flex flex-row items-center gap-2 pb-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              <span className="font-medium">Agenda</span>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Ver consultas do dia, semana ou mês.
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhuma consulta agendada para hoje.
               </p>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/dashboard/pacientes">
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <CardHeader className="flex flex-row items-center gap-2 pb-2">
-              <Users className="h-5 w-5 text-primary" />
-              <span className="font-medium">Pacientes</span>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Cadastro e histórico de pacientes.
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/dashboard/formularios">
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <CardHeader className="flex flex-row items-center gap-2 pb-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <span className="font-medium">Formulários</span>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Formulários clínicos e status de preenchimento.
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
