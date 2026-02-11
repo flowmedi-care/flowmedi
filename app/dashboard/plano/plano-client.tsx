@@ -31,6 +31,7 @@ type InvoiceItem = {
 export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const router = useRouter();
   const checkoutRef = useRef<HTMLDivElement>(null);
+  const embeddedCheckoutRef = useRef<{ destroy: () => void } | null>(null);
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const [checkoutMounted, setCheckoutMounted] = useState(false);
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
@@ -88,7 +89,12 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         }
         return clientSecret;
       };
+      if (embeddedCheckoutRef.current) {
+        embeddedCheckoutRef.current.destroy();
+        embeddedCheckoutRef.current = null;
+      }
       const checkout = await stripe.initEmbeddedCheckout({ fetchClientSecret });
+      embeddedCheckoutRef.current = checkout;
       setCheckoutMounted(true);
       setTimeout(() => {
         const el = document.getElementById("stripe-embedded-checkout");
@@ -104,6 +110,15 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     }
     setLoadingCheckout(false);
   };
+
+  useEffect(() => {
+    return () => {
+      if (embeddedCheckoutRef.current) {
+        embeddedCheckoutRef.current.destroy();
+        embeddedCheckoutRef.current = null;
+      }
+    };
+  }, []);
 
   const handleCancelSubscription = async () => {
     setCanceling(true);
