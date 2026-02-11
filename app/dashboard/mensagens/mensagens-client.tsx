@@ -93,11 +93,12 @@ export function MensagensClient({
     return map;
   }, [events]);
 
-  const orderedCategories = useMemo(() => {
+  const orderedCategories = useMemo((): string[] => {
     const keys = Object.keys(eventsByCategory);
-    return CATEGORY_ORDER.filter((c) => keys.includes(c)).concat(
-      keys.filter((k) => !CATEGORY_ORDER.includes(k))
-    );
+    return [
+      ...CATEGORY_ORDER.filter((c) => keys.includes(c)),
+      ...keys.filter((k) => !CATEGORY_ORDER.includes(k)),
+    ];
   }, [eventsByCategory]);
 
   async function handleToggle(
