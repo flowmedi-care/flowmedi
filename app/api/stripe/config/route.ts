@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 
 /**
  * Retorna a chave pública do Stripe para o cliente.
- * Usa variáveis de ambiente no servidor (runtime), evitando o problema
- * de NEXT_PUBLIC_* com build cache no Vercel.
+ * Usa STRIPE_PUBLISHABLE_KEY (servidor) ou NEXT_PUBLIC_* (fallback).
+ * Prefira STRIPE_PUBLISHABLE_KEY no Vercel — sempre disponível em runtime.
  */
 export async function GET() {
-  const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+  const pk =
+    process.env.STRIPE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
   if (!pk) {
     return NextResponse.json(
       { error: "Stripe não configurado." },
