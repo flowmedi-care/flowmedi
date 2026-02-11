@@ -4,7 +4,7 @@
 -- Extensão para UUID (já vem no Supabase, mas garante)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ========== PLANOS (futuro checkout) ==========
+-- ========== PLANoOS (futuro checkout) ==========
 CREATE TABLE IF NOT EXISTS public.plans (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   name text NOT NULL,
