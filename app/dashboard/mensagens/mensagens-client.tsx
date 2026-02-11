@@ -222,8 +222,6 @@ export function MensagensClient({
                         </div>
                         <div className="flex items-center gap-4 mt-3">
                           <Switch
-                            id={`msg-${event.code}-${activeTab}-enabled`}
-                            name={`msg_${event.code}_${activeTab}_enabled`}
                             checked={enabled}
                             onChange={(checked) =>
                               handleToggle(event.code, activeTab, checked)
@@ -237,8 +235,6 @@ export function MensagensClient({
                                 Envio:
                               </span>
                               <select
-                                id={`msg-${event.code}-${activeTab}-mode`}
-                                name={`msg_${event.code}_${activeTab}_mode`}
                                 value={sendMode}
                                 onChange={(e) =>
                                   handleSendModeChange(
@@ -261,8 +257,6 @@ export function MensagensClient({
                                 Template:
                               </span>
                               <select
-                                id={`msg-${event.code}-${activeTab}-template`}
-                                name={`msg_${event.code}_${activeTab}_template`}
                                 value={setting?.template_id ?? ""}
                                 onChange={async (e) => {
                                   const templateId =
