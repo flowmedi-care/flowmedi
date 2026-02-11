@@ -30,14 +30,8 @@ export default async function DashboardLayout({
     ? { ...profile, active: profile.active ?? true }
     : null;
 
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-muted/30">
-        {children}
-      </div>
-    );
-  }
-
+  // Sempre renderizar o layout com sidebar quando há usuário autenticado
+  // Mesmo sem profile, para garantir consistência visual
   return (
     <DashboardLayoutClient user={user} profile={profileSafe}>
       {children}
