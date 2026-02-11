@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useTransition, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
@@ -37,13 +37,18 @@ export function MensagensClient({
   templates: MessageTemplate[];
 }) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<"email" | "whatsapp">("email");
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
   const [localSettings, setLocalSettings] = useState<ClinicMessageSetting[]>(settings);
+  const isUpdatingRef = useRef(false);
 
   // Sincronizar localSettings quando settings mudarem (após refresh)
+  // Mas apenas se não estiver atualizando nada
   useEffect(() => {
-    setLocalSettings(settings);
+    if (!isUpdatingRef.current) {
+      setLocalSettings(settings);
+    }
   }, [settings]);
 
   // Organizar configurações por evento (usar localSettings se disponível)
@@ -85,6 +90,7 @@ export function MensagensClient({
     enabled: boolean
   ) {
     const key = `${eventCode}-${channel}`;
+    isUpdatingRef.current = true;
     setUpdating((prev) => ({ ...prev, [key]: true }));
 
     const currentSetting = eventSettingsMap[eventCode]?.[channel];
@@ -127,18 +133,60 @@ export function MensagensClient({
 
       if (result.error) {
         // Reverter mudança local em caso de erro
-        setLocalSettings(settings);
+        setLocalSettings((prev) => {
+          const reverted = [...prev];
+          const index = reverted.findIndex(
+            (s) => s.event_code === eventCode && s.channel === channel
+          );
+          if (index >= 0) {
+            const original = settings.find(
+              (s) => s.event_code === eventCode && s.channel === channel
+            );
+            if (original) {
+              reverted[index] = original;
+            } else {
+              reverted.splice(index, 1);
+            }
+          }
+          return reverted;
+        });
         alert(`Erro: ${result.error}`);
       } else {
-        // Atualizar dados do servidor
-        router.refresh();
+        // Atualizar dados do servidor de forma não bloqueante
+        startTransition(() => {
+          router.refresh();
+        });
       }
     } catch (error) {
       // Reverter em caso de erro
-      setLocalSettings(settings);
+      setLocalSettings((prev) => {
+        const reverted = [...prev];
+        const index = reverted.findIndex(
+          (s) => s.event_code === eventCode && s.channel === channel
+        );
+        if (index >= 0) {
+          const original = settings.find(
+            (s) => s.event_code === eventCode && s.channel === channel
+          );
+          if (original) {
+            reverted[index] = original;
+          } else {
+            reverted.splice(index, 1);
+          }
+        }
+        return reverted;
+      });
       alert(`Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     } finally {
-      setUpdating((prev) => ({ ...prev, [key]: false }));
+      setUpdating((prev) => {
+        const newState = { ...prev, [key]: false };
+        // Verificar se ainda há atualizações pendentes
+        const hasActiveUpdates = Object.values(newState).some((v) => v === true);
+        if (!hasActiveUpdates) {
+          isUpdatingRef.current = false;
+        }
+        return newState;
+      });
     }
   }
 
@@ -148,6 +196,7 @@ export function MensagensClient({
     sendMode: SendMode
   ) {
     const key = `${eventCode}-${channel}-mode`;
+    isUpdatingRef.current = true;
     setUpdating((prev) => ({ ...prev, [key]: true }));
 
     const currentSetting = eventSettingsMap[eventCode]?.[channel];
@@ -178,18 +227,56 @@ export function MensagensClient({
 
       if (result.error) {
         // Reverter mudança local em caso de erro
-        setLocalSettings(settings);
+        setLocalSettings((prev) => {
+          const reverted = [...prev];
+          const index = reverted.findIndex(
+            (s) => s.event_code === eventCode && s.channel === channel
+          );
+          if (index >= 0) {
+            const original = settings.find(
+              (s) => s.event_code === eventCode && s.channel === channel
+            );
+            if (original) {
+              reverted[index] = original;
+            }
+          }
+          return reverted;
+        });
         alert(`Erro: ${result.error}`);
       } else {
-        // Atualizar dados do servidor
-        router.refresh();
+        // Atualizar dados do servidor de forma não bloqueante
+        startTransition(() => {
+          router.refresh();
+        });
       }
     } catch (error) {
       // Reverter em caso de erro
-      setLocalSettings(settings);
+      setLocalSettings((prev) => {
+        const reverted = [...prev];
+        const index = reverted.findIndex(
+          (s) => s.event_code === eventCode && s.channel === channel
+        );
+        if (index >= 0) {
+          const original = settings.find(
+            (s) => s.event_code === eventCode && s.channel === channel
+          );
+          if (original) {
+            reverted[index] = original;
+          }
+        }
+        return reverted;
+      });
       alert(`Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     } finally {
-      setUpdating((prev) => ({ ...prev, [key]: false }));
+      setUpdating((prev) => {
+        const newState = { ...prev, [key]: false };
+        // Verificar se ainda há atualizações pendentes
+        const hasActiveUpdates = Object.values(newState).some((v) => v === true);
+        if (!hasActiveUpdates) {
+          isUpdatingRef.current = false;
+        }
+        return newState;
+      });
     }
   }
 
@@ -317,6 +404,7 @@ export function MensagensClient({
                                 onChange={async (e) => {
                                   const templateId = e.target.value || null;
                                   const updateKey = `${event.code}-${activeTab}-template`;
+                                  isUpdatingRef.current = true;
                                   setUpdating((prev) => ({ ...prev, [updateKey]: true }));
 
                                   // Atualizar estado local
@@ -343,16 +431,54 @@ export function MensagensClient({
                                     );
 
                                     if (result.error) {
-                                      setLocalSettings(settings);
+                                      setLocalSettings((prev) => {
+                                        const reverted = [...prev];
+                                        const index = reverted.findIndex(
+                                          (s) => s.event_code === event.code && s.channel === activeTab
+                                        );
+                                        if (index >= 0) {
+                                          const original = settings.find(
+                                            (s) => s.event_code === event.code && s.channel === activeTab
+                                          );
+                                          if (original) {
+                                            reverted[index] = original;
+                                          }
+                                        }
+                                        return reverted;
+                                      });
                                       alert(`Erro: ${result.error}`);
                                     } else {
-                                      router.refresh();
+                                      startTransition(() => {
+                                        router.refresh();
+                                      });
                                     }
                                   } catch (error) {
-                                    setLocalSettings(settings);
+                                    setLocalSettings((prev) => {
+                                      const reverted = [...prev];
+                                      const index = reverted.findIndex(
+                                        (s) => s.event_code === event.code && s.channel === activeTab
+                                      );
+                                      if (index >= 0) {
+                                        const original = settings.find(
+                                          (s) => s.event_code === event.code && s.channel === activeTab
+                                        );
+                                        if (original) {
+                                          reverted[index] = original;
+                                        }
+                                      }
+                                      return reverted;
+                                    });
                                     alert(`Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
                                   } finally {
-                                    setUpdating((prev) => ({ ...prev, [updateKey]: false }));
+                                    setUpdating((prev) => {
+                                      const newState = { ...prev, [updateKey]: false };
+                                      // Verificar se ainda há atualizações pendentes
+                                      const hasActiveUpdates = Object.values(newState).some((v) => v === true);
+                                      if (!hasActiveUpdates) {
+                                        isUpdatingRef.current = false;
+                                      }
+                                      return newState;
+                                    });
                                   }
                                 }}
                                 disabled={isLoading}
