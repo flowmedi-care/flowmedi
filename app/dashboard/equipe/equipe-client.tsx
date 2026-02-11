@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
+import { createInvite } from "./actions";
 import { UserPlus, Trash2, Copy, Loader2 } from "lucide-react";
 
 type Member = {
@@ -55,28 +56,21 @@ export function EquipeClient({
     setError(null);
     setInviteLink(null);
     setLoading(true);
-    const supabase = createClient();
-    const token = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const { error: err } = await supabase.from("invites").insert({
-      clinic_id: clinicId,
-      email: email.trim(),
-      role,
-      token,
-      created_by: currentUserId,
-      expires_at: expiresAt,
-    });
-
+    const result = await createInvite(email, role);
+    
     setLoading(false);
-    if (err) {
-      setError(err.message);
+    if (result.error) {
+      setError(result.error);
       return;
     }
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    setInviteLink(`${origin}/convite/${token}`);
-    setEmail("");
-    router.refresh();
+    
+    if (result.token) {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      setInviteLink(`${origin}/convite/${result.token}`);
+      setEmail("");
+      router.refresh();
+    }
   }
 
   function copyLink() {

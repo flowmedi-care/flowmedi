@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getClinicPlanData, countCustomFields } from "@/lib/plan-helpers";
+import { canCreateCustomField, getUpgradeMessage } from "@/lib/plan-gates";
 
 export type CustomFieldInsert = {
   field_name: string;
@@ -28,6 +30,22 @@ export async function createCustomField(data: CustomFieldInsert) {
 
   if (!profile || profile.role !== "admin") {
     return { error: "Apenas administradores podem criar campos." };
+  }
+
+  if (!profile.clinic_id) {
+    return { error: "Clínica não encontrada." };
+  }
+
+  // Verificar limite de campos customizados
+  const planData = await getClinicPlanData();
+  if (planData) {
+    const currentCount = await countCustomFields(profile.clinic_id);
+    const check = canCreateCustomField(planData.limits, currentCount);
+    
+    if (!check.allowed) {
+      const upgradeMsg = getUpgradeMessage("campos customizados");
+      return { error: `${check.reason}. ${upgradeMsg}` };
+    }
   }
 
   const { error } = await supabase.from("patient_custom_fields").insert({

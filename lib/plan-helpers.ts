@@ -1,0 +1,228 @@
+import { createClient } from "@/lib/supabase/server";
+import type { PlanLimits } from "./plan-gates";
+
+export interface ClinicPlanData {
+  planId: string | null;
+  planSlug: string | null;
+  planName: string | null;
+  subscriptionStatus: string | null;
+  limits: PlanLimits;
+}
+
+/**
+ * Busca dados do plano da clínica do usuário atual
+ */
+export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) return null;
+
+  // Buscar clínica com plano
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("plan_id, subscription_status")
+    .eq("id", profile.clinic_id)
+    .single();
+
+  if (!clinic) return null;
+
+  const planId = clinic.plan_id;
+
+  // Se não tem plano, assumir Starter (padrão)
+  if (!planId) {
+    const { data: starterPlan } = await supabase
+      .from("plans")
+      .select("*")
+      .eq("slug", "starter")
+      .single();
+
+    if (!starterPlan) {
+      // Fallback com valores padrão do Starter
+      return {
+        planId: null,
+        planSlug: "starter",
+        planName: "Starter",
+        subscriptionStatus: null,
+        limits: {
+          max_doctors: 1,
+          max_secretaries: null,
+          max_appointments_per_month: 30,
+          max_patients: null,
+          max_form_templates: 5,
+          max_custom_fields: null,
+          storage_mb: 500,
+          whatsapp_enabled: false,
+          email_enabled: false,
+          custom_logo_enabled: false,
+          priority_support: false,
+        },
+      };
+    }
+
+    return {
+      planId: starterPlan.id,
+      planSlug: starterPlan.slug,
+      planName: starterPlan.name,
+      subscriptionStatus: null,
+      limits: {
+        max_doctors: starterPlan.max_doctors ?? null,
+        max_secretaries: starterPlan.max_secretaries ?? null,
+        max_appointments_per_month: starterPlan.max_appointments_per_month ?? null,
+        max_patients: starterPlan.max_patients ?? null,
+        max_form_templates: starterPlan.max_form_templates ?? null,
+        max_custom_fields: starterPlan.max_custom_fields ?? null,
+        storage_mb: starterPlan.storage_mb ?? null,
+        whatsapp_enabled: starterPlan.whatsapp_enabled ?? false,
+        email_enabled: starterPlan.email_enabled ?? false,
+        custom_logo_enabled: starterPlan.custom_logo_enabled ?? false,
+        priority_support: starterPlan.priority_support ?? false,
+      },
+    };
+  }
+
+  // Buscar dados do plano
+  const { data: plan } = await supabase
+    .from("plans")
+    .select("*")
+    .eq("id", planId)
+    .single();
+
+  if (!plan) {
+    // Fallback para Starter se plano não encontrado
+    const { data: starterPlan } = await supabase
+      .from("plans")
+      .select("*")
+      .eq("slug", "starter")
+      .single();
+
+    if (!starterPlan) {
+      return null;
+    }
+
+    return {
+      planId: starterPlan.id,
+      planSlug: starterPlan.slug,
+      planName: starterPlan.name,
+      subscriptionStatus: clinic.subscription_status,
+      limits: {
+        max_doctors: starterPlan.max_doctors ?? null,
+        max_secretaries: starterPlan.max_secretaries ?? null,
+        max_appointments_per_month: starterPlan.max_appointments_per_month ?? null,
+        max_patients: starterPlan.max_patients ?? null,
+        max_form_templates: starterPlan.max_form_templates ?? null,
+        max_custom_fields: starterPlan.max_custom_fields ?? null,
+        storage_mb: starterPlan.storage_mb ?? null,
+        whatsapp_enabled: starterPlan.whatsapp_enabled ?? false,
+        email_enabled: starterPlan.email_enabled ?? false,
+        custom_logo_enabled: starterPlan.custom_logo_enabled ?? false,
+        priority_support: starterPlan.priority_support ?? false,
+      },
+    };
+  }
+
+  return {
+    planId: plan.id,
+    planSlug: plan.slug,
+    planName: plan.name,
+    subscriptionStatus: clinic.subscription_status,
+    limits: {
+      max_doctors: plan.max_doctors ?? null,
+      max_secretaries: plan.max_secretaries ?? null,
+      max_appointments_per_month: plan.max_appointments_per_month ?? null,
+      max_patients: plan.max_patients ?? null,
+      max_form_templates: plan.max_form_templates ?? null,
+      max_custom_fields: plan.max_custom_fields ?? null,
+      storage_mb: plan.storage_mb ?? null,
+      whatsapp_enabled: plan.whatsapp_enabled ?? false,
+      email_enabled: plan.email_enabled ?? false,
+      custom_logo_enabled: plan.custom_logo_enabled ?? false,
+      priority_support: plan.priority_support ?? false,
+    },
+  };
+}
+
+/**
+ * Conta médicos ativos da clínica
+ */
+export async function countDoctors(clinicId: string): Promise<number> {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("profiles")
+    .select("*", { count: "exact", head: true })
+    .eq("clinic_id", clinicId)
+    .eq("role", "medico")
+    .eq("active", true);
+
+  return count ?? 0;
+}
+
+/**
+ * Conta secretários ativos da clínica
+ */
+export async function countSecretaries(clinicId: string): Promise<number> {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("profiles")
+    .select("*", { count: "exact", head: true })
+    .eq("clinic_id", clinicId)
+    .eq("role", "secretaria")
+    .eq("active", true);
+
+  return count ?? 0;
+}
+
+/**
+ * Conta consultas do mês atual da clínica
+ */
+export async function countMonthAppointments(clinicId: string): Promise<number> {
+  const supabase = await createClient();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+  const { count } = await supabase
+    .from("appointments")
+    .select("*", { count: "exact", head: true })
+    .eq("clinic_id", clinicId)
+    .gte("scheduled_at", startOfMonth.toISOString())
+    .lte("scheduled_at", endOfMonth.toISOString());
+
+  return count ?? 0;
+}
+
+/**
+ * Conta templates de formulários da clínica
+ */
+export async function countFormTemplates(clinicId: string): Promise<number> {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("form_templates")
+    .select("*", { count: "exact", head: true })
+    .eq("clinic_id", clinicId);
+
+  return count ?? 0;
+}
+
+/**
+ * Conta campos customizados da clínica
+ */
+export async function countCustomFields(clinicId: string): Promise<number> {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("patient_custom_fields")
+    .select("*", { count: "exact", head: true })
+    .eq("clinic_id", clinicId);
+
+  return count ?? 0;
+}

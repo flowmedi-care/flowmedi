@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { FormTemplateDefinition } from "@/lib/form-types";
+import { getClinicPlanData, countFormTemplates } from "@/lib/plan-helpers";
+import { canCreateFormTemplate, getUpgradeMessage } from "@/lib/plan-gates";
 
 export async function createFormTemplate(
   name: string,
@@ -20,6 +22,18 @@ export async function createFormTemplate(
     .eq("id", user.id)
     .single();
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+
+  // Verificar limite de templates de formulários
+  const planData = await getClinicPlanData();
+  if (planData) {
+    const currentCount = await countFormTemplates(profile.clinic_id);
+    const check = canCreateFormTemplate(planData.limits, currentCount);
+    
+    if (!check.allowed) {
+      const upgradeMsg = getUpgradeMessage("formulários");
+      return { error: `${check.reason}. ${upgradeMsg}` };
+    }
+  }
 
   const { error } = await supabase.from("form_templates").insert({
     clinic_id: profile.clinic_id,

@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canUploadFile, getUpgradeMessage } from "@/lib/plan-gates";
 
 export type PatientExamInsert = {
   patient_id: string;
@@ -125,6 +127,33 @@ export async function uploadPatientExam(
   // Garantir que clinic_id está definido
   if (!profile.clinic_id) {
     return { error: "Clínica não encontrada no perfil do usuário.", examId: null };
+  }
+
+  // Verificar limite de armazenamento
+  const planData = await getClinicPlanData();
+  if (planData) {
+    // Calcular tamanho total usado pela clínica
+    const { data: exams } = await supabase
+      .from("patient_exams")
+      .select("file_size")
+      .eq("clinic_id", profile.clinic_id);
+
+    const currentStorageMB = exams
+      ? exams.reduce((sum, exam) => sum + (exam.file_size || 0), 0) / (1024 * 1024)
+      : 0;
+
+    const fileSizeMB = file.size / (1024 * 1024);
+    const check = canUploadFile(planData.limits, currentStorageMB, fileSizeMB);
+
+    if (!check.allowed) {
+      const upgradeMsg = getUpgradeMessage("armazenamento");
+      return { error: `${check.reason}. ${upgradeMsg}`, examId: null };
+    }
+
+    // Se houver aviso (80% usado), ainda permitir mas logar
+    if (check.reason && check.reason.includes("Atenção")) {
+      console.warn(`Armazenamento: ${check.reason}`);
+    }
   }
 
   // Criar registro do exame primeiro para obter o ID

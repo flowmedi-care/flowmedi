@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getClinicPlanData, countMonthAppointments } from "@/lib/plan-helpers";
+import { canCreateAppointment, getUpgradeMessage } from "@/lib/plan-gates";
 
 function generateLinkToken(): string {
   return crypto.randomUUID().replace(/-/g, "") + Date.now().toString(36);
@@ -23,6 +25,18 @@ export async function createAppointment(
     .eq("id", user.id)
     .single();
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+
+  // Verificar limite de consultas/mês
+  const planData = await getClinicPlanData();
+  if (planData) {
+    const currentMonthCount = await countMonthAppointments(profile.clinic_id);
+    const check = canCreateAppointment(planData.limits, currentMonthCount);
+    
+    if (!check.allowed) {
+      const upgradeMsg = getUpgradeMessage("consultas/mês");
+      return { error: `${check.reason}. ${upgradeMsg}` };
+    }
+  }
 
   const { data: appointment, error: insertErr } = await supabase
     .from("appointments")
