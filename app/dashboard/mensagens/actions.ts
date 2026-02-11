@@ -47,6 +47,27 @@ export type ClinicMessageSetting = {
   conditions: Record<string, unknown>;
 };
 
+/** Normaliza linha da DB para garantir shape estável e serialização segura (conditions nunca null). */
+function normalizeClinicMessageSetting(
+  row: Record<string, unknown> | null
+): ClinicMessageSetting | null {
+  if (!row || typeof row.event_code !== "string" || typeof row.channel !== "string")
+    return null;
+  return {
+    id: String(row.id ?? ""),
+    clinic_id: String(row.clinic_id ?? ""),
+    event_code: row.event_code,
+    channel: row.channel as MessageChannel,
+    enabled: Boolean(row.enabled),
+    send_mode: (row.send_mode === "automatic" ? "automatic" : "manual") as SendMode,
+    template_id: row.template_id != null ? String(row.template_id) : null,
+    conditions:
+      row.conditions != null && typeof row.conditions === "object" && !Array.isArray(row.conditions)
+        ? (row.conditions as Record<string, unknown>)
+        : {},
+  };
+}
+
 // ========== BUSCAR EVENTOS DISPONÍVEIS ==========
 
 export async function getMessageEvents(): Promise<{
@@ -266,7 +287,10 @@ export async function getClinicMessageSettings(): Promise<{
     .order("channel", { ascending: true });
 
   if (error) return { data: null, error: error.message };
-  return { data: data as ClinicMessageSetting[], error: null };
+  const normalized = (data ?? [])
+    .map((row) => normalizeClinicMessageSetting(row as Record<string, unknown>))
+    .filter((s): s is ClinicMessageSetting => s != null);
+  return { data: normalized, error: null };
 }
 
 // ========== ATUALIZAR CONFIGURAÇÃO DE EVENTO ==========
@@ -313,8 +337,11 @@ export async function updateClinicMessageSetting(
       .single();
 
     if (error) return { data: null, error: error.message };
-    revalidatePath("/dashboard/mensagens");
-    return { data: updated as ClinicMessageSetting, error: null };
+    // Não usar revalidatePath aqui: o cliente atualiza estado local e um refresh refetcharia a página inteira (tela branca/scroll).
+    return {
+      data: normalizeClinicMessageSetting(updated as Record<string, unknown>),
+      error: null,
+    };
   } else {
     // Criar nova configuração
     const { data: inserted, error } = await supabase
@@ -331,8 +358,10 @@ export async function updateClinicMessageSetting(
       .single();
 
     if (error) return { data: null, error: error.message };
-    revalidatePath("/dashboard/mensagens");
-    return { data: inserted as ClinicMessageSetting, error: null };
+    return {
+      data: normalizeClinicMessageSetting(inserted as Record<string, unknown>),
+      error: null,
+    };
   }
 }
 
