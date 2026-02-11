@@ -28,6 +28,12 @@ type InvoiceItem = {
   period_end: number;
 };
 
+type SubscriptionInfo = {
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: number | null;
+  status: string | null;
+};
+
 export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const router = useRouter();
   const checkoutRef = useRef<HTMLDivElement>(null);
@@ -36,6 +42,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const [checkoutMounted, setCheckoutMounted] = useState(false);
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
+  const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [canceling, setCanceling] = useState(false);
 
@@ -51,6 +58,30 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       })
       .finally(() => setLoadingInvoices(false));
   }, []);
+
+  const loadSubscriptionInfo = async () => {
+    if (!plan?.stripeSubscriptionId) {
+      setSubscriptionInfo(null);
+      return;
+    }
+    try {
+      const res = await fetch("/api/stripe/subscription");
+      const data = await res.json();
+      if (res.ok) {
+        setSubscriptionInfo({
+          cancelAtPeriodEnd: Boolean(data.cancelAtPeriodEnd),
+          currentPeriodEnd: typeof data.currentPeriodEnd === "number" ? data.currentPeriodEnd : null,
+          status: typeof data.status === "string" ? data.status : null,
+        });
+      }
+    } catch {
+      // Ignore transient errors; UI falls back to plan data.
+    }
+  };
+
+  useEffect(() => {
+    loadSubscriptionInfo();
+  }, [plan?.stripeSubscriptionId]);
 
   const startCheckout = async () => {
     setLoadingCheckout(true);
@@ -75,7 +106,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       const fetchClientSecret = async () => {
         const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
         const data = await res.json();
-        console.log("create-checkout-session response:", { ok: res.ok, status: res.status, data });
         if (!res.ok) {
           const msg = data.error ?? "Erro ao criar sessão de checkout.";
           if (msg.includes("Crie sua clínica primeiro")) {
@@ -132,6 +162,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         return;
       }
       setCancelOpen(false);
+      await loadSubscriptionInfo();
       router.refresh();
     } catch {
       alert("Erro ao cancelar.");
@@ -164,6 +195,11 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(
       new Date(ts * 1000)
     );
+  const formatDaysLeft = (ts: number) => {
+    const diffMs = ts * 1000 - Date.now();
+    const days = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    return days;
+  };
 
   if (!plan) {
     return (
@@ -188,6 +224,13 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
+          {subscriptionInfo?.cancelAtPeriodEnd && subscriptionInfo.currentPeriodEnd && (
+            <p className="text-sm text-muted-foreground">
+              Cancelamento agendado. Você mantém o Pro por{" "}
+              {formatDaysLeft(subscriptionInfo.currentPeriodEnd)} dias (até{" "}
+              {formatDate(subscriptionInfo.currentPeriodEnd)}).
+            </p>
+          )}
           {!isPro && (
             <>
               <Button onClick={startCheckout} disabled={loadingCheckout}>

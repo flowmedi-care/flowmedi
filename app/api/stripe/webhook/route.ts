@@ -27,23 +27,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    return NextResponse.json(
+      { error: "Supabase service role não configurado." },
+      { status: 500 }
+    );
+  }
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   const updateClinicPlan = async (
     clinicId: string,
     planSlug: "starter" | "pro",
     subscriptionStatus: string | null
   ) => {
-    const { data: plan } = await supabase
+    const { data: plan, error: planError } = await supabase
       .from("plans")
       .select("id")
       .eq("slug", planSlug)
       .single();
+    if (planError) {
+      console.error("Webhook plan lookup error:", planError);
+      return;
+    }
     if (!plan) return;
-    await supabase
+    const { error: updateError } = await supabase
       .from("clinics")
       .update({
         plan_id: plan.id,
@@ -53,18 +62,42 @@ export async function POST(request: Request) {
           : {}),
       })
       .eq("id", clinicId);
+    if (updateError) {
+      console.error("Webhook clinic update error:", updateError);
+    }
+  };
+
+  const findClinicIdByCustomer = async (customerId?: string | null) => {
+    if (!customerId) return null;
+    const { data: clinic } = await supabase
+      .from("clinics")
+      .select("id")
+      .eq("stripe_customer_id", customerId)
+      .single();
+    return clinic?.id ?? null;
   };
 
   try {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const clinicId = session.metadata?.clinic_id ?? session.client_reference_id;
+        const clinicId =
+          session.metadata?.clinic_id ??
+          session.client_reference_id ??
+          (await findClinicIdByCustomer(session.customer as string | null));
         if (!clinicId) break;
-        const { data: proPlan } = await supabase.from("plans").select("id").eq("slug", "pro").single();
+        const { data: proPlan, error: proPlanError } = await supabase
+          .from("plans")
+          .select("id")
+          .eq("slug", "pro")
+          .single();
+        if (proPlanError) {
+          console.error("Webhook pro plan lookup error:", proPlanError);
+          break;
+        }
         if (!proPlan) break;
         const subId = session.subscription as string | null;
-        await supabase
+        const { error: updateError } = await supabase
           .from("clinics")
           .update({
             plan_id: proPlan.id,
@@ -72,17 +105,30 @@ export async function POST(request: Request) {
             subscription_status: "active",
           })
           .eq("id", clinicId);
+        if (updateError) {
+          console.error("Webhook clinic update error:", updateError);
+        }
         break;
       }
 
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
-        const clinicId = sub.metadata?.clinic_id;
+        const clinicId =
+          sub.metadata?.clinic_id ??
+          (await findClinicIdByCustomer(sub.customer as string | null));
         if (!clinicId) break;
         if (sub.status === "active") {
-          const { data: plan } = await supabase.from("plans").select("id").eq("slug", "pro").single();
+          const { data: plan, error: planError } = await supabase
+            .from("plans")
+            .select("id")
+            .eq("slug", "pro")
+            .single();
+          if (planError) {
+            console.error("Webhook pro plan lookup error:", planError);
+            break;
+          }
           if (plan) {
-            await supabase
+            const { error: updateError } = await supabase
               .from("clinics")
               .update({
                 plan_id: plan.id,
@@ -90,12 +136,18 @@ export async function POST(request: Request) {
                 subscription_status: "active",
               })
               .eq("id", clinicId);
+            if (updateError) {
+              console.error("Webhook clinic update error:", updateError);
+            }
           }
         } else if (sub.status === "past_due" || sub.status === "unpaid") {
-          await supabase
+          const { error: updateError } = await supabase
             .from("clinics")
             .update({ subscription_status: sub.status })
             .eq("id", clinicId);
+          if (updateError) {
+            console.error("Webhook clinic update error:", updateError);
+          }
         } else if (sub.status === "canceled") {
           await updateClinicPlan(clinicId, "starter", "canceled");
         }
@@ -104,7 +156,9 @@ export async function POST(request: Request) {
 
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
-        const clinicId = sub.metadata?.clinic_id;
+        const clinicId =
+          sub.metadata?.clinic_id ??
+          (await findClinicIdByCustomer(sub.customer as string | null));
         if (!clinicId) break;
         await updateClinicPlan(clinicId, "starter", "canceled");
         break;
@@ -115,12 +169,17 @@ export async function POST(request: Request) {
         const subId = (invoice as { subscription?: string | null }).subscription ?? null;
         if (!subId) break;
         const sub = await stripe.subscriptions.retrieve(subId);
-        const clinicId = sub.metadata?.clinic_id;
+        const clinicId =
+          sub.metadata?.clinic_id ??
+          (await findClinicIdByCustomer(sub.customer as string | null));
         if (!clinicId) break;
-        await supabase
+        const { error: updateError } = await supabase
           .from("clinics")
           .update({ subscription_status: "past_due" })
           .eq("id", clinicId);
+        if (updateError) {
+          console.error("Webhook clinic update error:", updateError);
+        }
         break;
       }
 
