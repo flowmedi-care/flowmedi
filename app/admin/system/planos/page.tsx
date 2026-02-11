@@ -90,9 +90,9 @@ export default async function PlanosPage() {
                   </div>
                   <div>
                     <span className="text-muted-foreground">Armazenamento:</span>{" "}
-                    {plan.storage_mb === null
+                    {plan.storage_mb === null || plan.storage_mb === undefined
                       ? "Ilimitado"
-                      : `${(plan.storage_mb / 1024).toFixed(1)} GB`}
+                      : `${(Number(plan.storage_mb) / 1024).toFixed(1)} GB`}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Formulários:</span>{" "}

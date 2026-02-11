@@ -191,14 +191,15 @@ export function canUseCustomLogo(planLimits: PlanLimits, planSlug: string | null
 
 /**
  * Obtém mensagem de upsell baseada no recurso bloqueado
+ * Não inclui números hardcoded - usa valores dinâmicos do plano
  */
 export function getUpgradeMessage(resourceName: string): string {
   const messages: Record<string, string> = {
     médicos: "Upgrade para Pro para adicionar mais médicos",
     secretários: "Upgrade para Pro para adicionar mais secretários",
-    "consultas/mês": "Limite de 30 consultas/mês atingido. Upgrade para Pro para agendar sem limites",
-    "pacientes/mês": "Limite de pacientes/mês atingido. Upgrade para Pro para cadastrar sem limites",
-    formulários: "Limite de 5 formulários atingido. Upgrade para Pro para criar formulários ilimitados",
+    "consultas/mês": "Upgrade para Pro para agendar sem limites",
+    "pacientes/mês": "Upgrade para Pro para cadastrar sem limites",
+    formulários: "Upgrade para Pro para criar formulários ilimitados",
     "campos customizados": "Upgrade para Pro para criar campos customizados ilimitados",
     armazenamento: "Upgrade para Pro para mais espaço (10 GB)",
     whatsapp: "WhatsApp transacional disponível no plano Pro",

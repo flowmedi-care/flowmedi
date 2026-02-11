@@ -48,7 +48,7 @@ export function PlanoForm({ plan }: PlanoFormProps) {
     max_patients: plan?.max_patients?.toString() || "",
     max_form_templates: plan?.max_form_templates?.toString() || "",
     max_custom_fields: plan?.max_custom_fields?.toString() || "",
-    storage_mb: plan?.storage_mb ? (plan.storage_mb / 1024).toFixed(1) : "",
+    storage_mb: plan?.storage_mb ? (Number(plan.storage_mb) / 1024).toFixed(1) : "",
     whatsapp_enabled: plan?.whatsapp_enabled ?? false,
     email_enabled: plan?.email_enabled ?? false,
     custom_logo_enabled: plan?.custom_logo_enabled ?? false,
@@ -75,6 +75,16 @@ export function PlanoForm({ plan }: PlanoFormProps) {
         return isNaN(parsed) ? null : parsed;
       };
 
+      // Converter GB para MB (storage_mb no banco é em MB)
+      // Se o usuário digitar 0.3 GB, converte para 307 MB (0.3 * 1024 = 307.2 → 307)
+      const storageMB = formData.storage_mb && formData.storage_mb.trim() !== ""
+        ? (() => {
+            const gbValue = parseFloatOrNull(formData.storage_mb);
+            if (gbValue === null || gbValue === 0) return null;
+            return Math.round(gbValue * 1024);
+          })()
+        : null;
+
       const payload: Record<string, unknown> = {
         name: formData.name,
         slug: formData.slug,
@@ -85,7 +95,7 @@ export function PlanoForm({ plan }: PlanoFormProps) {
         max_patients: parseNumberOrNull(formData.max_patients),
         max_form_templates: parseNumberOrNull(formData.max_form_templates),
         max_custom_fields: parseNumberOrNull(formData.max_custom_fields),
-        storage_mb: formData.storage_mb ? Math.round((parseFloatOrNull(formData.storage_mb) || 0) * 1024) : null,
+        storage_mb: storageMB,
         whatsapp_enabled: formData.whatsapp_enabled,
         email_enabled: formData.email_enabled,
         custom_logo_enabled: formData.custom_logo_enabled,

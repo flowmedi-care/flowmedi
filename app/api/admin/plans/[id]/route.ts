@@ -43,6 +43,16 @@ export async function PUT(
       return isNaN(parsed as number) ? null : (parsed as number);
     };
 
+    // Converter GB para MB (storage_mb no banco é em MB)
+    // Se o usuário digitar 0.3 GB, converte para 307 MB (0.3 * 1024 = 307.2 → 307)
+    const storageMB = body.storage_mb && body.storage_mb !== "" && body.storage_mb !== "0"
+      ? (() => {
+          const gbValue = parseFloatOrNull(body.storage_mb);
+          if (gbValue === null || gbValue === 0) return null;
+          return Math.round(gbValue * 1024);
+        })()
+      : null;
+
     const updateData: Record<string, unknown> = {
       name: body.name,
       description: body.description || null,
@@ -52,7 +62,7 @@ export async function PUT(
       max_patients: parseNumberOrNull(body.max_patients),
       max_form_templates: parseNumberOrNull(body.max_form_templates),
       max_custom_fields: parseNumberOrNull(body.max_custom_fields),
-      storage_mb: body.storage_mb && body.storage_mb !== "" ? Math.round((parseFloatOrNull(body.storage_mb) || 0) * 1024) : null,
+      storage_mb: storageMB,
       whatsapp_enabled: body.whatsapp_enabled ?? false,
       email_enabled: body.email_enabled ?? false,
       custom_logo_enabled: body.custom_logo_enabled ?? false,
