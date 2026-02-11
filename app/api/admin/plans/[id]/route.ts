@@ -12,7 +12,7 @@ export async function PUT(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
     const supabase = await createClient();
-    const { id } = await params();
+    const { id } = await params;
     const body = await request.json();
 
     const { data, error } = await supabase
@@ -62,7 +62,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
     const supabase = await createClient();
-    const { id } = await params();
+    const { id } = await params;
 
     // Verificar se há clínicas usando este plano
     const { count } = await supabase

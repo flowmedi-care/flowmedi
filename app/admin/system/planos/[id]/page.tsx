@@ -12,7 +12,7 @@ export default async function EditarPlanoPage({
   params: Promise<{ id: string }>;
 }) {
   await requireSystemAdmin();
-  const { id } = await params();
+  const { id } = await params;
 
   const supabase = await createClient();
   const { data: plan } = await supabase.from("plans").select("*").eq("id", id).single();
