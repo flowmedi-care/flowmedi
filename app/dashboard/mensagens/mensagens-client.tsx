@@ -1,18 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
-import {
-  MessageEvent,
-  ClinicMessageSetting,
-  MessageTemplate,
-  SendMode,
-} from "./actions";
+import { MessageEvent, ClinicMessageSetting, MessageTemplate, SendMode } from "./actions";
 import { updateClinicMessageSetting } from "./actions";
-import { Mail, MessageSquare, Plus } from "lucide-react";
+import { Settings, Mail, MessageSquare, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 type EventSettingsMap = Record<
   string,
@@ -27,6 +23,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   outros: "Outros",
 };
 
+const CHANNEL_LABELS: Record<string, string> = {
+  email: "Email",
+  whatsapp: "WhatsApp",
+};
+
+// Função auxiliar para calcular hash dos settings
+function getSettingsHash(s: ClinicMessageSetting[]): string {
+  return JSON.stringify(s.map(s => ({ id: s.id, enabled: s.enabled, send_mode: s.send_mode, template_id: s.template_id })));
+}
+
 export function MensagensClient({
   events,
   settings,
@@ -39,68 +45,245 @@ export function MensagensClient({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"email" | "whatsapp">("email");
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
+  const [localSettings, setLocalSettings] = useState<ClinicMessageSetting[]>(settings);
+  const settingsRef = useRef(settings);
+  const isUpdatingRef = useRef(false);
+  const lastSettingsHashRef = useRef<string>("");
 
-  // Map sempre derivado das props (sem estado local)
-  const eventSettingsMap: EventSettingsMap = useMemo(() => {
-    const map: EventSettingsMap = {};
-    if (!Array.isArray(events)) return map;
-    events.forEach((event) => {
-      if (event?.code) map[event.code] = {};
-    });
-    if (!Array.isArray(settings)) return map;
-    settings.forEach((setting) => {
-      if (!setting?.event_code || !setting?.channel) return;
-      if (!map[setting.event_code]) map[setting.event_code] = {};
-      if (setting.channel === "email") {
-        map[setting.event_code].email = setting;
-      } else {
-        map[setting.event_code].whatsapp = setting;
+  // Atualizar ref quando settings mudarem
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  // Inicializar hash na primeira renderização
+  useEffect(() => {
+    if (lastSettingsHashRef.current === "") {
+      lastSettingsHashRef.current = getSettingsHash(settings);
+    }
+  }, [settings]);
+
+  // Sincronizar localSettings quando settings mudarem (após refresh)
+  // Mas apenas se não estiver atualizando nada E se realmente mudou
+  useEffect(() => {
+    const currentHash = getSettingsHash(settings);
+    const hasRealChange = currentHash !== lastSettingsHashRef.current;
+    
+    if (!isUpdatingRef.current && hasRealChange) {
+      try {
+        console.log("[useEffect] Sincronizando settings do servidor");
+        lastSettingsHashRef.current = currentHash;
+        setLocalSettings(settings);
+      } catch (error) {
+        console.error("Erro ao sincronizar settings:", error);
       }
-    });
-    return map;
-  }, [events, settings]);
+    }
+  }, [settings]);
 
-  const eventsByCategory = useMemo(() => {
+  // Organizar configurações por evento (usar localSettings se disponível)
+  const eventSettingsMap: EventSettingsMap = useMemo(() => {
+    try {
+      const map: EventSettingsMap = {};
+      if (!events || !Array.isArray(events)) {
+        console.warn("Events não é um array válido:", events);
+        return map;
+      }
+      
+      events.forEach((event) => {
+        if (event?.code) {
+          map[event.code] = {};
+        }
+      });
+
+      if (!localSettings || !Array.isArray(localSettings)) {
+        console.warn("LocalSettings não é um array válido:", localSettings);
+        return map;
+      }
+
+      localSettings.forEach((setting) => {
+        if (!setting?.event_code || !setting?.channel) {
+          console.warn("Setting inválido:", setting);
+          return;
+        }
+        if (!map[setting.event_code]) {
+          map[setting.event_code] = {};
+        }
+        if (setting.channel === "email") {
+          map[setting.event_code].email = setting;
+        } else {
+          map[setting.event_code].whatsapp = setting;
+        }
+      });
+
+      return map;
+    } catch (error) {
+      console.error("Erro ao criar eventSettingsMap:", error);
+      return {};
+    }
+  }, [events, localSettings]);
+
+  // Agrupar eventos por categoria
+  const eventsByCategory: Record<string, MessageEvent[]> = useMemo(() => {
     const map: Record<string, MessageEvent[]> = {};
-    if (!Array.isArray(events)) return map;
     events.forEach((event) => {
-      if (!map[event.category]) map[event.category] = [];
+      if (!map[event.category]) {
+        map[event.category] = [];
+      }
       map[event.category].push(event);
     });
     return map;
   }, [events]);
 
-  async function handleToggle(
+  // Debounce para evitar múltiplas atualizações simultâneas
+  const toggleTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  const handleToggle = useCallback(async (
     eventCode: string,
     channel: "email" | "whatsapp",
     enabled: boolean
-  ) {
+  ) => {
     const key = `${eventCode}-${channel}`;
-    setUpdating((prev) => ({ ...prev, [key]: true }));
+    
+    // Limpar timeout anterior se existir
+    if (toggleTimeoutRef.current[key]) {
+      clearTimeout(toggleTimeoutRef.current[key]);
+      delete toggleTimeoutRef.current[key];
+    }
 
-    const currentSetting = eventSettingsMap[eventCode]?.[channel];
-    const sendMode = currentSetting?.send_mode ?? "manual";
+    // Debounce de 150ms para evitar atualizações muito rápidas
+    toggleTimeoutRef.current[key] = setTimeout(async () => {
+      try {
+        console.log("[handleToggle] Iniciando:", { eventCode, channel, enabled });
+        
+        isUpdatingRef.current = true;
+        setUpdating((prev) => ({ ...prev, [key]: true }));
 
-    try {
+      const currentSetting = eventSettingsMap[eventCode]?.[channel];
+      const sendMode = currentSetting?.send_mode || "manual";
+
+      // Atualizar estado local otimisticamente (apenas uma vez)
+      setLocalSettings((prev) => {
+        try {
+          // Verificar se já está no estado desejado para evitar atualizações desnecessárias
+          const existing = prev.find(
+            (s) => s.event_code === eventCode && s.channel === channel
+          );
+          if (existing && existing.enabled === enabled) {
+            console.log("[handleToggle] Estado já está correto, pulando atualização");
+            return prev;
+          }
+
+          const updated = [...prev];
+          const index = updated.findIndex(
+            (s) => s.event_code === eventCode && s.channel === channel
+          );
+
+          if (index >= 0) {
+            updated[index] = { ...updated[index], enabled };
+          } else {
+            // Criar nova configuração se não existir
+            const clinicId = updated[0]?.clinic_id || settingsRef.current[0]?.clinic_id || "";
+            updated.push({
+              id: `temp-${Date.now()}`,
+              clinic_id: clinicId,
+              event_code: eventCode,
+              channel,
+              enabled,
+              send_mode: sendMode,
+              template_id: null,
+              conditions: {},
+            });
+          }
+
+          // Atualizar hash para evitar que useEffect sobrescreva
+          lastSettingsHashRef.current = getSettingsHash(updated);
+          console.log("[handleToggle] Estado local atualizado:", updated);
+          return updated;
+        } catch (error) {
+          console.error("[handleToggle] Erro ao atualizar estado local:", error);
+          return prev;
+        }
+      });
+
       const result = await updateClinicMessageSetting(
         eventCode,
         channel,
         enabled,
         sendMode,
-        currentSetting?.template_id ?? null
+        currentSetting?.template_id || null
       );
 
+      console.log("[handleToggle] Resultado do servidor:", result);
+
       if (result.error) {
+        // Reverter mudança local em caso de erro
+        setLocalSettings((prev) => {
+          try {
+            const reverted = [...prev];
+            const index = reverted.findIndex(
+              (s) => s.event_code === eventCode && s.channel === channel
+            );
+            if (index >= 0) {
+              const original = settingsRef.current.find(
+                (s) => s.event_code === eventCode && s.channel === channel
+              );
+              if (original) {
+                reverted[index] = original;
+              } else {
+                reverted.splice(index, 1);
+              }
+            }
+            return reverted;
+          } catch (error) {
+            console.error("[handleToggle] Erro ao reverter:", error);
+            return prev;
+          }
+        });
         alert(`Erro: ${result.error}`);
       } else {
-        router.refresh();
+        // Não fazer refresh imediato - confiar no estado local
+        // O refresh acontecerá naturalmente quando necessário
+        console.log("[handleToggle] Sucesso - mantendo estado local");
       }
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Erro ao atualizar");
+    } catch (error) {
+      console.error("[handleToggle] Erro geral:", error);
+      // Reverter em caso de erro
+      setLocalSettings((prev) => {
+        try {
+          const reverted = [...prev];
+          const index = reverted.findIndex(
+            (s) => s.event_code === eventCode && s.channel === channel
+          );
+          if (index >= 0) {
+            const original = settingsRef.current.find(
+              (s) => s.event_code === eventCode && s.channel === channel
+            );
+            if (original) {
+              reverted[index] = original;
+            } else {
+              reverted.splice(index, 1);
+            }
+          }
+          return reverted;
+        } catch (revertError) {
+          console.error("[handleToggle] Erro ao reverter:", revertError);
+          return prev;
+        }
+      });
+      alert(`Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     } finally {
-      setUpdating((prev) => ({ ...prev, [key]: false }));
+      setUpdating((prev) => {
+        const newState = { ...prev, [key]: false };
+        // Verificar se ainda há atualizações pendentes
+        const hasActiveUpdates = Object.values(newState).some((v) => v === true);
+        if (!hasActiveUpdates) {
+          isUpdatingRef.current = false;
+        }
+        return newState;
+      });
+      delete toggleTimeoutRef.current[key];
     }
-  }
+  }, 150);
+  }, [eventSettingsMap, settingsRef]);
 
   async function handleSendModeChange(
     eventCode: string,
@@ -108,10 +291,25 @@ export function MensagensClient({
     sendMode: SendMode
   ) {
     const key = `${eventCode}-${channel}-mode`;
+    isUpdatingRef.current = true;
     setUpdating((prev) => ({ ...prev, [key]: true }));
 
     const currentSetting = eventSettingsMap[eventCode]?.[channel];
-    const enabled = currentSetting?.enabled ?? false;
+    const enabled = currentSetting?.enabled || false;
+
+    // Atualizar estado local otimisticamente
+    setLocalSettings((prev) => {
+      const updated = [...prev];
+      const index = updated.findIndex(
+        (s) => s.event_code === eventCode && s.channel === channel
+      );
+
+      if (index >= 0) {
+        updated[index] = { ...updated[index], send_mode: sendMode };
+      }
+
+      return updated;
+    });
 
     try {
       const result = await updateClinicMessageSetting(
@@ -119,18 +317,59 @@ export function MensagensClient({
         channel,
         enabled,
         sendMode,
-        currentSetting?.template_id ?? null
+        currentSetting?.template_id || null
       );
 
       if (result.error) {
+        // Reverter mudança local em caso de erro
+        setLocalSettings((prev) => {
+          const reverted = [...prev];
+          const index = reverted.findIndex(
+            (s) => s.event_code === eventCode && s.channel === channel
+          );
+          if (index >= 0) {
+            const original = settings.find(
+              (s) => s.event_code === eventCode && s.channel === channel
+            );
+            if (original) {
+              reverted[index] = original;
+            }
+          }
+          return reverted;
+        });
         alert(`Erro: ${result.error}`);
       } else {
-        router.refresh();
+        // Não fazer refresh imediato - confiar no estado local
+        console.log("[handleSendModeChange] Sucesso - mantendo estado local");
       }
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Erro ao atualizar");
+    } catch (error) {
+      // Reverter em caso de erro
+      setLocalSettings((prev) => {
+        const reverted = [...prev];
+        const index = reverted.findIndex(
+          (s) => s.event_code === eventCode && s.channel === channel
+        );
+        if (index >= 0) {
+          const original = settings.find(
+            (s) => s.event_code === eventCode && s.channel === channel
+          );
+          if (original) {
+            reverted[index] = original;
+          }
+        }
+        return reverted;
+      });
+      alert(`Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     } finally {
-      setUpdating((prev) => ({ ...prev, [key]: false }));
+      setUpdating((prev) => {
+        const newState = { ...prev, [key]: false };
+        // Verificar se ainda há atualizações pendentes
+        const hasActiveUpdates = Object.values(newState).some((v) => v === true);
+        if (!hasActiveUpdates) {
+          isUpdatingRef.current = false;
+        }
+        return newState;
+      });
     }
   }
 
@@ -138,22 +377,21 @@ export function MensagensClient({
     return eventSettingsMap[eventCode]?.[channel];
   }
 
-  function getTemplatesForEvent(
-    eventCode: string,
-    channel: "email" | "whatsapp"
-  ) {
+  function getTemplatesForEvent(eventCode: string, channel: "email" | "whatsapp") {
     return templates.filter(
-      (t) =>
-        t.event_code === eventCode &&
-        t.channel === channel &&
-        t.is_active
+      (t) => t.event_code === eventCode && t.channel === channel && t.is_active
     );
   }
 
-  if (!events?.length) {
+  // Validar dados antes de renderizar
+  if (!events || !Array.isArray(events)) {
+    console.error("Events inválido:", events);
     return (
       <div className="space-y-6 p-6">
-        <p className="text-muted-foreground">Nenhum evento disponível.</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h2 className="text-lg font-semibold text-red-800 mb-2">Erro: Dados inválidos</h2>
+          <p className="text-sm text-red-600">Events não é um array válido</p>
+        </div>
       </div>
     );
   }
@@ -162,9 +400,7 @@ export function MensagensClient({
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">
-            Mensagens Automáticas
-          </h1>
+          <h1 className="text-2xl font-semibold text-foreground">Mensagens Automáticas</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Configure eventos de email e WhatsApp para comunicação com pacientes
           </p>
@@ -183,9 +419,9 @@ export function MensagensClient({
         </div>
       </div>
 
+      {/* Tabs */}
       <div className="flex gap-2 border-b">
         <button
-          type="button"
           onClick={() => setActiveTab("email")}
           className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             activeTab === "email"
@@ -197,7 +433,6 @@ export function MensagensClient({
           Email
         </button>
         <button
-          type="button"
           onClick={() => setActiveTab("whatsapp")}
           className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             activeTab === "whatsapp"
@@ -210,31 +445,37 @@ export function MensagensClient({
         </button>
       </div>
 
+      {/* Lista de eventos por categoria */}
       <div className="space-y-6">
-        {Object.entries(eventsByCategory).map(([category, categoryEvents]) => (
-          <div key={category}>
-            <h2 className="text-lg font-semibold text-foreground mb-3">
-              {CATEGORY_LABELS[category] ?? category}
-            </h2>
-            <div className="space-y-3">
-              {(categoryEvents ?? []).map((event) => {
-                if (!event?.code) return null;
-                const setting = getSetting(event.code, activeTab);
-                const enabled = setting?.enabled ?? false;
-                const sendMode = setting?.send_mode ?? "manual";
-                const canBeAutomatic = event.can_be_automatic ?? false;
-                const key = `${event.code}-${activeTab}`;
-                const isLoading =
-                  updating[key] === true || updating[`${key}-mode`] === true;
+        {Object.entries(eventsByCategory || {}).map(([category, categoryEvents]) => {
+          if (!categoryEvents || !Array.isArray(categoryEvents)) {
+            console.warn("categoryEvents inválido para categoria:", category);
+            return null;
+          }
+          return (
+            <div key={category}>
+              <h2 className="text-lg font-semibold text-foreground mb-3">
+                {CATEGORY_LABELS[category] || category}
+              </h2>
+              <div className="space-y-3">
+                {categoryEvents.map((event) => {
+                  if (!event || !event.code) {
+                    console.warn("Event inválido:", event);
+                    return null;
+                  }
+                  const setting = getSetting(event.code, activeTab);
+                  const enabled = setting?.enabled || false;
+                  const sendMode = setting?.send_mode || "manual";
+                  const canBeAutomatic = event.can_be_automatic;
+                  const key = `${event.code}-${activeTab}`;
+                  const isLoading = updating[key] || updating[`${key}-mode`];
 
-                return (
-                  <Card key={event.code} className="p-4">
+                  return (
+                    <Card key={event.code} className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium text-foreground">
-                            {event.name}
-                          </h3>
+                          <h3 className="font-medium text-foreground">{event.name}</h3>
                           {event.description && (
                             <span className="text-xs text-muted-foreground">
                               ({event.description})
@@ -252,9 +493,7 @@ export function MensagensClient({
                           />
                           {enabled && canBeAutomatic && (
                             <div className="flex items-center gap-2">
-                              <span className="text-sm text-muted-foreground">
-                                Envio:
-                              </span>
+                              <span className="text-sm text-muted-foreground">Envio:</span>
                               <select
                                 value={sendMode}
                                 onChange={(e) =>
@@ -274,54 +513,93 @@ export function MensagensClient({
                           )}
                           {enabled && (
                             <div className="flex items-center gap-2">
-                              <span className="text-sm text-muted-foreground">
-                                Template:
-                              </span>
+                              <span className="text-sm text-muted-foreground">Template:</span>
                               <select
-                                value={setting?.template_id ?? ""}
+                                value={setting?.template_id || ""}
                                 onChange={async (e) => {
-                                  const templateId =
-                                    e.target.value || null;
+                                  const templateId = e.target.value || null;
                                   const updateKey = `${event.code}-${activeTab}-template`;
-                                  setUpdating((prev) => ({
-                                    ...prev,
-                                    [updateKey]: true,
-                                  }));
+                                  isUpdatingRef.current = true;
+                                  setUpdating((prev) => ({ ...prev, [updateKey]: true }));
+
+                                  // Atualizar estado local
+                                  setLocalSettings((prev) => {
+                                    const updated = [...prev];
+                                    const index = updated.findIndex(
+                                      (s) => s.event_code === event.code && s.channel === activeTab
+                                    );
+
+                                    if (index >= 0) {
+                                      updated[index] = { ...updated[index], template_id: templateId };
+                                    }
+
+                                    return updated;
+                                  });
+
                                   try {
-                                    const result =
-                                      await updateClinicMessageSetting(
-                                        event.code,
-                                        activeTab,
-                                        enabled,
-                                        sendMode,
-                                        templateId
-                                      );
+                                    const result = await updateClinicMessageSetting(
+                                      event.code,
+                                      activeTab,
+                                      enabled,
+                                      sendMode,
+                                      templateId
+                                    );
+
                                     if (result.error) {
+                                      setLocalSettings((prev) => {
+                                        const reverted = [...prev];
+                                        const index = reverted.findIndex(
+                                          (s) => s.event_code === event.code && s.channel === activeTab
+                                        );
+                                        if (index >= 0) {
+                                          const original = settings.find(
+                                            (s) => s.event_code === event.code && s.channel === activeTab
+                                          );
+                                          if (original) {
+                                            reverted[index] = original;
+                                          }
+                                        }
+                                        return reverted;
+                                      });
                                       alert(`Erro: ${result.error}`);
                                     } else {
-                                      router.refresh();
+                                      // Não fazer refresh imediato - confiar no estado local
+                                      console.log("[Template Change] Sucesso - mantendo estado local");
                                     }
-                                  } catch (err) {
-                                    alert(
-                                      err instanceof Error
-                                        ? err.message
-                                        : "Erro ao atualizar"
-                                    );
+                                  } catch (error) {
+                                    setLocalSettings((prev) => {
+                                      const reverted = [...prev];
+                                      const index = reverted.findIndex(
+                                        (s) => s.event_code === event.code && s.channel === activeTab
+                                      );
+                                      if (index >= 0) {
+                                        const original = settings.find(
+                                          (s) => s.event_code === event.code && s.channel === activeTab
+                                        );
+                                        if (original) {
+                                          reverted[index] = original;
+                                        }
+                                      }
+                                      return reverted;
+                                    });
+                                    alert(`Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
                                   } finally {
-                                    setUpdating((prev) => ({
-                                      ...prev,
-                                      [updateKey]: false,
-                                    }));
+                                    setUpdating((prev) => {
+                                      const newState = { ...prev, [updateKey]: false };
+                                      // Verificar se ainda há atualizações pendentes
+                                      const hasActiveUpdates = Object.values(newState).some((v) => v === true);
+                                      if (!hasActiveUpdates) {
+                                        isUpdatingRef.current = false;
+                                      }
+                                      return newState;
+                                    });
                                   }
                                 }}
                                 disabled={isLoading}
                                 className="h-8 rounded-md border border-input bg-background px-2 text-sm"
                               >
                                 <option value="">Padrão</option>
-                                {getTemplatesForEvent(
-                                  event.code,
-                                  activeTab
-                                ).map((t) => (
+                                {getTemplatesForEvent(event.code, activeTab).map((t) => (
                                   <option key={t.id} value={t.id}>
                                     {t.name}
                                   </option>
@@ -332,12 +610,13 @@ export function MensagensClient({
                         </div>
                       </div>
                     </div>
-                  </Card>
-                );
-              })}
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
