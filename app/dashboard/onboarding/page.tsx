@@ -11,11 +11,11 @@ export default async function OnboardingPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id")
+    .select("id, clinic_id")
     .eq("id", user.id)
     .single();
 
-  if (profile) redirect("/dashboard");
+  if (profile?.clinic_id) redirect("/dashboard");
 
   return (
     <div className="max-w-md mx-auto py-12 px-4">

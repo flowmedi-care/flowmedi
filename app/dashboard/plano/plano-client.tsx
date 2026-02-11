@@ -78,22 +78,33 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error ?? "Erro ao criar sessão de checkout.");
+        const msg = data.error ?? "Erro ao criar sessão de checkout.";
+        if (msg.includes("Crie sua clínica primeiro")) {
+          window.location.href = "/dashboard/onboarding";
+          return;
+        }
+        alert(msg);
         setLoadingCheckout(false);
         return;
       }
       const { clientSecret } = data;
       if (!clientSecret) {
+        alert(data.error ?? "Resposta inválida do servidor. Verifique o console (F12).");
         setLoadingCheckout(false);
         return;
       }
       const Stripe = window.Stripe;
       if (!Stripe) {
-        alert("Stripe.js não carregado. Recarregue a página.");
+        alert("Stripe.js não carregado. Aguarde alguns segundos e tente novamente.");
         setLoadingCheckout(false);
         return;
       }
       const stripe = Stripe(pk);
+      if (!stripe.embeddedCheckout?.create) {
+        alert("Checkout embutido não disponível. Recarregue a página.");
+        setLoadingCheckout(false);
+        return;
+      }
       const checkout = await stripe.embeddedCheckout.create({ clientSecret });
       setCheckoutMounted(true);
       setTimeout(() => {
@@ -104,8 +115,9 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         }
       }, 100);
     } catch (e) {
-      console.error(e);
-      alert("Erro ao iniciar checkout.");
+      console.error("Checkout error:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(`Erro ao iniciar checkout: ${msg}`);
     }
     setLoadingCheckout(false);
   };
@@ -289,10 +301,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
 
       <Script
         src="https://js.stripe.com/v3/"
-        strategy="lazyOnload"
-        onLoad={() => {
-          // Stripe.js loaded; embeddedCheckout may be available on Stripe(pk).embeddedCheckout
-        }}
+        strategy="afterInteractive"
       />
     </div>
   );

@@ -21,7 +21,10 @@ export async function POST() {
     return NextResponse.json({ error: "Apenas admin pode assinar." }, { status: 403 });
   }
   if (!profile.clinic_id) {
-    return NextResponse.json({ error: "Clínica não encontrada." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Crie sua clínica primeiro. Você será redirecionado para completar o cadastro." },
+      { status: 400 }
+    );
   }
 
   const stripe = getStripe();
@@ -39,7 +42,10 @@ export async function POST() {
     .single();
 
   if (!clinic) {
-    return NextResponse.json({ error: "Clínica não encontrada." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Clínica não encontrada. Complete o cadastro em Configurações ou crie uma nova clínica." },
+      { status: 400 }
+    );
   }
 
   const { data: proPlan } = await supabase
@@ -57,16 +63,22 @@ export async function POST() {
 
   let customerId = clinic.stripe_customer_id;
   if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email ?? undefined,
-      name: clinic.name,
-      metadata: { clinic_id: clinic.id },
-    });
-    customerId = customer.id;
-    await supabase
-      .from("clinics")
-      .update({ stripe_customer_id: customerId })
-      .eq("id", clinic.id);
+    try {
+      const customer = await stripe.customers.create({
+        email: user.email ?? undefined,
+        name: clinic.name,
+        metadata: { clinic_id: clinic.id },
+      });
+      customerId = customer.id;
+      await supabase
+        .from("clinics")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", clinic.id);
+    } catch (err) {
+      console.error("Stripe customer create error:", err);
+      const msg = err instanceof Error ? err.message : "Erro ao criar cliente na Stripe.";
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
   }
 
   const origin =
@@ -74,17 +86,23 @@ export async function POST() {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
   const returnUrl = `${origin}/dashboard/plano?session_id={CHECKOUT_SESSION_ID}`;
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    ui_mode: "embedded",
-    customer: customerId,
-    line_items: [{ price: proPlan.stripe_price_id, quantity: 1 }],
-    return_url: returnUrl,
-    metadata: { clinic_id: clinic.id },
-    subscription_data: {
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      ui_mode: "embedded",
+      customer: customerId,
+      line_items: [{ price: proPlan.stripe_price_id, quantity: 1 }],
+      return_url: returnUrl,
       metadata: { clinic_id: clinic.id },
-    },
-  });
+      subscription_data: {
+        metadata: { clinic_id: clinic.id },
+      },
+    });
 
-  return NextResponse.json({ clientSecret: session.client_secret });
+    return NextResponse.json({ clientSecret: session.client_secret });
+  } catch (err) {
+    console.error("Stripe checkout session error:", err);
+    const message = err instanceof Error ? err.message : "Erro ao criar sessão na Stripe.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

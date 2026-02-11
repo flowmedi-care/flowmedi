@@ -20,12 +20,7 @@ export default async function PlanoPage() {
   }
 
   if (!profile.clinic_id) {
-    return (
-      <div className="space-y-4">
-        <h1 className="text-xl font-semibold text-foreground">Plano e pagamento</h1>
-        <p className="text-sm text-muted-foreground">Clínica não encontrada.</p>
-      </div>
-    );
+    redirect("/dashboard/onboarding");
   }
 
   const { data: clinic } = await supabase
