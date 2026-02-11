@@ -29,6 +29,7 @@ export async function GET() {
     .single();
 
   if (!clinic?.stripe_subscription_id) {
+    console.log("subscription: no stripe_subscription_id");
     return NextResponse.json({
       cancelAtPeriodEnd: false,
       currentPeriodEnd: null,
@@ -48,9 +49,20 @@ export async function GET() {
       "current_period_end" in subscription
         ? (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end ?? null
         : null;
+    const itemPeriodEnd =
+      subscription.items?.data?.[0] && "current_period_end" in subscription.items.data[0]
+        ? (subscription.items.data[0] as Stripe.SubscriptionItem & { current_period_end?: number })
+            .current_period_end ?? null
+        : null;
+    console.log("subscription: loaded", {
+      id: subscription.id,
+      status: subscription.status,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      currentPeriodEnd: currentPeriodEnd ?? itemPeriodEnd,
+    });
     return NextResponse.json({
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      currentPeriodEnd,
+      currentPeriodEnd: currentPeriodEnd ?? itemPeriodEnd,
       status: subscription.status ?? null,
     });
   } catch (err) {

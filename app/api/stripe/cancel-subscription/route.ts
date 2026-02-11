@@ -44,12 +44,19 @@ export async function POST() {
     cancel_at_period_end: true,
   });
 
+  const currentPeriodEnd =
+    "current_period_end" in subscription
+      ? (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end ?? null
+      : null;
+  const itemPeriodEnd =
+    subscription.items?.data?.[0] && "current_period_end" in subscription.items.data[0]
+      ? (subscription.items.data[0] as Stripe.SubscriptionItem & { current_period_end?: number })
+          .current_period_end ?? null
+      : null;
   return NextResponse.json({
     success: true,
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
-    currentPeriodEnd: "current_period_end" in subscription
-      ? (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end ?? null
-      : null,
+    currentPeriodEnd: currentPeriodEnd ?? itemPeriodEnd,
     status: subscription.status ?? null,
   });
 }

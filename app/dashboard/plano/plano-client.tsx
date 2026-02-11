@@ -68,6 +68,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     try {
       const res = await fetch("/api/stripe/subscription");
       const data = await res.json();
+      console.log("subscription fetch:", { ok: res.ok, status: res.status, data });
       if (res.ok) {
         setSubscriptionInfo({
           cancelAtPeriodEnd: Boolean(data.cancelAtPeriodEnd),
@@ -156,6 +157,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     try {
       const res = await fetch("/api/stripe/cancel-subscription", { method: "POST" });
       const data = await res.json();
+      console.log("cancel-subscription response:", { ok: res.ok, status: res.status, data });
       if (!res.ok) {
         alert(data.error ?? "Erro ao cancelar.");
         setCanceling(false);
