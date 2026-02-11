@@ -14,7 +14,12 @@ export async function createAppointment(
   doctorId: string,
   appointmentTypeId: string | null,
   scheduledAt: string,
-  notes?: string | null
+  notes?: string | null,
+  recommendations?: string | null,
+  requiresFasting?: boolean,
+  requiresMedicationStop?: boolean,
+  specialInstructions?: string | null,
+  preparationNotes?: string | null
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -48,6 +53,11 @@ export async function createAppointment(
       scheduled_at: scheduledAt,
       status: "agendada",
       notes: notes || null,
+      recommendations: recommendations || null,
+      requires_fasting: requiresFasting || false,
+      requires_medication_stop: requiresMedicationStop || false,
+      special_instructions: specialInstructions || null,
+      preparation_notes: preparationNotes || null,
     })
     .select("id")
     .single();
@@ -167,6 +177,11 @@ export async function updateAppointment(
     scheduled_at?: string;
     status?: string;
     notes?: string | null;
+    recommendations?: string | null;
+    requires_fasting?: boolean;
+    requires_medication_stop?: boolean;
+    special_instructions?: string | null;
+    preparation_notes?: string | null;
   }
 ) {
   const supabase = await createClient();

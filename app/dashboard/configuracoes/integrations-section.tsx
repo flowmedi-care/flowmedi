@@ -11,7 +11,7 @@ interface Integration {
   id: string;
   integration_type: "email_google" | "whatsapp_meta";
   status: "pending" | "connected" | "error" | "disconnected";
-  metadata: { email?: string; phone?: string };
+  metadata: { email?: string; phone?: string; phone_number_id?: string };
   connected_at: string | null;
   last_sync_at: string | null;
   error_message: string | null;
@@ -38,8 +38,12 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
     const integration = searchParams.get("integration");
     const error = searchParams.get("error");
     
-    if (status === "connected" && integration === "email") {
-      setSuccessMessage("Conta do Google conectada com sucesso!");
+    if (status === "connected") {
+      if (integration === "email") {
+        setSuccessMessage("Conta do Google conectada com sucesso!");
+      } else if (integration === "whatsapp") {
+        setSuccessMessage("Conta do WhatsApp conectada com sucesso!");
+      }
       setTimeout(() => setSuccessMessage(null), 5000);
     }
     
@@ -52,6 +56,9 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
         no_email: "Não foi possível obter o email da conta",
         save_failed: "Erro ao salvar a integração",
         callback_failed: "Erro no callback de autenticação",
+        oauth_error: "Erro na autenticação OAuth",
+        config_missing: "Configuração do Meta não encontrada",
+        token_failed: "Erro ao obter token de acesso",
       };
       setErrorMessage(errorMessages[error] || "Erro desconhecido");
       setTimeout(() => setErrorMessage(null), 5000);
@@ -100,6 +107,40 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
       await loadIntegrations();
     } catch (error) {
       console.error("Erro ao desconectar Google:", error);
+    } finally {
+      setDisconnecting(null);
+    }
+  }
+
+  async function connectWhatsApp() {
+    setConnecting("whatsapp_meta");
+    try {
+      const res = await fetch("/api/integrations/whatsapp/auth");
+      if (!res.ok) throw new Error("Erro ao iniciar autenticação");
+      const data = await res.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch (error) {
+      console.error("Erro ao conectar WhatsApp:", error);
+      setConnecting(null);
+    }
+  }
+
+  async function disconnectWhatsApp() {
+    if (!confirm("Tem certeza que deseja desconectar a conta do WhatsApp? Você não poderá mais enviar mensagens até reconectar.")) {
+      return;
+    }
+
+    setDisconnecting("whatsapp_meta");
+    try {
+      const res = await fetch("/api/integrations/whatsapp/disconnect", {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Erro ao desconectar");
+      await loadIntegrations();
+    } catch (error) {
+      console.error("Erro ao desconectar WhatsApp:", error);
     } finally {
       setDisconnecting(null);
     }
@@ -215,8 +256,8 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
           </div>
         </div>
 
-        {/* WhatsApp - Meta (placeholder para futuro) */}
-        <div className="flex items-center justify-between p-4 border rounded-lg opacity-60">
+        {/* WhatsApp - Meta */}
+        <div className="flex items-center justify-between p-4 border rounded-lg">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-50 rounded-lg">
               <svg className="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
@@ -226,13 +267,69 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
             <div>
               <div className="font-medium">WhatsApp (Meta)</div>
               <div className="text-sm text-muted-foreground">
-                Em breve: conecte sua conta Meta Business para enviar mensagens
+                {whatsappIntegration?.status === "connected" ? (
+                  <>
+                    Conectado
+                    {whatsappIntegration.metadata.phone && (
+                      <> - {whatsappIntegration.metadata.phone}</>
+                    )}
+                  </>
+                ) : whatsappIntegration?.status === "pending" ? (
+                  "Conectado parcialmente - configure um número no Meta Business Manager"
+                ) : (
+                  "Conecte sua conta Meta Business para enviar mensagens"
+                )}
               </div>
+              {whatsappIntegration?.error_message && (
+                <div className="text-xs text-destructive mt-1">
+                  {whatsappIntegration.error_message}
+                </div>
+              )}
             </div>
           </div>
-          <Button variant="outline" size="sm" disabled>
-            Em breve
-          </Button>
+          <div className="flex items-center gap-3">
+            {whatsappIntegration?.status === "connected" || whatsappIntegration?.status === "pending" ? (
+              <>
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  {whatsappIntegration.status === "connected" ? "Conectado" : "Pendente"}
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={disconnectWhatsApp}
+                  disabled={disconnecting === "whatsapp_meta"}
+                >
+                  {disconnecting === "whatsapp_meta" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Desconectando...
+                    </>
+                  ) : (
+                    "Desconectar"
+                  )}
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={connectWhatsApp}
+                disabled={connecting === "whatsapp_meta"}
+                size="sm"
+              >
+                {connecting === "whatsapp_meta" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Conectando...
+                  </>
+                ) : (
+                  <>
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Conectar WhatsApp
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
