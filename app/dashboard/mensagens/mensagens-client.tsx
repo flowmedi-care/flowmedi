@@ -110,8 +110,6 @@ export function MensagensClient({
           send_mode: sendMode,
           template_id: null,
           conditions: {},
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
         });
       }
 
