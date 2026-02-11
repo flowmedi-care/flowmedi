@@ -43,7 +43,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
-  const [loadingSubscription, setLoadingSubscription] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [canceling, setCanceling] = useState(false);
 
@@ -63,10 +63,8 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
 
   const loadSubscriptionInfo = async () => {
     try {
-      setLoadingSubscription(true);
       const res = await fetch("/api/stripe/subscription");
       const data = await res.json();
-      console.log("subscription fetch:", { ok: res.ok, status: res.status, data });
       if (res.ok) {
         setSubscriptionInfo({
           cancelAtPeriodEnd: Boolean(data.cancelAtPeriodEnd),
@@ -77,10 +75,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         setSubscriptionInfo(null);
       }
     } catch {
-      console.log("subscription fetch failed");
       // Ignore transient errors; UI falls back to plan data.
-    } finally {
-      setLoadingSubscription(false);
     }
   };
 
@@ -160,19 +155,11 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     try {
       const res = await fetch("/api/stripe/cancel-subscription", { method: "POST" });
       const data = await res.json();
-      console.log("cancel-subscription response:", { ok: res.ok, status: res.status, data });
       if (!res.ok) {
         alert(data.error ?? "Erro ao cancelar.");
         setCanceling(false);
         setCancelOpen(false);
         return;
-      }
-      if (res.ok) {
-        setSubscriptionInfo({
-          cancelAtPeriodEnd: Boolean(data.cancelAtPeriodEnd),
-          currentPeriodEnd: typeof data.currentPeriodEnd === "number" ? data.currentPeriodEnd : null,
-          status: typeof data.status === "string" ? data.status : null,
-        });
       }
       setCancelOpen(false);
       await loadSubscriptionInfo();
@@ -196,6 +183,24 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     } catch {
       alert("Erro ao abrir portal.");
     }
+  };
+
+  const handleResumeSubscription = async () => {
+    setResuming(true);
+    try {
+      const res = await fetch("/api/stripe/resume-subscription", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error ?? "Erro ao manter assinatura.");
+        setResuming(false);
+        return;
+      }
+      await loadSubscriptionInfo();
+      router.refresh();
+    } catch {
+      alert("Erro ao manter assinatura.");
+    }
+    setResuming(false);
   };
 
   const formatMoney = (cents: number, currency: string) => {
@@ -238,16 +243,12 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="text-xs text-muted-foreground">
-            Status Stripe: {subscriptionInfo?.status ?? "—"} · Cancelar no fim do ciclo:{" "}
-            {subscriptionInfo?.cancelAtPeriodEnd ? "sim" : "não"} · Fim do ciclo:{" "}
-            {subscriptionInfo?.currentPeriodEnd ? formatDate(subscriptionInfo.currentPeriodEnd) : "—"}
-          </div>
           {subscriptionInfo?.cancelAtPeriodEnd && subscriptionInfo.currentPeriodEnd && (
             <p className="text-sm text-muted-foreground">
-              Cancelamento agendado. Você mantém o Pro por{" "}
+              Cancelamento agendado — seu acesso continua por{" "}
               {formatDaysLeft(subscriptionInfo.currentPeriodEnd)} dias (até{" "}
-              {formatDate(subscriptionInfo.currentPeriodEnd)}).
+              {formatDate(subscriptionInfo.currentPeriodEnd)}). Você pode manter a assinatura a
+              qualquer momento.
             </p>
           )}
           {!isPro && (
@@ -279,12 +280,9 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
                 <ExternalLink className="h-4 w-4" />
                 Atualizar cartão / ver faturas na Stripe
               </Button>
-              <Button variant="outline" onClick={loadSubscriptionInfo} disabled={loadingSubscription}>
-                {loadingSubscription ? "Atualizando…" : "Atualizar status"}
-              </Button>
               {isCancelScheduled ? (
-                <Button variant="secondary" disabled>
-                  Cancelamento agendado
+                <Button variant="outline" onClick={handleResumeSubscription} disabled={resuming}>
+                  {resuming ? "Mantendo…" : "Manter assinatura"}
                 </Button>
               ) : (
                 <Button variant="destructive" onClick={() => setCancelOpen(true)}>

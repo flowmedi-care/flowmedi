@@ -18,7 +18,7 @@ export async function POST() {
     .single();
 
   if (!profile || profile.role !== "admin" || !profile.clinic_id) {
-    return NextResponse.json({ error: "Apenas admin pode cancelar." }, { status: 403 });
+    return NextResponse.json({ error: "Apenas admin pode acessar." }, { status: 403 });
   }
 
   const { data: clinic } = await supabase
@@ -29,7 +29,7 @@ export async function POST() {
 
   if (!clinic?.stripe_subscription_id) {
     return NextResponse.json(
-      { error: "Nenhuma assinatura ativa para cancelar." },
+      { error: "Nenhuma assinatura ativa para renovar." },
       { status: 400 }
     );
   }
@@ -40,7 +40,7 @@ export async function POST() {
   }
 
   await stripe.subscriptions.update(clinic.stripe_subscription_id, {
-    cancel_at_period_end: true,
+    cancel_at_period_end: false,
   });
 
   return NextResponse.json({ success: true });

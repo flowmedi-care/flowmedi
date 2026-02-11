@@ -22,11 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Assinatura ausente." }, { status: 400 });
     }
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    console.log("Stripe webhook received:", {
-      type: event.type,
-      id: event.id,
-      livemode: event.livemode,
-    });
+    // Webhook verified.
   } catch (err) {
     const message = err instanceof Error ? err.message : "Webhook signature verification failed.";
     return NextResponse.json({ error: message }, { status: 400 });
@@ -90,7 +86,6 @@ export async function POST(request: Request) {
           session.metadata?.clinic_id ??
           session.client_reference_id ??
           (await findClinicIdByCustomer(session.customer as string | null));
-        console.log("checkout.session.completed clinicId:", clinicId);
         if (!clinicId) break;
         const { data: proPlan, error: proPlanError } = await supabase
           .from("plans")
@@ -152,11 +147,6 @@ export async function POST(request: Request) {
             if (updateError) {
               console.error("Webhook clinic update error:", updateError);
             } else {
-              if (sub.cancel_at_period_end) {
-                console.log("Webhook cancel scheduled:", { clinicId, subId: sub.id });
-              } else {
-                console.log("Webhook clinic updated to pro:", { clinicId, subId: sub.id });
-              }
             }
           }
         } else if (sub.status === "past_due" || sub.status === "unpaid") {
@@ -166,9 +156,6 @@ export async function POST(request: Request) {
             .eq("id", clinicId);
           if (updateError) {
             console.error("Webhook clinic update error:", updateError);
-          } else {
-            console.log("Webhook clinic updated status:", { clinicId, status: sub.status });
-          }
         } else if (sub.status === "canceled") {
           await updateClinicPlan(clinicId, "starter", "canceled");
         }
@@ -180,7 +167,6 @@ export async function POST(request: Request) {
         const clinicId =
           sub.metadata?.clinic_id ??
           (await findClinicIdByCustomer(sub.customer as string | null));
-        console.log("customer.subscription.deleted clinicId:", clinicId);
         if (!clinicId) break;
         await updateClinicPlan(clinicId, "starter", "canceled");
         break;
@@ -194,7 +180,6 @@ export async function POST(request: Request) {
         const clinicId =
           sub.metadata?.clinic_id ??
           (await findClinicIdByCustomer(sub.customer as string | null));
-        console.log("invoice.payment_failed clinicId:", clinicId);
         if (!clinicId) break;
         const { error: updateError } = await supabase
           .from("clinics")
@@ -202,8 +187,6 @@ export async function POST(request: Request) {
           .eq("id", clinicId);
         if (updateError) {
           console.error("Webhook clinic update error:", updateError);
-        } else {
-          console.log("Webhook clinic updated status:", { clinicId, status: "past_due" });
         }
         break;
       }
