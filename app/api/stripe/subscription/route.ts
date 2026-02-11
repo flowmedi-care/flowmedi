@@ -44,9 +44,13 @@ export async function GET() {
   try {
     const sub = await stripe.subscriptions.retrieve(clinic.stripe_subscription_id);
     const subscription = sub as Stripe.Subscription;
+    const currentPeriodEnd =
+      "current_period_end" in subscription
+        ? (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end ?? null
+        : null;
     return NextResponse.json({
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      currentPeriodEnd: subscription.current_period_end ?? null,
+      currentPeriodEnd,
       status: subscription.status ?? null,
     });
   } catch (err) {
