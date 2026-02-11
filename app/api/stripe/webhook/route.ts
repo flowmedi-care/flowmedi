@@ -152,7 +152,11 @@ export async function POST(request: Request) {
             if (updateError) {
               console.error("Webhook clinic update error:", updateError);
             } else {
-              console.log("Webhook clinic updated to pro:", { clinicId, subId: sub.id });
+              if (sub.cancel_at_period_end) {
+                console.log("Webhook cancel scheduled:", { clinicId, subId: sub.id });
+              } else {
+                console.log("Webhook clinic updated to pro:", { clinicId, subId: sub.id });
+              }
             }
           }
         } else if (sub.status === "past_due" || sub.status === "unpaid") {
