@@ -61,10 +61,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   }, []);
 
   const loadSubscriptionInfo = async () => {
-    if (!plan?.stripeSubscriptionId) {
-      setSubscriptionInfo(null);
-      return;
-    }
     try {
       const res = await fetch("/api/stripe/subscription");
       const data = await res.json();
@@ -75,6 +71,8 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
           currentPeriodEnd: typeof data.currentPeriodEnd === "number" ? data.currentPeriodEnd : null,
           status: typeof data.status === "string" ? data.status : null,
         });
+      } else {
+        setSubscriptionInfo(null);
       }
     } catch {
       // Ignore transient errors; UI falls back to plan data.
