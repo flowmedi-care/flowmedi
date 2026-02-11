@@ -277,10 +277,10 @@ export async function updateClinicMessageSetting(
   enabled: boolean,
   sendMode: SendMode,
   templateId: string | null = null
-): Promise<{ error: string | null }> {
+): Promise<{ data: ClinicMessageSetting | null; error: string | null }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Não autorizado." };
+  if (!user) return { data: null, error: "Não autorizado." };
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -288,7 +288,7 @@ export async function updateClinicMessageSetting(
     .eq("id", user.id)
     .single();
 
-  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+  if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
 
   // Verificar se já existe configuração
   const { data: existing } = await supabase
@@ -301,19 +301,23 @@ export async function updateClinicMessageSetting(
 
   if (existing) {
     // Atualizar existente
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("clinic_message_settings")
       .update({
         enabled,
         send_mode: sendMode,
         template_id: templateId,
       })
-      .eq("id", existing.id);
+      .eq("id", existing.id)
+      .select()
+      .single();
 
-    if (error) return { error: error.message };
+    if (error) return { data: null, error: error.message };
+    revalidatePath("/dashboard/mensagens");
+    return { data: updated as ClinicMessageSetting, error: null };
   } else {
     // Criar nova configuração
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from("clinic_message_settings")
       .insert({
         clinic_id: profile.clinic_id,
@@ -322,13 +326,14 @@ export async function updateClinicMessageSetting(
         enabled,
         send_mode: sendMode,
         template_id: templateId,
-      });
+      })
+      .select()
+      .single();
 
-    if (error) return { error: error.message };
+    if (error) return { data: null, error: error.message };
+    revalidatePath("/dashboard/mensagens");
+    return { data: inserted as ClinicMessageSetting, error: null };
   }
-
-  revalidatePath("/dashboard/mensagens");
-  return { error: null };
 }
 
 // ========== BUSCAR MENSAGENS PENDENTES ==========

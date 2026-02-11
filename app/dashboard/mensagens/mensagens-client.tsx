@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
@@ -19,6 +19,8 @@ type EventSettingsMap = Record<
   { email?: ClinicMessageSetting; whatsapp?: ClinicMessageSetting }
 >;
 
+const CATEGORY_ORDER = ["agendamento", "lembrete", "formulario", "pos_consulta", "outros"] as const;
+
 const CATEGORY_LABELS: Record<string, string> = {
   agendamento: "Agendamento",
   lembrete: "Lembretes",
@@ -27,9 +29,23 @@ const CATEGORY_LABELS: Record<string, string> = {
   outros: "Outros",
 };
 
+function mergeSettingIntoList(
+  list: ClinicMessageSetting[],
+  updated: ClinicMessageSetting | null
+): ClinicMessageSetting[] {
+  if (!updated?.event_code || !updated?.channel) return list;
+  const idx = list.findIndex(
+    (s) => s.event_code === updated.event_code && s.channel === updated.channel
+  );
+  if (idx === -1) return [...list, updated];
+  const next = [...list];
+  next[idx] = updated;
+  return next;
+}
+
 export function MensagensClient({
   events,
-  settings,
+  settings: settingsProp,
   templates,
 }: {
   events: MessageEvent[];
@@ -39,16 +55,22 @@ export function MensagensClient({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"email" | "whatsapp">("email");
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
+  const [localSettings, setLocalSettings] = useState<ClinicMessageSetting[]>(
+    () => Array.isArray(settingsProp) ? settingsProp : []
+  );
 
-  // Map sempre derivado das props (sem estado local)
+  useEffect(() => {
+    setLocalSettings(Array.isArray(settingsProp) ? settingsProp : []);
+  }, [settingsProp]);
+
   const eventSettingsMap: EventSettingsMap = useMemo(() => {
     const map: EventSettingsMap = {};
     if (!Array.isArray(events)) return map;
     events.forEach((event) => {
       if (event?.code) map[event.code] = {};
     });
-    if (!Array.isArray(settings)) return map;
-    settings.forEach((setting) => {
+    if (!Array.isArray(localSettings)) return map;
+    localSettings.forEach((setting) => {
       if (!setting?.event_code || !setting?.channel) return;
       if (!map[setting.event_code]) map[setting.event_code] = {};
       if (setting.channel === "email") {
@@ -58,17 +80,25 @@ export function MensagensClient({
       }
     });
     return map;
-  }, [events, settings]);
+  }, [events, localSettings]);
 
   const eventsByCategory = useMemo(() => {
     const map: Record<string, MessageEvent[]> = {};
     if (!Array.isArray(events)) return map;
     events.forEach((event) => {
-      if (!map[event.category]) map[event.category] = [];
-      map[event.category].push(event);
+      const cat = event?.category ?? "outros";
+      if (!map[cat]) map[cat] = [];
+      map[cat].push(event);
     });
     return map;
   }, [events]);
+
+  const orderedCategories = useMemo(() => {
+    const keys = Object.keys(eventsByCategory);
+    return CATEGORY_ORDER.filter((c) => keys.includes(c)).concat(
+      keys.filter((k) => !CATEGORY_ORDER.includes(k))
+    );
+  }, [eventsByCategory]);
 
   async function handleToggle(
     eventCode: string,
@@ -92,8 +122,8 @@ export function MensagensClient({
 
       if (result.error) {
         alert(`Erro: ${result.error}`);
-      } else {
-        router.refresh();
+      } else if (result.data) {
+        setLocalSettings((prev) => mergeSettingIntoList(prev, result.data));
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Erro ao atualizar");
@@ -124,8 +154,8 @@ export function MensagensClient({
 
       if (result.error) {
         alert(`Erro: ${result.error}`);
-      } else {
-        router.refresh();
+      } else if (result.data) {
+        setLocalSettings((prev) => mergeSettingIntoList(prev, result.data));
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Erro ao atualizar");
@@ -211,133 +241,144 @@ export function MensagensClient({
       </div>
 
       <div className="space-y-6">
-        {Object.entries(eventsByCategory).map(([category, categoryEvents]) => (
-          <div key={category}>
-            <h2 className="text-lg font-semibold text-foreground mb-3">
-              {CATEGORY_LABELS[category] ?? category}
-            </h2>
-            <div className="space-y-3">
-              {(categoryEvents ?? []).map((event) => {
-                if (!event?.code) return null;
-                const setting = getSetting(event.code, activeTab);
-                const enabled = setting?.enabled ?? false;
-                const sendMode = setting?.send_mode ?? "manual";
-                const canBeAutomatic = event.can_be_automatic ?? false;
-                const key = `${event.code}-${activeTab}`;
-                const isLoading =
-                  updating[key] === true || updating[`${key}-mode`] === true;
+        {orderedCategories.map((category) => {
+          const categoryEvents = eventsByCategory[category] ?? [];
+          return (
+            <div key={category}>
+              <h2 className="text-lg font-semibold text-foreground mb-3">
+                {CATEGORY_LABELS[category] ?? category}
+              </h2>
+              <div className="space-y-3">
+                {categoryEvents.map((event) => {
+                  const code = event?.code;
+                  if (!code) return null;
+                  const setting = getSetting(code, activeTab);
+                  const enabled = setting?.enabled ?? false;
+                  const sendMode = setting?.send_mode ?? "manual";
+                  const canBeAutomatic = event.can_be_automatic ?? false;
+                  const updatingKey = `${code}-${activeTab}`;
+                  const isLoading =
+                    updating[updatingKey] === true ||
+                    updating[`${updatingKey}-mode`] === true;
 
-                return (
-                  <Card key={event.code} className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium text-foreground">
-                            {event.name}
-                          </h3>
-                          {event.description && (
-                            <span className="text-xs text-muted-foreground">
-                              ({event.description})
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 mt-3">
-                          <Switch
-                            checked={enabled}
-                            onChange={(checked) =>
-                              handleToggle(event.code, activeTab, checked)
-                            }
-                            disabled={isLoading}
-                            label="Ativado"
-                          />
-                          {enabled && canBeAutomatic && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-muted-foreground">
-                                Envio:
+                  return (
+                    <Card key={`${category}-${code}`} className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-medium text-foreground">
+                              {event.name ?? code}
+                            </h3>
+                            {event.description != null && event.description !== "" && (
+                              <span className="text-xs text-muted-foreground">
+                                ({event.description})
                               </span>
-                              <select
-                                value={sendMode}
-                                onChange={(e) =>
-                                  handleSendModeChange(
-                                    event.code,
-                                    activeTab,
-                                    e.target.value as SendMode
-                                  )
-                                }
-                                disabled={isLoading}
-                                className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                              >
-                                <option value="automatic">Automático</option>
-                                <option value="manual">Manual</option>
-                              </select>
-                            </div>
-                          )}
-                          {enabled && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-muted-foreground">
-                                Template:
-                              </span>
-                              <select
-                                value={setting?.template_id ?? ""}
-                                onChange={async (e) => {
-                                  const templateId =
-                                    e.target.value || null;
-                                  const updateKey = `${event.code}-${activeTab}-template`;
-                                  setUpdating((prev) => ({
-                                    ...prev,
-                                    [updateKey]: true,
-                                  }));
-                                  try {
-                                    const result =
-                                      await updateClinicMessageSetting(
-                                        event.code,
-                                        activeTab,
-                                        enabled,
-                                        sendMode,
-                                        templateId
-                                      );
-                                    if (result.error) {
-                                      alert(`Erro: ${result.error}`);
-                                    } else {
-                                      router.refresh();
-                                    }
-                                  } catch (err) {
-                                    alert(
-                                      err instanceof Error
-                                        ? err.message
-                                        : "Erro ao atualizar"
-                                    );
-                                  } finally {
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4 mt-3">
+                            <Switch
+                              checked={enabled}
+                              onChange={(checked) =>
+                                handleToggle(code, activeTab, checked)
+                              }
+                              disabled={isLoading}
+                              label="Ativado"
+                            />
+                            {enabled && canBeAutomatic && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">
+                                  Envio:
+                                </span>
+                                <select
+                                  value={sendMode}
+                                  onChange={(e) =>
+                                    handleSendModeChange(
+                                      code,
+                                      activeTab,
+                                      e.target.value as SendMode
+                                    )
+                                  }
+                                  disabled={isLoading}
+                                  className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                                >
+                                  <option value="automatic">Automático</option>
+                                  <option value="manual">Manual</option>
+                                </select>
+                              </div>
+                            )}
+                            {enabled && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">
+                                  Template:
+                                </span>
+                                <select
+                                  value={setting?.template_id ?? ""}
+                                  onChange={async (e) => {
+                                    const templateId =
+                                      e.target.value && e.target.value.trim() !== ""
+                                        ? e.target.value
+                                        : null;
+                                    const updateKey = `${code}-${activeTab}-template`;
                                     setUpdating((prev) => ({
                                       ...prev,
-                                      [updateKey]: false,
+                                      [updateKey]: true,
                                     }));
-                                  }
-                                }}
-                                disabled={isLoading}
-                                className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                              >
-                                <option value="">Padrão</option>
-                                {getTemplatesForEvent(
-                                  event.code,
-                                  activeTab
-                                ).map((t) => (
-                                  <option key={t.id} value={t.id}>
-                                    {t.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
+                                    try {
+                                      const result =
+                                        await updateClinicMessageSetting(
+                                          code,
+                                          activeTab,
+                                          enabled,
+                                          sendMode,
+                                          templateId
+                                        );
+                                      if (result.error) {
+                                        alert(`Erro: ${result.error}`);
+                                      } else if (result.data) {
+                                        setLocalSettings((prev) =>
+                                          mergeSettingIntoList(prev, result.data)
+                                        );
+                                      }
+                                    } catch (err) {
+                                      alert(
+                                        err instanceof Error
+                                          ? err.message
+                                          : "Erro ao atualizar"
+                                      );
+                                    } finally {
+                                      setUpdating((prev) => ({
+                                        ...prev,
+                                        [updateKey]: false,
+                                      }));
+                                    }
+                                  }}
+                                  disabled={isLoading}
+                                  className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                                >
+                                  <option value="">Padrão</option>
+                                  {getTemplatesForEvent(code, activeTab).map(
+                                    (t) => (
+                                      <option
+                                        key={t.id}
+                                        value={t.id}
+                                      >
+                                        {t.name ?? t.id}
+                                      </option>
+                                    )
+                                  )}
+                                </select>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </Card>
-                );
-              })}
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
