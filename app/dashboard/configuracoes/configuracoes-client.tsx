@@ -27,11 +27,13 @@ export function ConfiguracoesClient({
   clinicLogoUrl,
   clinicLogoScale,
   complianceConfirmationDays,
+  clinicId,
 }: {
   appointmentTypes: AppointmentTypeRow[];
   clinicLogoUrl: string | null;
   clinicLogoScale: number;
   complianceConfirmationDays: number | null;
+  clinicId: string;
 }) {
   const [types, setTypes] = useState<AppointmentTypeRow[]>(appointmentTypes);
   const [editingId, setEditingId] = useState<string | null>(null);
