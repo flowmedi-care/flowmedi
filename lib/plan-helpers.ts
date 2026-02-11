@@ -28,10 +28,10 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
 
   if (!profile?.clinic_id) return null;
 
-  // Buscar clínica com plano
+  // Buscar clínica com plano e limites customizados
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("plan_id, subscription_status")
+    .select("plan_id, subscription_status, max_doctors_custom, max_secretaries_custom")
     .eq("id", profile.clinic_id)
     .single();
 
@@ -55,8 +55,9 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
         planName: "Starter",
         subscriptionStatus: null,
         limits: {
-          max_doctors: 1,
-          max_secretaries: null,
+          // Aplicar limites customizados se existirem, senão usar valores padrão
+          max_doctors: clinic?.max_doctors_custom ?? 1,
+          max_secretaries: clinic?.max_secretaries_custom ?? null,
           max_appointments_per_month: 30,
           max_patients: null,
           max_form_templates: 5,
@@ -76,8 +77,9 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
       planName: starterPlan.name,
       subscriptionStatus: null,
       limits: {
-        max_doctors: starterPlan.max_doctors ?? null,
-        max_secretaries: starterPlan.max_secretaries ?? null,
+        // Aplicar limites customizados se existirem, senão usar do plano
+        max_doctors: clinic?.max_doctors_custom ?? starterPlan.max_doctors ?? null,
+        max_secretaries: clinic?.max_secretaries_custom ?? starterPlan.max_secretaries ?? null,
         max_appointments_per_month: starterPlan.max_appointments_per_month ?? null,
         max_patients: starterPlan.max_patients ?? null,
         max_form_templates: starterPlan.max_form_templates ?? null,
@@ -116,8 +118,9 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
       planName: starterPlan.name,
       subscriptionStatus: clinic.subscription_status,
       limits: {
-        max_doctors: starterPlan.max_doctors ?? null,
-        max_secretaries: starterPlan.max_secretaries ?? null,
+        // Aplicar limites customizados se existirem, senão usar do plano
+        max_doctors: clinic.max_doctors_custom ?? starterPlan.max_doctors ?? null,
+        max_secretaries: clinic.max_secretaries_custom ?? starterPlan.max_secretaries ?? null,
         max_appointments_per_month: starterPlan.max_appointments_per_month ?? null,
         max_patients: starterPlan.max_patients ?? null,
         max_form_templates: starterPlan.max_form_templates ?? null,
@@ -137,8 +140,9 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
     planName: plan.name,
     subscriptionStatus: clinic.subscription_status,
     limits: {
-      max_doctors: plan.max_doctors ?? null,
-      max_secretaries: plan.max_secretaries ?? null,
+      // Aplicar limites customizados se existirem, senão usar do plano
+      max_doctors: clinic.max_doctors_custom ?? plan.max_doctors ?? null,
+      max_secretaries: clinic.max_secretaries_custom ?? plan.max_secretaries ?? null,
       max_appointments_per_month: plan.max_appointments_per_month ?? null,
       max_patients: plan.max_patients ?? null,
       max_form_templates: plan.max_form_templates ?? null,

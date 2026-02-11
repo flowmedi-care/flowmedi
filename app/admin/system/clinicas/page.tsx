@@ -12,7 +12,7 @@ export default async function ClinicasPage() {
 
   const supabase = await createClient();
   
-  // Buscar todas as clínicas com seus planos
+  // Buscar todas as clínicas com seus planos e limites customizados
   const { data: clinics } = await supabase
     .from("clinics")
     .select(`
@@ -21,6 +21,8 @@ export default async function ClinicasPage() {
       slug,
       plan_id,
       subscription_status,
+      max_doctors_custom,
+      max_secretaries_custom,
       stripe_customer_id,
       stripe_subscription_id,
       created_at,
@@ -135,6 +137,22 @@ export default async function ClinicasPage() {
                       <div>
                         <span className="text-muted-foreground">Stripe Subscription:</span>{" "}
                         <code className="text-xs">{clinic.stripe_subscription_id}</code>
+                      </div>
+                    )}
+                    {(clinic.max_doctors_custom !== null || clinic.max_secretaries_custom !== null) && (
+                      <div className="col-span-full pt-2 border-t">
+                        <span className="text-muted-foreground text-xs">Limites Customizados:</span>{" "}
+                        {clinic.max_doctors_custom !== null && (
+                          <span className="text-xs">
+                            Médicos: <strong>{clinic.max_doctors_custom}</strong>
+                          </span>
+                        )}
+                        {clinic.max_doctors_custom !== null && clinic.max_secretaries_custom !== null && " • "}
+                        {clinic.max_secretaries_custom !== null && (
+                          <span className="text-xs">
+                            Secretários: <strong>{clinic.max_secretaries_custom}</strong>
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

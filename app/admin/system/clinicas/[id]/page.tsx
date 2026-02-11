@@ -16,7 +16,7 @@ export default async function EditarClinicaPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  // Buscar clínica com plano
+  // Buscar clínica com plano e limites customizados
   const { data: clinic } = await supabase
     .from("clinics")
     .select(`
@@ -25,6 +25,8 @@ export default async function EditarClinicaPage({
       slug,
       plan_id,
       subscription_status,
+      max_doctors_custom,
+      max_secretaries_custom,
       stripe_customer_id,
       stripe_subscription_id,
       plans:plan_id (
@@ -73,6 +75,8 @@ export default async function EditarClinicaPage({
           name: clinic.name,
           plan_id: clinic.plan_id,
           subscription_status: clinic.subscription_status,
+          max_doctors_custom: clinic.max_doctors_custom,
+          max_secretaries_custom: clinic.max_secretaries_custom,
         }}
         plans={plans || []}
       />

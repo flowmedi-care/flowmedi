@@ -38,10 +38,19 @@ export async function PUT(
       );
     }
 
+    // Helper para converter valores para número ou null
+    const parseNumberOrNull = (value: unknown): number | null => {
+      if (value === null || value === undefined || value === "") return null;
+      const parsed = typeof value === "string" ? parseInt(value, 10) : value;
+      return isNaN(parsed as number) ? null : (parsed as number);
+    };
+
     // Atualizar clínica
     const updateData: Record<string, unknown> = {
       plan_id: body.plan_id || null,
       subscription_status: body.subscription_status || null,
+      max_doctors_custom: parseNumberOrNull(body.max_doctors_custom),
+      max_secretaries_custom: parseNumberOrNull(body.max_secretaries_custom),
     };
 
     // Se estiver removendo o plano Pro ou desativando, limpar IDs do Stripe também
