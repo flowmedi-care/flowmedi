@@ -89,12 +89,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         setLoadingCheckout(false);
         return;
       }
-      if (!stripe.embeddedCheckout?.create) {
-        alert("Checkout embutido não disponível nesta versão. Atualize @stripe/stripe-js.");
-        setLoadingCheckout(false);
-        return;
-      }
-      const checkout = await stripe.embeddedCheckout.create({ clientSecret });
+      const checkout = await stripe.initEmbeddedCheckout({ clientSecret });
       setCheckoutMounted(true);
       setTimeout(() => {
         const el = document.getElementById("stripe-embedded-checkout");
