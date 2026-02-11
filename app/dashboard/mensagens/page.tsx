@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { MensagensClient } from "./mensagens-client";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 export default async function MensagensPage() {
   const supabase = await createClient();
@@ -16,5 +17,9 @@ export default async function MensagensPage() {
   if (!profile) redirect("/dashboard");
   if (profile.role !== "admin") redirect("/dashboard");
 
-  return <MensagensClient />;
+  return (
+    <ErrorBoundary>
+      <MensagensClient />
+    </ErrorBoundary>
+  );
 }

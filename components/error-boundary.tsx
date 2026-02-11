@@ -10,20 +10,24 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  componentStack: string | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, componentStack: null };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, componentStack: null };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("ErrorBoundary capturou um erro:", error, errorInfo);
+    console.error("[ErrorBoundary] Erro capturado:", error, errorInfo);
+    console.error("[ErrorBoundary] Mensagem:", error?.message);
+    console.error("[ErrorBoundary] Stack do componente:", errorInfo.componentStack);
+    this.setState({ componentStack: errorInfo.componentStack ?? null });
   }
 
   render() {
@@ -32,14 +36,27 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
+      const err = this.state.error;
+      const componentStack = this.state.componentStack;
+
       return (
-        <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
+        <div className="p-6 bg-red-50 border border-red-200 rounded-lg max-w-2xl">
           <h2 className="text-lg font-semibold text-red-800 mb-2">
-            Algo deu errado
+            Algo deu errado (inspeção)
           </h2>
-          <p className="text-sm text-red-600 mb-4">
-            {this.state.error?.message || "Ocorreu um erro inesperado"}
+          <p className="text-sm text-red-600 mb-2 font-mono break-all">
+            {err?.message || "Ocorreu um erro inesperado"}
           </p>
+          {err?.stack && (
+            <pre className="text-xs bg-red-100 p-3 rounded overflow-auto max-h-32 mb-2 whitespace-pre-wrap break-all">
+              {err.stack}
+            </pre>
+          )}
+          {componentStack && (
+            <pre className="text-xs bg-amber-100 p-3 rounded overflow-auto max-h-32 mb-4 whitespace-pre-wrap break-all">
+              {componentStack}
+            </pre>
+          )}
           <button
             onClick={() => {
               this.setState({ hasError: false, error: null });

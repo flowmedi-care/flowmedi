@@ -62,24 +62,49 @@ export function MensagensClient() {
   const [activeTab, setActiveTab] = useState<"email" | "whatsapp">("email");
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
 
+  const [lastAction, setLastAction] = useState<string | null>(null);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
+    setLastAction("Carregando dados...");
     try {
       const [eventsRes, settingsRes, templatesRes] = await Promise.all([
         getMessageEvents(),
         getClinicMessageSettings(),
         getMessageTemplates(),
       ]);
-      setEvents(eventsRes.data ?? []);
-      setSettings(settingsRes.data ?? []);
-      setTemplates(templatesRes.data ?? []);
+      const eventsList = eventsRes.data ?? [];
+      const settingsList = settingsRes.data ?? [];
+      const templatesList = templatesRes.data ?? [];
+      setEvents(eventsList);
+      setSettings(settingsList);
+      setTemplates(templatesList);
       const err = eventsRes.error ?? settingsRes.error ?? templatesRes.error;
-      if (err) setLoadError(err);
+      if (err) {
+        setLoadError(err);
+        setLastAction(`Erro ao carregar: ${err}`);
+        console.error("[Mensagens] loadData error:", err, {
+          events: eventsList.length,
+          settings: settingsList.length,
+          templates: templatesList.length,
+        });
+      } else {
+        setLastAction(
+          `Carregado: ${eventsList.length} eventos, ${settingsList.length} configurações`
+        );
+        console.log("[Mensagens] loadData OK", {
+          events: eventsList.length,
+          settings: settingsList.length,
+          templates: templatesList.length,
+        });
+      }
     } catch (err) {
-      setLoadError(
-        err instanceof Error ? err.message : "Erro ao carregar configurações"
-      );
+      const msg =
+        err instanceof Error ? err.message : "Erro ao carregar configurações";
+      setLoadError(msg);
+      setLastAction(`Exceção: ${msg}`);
+      console.error("[Mensagens] loadData exception:", err);
     } finally {
       setLoading(false);
     }
@@ -149,6 +174,7 @@ export function MensagensClient() {
   ) {
     const key = `${eventCode}-${channel}`;
     setUpdating((p) => ({ ...p, [key]: true }));
+    setLastAction(`Toggle ${eventCode} (${channel}) → ${enabled ? "on" : "off"}`);
     const current = getSetting(eventCode, channel);
     const sendMode = current?.send_mode ?? "manual";
     try {
@@ -160,12 +186,24 @@ export function MensagensClient() {
         current?.template_id ?? null
       );
       if (result.error) {
+        setLastAction(`Erro toggle: ${result.error}`);
+        console.error("[Mensagens] handleToggle error:", result.error);
         alert(`Erro: ${result.error}`);
       } else if (result.data) {
+        setLastAction(`Toggle OK: ${eventCode} (${channel})`);
+        console.log("[Mensagens] handleToggle OK", {
+          eventCode,
+          channel,
+          enabled,
+          data: result.data,
+        });
         setSettings((prev) => mergeSetting(prev, result.data));
       }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erro ao atualizar");
+      const msg = err instanceof Error ? err.message : "Erro ao atualizar";
+      setLastAction(`Exceção toggle: ${msg}`);
+      console.error("[Mensagens] handleToggle exception:", err);
+      alert(msg);
     } finally {
       setUpdating((p) => ({ ...p, [key]: false }));
     }
@@ -178,6 +216,7 @@ export function MensagensClient() {
   ) {
     const key = `${eventCode}-${channel}-mode`;
     setUpdating((p) => ({ ...p, [key]: true }));
+    setLastAction(`Modo ${eventCode} (${channel}) → ${sendMode}`);
     const current = getSetting(eventCode, channel);
     const enabled = current?.enabled ?? false;
     try {
@@ -189,11 +228,16 @@ export function MensagensClient() {
         current?.template_id ?? null
       );
       if (result.error) {
+        setLastAction(`Erro modo: ${result.error}`);
+        console.error("[Mensagens] handleSendModeChange error:", result.error);
         alert(`Erro: ${result.error}`);
       } else if (result.data) {
+        setLastAction(`Modo OK: ${eventCode}`);
         setSettings((prev) => mergeSetting(prev, result.data));
       }
     } catch (err) {
+      setLastAction(`Exceção: ${err instanceof Error ? err.message : "Erro"}`);
+      console.error("[Mensagens] handleSendModeChange exception:", err);
       alert(err instanceof Error ? err.message : "Erro ao atualizar");
     } finally {
       setUpdating((p) => ({ ...p, [key]: false }));
@@ -209,6 +253,7 @@ export function MensagensClient() {
     if (!current) return;
     const key = `${eventCode}-${channel}-template`;
     setUpdating((p) => ({ ...p, [key]: true }));
+    setLastAction(`Template ${eventCode} (${channel})`);
     try {
       const result = await updateClinicMessageSetting(
         eventCode,
@@ -218,16 +263,31 @@ export function MensagensClient() {
         templateId
       );
       if (result.error) {
+        setLastAction(`Erro template: ${result.error}`);
+        console.error("[Mensagens] handleTemplateChange error:", result.error);
         alert(`Erro: ${result.error}`);
       } else if (result.data) {
+        setLastAction(`Template OK: ${eventCode}`);
         setSettings((prev) => mergeSetting(prev, result.data));
       }
     } catch (err) {
+      setLastAction(`Exceção: ${err instanceof Error ? err.message : "Erro"}`);
+      console.error("[Mensagens] handleTemplateChange exception:", err);
       alert(err instanceof Error ? err.message : "Erro ao atualizar");
     } finally {
       setUpdating((p) => ({ ...p, [key]: false }));
     }
   }
+
+  useEffect(() => {
+    if (events.length > 0 || settings.length > 0) {
+      console.log("[Mensagens] state", {
+        eventsCount: events.length,
+        settingsCount: settings.length,
+        templatesCount: templates.length,
+      });
+    }
+  }, [events.length, settings.length, templates.length]);
 
   if (loading) {
     return (
@@ -307,6 +367,16 @@ export function MensagensClient() {
           WhatsApp
         </button>
       </div>
+
+      {lastAction && (
+        <div
+          className="text-xs text-muted-foreground font-mono bg-muted/50 px-3 py-1.5 rounded border"
+          role="status"
+          aria-live="polite"
+        >
+          Inspeção — Última ação: {lastAction}
+        </div>
+      )}
 
       <div className="space-y-6">
         {orderedCategories.map((category) => {
