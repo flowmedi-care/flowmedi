@@ -84,22 +84,23 @@ export async function POST() {
   const origin =
     process.env.NEXT_PUBLIC_APP_URL ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-  const returnUrl = `${origin}/dashboard/plano?session_id={CHECKOUT_SESSION_ID}`;
+  const successUrl = `${origin}/dashboard/plano?session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = `${origin}/dashboard/plano`;
 
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      ui_mode: "embedded",
       customer: customerId,
       line_items: [{ price: proPlan.stripe_price_id, quantity: 1 }],
-      return_url: returnUrl,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: { clinic_id: clinic.id },
       subscription_data: {
         metadata: { clinic_id: clinic.id },
       },
     });
 
-    return NextResponse.json({ clientSecret: session.client_secret });
+    return NextResponse.json({ url: session.url });
   } catch (err) {
     console.error("Stripe checkout session error:", err);
     const message = err instanceof Error ? err.message : "Erro ao criar sessão na Stripe.";

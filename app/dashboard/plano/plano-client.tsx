@@ -2,21 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Script from "next/script";
+import { loadStripe } from "@stripe/stripe-js";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CreditCard, ExternalLink, Loader2 } from "lucide-react";
-
-declare global {
-  interface Window {
-    Stripe?: (key: string) => {
-      embeddedCheckout: {
-        create: (opts: { clientSecret: string }) => Promise<{ mount: (selector: string) => void }>;
-      };
-    };
-  }
-}
 
 type PlanInfo = {
   planName: string;
@@ -93,15 +83,14 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         setLoadingCheckout(false);
         return;
       }
-      const Stripe = window.Stripe;
-      if (!Stripe) {
-        alert("Stripe.js não carregado. Aguarde alguns segundos e tente novamente.");
+      const stripe = await loadStripe(pk);
+      if (!stripe) {
+        alert("Stripe.js não carregou. Tente novamente.");
         setLoadingCheckout(false);
         return;
       }
-      const stripe = Stripe(pk);
       if (!stripe.embeddedCheckout?.create) {
-        alert("Checkout embutido não disponível. Recarregue a página.");
+        alert("Checkout embutido não disponível nesta versão. Atualize @stripe/stripe-js.");
         setLoadingCheckout(false);
         return;
       }
@@ -299,10 +288,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         onCancel={() => setCancelOpen(false)}
       />
 
-      <Script
-        src="https://js.stripe.com/v3/"
-        strategy="afterInteractive"
-      />
     </div>
   );
 }
