@@ -43,6 +43,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [canceling, setCanceling] = useState(false);
 
@@ -62,6 +63,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
 
   const loadSubscriptionInfo = async () => {
     try {
+      setLoadingSubscription(true);
       const res = await fetch("/api/stripe/subscription");
       const data = await res.json();
       console.log("subscription fetch:", { ok: res.ok, status: res.status, data });
@@ -75,7 +77,10 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         setSubscriptionInfo(null);
       }
     } catch {
+      console.log("subscription fetch failed");
       // Ignore transient errors; UI falls back to plan data.
+    } finally {
+      setLoadingSubscription(false);
     }
   };
 
@@ -233,6 +238,11 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="text-xs text-muted-foreground">
+            Status Stripe: {subscriptionInfo?.status ?? "—"} · Cancelar no fim do ciclo:{" "}
+            {subscriptionInfo?.cancelAtPeriodEnd ? "sim" : "não"} · Fim do ciclo:{" "}
+            {subscriptionInfo?.currentPeriodEnd ? formatDate(subscriptionInfo.currentPeriodEnd) : "—"}
+          </div>
           {subscriptionInfo?.cancelAtPeriodEnd && subscriptionInfo.currentPeriodEnd && (
             <p className="text-sm text-muted-foreground">
               Cancelamento agendado. Você mantém o Pro por{" "}
@@ -268,6 +278,9 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
               <Button variant="outline" onClick={openPortal}>
                 <ExternalLink className="h-4 w-4" />
                 Atualizar cartão / ver faturas na Stripe
+              </Button>
+              <Button variant="outline" onClick={loadSubscriptionInfo} disabled={loadingSubscription}>
+                {loadingSubscription ? "Atualizando…" : "Atualizar status"}
               </Button>
               {isCancelScheduled ? (
                 <Button variant="secondary" disabled>
