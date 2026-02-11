@@ -95,7 +95,7 @@ export function MensagensClient({
 
   const orderedCategories = useMemo((): string[] => {
     const keys = Object.keys(eventsByCategory);
-    const knownCategories = new Set(CATEGORY_ORDER);
+    const knownCategories = new Set<string>(CATEGORY_ORDER);
     return [
       ...CATEGORY_ORDER.filter((c) => keys.includes(c)),
       ...keys.filter((k) => !knownCategories.has(k)),
