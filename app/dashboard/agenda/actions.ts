@@ -163,6 +163,32 @@ export async function createAppointment(
     }
   }
 
+  // Processar evento de consulta criada
+  try {
+    const { processMessageEvent } = await import("@/lib/message-processor");
+    
+    // Processar para email
+    await processMessageEvent(
+      "appointment_created",
+      profile.clinic_id,
+      patientId,
+      appointment.id,
+      "email"
+    );
+    
+    // Processar para WhatsApp
+    await processMessageEvent(
+      "appointment_created",
+      profile.clinic_id,
+      patientId,
+      appointment.id,
+      "whatsapp"
+    );
+  } catch (error) {
+    // Não falhar a criação da consulta se o processamento de mensagem falhar
+    console.error("Erro ao processar mensagem:", error);
+  }
+
   revalidatePath("/dashboard/agenda");
   revalidatePath("/dashboard");
   return { data: { id: appointment.id }, error: null };
@@ -193,6 +219,83 @@ export async function updateAppointment(
     })
     .eq("id", id);
   if (error) return { error: error.message };
+
+  // Processar eventos relacionados a mudanças na consulta
+  try {
+    const { processMessageEvent } = await import("@/lib/message-processor");
+    const supabase = await createClient();
+    
+    // Buscar dados da consulta
+    const { data: appointment } = await supabase
+      .from("appointments")
+      .select("clinic_id, patient_id, scheduled_at, status")
+      .eq("id", id)
+      .single();
+
+    if (appointment) {
+      // Se mudou scheduled_at, é remarcação
+      if (data.scheduled_at) {
+        await processMessageEvent(
+          "appointment_rescheduled",
+          appointment.clinic_id,
+          appointment.patient_id,
+          id,
+          "email"
+        );
+        await processMessageEvent(
+          "appointment_rescheduled",
+          appointment.clinic_id,
+          appointment.patient_id,
+          id,
+          "whatsapp"
+        );
+      }
+
+      // Se mudou status para cancelada
+      if (data.status === "canceled") {
+        await processMessageEvent(
+          "appointment_canceled",
+          appointment.clinic_id,
+          appointment.patient_id,
+          id,
+          "email"
+        );
+        await processMessageEvent(
+          "appointment_canceled",
+          appointment.clinic_id,
+          appointment.patient_id,
+          id,
+          "whatsapp"
+        );
+      }
+
+      // Se mudou status para realizada
+      if (data.status === "realizada") {
+        await processMessageEvent(
+          "appointment_completed",
+          appointment.clinic_id,
+          appointment.patient_id,
+          id,
+          "email"
+        );
+      }
+
+      // Se mudou status para falta
+      if (data.status === "falta") {
+        await processMessageEvent(
+          "appointment_no_show",
+          appointment.clinic_id,
+          appointment.patient_id,
+          id,
+          "email"
+        );
+      }
+    }
+  } catch (error) {
+    // Não falhar a atualização se o processamento de mensagem falhar
+    console.error("Erro ao processar mensagem:", error);
+  }
+
   revalidatePath("/dashboard/agenda");
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/agenda/consulta/${id}`);

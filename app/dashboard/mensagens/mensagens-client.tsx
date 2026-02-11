@@ -141,10 +141,18 @@ export function MensagensClient({
             Configure eventos de email e WhatsApp para comunicação com pacientes
           </p>
         </div>
-        <Button onClick={() => router.push("/dashboard/mensagens/templates")}>
-          <Plus className="h-4 w-4 mr-2" />
-          Criar Template
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push("/dashboard/mensagens/pendentes")}
+          >
+            Mensagens Pendentes
+          </Button>
+          <Button onClick={() => router.push("/dashboard/mensagens/templates")}>
+            <Plus className="h-4 w-4 mr-2" />
+            Criar Template
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}

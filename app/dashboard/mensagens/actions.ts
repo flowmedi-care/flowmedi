@@ -342,6 +342,7 @@ export async function getPendingMessages(): Promise<{
     channel: MessageChannel;
     status: string;
     created_at: string;
+    processed_body?: string;
   }> | null;
   error: string | null;
 }> {
@@ -369,7 +370,8 @@ export async function getPendingMessages(): Promise<{
       event_code,
       channel,
       status,
-      created_at
+      created_at,
+      processed_body
     `)
     .eq("clinic_id", profile.clinic_id)
     .eq("status", "pending")
@@ -396,18 +398,86 @@ export async function approvePendingMessage(
 
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
 
+  // Buscar mensagem pendente
+  const { data: pendingMessage, error: fetchError } = await supabase
+    .from("pending_messages")
+    .select("*")
+    .eq("id", messageId)
+    .eq("clinic_id", profile.clinic_id)
+    .eq("status", "pending")
+    .single();
+
+  if (fetchError || !pendingMessage) {
+    return { error: "Mensagem não encontrada ou já processada" };
+  }
+
+  // Buscar template para pegar subject se necessário
+  const { data: template } = await supabase
+    .from("message_templates")
+    .select("subject, body_html")
+    .eq("id", pendingMessage.template_id)
+    .single();
+
+  // Se não tem processed_body, processar novamente
+  let finalBody = pendingMessage.processed_body || "";
+  let finalSubject = template?.subject || null;
+
+  // Processar template com variáveis já salvas
+  if (template && pendingMessage.variables) {
+    const { replaceVariables } = await import("@/lib/message-variables");
+    const context = pendingMessage.variables as any;
+    
+    if (!finalBody && template.body_html) {
+      finalBody = replaceVariables(template.body_html, context);
+    }
+    
+    if (finalSubject) {
+      finalSubject = replaceVariables(finalSubject, context);
+    }
+  }
+
+  // Enviar mensagem
+  const { sendMessage } = await import("@/lib/message-processor");
+  const sendResult = await sendMessage(
+    pendingMessage.channel as MessageChannel,
+    pendingMessage.clinic_id,
+    pendingMessage.patient_id,
+    pendingMessage.appointment_id,
+    pendingMessage.event_code,
+    pendingMessage.template_id,
+    finalSubject,
+    finalBody,
+    pendingMessage.variables
+  );
+
+  if (!sendResult.success) {
+    // Atualizar status para failed
+    await supabase
+      .from("pending_messages")
+      .update({
+        status: "failed",
+        error_message: sendResult.error,
+        approved_by: user.id,
+        approved_at: new Date().toISOString(),
+      })
+      .eq("id", messageId);
+
+    return { error: sendResult.error || "Erro ao enviar mensagem" };
+  }
+
+  // Atualizar status para sent
   const { error } = await supabase
     .from("pending_messages")
     .update({
-      status: "approved",
+      status: "sent",
       approved_by: user.id,
       approved_at: new Date().toISOString(),
+      sent_at: new Date().toISOString(),
     })
-    .eq("id", messageId)
-    .eq("clinic_id", profile.clinic_id);
+    .eq("id", messageId);
 
   if (error) return { error: error.message };
-  revalidatePath("/dashboard/mensagens");
+  revalidatePath("/dashboard/mensagens/pendentes");
   return { error: null };
 }
 
