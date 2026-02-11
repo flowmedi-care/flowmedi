@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
@@ -9,8 +9,11 @@ import {
   ClinicMessageSetting,
   MessageTemplate,
   SendMode,
+  getMessageEvents,
+  getClinicMessageSettings,
+  getMessageTemplates,
+  updateClinicMessageSetting,
 } from "./actions";
-import { updateClinicMessageSetting } from "./actions";
 import { Mail, MessageSquare, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -19,7 +22,13 @@ type EventSettingsMap = Record<
   { email?: ClinicMessageSetting; whatsapp?: ClinicMessageSetting }
 >;
 
-const CATEGORY_ORDER = ["agendamento", "lembrete", "formulario", "pos_consulta", "outros"] as const;
+const CATEGORY_ORDER: string[] = [
+  "agendamento",
+  "lembrete",
+  "formulario",
+  "pos_consulta",
+  "outros",
+];
 
 const CATEGORY_LABELS: Record<string, string> = {
   agendamento: "Agendamento",
@@ -29,7 +38,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   outros: "Outros",
 };
 
-function mergeSettingIntoList(
+function mergeSetting(
   list: ClinicMessageSetting[],
   updated: ClinicMessageSetting | null
 ): ClinicMessageSetting[] {
@@ -43,34 +52,49 @@ function mergeSettingIntoList(
   return next;
 }
 
-export function MensagensClient({
-  events,
-  settings: settingsProp,
-  templates,
-}: {
-  events: MessageEvent[];
-  settings: ClinicMessageSetting[];
-  templates: MessageTemplate[];
-}) {
+export function MensagensClient() {
   const router = useRouter();
+  const [events, setEvents] = useState<MessageEvent[]>([]);
+  const [settings, setSettings] = useState<ClinicMessageSetting[]>([]);
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"email" | "whatsapp">("email");
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
-  const [localSettings, setLocalSettings] = useState<ClinicMessageSetting[]>(
-    () => Array.isArray(settingsProp) ? settingsProp : []
-  );
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [eventsRes, settingsRes, templatesRes] = await Promise.all([
+        getMessageEvents(),
+        getClinicMessageSettings(),
+        getMessageTemplates(),
+      ]);
+      setEvents(eventsRes.data ?? []);
+      setSettings(settingsRes.data ?? []);
+      setTemplates(templatesRes.data ?? []);
+      const err = eventsRes.error ?? settingsRes.error ?? templatesRes.error;
+      if (err) setLoadError(err);
+    } catch (err) {
+      setLoadError(
+        err instanceof Error ? err.message : "Erro ao carregar configurações"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    setLocalSettings(Array.isArray(settingsProp) ? settingsProp : []);
-  }, [settingsProp]);
+    loadData();
+  }, [loadData]);
 
   const eventSettingsMap: EventSettingsMap = useMemo(() => {
     const map: EventSettingsMap = {};
-    if (!Array.isArray(events)) return map;
     events.forEach((event) => {
       if (event?.code) map[event.code] = {};
     });
-    if (!Array.isArray(localSettings)) return map;
-    localSettings.forEach((setting) => {
+    settings.forEach((setting) => {
       if (!setting?.event_code || !setting?.channel) return;
       if (!map[setting.event_code]) map[setting.event_code] = {};
       if (setting.channel === "email") {
@@ -80,11 +104,10 @@ export function MensagensClient({
       }
     });
     return map;
-  }, [events, localSettings]);
+  }, [events, settings]);
 
   const eventsByCategory = useMemo(() => {
     const map: Record<string, MessageEvent[]> = {};
-    if (!Array.isArray(events)) return map;
     events.forEach((event) => {
       const cat = event?.category ?? "outros";
       if (!map[cat]) map[cat] = [];
@@ -95,12 +118,29 @@ export function MensagensClient({
 
   const orderedCategories = useMemo((): string[] => {
     const keys = Object.keys(eventsByCategory);
-    const knownCategories = new Set<string>(CATEGORY_ORDER);
+    const known = new Set(CATEGORY_ORDER);
     return [
       ...CATEGORY_ORDER.filter((c) => keys.includes(c)),
-      ...keys.filter((k) => !knownCategories.has(k)),
+      ...keys.filter((k) => !known.has(k)),
     ];
   }, [eventsByCategory]);
+
+  const getSetting = useCallback(
+    (eventCode: string, channel: "email" | "whatsapp") =>
+      eventSettingsMap[eventCode]?.[channel],
+    [eventSettingsMap]
+  );
+
+  const getTemplatesForEvent = useCallback(
+    (eventCode: string, channel: "email" | "whatsapp") =>
+      templates.filter(
+        (t) =>
+          t.event_code === eventCode &&
+          t.channel === channel &&
+          t.is_active
+      ),
+    [templates]
+  );
 
   async function handleToggle(
     eventCode: string,
@@ -108,29 +148,26 @@ export function MensagensClient({
     enabled: boolean
   ) {
     const key = `${eventCode}-${channel}`;
-    setUpdating((prev) => ({ ...prev, [key]: true }));
-
-    const currentSetting = eventSettingsMap[eventCode]?.[channel];
-    const sendMode = currentSetting?.send_mode ?? "manual";
-
+    setUpdating((p) => ({ ...p, [key]: true }));
+    const current = getSetting(eventCode, channel);
+    const sendMode = current?.send_mode ?? "manual";
     try {
       const result = await updateClinicMessageSetting(
         eventCode,
         channel,
         enabled,
         sendMode,
-        currentSetting?.template_id ?? null
+        current?.template_id ?? null
       );
-
       if (result.error) {
         alert(`Erro: ${result.error}`);
       } else if (result.data) {
-        setLocalSettings((prev) => mergeSettingIntoList(prev, result.data));
+        setSettings((prev) => mergeSetting(prev, result.data));
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Erro ao atualizar");
     } finally {
-      setUpdating((prev) => ({ ...prev, [key]: false }));
+      setUpdating((p) => ({ ...p, [key]: false }));
     }
   }
 
@@ -140,49 +177,78 @@ export function MensagensClient({
     sendMode: SendMode
   ) {
     const key = `${eventCode}-${channel}-mode`;
-    setUpdating((prev) => ({ ...prev, [key]: true }));
-
-    const currentSetting = eventSettingsMap[eventCode]?.[channel];
-    const enabled = currentSetting?.enabled ?? false;
-
+    setUpdating((p) => ({ ...p, [key]: true }));
+    const current = getSetting(eventCode, channel);
+    const enabled = current?.enabled ?? false;
     try {
       const result = await updateClinicMessageSetting(
         eventCode,
         channel,
         enabled,
         sendMode,
-        currentSetting?.template_id ?? null
+        current?.template_id ?? null
       );
-
       if (result.error) {
         alert(`Erro: ${result.error}`);
       } else if (result.data) {
-        setLocalSettings((prev) => mergeSettingIntoList(prev, result.data));
+        setSettings((prev) => mergeSetting(prev, result.data));
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Erro ao atualizar");
     } finally {
-      setUpdating((prev) => ({ ...prev, [key]: false }));
+      setUpdating((p) => ({ ...p, [key]: false }));
     }
   }
 
-  function getSetting(eventCode: string, channel: "email" | "whatsapp") {
-    return eventSettingsMap[eventCode]?.[channel];
+  async function handleTemplateChange(
+    eventCode: string,
+    channel: "email" | "whatsapp",
+    templateId: string | null
+  ) {
+    const current = getSetting(eventCode, channel);
+    if (!current) return;
+    const key = `${eventCode}-${channel}-template`;
+    setUpdating((p) => ({ ...p, [key]: true }));
+    try {
+      const result = await updateClinicMessageSetting(
+        eventCode,
+        channel,
+        current.enabled,
+        current.send_mode,
+        templateId
+      );
+      if (result.error) {
+        alert(`Erro: ${result.error}`);
+      } else if (result.data) {
+        setSettings((prev) => mergeSetting(prev, result.data));
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao atualizar");
+    } finally {
+      setUpdating((p) => ({ ...p, [key]: false }));
+    }
   }
 
-  function getTemplatesForEvent(
-    eventCode: string,
-    channel: "email" | "whatsapp"
-  ) {
-    return templates.filter(
-      (t) =>
-        t.event_code === eventCode &&
-        t.channel === channel &&
-        t.is_active
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px]">
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
     );
   }
 
-  if (!events?.length) {
+  if (loadError) {
+    return (
+      <div className="space-y-4 p-6">
+        <p className="text-destructive">{loadError}</p>
+        <Button variant="outline" onClick={loadData}>
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
+
+  if (!events.length) {
     return (
       <div className="space-y-6 p-6">
         <p className="text-muted-foreground">Nenhum evento disponível.</p>
@@ -246,7 +312,7 @@ export function MensagensClient({
         {orderedCategories.map((category) => {
           const categoryEvents = eventsByCategory[category] ?? [];
           return (
-            <div key={category}>
+            <section key={category}>
               <h2 className="text-lg font-semibold text-foreground mb-3">
                 {CATEGORY_LABELS[category] ?? category}
               </h2>
@@ -261,7 +327,8 @@ export function MensagensClient({
                   const updatingKey = `${code}-${activeTab}`;
                   const isLoading =
                     updating[updatingKey] === true ||
-                    updating[`${updatingKey}-mode`] === true;
+                    updating[`${updatingKey}-mode`] === true ||
+                    updating[`${updatingKey}-template`] === true;
 
                   return (
                     <Card key={`${category}-${code}`} className="p-4">
@@ -271,13 +338,14 @@ export function MensagensClient({
                             <h3 className="font-medium text-foreground">
                               {event.name ?? code}
                             </h3>
-                            {event.description != null && event.description !== "" && (
-                              <span className="text-xs text-muted-foreground">
-                                ({event.description})
-                              </span>
-                            )}
+                            {event.description != null &&
+                              event.description !== "" && (
+                                <span className="text-xs text-muted-foreground">
+                                  ({event.description})
+                                </span>
+                              )}
                           </div>
-                          <div className="flex items-center gap-4 mt-3">
+                          <div className="flex items-center gap-4 mt-3 flex-wrap">
                             <Switch
                               checked={enabled}
                               onChange={(checked) =>
@@ -315,44 +383,15 @@ export function MensagensClient({
                                 </span>
                                 <select
                                   value={setting?.template_id ?? ""}
-                                  onChange={async (e) => {
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
                                     const templateId =
-                                      e.target.value && e.target.value.trim() !== ""
-                                        ? e.target.value
-                                        : null;
-                                    const updateKey = `${code}-${activeTab}-template`;
-                                    setUpdating((prev) => ({
-                                      ...prev,
-                                      [updateKey]: true,
-                                    }));
-                                    try {
-                                      const result =
-                                        await updateClinicMessageSetting(
-                                          code,
-                                          activeTab,
-                                          enabled,
-                                          sendMode,
-                                          templateId
-                                        );
-                                      if (result.error) {
-                                        alert(`Erro: ${result.error}`);
-                                      } else if (result.data) {
-                                        setLocalSettings((prev) =>
-                                          mergeSettingIntoList(prev, result.data)
-                                        );
-                                      }
-                                    } catch (err) {
-                                      alert(
-                                        err instanceof Error
-                                          ? err.message
-                                          : "Erro ao atualizar"
-                                      );
-                                    } finally {
-                                      setUpdating((prev) => ({
-                                        ...prev,
-                                        [updateKey]: false,
-                                      }));
-                                    }
+                                      raw && raw.trim() !== "" ? raw : null;
+                                    handleTemplateChange(
+                                      code,
+                                      activeTab,
+                                      templateId
+                                    );
                                   }}
                                   disabled={isLoading}
                                   className="h-8 rounded-md border border-input bg-background px-2 text-sm"
@@ -360,10 +399,7 @@ export function MensagensClient({
                                   <option value="">Padrão</option>
                                   {getTemplatesForEvent(code, activeTab).map(
                                     (t) => (
-                                      <option
-                                        key={t.id}
-                                        value={t.id}
-                                      >
+                                      <option key={t.id} value={t.id}>
                                         {t.name ?? t.id}
                                       </option>
                                     )
@@ -378,7 +414,7 @@ export function MensagensClient({
                   );
                 })}
               </div>
-            </div>
+            </section>
           );
         })}
       </div>
