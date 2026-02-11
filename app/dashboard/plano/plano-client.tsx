@@ -49,6 +49,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const isPro = plan?.planSlug === "pro" && plan?.subscriptionStatus === "active";
   const isProPastDue = plan?.planSlug === "pro" && plan?.subscriptionStatus === "past_due";
   const isCanceled = plan?.subscriptionStatus === "canceled";
+  const isCancelScheduled = Boolean(subscriptionInfo?.cancelAtPeriodEnd);
 
   useEffect(() => {
     fetch("/api/stripe/invoices")
@@ -219,6 +220,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
           <p className="text-sm text-muted-foreground">
             {plan.planName}
             {isPro && " · Assinatura ativa"}
+            {isPro && isCancelScheduled && " · Cancelamento agendado"}
             {isProPastDue && " · Pagamento atrasado — atualize o cartão para manter o acesso"}
             {isCanceled && " · Assinatura cancelada"}
           </p>
@@ -260,9 +262,15 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
                 <ExternalLink className="h-4 w-4" />
                 Atualizar cartão / ver faturas na Stripe
               </Button>
-              <Button variant="destructive" onClick={() => setCancelOpen(true)}>
-                Cancelar assinatura
-              </Button>
+              {isCancelScheduled ? (
+                <Button variant="secondary" disabled>
+                  Cancelamento agendado
+                </Button>
+              ) : (
+                <Button variant="destructive" onClick={() => setCancelOpen(true)}>
+                  Cancelar assinatura
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
