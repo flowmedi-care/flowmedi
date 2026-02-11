@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS public.message_log (
   metadata jsonb DEFAULT '{}'
 );
 
--- ========== RLS (Row Levels Security) ==========
+-- ========== RLS (Row Levelss Security) ==========
 ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.clinics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
