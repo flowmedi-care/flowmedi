@@ -153,7 +153,7 @@ export function PlanoForm({ plan }: PlanoFormProps) {
             <Switch
               id="is_active"
               checked={formData.is_active}
-              onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+              onChange={(checked) => setFormData({ ...formData, is_active: checked })}
             />
           </div>
         </CardContent>
@@ -264,7 +264,7 @@ export function PlanoForm({ plan }: PlanoFormProps) {
             <Switch
               id="whatsapp_enabled"
               checked={formData.whatsapp_enabled}
-              onCheckedChange={(checked) => setFormData({ ...formData, whatsapp_enabled: checked })}
+              onChange={(checked) => setFormData({ ...formData, whatsapp_enabled: checked })}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -275,7 +275,7 @@ export function PlanoForm({ plan }: PlanoFormProps) {
             <Switch
               id="email_enabled"
               checked={formData.email_enabled}
-              onCheckedChange={(checked) => setFormData({ ...formData, email_enabled: checked })}
+              onChange={(checked) => setFormData({ ...formData, email_enabled: checked })}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -286,7 +286,7 @@ export function PlanoForm({ plan }: PlanoFormProps) {
             <Switch
               id="custom_logo_enabled"
               checked={formData.custom_logo_enabled}
-              onCheckedChange={(checked) => setFormData({ ...formData, custom_logo_enabled: checked })}
+              onChange={(checked) => setFormData({ ...formData, custom_logo_enabled: checked })}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -297,7 +297,7 @@ export function PlanoForm({ plan }: PlanoFormProps) {
             <Switch
               id="priority_support"
               checked={formData.priority_support}
-              onCheckedChange={(checked) => setFormData({ ...formData, priority_support: checked })}
+              onChange={(checked) => setFormData({ ...formData, priority_support: checked })}
             />
           </div>
         </CardContent>
