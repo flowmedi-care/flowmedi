@@ -6,6 +6,8 @@ import {
   getClinicMessageSettings,
   getMessageTemplates,
 } from "./actions";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 export default async function MensagensPage() {
   const supabase = await createClient();
@@ -37,10 +39,12 @@ export default async function MensagensPage() {
   const templates = templatesResult.data || [];
 
   return (
-    <MensagensClient
-      events={events}
-      settings={settings}
-      templates={templates}
-    />
+    <ErrorBoundary>
+      <MensagensClient
+        events={events}
+        settings={settings}
+        templates={templates}
+      />
+    </ErrorBoundary>
   );
 }

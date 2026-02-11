@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useTransition, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { MessageEvent, ClinicMessageSetting, MessageTemplate, SendMode } from ".
 import { updateClinicMessageSetting } from "./actions";
 import { Settings, Mail, MessageSquare, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 type EventSettingsMap = Record<
   string,
@@ -132,18 +133,29 @@ export function MensagensClient({
     return map;
   }, [events]);
 
-  async function handleToggle(
+  // Debounce para evitar múltiplas atualizações simultâneas
+  const toggleTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  const handleToggle = useCallback(async (
     eventCode: string,
     channel: "email" | "whatsapp",
     enabled: boolean
-  ) {
+  ) => {
     const key = `${eventCode}-${channel}`;
     
-    try {
-      console.log("[handleToggle] Iniciando:", { eventCode, channel, enabled });
-      
-      isUpdatingRef.current = true;
-      setUpdating((prev) => ({ ...prev, [key]: true }));
+    // Limpar timeout anterior se existir
+    if (toggleTimeoutRef.current[key]) {
+      clearTimeout(toggleTimeoutRef.current[key]);
+      delete toggleTimeoutRef.current[key];
+    }
+
+    // Debounce de 150ms para evitar atualizações muito rápidas
+    toggleTimeoutRef.current[key] = setTimeout(async () => {
+      try {
+        console.log("[handleToggle] Iniciando:", { eventCode, channel, enabled });
+        
+        isUpdatingRef.current = true;
+        setUpdating((prev) => ({ ...prev, [key]: true }));
 
       const currentSetting = eventSettingsMap[eventCode]?.[channel];
       const sendMode = currentSetting?.send_mode || "manual";
@@ -268,8 +280,10 @@ export function MensagensClient({
         }
         return newState;
       });
+      delete toggleTimeoutRef.current[key];
     }
-  }
+  }, 150);
+  }, [eventSettingsMap, settingsRef]);
 
   async function handleSendModeChange(
     eventCode: string,
