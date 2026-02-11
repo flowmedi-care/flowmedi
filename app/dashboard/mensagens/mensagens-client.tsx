@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
@@ -39,32 +39,45 @@ export function MensagensClient({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"email" | "whatsapp">("email");
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
+  const [localSettings, setLocalSettings] = useState<ClinicMessageSetting[]>(settings);
 
-  // Organizar configurações por evento
-  const eventSettingsMap: EventSettingsMap = {};
-  events.forEach((event) => {
-    eventSettingsMap[event.code] = {};
-  });
+  // Sincronizar localSettings quando settings mudarem (após refresh)
+  useEffect(() => {
+    setLocalSettings(settings);
+  }, [settings]);
 
-  settings.forEach((setting) => {
-    if (!eventSettingsMap[setting.event_code]) {
-      eventSettingsMap[setting.event_code] = {};
-    }
-    if (setting.channel === "email") {
-      eventSettingsMap[setting.event_code].email = setting;
-    } else {
-      eventSettingsMap[setting.event_code].whatsapp = setting;
-    }
-  });
+  // Organizar configurações por evento (usar localSettings se disponível)
+  const eventSettingsMap: EventSettingsMap = useMemo(() => {
+    const map: EventSettingsMap = {};
+    events.forEach((event) => {
+      map[event.code] = {};
+    });
+
+    localSettings.forEach((setting) => {
+      if (!map[setting.event_code]) {
+        map[setting.event_code] = {};
+      }
+      if (setting.channel === "email") {
+        map[setting.event_code].email = setting;
+      } else {
+        map[setting.event_code].whatsapp = setting;
+      }
+    });
+
+    return map;
+  }, [events, localSettings]);
 
   // Agrupar eventos por categoria
-  const eventsByCategory: Record<string, MessageEvent[]> = {};
-  events.forEach((event) => {
-    if (!eventsByCategory[event.category]) {
-      eventsByCategory[event.category] = [];
-    }
-    eventsByCategory[event.category].push(event);
-  });
+  const eventsByCategory: Record<string, MessageEvent[]> = useMemo(() => {
+    const map: Record<string, MessageEvent[]> = {};
+    events.forEach((event) => {
+      if (!map[event.category]) {
+        map[event.category] = [];
+      }
+      map[event.category].push(event);
+    });
+    return map;
+  }, [events]);
 
   async function handleToggle(
     eventCode: string,
@@ -72,25 +85,62 @@ export function MensagensClient({
     enabled: boolean
   ) {
     const key = `${eventCode}-${channel}`;
-    setUpdating({ ...updating, [key]: true });
+    setUpdating((prev) => ({ ...prev, [key]: true }));
 
     const currentSetting = eventSettingsMap[eventCode]?.[channel];
     const sendMode = currentSetting?.send_mode || "manual";
 
-    const result = await updateClinicMessageSetting(
-      eventCode,
-      channel,
-      enabled,
-      sendMode,
-      currentSetting?.template_id || null
-    );
+    // Atualizar estado local otimisticamente
+    setLocalSettings((prev) => {
+      const updated = [...prev];
+      const index = updated.findIndex(
+        (s) => s.event_code === eventCode && s.channel === channel
+      );
 
-    setUpdating({ ...updating, [key]: false });
+      if (index >= 0) {
+        updated[index] = { ...updated[index], enabled };
+      } else {
+        // Criar nova configuração se não existir
+        updated.push({
+          id: `temp-${Date.now()}`,
+          clinic_id: updated[0]?.clinic_id || "",
+          event_code: eventCode,
+          channel,
+          enabled,
+          send_mode: sendMode,
+          template_id: null,
+          conditions: {},
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
 
-    if (result.error) {
-      alert(`Erro: ${result.error}`);
-    } else {
-      router.refresh();
+      return updated;
+    });
+
+    try {
+      const result = await updateClinicMessageSetting(
+        eventCode,
+        channel,
+        enabled,
+        sendMode,
+        currentSetting?.template_id || null
+      );
+
+      if (result.error) {
+        // Reverter mudança local em caso de erro
+        setLocalSettings(settings);
+        alert(`Erro: ${result.error}`);
+      } else {
+        // Atualizar dados do servidor
+        router.refresh();
+      }
+    } catch (error) {
+      // Reverter em caso de erro
+      setLocalSettings(settings);
+      alert(`Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+    } finally {
+      setUpdating((prev) => ({ ...prev, [key]: false }));
     }
   }
 
@@ -100,25 +150,48 @@ export function MensagensClient({
     sendMode: SendMode
   ) {
     const key = `${eventCode}-${channel}-mode`;
-    setUpdating({ ...updating, [key]: true });
+    setUpdating((prev) => ({ ...prev, [key]: true }));
 
     const currentSetting = eventSettingsMap[eventCode]?.[channel];
     const enabled = currentSetting?.enabled || false;
 
-    const result = await updateClinicMessageSetting(
-      eventCode,
-      channel,
-      enabled,
-      sendMode,
-      currentSetting?.template_id || null
-    );
+    // Atualizar estado local otimisticamente
+    setLocalSettings((prev) => {
+      const updated = [...prev];
+      const index = updated.findIndex(
+        (s) => s.event_code === eventCode && s.channel === channel
+      );
 
-    setUpdating({ ...updating, [key]: false });
+      if (index >= 0) {
+        updated[index] = { ...updated[index], send_mode: sendMode };
+      }
 
-    if (result.error) {
-      alert(`Erro: ${result.error}`);
-    } else {
-      router.refresh();
+      return updated;
+    });
+
+    try {
+      const result = await updateClinicMessageSetting(
+        eventCode,
+        channel,
+        enabled,
+        sendMode,
+        currentSetting?.template_id || null
+      );
+
+      if (result.error) {
+        // Reverter mudança local em caso de erro
+        setLocalSettings(settings);
+        alert(`Erro: ${result.error}`);
+      } else {
+        // Atualizar dados do servidor
+        router.refresh();
+      }
+    } catch (error) {
+      // Reverter em caso de erro
+      setLocalSettings(settings);
+      alert(`Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+    } finally {
+      setUpdating((prev) => ({ ...prev, [key]: false }));
     }
   }
 
@@ -245,14 +318,44 @@ export function MensagensClient({
                                 value={setting?.template_id || ""}
                                 onChange={async (e) => {
                                   const templateId = e.target.value || null;
-                                  await updateClinicMessageSetting(
-                                    event.code,
-                                    activeTab,
-                                    enabled,
-                                    sendMode,
-                                    templateId
-                                  );
-                                  router.refresh();
+                                  const updateKey = `${event.code}-${activeTab}-template`;
+                                  setUpdating((prev) => ({ ...prev, [updateKey]: true }));
+
+                                  // Atualizar estado local
+                                  setLocalSettings((prev) => {
+                                    const updated = [...prev];
+                                    const index = updated.findIndex(
+                                      (s) => s.event_code === event.code && s.channel === activeTab
+                                    );
+
+                                    if (index >= 0) {
+                                      updated[index] = { ...updated[index], template_id: templateId };
+                                    }
+
+                                    return updated;
+                                  });
+
+                                  try {
+                                    const result = await updateClinicMessageSetting(
+                                      event.code,
+                                      activeTab,
+                                      enabled,
+                                      sendMode,
+                                      templateId
+                                    );
+
+                                    if (result.error) {
+                                      setLocalSettings(settings);
+                                      alert(`Erro: ${result.error}`);
+                                    } else {
+                                      router.refresh();
+                                    }
+                                  } catch (error) {
+                                    setLocalSettings(settings);
+                                    alert(`Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+                                  } finally {
+                                    setUpdating((prev) => ({ ...prev, [updateKey]: false }));
+                                  }
                                 }}
                                 disabled={isLoading}
                                 className="h-8 rounded-md border border-input bg-background px-2 text-sm"
