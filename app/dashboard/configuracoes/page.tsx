@@ -39,6 +39,7 @@ export default async function ConfiguracoesPage() {
         clinicLogoUrl={clinic?.logo_url ?? null}
         clinicLogoScale={clinic?.logo_scale ?? 100}
         complianceConfirmationDays={clinic?.compliance_confirmation_days ?? null}
+        clinicId={profile.clinic_id}
       />
   );
 }
