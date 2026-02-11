@@ -65,31 +65,30 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         setLoadingCheckout(false);
         return;
       }
-      const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        const msg = data.error ?? "Erro ao criar sessão de checkout.";
-        if (msg.includes("Crie sua clínica primeiro")) {
-          window.location.href = "/dashboard/onboarding";
-          return;
-        }
-        alert(msg);
-        setLoadingCheckout(false);
-        return;
-      }
-      const { clientSecret } = data;
-      if (!clientSecret) {
-        alert(data.error ?? "Resposta inválida do servidor. Verifique o console (F12).");
-        setLoadingCheckout(false);
-        return;
-      }
       const stripe = await loadStripe(pk);
       if (!stripe) {
         alert("Stripe.js não carregou. Tente novamente.");
         setLoadingCheckout(false);
         return;
       }
-      const checkout = await stripe.initEmbeddedCheckout({ clientSecret });
+      const fetchClientSecret = async () => {
+        const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
+        const data = await res.json();
+        console.log("create-checkout-session response:", { ok: res.ok, status: res.status, data });
+        if (!res.ok) {
+          const msg = data.error ?? "Erro ao criar sessão de checkout.";
+          if (msg.includes("Crie sua clínica primeiro")) {
+            window.location.href = "/dashboard/onboarding";
+          }
+          throw new Error(msg);
+        }
+        const { clientSecret } = data;
+        if (!clientSecret) {
+          throw new Error(data.error ?? "Resposta inválida do servidor. Verifique o console (F12).");
+        }
+        return clientSecret;
+      };
+      const checkout = await stripe.initEmbeddedCheckout({ fetchClientSecret });
       setCheckoutMounted(true);
       setTimeout(() => {
         const el = document.getElementById("stripe-embedded-checkout");
