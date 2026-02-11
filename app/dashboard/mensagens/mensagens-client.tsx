@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
@@ -197,7 +197,9 @@ export function MensagensClient() {
           enabled,
           data: result.data,
         });
-        setSettings((prev) => mergeSetting(prev, result.data));
+        startTransition(() =>
+          setSettings((prev) => mergeSetting(prev, result.data))
+        );
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro ao atualizar";
@@ -233,7 +235,9 @@ export function MensagensClient() {
         alert(`Erro: ${result.error}`);
       } else if (result.data) {
         setLastAction(`Modo OK: ${eventCode}`);
-        setSettings((prev) => mergeSetting(prev, result.data));
+        startTransition(() =>
+          setSettings((prev) => mergeSetting(prev, result.data))
+        );
       }
     } catch (err) {
       setLastAction(`Exceção: ${err instanceof Error ? err.message : "Erro"}`);
@@ -268,7 +272,9 @@ export function MensagensClient() {
         alert(`Erro: ${result.error}`);
       } else if (result.data) {
         setLastAction(`Template OK: ${eventCode}`);
-        setSettings((prev) => mergeSetting(prev, result.data));
+        startTransition(() =>
+          setSettings((prev) => mergeSetting(prev, result.data))
+        );
       }
     } catch (err) {
       setLastAction(`Exceção: ${err instanceof Error ? err.message : "Erro"}`);
