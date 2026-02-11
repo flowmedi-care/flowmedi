@@ -146,7 +146,6 @@ export async function POST(request: Request) {
               .eq("id", clinicId);
             if (updateError) {
               console.error("Webhook clinic update error:", updateError);
-            } else {
             }
           }
         } else if (sub.status === "past_due" || sub.status === "unpaid") {
@@ -156,6 +155,7 @@ export async function POST(request: Request) {
             .eq("id", clinicId);
           if (updateError) {
             console.error("Webhook clinic update error:", updateError);
+          }
         } else if (sub.status === "canceled") {
           await updateClinicPlan(clinicId, "starter", "canceled");
         }
