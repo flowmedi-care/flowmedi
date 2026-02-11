@@ -62,19 +62,30 @@ export function PlanoForm({ plan }: PlanoFormProps) {
     setLoading(true);
 
     try {
+      // Função helper para converter string vazia em null
+      const parseNumberOrNull = (value: string): number | null => {
+        if (!value || value.trim() === "") return null;
+        const parsed = parseInt(value, 10);
+        return isNaN(parsed) ? null : parsed;
+      };
+
+      const parseFloatOrNull = (value: string): number | null => {
+        if (!value || value.trim() === "") return null;
+        const parsed = parseFloat(value);
+        return isNaN(parsed) ? null : parsed;
+      };
+
       const payload: Record<string, unknown> = {
         name: formData.name,
         slug: formData.slug,
         description: formData.description || null,
-        max_doctors: formData.max_doctors ? parseInt(formData.max_doctors) : null,
-        max_secretaries: formData.max_secretaries ? parseInt(formData.max_secretaries) : null,
-        max_appointments_per_month: formData.max_appointments_per_month
-          ? parseInt(formData.max_appointments_per_month)
-          : null,
-        max_patients: formData.max_patients ? parseInt(formData.max_patients) : null,
-        max_form_templates: formData.max_form_templates ? parseInt(formData.max_form_templates) : null,
-        max_custom_fields: formData.max_custom_fields ? parseInt(formData.max_custom_fields) : null,
-        storage_mb: formData.storage_mb ? Math.round(parseFloat(formData.storage_mb) * 1024) : null,
+        max_doctors: parseNumberOrNull(formData.max_doctors),
+        max_secretaries: parseNumberOrNull(formData.max_secretaries),
+        max_appointments_per_month: parseNumberOrNull(formData.max_appointments_per_month),
+        max_patients: parseNumberOrNull(formData.max_patients),
+        max_form_templates: parseNumberOrNull(formData.max_form_templates),
+        max_custom_fields: parseNumberOrNull(formData.max_custom_fields),
+        storage_mb: formData.storage_mb ? Math.round((parseFloatOrNull(formData.storage_mb) || 0) * 1024) : null,
         whatsapp_enabled: formData.whatsapp_enabled,
         email_enabled: formData.email_enabled,
         custom_logo_enabled: formData.custom_logo_enabled,

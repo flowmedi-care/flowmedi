@@ -15,16 +15,44 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    // Verificar se o plano existe antes de atualizar
+    const { data: existingPlan, error: checkError } = await supabase
+      .from("plans")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (checkError) {
+      return NextResponse.json({ error: `Erro ao verificar plano: ${checkError.message}` }, { status: 400 });
+    }
+
+    if (!existingPlan) {
+      return NextResponse.json({ error: "Plano não encontrado" }, { status: 404 });
+    }
+
+    // Função helper para converter string vazia em null
+    const parseNumberOrNull = (value: unknown): number | null => {
+      if (value === null || value === undefined || value === "") return null;
+      const parsed = typeof value === "string" ? parseInt(value, 10) : value;
+      return isNaN(parsed as number) ? null : (parsed as number);
+    };
+
+    const parseFloatOrNull = (value: unknown): number | null => {
+      if (value === null || value === undefined || value === "") return null;
+      const parsed = typeof value === "string" ? parseFloat(value) : value;
+      return isNaN(parsed as number) ? null : (parsed as number);
+    };
+
     const updateData: Record<string, unknown> = {
       name: body.name,
       description: body.description || null,
-      max_doctors: body.max_doctors ?? null,
-      max_secretaries: body.max_secretaries ?? null,
-      max_appointments_per_month: body.max_appointments_per_month ?? null,
-      max_patients: body.max_patients ?? null,
-      max_form_templates: body.max_form_templates ?? null,
-      max_custom_fields: body.max_custom_fields ?? null,
-      storage_mb: body.storage_mb ?? null,
+      max_doctors: parseNumberOrNull(body.max_doctors),
+      max_secretaries: parseNumberOrNull(body.max_secretaries),
+      max_appointments_per_month: parseNumberOrNull(body.max_appointments_per_month),
+      max_patients: parseNumberOrNull(body.max_patients),
+      max_form_templates: parseNumberOrNull(body.max_form_templates),
+      max_custom_fields: parseNumberOrNull(body.max_custom_fields),
+      storage_mb: body.storage_mb && body.storage_mb !== "" ? Math.round((parseFloatOrNull(body.storage_mb) || 0) * 1024) : null,
       whatsapp_enabled: body.whatsapp_enabled ?? false,
       email_enabled: body.email_enabled ?? false,
       custom_logo_enabled: body.custom_logo_enabled ?? false,
