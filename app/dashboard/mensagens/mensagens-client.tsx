@@ -14,11 +14,6 @@ import { updateClinicMessageSetting } from "./actions";
 import { Mail, MessageSquare, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-type EventSettingsMap = Record<
-  string,
-  { email?: ClinicMessageSetting; whatsapp?: ClinicMessageSetting }
->;
-
 const CATEGORY_LABELS: Record<string, string> = {
   agendamento: "Agendamento",
   lembrete: "Lembretes",
@@ -40,25 +35,13 @@ export function MensagensClient({
   const [activeTab, setActiveTab] = useState<"email" | "whatsapp">("email");
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
 
-  // Map sempre derivado das props (sem estado local)
-  const eventSettingsMap: EventSettingsMap = useMemo(() => {
-    const map: EventSettingsMap = {};
-    if (!Array.isArray(events)) return map;
-    events.forEach((event) => {
-      if (event?.code) map[event.code] = {};
-    });
-    if (!Array.isArray(settings)) return map;
-    settings.forEach((setting) => {
-      if (!setting?.event_code || !setting?.channel) return;
-      if (!map[setting.event_code]) map[setting.event_code] = {};
-      if (setting.channel === "email") {
-        map[setting.event_code].email = setting;
-      } else {
-        map[setting.event_code].whatsapp = setting;
-      }
-    });
-    return map;
-  }, [events, settings]);
+  // Busca direta no array (sem map intermediário)
+  function getSetting(eventCode: string, channel: "email" | "whatsapp") {
+    if (!Array.isArray(settings)) return undefined;
+    return settings.find(
+      (s) => s.event_code === eventCode && s.channel === channel
+    );
+  }
 
   const eventsByCategory = useMemo(() => {
     const map: Record<string, MessageEvent[]> = {};
@@ -78,7 +61,7 @@ export function MensagensClient({
     const key = `${eventCode}-${channel}`;
     setUpdating((prev) => ({ ...prev, [key]: true }));
 
-    const currentSetting = eventSettingsMap[eventCode]?.[channel];
+    const currentSetting = getSetting(eventCode, channel);
     const sendMode = currentSetting?.send_mode ?? "manual";
 
     try {
@@ -110,7 +93,7 @@ export function MensagensClient({
     const key = `${eventCode}-${channel}-mode`;
     setUpdating((prev) => ({ ...prev, [key]: true }));
 
-    const currentSetting = eventSettingsMap[eventCode]?.[channel];
+    const currentSetting = getSetting(eventCode, channel);
     const enabled = currentSetting?.enabled ?? false;
 
     try {
@@ -132,10 +115,6 @@ export function MensagensClient({
     } finally {
       setUpdating((prev) => ({ ...prev, [key]: false }));
     }
-  }
-
-  function getSetting(eventCode: string, channel: "email" | "whatsapp") {
-    return eventSettingsMap[eventCode]?.[channel];
   }
 
   function getTemplatesForEvent(
