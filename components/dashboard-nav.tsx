@@ -16,6 +16,7 @@ import {
   FileEdit,
   Menu,
   ChevronLeft,
+  Mail,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -144,6 +145,16 @@ export function DashboardNav({
               >
                 <FileEdit className="h-4 w-4" />
                 {!isCollapsed && <span className="ml-2">Campos de Pacientes</span>}
+              </Button>
+            </Link>
+            <Link href="/dashboard/templates">
+              <Button
+                variant={pathname === "/dashboard/templates" ? "secondary" : "ghost"}
+                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                title={isCollapsed ? "Templates" : undefined}
+              >
+                <Mail className="h-4 w-4" />
+                {!isCollapsed && <span className="ml-2">Templates</span>}
               </Button>
             </Link>
             <Link href="/dashboard/configuracoes">
