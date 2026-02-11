@@ -27,6 +27,11 @@ const CHANNEL_LABELS: Record<string, string> = {
   whatsapp: "WhatsApp",
 };
 
+// Função auxiliar para calcular hash dos settings
+function getSettingsHash(s: ClinicMessageSetting[]): string {
+  return JSON.stringify(s.map(s => ({ id: s.id, enabled: s.enabled, send_mode: s.send_mode, template_id: s.template_id })));
+}
+
 export function MensagensClient({
   events,
   settings,
@@ -42,17 +47,30 @@ export function MensagensClient({
   const [localSettings, setLocalSettings] = useState<ClinicMessageSetting[]>(settings);
   const settingsRef = useRef(settings);
   const isUpdatingRef = useRef(false);
+  const lastSettingsHashRef = useRef<string>("");
 
   // Atualizar ref quando settings mudarem
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
 
-  // Sincronizar localSettings quando settings mudarem (após refresh)
-  // Mas apenas se não estiver atualizando nada
+  // Inicializar hash na primeira renderização
   useEffect(() => {
-    if (!isUpdatingRef.current) {
+    if (lastSettingsHashRef.current === "") {
+      lastSettingsHashRef.current = getSettingsHash(settings);
+    }
+  }, [settings]);
+
+  // Sincronizar localSettings quando settings mudarem (após refresh)
+  // Mas apenas se não estiver atualizando nada E se realmente mudou
+  useEffect(() => {
+    const currentHash = getSettingsHash(settings);
+    const hasRealChange = currentHash !== lastSettingsHashRef.current;
+    
+    if (!isUpdatingRef.current && hasRealChange) {
       try {
+        console.log("[useEffect] Sincronizando settings do servidor");
+        lastSettingsHashRef.current = currentHash;
         setLocalSettings(settings);
       } catch (error) {
         console.error("Erro ao sincronizar settings:", error);
@@ -130,9 +148,18 @@ export function MensagensClient({
       const currentSetting = eventSettingsMap[eventCode]?.[channel];
       const sendMode = currentSetting?.send_mode || "manual";
 
-      // Atualizar estado local otimisticamente
+      // Atualizar estado local otimisticamente (apenas uma vez)
       setLocalSettings((prev) => {
         try {
+          // Verificar se já está no estado desejado para evitar atualizações desnecessárias
+          const existing = prev.find(
+            (s) => s.event_code === eventCode && s.channel === channel
+          );
+          if (existing && existing.enabled === enabled) {
+            console.log("[handleToggle] Estado já está correto, pulando atualização");
+            return prev;
+          }
+
           const updated = [...prev];
           const index = updated.findIndex(
             (s) => s.event_code === eventCode && s.channel === channel
@@ -155,6 +182,8 @@ export function MensagensClient({
             });
           }
 
+          // Atualizar hash para evitar que useEffect sobrescreva
+          lastSettingsHashRef.current = getSettingsHash(updated);
           console.log("[handleToggle] Estado local atualizado:", updated);
           return updated;
         } catch (error) {
