@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
 
@@ -39,9 +40,16 @@ export async function POST() {
     return NextResponse.json({ error: "Stripe não configurado." }, { status: 500 });
   }
 
-  await stripe.subscriptions.update(clinic.stripe_subscription_id, {
+  const subscription = await stripe.subscriptions.update(clinic.stripe_subscription_id, {
     cancel_at_period_end: true,
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    currentPeriodEnd: "current_period_end" in subscription
+      ? (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end ?? null
+      : null,
+    status: subscription.status ?? null,
+  });
 }

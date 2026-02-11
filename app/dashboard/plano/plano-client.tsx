@@ -162,6 +162,13 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         setCancelOpen(false);
         return;
       }
+      if (res.ok) {
+        setSubscriptionInfo({
+          cancelAtPeriodEnd: Boolean(data.cancelAtPeriodEnd),
+          currentPeriodEnd: typeof data.currentPeriodEnd === "number" ? data.currentPeriodEnd : null,
+          status: typeof data.status === "string" ? data.status : null,
+        });
+      }
       setCancelOpen(false);
       await loadSubscriptionInfo();
       router.refresh();
