@@ -42,10 +42,14 @@ export async function PUT(
       .update(updateData)
       .eq("id", id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: "Plano não encontrado" }, { status: 404 });
     }
 
     return NextResponse.json({ data });

@@ -15,9 +15,13 @@ export default async function EditarPlanoPage({
   const { id } = await params;
 
   const supabase = await createClient();
-  const { data: plan } = await supabase.from("plans").select("*").eq("id", id).single();
+  const { data: plan, error } = await supabase
+    .from("plans")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
 
-  if (!plan) {
+  if (error || !plan) {
     redirect("/admin/system/planos");
   }
 

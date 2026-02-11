@@ -12,21 +12,44 @@ export default async function SystemAdminPage() {
 
   const supabase = await createClient();
 
+  // Buscar planos primeiro
+  const { data: plansData } = await supabase
+    .from("plans")
+    .select("id, name, slug, is_active")
+    .order("created_at");
+
+  const plans = plansData ?? [];
+
+  // Buscar IDs dos planos Starter e Pro
+  const { data: starterPlan } = await supabase
+    .from("plans")
+    .select("id")
+    .eq("slug", "starter")
+    .maybeSingle();
+
+  const { data: proPlan } = await supabase
+    .from("plans")
+    .select("id")
+    .eq("slug", "pro")
+    .maybeSingle();
+
   // Buscar estatísticas
-  const [plansResult, clinicsResult, starterClinicsResult, proClinicsResult] = await Promise.all([
-    supabase.from("plans").select("id, name, slug, is_active").order("created_at"),
+  const [clinicsResult, starterClinicsResult, proClinicsResult] = await Promise.all([
     supabase.from("clinics").select("id", { count: "exact", head: true }),
-    supabase
-      .from("clinics")
-      .select("id", { count: "exact", head: true })
-      .eq("plan_id", (await supabase.from("plans").select("id").eq("slug", "starter").single()).data?.id || ""),
-    supabase
-      .from("clinics")
-      .select("id", { count: "exact", head: true })
-      .eq("plan_id", (await supabase.from("plans").select("id").eq("slug", "pro").single()).data?.id || ""),
+    starterPlan?.id
+      ? supabase
+          .from("clinics")
+          .select("id", { count: "exact", head: true })
+          .eq("plan_id", starterPlan.id)
+      : Promise.resolve({ count: 0, error: null }),
+    proPlan?.id
+      ? supabase
+          .from("clinics")
+          .select("id", { count: "exact", head: true })
+          .eq("plan_id", proPlan.id)
+      : Promise.resolve({ count: 0, error: null }),
   ]);
 
-  const plans = plansResult.data ?? [];
   const totalClinics = clinicsResult.count ?? 0;
   const starterCount = starterClinicsResult.count ?? 0;
   const proCount = proClinicsResult.count ?? 0;
