@@ -42,10 +42,11 @@ export async function GET() {
 
   try {
     const sub = await stripe.subscriptions.retrieve(clinic.stripe_subscription_id);
+    const subscription = sub as Stripe.Subscription;
     return NextResponse.json({
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
-      currentPeriodEnd: sub.current_period_end ?? null,
-      status: sub.status ?? null,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      currentPeriodEnd: subscription.current_period_end ?? null,
+      status: subscription.status ?? null,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao buscar assinatura.";
