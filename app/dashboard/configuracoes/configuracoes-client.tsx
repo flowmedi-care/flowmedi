@@ -15,6 +15,7 @@ import { Plus, Pencil, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoUpload } from "./logo-upload";
 import { IntegrationsSection } from "./integrations-section";
+import { TestEmailSection } from "./test-email-section";
 
 export type AppointmentTypeRow = {
   id: string;
@@ -124,6 +125,8 @@ export function ConfiguracoesClient({
       </div>
 
       <IntegrationsSection clinicId={clinicId} />
+
+      <TestEmailSection />
 
       <Card>
         <CardHeader>
