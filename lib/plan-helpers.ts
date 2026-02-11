@@ -183,7 +183,8 @@ export async function countSecretaries(clinicId: string): Promise<number> {
 }
 
 /**
- * Conta consultas do mês atual da clínica
+ * Conta TODAS as consultas criadas no mês atual da clínica
+ * (incluindo as que foram deletadas - conta por created_at)
  */
 export async function countMonthAppointments(clinicId: string): Promise<number> {
   const supabase = await createClient();
@@ -191,12 +192,34 @@ export async function countMonthAppointments(clinicId: string): Promise<number> 
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
+  // Contar por created_at (todas criadas no mês, mesmo se deletadas depois)
   const { count } = await supabase
     .from("appointments")
     .select("*", { count: "exact", head: true })
     .eq("clinic_id", clinicId)
-    .gte("scheduled_at", startOfMonth.toISOString())
-    .lte("scheduled_at", endOfMonth.toISOString());
+    .gte("created_at", startOfMonth.toISOString())
+    .lte("created_at", endOfMonth.toISOString());
+
+  return count ?? 0;
+}
+
+/**
+ * Conta TODOS os pacientes criados no mês atual da clínica
+ * (incluindo os que foram deletados - conta por created_at)
+ */
+export async function countMonthPatients(clinicId: string): Promise<number> {
+  const supabase = await createClient();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+  // Contar por created_at (todos criados no mês, mesmo se deletados depois)
+  const { count } = await supabase
+    .from("patients")
+    .select("*", { count: "exact", head: true })
+    .eq("clinic_id", clinicId)
+    .gte("created_at", startOfMonth.toISOString())
+    .lte("created_at", endOfMonth.toISOString());
 
   return count ?? 0;
 }

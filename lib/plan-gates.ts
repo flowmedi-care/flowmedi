@@ -117,6 +117,20 @@ export function canCreateCustomField(
 }
 
 /**
+ * Verifica se pode criar paciente no mês atual
+ */
+export function canCreatePatient(
+  planLimits: PlanLimits,
+  currentMonthPatients: number
+): PlanCheckResult {
+  return checkNumericLimit(
+    currentMonthPatients,
+    planLimits.max_patients,
+    "pacientes/mês"
+  );
+}
+
+/**
  * Verifica se pode fazer upload de arquivo (exames)
  */
 export function canUploadFile(
@@ -183,6 +197,7 @@ export function getUpgradeMessage(resourceName: string): string {
     médicos: "Upgrade para Pro para adicionar mais médicos",
     secretários: "Upgrade para Pro para adicionar mais secretários",
     "consultas/mês": "Limite de 30 consultas/mês atingido. Upgrade para Pro para agendar sem limites",
+    "pacientes/mês": "Limite de pacientes/mês atingido. Upgrade para Pro para cadastrar sem limites",
     formulários: "Limite de 5 formulários atingido. Upgrade para Pro para criar formulários ilimitados",
     "campos customizados": "Upgrade para Pro para criar campos customizados ilimitados",
     armazenamento: "Upgrade para Pro para mais espaço (10 GB)",

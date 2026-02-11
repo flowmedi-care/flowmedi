@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getClinicPlanData, countMonthPatients } from "@/lib/plan-helpers";
+import { canCreatePatient, getUpgradeMessage } from "@/lib/plan-gates";
 
 export type PatientInsert = {
   full_name: string;
@@ -26,6 +28,18 @@ export async function createPatient(data: PatientInsert) {
 
   if (!profile?.clinic_id) {
     return { error: "Clínica não encontrada." };
+  }
+
+  // Verificar limite de pacientes/mês (conta todos criados no mês, mesmo se deletados)
+  const planData = await getClinicPlanData();
+  if (planData && planData.limits.max_patients !== null) {
+    const currentMonthCount = await countMonthPatients(profile.clinic_id);
+    const check = canCreatePatient(planData.limits, currentMonthCount);
+    
+    if (!check.allowed) {
+      const upgradeMsg = getUpgradeMessage("pacientes/mês");
+      return { error: `${check.reason}. ${upgradeMsg}` };
+    }
   }
 
   const { error } = await supabase.from("patients").insert({
