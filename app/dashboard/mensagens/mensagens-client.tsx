@@ -37,39 +37,69 @@ export function MensagensClient({
   templates: MessageTemplate[];
 }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<"email" | "whatsapp">("email");
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
   const [localSettings, setLocalSettings] = useState<ClinicMessageSetting[]>(settings);
+  const settingsRef = useRef(settings);
   const isUpdatingRef = useRef(false);
+
+  // Atualizar ref quando settings mudarem
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   // Sincronizar localSettings quando settings mudarem (após refresh)
   // Mas apenas se não estiver atualizando nada
   useEffect(() => {
     if (!isUpdatingRef.current) {
-      setLocalSettings(settings);
+      try {
+        setLocalSettings(settings);
+      } catch (error) {
+        console.error("Erro ao sincronizar settings:", error);
+      }
     }
   }, [settings]);
 
   // Organizar configurações por evento (usar localSettings se disponível)
   const eventSettingsMap: EventSettingsMap = useMemo(() => {
-    const map: EventSettingsMap = {};
-    events.forEach((event) => {
-      map[event.code] = {};
-    });
-
-    localSettings.forEach((setting) => {
-      if (!map[setting.event_code]) {
-        map[setting.event_code] = {};
+    try {
+      const map: EventSettingsMap = {};
+      if (!events || !Array.isArray(events)) {
+        console.warn("Events não é um array válido:", events);
+        return map;
       }
-      if (setting.channel === "email") {
-        map[setting.event_code].email = setting;
-      } else {
-        map[setting.event_code].whatsapp = setting;
-      }
-    });
+      
+      events.forEach((event) => {
+        if (event?.code) {
+          map[event.code] = {};
+        }
+      });
 
-    return map;
+      if (!localSettings || !Array.isArray(localSettings)) {
+        console.warn("LocalSettings não é um array válido:", localSettings);
+        return map;
+      }
+
+      localSettings.forEach((setting) => {
+        if (!setting?.event_code || !setting?.channel) {
+          console.warn("Setting inválido:", setting);
+          return;
+        }
+        if (!map[setting.event_code]) {
+          map[setting.event_code] = {};
+        }
+        if (setting.channel === "email") {
+          map[setting.event_code].email = setting;
+        } else {
+          map[setting.event_code].whatsapp = setting;
+        }
+      });
+
+      return map;
+    } catch (error) {
+      console.error("Erro ao criar eventSettingsMap:", error);
+      return {};
+    }
   }, [events, localSettings]);
 
   // Agrupar eventos por categoria
@@ -90,39 +120,49 @@ export function MensagensClient({
     enabled: boolean
   ) {
     const key = `${eventCode}-${channel}`;
-    isUpdatingRef.current = true;
-    setUpdating((prev) => ({ ...prev, [key]: true }));
-
-    const currentSetting = eventSettingsMap[eventCode]?.[channel];
-    const sendMode = currentSetting?.send_mode || "manual";
-
-    // Atualizar estado local otimisticamente
-    setLocalSettings((prev) => {
-      const updated = [...prev];
-      const index = updated.findIndex(
-        (s) => s.event_code === eventCode && s.channel === channel
-      );
-
-      if (index >= 0) {
-        updated[index] = { ...updated[index], enabled };
-      } else {
-        // Criar nova configuração se não existir
-        updated.push({
-          id: `temp-${Date.now()}`,
-          clinic_id: updated[0]?.clinic_id || "",
-          event_code: eventCode,
-          channel,
-          enabled,
-          send_mode: sendMode,
-          template_id: null,
-          conditions: {},
-        });
-      }
-
-      return updated;
-    });
-
+    
     try {
+      console.log("[handleToggle] Iniciando:", { eventCode, channel, enabled });
+      
+      isUpdatingRef.current = true;
+      setUpdating((prev) => ({ ...prev, [key]: true }));
+
+      const currentSetting = eventSettingsMap[eventCode]?.[channel];
+      const sendMode = currentSetting?.send_mode || "manual";
+
+      // Atualizar estado local otimisticamente
+      setLocalSettings((prev) => {
+        try {
+          const updated = [...prev];
+          const index = updated.findIndex(
+            (s) => s.event_code === eventCode && s.channel === channel
+          );
+
+          if (index >= 0) {
+            updated[index] = { ...updated[index], enabled };
+          } else {
+            // Criar nova configuração se não existir
+            const clinicId = updated[0]?.clinic_id || settingsRef.current[0]?.clinic_id || "";
+            updated.push({
+              id: `temp-${Date.now()}`,
+              clinic_id: clinicId,
+              event_code: eventCode,
+              channel,
+              enabled,
+              send_mode: sendMode,
+              template_id: null,
+              conditions: {},
+            });
+          }
+
+          console.log("[handleToggle] Estado local atualizado:", updated);
+          return updated;
+        } catch (error) {
+          console.error("[handleToggle] Erro ao atualizar estado local:", error);
+          return prev;
+        }
+      });
+
       const result = await updateClinicMessageSetting(
         eventCode,
         channel,
@@ -131,15 +171,49 @@ export function MensagensClient({
         currentSetting?.template_id || null
       );
 
+      console.log("[handleToggle] Resultado do servidor:", result);
+
       if (result.error) {
         // Reverter mudança local em caso de erro
         setLocalSettings((prev) => {
+          try {
+            const reverted = [...prev];
+            const index = reverted.findIndex(
+              (s) => s.event_code === eventCode && s.channel === channel
+            );
+            if (index >= 0) {
+              const original = settingsRef.current.find(
+                (s) => s.event_code === eventCode && s.channel === channel
+              );
+              if (original) {
+                reverted[index] = original;
+              } else {
+                reverted.splice(index, 1);
+              }
+            }
+            return reverted;
+          } catch (error) {
+            console.error("[handleToggle] Erro ao reverter:", error);
+            return prev;
+          }
+        });
+        alert(`Erro: ${result.error}`);
+      } else {
+        // Não fazer refresh imediato - confiar no estado local
+        // O refresh acontecerá naturalmente quando necessário
+        console.log("[handleToggle] Sucesso - mantendo estado local");
+      }
+    } catch (error) {
+      console.error("[handleToggle] Erro geral:", error);
+      // Reverter em caso de erro
+      setLocalSettings((prev) => {
+        try {
           const reverted = [...prev];
           const index = reverted.findIndex(
             (s) => s.event_code === eventCode && s.channel === channel
           );
           if (index >= 0) {
-            const original = settings.find(
+            const original = settingsRef.current.find(
               (s) => s.event_code === eventCode && s.channel === channel
             );
             if (original) {
@@ -149,32 +223,10 @@ export function MensagensClient({
             }
           }
           return reverted;
-        });
-        alert(`Erro: ${result.error}`);
-      } else {
-        // Atualizar dados do servidor de forma não bloqueante
-        startTransition(() => {
-          router.refresh();
-        });
-      }
-    } catch (error) {
-      // Reverter em caso de erro
-      setLocalSettings((prev) => {
-        const reverted = [...prev];
-        const index = reverted.findIndex(
-          (s) => s.event_code === eventCode && s.channel === channel
-        );
-        if (index >= 0) {
-          const original = settings.find(
-            (s) => s.event_code === eventCode && s.channel === channel
-          );
-          if (original) {
-            reverted[index] = original;
-          } else {
-            reverted.splice(index, 1);
-          }
+        } catch (revertError) {
+          console.error("[handleToggle] Erro ao reverter:", revertError);
+          return prev;
         }
-        return reverted;
       });
       alert(`Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     } finally {
@@ -244,10 +296,8 @@ export function MensagensClient({
         });
         alert(`Erro: ${result.error}`);
       } else {
-        // Atualizar dados do servidor de forma não bloqueante
-        startTransition(() => {
-          router.refresh();
-        });
+        // Não fazer refresh imediato - confiar no estado local
+        console.log("[handleSendModeChange] Sucesso - mantendo estado local");
       }
     } catch (error) {
       // Reverter em caso de erro
@@ -287,6 +337,19 @@ export function MensagensClient({
   function getTemplatesForEvent(eventCode: string, channel: "email" | "whatsapp") {
     return templates.filter(
       (t) => t.event_code === eventCode && t.channel === channel && t.is_active
+    );
+  }
+
+  // Validar dados antes de renderizar
+  if (!events || !Array.isArray(events)) {
+    console.error("Events inválido:", events);
+    return (
+      <div className="space-y-6 p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h2 className="text-lg font-semibold text-red-800 mb-2">Erro: Dados inválidos</h2>
+          <p className="text-sm text-red-600">Events não é um array válido</p>
+        </div>
+      </div>
     );
   }
 
@@ -341,22 +404,31 @@ export function MensagensClient({
 
       {/* Lista de eventos por categoria */}
       <div className="space-y-6">
-        {Object.entries(eventsByCategory).map(([category, categoryEvents]) => (
-          <div key={category}>
-            <h2 className="text-lg font-semibold text-foreground mb-3">
-              {CATEGORY_LABELS[category] || category}
-            </h2>
-            <div className="space-y-3">
-              {categoryEvents.map((event) => {
-                const setting = getSetting(event.code, activeTab);
-                const enabled = setting?.enabled || false;
-                const sendMode = setting?.send_mode || "manual";
-                const canBeAutomatic = event.can_be_automatic;
-                const key = `${event.code}-${activeTab}`;
-                const isLoading = updating[key] || updating[`${key}-mode`];
+        {Object.entries(eventsByCategory || {}).map(([category, categoryEvents]) => {
+          if (!categoryEvents || !Array.isArray(categoryEvents)) {
+            console.warn("categoryEvents inválido para categoria:", category);
+            return null;
+          }
+          return (
+            <div key={category}>
+              <h2 className="text-lg font-semibold text-foreground mb-3">
+                {CATEGORY_LABELS[category] || category}
+              </h2>
+              <div className="space-y-3">
+                {categoryEvents.map((event) => {
+                  if (!event || !event.code) {
+                    console.warn("Event inválido:", event);
+                    return null;
+                  }
+                  const setting = getSetting(event.code, activeTab);
+                  const enabled = setting?.enabled || false;
+                  const sendMode = setting?.send_mode || "manual";
+                  const canBeAutomatic = event.can_be_automatic;
+                  const key = `${event.code}-${activeTab}`;
+                  const isLoading = updating[key] || updating[`${key}-mode`];
 
-                return (
-                  <Card key={event.code} className="p-4">
+                  return (
+                    <Card key={event.code} className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -448,9 +520,8 @@ export function MensagensClient({
                                       });
                                       alert(`Erro: ${result.error}`);
                                     } else {
-                                      startTransition(() => {
-                                        router.refresh();
-                                      });
+                                      // Não fazer refresh imediato - confiar no estado local
+                                      console.log("[Template Change] Sucesso - mantendo estado local");
                                     }
                                   } catch (error) {
                                     setLocalSettings((prev) => {
@@ -496,12 +567,13 @@ export function MensagensClient({
                         </div>
                       </div>
                     </div>
-                  </Card>
-                );
-              })}
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
