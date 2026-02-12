@@ -293,7 +293,7 @@ export async function sendMessage(
       return { success: false, error: "Paciente não encontrado" };
     }
 
-    let sendResult;
+    let sendResult: ProcessMessageResult;
 
     if (channel === "email") {
       if (!patient.email) {
@@ -325,7 +325,7 @@ export async function sendMessage(
         };
       }
 
-      sendResult = await sendWhatsApp(patient.phone, body);
+      sendResult = await sendWhatsApp(clinicId, patient.phone, body);
     }
 
     if (!sendResult.success) {
@@ -394,17 +394,57 @@ async function sendEmail(
 }
 
 /**
- * Envia WhatsApp (estrutura pronta, implementação depois)
+ * Envia WhatsApp via Meta Cloud API
  */
 async function sendWhatsApp(
+  clinicId: string,
   phone: string,
   message: string
 ): Promise<ProcessMessageResult> {
-  // TODO: Implementar integração com WhatsApp Business API
-  // Por enquanto, retorna erro informando que não está implementado
+  try {
+    const { checkWhatsAppIntegration, sendWhatsAppMessage } = await import("@/lib/comunicacao/whatsapp");
 
-  return {
-    success: false,
-    error: "Integração com WhatsApp ainda não implementada",
-  };
+    // Verificar se a integração WhatsApp está conectada
+    const integrationCheck = await checkWhatsAppIntegration(clinicId);
+    if (!integrationCheck.connected) {
+      return {
+        success: false,
+        error:
+          integrationCheck.error ||
+          "Integração WhatsApp não conectada. Conecte em Configurações → Integrações",
+      };
+    }
+
+    // Normalizar telefone para apenas dígitos (esperado no formato 55DDDNÚMERO)
+    const digitsOnly = phone.replace(/\D/g, "");
+    if (!digitsOnly) {
+      return {
+        success: false,
+        error: "Telefone do paciente inválido",
+      };
+    }
+
+    const result = await sendWhatsAppMessage(clinicId, {
+      to: digitsOnly,
+      text: message,
+    });
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || "Erro ao enviar mensagem WhatsApp",
+      };
+    }
+
+    return {
+      success: true,
+      messageId: result.messageId,
+    };
+  } catch (error) {
+    console.error("Erro ao enviar WhatsApp:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Erro ao enviar mensagem WhatsApp",
+    };
+  }
 }
