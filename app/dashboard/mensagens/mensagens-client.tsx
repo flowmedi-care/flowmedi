@@ -1,91 +1,40 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, startTransition, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import {
   MessageEvent,
   ClinicMessageSetting,
   MessageTemplate,
-  SendMode,
   getMessageEvents,
   getClinicMessageSettings,
   getMessageTemplates,
-  updateClinicMessageSetting,
+  getRecentMessageLog,
+  type MessageLogEntry,
 } from "./actions";
-import { Mail, MessageSquare, Plus } from "lucide-react";
+import { EventosConfigModal } from "./eventos-config-modal";
+import { Mail, MessageSquare, Plus, Settings2, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-type EventSettingsMap = Record<
-  string,
-  { email?: ClinicMessageSetting; whatsapp?: ClinicMessageSetting }
->;
-
-const CATEGORY_ORDER: string[] = [
-  "agendamento",
-  "lembrete",
-  "formulario",
-  "pos_consulta",
-  "outros",
-];
-
-const CATEGORY_LABELS: Record<string, string> = {
-  agendamento: "Agendamento",
-  lembrete: "Lembretes",
-  formulario: "Formulários",
-  pos_consulta: "Pós-Consulta",
-  outros: "Outros",
+const CHANNEL_LABELS: Record<string, string> = {
+  email: "Email",
+  whatsapp: "WhatsApp",
 };
 
-function mergeSetting(
-  list: ClinicMessageSetting[],
-  updated: ClinicMessageSetting | null
-): ClinicMessageSetting[] {
-  if (!updated?.event_code || !updated?.channel) return list;
-  const idx = list.findIndex(
-    (s) => s.event_code === updated.event_code && s.channel === updated.channel
-  );
-  if (idx === -1) return [...list, updated];
-  const next = [...list];
-  next[idx] = updated;
-  return next;
-}
-
-/** Acha o elemento que tem o scroll (main com overflow-y-auto no layout). */
-function findScrollParent(anchor: HTMLElement | null): HTMLElement | null {
-  if (!anchor) return null;
-  let el: HTMLElement | null = anchor;
-  while (el) {
-    const style = getComputedStyle(el);
-    const overflowY = style.overflowY;
-    if (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") {
-      return el;
-    }
-    el = el.parentElement;
+function formatDate(s: string) {
+  try {
+    const d = new Date(s);
+    return d.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return s;
   }
-  return null;
-}
-
-/** Salva scroll atual e restaura depois (várias vezes para vencer foco/layout). */
-function saveAndRestoreScroll(containerRef: React.RefObject<HTMLElement | null>) {
-  const anchor = containerRef.current;
-  const scrollEl = findScrollParent(anchor) || (typeof document !== "undefined" ? document.querySelector("main") : null);
-  const scrollTop = scrollEl ? scrollEl.scrollTop : (typeof window !== "undefined" ? window.scrollY : 0);
-
-  const restore = (saved: number) => {
-    const set = () => {
-      const el = findScrollParent(containerRef.current) || document.querySelector("main");
-      if (el) el.scrollTop = saved;
-      else window.scrollTo(0, saved);
-    };
-    requestAnimationFrame(() => requestAnimationFrame(set));
-    setTimeout(set, 50);
-    setTimeout(set, 120);
-    setTimeout(set, 250);
-  };
-
-  return { scrollTop, restore };
 }
 
 export function MensagensClient() {
@@ -93,55 +42,35 @@ export function MensagensClient() {
   const [events, setEvents] = useState<MessageEvent[]>([]);
   const [settings, setSettings] = useState<ClinicMessageSetting[]>([]);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [recentLog, setRecentLog] = useState<MessageLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"email" | "whatsapp">("email");
-  const [updating, setUpdating] = useState<Record<string, boolean>>({});
-
-  const [lastAction, setLastAction] = useState<string | null>(null);
-  const scrollAnchorRef = useRef<HTMLDivElement>(null);
+  const [eventosModalOpen, setEventosModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    setLastAction("Carregando dados...");
     try {
-      const [eventsRes, settingsRes, templatesRes] = await Promise.all([
+      const [eventsRes, settingsRes, templatesRes, logRes] = await Promise.all([
         getMessageEvents(),
         getClinicMessageSettings(),
         getMessageTemplates(),
+        getRecentMessageLog(12),
       ]);
-      const eventsList = eventsRes.data ?? [];
-      const settingsList = settingsRes.data ?? [];
-      const templatesList = templatesRes.data ?? [];
-      setEvents(eventsList);
-      setSettings(settingsList);
-      setTemplates(templatesList);
-      const err = eventsRes.error ?? settingsRes.error ?? templatesRes.error;
-      if (err) {
-        setLoadError(err);
-        setLastAction(`Erro ao carregar: ${err}`);
-        console.error("[Mensagens] loadData error:", err, {
-          events: eventsList.length,
-          settings: settingsList.length,
-          templates: templatesList.length,
-        });
-      } else {
-        setLastAction(
-          `Carregado: ${eventsList.length} eventos, ${settingsList.length} configurações`
-        );
-        console.log("[Mensagens] loadData OK", {
-          events: eventsList.length,
-          settings: settingsList.length,
-          templates: templatesList.length,
-        });
-      }
+      setEvents(eventsRes.data ?? []);
+      setSettings(settingsRes.data ?? []);
+      setTemplates(templatesRes.data ?? []);
+      setRecentLog(logRes.data ?? []);
+      const err =
+        eventsRes.error ??
+        settingsRes.error ??
+        templatesRes.error ??
+        logRes.error;
+      if (err) setLoadError(err);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Erro ao carregar configurações";
-      setLoadError(msg);
-      setLastAction(`Exceção: ${msg}`);
-      console.error("[Mensagens] loadData exception:", err);
+      setLoadError(
+        err instanceof Error ? err.message : "Erro ao carregar"
+      );
     } finally {
       setLoading(false);
     }
@@ -151,192 +80,9 @@ export function MensagensClient() {
     loadData();
   }, [loadData]);
 
-  const eventSettingsMap: EventSettingsMap = useMemo(() => {
-    const map: EventSettingsMap = {};
-    events.forEach((event) => {
-      if (event?.code) map[event.code] = {};
-    });
-    settings.forEach((setting) => {
-      if (!setting?.event_code || !setting?.channel) return;
-      if (!map[setting.event_code]) map[setting.event_code] = {};
-      if (setting.channel === "email") {
-        map[setting.event_code].email = setting;
-      } else {
-        map[setting.event_code].whatsapp = setting;
-      }
-    });
-    return map;
-  }, [events, settings]);
-
-  const eventsByCategory = useMemo(() => {
-    const map: Record<string, MessageEvent[]> = {};
-    events.forEach((event) => {
-      const cat = event?.category ?? "outros";
-      if (!map[cat]) map[cat] = [];
-      map[cat].push(event);
-    });
-    return map;
-  }, [events]);
-
-  const orderedCategories = useMemo((): string[] => {
-    const keys = Object.keys(eventsByCategory);
-    const known = new Set(CATEGORY_ORDER);
-    return [
-      ...CATEGORY_ORDER.filter((c) => keys.includes(c)),
-      ...keys.filter((k) => !known.has(k)),
-    ];
-  }, [eventsByCategory]);
-
-  const getSetting = useCallback(
-    (eventCode: string, channel: "email" | "whatsapp") =>
-      eventSettingsMap[eventCode]?.[channel],
-    [eventSettingsMap]
-  );
-
-  const getTemplatesForEvent = useCallback(
-    (eventCode: string, channel: "email" | "whatsapp") =>
-      templates.filter(
-        (t) =>
-          t.event_code === eventCode &&
-          t.channel === channel &&
-          t.is_active
-      ),
-    [templates]
-  );
-
-  async function handleToggle(
-    eventCode: string,
-    channel: "email" | "whatsapp",
-    enabled: boolean
-  ) {
-    const key = `${eventCode}-${channel}`;
-    setUpdating((p) => ({ ...p, [key]: true }));
-    setLastAction(`Toggle ${eventCode} (${channel}) → ${enabled ? "on" : "off"}`);
-    const current = getSetting(eventCode, channel);
-    const sendMode = current?.send_mode ?? "manual";
-    try {
-      const result = await updateClinicMessageSetting(
-        eventCode,
-        channel,
-        enabled,
-        sendMode,
-        current?.template_id ?? null
-      );
-      if (result.error) {
-        setLastAction(`Erro toggle: ${result.error}`);
-        console.error("[Mensagens] handleToggle error:", result.error);
-        alert(`Erro: ${result.error}`);
-      } else if (result.data) {
-        setLastAction(`Toggle OK: ${eventCode} (${channel})`);
-        console.log("[Mensagens] handleToggle OK", {
-          eventCode,
-          channel,
-          enabled,
-          data: result.data,
-        });
-        const { scrollTop, restore } = saveAndRestoreScroll(scrollAnchorRef);
-        startTransition(() =>
-          setSettings((prev) => mergeSetting(prev, result.data))
-        );
-        restore(scrollTop);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro ao atualizar";
-      setLastAction(`Exceção toggle: ${msg}`);
-      console.error("[Mensagens] handleToggle exception:", err);
-      alert(msg);
-    } finally {
-      setUpdating((p) => ({ ...p, [key]: false }));
-    }
-  }
-
-  async function handleSendModeChange(
-    eventCode: string,
-    channel: "email" | "whatsapp",
-    sendMode: SendMode
-  ) {
-    const key = `${eventCode}-${channel}-mode`;
-    setUpdating((p) => ({ ...p, [key]: true }));
-    setLastAction(`Modo ${eventCode} (${channel}) → ${sendMode}`);
-    const current = getSetting(eventCode, channel);
-    const enabled = current?.enabled ?? false;
-    try {
-      const result = await updateClinicMessageSetting(
-        eventCode,
-        channel,
-        enabled,
-        sendMode,
-        current?.template_id ?? null
-      );
-      if (result.error) {
-        setLastAction(`Erro modo: ${result.error}`);
-        console.error("[Mensagens] handleSendModeChange error:", result.error);
-        alert(`Erro: ${result.error}`);
-      } else if (result.data) {
-        setLastAction(`Modo OK: ${eventCode}`);
-        const { scrollTop, restore } = saveAndRestoreScroll(scrollAnchorRef);
-        startTransition(() =>
-          setSettings((prev) => mergeSetting(prev, result.data))
-        );
-        restore(scrollTop);
-      }
-    } catch (err) {
-      setLastAction(`Exceção: ${err instanceof Error ? err.message : "Erro"}`);
-      console.error("[Mensagens] handleSendModeChange exception:", err);
-      alert(err instanceof Error ? err.message : "Erro ao atualizar");
-    } finally {
-      setUpdating((p) => ({ ...p, [key]: false }));
-    }
-  }
-
-  async function handleTemplateChange(
-    eventCode: string,
-    channel: "email" | "whatsapp",
-    templateId: string | null
-  ) {
-    const current = getSetting(eventCode, channel);
-    if (!current) return;
-    const key = `${eventCode}-${channel}-template`;
-    setUpdating((p) => ({ ...p, [key]: true }));
-    setLastAction(`Template ${eventCode} (${channel})`);
-    try {
-      const result = await updateClinicMessageSetting(
-        eventCode,
-        channel,
-        current.enabled,
-        current.send_mode,
-        templateId
-      );
-      if (result.error) {
-        setLastAction(`Erro template: ${result.error}`);
-        console.error("[Mensagens] handleTemplateChange error:", result.error);
-        alert(`Erro: ${result.error}`);
-      } else if (result.data) {
-        setLastAction(`Template OK: ${eventCode}`);
-        const { scrollTop, restore } = saveAndRestoreScroll(scrollAnchorRef);
-        startTransition(() =>
-          setSettings((prev) => mergeSetting(prev, result.data))
-        );
-        restore(scrollTop);
-      }
-    } catch (err) {
-      setLastAction(`Exceção: ${err instanceof Error ? err.message : "Erro"}`);
-      console.error("[Mensagens] handleTemplateChange exception:", err);
-      alert(err instanceof Error ? err.message : "Erro ao atualizar");
-    } finally {
-      setUpdating((p) => ({ ...p, [key]: false }));
-    }
-  }
-
-  useEffect(() => {
-    if (events.length > 0 || settings.length > 0) {
-      console.log("[Mensagens] state", {
-        eventsCount: events.length,
-        settingsCount: settings.length,
-        templatesCount: templates.length,
-      });
-    }
-  }, [events.length, settings.length, templates.length]);
+  const handleSettingsChange = useCallback((next: ClinicMessageSetting[]) => {
+    setSettings(next);
+  }, []);
 
   if (loading) {
     return (
@@ -357,23 +103,15 @@ export function MensagensClient() {
     );
   }
 
-  if (!events.length) {
-    return (
-      <div className="space-y-6 p-6">
-        <p className="text-muted-foreground">Nenhum evento disponível.</p>
-      </div>
-    );
-  }
-
   return (
-    <div ref={scrollAnchorRef} className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">
-            Mensagens Automáticas
+            Mensagens
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Configure eventos de email e WhatsApp para comunicação com pacientes
+            Histórico, eventos e templates de email e WhatsApp
           </p>
         </div>
         <div className="flex gap-2">
@@ -390,160 +128,124 @@ export function MensagensClient() {
         </div>
       </div>
 
-      <div className="flex gap-2 border-b">
-        <button
-          type="button"
-          onClick={() => setActiveTab("email")}
-          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-            activeTab === "email"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Mail className="h-4 w-4 inline mr-2" />
-          Email
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("whatsapp")}
-          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-            activeTab === "whatsapp"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <MessageSquare className="h-4 w-4 inline mr-2" />
-          WhatsApp
-        </button>
+      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+        {/* Mini dashboard: histórico recente */}
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Histórico de mensagens enviadas
+            </h2>
+          </div>
+          <div className="max-h-64 overflow-y-auto space-y-2">
+            {recentLog.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma mensagem enviada ainda.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {recentLog.map((entry) => (
+                  <li
+                    key={entry.id}
+                    className="text-sm flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0"
+                  >
+                    <span className="truncate">
+                      {entry.patient_name ?? "Paciente"} ·{" "}
+                      {CHANNEL_LABELS[entry.channel] ?? entry.channel}
+                    </span>
+                    <span className="text-muted-foreground text-xs shrink-0">
+                      {formatDate(entry.sent_at)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+
+        {/* Configurar eventos (abre modal) */}
+        <Card className="p-5">
+          <div className="flex flex-col h-full">
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-2">
+              <Settings2 className="h-5 w-5" />
+              Eventos de mensagem
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Defina quais eventos disparam email ou WhatsApp (lembretes,
+              confirmações, formulários, etc.).
+            </p>
+            <Button
+              variant="default"
+              onClick={() => setEventosModalOpen(true)}
+              className="mt-auto w-fit"
+            >
+              Configurar eventos (Email e WhatsApp)
+            </Button>
+          </div>
+        </Card>
       </div>
 
-      {lastAction && (
-        <div
-          className="text-xs text-muted-foreground font-mono bg-muted/50 px-3 py-1.5 rounded border"
-          role="status"
-          aria-live="polite"
-        >
-          Inspeção — Última ação: {lastAction}
+      {/* Templates salvos */}
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Templates salvos
+          </h2>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/dashboard/mensagens/templates")}
+          >
+            Ver todos
+          </Button>
         </div>
-      )}
+        {templates.length === 0 ? (
+          <p className="text-sm text-muted-foreground mb-4">
+            Nenhum template criado. Crie um para usar nos eventos.
+          </p>
+        ) : (
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {templates.slice(0, 6).map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/dashboard/mensagens/templates/${t.id}/editar`
+                    )
+                  }
+                  className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                >
+                  <span className="font-medium text-sm text-foreground block">
+                    {t.name}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {CHANNEL_LABELS[t.channel]} · {t.event_code}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Button
+          variant="outline"
+          className="mt-4"
+          onClick={() => router.push("/dashboard/mensagens/templates/novo")}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Criar template
+        </Button>
+      </Card>
 
-      <div className="space-y-6">
-        {orderedCategories.map((category) => {
-          const categoryEvents = eventsByCategory[category] ?? [];
-          return (
-            <section key={category}>
-              <h2 className="text-lg font-semibold text-foreground mb-3">
-                {CATEGORY_LABELS[category] ?? category}
-              </h2>
-              <div className="space-y-3">
-                {categoryEvents.map((event) => {
-                  const code = event?.code;
-                  if (!code) return null;
-                  const setting = getSetting(code, activeTab);
-                  const enabled = setting?.enabled ?? false;
-                  const sendMode = setting?.send_mode ?? "manual";
-                  const canBeAutomatic = event.can_be_automatic ?? false;
-                  const updatingKey = `${code}-${activeTab}`;
-                  const isLoading =
-                    updating[updatingKey] === true ||
-                    updating[`${updatingKey}-mode`] === true ||
-                    updating[`${updatingKey}-template`] === true;
-
-                  return (
-                    <Card key={`${category}-${code}`} className="p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-medium text-foreground">
-                              {event.name ?? code}
-                            </h3>
-                            {event.description != null &&
-                              event.description !== "" && (
-                                <span className="text-xs text-muted-foreground">
-                                  ({event.description})
-                                </span>
-                              )}
-                          </div>
-                          <div className="flex items-center gap-4 mt-3 flex-wrap">
-                            <span
-                              className="inline-flex"
-                              onMouseDown={(e) => e.preventDefault()}
-                              role="presentation"
-                            >
-                              <Switch
-                                tabIndex={-1}
-                                checked={enabled}
-                                onChange={(checked) =>
-                                  handleToggle(code, activeTab, checked)
-                                }
-                                disabled={isLoading}
-                                label="Ativado"
-                              />
-                            </span>
-                            {enabled && canBeAutomatic && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm text-muted-foreground">
-                                  Envio:
-                                </span>
-                                <select
-                                  value={sendMode}
-                                  onChange={(e) =>
-                                    handleSendModeChange(
-                                      code,
-                                      activeTab,
-                                      e.target.value as SendMode
-                                    )
-                                  }
-                                  disabled={isLoading}
-                                  className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                                >
-                                  <option value="automatic">Automático</option>
-                                  <option value="manual">Manual</option>
-                                </select>
-                              </div>
-                            )}
-                            {enabled && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm text-muted-foreground">
-                                  Template:
-                                </span>
-                                <select
-                                  value={setting?.template_id ?? ""}
-                                  onChange={(e) => {
-                                    const raw = e.target.value;
-                                    const templateId =
-                                      raw && raw.trim() !== "" ? raw : null;
-                                    handleTemplateChange(
-                                      code,
-                                      activeTab,
-                                      templateId
-                                    );
-                                  }}
-                                  disabled={isLoading}
-                                  className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                                >
-                                  <option value="">Padrão</option>
-                                  {getTemplatesForEvent(code, activeTab).map(
-                                    (t) => (
-                                      <option key={t.id} value={t.id}>
-                                        {t.name ?? t.id}
-                                      </option>
-                                    )
-                                  )}
-                                </select>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
-      </div>
+      <EventosConfigModal
+        open={eventosModalOpen}
+        onOpenChange={setEventosModalOpen}
+        events={events}
+        settings={settings}
+        templates={templates}
+        onSettingsChange={handleSettingsChange}
+      />
     </div>
   );
 }

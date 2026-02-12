@@ -365,6 +365,51 @@ export async function updateClinicMessageSetting(
   }
 }
 
+// ========== HISTÓRICO DE MENSAGENS ENVIADAS ==========
+
+export type MessageLogEntry = {
+  id: string;
+  channel: MessageChannel;
+  type: string;
+  sent_at: string;
+  patient_name: string | null;
+};
+
+export async function getRecentMessageLog(limit = 15): Promise<{
+  data: MessageLogEntry[] | null;
+  error: string | null;
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const { data, error } = await supabase
+    .from("message_log")
+    .select("id, channel, type, sent_at, patients(full_name)")
+    .eq("clinic_id", profile.clinic_id)
+    .order("sent_at", { ascending: false })
+    .limit(limit);
+
+  if (error) return { data: null, error: error.message };
+
+  const entries: MessageLogEntry[] = (data ?? []).map((row: any) => ({
+    id: row.id,
+    channel: row.channel,
+    type: row.type,
+    sent_at: row.sent_at,
+    patient_name: row.patients?.full_name ?? null,
+  }));
+  return { data: entries, error: null };
+}
+
 // ========== BUSCAR MENSAGENS PENDENTES ==========
 
 export async function getPendingMessages(): Promise<{
