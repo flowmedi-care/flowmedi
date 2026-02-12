@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +26,41 @@ export function ConfiguracoesClient({
   );
   const [complianceLoading, setComplianceLoading] = useState(false);
   const [complianceError, setComplianceError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  // Capturar e mostrar dados de debug do WhatsApp no console
+  useEffect(() => {
+    const debugParam = searchParams.get("debug");
+    const integration = searchParams.get("integration");
+    const status = searchParams.get("status");
+
+    if (integration === "whatsapp" && debugParam) {
+      try {
+        const debugInfo = JSON.parse(decodeURIComponent(debugParam));
+        console.group("🔍 [WhatsApp Integration Debug] Informações da API Meta");
+        console.log("Status da integração:", status);
+        console.log("Phone Number ID:", debugInfo.phoneNumberId || "❌ Não encontrado");
+        console.log("WABA ID:", debugInfo.wabaId || "❌ Não encontrado");
+        console.log("Status do número:", debugInfo.phoneNumberStatus);
+        console.log("Método 1 (/me/businesses) encontrou WABAs:", debugInfo.wabaMethod1Found ? "✅ Sim" : "❌ Não");
+        console.log("Método 2 (/me/owned_whatsapp_business_accounts) encontrou WABAs:", debugInfo.wabaMethod2Found ? "✅ Sim" : "❌ Não");
+        console.log("Total de números encontrados:", debugInfo.phoneNumbersCount);
+        console.log("Dados completos:", debugInfo);
+        console.groupEnd();
+
+        // Limpar URL após mostrar no console
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("debug");
+          url.searchParams.delete("integration");
+          url.searchParams.delete("status");
+          window.history.replaceState({}, "", url.toString());
+        }
+      } catch (error) {
+        console.error("Erro ao parsear debug info:", error);
+      }
+    }
+  }, [searchParams]);
 
   return (
     <div className="space-y-6">

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { ConfiguracoesClient } from "./configuracoes-client";
 
 export default async function ConfiguracoesPage() {
@@ -24,11 +25,13 @@ export default async function ConfiguracoesPage() {
     .single();
 
   return (
-    <ConfiguracoesClient
+    <Suspense fallback={<div>Carregando...</div>}>
+      <ConfiguracoesClient
         clinicLogoUrl={clinic?.logo_url ?? null}
         clinicLogoScale={clinic?.logo_scale ?? 100}
         complianceConfirmationDays={clinic?.compliance_confirmation_days ?? null}
         clinicId={profile.clinic_id}
       />
+    </Suspense>
   );
 }
