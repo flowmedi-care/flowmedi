@@ -258,6 +258,73 @@ export async function GET(request: NextRequest) {
           console.warn("⚠️ [WhatsApp Callback] Erro ao buscar via owned_whatsapp_business_accounts:", ownedError);
         }
       }
+
+      // Método 3: Tentar buscar através do app_id diretamente (para números de teste)
+      if (!phoneNumberId && appId) {
+        try {
+          // Buscar números de teste associados ao app
+          const testNumbersUrl = `https://graph.facebook.com/v21.0/${appId}/phone_numbers?access_token=${accessToken}`;
+          const testNumbersResponse = await fetch(testNumbersUrl);
+          const testNumbersData = await testNumbersResponse.json();
+          
+          console.log("📋 [WhatsApp Callback] WABA Method 3 (via app_id):", {
+            ok: testNumbersResponse.ok,
+            status: testNumbersResponse.status,
+            dataCount: testNumbersData.data?.length || 0,
+            error: testNumbersData.error,
+            numbers: testNumbersData.data?.map((n: { id: string; verified_name?: string; display_phone_number?: string }) => ({
+              id: n.id,
+              verified_name: n.verified_name,
+              display_phone_number: n.display_phone_number,
+            })) || [],
+          });
+          
+          if (testNumbersData.data && testNumbersData.data.length > 0) {
+            phoneNumberId = testNumbersData.data[0].id;
+            console.log(`✅ [WhatsApp Callback] Número de teste encontrado via app_id: ${phoneNumberId}`);
+          }
+        } catch (appError) {
+          console.warn("⚠️ [WhatsApp Callback] Erro ao buscar via app_id:", appError);
+        }
+      }
+
+      // Método 4: Tentar buscar através de /me/accounts (pode retornar WABAs)
+      if (!phoneNumberId) {
+        try {
+          const accountsUrl = `https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`;
+          const accountsResponse = await fetch(accountsUrl);
+          const accountsData = await accountsResponse.json();
+          
+          console.log("📋 [WhatsApp Callback] WABA Method 4 (/me/accounts):", {
+            ok: accountsResponse.ok,
+            status: accountsResponse.status,
+            dataCount: accountsData.data?.length || 0,
+            error: accountsData.error,
+          });
+          
+          // Se retornar contas, tentar buscar números de cada uma
+          if (accountsData.data && accountsData.data.length > 0) {
+            for (const account of accountsData.data) {
+              try {
+                const accountPhoneUrl = `https://graph.facebook.com/v21.0/${account.id}/phone_numbers?access_token=${accessToken}`;
+                const accountPhoneResponse = await fetch(accountPhoneUrl);
+                const accountPhoneData = await accountPhoneResponse.json();
+                
+                if (accountPhoneData.data && accountPhoneData.data.length > 0) {
+                  phoneNumberId = accountPhoneData.data[0].id;
+                  wabaId = account.id;
+                  console.log(`✅ [WhatsApp Callback] Número encontrado via /me/accounts: ${phoneNumberId}`);
+                  break;
+                }
+              } catch (accountError) {
+                continue;
+              }
+            }
+          }
+        } catch (accountsError) {
+          console.warn("⚠️ [WhatsApp Callback] Erro ao buscar via /me/accounts:", accountsError);
+        }
+      }
     } catch (error) {
       console.warn("⚠️ [WhatsApp Callback] Não foi possível obter informações do WABA:", error);
       // Continuar mesmo sem WABA - o usuário pode configurar depois
@@ -329,8 +396,15 @@ export async function GET(request: NextRequest) {
       wabaId: wabaId || null,
       phoneNumberStatus: phoneNumberId ? "found" : "not_found",
       wabaMethod1Found: debugInfo.wabaMethod1 ? debugInfo.wabaMethod1.dataCount > 0 : false,
+      wabaMethod1Error: debugInfo.wabaMethod1?.error || null,
+      wabaMethod1Status: debugInfo.wabaMethod1?.status || null,
       wabaMethod2Found: debugInfo.wabaMethod2 ? debugInfo.wabaMethod2.dataCount > 0 : false,
+      wabaMethod2Error: debugInfo.wabaMethod2?.error || null,
+      wabaMethod2Status: debugInfo.wabaMethod2?.status || null,
       phoneNumbersCount: debugInfo.phoneNumbers.length,
+      suggestion: !phoneNumberId 
+        ? "Número não encontrado automaticamente. Verifique se você tem um número de teste configurado no app da Meta ou se o número real está registrado no Business Manager."
+        : null,
     };
 
     console.log("✅ [WhatsApp Callback] Integração salva com sucesso:", {

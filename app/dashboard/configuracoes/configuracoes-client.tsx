@@ -42,9 +42,20 @@ export function ConfiguracoesClient({
         console.log("Phone Number ID:", debugInfo.phoneNumberId || "❌ Não encontrado");
         console.log("WABA ID:", debugInfo.wabaId || "❌ Não encontrado");
         console.log("Status do número:", debugInfo.phoneNumberStatus);
-        console.log("Método 1 (/me/businesses) encontrou WABAs:", debugInfo.wabaMethod1Found ? "✅ Sim" : "❌ Não");
-        console.log("Método 2 (/me/owned_whatsapp_business_accounts) encontrou WABAs:", debugInfo.wabaMethod2Found ? "✅ Sim" : "❌ Não");
+        console.log("Método 1 (/me/businesses):", {
+          encontrou: debugInfo.wabaMethod1Found ? "✅ Sim" : "❌ Não",
+          statusHTTP: debugInfo.wabaMethod1Status,
+          erro: debugInfo.wabaMethod1Error || "Nenhum",
+        });
+        console.log("Método 2 (/me/owned_whatsapp_business_accounts):", {
+          encontrou: debugInfo.wabaMethod2Found ? "✅ Sim" : "❌ Não",
+          statusHTTP: debugInfo.wabaMethod2Status,
+          erro: debugInfo.wabaMethod2Error || "Nenhum",
+        });
         console.log("Total de números encontrados:", debugInfo.phoneNumbersCount);
+        if (debugInfo.suggestion) {
+          console.warn("💡 Sugestão:", debugInfo.suggestion);
+        }
         console.log("Dados completos:", debugInfo);
         console.groupEnd();
 
