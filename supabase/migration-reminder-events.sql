@@ -4,7 +4,7 @@
 -- Este migration cria funções para gerar lembretes automaticamente
 -- baseados na data/hora agendada das consultas
 
--- ========== FUNÇÃO: Gerar lembretes para consultas futuras ==========
+-- ========== FUNÇÃO: Geerar lembretes para consultas futuras ==========
 CREATE OR REPLACE FUNCTION public.generate_reminder_events(
   p_clinic_id uuid DEFAULT NULL -- Se NULL, processa todas as clínicas
 )
