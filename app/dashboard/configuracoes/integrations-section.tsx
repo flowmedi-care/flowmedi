@@ -34,6 +34,9 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
   const [whatsappPhoneIdInput, setWhatsappPhoneIdInput] = useState("");
   const [savingPhoneId, setSavingPhoneId] = useState(false);
   const [phoneIdError, setPhoneIdError] = useState<string | null>(null);
+  const [testPhoneNumber, setTestPhoneNumber] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     loadIntegrations();
@@ -129,6 +132,33 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
     } catch (error) {
       console.error("Erro ao conectar WhatsApp:", error);
       setConnecting(null);
+    }
+  }
+
+  async function sendTestWhatsApp() {
+    if (!testPhoneNumber.trim()) {
+      setTestResult({ ok: false, message: "Informe o número para teste" });
+      return;
+    }
+    setSendingTest(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/integrations/whatsapp/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: testPhoneNumber.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTestResult({ ok: true, message: "Mensagem de teste enviada! Verifique o WhatsApp." });
+        setTestPhoneNumber("");
+      } else {
+        setTestResult({ ok: false, message: data.error || "Erro ao enviar" });
+      }
+    } catch (error) {
+      setTestResult({ ok: false, message: "Erro de conexão" });
+    } finally {
+      setSendingTest(false);
     }
   }
 
@@ -408,6 +438,47 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
               </div>
               {phoneIdError && (
                 <p className="text-xs text-destructive">{phoneIdError}</p>
+              )}
+            </div>
+          )}
+
+          {/* Enviar mensagem de teste — só quando estiver pronto para enviar */}
+          {(whatsappIntegration?.status === "connected" || whatsappIntegration?.status === "pending") && whatsappIntegration?.metadata?.phone_number_id && (
+            <div className="pt-3 border-t border-border space-y-2">
+              <Label className="text-sm font-medium">Enviar mensagem de teste</Label>
+              <p className="text-xs text-muted-foreground">
+                Digite um número com DDI (ex: 5562999999999) para receber uma mensagem de teste no WhatsApp.
+              </p>
+              <div className="flex gap-2 flex-wrap items-center">
+                <Input
+                  placeholder="5562999999999"
+                  value={testPhoneNumber}
+                  onChange={(e) => {
+                    setTestPhoneNumber(e.target.value);
+                    setTestResult(null);
+                  }}
+                  className="max-w-xs font-mono text-sm"
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={sendTestWhatsApp}
+                  disabled={sendingTest || !testPhoneNumber.trim()}
+                >
+                  {sendingTest ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    "Enviar teste"
+                  )}
+                </Button>
+              </div>
+              {testResult && (
+                <p className={`text-sm ${testResult.ok ? "text-green-600" : "text-destructive"}`}>
+                  {testResult.ok ? "✓ " : ""}{testResult.message}
+                </p>
               )}
             </div>
           )}
