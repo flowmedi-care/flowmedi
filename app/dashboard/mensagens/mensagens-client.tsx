@@ -52,6 +52,34 @@ function mergeSetting(
   return next;
 }
 
+/** Scroll da área principal (main) fica aqui; ao atualizar estado a página sobe. Salva e restaura. */
+function getScrollContainer(): { scrollTop: number; restore: (saved: number) => void } {
+  const main = typeof document !== "undefined" ? document.querySelector("main") : null;
+  if (main) {
+    const scrollTop = main.scrollTop;
+    return {
+      scrollTop,
+      restore(saved: number) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const el = document.querySelector("main");
+            if (el) el.scrollTop = saved;
+          });
+        });
+      },
+    };
+  }
+  const scrollTop = typeof window !== "undefined" ? window.scrollY : 0;
+  return {
+    scrollTop,
+    restore(saved: number) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => window.scrollTo(0, saved));
+      });
+    },
+  };
+}
+
 export function MensagensClient() {
   const router = useRouter();
   const [events, setEvents] = useState<MessageEvent[]>([]);
@@ -197,9 +225,11 @@ export function MensagensClient() {
           enabled,
           data: result.data,
         });
+        const { scrollTop, restore } = getScrollContainer();
         startTransition(() =>
           setSettings((prev) => mergeSetting(prev, result.data))
         );
+        restore(scrollTop);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro ao atualizar";
@@ -235,9 +265,11 @@ export function MensagensClient() {
         alert(`Erro: ${result.error}`);
       } else if (result.data) {
         setLastAction(`Modo OK: ${eventCode}`);
+        const { scrollTop, restore } = getScrollContainer();
         startTransition(() =>
           setSettings((prev) => mergeSetting(prev, result.data))
         );
+        restore(scrollTop);
       }
     } catch (err) {
       setLastAction(`Exceção: ${err instanceof Error ? err.message : "Erro"}`);
@@ -272,9 +304,11 @@ export function MensagensClient() {
         alert(`Erro: ${result.error}`);
       } else if (result.data) {
         setLastAction(`Template OK: ${eventCode}`);
+        const { scrollTop, restore } = getScrollContainer();
         startTransition(() =>
           setSettings((prev) => mergeSetting(prev, result.data))
         );
+        restore(scrollTop);
       }
     } catch (err) {
       setLastAction(`Exceção: ${err instanceof Error ? err.message : "Erro"}`);
