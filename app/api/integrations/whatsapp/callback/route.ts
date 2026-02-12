@@ -107,10 +107,31 @@ export async function GET(request: NextRequest) {
 
     // Tentar obter informações do WhatsApp Business Account (WABA)
     // Nota: Isso pode requerer permissões adicionais e configuração no Meta Business Manager
-    let phoneNumberId = null;
-    let wabaId = null;
+    let phoneNumberId: string | null = null;
+    let wabaId: string | null = null;
 
-    const debugInfo: Record<string, unknown> = {
+    const debugInfo: {
+      wabaMethod1: {
+        ok: boolean;
+        status: number;
+        dataCount: number;
+        error?: unknown;
+        businesses: Array<{ id: string; name: string }>;
+      } | null;
+      wabaMethod2: {
+        ok: boolean;
+        status: number;
+        dataCount: number;
+        error?: unknown;
+        accounts: Array<{ id: string; name?: string }>;
+      } | null;
+      phoneNumbers: Array<{
+        wabaId: string;
+        phoneNumberId: string;
+        verified_name?: string;
+        display_phone_number?: string;
+      }>;
+    } = {
       wabaMethod1: null,
       wabaMethod2: null,
       phoneNumbers: [],
@@ -160,7 +181,7 @@ export async function GET(request: NextRequest) {
               })) || [],
             });
             
-            if (phoneData.data && phoneData.data.length > 0) {
+            if (phoneData.data && phoneData.data.length > 0 && wabaId) {
               // Pegar o primeiro número disponível (pode ser teste ou real)
               phoneNumberId = phoneData.data[0].id;
               debugInfo.phoneNumbers.push({
@@ -220,7 +241,7 @@ export async function GET(request: NextRequest) {
               })) || [],
             });
             
-            if (phoneData.data && phoneData.data.length > 0) {
+            if (phoneData.data && phoneData.data.length > 0 && wabaId) {
               phoneNumberId = phoneData.data[0].id;
               debugInfo.phoneNumbers.push({
                 wabaId,
@@ -305,8 +326,8 @@ export async function GET(request: NextRequest) {
       phoneNumberId: phoneNumberId || null,
       wabaId: wabaId || null,
       phoneNumberStatus: phoneNumberId ? "found" : "not_found",
-      wabaMethod1Found: debugInfo.wabaMethod1 ? (debugInfo.wabaMethod1 as { dataCount: number }).dataCount > 0 : false,
-      wabaMethod2Found: debugInfo.wabaMethod2 ? (debugInfo.wabaMethod2 as { dataCount: number }).dataCount > 0 : false,
+      wabaMethod1Found: debugInfo.wabaMethod1 ? debugInfo.wabaMethod1.dataCount > 0 : false,
+      wabaMethod2Found: debugInfo.wabaMethod2 ? debugInfo.wabaMethod2.dataCount > 0 : false,
       phoneNumbersCount: debugInfo.phoneNumbers.length,
     };
 

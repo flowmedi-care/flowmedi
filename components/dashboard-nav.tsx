@@ -17,6 +17,7 @@ import {
   Menu,
   ChevronLeft,
   Mail,
+  Bell,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,7 @@ export function DashboardNav({
     { href: "/dashboard/agenda", label: "Agenda", icon: <Calendar className="h-4 w-4" /> },
     { href: "/dashboard/pacientes", label: "Pacientes", icon: <Users className="h-4 w-4" /> },
     { href: "/dashboard/formularios", label: "Formulários", icon: <FileText className="h-4 w-4" /> },
+    { href: "/dashboard/eventos", label: "Eventos", icon: <Bell className="h-4 w-4" />, roles: ["admin", "secretaria"] },
   ];
 
   return (
