@@ -142,10 +142,10 @@ export function DashboardNav({
               <Button
                 variant={pathname === "/dashboard/campos-pacientes" ? "secondary" : "ghost"}
                 className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
-                title={isCollapsed ? "Campos de Pacientes" : undefined}
+                title={isCollapsed ? "Campos e procedimentos" : undefined}
               >
                 <FileEdit className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Campos de Pacientes</span>}
+                {!isCollapsed && <span className="ml-2">Campos e procedimentos</span>}
               </Button>
             </Link>
             <Link href="/dashboard/templates">

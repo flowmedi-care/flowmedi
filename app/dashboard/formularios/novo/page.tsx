@@ -27,13 +27,21 @@ export default async function NovoFormularioPage() {
     .eq("role", "medico")
     .order("full_name");
 
+  const { data: procedures } = await supabase
+    .from("procedures")
+    .select("id, name")
+    .eq("clinic_id", profile.clinic_id)
+    .order("display_order", { ascending: true });
+
   return (
     <FormularioEditor
       templateId={null}
       initialName=""
       initialDefinition={[]}
       initialAppointmentTypeId={null}
+      initialProcedureIds={[]}
       appointmentTypes={(types ?? []).map((t) => ({ id: t.id, name: t.name }))}
+      procedures={(procedures ?? []).map((p) => ({ id: p.id, name: p.name }))}
       doctors={(doctors ?? []).map((d) => ({ id: d.id, full_name: d.full_name }))}
     />
   );

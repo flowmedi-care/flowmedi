@@ -17,12 +17,6 @@ export default async function ConfiguracoesPage() {
     redirect("/dashboard");
   }
 
-  const { data: types } = await supabase
-    .from("appointment_types")
-    .select("id, name, duration_minutes")
-    .eq("clinic_id", profile.clinic_id)
-    .order("name");
-
   const { data: clinic } = await supabase
     .from("clinics")
     .select("logo_url, logo_scale, compliance_confirmation_days")
@@ -31,11 +25,6 @@ export default async function ConfiguracoesPage() {
 
   return (
     <ConfiguracoesClient
-        appointmentTypes={(types ?? []).map((t) => ({
-          id: t.id,
-          name: t.name,
-          duration_minutes: t.duration_minutes ?? 30,
-        }))}
         clinicLogoUrl={clinic?.logo_url ?? null}
         clinicLogoScale={clinic?.logo_scale ?? 100}
         complianceConfirmationDays={clinic?.compliance_confirmation_days ?? null}

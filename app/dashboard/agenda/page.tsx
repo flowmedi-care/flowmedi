@@ -34,6 +34,7 @@ export default async function AgendaPage() {
       patient:patients ( id, full_name ),
       doctor:profiles ( id, full_name ),
       appointment_type:appointment_types ( id, name ),
+      procedure:procedures ( id, name ),
       form_instances ( id, status )
     `
     )
@@ -61,12 +62,19 @@ export default async function AgendaPage() {
     .eq("clinic_id", clinicId)
     .order("name");
 
+  const { data: procedures } = await supabase
+    .from("procedures")
+    .select("id, name, recommendations")
+    .eq("clinic_id", clinicId)
+    .order("display_order", { ascending: true });
+
   const rows: AppointmentRow[] = (appointments ?? []).map((a: Record<string, unknown>) => {
     const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
     const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
     const appointmentType = Array.isArray(a.appointment_type)
       ? a.appointment_type[0]
       : a.appointment_type;
+    const procedure = Array.isArray(a.procedure) ? a.procedure[0] : a.procedure;
     const formInstances = Array.isArray(a.form_instances) ? a.form_instances : [];
     return {
       id: String(a.id ?? ""),
@@ -88,6 +96,9 @@ export default async function AgendaPage() {
             id: String((appointmentType as { id?: unknown })?.id ?? ""),
             name: String((appointmentType as { name?: unknown })?.name ?? ""),
           }
+        : null,
+      procedure: procedure
+        ? { id: String((procedure as { id?: unknown })?.id ?? ""), name: String((procedure as { name?: unknown })?.name ?? "") }
         : null,
       form_instances: formInstances.map((fi: { id?: unknown; status?: unknown }) => ({
         id: String(fi?.id ?? ""),
@@ -112,6 +123,11 @@ export default async function AgendaPage() {
         appointmentTypes={(appointmentTypes ?? []).map((t) => ({
           id: t.id,
           name: t.name,
+        }))}
+        procedures={(procedures ?? []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          recommendations: p.recommendations ?? null,
         }))}
         initialPreferences={{
           viewMode: (preferences.agenda_view_mode as "timeline" | "calendar") || "timeline",

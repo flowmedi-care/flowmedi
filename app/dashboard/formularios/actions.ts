@@ -11,7 +11,8 @@ export async function createFormTemplate(
   definition: FormTemplateDefinition,
   appointmentTypeId: string | null,
   isPublic: boolean = false,
-  publicDoctorId: string | null = null
+  publicDoctorId: string | null = null,
+  procedureIds: string[] = []
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -35,15 +36,27 @@ export async function createFormTemplate(
     }
   }
 
-  const { error } = await supabase.from("form_templates").insert({
-    clinic_id: profile.clinic_id,
-    name: name.trim(),
-    definition: definition as unknown as Record<string, unknown>[],
-    appointment_type_id: appointmentTypeId || null,
-    is_public: isPublic,
-    public_doctor_id: publicDoctorId || null,
-  });
+  const { data: inserted, error } = await supabase
+    .from("form_templates")
+    .insert({
+      clinic_id: profile.clinic_id,
+      name: name.trim(),
+      definition: definition as unknown as Record<string, unknown>[],
+      appointment_type_id: appointmentTypeId || null,
+      is_public: isPublic,
+      public_doctor_id: publicDoctorId || null,
+    })
+    .select("id")
+    .single();
   if (error) return { error: error.message };
+  if (inserted?.id && procedureIds.length > 0) {
+    await supabase.from("form_template_procedures").insert(
+      procedureIds.map((procedure_id) => ({
+        form_template_id: inserted.id,
+        procedure_id,
+      }))
+    );
+  }
   revalidatePath("/dashboard/formularios");
   return { error: null };
 }
@@ -54,7 +67,8 @@ export async function updateFormTemplate(
   definition: FormTemplateDefinition,
   appointmentTypeId: string | null,
   isPublic: boolean = false,
-  publicDoctorId: string | null = null
+  publicDoctorId: string | null = null,
+  procedureIds: string[] = []
 ) {
   const supabase = await createClient();
   const { error } = await supabase
@@ -69,6 +83,15 @@ export async function updateFormTemplate(
     })
     .eq("id", id);
   if (error) return { error: error.message };
+  await supabase.from("form_template_procedures").delete().eq("form_template_id", id);
+  if (procedureIds.length > 0) {
+    await supabase.from("form_template_procedures").insert(
+      procedureIds.map((procedure_id) => ({
+        form_template_id: id,
+        procedure_id,
+      }))
+    );
+  }
   revalidatePath("/dashboard/formularios");
   revalidatePath(`/dashboard/formularios/${id}`);
   return { error: null };

@@ -234,6 +234,7 @@ export async function createAppointmentType(name: string, duration_minutes: numb
   });
   if (error) return { error: error.message };
   revalidatePath("/dashboard/configuracoes");
+  revalidatePath("/dashboard/campos-pacientes");
   return { error: null };
 }
 
@@ -260,6 +261,7 @@ export async function updateAppointmentType(
     .eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/configuracoes");
+  revalidatePath("/dashboard/campos-pacientes");
   return { error: null };
 }
 
@@ -277,6 +279,7 @@ export async function deleteAppointmentType(id: string) {
   const { error } = await supabase.from("appointment_types").delete().eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/configuracoes");
+  revalidatePath("/dashboard/campos-pacientes");
   return { error: null };
 }
 

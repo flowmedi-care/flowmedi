@@ -187,6 +187,7 @@ async function buildVariableContextFromIds(
   let appointment = null;
   let doctor = null;
   let appointmentType = null;
+  let procedure = null;
   let formInstance = null;
 
   if (appointmentId) {
@@ -201,7 +202,8 @@ async function buildVariableContextFromIds(
         special_instructions,
         preparation_notes,
         doctor:profiles!appointments_doctor_id_fkey(full_name),
-        appointment_type:appointment_types(name)
+        appointment_type:appointment_types(name),
+        procedure:procedures(name)
       `)
       .eq("id", appointmentId)
       .single();
@@ -223,6 +225,12 @@ async function buildVariableContextFromIds(
       appointmentType = Array.isArray(appointmentData.appointment_type)
         ? appointmentData.appointment_type[0]
         : appointmentData.appointment_type;
+    }
+
+    if (appointmentData?.procedure) {
+      procedure = Array.isArray(appointmentData.procedure)
+        ? appointmentData.procedure[0]
+        : appointmentData.procedure;
     }
 
     // Buscar formulário se houver
@@ -251,6 +259,7 @@ async function buildVariableContextFromIds(
     appointment: appointment || undefined,
     doctor: doctor || undefined,
     appointmentType: appointmentType || undefined,
+    procedure: procedure || undefined,
     clinic: clinic || undefined,
     formInstance: formInstance || undefined,
   });

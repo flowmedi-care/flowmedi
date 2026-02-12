@@ -17,6 +17,7 @@ export type VariableContext = {
     data_hora?: string;
     nome_medico?: string;
     tipo?: string;
+    procedimento?: string;
     status?: string;
     local?: string;
     recomendacoes?: string;
@@ -119,6 +120,7 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
     ctx.consulta?.data ? formatDateTime(ctx.consulta.data) : "",
   "{{nome_medico}}": (ctx) => ctx.consulta?.nome_medico || "",
   "{{tipo_consulta}}": (ctx) => ctx.consulta?.tipo || "",
+  "{{nome_procedimento}}": (ctx) => ctx.consulta?.procedimento || "",
   "{{status_consulta}}": (ctx) => ctx.consulta?.status || "",
   "{{local_consulta}}": (ctx) => ctx.consulta?.local || "",
 
@@ -217,6 +219,9 @@ export async function buildVariableContext(data: {
   appointmentType?: {
     name?: string | null;
   };
+  procedure?: {
+    name?: string | null;
+  };
   clinic?: {
     name?: string | null;
     phone?: string | null;
@@ -249,6 +254,7 @@ export async function buildVariableContext(data: {
       data_hora: data.appointment.scheduled_at || undefined,
       nome_medico: data.doctor?.full_name || undefined,
       tipo: data.appointmentType?.name || undefined,
+      procedimento: data.procedure?.name || undefined,
       status: data.appointment.status || undefined,
       recomendacoes: data.appointment.recommendations || undefined,
       precisa_jejum: data.appointment.requires_fasting || false,

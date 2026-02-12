@@ -15,23 +15,29 @@ type AppointmentTypeOption = { id: string; name: string };
 
 type DoctorOption = { id: string; full_name: string | null };
 
+type ProcedureOption = { id: string; name: string };
+
 export function FormularioEditor({
   templateId,
   initialName,
   initialDefinition,
   initialAppointmentTypeId,
+  initialProcedureIds,
   initialIsPublic,
   initialPublicDoctorId,
   appointmentTypes,
+  procedures,
   doctors,
 }: {
   templateId: string | null;
   initialName: string;
   initialDefinition: FormFieldDefinition[];
   initialAppointmentTypeId: string | null;
+  initialProcedureIds: string[];
   initialIsPublic?: boolean;
   initialPublicDoctorId?: string | null;
   appointmentTypes: AppointmentTypeOption[];
+  procedures: ProcedureOption[];
   doctors: DoctorOption[];
 }) {
   const [name, setName] = useState(initialName);
@@ -39,6 +45,7 @@ export function FormularioEditor({
   const [appointmentTypeId, setAppointmentTypeId] = useState<string | null>(
     initialAppointmentTypeId
   );
+  const [procedureIds, setProcedureIds] = useState<string[]>(initialProcedureIds);
   const [isPublic, setIsPublic] = useState(initialIsPublic ?? false);
   const [publicDoctorId, setPublicDoctorId] = useState<string | null>(initialPublicDoctorId ?? null);
   const [loading, setLoading] = useState(false);
@@ -57,7 +64,8 @@ export function FormularioEditor({
         definition,
         appointmentTypeId,
         isPublic,
-        publicDoctorId
+        publicDoctorId,
+        procedureIds
       );
       if (res.error) {
         setError(res.error);
@@ -67,7 +75,7 @@ export function FormularioEditor({
       window.location.href = "/dashboard/formularios";
       return;
     }
-    const res = await createFormTemplate(name, definition, appointmentTypeId, isPublic);
+    const res = await createFormTemplate(name, definition, appointmentTypeId, isPublic, publicDoctorId, procedureIds);
     if (res.error) {
       setError(res.error);
       setLoading(false);
@@ -146,8 +154,44 @@ export function FormularioEditor({
                 ))}
               </select>
               <p className="text-xs text-muted-foreground">
-                Se vinculado a um tipo de consulta, este formulário será aplicado automaticamente ao agendar
+                Se vinculado a um tipo de consulta, este formulário pode ser aplicado ao agendar
               </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Procedimentos</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Selecione os procedimentos que usam este formulário. Ao agendar com um desses procedimentos, o formulário será associado automaticamente.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {procedures.map((proc) => {
+                  const checked = procedureIds.includes(proc.id);
+                  return (
+                    <label
+                      key={proc.id}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-input bg-background text-sm cursor-pointer hover:bg-muted/50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setProcedureIds((prev) =>
+                            checked
+                              ? prev.filter((id) => id !== proc.id)
+                              : [...prev, proc.id]
+                          );
+                        }}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                      {proc.name}
+                    </label>
+                  );
+                })}
+                {procedures.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum procedimento cadastrado. Crie em Campos e procedimentos.
+                  </p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>

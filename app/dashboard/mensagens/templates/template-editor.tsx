@@ -18,7 +18,7 @@ import { ArrowLeft, Mail, MessageSquare, AlertCircle } from "lucide-react";
 
 const AVAILABLE_VARIABLES = [
   { category: "Paciente", vars: ["{{nome_paciente}}", "{{email_paciente}}", "{{telefone_paciente}}", "{{data_nascimento}}"] },
-  { category: "Consulta", vars: ["{{data_consulta}}", "{{hora_consulta}}", "{{data_hora_consulta}}", "{{nome_medico}}", "{{tipo_consulta}}", "{{status_consulta}}"] },
+  { category: "Consulta", vars: ["{{data_consulta}}", "{{hora_consulta}}", "{{data_hora_consulta}}", "{{nome_medico}}", "{{tipo_consulta}}", "{{nome_procedimento}}", "{{status_consulta}}"] },
   { category: "Preparação", vars: ["{{recomendacoes}}", "{{precisa_jejum}}", "{{instrucoes_especiais}}", "{{notas_preparo}}", "{{preparo_completo}}"] },
   { category: "Formulário", vars: ["{{link_formulario}}", "{{nome_formulario}}", "{{prazo_formulario}}"] },
   { category: "Clínica", vars: ["{{nome_clinica}}", "{{telefone_clinica}}", "{{endereco_clinica}}"] },

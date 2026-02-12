@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { CamposPacientesClient } from "./campos-pacientes-client";
+import { CamposProcedimentosClient } from "./campos-procedimentos-client";
 
 export default async function CamposPacientesPage() {
   const supabase = await createClient();
@@ -17,19 +17,42 @@ export default async function CamposPacientesPage() {
     redirect("/dashboard");
   }
 
-  const { data: fields } = await supabase
-    .from("patient_custom_fields")
-    .select("id, field_name, field_type, field_label, required, options, display_order, include_in_public_form")
-    .eq("clinic_id", profile.clinic_id)
-    .order("display_order");
+  const [fieldsRes, typesRes, proceduresRes] = await Promise.all([
+    supabase
+      .from("patient_custom_fields")
+      .select("id, field_name, field_type, field_label, required, options, display_order, include_in_public_form")
+      .eq("clinic_id", profile.clinic_id)
+      .order("display_order"),
+    supabase
+      .from("appointment_types")
+      .select("id, name, duration_minutes")
+      .eq("clinic_id", profile.clinic_id)
+      .order("name"),
+    supabase
+      .from("procedures")
+      .select("id, name, recommendations, display_order")
+      .eq("clinic_id", profile.clinic_id)
+      .order("display_order", { ascending: true }),
+  ]);
+
+  const fields = fieldsRes.data ?? [];
+  const appointmentTypes = (typesRes.data ?? []).map((t) => ({
+    id: t.id,
+    name: t.name,
+    duration_minutes: t.duration_minutes ?? 30,
+  }));
+  const procedures = (proceduresRes.data ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    recommendations: p.recommendations ?? null,
+    display_order: p.display_order ?? 0,
+  }));
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-foreground">Campos de Pacientes</h1>
-      <p className="text-sm text-muted-foreground">
-        Adicione campos customizados para o cadastro de pacientes. Estes campos aparecerão para todos os membros da clínica.
-      </p>
-      <CamposPacientesClient initialFields={fields ?? []} />
-    </div>
+    <CamposProcedimentosClient
+      initialFields={fields}
+      appointmentTypes={appointmentTypes}
+      procedures={procedures}
+    />
   );
 }

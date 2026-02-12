@@ -16,6 +16,7 @@ export async function createAppointment(
   scheduledAt: string,
   notes?: string | null,
   recommendations?: string | null,
+  procedureId?: string | null,
   requiresFasting?: boolean,
   requiresMedicationStop?: boolean,
   specialInstructions?: string | null,
@@ -50,6 +51,7 @@ export async function createAppointment(
       patient_id: patientId,
       doctor_id: doctorId,
       appointment_type_id: appointmentTypeId || null,
+      procedure_id: procedureId || null,
       scheduled_at: scheduledAt,
       status: "agendada",
       notes: notes || null,
@@ -123,6 +125,63 @@ export async function createAppointment(
       );
 
       await supabase.from("form_instances").insert(instancesToCreate);
+    }
+  }
+
+  // Formulários vinculados ao procedimento (evitar duplicar se já veio do tipo)
+  if (procedureId) {
+    const { data: procLinks } = await supabase
+      .from("form_template_procedures")
+      .select("form_template_id")
+      .eq("procedure_id", procedureId);
+    const procedureTemplateIds = (procLinks ?? []).map((r) => r.form_template_id);
+    if (procedureTemplateIds.length > 0) {
+      const { data: existingInstances } = await supabase
+        .from("form_instances")
+        .select("form_template_id")
+        .eq("appointment_id", appointment.id);
+      const existingIds = new Set((existingInstances ?? []).map((r) => r.form_template_id));
+      const toCreate = procedureTemplateIds.filter((id) => !existingIds.has(id));
+      if (toCreate.length > 0) {
+        const { data: patient } = await supabase
+          .from("patients")
+          .select("email")
+          .eq("id", patientId)
+          .single();
+        const patientEmail = patient?.email;
+        const instancesToCreate = await Promise.all(
+          toCreate.map(async (form_template_id) => {
+            let status = "pendente";
+            let responses: Record<string, unknown> = {};
+            let linkToken = generateLinkToken();
+            if (patientEmail) {
+              const { data: publicInstance } = await supabase
+                .from("form_instances")
+                .select("responses, status")
+                .eq("form_template_id", form_template_id)
+                .is("appointment_id", null)
+                .eq("public_submitter_email", patientEmail)
+                .eq("status", "respondido")
+                .maybeSingle();
+              if (publicInstance?.responses) {
+                status = "respondido";
+                responses = (publicInstance.responses as Record<string, unknown>) || {};
+              }
+            }
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 30);
+            return {
+              appointment_id: appointment.id,
+              form_template_id,
+              status,
+              link_token: linkToken,
+              link_expires_at: expiresAt.toISOString(),
+              responses,
+            };
+          })
+        );
+        await supabase.from("form_instances").insert(instancesToCreate);
+      }
     }
   }
 
@@ -200,6 +259,7 @@ export async function updateAppointment(
     patient_id?: string;
     doctor_id?: string;
     appointment_type_id?: string | null;
+    procedure_id?: string | null;
     scheduled_at?: string;
     status?: string;
     notes?: string | null;

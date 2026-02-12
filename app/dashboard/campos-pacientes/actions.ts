@@ -118,3 +118,122 @@ export async function deleteCustomField(id: string) {
   revalidatePath("/dashboard/campos-pacientes");
   return { error: null };
 }
+
+// ========== PROCEDIMENTOS (ex.: endoscopia — nome + recomendações) ==========
+export type ProcedureRow = {
+  id: string;
+  name: string;
+  recommendations: string | null;
+  display_order: number;
+};
+
+export async function listProcedures(): Promise<{ error: string | null; data: ProcedureRow[] }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: [] };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", data: [] };
+
+  const { data, error } = await supabase
+    .from("procedures")
+    .select("id, name, recommendations, display_order")
+    .eq("clinic_id", profile.clinic_id)
+    .order("display_order", { ascending: true });
+
+  if (error) return { error: error.message, data: [] };
+  return { error: null, data: (data ?? []).map((p) => ({ ...p, display_order: p.display_order ?? 0 })) };
+}
+
+export async function createProcedure(name: string, recommendations: string | null) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") return { error: "Apenas administradores podem criar procedimentos." };
+  if (!profile.clinic_id) return { error: "Clínica não encontrada." };
+
+  const { data: maxOrder } = await supabase
+    .from("procedures")
+    .select("display_order")
+    .eq("clinic_id", profile.clinic_id)
+    .order("display_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const display_order = (maxOrder?.display_order ?? -1) + 1;
+
+  const { error } = await supabase.from("procedures").insert({
+    clinic_id: profile.clinic_id,
+    name: name.trim(),
+    recommendations: recommendations?.trim() || null,
+    display_order,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/campos-pacientes");
+  return { error: null };
+}
+
+export async function updateProcedure(
+  id: string,
+  data: { name: string; recommendations: string | null }
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") return { error: "Apenas administradores podem editar procedimentos." };
+
+  const { error } = await supabase
+    .from("procedures")
+    .update({
+      name: data.name.trim(),
+      recommendations: data.recommendations?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id);
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/campos-pacientes");
+  return { error: null };
+}
+
+export async function deleteProcedure(id: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") return { error: "Apenas administradores podem excluir procedimentos." };
+
+  const { error } = await supabase
+    .from("procedures")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id);
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/campos-pacientes");
+  return { error: null };
+}
