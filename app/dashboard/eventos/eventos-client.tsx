@@ -5,13 +5,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Mail, MessageSquare, Check, Send, Clock, X } from "lucide-react";
 import { processEvent } from "./actions";
@@ -263,35 +256,33 @@ export function EventosClient({
           <div className="flex gap-4">
             <div className="flex-1">
               <label className="text-sm font-medium mb-2 block">Filtrar por paciente</label>
-              <Select value={patientFilter} onValueChange={setPatientFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos os pacientes" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os pacientes</SelectItem>
-                  {patients.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select
+                value={patientFilter}
+                onChange={(e) => setPatientFilter(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="all">Todos os pacientes</option>
+                {patients.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="flex-1">
               <label className="text-sm font-medium mb-2 block">Filtrar por evento</label>
-              <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos os eventos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os eventos</SelectItem>
-                  {eventTypes.map((et) => (
-                    <SelectItem key={et.code} value={et.code}>
-                      {et.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select
+                value={eventFilter}
+                onChange={(e) => setEventFilter(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="all">Todos os eventos</option>
+                {eventTypes.map((et) => (
+                  <option key={et.code} value={et.code}>
+                    {et.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </CardContent>
