@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, startTransition } from "react";
+import { useState, useMemo, useEffect, useCallback, startTransition, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
@@ -52,32 +52,40 @@ function mergeSetting(
   return next;
 }
 
-/** Scroll da área principal (main) fica aqui; ao atualizar estado a página sobe. Salva e restaura. */
-function getScrollContainer(): { scrollTop: number; restore: (saved: number) => void } {
-  const main = typeof document !== "undefined" ? document.querySelector("main") : null;
-  if (main) {
-    const scrollTop = main.scrollTop;
-    return {
-      scrollTop,
-      restore(saved: number) {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const el = document.querySelector("main");
-            if (el) el.scrollTop = saved;
-          });
-        });
-      },
-    };
+/** Acha o elemento que tem o scroll (main com overflow-y-auto no layout). */
+function findScrollParent(anchor: HTMLElement | null): HTMLElement | null {
+  if (!anchor) return null;
+  let el: HTMLElement | null = anchor;
+  while (el) {
+    const style = getComputedStyle(el);
+    const overflowY = style.overflowY;
+    if (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") {
+      return el;
+    }
+    el = el.parentElement;
   }
-  const scrollTop = typeof window !== "undefined" ? window.scrollY : 0;
-  return {
-    scrollTop,
-    restore(saved: number) {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => window.scrollTo(0, saved));
-      });
-    },
+  return null;
+}
+
+/** Salva scroll atual e restaura depois (várias vezes para vencer foco/layout). */
+function saveAndRestoreScroll(containerRef: React.RefObject<HTMLElement | null>) {
+  const anchor = containerRef.current;
+  const scrollEl = findScrollParent(anchor) || (typeof document !== "undefined" ? document.querySelector("main") : null);
+  const scrollTop = scrollEl ? scrollEl.scrollTop : (typeof window !== "undefined" ? window.scrollY : 0);
+
+  const restore = (saved: number) => {
+    const set = () => {
+      const el = findScrollParent(containerRef.current) || document.querySelector("main");
+      if (el) el.scrollTop = saved;
+      else window.scrollTo(0, saved);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(set));
+    setTimeout(set, 50);
+    setTimeout(set, 120);
+    setTimeout(set, 250);
   };
+
+  return { scrollTop, restore };
 }
 
 export function MensagensClient() {
@@ -91,6 +99,7 @@ export function MensagensClient() {
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
 
   const [lastAction, setLastAction] = useState<string | null>(null);
+  const scrollAnchorRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -225,7 +234,7 @@ export function MensagensClient() {
           enabled,
           data: result.data,
         });
-        const { scrollTop, restore } = getScrollContainer();
+        const { scrollTop, restore } = saveAndRestoreScroll(scrollAnchorRef);
         startTransition(() =>
           setSettings((prev) => mergeSetting(prev, result.data))
         );
@@ -265,7 +274,7 @@ export function MensagensClient() {
         alert(`Erro: ${result.error}`);
       } else if (result.data) {
         setLastAction(`Modo OK: ${eventCode}`);
-        const { scrollTop, restore } = getScrollContainer();
+        const { scrollTop, restore } = saveAndRestoreScroll(scrollAnchorRef);
         startTransition(() =>
           setSettings((prev) => mergeSetting(prev, result.data))
         );
@@ -304,7 +313,7 @@ export function MensagensClient() {
         alert(`Erro: ${result.error}`);
       } else if (result.data) {
         setLastAction(`Template OK: ${eventCode}`);
-        const { scrollTop, restore } = getScrollContainer();
+        const { scrollTop, restore } = saveAndRestoreScroll(scrollAnchorRef);
         startTransition(() =>
           setSettings((prev) => mergeSetting(prev, result.data))
         );
@@ -357,7 +366,7 @@ export function MensagensClient() {
   }
 
   return (
-    <div className="space-y-6">
+    <div ref={scrollAnchorRef} className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">
@@ -456,14 +465,21 @@ export function MensagensClient() {
                               )}
                           </div>
                           <div className="flex items-center gap-4 mt-3 flex-wrap">
-                            <Switch
-                              checked={enabled}
-                              onChange={(checked) =>
-                                handleToggle(code, activeTab, checked)
-                              }
-                              disabled={isLoading}
-                              label="Ativado"
-                            />
+                            <span
+                              className="inline-flex"
+                              onMouseDown={(e) => e.preventDefault()}
+                              role="presentation"
+                            >
+                              <Switch
+                                tabIndex={-1}
+                                checked={enabled}
+                                onChange={(checked) =>
+                                  handleToggle(code, activeTab, checked)
+                                }
+                                disabled={isLoading}
+                                label="Ativado"
+                              />
+                            </span>
                             {enabled && canBeAutomatic && (
                               <div className="flex items-center gap-2">
                                 <span className="text-sm text-muted-foreground">
