@@ -45,12 +45,12 @@ export function ConfiguracoesClient({
         console.log("Método 1 (/me/businesses):", {
           encontrou: debugInfo.wabaMethod1Found ? "✅ Sim" : "❌ Não",
           statusHTTP: debugInfo.wabaMethod1Status,
-          erro: debugInfo.wabaMethod1Error || "Nenhum",
+          erroMeta: debugInfo.wabaMethod1Error || "Nenhum",
         });
         console.log("Método 2 (/me/owned_whatsapp_business_accounts):", {
           encontrou: debugInfo.wabaMethod2Found ? "✅ Sim" : "❌ Não",
           statusHTTP: debugInfo.wabaMethod2Status,
-          erro: debugInfo.wabaMethod2Error || "Nenhum",
+          erroMeta: debugInfo.wabaMethod2Error || "Nenhum",
         });
         console.log("Total de números encontrados:", debugInfo.phoneNumbersCount);
         if (debugInfo.suggestion) {

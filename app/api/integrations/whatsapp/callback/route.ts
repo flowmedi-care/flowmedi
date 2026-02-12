@@ -396,10 +396,18 @@ export async function GET(request: NextRequest) {
       wabaId: wabaId || null,
       phoneNumberStatus: phoneNumberId ? "found" : "not_found",
       wabaMethod1Found: debugInfo.wabaMethod1 ? debugInfo.wabaMethod1.dataCount > 0 : false,
-      wabaMethod1Error: debugInfo.wabaMethod1?.error || null,
+      wabaMethod1Error: debugInfo.wabaMethod1?.error
+        ? (typeof debugInfo.wabaMethod1.error === "object" && debugInfo.wabaMethod1.error !== null && "message" in debugInfo.wabaMethod1.error
+          ? (debugInfo.wabaMethod1.error as { message?: string }).message
+          : String(debugInfo.wabaMethod1.error))
+        : null,
       wabaMethod1Status: debugInfo.wabaMethod1?.status || null,
       wabaMethod2Found: debugInfo.wabaMethod2 ? debugInfo.wabaMethod2.dataCount > 0 : false,
-      wabaMethod2Error: debugInfo.wabaMethod2?.error || null,
+      wabaMethod2Error: debugInfo.wabaMethod2?.error
+        ? (typeof debugInfo.wabaMethod2.error === "object" && debugInfo.wabaMethod2.error !== null && "message" in debugInfo.wabaMethod2.error
+          ? (debugInfo.wabaMethod2.error as { message?: string }).message
+          : String(debugInfo.wabaMethod2.error))
+        : null,
       wabaMethod2Status: debugInfo.wabaMethod2?.status || null,
       phoneNumbersCount: debugInfo.phoneNumbers.length,
       suggestion: !phoneNumberId 
