@@ -39,10 +39,18 @@ async function getWhatsAppCredentials(clinicId: string) {
 /**
  * Envia uma mensagem WhatsApp via Meta Cloud API
  */
+export type SendWhatsAppResult = {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  /** Debug: resposta bruta da Meta (sem token) */
+  debug?: { status: number; metaResponse: unknown };
+};
+
 export async function sendWhatsAppMessage(
   clinicId: string,
   options: WhatsAppOptions
-): Promise<{ success: boolean; messageId?: string; error?: string }> {
+): Promise<SendWhatsAppResult> {
   try {
     const { credentials, phoneNumberId } = await getWhatsAppCredentials(clinicId);
 
@@ -64,7 +72,7 @@ export async function sendWhatsAppMessage(
         template: {
           name: options.template,
           language: {
-            code: "pt_BR",
+            code: options.template === "hello_world" ? "en_US" : "pt_BR",
           },
           components: options.templateParams
             ? [
@@ -80,7 +88,7 @@ export async function sendWhatsAppMessage(
         },
       };
     } else if (options.text) {
-      // Mensagem de texto simples (requer que o usuário tenha iniciado conversa)
+      // Mensagem de texto simples (requer que o usuário tenha iniciado conversa nas últimas 24h)
       payload = {
         messaging_product: "whatsapp",
         to: options.to,
@@ -93,6 +101,8 @@ export async function sendWhatsAppMessage(
       throw new Error("É necessário fornecer 'template' ou 'text'");
     }
 
+    console.log("[WhatsApp] Request:", { apiUrl, to: options.to, type: options.template ? "template" : "text", payloadKeys: Object.keys(payload) });
+
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
@@ -103,11 +113,16 @@ export async function sendWhatsAppMessage(
     });
 
     const data = await response.json();
+    const debugPayload = { status: response.status, metaResponse: data };
+
+    console.log("[WhatsApp] Response:", debugPayload);
 
     if (!response.ok) {
       const errorMessage = data.error?.message || "Erro ao enviar mensagem WhatsApp";
-      console.error("Erro ao enviar WhatsApp:", data);
-      
+      const errorCode = data.error?.code;
+      const errorSubcode = data.error?.error_subcode;
+      console.error("[WhatsApp] Erro Meta:", { message: errorMessage, code: errorCode, subcode: errorSubcode, full: data.error });
+
       // Atualizar status da integração se o token expirou
       if (data.error?.code === 190 || data.error?.type === "OAuthException") {
         const supabase = await createClient();
@@ -124,18 +139,21 @@ export async function sendWhatsAppMessage(
       return {
         success: false,
         error: errorMessage,
+        debug: debugPayload,
       };
     }
 
     return {
       success: true,
       messageId: data.messages?.[0]?.id || undefined,
+      debug: debugPayload,
     };
   } catch (error) {
-    console.error("Erro ao enviar WhatsApp:", error);
+    console.error("[WhatsApp] Exceção:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Erro desconhecido ao enviar mensagem WhatsApp",
+      debug: { status: 0, metaResponse: String(error) },
     };
   }
 }

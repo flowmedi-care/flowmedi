@@ -36,7 +36,7 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
   const [phoneIdError, setPhoneIdError] = useState<string | null>(null);
   const [testPhoneNumber, setTestPhoneNumber] = useState("");
   const [sendingTest, setSendingTest] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string; debug?: unknown } | null>(null);
 
   useEffect(() => {
     loadIntegrations();
@@ -150,10 +150,18 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
       });
       const data = await res.json();
       if (res.ok) {
-        setTestResult({ ok: true, message: "Mensagem de teste enviada! Verifique o WhatsApp." });
+        setTestResult({
+          ok: true,
+          message: "Mensagem de teste enviada! Verifique o WhatsApp (template hello_world).",
+          debug: data.debug,
+        });
         setTestPhoneNumber("");
       } else {
-        setTestResult({ ok: false, message: data.error || "Erro ao enviar" });
+        setTestResult({
+          ok: false,
+          message: data.error || "Erro ao enviar",
+          debug: data.debug,
+        });
       }
     } catch (error) {
       setTestResult({ ok: false, message: "Erro de conexão" });
@@ -447,7 +455,7 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
             <div className="pt-3 border-t border-border space-y-2">
               <Label className="text-sm font-medium">Enviar mensagem de teste</Label>
               <p className="text-xs text-muted-foreground">
-                Digite um número com DDI (ex: 5562999999999) para receber uma mensagem de teste no WhatsApp.
+                Digite um número com DDI (ex: 5562999999999). Usamos o template &quot;hello_world&quot; (como no painel da Meta). Se não chegar nem no painel da Meta: adicione o número como destinatário de teste em WhatsApp → Configuração da API → &quot;Até&quot;.
               </p>
               <div className="flex gap-2 flex-wrap items-center">
                 <Input
@@ -476,9 +484,21 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
                 </Button>
               </div>
               {testResult && (
-                <p className={`text-sm ${testResult.ok ? "text-green-600" : "text-destructive"}`}>
-                  {testResult.ok ? "✓ " : ""}{testResult.message}
-                </p>
+                <div className="space-y-1">
+                  <p className={`text-sm ${testResult.ok ? "text-green-600" : "text-destructive"}`}>
+                    {testResult.ok ? "✓ " : ""}{testResult.message}
+                  </p>
+                  {testResult.debug != null && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                        Ver resposta da API (debug)
+                      </summary>
+                      <pre className="mt-1 p-2 rounded bg-muted overflow-auto max-h-40 font-mono whitespace-pre-wrap break-all">
+                        {JSON.stringify(testResult.debug, null, 2)}
+                      </pre>
+                    </details>
+                  )}
+                </div>
               )}
             </div>
           )}
