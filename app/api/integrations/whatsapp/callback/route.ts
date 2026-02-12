@@ -183,14 +183,15 @@ export async function GET(request: NextRequest) {
             
             if (phoneData.data && phoneData.data.length > 0 && wabaId && phoneData.data[0].id) {
               // Pegar o primeiro número disponível (pode ser teste ou real)
-              phoneNumberId = phoneData.data[0].id;
+              const foundPhoneNumberId: string = phoneData.data[0].id;
+              phoneNumberId = foundPhoneNumberId;
               debugInfo.phoneNumbers.push({
                 wabaId,
-                phoneNumberId: phoneNumberId, // Agora TypeScript sabe que não é null
+                phoneNumberId: foundPhoneNumberId,
                 verified_name: phoneData.data[0].verified_name,
                 display_phone_number: phoneData.data[0].display_phone_number,
               });
-              console.log(`✅ [WhatsApp Callback] Número encontrado: ${phoneNumberId} no WABA ${wabaId}`);
+              console.log(`✅ [WhatsApp Callback] Número encontrado: ${foundPhoneNumberId} no WABA ${wabaId}`);
               break; // Parar quando encontrar um número
             }
           } catch (phoneError) {
@@ -242,14 +243,15 @@ export async function GET(request: NextRequest) {
             });
             
             if (phoneData.data && phoneData.data.length > 0 && wabaId && phoneData.data[0].id) {
-              phoneNumberId = phoneData.data[0].id;
+              const foundPhoneNumberId: string = phoneData.data[0].id;
+              phoneNumberId = foundPhoneNumberId;
               debugInfo.phoneNumbers.push({
                 wabaId,
-                phoneNumberId: phoneNumberId, // Agora TypeScript sabe que não é null
+                phoneNumberId: foundPhoneNumberId,
                 verified_name: phoneData.data[0].verified_name,
                 display_phone_number: phoneData.data[0].display_phone_number,
               });
-              console.log(`✅ [WhatsApp Callback] Número encontrado via owned_whatsapp_business_accounts: ${phoneNumberId}`);
+              console.log(`✅ [WhatsApp Callback] Número encontrado via owned_whatsapp_business_accounts: ${foundPhoneNumberId}`);
             }
           }
         } catch (ownedError) {
