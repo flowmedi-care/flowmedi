@@ -781,6 +781,20 @@ export function AgendaClient({
                 </div>
               </div>
               <div className="space-y-2">
+                <Label>Recomendações</Label>
+                <Textarea
+                  value={form.recommendations}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, recommendations: e.target.value }))
+                  }
+                  placeholder="Ex.: Comparecer em jejum de 8 horas. Trazer exames anteriores..."
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ao escolher um procedimento acima, o campo é pré-preenchido. Usado em e-mails e mensagens.
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label>Observações</Label>
                 <Textarea
                   value={form.notes}
@@ -790,72 +804,6 @@ export function AgendaClient({
                   rows={2}
                   placeholder="Opcional"
                 />
-              </div>
-
-              {/* Preparação e Recomendações */}
-              <div className="border-t pt-4 space-y-4">
-                <h3 className="font-medium text-sm text-foreground">Preparação e Recomendações</h3>
-                
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={form.requiresFasting}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, requiresFasting: e.target.checked }))
-                      }
-                      className="h-4 w-4"
-                    />
-                    Precisa de jejum?
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={form.requiresMedicationStop}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, requiresMedicationStop: e.target.checked }))
-                      }
-                      className="h-4 w-4"
-                    />
-                    Precisa parar medicação?
-                  </label>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Recomendações</Label>
-                  <Textarea
-                    value={form.recommendations}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, recommendations: e.target.value }))
-                    }
-                    placeholder="Ex.: Comparecer em jejum de 8 horas. Trazer exames anteriores..."
-                    rows={3}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Instruções especiais</Label>
-                  <Textarea
-                    value={form.specialInstructions}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, specialInstructions: e.target.value }))
-                    }
-                    placeholder="Instruções específicas para esta consulta..."
-                    rows={2}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Notas de preparo</Label>
-                  <Textarea
-                    value={form.preparationNotes}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, preparationNotes: e.target.value }))
-                    }
-                    placeholder="Notas adicionais sobre o preparo..."
-                    rows={2}
-                  />
-                </div>
               </div>
 
               <div className="flex gap-2">

@@ -42,9 +42,6 @@ export function FormularioEditor({
 }) {
   const [name, setName] = useState(initialName);
   const [definition, setDefinition] = useState<FormFieldDefinition[]>(initialDefinition);
-  const [appointmentTypeId, setAppointmentTypeId] = useState<string | null>(
-    initialAppointmentTypeId
-  );
   const [procedureIds, setProcedureIds] = useState<string[]>(initialProcedureIds);
   const [isPublic, setIsPublic] = useState(initialIsPublic ?? false);
   const [publicDoctorId, setPublicDoctorId] = useState<string | null>(initialPublicDoctorId ?? null);
@@ -62,7 +59,7 @@ export function FormularioEditor({
         templateId,
         name,
         definition,
-        appointmentTypeId,
+        null,
         isPublic,
         publicDoctorId,
         procedureIds
@@ -75,7 +72,7 @@ export function FormularioEditor({
       window.location.href = "/dashboard/formularios";
       return;
     }
-    const res = await createFormTemplate(name, definition, appointmentTypeId, isPublic, publicDoctorId, procedureIds);
+    const res = await createFormTemplate(name, definition, null, isPublic, publicDoctorId, procedureIds);
     if (res.error) {
       setError(res.error);
       setLoading(false);
@@ -135,27 +132,6 @@ export function FormularioEditor({
                 required
                 className="max-w-md"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="appointment_type">Tipo de consulta</Label>
-              <select
-                id="appointment_type"
-                className="h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm"
-                value={appointmentTypeId ?? ""}
-                onChange={(e) =>
-                  setAppointmentTypeId(e.target.value || null)
-                }
-              >
-                <option value="">Nenhum (formulário genérico)</option>
-                {appointmentTypes.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground">
-                Se vinculado a um tipo de consulta, este formulário pode ser aplicado ao agendar
-              </p>
             </div>
             <div className="space-y-2">
               <Label>Procedimentos</Label>

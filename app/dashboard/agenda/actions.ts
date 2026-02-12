@@ -130,17 +130,24 @@ export async function createAppointment(
 
   // Formulários vinculados ao procedimento (evitar duplicar se já veio do tipo)
   if (procedureId) {
-    const { data: procLinks } = await supabase
+    const { data: procLinks, error: procLinksError } = await supabase
       .from("form_template_procedures")
       .select("form_template_id")
       .eq("procedure_id", procedureId);
-    const procedureTemplateIds = (procLinks ?? []).map((r) => r.form_template_id);
+    if (procLinksError) {
+      console.error("[createAppointment] form_template_procedures select:", procLinksError);
+    }
+    const procedureTemplateIds = (procLinks ?? [])
+      .map((r: { form_template_id?: string }) => r.form_template_id)
+      .filter((id): id is string => !!id);
     if (procedureTemplateIds.length > 0) {
       const { data: existingInstances } = await supabase
         .from("form_instances")
         .select("form_template_id")
         .eq("appointment_id", appointment.id);
-      const existingIds = new Set((existingInstances ?? []).map((r) => r.form_template_id));
+      const existingIds = new Set(
+        (existingInstances ?? []).map((r: { form_template_id: string }) => r.form_template_id)
+      );
       const toCreate = procedureTemplateIds.filter((id) => !existingIds.has(id));
       if (toCreate.length > 0) {
         const { data: patient } = await supabase
@@ -150,7 +157,7 @@ export async function createAppointment(
           .single();
         const patientEmail = patient?.email;
         const instancesToCreate = await Promise.all(
-          toCreate.map(async (form_template_id) => {
+          toCreate.map(async (form_template_id: string) => {
             let status = "pendente";
             let responses: Record<string, unknown> = {};
             let linkToken = generateLinkToken();
@@ -180,7 +187,12 @@ export async function createAppointment(
             };
           })
         );
-        await supabase.from("form_instances").insert(instancesToCreate);
+        const { error: insertProcErr } = await supabase
+          .from("form_instances")
+          .insert(instancesToCreate);
+        if (insertProcErr) {
+          console.error("[createAppointment] form_instances insert (procedure):", insertProcErr);
+        }
       }
     }
   }
