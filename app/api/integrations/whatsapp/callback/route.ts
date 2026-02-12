@@ -181,12 +181,12 @@ export async function GET(request: NextRequest) {
               })) || [],
             });
             
-            if (phoneData.data && phoneData.data.length > 0 && wabaId) {
+            if (phoneData.data && phoneData.data.length > 0 && wabaId && phoneData.data[0].id) {
               // Pegar o primeiro número disponível (pode ser teste ou real)
               phoneNumberId = phoneData.data[0].id;
               debugInfo.phoneNumbers.push({
                 wabaId,
-                phoneNumberId,
+                phoneNumberId: phoneNumberId, // Agora TypeScript sabe que não é null
                 verified_name: phoneData.data[0].verified_name,
                 display_phone_number: phoneData.data[0].display_phone_number,
               });
@@ -241,11 +241,11 @@ export async function GET(request: NextRequest) {
               })) || [],
             });
             
-            if (phoneData.data && phoneData.data.length > 0 && wabaId) {
+            if (phoneData.data && phoneData.data.length > 0 && wabaId && phoneData.data[0].id) {
               phoneNumberId = phoneData.data[0].id;
               debugInfo.phoneNumbers.push({
                 wabaId,
-                phoneNumberId,
+                phoneNumberId: phoneNumberId, // Agora TypeScript sabe que não é null
                 verified_name: phoneData.data[0].verified_name,
                 display_phone_number: phoneData.data[0].display_phone_number,
               });
