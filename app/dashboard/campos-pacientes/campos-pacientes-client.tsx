@@ -178,29 +178,30 @@ export function CamposPacientesClient({
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Campos Customizados</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Personalize os campos de cadastro de pacientes. Os campos básicos (nome, email, telefone, data de nascimento, observações) são sempre exibidos.
-        </p>
-      </div>
-
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <h2 className="text-lg font-semibold">
-              {isNew ? "Novo campo customizado" : "Editar campo"}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Configure o campo que aparecerá para todos ao cadastrar pacientes
+    <>
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-lg font-semibold">Campos de paciente</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Personalize os campos de cadastro. Nome, email, telefone, data de nascimento e observações são sempre exibidos.
             </p>
-          </CardHeader>
-          <CardContent>
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-5"
-            >
+          </div>
+          {!showForm && (
+            <Button variant="outline" onClick={openNew}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo campo
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {showForm && (
+          <form
+            onSubmit={handleSubmit}
+            className="p-4 rounded-lg border border-border bg-muted/30 space-y-5"
+          >
               {error && (
                 <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
                   {error}
@@ -300,86 +301,63 @@ export function CamposPacientesClient({
                 </Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
-      )}
+        )}
 
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-lg font-semibold">Campos cadastrados</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                {fields.length === 0 
-                  ? "Nenhum campo customizado cadastrado ainda"
-                  : `${fields.length} ${fields.length === 1 ? 'campo' : 'campos'} cadastrado${fields.length === 1 ? '' : 's'}`
-                }
-              </p>
-            </div>
-            {!showForm && (
-              <Button variant="outline" onClick={openNew}>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo campo
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {fields.length === 0 ? (
+        {fields.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <p className="text-sm mb-1">Nenhum campo customizado cadastrado</p>
               <p className="text-xs">Adicione campos para personalizar o cadastro de pacientes</p>
             </div>
-          ) : (
-            <ul className="divide-y divide-border">
-              {fields.map((f) => (
-                <li
-                  key={f.id}
-                  className={cn(
-                    "flex items-center justify-between py-3 first:pt-0",
-                    editingId === f.id && "bg-muted/50 -mx-2 px-2 rounded"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <GripVertical className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <strong>{f.field_label}</strong>
-                      <span className="text-muted-foreground text-sm ml-2">
-                        ({f.field_type})
-                        {f.required && " • Obrigatório"}
-                      </span>
-                      {f.options && f.options.length > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Opções: {f.options.join(", ")}
-                        </p>
-                      )}
-                    </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {fields.map((f) => (
+              <li
+                key={f.id}
+                className={cn(
+                  "flex items-center justify-between py-3 first:pt-0",
+                  editingId === f.id && "bg-muted/50 -mx-2 px-2 rounded"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <GripVertical className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <strong>{f.field_label}</strong>
+                    <span className="text-muted-foreground text-sm ml-2">
+                      ({f.field_type})
+                      {f.required && " • Obrigatório"}
+                    </span>
+                    {f.options && f.options.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Opções: {f.options.join(", ")}
+                      </p>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEdit(f)}
-                      className="shrink-0"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openDeleteConfirm(f)}
-                      disabled={deletingId === f.id}
-                      className="text-destructive hover:text-destructive shrink-0"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEdit(f)}
+                    className="shrink-0"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openDeleteConfirm(f)}
+                    disabled={deletingId === f.id}
+                    className="text-destructive hover:text-destructive shrink-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
 
       <ConfirmDialog
         open={!!fieldToDelete}
@@ -391,6 +369,6 @@ export function CamposPacientesClient({
         onConfirm={handleConfirmDelete}
         onCancel={() => setFieldToDelete(null)}
       />
-    </div>
+  </>
   );
 }

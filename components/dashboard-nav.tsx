@@ -59,7 +59,6 @@ export function DashboardNav({
     { href: "/dashboard/agenda", label: "Agenda", icon: <Calendar className="h-4 w-4" /> },
     { href: "/dashboard/pacientes", label: "Pacientes", icon: <Users className="h-4 w-4" /> },
     { href: "/dashboard/formularios", label: "Formulários", icon: <FileText className="h-4 w-4" /> },
-    { href: "/dashboard/mensagens", label: "Mensagens", icon: <Mail className="h-4 w-4" />, roles: ["admin"] },
   ];
 
   return (
@@ -142,20 +141,10 @@ export function DashboardNav({
               <Button
                 variant={pathname === "/dashboard/campos-pacientes" ? "secondary" : "ghost"}
                 className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
-                title={isCollapsed ? "Campos e procedimentos" : undefined}
+                title={isCollapsed ? "Campos" : undefined}
               >
                 <FileEdit className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Campos e procedimentos</span>}
-              </Button>
-            </Link>
-            <Link href="/dashboard/templates">
-              <Button
-                variant={pathname === "/dashboard/templates" ? "secondary" : "ghost"}
-                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
-                title={isCollapsed ? "Templates" : undefined}
-              >
-                <Mail className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Templates</span>}
+                {!isCollapsed && <span className="ml-2">Campos</span>}
               </Button>
             </Link>
             <Link href="/dashboard/configuracoes">
@@ -176,6 +165,16 @@ export function DashboardNav({
               >
                 <CreditCard className="h-4 w-4" />
                 {!isCollapsed && <span className="ml-2">Plano e pagamento</span>}
+              </Button>
+            </Link>
+            <Link href="/dashboard/mensagens">
+              <Button
+                variant={pathname === "/dashboard/mensagens" ? "secondary" : "ghost"}
+                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                title={isCollapsed ? "Mensagens" : undefined}
+              >
+                <Mail className="h-4 w-4" />
+                {!isCollapsed && <span className="ml-2">Mensagens</span>}
               </Button>
             </Link>
           </>
