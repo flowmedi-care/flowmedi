@@ -125,7 +125,7 @@ export default function HomePage() {
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4 flex flex-wrap items-center justify-between gap-4">
           <span className="text-sm text-muted-foreground">FlowMedi</span>
-          <div className="flex gap-6">
+          <div className="flex flex-wrap gap-6">
             <Link
               href="/precos"
               className="text-sm text-muted-foreground hover:text-foreground"
@@ -143,6 +143,18 @@ export default function HomePage() {
               className="text-sm text-muted-foreground hover:text-foreground"
             >
               Criar conta
+            </Link>
+            <Link
+              href="/politica-de-privacidade"
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Política de Privacidade
+            </Link>
+            <Link
+              href="/termos-de-servico"
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Termos de Serviço
             </Link>
           </div>
         </div>
