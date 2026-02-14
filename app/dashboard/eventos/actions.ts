@@ -166,7 +166,8 @@ export async function getMessagePreviewForEvent(eventId: string) {
 // ========== PROCESSAR EVENTO (ENVIAR OU MARCAR COMO OK) ==========
 export async function processEvent(
   eventId: string,
-  action: "send" | "mark_ok"
+  action: "send" | "mark_ok",
+  channelsToSend?: ("email" | "whatsapp")[]
 ): Promise<{ error: string | null; testMode?: boolean; eventId?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -211,14 +212,19 @@ export async function processEvent(
     }
 
     try {
+      const channels = channelsToSend?.length ? channelsToSend : (eventData.channels || []);
+      const channelsFiltered = channels.filter((c: string) => (eventData.channels || []).includes(c));
+
       if (!eventData.patient_id && eventData.event_code === "public_form_completed") {
-        const result = await processEventByIdForPublicForm(eventId);
-        if (!result.success) {
-          return { error: result.error ?? "Erro ao enviar." };
+        if (channelsFiltered.includes("email")) {
+          const result = await processEventByIdForPublicForm(eventId);
+          if (!result.success) return { error: result.error ?? "Erro ao enviar." };
+        }
+        if (channelsFiltered.includes("whatsapp")) {
+          return { error: "Envio por WhatsApp para formulário público em breve." };
         }
       } else {
-        const channels = eventData.channels || [];
-        for (const channel of channels) {
+        for (const channel of channelsFiltered) {
           if (eventData.patient_id) {
             await processMessageEvent(
               eventData.event_code,
@@ -231,12 +237,18 @@ export async function processEvent(
         }
       }
 
+      const currentSent = (eventData.sent_channels as string[] | null) ?? [];
+      const newSentChannels = Array.from(new Set([...currentSent, ...channelsFiltered]));
+      const allChannels = eventData.channels || [];
+      const allChannelsSent = allChannels.length > 0 && allChannels.every((c: string) => newSentChannels.includes(c));
+
       const { error: updateError } = await supabase
         .from("event_timeline")
         .update({
-          status: "sent",
-          processed_at: new Date().toISOString(),
-          processed_by: user.id,
+          status: allChannelsSent ? "sent" : "pending",
+          processed_at: allChannelsSent ? new Date().toISOString() : eventData.processed_at,
+          processed_by: allChannelsSent ? user.id : eventData.processed_by,
+          sent_channels: newSentChannels,
         })
         .eq("id", eventId);
 

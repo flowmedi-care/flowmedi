@@ -46,9 +46,9 @@ export function EmailBrandingCard() {
   if (loading) {
     return (
       <Card className="p-4">
-        <p className="text-sm text-muted-foreground">Carregando…</p>
+        <p className="text-sm text-muted-foreground">Carregando...</p>
       </Card>
-    );
+    )
   }
 
   return (
@@ -68,16 +68,14 @@ export function EmailBrandingCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {error && (
-          <p className="text-sm text-destructive">{error}</p>
-        )}
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <div>
           <Label htmlFor="email_header">Cabeçalho (opcional)</Label>
           <Textarea
             id="email_header"
             value={emailHeader}
             onChange={(e) => setEmailHeader(e.target.value)}
-            placeholder="Ex.: &lt;div style=\"font-size:12px;color:#666;\">{{nome_clinica}} | {{telefone_clinica}}&lt;/div&gt;"
+            placeholder={'Ex.: <div>{{nome_clinica}} | {{telefone_clinica}}</div>'}
             rows={3}
             className="mt-1 font-mono text-sm"
           />
@@ -88,15 +86,15 @@ export function EmailBrandingCard() {
             id="email_footer"
             value={emailFooter}
             onChange={(e) => setEmailFooter(e.target.value)}
-            placeholder="Ex.: &lt;div style=\"margin-top:24px;font-size:11px;color:#999;\">Este é um email automático. Em caso de dúvidas, entre em contato com a clínica.&lt;/div&gt;"
+            placeholder="Este é um email automático. Em caso de dúvidas, entre em contato com a clínica."
             rows={3}
             className="mt-1 font-mono text-sm"
           />
         </div>
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Salvando…" : "Salvar"}
+          {saving ? "Salvando..." : "Salvar"}
         </Button>
       </CardContent>
     </Card>
-  );
+  )
 }

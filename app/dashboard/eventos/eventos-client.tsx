@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Mail, MessageSquare, Check, Send, Clock, ListTodo, CheckCircle, Settings2 } from "lucide-react";
+import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2 } from "lucide-react";
 import { processEvent, concluirEvent, type ClinicEventConfigItem } from "./actions";
 import { EventosConfigModal } from "./eventos-config-modal";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import type { MessageEvent, ClinicMessageSetting, MessageTemplate, EffectiveTemplateItem } from "@/app/dashboard/mensagens/actions";
 
 // Formatação de data
@@ -64,6 +65,7 @@ type Event = {
   processed_by?: string | null;
   processed_by_name?: string | null;
   channels: string[];
+  sent_channels?: string[];
   template_ids: Record<string, string>;
   variables: Record<string, unknown>;
   metadata: Record<string, unknown>;
@@ -135,6 +137,33 @@ export function EventosClient({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [patientFilter, setPatientFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [sendModalEvent, setSendModalEvent] = useState<Event | null>(null);
+  const [sendModalChannels, setSendModalChannels] = useState<("email" | "whatsapp")[]>([]);
+
+  function getChannelStatus(event: Event) {
+    const enabledForEvent = settings.filter(
+      (s) => s.event_code === event.event_code && s.enabled
+    );
+    const enabledChannels = enabledForEvent.map((s) => s.channel);
+    const sent = event.sent_channels ?? [];
+    const emailEnabled = enabledChannels.includes("email");
+    const whatsappEnabled = enabledChannels.includes("whatsapp");
+    const emailSent = sent.includes("email");
+    const whatsappSent = sent.includes("whatsapp");
+    const allDisabled = !emailEnabled && !whatsappEnabled;
+    const allSent =
+      enabledChannels.length > 0 &&
+      enabledChannels.every((c) => sent.includes(c));
+    return {
+      emailEnabled,
+      whatsappEnabled,
+      emailSent,
+      whatsappSent,
+      allDisabled,
+      allSent,
+      enabledChannels: enabledChannels as ("email" | "whatsapp")[],
+    };
+  }
 
   const filterFn = (e: Event) => {
     if (patientFilter !== "all" && e.patient_id !== patientFilter) return false;
@@ -145,12 +174,19 @@ export function EventosClient({
   const filteredAll = allEvents.filter(filterFn);
   const filteredCompleted = completedEvents.filter(filterFn);
 
-  async function handleProcessEvent(eventId: string, action: "send" | "mark_ok") {
+  async function handleProcessEvent(
+    eventId: string,
+    action: "send" | "mark_ok",
+    channelsToSend?: ("email" | "whatsapp")[]
+  ) {
+    if (action === "send" && (!channelsToSend || channelsToSend.length === 0))
+      return;
     const actionLabel = action === "send" ? "enviar" : "marcar como ok";
-    if (!confirm(`Deseja ${actionLabel} este evento?`)) return;
+    if (!channelsToSend && !confirm(`Deseja ${actionLabel} este evento?`))
+      return;
 
     setProcessing(eventId);
-    const result = await processEvent(eventId, action);
+    const result = await processEvent(eventId, action, channelsToSend);
     setProcessing(null);
 
     if (result.error) {
@@ -158,6 +194,8 @@ export function EventosClient({
     } else if (result.testMode && result.eventId) {
       router.push(`/dashboard/eventos/teste?eventId=${result.eventId}`);
     } else {
+      setSendModalEvent(null);
+      setSendModalChannels([]);
       router.refresh();
     }
   }
@@ -222,41 +260,47 @@ export function EventosClient({
         </CardHeader>
         <CardContent>
             <div className="flex items-center justify-between">
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
+              {isPending && (() => {
+                const ch = getChannelStatus(event);
+                if (ch.allDisabled)
+                  return (
+                    <span className="text-sm text-muted-foreground">
+                      Envio desativado
+                    </span>
+                  );
+                if (ch.allSent)
+                  return (
+                    <span className="text-sm text-muted-foreground">
+                      Já enviado
+                    </span>
+                  );
+                return (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSendModalEvent(event);
+                      setSendModalChannels([]);
+                    }}
+                    disabled={isProcessing}
+                    className="flex items-center gap-2"
+                  >
+                    <Send className="h-4 w-4" />
+                    Enviar
+                  </Button>
+                );
+              })()}
               {isPending && (
-                <>
-                  {event.event_code !== "patient_registered" && (
-                    <Button
-                      size="sm"
-                      onClick={() => handleProcessEvent(event.id, "send")}
-                      disabled={isProcessing}
-                      className="flex items-center gap-2"
-                    >
-                      <Send className="h-4 w-4" />
-                      Enviar
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleProcessEvent(event.id, "mark_ok")}
-                    disabled={isProcessing}
-                    className="flex items-center gap-2"
-                  >
-                    <Check className="h-4 w-4" />
-                    Marcar como OK
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => handleConcluir(event.id)}
-                    disabled={isProcessing}
-                    className="flex items-center gap-2"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    Concluir
-                  </Button>
-                </>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleConcluir(event.id)}
+                  disabled={isProcessing}
+                  className="flex items-center gap-2"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Concluir
+                </Button>
               )}
               {!isPending && event.processed_at && (
                 <div className="text-sm text-muted-foreground">
@@ -279,9 +323,36 @@ export function EventosClient({
               <div>
                 <strong>Origem:</strong> {event.origin}
               </div>
+              {(() => {
+                const ch = getChannelStatus(event);
+                return (
+                  <div>
+                    <strong>Envio:</strong>
+                    <ul className="mt-1 list-disc list-inside">
+                      {ch.allDisabled ? (
+                        <li>Envio desativado para este evento</li>
+                      ) : (
+                        <>
+                          <li>
+                            Email: {ch.emailEnabled ? (ch.emailSent ? "enviado" : "pendente") : "desativado"}
+                          </li>
+                          <li>
+                            WhatsApp: {ch.whatsappEnabled ? (ch.whatsappSent ? "enviado" : "pendente") : "desativado"}
+                          </li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
+                );
+              })()}
               {event.channels && event.channels.length > 0 && (
                 <div>
-                  <strong>Canais:</strong> {event.channels.join(", ")}
+                  <strong>Canais configurados:</strong> {event.channels.join(", ")}
+                </div>
+              )}
+              {(event.sent_channels?.length ?? 0) > 0 && (
+                <div>
+                  <strong>Enviado por:</strong> {(event.sent_channels ?? []).join(", ")}
                 </div>
               )}
               {Object.keys(event.variables || {}).length > 0 && (
@@ -325,6 +396,117 @@ export function EventosClient({
         onSettingsChange={(next) => { setSettings(next); router.refresh(); }}
         onEventConfigChange={(next) => { setEventConfigState(next); router.refresh(); }}
       />
+
+      <Dialog
+        open={!!sendModalEvent}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSendModalEvent(null);
+            setSendModalChannels([]);
+          }
+        }}
+      >
+        <DialogContent
+          title="Enviar mensagem"
+          onClose={() => {
+            setSendModalEvent(null);
+            setSendModalChannels([]);
+          }}
+        >
+          {sendModalEvent && (() => {
+            const ch = getChannelStatus(sendModalEvent);
+            const canSendEmail = ch.emailEnabled && !ch.emailSent;
+            const canSendWhatsApp = ch.whatsappEnabled && !ch.whatsappSent;
+            const hasChoice = canSendEmail || canSendWhatsApp;
+            const toggle = (c: "email" | "whatsapp") => {
+              setSendModalChannels((prev) =>
+                prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+              );
+            };
+            return (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  {sendModalEvent.event_name}
+                </p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {CHANNEL_ICONS.email}
+                    <span className="text-sm">Email</span>
+                    {!ch.emailEnabled && (
+                      <span className="text-xs text-muted-foreground">(desativado)</span>
+                    )}
+                    {ch.emailEnabled && ch.emailSent && (
+                      <span className="text-xs text-green-600">Já enviado</span>
+                    )}
+                    {canSendEmail && (
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={sendModalChannels.includes("email")}
+                          onChange={() => toggle("email")}
+                          className="rounded border-input"
+                        />
+                        Enviar por email
+                      </label>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {CHANNEL_ICONS.whatsapp}
+                    <span className="text-sm">WhatsApp</span>
+                    {!ch.whatsappEnabled && (
+                      <span className="text-xs text-muted-foreground">(desativado)</span>
+                    )}
+                    {ch.whatsappEnabled && ch.whatsappSent && (
+                      <span className="text-xs text-green-600">Já enviado</span>
+                    )}
+                    {canSendWhatsApp && (
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={sendModalChannels.includes("whatsapp")}
+                          onChange={() => toggle("whatsapp")}
+                          className="rounded border-input"
+                        />
+                        Enviar por WhatsApp
+                      </label>
+                    )}
+                  </div>
+                </div>
+                {hasChoice && (
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSendModalEvent(null);
+                        setSendModalChannels([]);
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        handleProcessEvent(sendModalEvent.id, "send", sendModalChannels)
+                      }
+                      disabled={
+                        sendModalChannels.length === 0 || processing === sendModalEvent.id
+                      }
+                      className="flex items-center gap-2"
+                    >
+                      <Send className="h-4 w-4" />
+                      Enviar
+                    </Button>
+                  </div>
+                )}
+                {!hasChoice && (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum canal disponível para envio.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Filtros */}
       <Card>

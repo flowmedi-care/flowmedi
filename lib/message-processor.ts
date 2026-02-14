@@ -616,17 +616,18 @@ export async function processEventByIdForPublicForm(
       console.error("[processEventByIdForPublicForm] message_log insert:", logError);
     }
 
-    const { error: updateError } = await supabase
+    const { data: row } = await supabase.from("event_timeline").select("sent_channels").eq("id", eventId).single();
+    const currentChannels = (row?.sent_channels as string[] | null) ?? [];
+    const newSentChannels = currentChannels.includes("email") ? currentChannels : [...currentChannels, "email"];
+
+    await supabase
       .from("event_timeline")
       .update({
         status: "sent",
         processed_at: new Date().toISOString(),
+        sent_channels: newSentChannels,
       })
       .eq("id", eventId);
-
-    if (updateError) {
-      console.error("[processEventByIdForPublicForm] event_timeline update:", updateError);
-    }
 
     return { success: true };
   } catch (err) {
