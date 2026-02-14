@@ -470,6 +470,146 @@ async function sendWhatsApp(
   }
 }
 
+/**
+ * Processa envio automático para evento de formulário público (sem paciente).
+ * Usa metadata do evento (public_submitter_email, etc.) e envia para o email do lead.
+ */
+export async function processEventByIdForPublicForm(
+  eventId: string
+): Promise<ProcessMessageResult> {
+  const supabase = await createClient();
+
+  const { data: event, error: eventError } = await supabase
+    .from("event_timeline")
+    .select("id, clinic_id, event_code, status, channels, template_ids, metadata")
+    .eq("id", eventId)
+    .single();
+
+  if (eventError || !event) {
+    return { success: false, error: "Evento não encontrado." };
+  }
+
+  if (event.status !== "pending") {
+    return { success: false, error: "Evento já foi processado." };
+  }
+
+  const metadata = (event.metadata as Record<string, unknown>) || {};
+  const toEmail = metadata.public_submitter_email as string | undefined;
+  if (!toEmail || typeof toEmail !== "string") {
+    return { success: false, error: "Email do formulário não encontrado no evento." };
+  }
+
+  const channels = (event.channels as string[]) || [];
+  if (!channels.includes("email")) {
+    return { success: true };
+  }
+
+  const { data: setting } = await supabase
+    .from("clinic_message_settings")
+    .select("template_id, send_mode")
+    .eq("clinic_id", event.clinic_id)
+    .eq("event_code", event.event_code)
+    .eq("channel", "email")
+    .eq("enabled", true)
+    .maybeSingle();
+
+  if (!setting || setting.send_mode !== "automatic") {
+    return { success: true };
+  }
+
+  const { checkEmailIntegration } = await import("@/lib/comunicacao/email");
+  const integrationCheck = await checkEmailIntegration(event.clinic_id);
+  if (!integrationCheck.connected) {
+    return {
+      success: false,
+      error: "Integração Google não conectada.",
+    };
+  }
+
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("name")
+    .eq("id", event.clinic_id)
+    .single();
+
+  const context = await buildVariableContext({
+    patient: {
+      full_name: (metadata.public_submitter_name as string) || undefined,
+      email: toEmail,
+      phone: (metadata.public_submitter_phone as string) || undefined,
+      birth_date: (metadata.public_submitter_birth_date as string) || undefined,
+    },
+    clinic: clinic || undefined,
+  });
+
+  let template: { subject?: string | null; body_html: string; email_header?: string | null; email_footer?: string | null } | null = null;
+
+  if (setting.template_id) {
+    const { data: customTemplate } = await supabase
+      .from("message_templates")
+      .select("subject, body_html, email_header, email_footer")
+      .eq("id", setting.template_id)
+      .eq("is_active", true)
+      .single();
+    template = customTemplate;
+  }
+
+  if (!template) {
+    const { data: systemTemplate } = await supabase
+      .from("system_message_templates")
+      .select("subject, body_html, email_header, email_footer")
+      .eq("event_code", event.event_code)
+      .eq("channel", "email")
+      .single();
+    if (systemTemplate) {
+      template = { ...systemTemplate, body_html: systemTemplate.body_html ?? "" };
+    }
+  }
+
+  if (!template) {
+    return { success: false, error: "Template de email não encontrado." };
+  }
+
+  const processedSubject = template.subject ? replaceVariables(template.subject, context) : null;
+  const rawBody = replaceVariables(template.body_html || "", context);
+  const processedBody =
+    template.email_header || template.email_footer
+      ? [
+          replaceVariables(template.email_header || "", context),
+          rawBody,
+          replaceVariables(template.email_footer || "", context),
+        ].join("")
+      : rawBody;
+
+  if (!processedSubject) {
+    return { success: false, error: "Assunto do email é obrigatório." };
+  }
+
+  const sendResult = await sendEmail(event.clinic_id, toEmail, processedSubject, processedBody);
+  if (!sendResult.success) {
+    return sendResult;
+  }
+
+  await supabase.from("message_log").insert({
+    clinic_id: event.clinic_id,
+    patient_id: null,
+    appointment_id: null,
+    channel: "email",
+    type: event.event_code,
+    metadata: { event_id: eventId, form_instance_id: metadata.form_instance_id },
+  });
+
+  await supabase
+    .from("event_timeline")
+    .update({
+      status: "sent",
+      processed_at: new Date().toISOString(),
+    })
+    .eq("id", eventId);
+
+  return { success: true };
+}
+
 /** Modo teste: quando true, não envia de fato; redireciona para página de preview */
 export const MESSAGE_TEST_MODE = process.env.NEXT_PUBLIC_MESSAGE_TEST_MODE === "true";
 
