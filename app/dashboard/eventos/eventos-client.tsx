@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { Mail, MessageSquare, Check, Send, Clock, ListTodo, CheckCircle, Settings2 } from "lucide-react";
 import { processEvent, concluirEvent, type ClinicEventConfigItem } from "./actions";
 import { EventosConfigModal } from "./eventos-config-modal";
-import type { MessageEvent, ClinicMessageSetting, MessageTemplate } from "@/app/dashboard/mensagens/actions";
+import type { MessageEvent, ClinicMessageSetting, MessageTemplate, EffectiveTemplateItem } from "@/app/dashboard/mensagens/actions";
 
 // Formatação de data
 function formatDate(dateString: string): string {
@@ -104,6 +104,7 @@ export function EventosClient({
   msgEvents,
   msgSettings,
   templates,
+  systemTemplates = [],
 }: {
   initialPendingEvents: Event[];
   initialAllEvents: Event[];
@@ -114,6 +115,7 @@ export function EventosClient({
   msgEvents: MessageEvent[];
   msgSettings: ClinicMessageSetting[];
   templates: MessageTemplate[];
+  systemTemplates?: EffectiveTemplateItem[];
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "completed">("pending");
@@ -314,6 +316,7 @@ export function EventosClient({
         settings={settings}
         eventConfig={eventConfigState}
         templates={templates}
+        systemTemplates={systemTemplates}
         onSettingsChange={(next) => { setSettings(next); router.refresh(); }}
         onEventConfigChange={(next) => { setEventConfigState(next); router.refresh(); }}
       />

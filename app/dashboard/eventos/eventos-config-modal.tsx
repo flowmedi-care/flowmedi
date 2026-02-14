@@ -10,6 +10,7 @@ import {
   MessageTemplate,
   SendMode,
   updateClinicMessageSetting,
+  type EffectiveTemplateItem,
 } from "@/app/dashboard/mensagens/actions";
 import { updateClinicEventConfig, type ClinicEventConfigItem } from "./actions";
 import { Mail, MessageSquare, Settings2 } from "lucide-react";
@@ -49,6 +50,7 @@ type Props = {
   settings: ClinicMessageSetting[];
   eventConfig: ClinicEventConfigItem[];
   templates: MessageTemplate[];
+  systemTemplates?: EffectiveTemplateItem[];
   onSettingsChange: (next: ClinicMessageSetting[]) => void;
   onEventConfigChange: (next: ClinicEventConfigItem[]) => void;
 };
@@ -60,10 +62,19 @@ export function EventosConfigModal({
   settings,
   eventConfig,
   templates,
+  systemTemplates = [],
   onSettingsChange,
   onEventConfigChange,
 }: Props) {
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
+
+  const systemTemplateNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    systemTemplates.forEach((t) => {
+      map[`${t.event_code}:${t.channel}`] = t.name;
+    });
+    return map;
+  }, [systemTemplates]);
 
   const eventConfigMap = useMemo(() => {
     const map: Record<string, boolean> = {};
@@ -285,7 +296,9 @@ export function EventosConfigModal({
                                     }
                                     className="h-7 rounded border border-input bg-background px-2 text-xs"
                                   >
-                                    <option value="">Padrão</option>
+                                    <option value="">
+                                      {systemTemplateNameMap[`${code}:email`] ?? "Padrão do sistema"}
+                                    </option>
                                     {getTemplatesForEvent(code, "email").map((t) => (
                                       <option key={t.id} value={t.id}>
                                         {t.name ?? t.id}
@@ -335,7 +348,9 @@ export function EventosConfigModal({
                                     }
                                     className="h-7 rounded border border-input bg-background px-2 text-xs"
                                   >
-                                    <option value="">Padrão</option>
+                                    <option value="">
+                                      {systemTemplateNameMap[`${code}:whatsapp`] ?? "Padrão do sistema"}
+                                    </option>
                                     {getTemplatesForEvent(code, "whatsapp").map((t) => (
                                       <option key={t.id} value={t.id}>
                                         {t.name ?? t.id}

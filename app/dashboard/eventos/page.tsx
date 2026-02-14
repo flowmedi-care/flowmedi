@@ -12,6 +12,7 @@ import {
   getMessageEvents,
   getClinicMessageSettings,
   getMessageTemplates,
+  getSystemTemplatesForDisplay,
 } from "@/app/dashboard/mensagens/actions";
 import { EventosClient } from "./eventos-client";
 
@@ -42,6 +43,7 @@ export default async function EventosPage() {
     msgEventsResult,
     msgSettingsResult,
     templatesResult,
+    systemTemplatesResult,
   ] = await Promise.all([
     getPendingEvents(),
     getAllEvents(),
@@ -52,6 +54,7 @@ export default async function EventosPage() {
     getMessageEvents(),
     getClinicMessageSettings(),
     getMessageTemplates(),
+    getSystemTemplatesForDisplay(),
   ]);
 
   const pendingEvents = pendingResult.data || [];
@@ -63,6 +66,7 @@ export default async function EventosPage() {
   const msgEvents = msgEventsResult.data || [];
   const msgSettings = msgSettingsResult.data || [];
   const templates = templatesResult.data || [];
+  const systemTemplates = systemTemplatesResult.data || [];
 
   return (
     <EventosClient
@@ -75,6 +79,7 @@ export default async function EventosPage() {
       msgEvents={msgEvents}
       msgSettings={msgSettings}
       templates={templates}
+      systemTemplates={systemTemplates}
     />
   );
 }
