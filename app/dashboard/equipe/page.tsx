@@ -42,6 +42,31 @@ export default async function EquipePage() {
     (i) => !memberEmails.has(i.email?.toLowerCase() ?? "")
   );
 
+  const { data: secretaries } = await supabase
+    .from("profiles")
+    .select("id, full_name, email")
+    .eq("clinic_id", clinicId)
+    .eq("role", "secretaria")
+    .order("full_name");
+
+  const { data: doctors } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .eq("clinic_id", clinicId)
+    .eq("role", "medico")
+    .order("full_name");
+
+  const { data: secretaryDoctors } = await supabase
+    .from("secretary_doctors")
+    .select("secretary_id, doctor_id")
+    .eq("clinic_id", clinicId);
+
+  const bySecretary: Record<string, string[]> = {};
+  for (const row of secretaryDoctors ?? []) {
+    if (!bySecretary[row.secretary_id]) bySecretary[row.secretary_id] = [];
+    bySecretary[row.secretary_id].push(row.doctor_id);
+  }
+
   return (
     <div className="space-y-8">
       <h1 className="text-xl font-semibold text-foreground">Equipe</h1>
@@ -50,6 +75,15 @@ export default async function EquipePage() {
         members={members ?? []}
         invites={invites}
         currentUserId={user.id}
+        secretariasMedicos={{
+          secretaries: (secretaries ?? []).map((s) => ({
+            id: s.id,
+            full_name: s.full_name ?? "",
+            email: s.email ?? undefined,
+          })),
+          doctors: (doctors ?? []).map((d) => ({ id: d.id, full_name: d.full_name ?? "" })),
+          initialAssignments: bySecretary,
+        }}
       />
     </div>
   );

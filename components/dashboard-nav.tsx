@@ -19,7 +19,6 @@ import {
   Mail,
   Bell,
   ClipboardList,
-  UserCog,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -140,16 +139,6 @@ export function DashboardNav({
               >
                 <UserPlus className="h-4 w-4" />
                 {!isCollapsed && <span className="ml-2">Equipe</span>}
-              </Button>
-            </Link>
-            <Link href="/dashboard/secretarias-medicos">
-              <Button
-                variant={pathname === "/dashboard/secretarias-medicos" ? "secondary" : "ghost"}
-                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
-                title={isCollapsed ? "Secretárias × Médicos" : undefined}
-              >
-                <UserCog className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Secretárias × Médicos</span>}
               </Button>
             </Link>
             <Link href="/dashboard/campos-pacientes">

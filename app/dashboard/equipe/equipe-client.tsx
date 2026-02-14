@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { createInvite } from "./actions";
 import { UserPlus, Trash2, Copy, Loader2 } from "lucide-react";
+import { SecretariasMedicosClient } from "@/app/dashboard/secretarias-medicos/secretarias-medicos-client";
 
 type Member = {
   id: string;
@@ -37,11 +38,17 @@ export function EquipeClient({
   members,
   invites,
   currentUserId,
+  secretariasMedicos,
 }: {
   clinicId: string;
   members: Member[];
   invites: Invite[];
   currentUserId: string;
+  secretariasMedicos?: {
+    secretaries: { id: string; full_name: string; email?: string }[];
+    doctors: { id: string; full_name: string }[];
+    initialAssignments: Record<string, string[]>;
+  };
 }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -215,6 +222,25 @@ export function EquipeClient({
                 </li>
               ))}
             </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {secretariasMedicos && (
+        <Card>
+          <CardHeader>
+            <h2 className="font-medium text-foreground">Médicos por secretária</h2>
+            <p className="text-sm text-muted-foreground">
+              Defina quais médicos cada secretária atende. Na agenda, a secretária verá apenas esses médicos. Se nenhum for marcado, ela vê todos.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <SecretariasMedicosClient
+              clinicId={clinicId}
+              secretaries={secretariasMedicos.secretaries}
+              doctors={secretariasMedicos.doctors}
+              initialAssignments={secretariasMedicos.initialAssignments}
+            />
           </CardContent>
         </Card>
       )}
