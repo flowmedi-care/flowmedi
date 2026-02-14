@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2 } from "lucide-react";
+import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck } from "lucide-react";
 import { processEvent, concluirEvent, type ClinicEventConfigItem } from "./actions";
 import { EventosConfigModal } from "./eventos-config-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { registerPatientFromPublicForm } from "@/app/dashboard/pacientes/actions";
 import type { MessageEvent, ClinicMessageSetting, MessageTemplate, EffectiveTemplateItem } from "@/app/dashboard/mensagens/actions";
 
 // Formatação de data
@@ -139,6 +140,7 @@ export function EventosClient({
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [sendModalEvent, setSendModalEvent] = useState<Event | null>(null);
   const [sendModalChannels, setSendModalChannels] = useState<("email" | "whatsapp")[]>([]);
+  const [registeringEventId, setRegisteringEventId] = useState<string | null>(null);
 
   function getChannelStatus(event: Event) {
     const enabledForEvent = settings.filter(
@@ -208,6 +210,25 @@ export function EventosClient({
     else router.refresh();
   }
 
+  async function handleCadastrarFromEvent(event: Event) {
+    const meta = (event.metadata || {}) as Record<string, unknown>;
+    const email = meta.public_submitter_email as string | undefined;
+    if (!email) {
+      alert("E-mail do formulário não encontrado.");
+      return;
+    }
+    setRegisteringEventId(event.id);
+    const res = await registerPatientFromPublicForm(email, {
+      full_name: (meta.public_submitter_name as string) || "Sem nome",
+      phone: (meta.public_submitter_phone as string) || null,
+      birth_date: (meta.public_submitter_birth_date as string) || null,
+      custom_fields: (meta.public_submitter_custom_fields as Record<string, unknown>) || undefined,
+    });
+    setRegisteringEventId(null);
+    if (res.error) alert(`Erro: ${res.error}`);
+    else router.refresh();
+  }
+
   function EventCard({ event }: { event: Event }) {
     const isExpanded = expanded === event.id;
     const isProcessing = processing === event.id;
@@ -259,6 +280,47 @@ export function EventosClient({
           </div>
         </CardHeader>
         <CardContent>
+          {/* Formulário público: dados do solicitante + ação recomendada Cadastrar */}
+          {event.event_code === "public_form_completed" && !event.patient_id && (() => {
+            const meta = (event.metadata || {}) as Record<string, unknown>;
+            const nome = (meta.public_submitter_name as string) || null;
+            const email = (meta.public_submitter_email as string) || null;
+            const telefone = (meta.public_submitter_phone as string) || null;
+            const canRegister = !!email;
+            return (
+              <div className="mb-4 p-3 rounded-md bg-muted/50 border border-border">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1 text-sm">
+                    {nome != null && (
+                      <p><strong>Nome:</strong> {nome}</p>
+                    )}
+                    {email != null && (
+                      <p><strong>Email:</strong> {email}</p>
+                    )}
+                    {telefone != null && (
+                      <p><strong>Telefone:</strong> {telefone}</p>
+                    )}
+                    {!nome && !email && !telefone && (
+                      <p className="text-muted-foreground">Dados do formulário não disponíveis.</p>
+                    )}
+                  </div>
+                  {canRegister && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleCadastrarFromEvent(event)}
+                      disabled={registeringEventId === event.id}
+                      title="Cadastrar paciente"
+                      className="shrink-0"
+                    >
+                      <UserCheck className="h-4 w-4 mr-1" />
+                      {registeringEventId === event.id ? "Cadastrando..." : "Cadastrar"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
             <div className="flex items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
               {isPending && (() => {
