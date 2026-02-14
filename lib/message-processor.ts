@@ -482,17 +482,18 @@ export async function processEventByIdForPublicForm(
   eventId: string,
   supabaseAdmin?: Awaited<ReturnType<typeof createClient>>
 ): Promise<ProcessMessageResult> {
-  const supabase = supabaseAdmin ?? (await createClient());
+  try {
+    const supabase = supabaseAdmin ?? (await createClient());
 
-  const { data: event, error: eventError } = await supabase
-    .from("event_timeline")
-    .select("id, clinic_id, event_code, status, channels, template_ids, metadata")
-    .eq("id", eventId)
-    .single();
+    const { data: event, error: eventError } = await supabase
+      .from("event_timeline")
+      .select("id, clinic_id, event_code, status, channels, template_ids, metadata")
+      .eq("id", eventId)
+      .single();
 
-  if (eventError || !event) {
-    return { success: false, error: "Evento não encontrado." };
-  }
+    if (eventError || !event) {
+      return { success: false, error: `Evento não encontrado. ${eventError?.message ?? ""}`.trim() };
+    }
 
   if (event.status !== "pending") {
     return { success: false, error: "Evento já foi processado." };
@@ -590,29 +591,41 @@ export async function processEventByIdForPublicForm(
     return { success: false, error: "Assunto do email é obrigatório." };
   }
 
-  const sendResult = await sendEmail(event.clinic_id, toEmail, processedSubject, processedBody);
-  if (!sendResult.success) {
-    return sendResult;
+    const sendResult = await sendEmail(event.clinic_id, toEmail, processedSubject, processedBody);
+    if (!sendResult.success) {
+      return sendResult;
+    }
+
+    const { error: logError } = await supabase.from("message_log").insert({
+      clinic_id: event.clinic_id,
+      patient_id: null,
+      appointment_id: null,
+      channel: "email",
+      type: event.event_code,
+      metadata: { event_id: eventId, form_instance_id: metadata.form_instance_id },
+    });
+    if (logError) {
+      console.error("[processEventByIdForPublicForm] message_log insert:", logError);
+    }
+
+    const { error: updateError } = await supabase
+      .from("event_timeline")
+      .update({
+        status: "sent",
+        processed_at: new Date().toISOString(),
+      })
+      .eq("id", eventId);
+
+    if (updateError) {
+      console.error("[processEventByIdForPublicForm] event_timeline update:", updateError);
+    }
+
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[processEventByIdForPublicForm]", err);
+    return { success: false, error: message };
   }
-
-  await supabase.from("message_log").insert({
-    clinic_id: event.clinic_id,
-    patient_id: null,
-    appointment_id: null,
-    channel: "email",
-    type: event.event_code,
-    metadata: { event_id: eventId, form_instance_id: metadata.form_instance_id },
-  });
-
-  await supabase
-    .from("event_timeline")
-    .update({
-      status: "sent",
-      processed_at: new Date().toISOString(),
-    })
-    .eq("id", eventId);
-
-  return { success: true };
 }
 
 /** Modo teste: quando true, não envia de fato; redireciona para página de preview */

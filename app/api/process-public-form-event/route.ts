@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServiceRoleClient();
-    const { data: events } = await supabase
+    const { data: events, error: fetchError } = await supabase
       .from("event_timeline")
       .select("id")
       .eq("form_instance_id", formInstanceId)
@@ -32,23 +32,38 @@ export async function POST(request: NextRequest) {
       .order("created_at", { ascending: true })
       .limit(1);
 
+    if (fetchError) {
+      console.error("[process-public-form-event] Supabase fetch events:", fetchError);
+      return NextResponse.json(
+        { error: "Erro ao buscar evento", debug: fetchError.message },
+        { status: 500 }
+      );
+    }
+
     if (!events?.length) {
       return NextResponse.json({ ok: true, sent: false });
     }
 
     const result = await processEventByIdForPublicForm(events[0].id, supabase);
     if (!result.success) {
+      console.error("[process-public-form-event] processEventByIdForPublicForm:", result.error);
       return NextResponse.json(
-        { error: result.error || "Erro ao enviar" },
+        { error: result.error || "Erro ao enviar", debug: result.error },
         { status: 500 }
       );
     }
 
     return NextResponse.json({ ok: true, sent: true });
   } catch (e) {
-    console.error("process-public-form-event:", e);
+    const message = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? e.stack : undefined;
+    console.error("[process-public-form-event]", e);
     return NextResponse.json(
-      { error: "Erro interno" },
+      {
+        error: "Erro interno",
+        debug: message,
+        ...(process.env.NODE_ENV === "development" && stack && { stack }),
+      },
       { status: 500 }
     );
   }

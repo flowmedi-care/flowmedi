@@ -127,7 +127,14 @@ export function FormularioPublicoPreenchimento({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ form_instance_id: instanceId }),
-        }).catch(() => {});
+        })
+          .then(async (res) => {
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              console.error("[FlowMedi] process-public-form-event falhou:", res.status, data);
+            }
+          })
+          .catch((err) => console.error("[FlowMedi] process-public-form-event erro:", err));
       }
     } else {
       setError((data as { error?: string })?.error ?? "Erro ao enviar.");
