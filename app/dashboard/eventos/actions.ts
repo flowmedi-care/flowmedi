@@ -203,7 +203,7 @@ export async function processEvent(
 
   // Se ação for "send", processar envio ou modo teste (preview)
   if (action === "send") {
-    const { processMessageEvent, MESSAGE_TEST_MODE } = await import("@/lib/message-processor");
+    const { processMessageEvent, processEventByIdForPublicForm, MESSAGE_TEST_MODE } = await import("@/lib/message-processor");
 
     if (MESSAGE_TEST_MODE) {
       // Modo teste: não envia; retorna eventId para redirecionar à página de preview
@@ -211,17 +211,23 @@ export async function processEvent(
     }
 
     try {
-      const channels = eventData.channels || [];
-
-      for (const channel of channels) {
-        if (eventData.patient_id) {
-          await processMessageEvent(
-            eventData.event_code,
-            profile.clinic_id,
-            eventData.patient_id,
-            eventData.appointment_id || null,
-            channel as "email" | "whatsapp"
-          );
+      if (!eventData.patient_id && eventData.event_code === "public_form_completed") {
+        const result = await processEventByIdForPublicForm(eventId);
+        if (!result.success) {
+          return { error: result.error ?? "Erro ao enviar." };
+        }
+      } else {
+        const channels = eventData.channels || [];
+        for (const channel of channels) {
+          if (eventData.patient_id) {
+            await processMessageEvent(
+              eventData.event_code,
+              profile.clinic_id,
+              eventData.patient_id,
+              eventData.appointment_id || null,
+              channel as "email" | "whatsapp"
+            );
+          }
         }
       }
 

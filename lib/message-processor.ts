@@ -473,11 +473,14 @@ async function sendWhatsApp(
 /**
  * Processa envio automático para evento de formulário público (sem paciente).
  * Usa metadata do evento (public_submitter_email, etc.) e envia para o email do lead.
+ * @param eventId - ID do evento na event_timeline
+ * @param supabaseAdmin - Cliente com service role (obrigatório quando chamado da API pública sem usuário)
  */
 export async function processEventByIdForPublicForm(
-  eventId: string
+  eventId: string,
+  supabaseAdmin?: Awaited<ReturnType<typeof createClient>>
 ): Promise<ProcessMessageResult> {
-  const supabase = await createClient();
+  const supabase = supabaseAdmin ?? (await createClient());
 
   const { data: event, error: eventError } = await supabase
     .from("event_timeline")

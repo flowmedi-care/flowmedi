@@ -121,6 +121,14 @@ export function FormularioPublicoPreenchimento({
     }
     if (data?.success) {
       setSuccess(true);
+      const instanceId = (data as { instance_id?: string })?.instance_id;
+      if (instanceId) {
+        fetch("/api/process-public-form-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ form_instance_id: instanceId }),
+        }).catch(() => {});
+      }
     } else {
       setError((data as { error?: string })?.error ?? "Erro ao enviar.");
     }

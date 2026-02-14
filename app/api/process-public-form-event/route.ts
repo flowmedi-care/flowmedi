@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { processEventByIdForPublicForm } from "@/lib/message-processor";
 
 /**
  * Chamado após o envio de um formulário público para disparar o envio automático
  * de email (se o evento estiver configurado como automático).
  * Body: { form_instance_id: string }
+ * Requer SUPABASE_SERVICE_ROLE_KEY no .env para rodar sem usuário logado.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +19,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ ok: true, sent: false });
+    }
+
+    const supabase = createServiceRoleClient();
     const { data: events } = await supabase
       .from("event_timeline")
       .select("id")
@@ -31,7 +36,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, sent: false });
     }
 
-    const result = await processEventByIdForPublicForm(events[0].id);
+    const result = await processEventByIdForPublicForm(events[0].id, supabase);
     if (!result.success) {
       return NextResponse.json(
         { error: result.error || "Erro ao enviar" },
