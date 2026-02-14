@@ -213,7 +213,13 @@ export async function processEvent(
 
     try {
       const channels = channelsToSend?.length ? channelsToSend : (eventData.channels || []);
-      const channelsFiltered = channels.filter((c: string) => (eventData.channels || []).includes(c));
+      // Para formulário público, quando o usuário escolheu canais no modal, usar a escolha (eventData.channels pode estar vazio)
+      const channelsFiltered =
+        !eventData.patient_id &&
+        eventData.event_code === "public_form_completed" &&
+        channelsToSend?.length
+          ? channelsToSend.filter((c: string) => c === "email" || c === "whatsapp")
+          : channels.filter((c: string) => (eventData.channels || []).includes(c));
 
       if (!eventData.patient_id && eventData.event_code === "public_form_completed") {
         if (channelsFiltered.includes("email")) {

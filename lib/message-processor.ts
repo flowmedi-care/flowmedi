@@ -513,11 +513,7 @@ export async function processEventByIdForPublicForm(
     return { success: false, error: "Email do formulário não encontrado no evento." };
   }
 
-  const channels = (event.channels as string[]) || [];
-  if (!channels.includes("email")) {
-    return { success: true };
-  }
-
+  // Envio pode ser automático (formulário enviado) ou manual (botão Enviar no dashboard); em ambos os casos enviar quando chamado
   const { data: setting } = await supabase
     .from("clinic_message_settings")
     .select("template_id, send_mode")
@@ -526,10 +522,6 @@ export async function processEventByIdForPublicForm(
     .eq("channel", "email")
     .eq("enabled", true)
     .maybeSingle();
-
-  if (!setting || setting.send_mode !== "automatic") {
-    return { success: true };
-  }
 
   const { checkEmailIntegration } = await import("@/lib/comunicacao/email");
   const integrationCheck = await checkEmailIntegration(event.clinic_id, supabase);
@@ -558,7 +550,7 @@ export async function processEventByIdForPublicForm(
 
   let template: { subject?: string | null; body_html: string; email_header?: string | null; email_footer?: string | null } | null = null;
 
-  if (setting.template_id) {
+  if (setting?.template_id) {
     const { data: customTemplate } = await supabase
       .from("message_templates")
       .select("subject, body_html, email_header, email_footer")
@@ -655,7 +647,7 @@ export async function getMessagePreview(
 
   const { data: event, error: eventError } = await supabase
     .from("event_timeline")
-    .select("patient_id, appointment_id, clinic_id, event_code, channels, template_ids, variables")
+    .select("patient_id, appointment_id, clinic_id, event_code, channels, template_ids, variables, metadata")
     .eq("id", eventId)
     .eq("clinic_id", clinicId)
     .single();
@@ -664,15 +656,42 @@ export async function getMessagePreview(
     return { preview: [], error: "Evento não encontrado." };
   }
 
-  const channels = (event.channels as string[]) || [];
+  let channels = (event.channels as string[]) || [];
   const templateIds = (event.template_ids as Record<string, string>) || {};
   const result: MessagePreviewItem[] = [];
 
-  const context = await buildVariableContextFromIds(
-    event.patient_id,
-    event.appointment_id,
-    event.clinic_id
-  );
+  // Formulário público sem paciente: usar canais habilitados nas configurações e contexto do metadata
+  const isPublicForm = !event.patient_id && event.event_code === "public_form_completed";
+  if (isPublicForm && channels.length === 0) {
+    const { data: enabledChannels } = await supabase
+      .from("clinic_message_settings")
+      .select("channel")
+      .eq("clinic_id", clinicId)
+      .eq("event_code", event.event_code)
+      .eq("enabled", true);
+    channels = (enabledChannels ?? []).map((r) => r.channel);
+  }
+
+  let context: Awaited<ReturnType<typeof buildVariableContextFromIds>>;
+  if (isPublicForm) {
+    const metadata = (event.metadata as Record<string, unknown>) || {};
+    const { data: clinic } = await supabase.from("clinics").select("name").eq("id", clinicId).single();
+    context = await buildVariableContext({
+      patient: {
+        full_name: (metadata.public_submitter_name as string) || undefined,
+        email: (metadata.public_submitter_email as string) || undefined,
+        phone: (metadata.public_submitter_phone as string) || undefined,
+        birth_date: (metadata.public_submitter_birth_date as string) || undefined,
+      },
+      clinic: clinic || undefined,
+    });
+  } else {
+    context = await buildVariableContextFromIds(
+      event.patient_id,
+      event.appointment_id,
+      event.clinic_id
+    );
+  }
 
   for (const ch of channels) {
     const channel = ch as MessageChannel;
@@ -740,6 +759,9 @@ export async function getMessagePreview(
   if (event.patient_id) {
     const { data: p } = await supabase.from("patients").select("full_name").eq("id", event.patient_id).single();
     if (p) patientName = p.full_name;
+  } else if (isPublicForm && event.metadata) {
+    const meta = event.metadata as Record<string, unknown>;
+    patientName = (meta.public_submitter_name as string) || undefined;
   }
 
   return { preview: result, eventName, patientName };

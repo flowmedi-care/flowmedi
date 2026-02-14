@@ -87,7 +87,8 @@ export async function deletePatient(id: string) {
   return { error: null };
 }
 
-// Cadastra paciente a partir de não-cadastrado e vincula formulários públicos
+// Cadastra paciente a partir de não-cadastrado e vincula formulários públicos.
+// Se eventIdToLink for passado, atualiza o evento (ex.: public_form_completed) com patient_id para não mostrar "Cadastrar" de novo após F5.
 export async function registerPatientFromPublicForm(
   email: string,
   data: {
@@ -95,7 +96,8 @@ export async function registerPatientFromPublicForm(
     phone?: string | null;
     birth_date?: string | null;
     custom_fields?: Record<string, unknown>;
-  }
+  },
+  eventIdToLink?: string
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -189,6 +191,15 @@ export async function registerPatientFromPublicForm(
   if (eventError) {
     console.error("[registerPatientFromPublicForm] create_event_timeline:", eventError);
     // Não falha o cadastro se o evento não for criado
+  }
+
+  // Vincular evento ao paciente para que, após F5, o card não mostre "Cadastrar" de novo
+  if (eventIdToLink) {
+    await supabase
+      .from("event_timeline")
+      .update({ patient_id: patientId })
+      .eq("id", eventIdToLink)
+      .eq("clinic_id", profile.clinic_id);
   }
 
   revalidatePath("/dashboard/pacientes");

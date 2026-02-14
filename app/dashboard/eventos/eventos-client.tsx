@@ -1,18 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck } from "lucide-react";
-import { processEvent, concluirEvent, type ClinicEventConfigItem } from "./actions";
+import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye } from "lucide-react";
+import { processEvent, concluirEvent, getMessagePreviewForEvent, type ClinicEventConfigItem } from "./actions";
 import { EventosConfigModal } from "./eventos-config-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { registerPatientFromPublicForm } from "@/app/dashboard/pacientes/actions";
 import { toast } from "@/components/ui/toast";
 import type { MessageEvent, ClinicMessageSetting, MessageTemplate, EffectiveTemplateItem } from "@/app/dashboard/mensagens/actions";
+import type { MessagePreviewItem } from "@/lib/message-processor";
 
 // Formatação de data
 function formatDate(dateString: string): string {
@@ -142,7 +143,43 @@ export function EventosClient({
   const [sendModalEvent, setSendModalEvent] = useState<Event | null>(null);
   const [sendModalChannels, setSendModalChannels] = useState<("email" | "whatsapp")[]>([]);
   const [registeringEventId, setRegisteringEventId] = useState<string | null>(null);
-  const [registeredFromEventIds, setRegisteredFromEventIds] = useState<Set<string>>(new Set());
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] = useState<{
+    preview: MessagePreviewItem[];
+    eventName?: string;
+    patientName?: string;
+    error?: string;
+  } | null>(null);
+
+  const templateNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    templates.forEach((t) => m.set(t.id, t.name));
+    systemTemplates.forEach((t) => m.set(t.id, t.name));
+    return m;
+  }, [templates, systemTemplates]);
+
+  function getTemplateNameForEvent(event: Event, channel: "email" | "whatsapp"): string {
+    const templateId =
+      event.template_ids?.[channel] ??
+      settings.find((s) => s.event_code === event.event_code && s.channel === channel)?.template_id;
+    if (!templateId) return "Template padrão";
+    return templateNameById.get(templateId) ?? "Template padrão";
+  }
+
+  async function openPreview(eventId: string) {
+    setPreviewLoading(true);
+    setPreviewData(null);
+    setPreviewOpen(true);
+    const res = await getMessagePreviewForEvent(eventId);
+    setPreviewData({
+      preview: res.preview ?? [],
+      eventName: res.eventName,
+      patientName: res.patientName,
+      error: res.error ?? undefined,
+    });
+    setPreviewLoading(false);
+  }
 
   function getChannelStatus(event: Event) {
     const enabledForEvent = settings.filter(
@@ -220,17 +257,20 @@ export function EventosClient({
       return;
     }
     setRegisteringEventId(event.id);
-    const res = await registerPatientFromPublicForm(email, {
-      full_name: (meta.public_submitter_name as string) || "Sem nome",
-      phone: (meta.public_submitter_phone as string) || null,
-      birth_date: (meta.public_submitter_birth_date as string) || null,
-      custom_fields: (meta.public_submitter_custom_fields as Record<string, unknown>) || undefined,
-    });
+    const res = await registerPatientFromPublicForm(
+      email,
+      {
+        full_name: (meta.public_submitter_name as string) || "Sem nome",
+        phone: (meta.public_submitter_phone as string) || null,
+        birth_date: (meta.public_submitter_birth_date as string) || null,
+        custom_fields: (meta.public_submitter_custom_fields as Record<string, unknown>) || undefined,
+      },
+      event.id
+    );
     setRegisteringEventId(null);
     if (res.error) {
       alert(`Erro: ${res.error}`);
     } else {
-      setRegisteredFromEventIds((prev) => new Set(prev).add(event.id));
       toast("Paciente cadastrado com sucesso", "success");
       router.refresh();
     }
@@ -312,13 +352,7 @@ export function EventosClient({
                     )}
                   </div>
                   {canRegister && (
-                    registeredFromEventIds.has(event.id) ? (
-                      <span className="text-sm font-medium text-green-600 flex items-center gap-1 shrink-0">
-                        <UserCheck className="h-4 w-4" />
-                        Foi cadastrado
-                      </span>
-                    ) : (
-                      <Button
+                    <Button
                         variant="default"
                         size="sm"
                         onClick={() => handleCadastrarFromEvent(event)}
@@ -329,7 +363,6 @@ export function EventosClient({
                         <UserCheck className="h-4 w-4 mr-1" />
                         {registeringEventId === event.id ? "Cadastrando..." : "Cadastrar"}
                       </Button>
-                    )
                   )}
                 </div>
               </div>
@@ -499,15 +532,31 @@ export function EventosClient({
                 prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
               );
             };
+            const emailTemplateName = getTemplateNameForEvent(sendModalEvent, "email");
+            const whatsappTemplateName = getTemplateNameForEvent(sendModalEvent, "whatsapp");
             return (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   {sendModalEvent.event_name}
                 </p>
+                <p className="text-sm text-muted-foreground">
+                  Enviar por email / WhatsApp usando o template selecionado.{" "}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="inline-flex gap-1"
+                    onClick={() => openPreview(sendModalEvent.id)}
+                  >
+                    <Eye className="h-4 w-4" />
+                    Ver preview
+                  </Button>
+                </p>
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {CHANNEL_ICONS.email}
                     <span className="text-sm">Email</span>
+                    <span className="text-xs text-muted-foreground">— {emailTemplateName}</span>
                     {!ch.emailEnabled && (
                       <span className="text-xs text-muted-foreground">(desativado)</span>
                     )}
@@ -526,9 +575,10 @@ export function EventosClient({
                       </label>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {CHANNEL_ICONS.whatsapp}
                     <span className="text-sm">WhatsApp</span>
+                    <span className="text-xs text-muted-foreground">— {whatsappTemplateName}</span>
                     {!ch.whatsappEnabled && (
                       <span className="text-xs text-muted-foreground">(desativado)</span>
                     )}
@@ -581,6 +631,53 @@ export function EventosClient({
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent title="Preview da mensagem" onClose={() => setPreviewOpen(false)}>
+          {previewLoading ? (
+            <p className="text-sm text-muted-foreground">Carregando...</p>
+          ) : previewData?.error ? (
+            <p className="text-sm text-destructive">{previewData.error}</p>
+          ) : previewData && previewData.preview.length > 0 ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {previewData.eventName && (
+                  <Badge variant="secondary">Evento: {previewData.eventName}</Badge>
+                )}
+                {previewData.patientName && (
+                  <Badge variant="outline">Paciente: {previewData.patientName}</Badge>
+                )}
+              </div>
+              {previewData.preview.map((item) => (
+                <div key={item.channel} className="rounded-md border border-border p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    {item.channel === "email" ? <Mail className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+                    {item.channel === "email" ? "Email" : "WhatsApp"}
+                    {item.templateName && (
+                      <span className="text-muted-foreground font-normal">— {item.templateName}</span>
+                    )}
+                  </div>
+                  {item.channel === "email" && item.subject && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Assunto</p>
+                      <p className="text-sm rounded bg-muted/50 p-2">{item.subject}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Corpo</p>
+                    <div
+                      className="text-sm rounded bg-muted/50 p-3 prose prose-sm max-w-none dark:prose-invert"
+                      dangerouslySetInnerHTML={{ __html: item.body }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : previewData ? (
+            <p className="text-sm text-muted-foreground">Nenhum template configurado para este evento.</p>
+          ) : null}
         </DialogContent>
       </Dialog>
 
