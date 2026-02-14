@@ -9,7 +9,7 @@ export default async function AgendaPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id, preferences")
+    .select("clinic_id, preferences, role")
     .eq("id", user.id)
     .single();
   if (!profile?.clinic_id) redirect("/dashboard");
@@ -50,12 +50,26 @@ export default async function AgendaPage() {
     .eq("clinic_id", clinicId)
     .order("full_name");
 
-  const { data: doctors } = await supabase
+  const { data: doctorsRaw } = await supabase
     .from("profiles")
     .select("id, full_name")
     .eq("clinic_id", clinicId)
     .eq("role", "medico")
     .order("full_name");
+
+  // Se for secretária, filtrar médicos pelos que ela atende (secretary_doctors). Vazio = todos.
+  let doctors = doctorsRaw ?? [];
+  if (profile?.role === "secretaria") {
+    const { data: sd } = await supabase
+      .from("secretary_doctors")
+      .select("doctor_id")
+      .eq("clinic_id", clinicId)
+      .eq("secretary_id", user.id);
+    const allowedDoctorIds = (sd ?? []).map((r) => r.doctor_id);
+    if (allowedDoctorIds.length > 0) {
+      doctors = doctors.filter((d) => allowedDoctorIds.includes(d.id));
+    }
+  }
 
   const { data: appointmentTypes } = await supabase
     .from("appointment_types")

@@ -59,11 +59,10 @@ type Event = {
   status: string;
   origin: string;
   occurred_at: string;
-  created_at: string;
+  created_at?: string;
   processed_at?: string | null;
   processed_by?: string | null;
   processed_by_name?: string | null;
-  created_at?: string;
   channels: string[];
   template_ids: Record<string, string>;
   variables: Record<string, unknown>;
