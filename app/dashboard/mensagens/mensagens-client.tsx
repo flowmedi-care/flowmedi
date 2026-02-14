@@ -6,14 +6,15 @@ import { Card } from "@/components/ui/card";
 import {
   MessageEvent,
   ClinicMessageSetting,
-  MessageTemplate,
   getMessageEvents,
   getClinicMessageSettings,
-  getMessageTemplates,
+  getEffectiveTemplatesForDisplay,
   getRecentMessageLog,
+  createMessageTemplateFromSystem,
   type MessageLogEntry,
+  type EffectiveTemplateItem,
 } from "./actions";
-import { Mail, MessageSquare, Plus, FileText } from "lucide-react";
+import { Mail, MessageSquare, Plus, FileText, Edit, Copy } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -40,10 +41,11 @@ export function MensagensClient() {
   const router = useRouter();
   const [events, setEvents] = useState<MessageEvent[]>([]);
   const [settings, setSettings] = useState<ClinicMessageSetting[]>([]);
-  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [effectiveTemplates, setEffectiveTemplates] = useState<EffectiveTemplateItem[]>([]);
   const [recentLog, setRecentLog] = useState<MessageLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [usingSystemId, setUsingSystemId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -52,12 +54,12 @@ export function MensagensClient() {
       const [eventsRes, settingsRes, templatesRes, logRes] = await Promise.all([
         getMessageEvents(),
         getClinicMessageSettings(),
-        getMessageTemplates(),
+        getEffectiveTemplatesForDisplay(),
         getRecentMessageLog(12),
       ]);
       setEvents(eventsRes.data ?? []);
       setSettings(settingsRes.data ?? []);
-      setTemplates(templatesRes.data ?? []);
+      setEffectiveTemplates(templatesRes.data ?? []);
       setRecentLog(logRes.data ?? []);
       const err =
         eventsRes.error ??
@@ -163,7 +165,7 @@ export function MensagensClient() {
 
       </div>
 
-      {/* Templates salvos */}
+      {/* Templates salvos: um por evento + canal (Email e WhatsApp separados) */}
       <Card className="p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -178,33 +180,78 @@ export function MensagensClient() {
             Ver todos
           </Button>
         </div>
-        {templates.length === 0 ? (
+        <p className="text-sm text-muted-foreground mb-4">
+          Um template por evento para <strong>Email</strong> e outro para <strong>WhatsApp</strong> — cada canal tem seu próprio texto.
+        </p>
+        {effectiveTemplates.length === 0 ? (
           <p className="text-sm text-muted-foreground mb-4">
-            Nenhum template criado. Crie um para usar nos eventos.
+            Nenhum template disponível. Execute a migration dos templates do sistema ou crie um template manualmente.
           </p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {templates.slice(0, 6).map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/dashboard/mensagens/templates/${t.id}/editar`
-                    )
-                  }
-                  className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                >
-                  <span className="font-medium text-sm text-foreground block">
-                    {t.name}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {CHANNEL_LABELS[t.channel]} · {t.event_code}
-                  </span>
-                </button>
+            {effectiveTemplates.slice(0, 12).map((t) => (
+              <li key={`${t.event_code}:${t.channel}`}>
+                <div className="p-3 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors flex flex-col gap-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <span className="font-medium text-sm text-foreground block truncate">
+                        {t.event_name}
+                      </span>
+                      <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        {t.channel === "email" ? <Mail className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
+                        {CHANNEL_LABELS[t.channel]}
+                        {t.is_system && (
+                          <span className="text-muted-foreground/80"> · Padrão</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2">
+                    {t.body_preview}
+                  </p>
+                  <div className="flex gap-1 mt-1">
+                    {t.is_system ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        disabled={usingSystemId === `${t.event_code}:${t.channel}`}
+                        onClick={async () => {
+                          setUsingSystemId(`${t.event_code}:${t.channel}`);
+                          const res = await createMessageTemplateFromSystem(t.event_code, t.channel);
+                          setUsingSystemId(null);
+                          if (res.error) {
+                            alert(res.error);
+                            return;
+                          }
+                          if (res.data?.id) router.push(`/dashboard/mensagens/templates/${res.data.id}/editar`);
+                          else loadData();
+                        }}
+                      >
+                        {usingSystemId === `${t.event_code}:${t.channel}` ? "..." : <Copy className="h-3 w-3 mr-1" />}
+                        Usar e editar
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => router.push(`/dashboard/mensagens/templates/${t.id}/editar`)}
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        Editar
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
+        )}
+        {effectiveTemplates.length > 12 && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Mostrando 12 de {effectiveTemplates.length}. <button type="button" className="underline" onClick={() => router.push("/dashboard/mensagens/templates")}>Ver todos</button>
+          </p>
         )}
         <Button
           variant="outline"
@@ -212,7 +259,7 @@ export function MensagensClient() {
           onClick={() => router.push("/dashboard/mensagens/templates/novo")}
         >
           <Plus className="h-4 w-4 mr-2" />
-          Criar template
+          Criar template (personalizado)
         </Button>
       </Card>
 

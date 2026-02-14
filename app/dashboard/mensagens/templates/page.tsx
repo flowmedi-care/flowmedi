@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { getMessageTemplates, getMessageEvents } from "../actions";
+import { getEffectiveTemplatesForDisplay } from "../actions";
 import { TemplatesListClient } from "./templates-list-client";
 
 export default async function TemplatesPage() {
@@ -21,13 +21,8 @@ export default async function TemplatesPage() {
     redirect("/dashboard");
   }
 
-  const [templatesResult, eventsResult] = await Promise.all([
-    getMessageTemplates(),
-    getMessageEvents(),
-  ]);
-
-  const templates = templatesResult.data || [];
-  const events = eventsResult.data || [];
+  const effectiveResult = await getEffectiveTemplatesForDisplay();
+  const effectiveTemplates = effectiveResult.data || [];
 
   return (
     <div className="space-y-4">
@@ -35,7 +30,7 @@ export default async function TemplatesPage() {
         <div>
           <h1 className="text-xl font-semibold text-foreground">Templates de Mensagens</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Crie e edite templates para email e WhatsApp
+            Um template por evento para Email e outro para WhatsApp — cada canal com seu próprio texto
           </p>
         </div>
         <Link href="/dashboard/mensagens/templates/novo">
@@ -45,7 +40,7 @@ export default async function TemplatesPage() {
           </Button>
         </Link>
       </div>
-      <TemplatesListClient templates={templates} events={events} />
+      <TemplatesListClient effectiveTemplates={effectiveTemplates} />
     </div>
   );
 }

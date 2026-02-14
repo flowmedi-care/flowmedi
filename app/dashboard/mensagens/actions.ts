@@ -87,6 +87,84 @@ export async function getMessageEvents(): Promise<{
   return { data: data as MessageEvent[], error: null };
 }
 
+// ========== LISTA EFETIVA DE TEMPLATES (SISTEMA + CUSTOM) POR EVENTO/CANAL ==========
+// Um item por (evento, canal): Email e WhatsApp separados; mostra padrão do sistema ou template customizado.
+
+export type EffectiveTemplateItem = {
+  event_code: string;
+  event_name: string;
+  channel: MessageChannel;
+  is_system: boolean;
+  id: string;
+  name: string;
+  subject: string | null;
+  body_preview: string;
+};
+
+export async function getEffectiveTemplatesForDisplay(): Promise<{
+  data: EffectiveTemplateItem[] | null;
+  error: string | null;
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const [eventsRes, systemRes, customRes] = await Promise.all([
+    supabase.from("message_events").select("code, name").order("category").order("name"),
+    supabase.from("system_message_templates").select("id, event_code, channel, name, subject, body_html"),
+    supabase.from("message_templates").select("id, event_code, channel, name, subject, body_html").eq("clinic_id", profile.clinic_id).eq("is_active", true),
+  ]);
+
+  if (eventsRes.error) return { data: null, error: eventsRes.error.message };
+  const events = (eventsRes.data ?? []) as { code: string; name: string }[];
+  const systemTemplates = (systemRes.data ?? []) as Array<{ id: string; event_code: string; channel: string; name: string; subject: string | null; body_html: string | null }>;
+  const customTemplates = (customRes.data ?? []) as Array<{ id: string; event_code: string; channel: string; name: string; subject: string | null; body_html: string }>;
+
+  const customByKey = new Map<string, (typeof customTemplates)[0]>(
+    customTemplates.map((t) => [`${t.event_code}:${t.channel}`, t])
+  );
+  const systemByKey = new Map<string, (typeof systemTemplates)[0]>(
+    systemTemplates.map((t) => [`${t.event_code}:${t.channel}`, t])
+  );
+
+  const channels: MessageChannel[] = ["email", "whatsapp"];
+  const eventNames = new Map(events.map((e) => [e.code, e.name]));
+  const result: EffectiveTemplateItem[] = [];
+
+  for (const event of events) {
+    for (const channel of channels) {
+      const key = `${event.code}:${channel}`;
+      const custom = customByKey.get(key);
+      const system = systemByKey.get(key);
+      const template = custom ?? system;
+      if (!template) continue;
+
+      const body = template.body_html ?? "";
+      const bodyPreview = body.replace(/<[^>]*>/g, "").trim().slice(0, 80);
+      result.push({
+        event_code: event.code,
+        event_name: eventNames.get(event.code) ?? event.code,
+        channel: channel as MessageChannel,
+        is_system: !custom,
+        id: template.id,
+        name: template.name,
+        subject: template.subject ?? null,
+        body_preview: bodyPreview ? `${bodyPreview}${body.length > 80 ? "…" : ""}` : "(vazio)",
+      });
+    }
+  }
+
+  return { data: result, error: null };
+}
+
 // ========== BUSCAR TEMPLATES DA CLÍNICA ==========
 
 export async function getMessageTemplates(
