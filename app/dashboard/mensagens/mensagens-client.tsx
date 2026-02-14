@@ -13,8 +13,7 @@ import {
   getRecentMessageLog,
   type MessageLogEntry,
 } from "./actions";
-import { EventosConfigModal } from "./eventos-config-modal";
-import { Mail, MessageSquare, Plus, Settings2, FileText } from "lucide-react";
+import { Mail, MessageSquare, Plus, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -45,7 +44,6 @@ export function MensagensClient() {
   const [recentLog, setRecentLog] = useState<MessageLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [eventosModalOpen, setEventosModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -163,26 +161,6 @@ export function MensagensClient() {
           </div>
         </Card>
 
-        {/* Configurar eventos (abre modal) */}
-        <Card className="p-5">
-          <div className="flex flex-col h-full">
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-2">
-              <Settings2 className="h-5 w-5" />
-              Eventos de mensagem
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Defina quais eventos disparam email ou WhatsApp (lembretes,
-              confirmações, formulários, etc.).
-            </p>
-            <Button
-              variant="default"
-              onClick={() => setEventosModalOpen(true)}
-              className="mt-auto w-fit"
-            >
-              Configurar eventos (Email e WhatsApp)
-            </Button>
-          </div>
-        </Card>
       </div>
 
       {/* Templates salvos */}
@@ -238,14 +216,6 @@ export function MensagensClient() {
         </Button>
       </Card>
 
-      <EventosConfigModal
-        open={eventosModalOpen}
-        onOpenChange={setEventosModalOpen}
-        events={events}
-        settings={settings}
-        templates={templates}
-        onSettingsChange={handleSettingsChange}
-      />
     </div>
   );
 }

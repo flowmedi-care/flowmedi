@@ -55,6 +55,12 @@ export default async function ConsultaDetalhePage({
 
   if (!appointment) notFound();
 
+  const { data: appointmentTypes } = await supabase
+    .from("appointment_types")
+    .select("id, slug")
+    .eq("clinic_id", profile.clinic_id);
+  const retornoType = (appointmentTypes ?? []).find((t: { slug?: string }) => t.slug === "retorno");
+
   const { data: instances } = await supabase
     .from("form_instances")
     .select(`
@@ -103,6 +109,8 @@ export default async function ConsultaDetalhePage({
               scheduledAt={appointment.scheduled_at}
               appointmentId={id}
               canEdit={profile.role === "admin" || profile.role === "secretaria"}
+              isAgendarRetorno={appointment.status === "realizada"}
+              retornoTypeId={retornoType?.id ?? null}
             />
             <p>
               <span className="text-muted-foreground">Paciente:</span>{" "}

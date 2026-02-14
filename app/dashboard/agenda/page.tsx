@@ -39,6 +39,7 @@ export default async function AgendaPage() {
     `
     )
     .eq("clinic_id", clinicId)
+    .neq("status", "cancelada")
     .gte("scheduled_at", startRange.toISOString())
     .lte("scheduled_at", endRange.toISOString())
     .order("scheduled_at");
@@ -67,6 +68,12 @@ export default async function AgendaPage() {
     .select("id, name, recommendations")
     .eq("clinic_id", clinicId)
     .order("display_order", { ascending: true });
+
+  const { data: formTemplates } = await supabase
+    .from("form_templates")
+    .select("id, name")
+    .eq("clinic_id", clinicId)
+    .order("name");
 
   const rows: AppointmentRow[] = (appointments ?? []).map((a: Record<string, unknown>) => {
     const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
@@ -129,6 +136,7 @@ export default async function AgendaPage() {
           name: p.name,
           recommendations: p.recommendations ?? null,
         }))}
+        formTemplates={(formTemplates ?? []).map((f) => ({ id: f.id, name: f.name }))}
         initialPreferences={{
           viewMode: (preferences.agenda_view_mode as "timeline" | "calendar") || "timeline",
           timelineGranularity: (preferences.agenda_timeline_granularity as "day" | "week" | "month") || "day",
