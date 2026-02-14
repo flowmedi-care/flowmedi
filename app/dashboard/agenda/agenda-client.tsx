@@ -68,6 +68,7 @@ export type PatientOption = { id: string; full_name: string; email?: string };
 export type DoctorOption = { id: string; full_name: string | null };
 export type AppointmentTypeOption = { id: string; name: string };
 export type ProcedureOption = { id: string; name: string; recommendations: string | null };
+export type FormTemplateOption = { id: string; name: string };
 
 const STATUS_LABEL: Record<string, string> = {
   agendada: "Agendada",
@@ -102,6 +103,7 @@ export function AgendaClient({
   doctors,
   appointmentTypes,
   procedures,
+  formTemplates,
   initialPreferences,
 }: {
   appointments: AppointmentRow[];
@@ -109,6 +111,7 @@ export function AgendaClient({
   doctors: DoctorOption[];
   appointmentTypes: AppointmentTypeOption[];
   procedures: ProcedureOption[];
+  formTemplates: FormTemplateOption[];
   initialPreferences?: {
     viewMode: ViewMode;
     timelineGranularity: TimelineGranularity;
@@ -236,6 +239,7 @@ export function AgendaClient({
     doctorId: "",
     appointmentTypeId: "",
     procedureId: "",
+    linkedFormTemplateIds: [] as string[],
     date: todayYMD(),
     time: "09:00",
     notes: "",
@@ -273,7 +277,8 @@ export function AgendaClient({
       form.requiresFasting,
       form.requiresMedicationStop,
       form.specialInstructions || null,
-      form.preparationNotes || null
+      form.preparationNotes || null,
+      form.linkedFormTemplateIds.length ? form.linkedFormTemplateIds : undefined
     );
     if (res.error) {
       setError(res.error);
@@ -286,6 +291,7 @@ export function AgendaClient({
       doctorId: "",
       appointmentTypeId: "",
       procedureId: "",
+      linkedFormTemplateIds: [],
       date: todayYMD(),
       time: "09:00",
       notes: "",
@@ -758,6 +764,64 @@ export function AgendaClient({
                     Opcional. Pré-preenche recomendações e associa formulários do procedimento.
                   </p>
                 </div>
+                {formTemplates.length > 0 && (
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Vincular formulário(s)</Label>
+                    <select
+                      className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                      value=""
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        if (!id) return;
+                        if (form.linkedFormTemplateIds.includes(id)) return;
+                        setForm((f) => ({
+                          ...f,
+                          linkedFormTemplateIds: [...f.linkedFormTemplateIds, id],
+                        }));
+                        e.target.value = "";
+                      }}
+                    >
+                      <option value="">Selecione para adicionar</option>
+                      {formTemplates
+                        .filter((ft) => !form.linkedFormTemplateIds.includes(ft.id))
+                        .map((ft) => (
+                          <option key={ft.id} value={ft.id}>
+                            {ft.name}
+                          </option>
+                        ))}
+                    </select>
+                    {form.linkedFormTemplateIds.length > 0 && (
+                      <ul className="flex flex-wrap gap-2 mt-1">
+                        {form.linkedFormTemplateIds.map((id) => {
+                          const ft = formTemplates.find((t) => t.id === id);
+                          return (
+                            <li
+                              key={id}
+                              className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-sm"
+                            >
+                              {ft?.name ?? id}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setForm((f) => ({
+                                    ...f,
+                                    linkedFormTemplateIds: f.linkedFormTemplateIds.filter((x) => x !== id),
+                                  }))
+                                }
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                ×
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Opcional. Formulários vinculados à consulta (também pode vincular dentro da consulta).
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Data e hora *</Label>
                   <div className="flex gap-2">

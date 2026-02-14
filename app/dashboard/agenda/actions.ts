@@ -20,7 +20,8 @@ export async function createAppointment(
   requiresFasting?: boolean,
   requiresMedicationStop?: boolean,
   specialInstructions?: string | null,
-  preparationNotes?: string | null
+  preparationNotes?: string | null,
+  linkedFormTemplateIds?: string[]
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -194,6 +195,58 @@ export async function createAppointment(
           console.error("[createAppointment] form_instances insert (procedure):", insertProcErr);
         }
       }
+    }
+  }
+
+  // Formulários explicitamente vinculados (opção "Vincular formulário" na nova consulta)
+  if (linkedFormTemplateIds?.length) {
+    const { data: existingInstances } = await supabase
+      .from("form_instances")
+      .select("form_template_id")
+      .eq("appointment_id", appointment.id);
+    const existingIds = new Set(
+      (existingInstances ?? []).map((r: { form_template_id: string }) => r.form_template_id)
+    );
+    const toCreate = linkedFormTemplateIds.filter((id) => id && !existingIds.has(id));
+    if (toCreate.length > 0) {
+      const { data: patientForForms } = await supabase
+        .from("patients")
+        .select("email")
+        .eq("id", patientId)
+        .single();
+      const patientEmail = patientForForms?.email;
+      const instancesToCreate = await Promise.all(
+        toCreate.map(async (form_template_id: string) => {
+          let status = "pendente";
+          let responses: Record<string, unknown> = {};
+          const linkToken = generateLinkToken();
+          if (patientEmail) {
+            const { data: publicInstance } = await supabase
+              .from("form_instances")
+              .select("responses, status")
+              .eq("form_template_id", form_template_id)
+              .is("appointment_id", null)
+              .eq("public_submitter_email", patientEmail)
+              .eq("status", "respondido")
+              .maybeSingle();
+            if (publicInstance?.responses) {
+              status = "respondido";
+              responses = (publicInstance.responses as Record<string, unknown>) || {};
+            }
+          }
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 30);
+          return {
+            appointment_id: appointment.id,
+            form_template_id,
+            status,
+            link_token: linkToken,
+            link_expires_at: expiresAt.toISOString(),
+            responses,
+          };
+        })
+      );
+      await supabase.from("form_instances").insert(instancesToCreate);
     }
   }
 

@@ -1,6 +1,18 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getPendingEvents, getPastEvents, getPatientsForFilter, getEventTypesForFilter } from "./actions";
+import {
+  getPendingEvents,
+  getAllEvents,
+  getCompletedEvents,
+  getPatientsForFilter,
+  getEventTypesForFilter,
+  getClinicEventConfig,
+} from "./actions";
+import {
+  getMessageEvents,
+  getClinicMessageSettings,
+  getMessageTemplates,
+} from "@/app/dashboard/mensagens/actions";
 import { EventosClient } from "./eventos-client";
 
 export default async function EventosPage() {
@@ -16,30 +28,53 @@ export default async function EventosPage() {
 
   if (!profile) redirect("/dashboard");
 
-  // Secretária e Admin podem ver eventos
   if (profile.role !== "admin" && profile.role !== "secretaria") {
     redirect("/dashboard");
   }
 
-  // Buscar dados iniciais
-  const [pendingResult, pastResult, patientsResult, eventsResult] = await Promise.all([
+  const [
+    pendingResult,
+    allResult,
+    completedResult,
+    patientsResult,
+    eventsResult,
+    configResult,
+    msgEventsResult,
+    msgSettingsResult,
+    templatesResult,
+  ] = await Promise.all([
     getPendingEvents(),
-    getPastEvents(),
+    getAllEvents(),
+    getCompletedEvents(),
     getPatientsForFilter(),
     getEventTypesForFilter(),
+    getClinicEventConfig(),
+    getMessageEvents(),
+    getClinicMessageSettings(),
+    getMessageTemplates(),
   ]);
 
   const pendingEvents = pendingResult.data || [];
-  const pastEvents = pastResult.data || [];
+  const allEvents = allResult.data || [];
+  const completedEvents = completedResult.data || [];
   const patients = patientsResult.data || [];
   const eventTypes = eventsResult.data || [];
+  const eventConfig = configResult.data || [];
+  const msgEvents = msgEventsResult.data || [];
+  const msgSettings = msgSettingsResult.data || [];
+  const templates = templatesResult.data || [];
 
   return (
     <EventosClient
       initialPendingEvents={pendingEvents}
-      initialPastEvents={pastEvents}
+      initialAllEvents={allEvents}
+      initialCompletedEvents={completedEvents}
       patients={patients}
       eventTypes={eventTypes}
+      eventConfig={eventConfig}
+      msgEvents={msgEvents}
+      msgSettings={msgSettings}
+      templates={templates}
     />
   );
 }

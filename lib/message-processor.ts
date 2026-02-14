@@ -448,3 +448,93 @@ async function sendWhatsApp(
     };
   }
 }
+
+/** Modo teste: quando true, não envia de fato; redireciona para página de preview */
+export const MESSAGE_TEST_MODE = process.env.NEXT_PUBLIC_MESSAGE_TEST_MODE === "true";
+
+export type MessagePreviewItem = {
+  channel: MessageChannel;
+  subject: string | null;
+  body: string;
+  templateName?: string;
+};
+
+/**
+ * Gera o preview da mensagem que seria enviada para um evento (para página de teste).
+ */
+export async function getMessagePreview(
+  eventId: string,
+  clinicId: string
+): Promise<{ preview: MessagePreviewItem[]; eventName?: string; patientName?: string; error?: string }> {
+  const supabase = await createClient();
+
+  const { data: event, error: eventError } = await supabase
+    .from("event_timeline")
+    .select("patient_id, appointment_id, clinic_id, event_code, channels, template_ids, variables")
+    .eq("id", eventId)
+    .eq("clinic_id", clinicId)
+    .single();
+
+  if (eventError || !event) {
+    return { preview: [], error: "Evento não encontrado." };
+  }
+
+  const channels = (event.channels as string[]) || [];
+  const templateIds = (event.template_ids as Record<string, string>) || {};
+  const result: MessagePreviewItem[] = [];
+
+  const context = await buildVariableContextFromIds(
+    event.patient_id,
+    event.appointment_id,
+    event.clinic_id
+  );
+
+  for (const ch of channels) {
+    const channel = ch as MessageChannel;
+    let templateId = templateIds[channel];
+
+    if (!templateId) {
+      const { data: setting } = await supabase
+        .from("clinic_message_settings")
+        .select("template_id")
+        .eq("clinic_id", clinicId)
+        .eq("event_code", event.event_code)
+        .eq("channel", channel)
+        .eq("enabled", true)
+        .maybeSingle();
+      templateId = setting?.template_id;
+    }
+
+    if (!templateId) {
+      result.push({ channel, subject: null, body: "(Nenhum template configurado para este canal)", templateName: undefined });
+      continue;
+    }
+
+    const { data: template } = await supabase
+      .from("message_templates")
+      .select("subject, body_html, name")
+      .eq("id", templateId)
+      .eq("is_active", true)
+      .single();
+
+    if (!template) {
+      result.push({ channel, subject: null, body: "(Template não encontrado ou inativo)", templateName: undefined });
+      continue;
+    }
+
+    const subject = template.subject ? replaceVariables(template.subject, context) : null;
+    const body = replaceVariables(template.body_html || "", context);
+    result.push({ channel, subject, body, templateName: template.name });
+  }
+
+  let eventName: string | undefined;
+  let patientName: string | undefined;
+  const { data: me } = await supabase.from("message_events").select("name").eq("code", event.event_code).single();
+  if (me) eventName = me.name;
+  if (event.patient_id) {
+    const { data: p } = await supabase.from("patients").select("full_name").eq("id", event.patient_id).single();
+    if (p) patientName = p.full_name;
+  }
+
+  return { preview: result, eventName, patientName };
+}

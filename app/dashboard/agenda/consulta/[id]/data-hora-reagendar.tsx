@@ -22,10 +22,14 @@ export function DataHoraReagendar({
   scheduledAt,
   appointmentId,
   canEdit,
+  isAgendarRetorno,
+  retornoTypeId,
 }: {
   scheduledAt: string;
   appointmentId: string;
   canEdit: boolean;
+  isAgendarRetorno?: boolean;
+  retornoTypeId?: string | null;
 }) {
   const router = useRouter();
   const [showPopup, setShowPopup] = useState(false);
@@ -38,13 +42,20 @@ export function DataHoraReagendar({
     timeStyle: "short",
   });
 
+  const buttonLabel = isAgendarRetorno ? "Agendar retorno" : "Reagendar";
+  const popupTitle = isAgendarRetorno ? "Agendar retorno" : "Reagendar";
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setUpdating(true);
     const localDate = new Date(`${date}T${time}:00`);
-    const res = await updateAppointment(appointmentId, {
+    const updateData: { scheduled_at: string; appointment_type_id?: string | null } = {
       scheduled_at: localDate.toISOString(),
-    });
+    };
+    if (isAgendarRetorno && retornoTypeId) {
+      updateData.appointment_type_id = retornoTypeId;
+    }
+    const res = await updateAppointment(appointmentId, updateData);
     setUpdating(false);
     if (!res.error) {
       setShowPopup(false);
@@ -67,7 +78,7 @@ export function DataHoraReagendar({
             onClick={() => setShowPopup(true)}
           >
             <Calendar className="h-4 w-4 mr-1" />
-            Reagendar
+            {buttonLabel}
           </Button>
         )}
       </p>
@@ -81,7 +92,7 @@ export function DataHoraReagendar({
           />
           <div className="relative bg-white border border-gray-200 rounded-lg shadow-xl max-w-sm w-full p-4 z-10">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">Reagendar</h3>
+              <h3 className="font-semibold text-gray-900">{popupTitle}</h3>
               <Button variant="ghost" size="sm" onClick={() => setShowPopup(false)}>
                 <X className="h-4 w-4" />
               </Button>
