@@ -472,7 +472,9 @@ async function sendWhatsApp(
 
 /**
  * Processa envio automático para evento de formulário público (sem paciente).
- * Usa metadata do evento (public_submitter_email, etc.) e envia para o email do lead.
+ * O destinatário é o email que a pessoa preencheu no formulário (public_submitter_email);
+ * não precisa estar cadastrada como paciente. O envio usa o template da clínica e a conta
+ * Gmail vinculada à clínica (a mesma do formulário).
  * @param eventId - ID do evento na event_timeline
  * @param supabaseAdmin - Cliente com service role (obrigatório quando chamado da API pública sem usuário)
  */
