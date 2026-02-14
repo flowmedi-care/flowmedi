@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   MessageEvent,
   ClinicMessageSetting,
@@ -16,7 +18,7 @@ import {
   type MessageLogEntry,
   type EffectiveTemplateItem,
 } from "./actions";
-import { Mail, MessageSquare, Plus, FileText, Edit, Copy } from "lucide-react";
+import { Mail, MessageSquare, Plus, FileText, Edit, Copy, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -49,6 +51,9 @@ export function MensagensClient() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [usingSystemId, setUsingSystemId] = useState<string | null>(null);
+  const [testEmailTo, setTestEmailTo] = useState("");
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -133,6 +138,77 @@ export function MensagensClient() {
           </Button>
         </div>
       </div>
+
+      {/* Testar envio de email */}
+      <Card className="p-5">
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-2">
+          <Mail className="h-5 w-5" />
+          Testar envio de email
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Escolha um destinatário e envie um email de teste para verificar se a integração com o Gmail está funcionando.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-2 min-w-[240px]">
+            <Label htmlFor="test-email-to">Destinatário (email)</Label>
+            <Input
+              id="test-email-to"
+              type="email"
+              placeholder="email@exemplo.com"
+              value={testEmailTo}
+              onChange={(e) => {
+                setTestEmailTo(e.target.value);
+                setTestEmailResult(null);
+              }}
+            />
+          </div>
+          <Button
+            disabled={!testEmailTo.trim() || testEmailSending}
+            onClick={async () => {
+              setTestEmailSending(true);
+              setTestEmailResult(null);
+              try {
+                const res = await fetch("/api/integrations/email/test", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    to: testEmailTo.trim(),
+                    subject: "Teste FlowMedi",
+                    body: "Este é um email de teste enviado pelo FlowMedi. Se você recebeu esta mensagem, a integração com o Gmail está funcionando.",
+                  }),
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                  setTestEmailResult({ ok: true, message: "Email enviado com sucesso!" });
+                  loadData();
+                } else {
+                  setTestEmailResult({ ok: false, message: data.error || "Erro ao enviar." });
+                }
+              } catch {
+                setTestEmailResult({ ok: false, message: "Erro de conexão." });
+              } finally {
+                setTestEmailSending(false);
+              }
+            }}
+          >
+            {testEmailSending ? (
+              "Enviando..."
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                Enviar email de teste
+              </>
+            )}
+          </Button>
+        </div>
+        {testEmailResult && (
+          <p
+            className={`mt-3 text-sm ${testEmailResult.ok ? "text-green-600 dark:text-green-400" : "text-destructive"}`}
+          >
+            {testEmailResult.message}
+          </p>
+        )}
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
         {/* Mini dashboard: histórico recente */}

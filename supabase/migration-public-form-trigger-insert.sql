@@ -42,14 +42,14 @@ BEGIN
       v_event_code := 'patient_form_completed';
     END IF;
 
-    -- Criar evento principal
+    -- Um único evento por formulário (público ou não). Se público, metadata inclui action_required.
     SELECT public.create_event_timeline(
       p_clinic_id := v_template_clinic_id,
       p_event_code := v_event_code,
       p_patient_id := v_patient_id,
       p_appointment_id := NEW.appointment_id,
       p_form_instance_id := NEW.id,
-      p_origin := 'patient',
+      p_origin := CASE WHEN v_is_public THEN 'system' ELSE 'patient' END,
       p_occurred_at := COALESCE(NEW.updated_at, NEW.created_at, now()),
       p_variables := jsonb_build_object(
         'form_instance_id', NEW.id::text,
@@ -59,27 +59,10 @@ BEGIN
       p_metadata := jsonb_build_object(
         'public_submitter_email', NEW.public_submitter_email,
         'public_submitter_name', NEW.public_submitter_name,
-        'public_submitter_phone', NEW.public_submitter_phone
-      )
+        'public_submitter_phone', NEW.public_submitter_phone,
+        'form_instance_id', NEW.id::text
+      ) || CASE WHEN v_is_public THEN jsonb_build_object('action_required', 'register_patient') ELSE '{}'::jsonb END
     ) INTO v_event_id;
-
-    -- Formulário público: segundo evento com ação recomendada (cadastrar paciente)
-    IF v_is_public THEN
-      SELECT public.create_event_timeline(
-        p_clinic_id := v_template_clinic_id,
-        p_event_code := 'public_form_completed',
-        p_form_instance_id := NEW.id,
-        p_origin := 'system',
-        p_occurred_at := COALESCE(NEW.updated_at, NEW.created_at, now()),
-        p_metadata := jsonb_build_object(
-          'action_required', 'register_patient',
-          'public_submitter_email', NEW.public_submitter_email,
-          'public_submitter_name', NEW.public_submitter_name,
-          'public_submitter_phone', NEW.public_submitter_phone,
-          'form_instance_id', NEW.id::text
-        )
-      ) INTO v_event_id;
-    END IF;
   END IF;
 
   RETURN NEW;

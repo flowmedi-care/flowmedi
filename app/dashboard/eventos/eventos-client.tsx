@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -124,6 +124,12 @@ export function EventosClient({
   const [allEvents, setAllEvents] = useState<Event[]>(initialAllEvents);
   const [completedEvents, setCompletedEvents] = useState<Event[]>(initialCompletedEvents);
   const [settings, setSettings] = useState<ClinicMessageSetting[]>(msgSettings);
+
+  useEffect(() => {
+    setPendingEvents(initialPendingEvents);
+    setAllEvents(initialAllEvents);
+    setCompletedEvents(initialCompletedEvents);
+  }, [initialPendingEvents, initialAllEvents, initialCompletedEvents]);
   const [eventConfigState, setEventConfigState] = useState<ClinicEventConfigItem[]>(eventConfig);
   const [processing, setProcessing] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -157,7 +163,6 @@ export function EventosClient({
   }
 
   async function handleConcluir(eventId: string) {
-    if (!confirm("Deseja concluir este evento?")) return;
     setProcessing(eventId);
     const result = await concluirEvent(eventId);
     setProcessing(null);
