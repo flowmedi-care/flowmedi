@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   Mail,
   Bell,
+  ClipboardList,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,7 @@ export function DashboardNav({
   const navItems: { href: string; label: string; icon: React.ReactNode; roles?: string[] }[] = [
     { href: "/dashboard", label: "Início", icon: <LayoutDashboard className="h-4 w-4" /> },
     { href: "/dashboard/agenda", label: "Agenda", icon: <Calendar className="h-4 w-4" /> },
+    { href: "/dashboard/consulta", label: "Consulta", icon: <ClipboardList className="h-4 w-4" /> },
     { href: "/dashboard/pacientes", label: "Pacientes", icon: <Users className="h-4 w-4" /> },
     { href: "/dashboard/formularios", label: "Formulários", icon: <FileText className="h-4 w-4" /> },
     { href: "/dashboard/eventos", label: "Eventos", icon: <Bell className="h-4 w-4" />, roles: ["admin", "secretaria"] },
