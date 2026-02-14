@@ -239,17 +239,11 @@ export async function processEvent(
 
       const currentSent = (eventData.sent_channels as string[] | null) ?? [];
       const newSentChannels = Array.from(new Set([...currentSent, ...channelsFiltered]));
-      const allChannels = eventData.channels || [];
-      const allChannelsSent = allChannels.length > 0 && allChannels.every((c: string) => newSentChannels.includes(c));
 
+      // Mantém status "pending": evento fica em Pendentes até o usuário clicar em Concluir (ação recomendada)
       const { error: updateError } = await supabase
         .from("event_timeline")
-        .update({
-          status: allChannelsSent ? "sent" : "pending",
-          processed_at: allChannelsSent ? new Date().toISOString() : eventData.processed_at,
-          processed_by: allChannelsSent ? user.id : eventData.processed_by,
-          sent_channels: newSentChannels,
-        })
+        .update({ sent_channels: newSentChannels })
         .eq("id", eventId);
 
       if (updateError) {

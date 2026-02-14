@@ -620,13 +620,10 @@ export async function processEventByIdForPublicForm(
     const currentChannels = (row?.sent_channels as string[] | null) ?? [];
     const newSentChannels = currentChannels.includes("email") ? currentChannels : [...currentChannels, "email"];
 
+    // Mantém status "pending": há ação recomendada (ex.: cadastrar funcionário); só registra que o email foi enviado
     await supabase
       .from("event_timeline")
-      .update({
-        status: "sent",
-        processed_at: new Date().toISOString(),
-        sent_channels: newSentChannels,
-      })
+      .update({ sent_channels: newSentChannels })
       .eq("id", eventId);
 
     return { success: true };
