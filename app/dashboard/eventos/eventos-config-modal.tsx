@@ -213,7 +213,7 @@ export function EventosConfigModal({
       <DialogContent
         title="Configurar eventos"
         onClose={() => onOpenChange(false)}
-        className="max-w-3xl max-h-[85vh] flex flex-col"
+        className="max-w-4xl max-h-[85vh] flex flex-col"
       >
         <p className="text-sm text-muted-foreground mb-4">
           Sistema (on/off) define se o evento aparece em Pendentes. Email e WhatsApp: ative e escolha
@@ -236,9 +236,24 @@ export function EventosConfigModal({
                     const sysOn = systemEnabled(code);
                     const canBeAutomatic = event.can_be_automatic ?? false;
 
+                    const emailTemplates = getTemplatesForEvent(code, "email");
+                    const wppTemplates = getTemplatesForEvent(code, "whatsapp");
+                    const emailTemplateLabel =
+                      emailSetting?.template_id
+                        ? emailTemplates.find((t) => t.id === emailSetting.template_id)?.name ??
+                          systemTemplateNameMap[`${code}:email`] ??
+                          "Padrão do sistema"
+                        : systemTemplateNameMap[`${code}:email`] ?? "Padrão do sistema";
+                    const wppTemplateLabel =
+                      wppSetting?.template_id
+                        ? wppTemplates.find((t) => t.id === wppSetting.template_id)?.name ??
+                          systemTemplateNameMap[`${code}:whatsapp`] ??
+                          "Padrão do sistema"
+                        : systemTemplateNameMap[`${code}:whatsapp`] ?? "Padrão do sistema";
+
                     return (
-                      <Card key={code} className="p-3">
-                        <div className="flex flex-col gap-3">
+                      <Card key={code} className="p-4">
+                        <div className="space-y-4">
                           <div>
                             <p className="font-medium text-sm text-foreground">{event.name ?? code}</p>
                             {event.description && (
@@ -247,118 +262,143 @@ export function EventosConfigModal({
                               </p>
                             )}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                            {/* Sistema */}
-                            <div className="flex items-center gap-2">
-                              <Settings2 className="h-4 w-4 text-muted-foreground" />
-                              <label className="flex items-center gap-2">
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-4">
+                            {/* Sistema — coluna fixa, sem overlap */}
+                            <div className="flex items-center gap-2 md:min-w-[120px]">
+                              <Settings2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <label className="flex items-center gap-2 cursor-pointer">
                                 <Switch
                                   checked={sysOn}
                                   onChange={(v) => handleSystemToggle(code, v)}
                                   disabled={updating[`system-${code}`]}
                                 />
-                                <span>Sistema</span>
+                                <span className="text-sm font-medium">Sistema</span>
                               </label>
                             </div>
-                            {/* Email */}
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2 font-medium">
-                                <Mail className="h-4 w-4" />
-                                Email
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
+
+                            {/* Email — bloco com Envio + Template em linhas */}
+                            <div className="space-y-3 min-w-0 md:min-w-[200px]">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-medium flex items-center gap-2 shrink-0">
+                                  <Mail className="h-4 w-4 text-muted-foreground" />
+                                  Email
+                                </span>
                                 <Switch
                                   checked={emailSetting?.enabled ?? false}
                                   onChange={(v) => handleChannelToggle(code, "email", v)}
                                   disabled={updating[`${code}-email`]}
                                 />
-                                {(emailSetting?.enabled ?? false) && canBeAutomatic && (
-                                  <select
-                                    value={emailSetting?.send_mode ?? "manual"}
-                                    onChange={(e) =>
-                                      handleSendModeChange(code, "email", e.target.value as SendMode)
-                                    }
-                                    className="h-7 rounded border border-input bg-background px-2 text-xs"
-                                  >
-                                    <option value="automatic">Automático</option>
-                                    <option value="manual">Manual</option>
-                                  </select>
-                                )}
-                                {(emailSetting?.enabled ?? false) && (
-                                  <select
-                                    value={emailSetting?.template_id ?? ""}
-                                    onChange={(e) =>
-                                      handleTemplateChange(
-                                        code,
-                                        "email",
-                                        e.target.value?.trim() || null
-                                      )
-                                    }
-                                    className="h-7 rounded border border-input bg-background px-2 text-xs"
-                                  >
-                                    <option value="">
-                                      {systemTemplateNameMap[`${code}:email`] ?? "Padrão do sistema"}
-                                    </option>
-                                    {getTemplatesForEvent(code, "email").map((t) => (
-                                      <option key={t.id} value={t.id}>
-                                        {t.name ?? t.id}
+                              </div>
+                              {(emailSetting?.enabled ?? false) && (
+                                <div className="space-y-2 pl-6">
+                                  <div>
+                                    <label className="text-xs text-muted-foreground block mb-1">
+                                      Envio
+                                    </label>
+                                    <select
+                                      value={emailSetting?.send_mode ?? "manual"}
+                                      onChange={(e) =>
+                                        handleSendModeChange(code, "email", e.target.value as SendMode)
+                                      }
+                                      className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm"
+                                    >
+                                      <option value="automatic">Automático</option>
+                                      <option value="manual">Manual</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-xs text-muted-foreground block mb-1">
+                                      Template
+                                    </label>
+                                    <select
+                                      value={emailSetting?.template_id ?? ""}
+                                      onChange={(e) =>
+                                        handleTemplateChange(
+                                          code,
+                                          "email",
+                                          e.target.value?.trim() || null
+                                        )
+                                      }
+                                      title={emailTemplateLabel}
+                                      className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm truncate block"
+                                    >
+                                      <option value="">
+                                        {systemTemplateNameMap[`${code}:email`] ?? "Padrão do sistema"}
                                       </option>
-                                    ))}
-                                  </select>
-                                )}
-                              </div>
+                                      {emailTemplates.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                          {t.name ?? t.id}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                            {/* WhatsApp */}
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2 font-medium">
-                                <MessageSquare className="h-4 w-4" />
-                                WhatsApp
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
+
+                            {/* WhatsApp — mesmo padrão */}
+                            <div className="space-y-3 min-w-0 md:min-w-[200px]">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-medium flex items-center gap-2 shrink-0">
+                                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                                  WhatsApp
+                                </span>
                                 <Switch
                                   checked={wppSetting?.enabled ?? false}
                                   onChange={(v) => handleChannelToggle(code, "whatsapp", v)}
                                   disabled={updating[`${code}-whatsapp`]}
                                 />
-                                {(wppSetting?.enabled ?? false) && canBeAutomatic && (
-                                  <select
-                                    value={wppSetting?.send_mode ?? "manual"}
-                                    onChange={(e) =>
-                                      handleSendModeChange(
-                                        code,
-                                        "whatsapp",
-                                        e.target.value as SendMode
-                                      )
-                                    }
-                                    className="h-7 rounded border border-input bg-background px-2 text-xs"
-                                  >
-                                    <option value="automatic">Automático</option>
-                                    <option value="manual">Manual</option>
-                                  </select>
-                                )}
-                                {(wppSetting?.enabled ?? false) && (
-                                  <select
-                                    value={wppSetting?.template_id ?? ""}
-                                    onChange={(e) =>
-                                      handleTemplateChange(
-                                        code,
-                                        "whatsapp",
-                                        e.target.value?.trim() || null
-                                      )
-                                    }
-                                    className="h-7 rounded border border-input bg-background px-2 text-xs"
-                                  >
-                                    <option value="">
-                                      {systemTemplateNameMap[`${code}:whatsapp`] ?? "Padrão do sistema"}
-                                    </option>
-                                    {getTemplatesForEvent(code, "whatsapp").map((t) => (
-                                      <option key={t.id} value={t.id}>
-                                        {t.name ?? t.id}
-                                      </option>
-                                    ))}
-                                  </select>
-                                )}
                               </div>
+                              {(wppSetting?.enabled ?? false) && (
+                                <div className="space-y-2 pl-6">
+                                  <div>
+                                    <label className="text-xs text-muted-foreground block mb-1">
+                                      Envio
+                                    </label>
+                                    <select
+                                      value={wppSetting?.send_mode ?? "manual"}
+                                      onChange={(e) =>
+                                        handleSendModeChange(
+                                          code,
+                                          "whatsapp",
+                                          e.target.value as SendMode
+                                        )
+                                      }
+                                      className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm"
+                                    >
+                                      <option value="automatic">Automático</option>
+                                      <option value="manual">Manual</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-xs text-muted-foreground block mb-1">
+                                      Template
+                                    </label>
+                                    <select
+                                      value={wppSetting?.template_id ?? ""}
+                                      onChange={(e) =>
+                                        handleTemplateChange(
+                                          code,
+                                          "whatsapp",
+                                          e.target.value?.trim() || null
+                                        )
+                                      }
+                                      title={wppTemplateLabel}
+                                      className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm truncate block"
+                                    >
+                                      <option value="">
+                                        {systemTemplateNameMap[`${code}:whatsapp`] ?? "Padrão do sistema"}
+                                      </option>
+                                      {wppTemplates.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                          {t.name ?? t.id}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
