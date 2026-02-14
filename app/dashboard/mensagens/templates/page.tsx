@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { getEffectiveTemplatesForDisplay } from "../actions";
+import { getMessageTemplates, getSystemTemplatesForDisplay } from "../actions";
 import { TemplatesListClient } from "./templates-list-client";
 
 export default async function TemplatesPage() {
@@ -21,16 +21,20 @@ export default async function TemplatesPage() {
     redirect("/dashboard");
   }
 
-  const effectiveResult = await getEffectiveTemplatesForDisplay();
-  const effectiveTemplates = effectiveResult.data || [];
+  const [savedResult, systemResult] = await Promise.all([
+    getMessageTemplates(),
+    getSystemTemplatesForDisplay(),
+  ]);
+  const savedTemplates = savedResult.data || [];
+  const systemTemplates = systemResult.data || [];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Templates de Mensagens</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Um template por evento para Email e outro para WhatsApp — cada canal com seu próprio texto
+            Templates salvos (seus) e templates do sistema (padrão por evento/canal)
           </p>
         </div>
         <Link href="/dashboard/mensagens/templates/novo">
@@ -40,7 +44,10 @@ export default async function TemplatesPage() {
           </Button>
         </Link>
       </div>
-      <TemplatesListClient effectiveTemplates={effectiveTemplates} />
+      <TemplatesListClient
+        savedTemplates={savedTemplates}
+        systemTemplates={systemTemplates}
+      />
     </div>
   );
 }

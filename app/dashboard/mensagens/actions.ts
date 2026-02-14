@@ -165,6 +165,44 @@ export async function getEffectiveTemplatesForDisplay(): Promise<{
   return { data: result, error: null };
 }
 
+/** Lista apenas os templates do sistema (para exibir na seção "Templates do sistema"). */
+export async function getSystemTemplatesForDisplay(): Promise<{
+  data: EffectiveTemplateItem[] | null;
+  error: string | null;
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Não autorizado." };
+
+  const [eventsRes, systemRes] = await Promise.all([
+    supabase.from("message_events").select("code, name").order("category").order("name"),
+    supabase.from("system_message_templates").select("id, event_code, channel, name, subject, body_html"),
+  ]);
+
+  if (eventsRes.error) return { data: null, error: eventsRes.error.message };
+  if (systemRes.error) return { data: null, error: systemRes.error.message };
+
+  const events = (eventsRes.data ?? []) as { code: string; name: string }[];
+  const systemTemplates = (systemRes.data ?? []) as Array<{ id: string; event_code: string; channel: string; name: string; subject: string | null; body_html: string | null }>;
+  const eventNames = new Map(events.map((e) => [e.code, e.name]));
+  const result: EffectiveTemplateItem[] = systemTemplates.map((t) => {
+    const body = t.body_html ?? "";
+    const bodyPreview = body.replace(/<[^>]*>/g, "").trim().slice(0, 80);
+    return {
+      event_code: t.event_code,
+      event_name: eventNames.get(t.event_code) ?? t.event_code,
+      channel: t.channel as MessageChannel,
+      is_system: true,
+      id: t.id,
+      name: t.name,
+      subject: t.subject ?? null,
+      body_preview: bodyPreview ? `${bodyPreview}${body.length > 80 ? "…" : ""}` : "(vazio)",
+    };
+  });
+
+  return { data: result, error: null };
+}
+
 // ========== BUSCAR TEMPLATES DA CLÍNICA ==========
 
 export async function getMessageTemplates(
@@ -252,6 +290,7 @@ export async function createMessageTemplate(
 
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
 
+  const bodyPlain = bodyText?.trim() || bodyHtml.replace(/<[^>]*>/g, "").trim() || "";
   const { data, error } = await supabase
     .from("message_templates")
     .insert({
@@ -261,6 +300,7 @@ export async function createMessageTemplate(
       channel,
       type: "custom", // legado: coluna pode existir como NOT NULL em DB antiga
       subject: subject?.trim() || null,
+      body: bodyPlain || bodyHtml, // legado: coluna body NOT NULL em DB antiga
       body_html: bodyHtml,
       body_text: bodyText?.trim() || null,
       email_header: emailHeader?.trim() || null,
