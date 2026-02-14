@@ -11,6 +11,7 @@ import { processEvent, concluirEvent, type ClinicEventConfigItem } from "./actio
 import { EventosConfigModal } from "./eventos-config-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { registerPatientFromPublicForm } from "@/app/dashboard/pacientes/actions";
+import { toast } from "@/components/ui/toast";
 import type { MessageEvent, ClinicMessageSetting, MessageTemplate, EffectiveTemplateItem } from "@/app/dashboard/mensagens/actions";
 
 // Formatação de data
@@ -141,6 +142,7 @@ export function EventosClient({
   const [sendModalEvent, setSendModalEvent] = useState<Event | null>(null);
   const [sendModalChannels, setSendModalChannels] = useState<("email" | "whatsapp")[]>([]);
   const [registeringEventId, setRegisteringEventId] = useState<string | null>(null);
+  const [registeredFromEventIds, setRegisteredFromEventIds] = useState<Set<string>>(new Set());
 
   function getChannelStatus(event: Event) {
     const enabledForEvent = settings.filter(
@@ -225,8 +227,13 @@ export function EventosClient({
       custom_fields: (meta.public_submitter_custom_fields as Record<string, unknown>) || undefined,
     });
     setRegisteringEventId(null);
-    if (res.error) alert(`Erro: ${res.error}`);
-    else router.refresh();
+    if (res.error) {
+      alert(`Erro: ${res.error}`);
+    } else {
+      setRegisteredFromEventIds((prev) => new Set(prev).add(event.id));
+      toast("Paciente cadastrado com sucesso", "success");
+      router.refresh();
+    }
   }
 
   function EventCard({ event }: { event: Event }) {
@@ -305,17 +312,24 @@ export function EventosClient({
                     )}
                   </div>
                   {canRegister && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleCadastrarFromEvent(event)}
-                      disabled={registeringEventId === event.id}
-                      title="Cadastrar paciente"
-                      className="shrink-0"
-                    >
-                      <UserCheck className="h-4 w-4 mr-1" />
-                      {registeringEventId === event.id ? "Cadastrando..." : "Cadastrar"}
-                    </Button>
+                    registeredFromEventIds.has(event.id) ? (
+                      <span className="text-sm font-medium text-green-600 flex items-center gap-1 shrink-0">
+                        <UserCheck className="h-4 w-4" />
+                        Foi cadastrado
+                      </span>
+                    ) : (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleCadastrarFromEvent(event)}
+                        disabled={registeringEventId === event.id}
+                        title="Cadastrar paciente"
+                        className="shrink-0"
+                      >
+                        <UserCheck className="h-4 w-4 mr-1" />
+                        {registeringEventId === event.id ? "Cadastrando..." : "Cadastrar"}
+                      </Button>
+                    )
                   )}
                 </div>
               </div>

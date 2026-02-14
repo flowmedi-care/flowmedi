@@ -177,6 +177,21 @@ export async function registerPatientFromPublicForm(
     patientId = newPatient.id;
   }
 
+  // Disparar evento "usuário cadastrado" (ação recomendada: Agendar consulta)
+  const { error: eventError } = await supabase.rpc("create_event_timeline", {
+    p_clinic_id: profile.clinic_id,
+    p_event_code: "patient_registered",
+    p_patient_id: patientId,
+    p_appointment_id: null,
+    p_form_instance_id: null,
+    p_origin: "user",
+  });
+  if (eventError) {
+    console.error("[registerPatientFromPublicForm] create_event_timeline:", eventError);
+    // Não falha o cadastro se o evento não for criado
+  }
+
   revalidatePath("/dashboard/pacientes");
+  revalidatePath("/dashboard/eventos");
   return { error: null, patientId };
 }
