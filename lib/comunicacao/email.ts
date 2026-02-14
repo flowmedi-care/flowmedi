@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { google } from "googleapis";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface EmailOptions {
   to: string;
@@ -9,11 +10,12 @@ interface EmailOptions {
 }
 
 /**
- * Obtém as credenciais OAuth do Google para uma clínica
+ * Obtém as credenciais OAuth do Google para uma clínica.
+ * @param supabaseAdmin - Se a chamada for sem usuário logado (ex: API pública), passar cliente com service role.
  */
-async function getGoogleCredentials(clinicId: string) {
-  const supabase = await createClient();
-  
+async function getGoogleCredentials(clinicId: string, supabaseAdmin?: SupabaseClient) {
+  const supabase = supabaseAdmin ?? (await createClient());
+
   const { data: integration, error } = await supabase
     .from("clinic_integrations")
     .select("credentials, metadata")
@@ -39,8 +41,8 @@ async function getGoogleCredentials(clinicId: string) {
 /**
  * Cria um cliente OAuth2 do Google com refresh automático de token
  */
-async function createOAuthClient(clinicId: string) {
-  const { credentials } = await getGoogleCredentials(clinicId);
+async function createOAuthClient(clinicId: string, supabaseAdmin?: SupabaseClient) {
+  const { credentials } = await getGoogleCredentials(clinicId, supabaseAdmin);
 
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -61,10 +63,9 @@ async function createOAuthClient(clinicId: string) {
 
     try {
       const { credentials: newCredentials } = await oauth2Client.refreshAccessToken();
-      
-      // Atualizar no banco
-      const supabase = await createClient();
-      await supabase
+
+      const db = supabaseAdmin ?? (await createClient());
+      await db
         .from("clinic_integrations")
         .update({
           credentials: {
@@ -79,9 +80,8 @@ async function createOAuthClient(clinicId: string) {
 
       oauth2Client.setCredentials(newCredentials);
     } catch (error) {
-      // Se falhar ao renovar, marcar como erro
-      const supabase = await createClient();
-      await supabase
+      const db = supabaseAdmin ?? (await createClient());
+      await db
         .from("clinic_integrations")
         .update({
           status: "error",
@@ -99,14 +99,16 @@ async function createOAuthClient(clinicId: string) {
 
 /**
  * Envia um email via Gmail API
+ * @param supabaseAdmin - Quando a chamada for sem usuário (ex: formulário público), passar cliente service role.
  */
 export async function sendEmail(
   clinicId: string,
-  options: EmailOptions
+  options: EmailOptions,
+  supabaseAdmin?: SupabaseClient
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const oauth2Client = await createOAuthClient(clinicId);
-    const { email: fromEmail } = await getGoogleCredentials(clinicId);
+    const oauth2Client = await createOAuthClient(clinicId, supabaseAdmin);
+    const { email: fromEmail } = await getGoogleCredentials(clinicId, supabaseAdmin);
 
     if (!fromEmail) {
       throw new Error("Email do remetente não encontrado");
@@ -154,15 +156,19 @@ export async function sendEmail(
 }
 
 /**
- * Verifica se a integração de email está conectada e funcionando
+ * Verifica se a integração de email está conectada e funcionando.
+ * @param supabaseAdmin - Quando a chamada for sem usuário (ex: API formulário público), passar cliente service role.
  */
-export async function checkEmailIntegration(clinicId: string): Promise<{
+export async function checkEmailIntegration(
+  clinicId: string,
+  supabaseAdmin?: SupabaseClient
+): Promise<{
   connected: boolean;
   email?: string;
   error?: string;
 }> {
   try {
-    const { email } = await getGoogleCredentials(clinicId);
+    const { email } = await getGoogleCredentials(clinicId, supabaseAdmin);
     return { connected: true, email };
   } catch (error) {
     return {

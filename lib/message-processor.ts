@@ -376,24 +376,29 @@ export async function sendMessage(
 }
 
 /**
- * Envia email usando Gmail API (via OAuth Google)
+ * Envia email usando Gmail API (via OAuth Google).
+ * @param supabaseAdmin - Quando envio sem usuário (ex: formulário público), passar cliente service role.
  */
 async function sendEmail(
   clinicId: string,
   to: string,
   subject: string,
-  htmlBody: string
+  htmlBody: string,
+  supabaseAdmin?: Awaited<ReturnType<typeof createClient>>
 ): Promise<ProcessMessageResult> {
   try {
-    // Usar a função de email existente que usa Gmail API
     const { sendEmail: sendEmailViaGmail } = await import("@/lib/comunicacao/email");
-    
-    const result = await sendEmailViaGmail(clinicId, {
-      to,
-      subject,
-      html: htmlBody,
-      body: htmlBody.replace(/<[^>]*>/g, ""), // Versão texto simples (remove HTML tags)
-    });
+
+    const result = await sendEmailViaGmail(
+      clinicId,
+      {
+        to,
+        subject,
+        html: htmlBody,
+        body: htmlBody.replace(/<[^>]*>/g, ""),
+      },
+      supabaseAdmin
+    );
 
     if (!result.success) {
       return {
@@ -524,7 +529,7 @@ export async function processEventByIdForPublicForm(
   }
 
   const { checkEmailIntegration } = await import("@/lib/comunicacao/email");
-  const integrationCheck = await checkEmailIntegration(event.clinic_id);
+  const integrationCheck = await checkEmailIntegration(event.clinic_id, supabase);
   if (!integrationCheck.connected) {
     return {
       success: false,
@@ -591,7 +596,7 @@ export async function processEventByIdForPublicForm(
     return { success: false, error: "Assunto do email é obrigatório." };
   }
 
-    const sendResult = await sendEmail(event.clinic_id, toEmail, processedSubject, processedBody);
+    const sendResult = await sendEmail(event.clinic_id, toEmail, processedSubject, processedBody, supabase);
     if (!sendResult.success) {
       return sendResult;
     }
