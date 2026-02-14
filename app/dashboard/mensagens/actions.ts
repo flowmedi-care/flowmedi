@@ -203,6 +203,64 @@ export async function getSystemTemplatesForDisplay(): Promise<{
   return { data: result, error: null };
 }
 
+// ========== CABEÇALHO E RODAPÉ DOS EMAILS (por clínica, vale para todos) ==========
+
+export async function getClinicEmailBranding(): Promise<{
+  data: { email_header: string | null; email_footer: string | null } | null;
+  error: string | null;
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const { data, error } = await supabase
+    .from("clinics")
+    .select("email_header, email_footer")
+    .eq("id", profile.clinic_id)
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  return { data: { email_header: data?.email_header ?? null, email_footer: data?.email_footer ?? null }, error: null };
+}
+
+export async function updateClinicEmailBranding(
+  emailHeader: string | null,
+  emailFooter: string | null
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+
+  const { error } = await supabase
+    .from("clinics")
+    .update({
+      email_header: emailHeader?.trim() || null,
+      email_footer: emailFooter?.trim() || null,
+    })
+    .eq("id", profile.clinic_id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/mensagens");
+  revalidatePath("/dashboard/mensagens/templates");
+  return { error: null };
+}
+
 // ========== BUSCAR TEMPLATES DA CLÍNICA ==========
 
 export async function getMessageTemplates(

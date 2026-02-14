@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { getMessageTemplates, getSystemTemplatesForDisplay } from "../actions";
 import { TemplatesListClient } from "./templates-list-client";
+import { EmailBrandingCard } from "./email-branding-card";
 
 export default async function TemplatesPage() {
   const supabase = await createClient();
@@ -44,6 +45,9 @@ export default async function TemplatesPage() {
           </Button>
         </Link>
       </div>
+
+      <EmailBrandingCard />
+
       <TemplatesListClient
         savedTemplates={savedTemplates}
         systemTemplates={systemTemplates}

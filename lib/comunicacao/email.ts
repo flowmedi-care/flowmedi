@@ -116,20 +116,27 @@ export async function sendEmail(
 
     const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
-    // Criar mensagem em formato RFC 2822
+    // Subject com caracteres não-ASCII: codificar em RFC 2047 (=?UTF-8?B?...) para evitar mojibake
+    const subjectLine =
+      /[^\x00-\x7F]/.test(options.subject)
+        ? `Subject: =?UTF-8?B?${Buffer.from(options.subject, "utf8").toString("base64")}?=`
+        : `Subject: ${options.subject}`;
+
+    // Criar mensagem em formato RFC 2822 (corpo UTF-8; Subject em RFC 2047 se tiver acentos)
+    const bodyContent = options.html || options.body.replace(/\n/g, "<br>");
     const messageParts = [
       `To: ${options.to}`,
       `From: ${fromEmail}`,
-      `Subject: ${options.subject}`,
+      subjectLine,
       "Content-Type: text/html; charset=utf-8",
       "",
-      options.html || options.body.replace(/\n/g, "<br>"),
+      bodyContent,
     ];
 
     const message = messageParts.join("\n");
 
-    // Codificar em base64url
-    const encodedMessage = Buffer.from(message)
+    // Codificar em base64url (Gmail API espera raw em base64url)
+    const encodedMessage = Buffer.from(message, "utf8")
       .toString("base64")
       .replace(/\+/g, "-")
       .replace(/\//g, "_")

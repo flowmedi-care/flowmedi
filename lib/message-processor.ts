@@ -114,19 +114,22 @@ export async function processMessageEvent(
       clinicId
     );
 
-    // 5. Processar template (substituir variáveis) e montar corpo email com header/footer
+    // 5. Processar template (substituir variáveis) e montar corpo email
     const processedSubject = template.subject
       ? replaceVariables(template.subject, context)
       : null;
     const rawBody = replaceVariables(template.body_html || "", context);
-    const processedBody =
-      channel === "email" && (template.email_header || template.email_footer)
-        ? [
-            replaceVariables(template.email_header || "", context),
-            rawBody,
-            replaceVariables(template.email_footer || "", context),
-          ].join("")
-        : rawBody;
+    let processedBody = rawBody;
+    if (channel === "email") {
+      const { data: clinic } = await supabase
+        .from("clinics")
+        .select("email_header, email_footer")
+        .eq("id", clinicId)
+        .single();
+      const header = (clinic?.email_header && replaceVariables(clinic.email_header, context)) || "";
+      const footer = (clinic?.email_footer && replaceVariables(clinic.email_footer, context)) || "";
+      processedBody = header + rawBody + footer;
+    }
 
     // 6. Se modo automático, enviar diretamente
     if (setting.send_mode === "automatic") {
@@ -583,14 +586,14 @@ export async function processEventByIdForPublicForm(
 
   const processedSubject = template.subject ? replaceVariables(template.subject, context) : null;
   const rawBody = replaceVariables(template.body_html || "", context);
-  const processedBody =
-    template.email_header || template.email_footer
-      ? [
-          replaceVariables(template.email_header || "", context),
-          rawBody,
-          replaceVariables(template.email_footer || "", context),
-        ].join("")
-      : rawBody;
+  const { data: clinicRow } = await supabase
+    .from("clinics")
+    .select("email_header, email_footer")
+    .eq("id", event.clinic_id)
+    .single();
+  const header = (clinicRow?.email_header && replaceVariables(clinicRow.email_header, context)) || "";
+  const footer = (clinicRow?.email_footer && replaceVariables(clinicRow.email_footer, context)) || "";
+  const processedBody = header + rawBody + footer;
 
   if (!processedSubject) {
     return { success: false, error: "Assunto do email é obrigatório." };
@@ -718,14 +721,17 @@ export async function getMessagePreview(
 
     const subject = template.subject ? replaceVariables(template.subject, context) : null;
     const rawBody = replaceVariables(template.body_html || "", context);
-    const body =
-      channel === "email" && (template.email_header || template.email_footer)
-        ? [
-            replaceVariables(template.email_header || "", context),
-            rawBody,
-            replaceVariables(template.email_footer || "", context),
-          ].join("")
-        : rawBody;
+    let body = rawBody;
+    if (channel === "email") {
+      const { data: clinicRow } = await supabase
+        .from("clinics")
+        .select("email_header, email_footer")
+        .eq("id", clinicId)
+        .single();
+      const header = (clinicRow?.email_header && replaceVariables(clinicRow.email_header, context)) || "";
+      const footer = (clinicRow?.email_footer && replaceVariables(clinicRow.email_footer, context)) || "";
+      body = header + rawBody + footer;
+    }
     result.push({ channel, subject, body, templateName: template.name });
   }
 

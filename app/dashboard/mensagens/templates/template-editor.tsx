@@ -32,8 +32,6 @@ export function TemplateEditor({
   initialSubject,
   initialBodyHtml,
   initialBodyText,
-  initialEmailHeader = "",
-  initialEmailFooter = "",
   events,
 }: {
   templateId: string | null;
@@ -54,14 +52,12 @@ export function TemplateEditor({
   const [subject, setSubject] = useState(initialSubject);
   const [bodyHtml, setBodyHtml] = useState(initialBodyHtml);
   const [bodyText, setBodyText] = useState(initialBodyText);
-  const [emailHeader, setEmailHeader] = useState(initialEmailHeader);
-  const [emailFooter, setEmailFooter] = useState(initialEmailFooter);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isEdit = !!templateId;
-  const variablesUsed = extractVariables(bodyHtml + (subject || "") + emailHeader + emailFooter);
-  const validation = validateVariables(bodyHtml + (subject || "") + emailHeader + emailFooter);
+  const variablesUsed = extractVariables(bodyHtml + (subject || ""));
+  const validation = validateVariables(bodyHtml + (subject || ""));
 
   function insertVariable(variable: string) {
     const textarea = document.getElementById("body_html") as HTMLTextAreaElement;
@@ -112,8 +108,8 @@ export function TemplateEditor({
         bodyHtml,
         bodyText || null,
         variablesUsed,
-        channel === "email" ? emailHeader || null : null,
-        channel === "email" ? emailFooter || null : null
+        null,
+        null
       );
 
       if (result.error) {
@@ -130,8 +126,8 @@ export function TemplateEditor({
         bodyHtml,
         bodyText || null,
         variablesUsed,
-        channel === "email" ? emailHeader || null : null,
-        channel === "email" ? emailFooter || null : null
+        null,
+        null
       );
 
       if (result.error) {
@@ -256,28 +252,9 @@ export function TemplateEditor({
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email_header">Cabeçalho do email (opcional)</Label>
-                  <Textarea
-                    id="email_header"
-                    value={emailHeader}
-                    onChange={(e) => setEmailHeader(e.target.value)}
-                    placeholder="Ex.: Nome da clínica e telefone (aparece no topo)"
-                    rows={2}
-                    className="font-mono text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email_footer">Rodapé do email (opcional)</Label>
-                  <Textarea
-                    id="email_footer"
-                    value={emailFooter}
-                    onChange={(e) => setEmailFooter(e.target.value)}
-                    placeholder="Ex.: Este é um email automático. Em caso de dúvidas, entre em contato."
-                    rows={2}
-                    className="font-mono text-sm"
-                  />
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  Cabeçalho e rodapé são definidos no topo da página de templates (valem para todos os emails).
+                </p>
               </>
             )}
           </CardContent>
