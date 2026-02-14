@@ -626,9 +626,6 @@ export async function processEventByIdForPublicForm(
   }
 }
 
-/** Modo teste: quando true, não envia de fato; redireciona para página de preview */
-export const MESSAGE_TEST_MODE = process.env.NEXT_PUBLIC_MESSAGE_TEST_MODE === "true";
-
 export type MessagePreviewItem = {
   channel: MessageChannel;
   subject: string | null;

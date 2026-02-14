@@ -202,14 +202,9 @@ export async function processEvent(
     return { error: null, testMode: false };
   }
 
-  // Se ação for "send", processar envio ou modo teste (preview)
+  // Se ação for "send", processar envio
   if (action === "send") {
-    const { processMessageEvent, processEventByIdForPublicForm, MESSAGE_TEST_MODE } = await import("@/lib/message-processor");
-
-    if (MESSAGE_TEST_MODE) {
-      // Modo teste: não envia; retorna eventId para redirecionar à página de preview
-      return { error: null, testMode: true, eventId };
-    }
+    const { processMessageEvent, processEventByIdForPublicForm } = await import("@/lib/message-processor");
 
     try {
       const channels = channelsToSend?.length ? channelsToSend : (eventData.channels || []);

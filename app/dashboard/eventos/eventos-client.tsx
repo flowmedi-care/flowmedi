@@ -232,8 +232,6 @@ export function EventosClient({
 
     if (result.error) {
       alert(`Erro: ${result.error}`);
-    } else if (result.testMode && result.eventId) {
-      router.push(`/dashboard/eventos/teste?eventId=${result.eventId}`);
     } else {
       setSendModalEvent(null);
       setSendModalChannels([]);
