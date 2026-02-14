@@ -243,7 +243,7 @@ export function EventosConfigModal({
                               <label className="flex items-center gap-2">
                                 <Switch
                                   checked={sysOn}
-                                  onCheckedChange={(v) => handleSystemToggle(code, v)}
+                                  onChange={(v) => handleSystemToggle(code, v)}
                                   disabled={updating[`system-${code}`]}
                                 />
                                 <span>Sistema</span>
@@ -258,7 +258,7 @@ export function EventosConfigModal({
                               <div className="flex flex-wrap items-center gap-2">
                                 <Switch
                                   checked={emailSetting?.enabled ?? false}
-                                  onCheckedChange={(v) => handleChannelToggle(code, "email", v)}
+                                  onChange={(v) => handleChannelToggle(code, "email", v)}
                                   disabled={updating[`${code}-email`]}
                                 />
                                 {(emailSetting?.enabled ?? false) && canBeAutomatic && (
@@ -304,7 +304,7 @@ export function EventosConfigModal({
                               <div className="flex flex-wrap items-center gap-2">
                                 <Switch
                                   checked={wppSetting?.enabled ?? false}
-                                  onCheckedChange={(v) => handleChannelToggle(code, "whatsapp", v)}
+                                  onChange={(v) => handleChannelToggle(code, "whatsapp", v)}
                                   disabled={updating[`${code}-whatsapp`]}
                                 />
                                 {(wppSetting?.enabled ?? false) && canBeAutomatic && (
