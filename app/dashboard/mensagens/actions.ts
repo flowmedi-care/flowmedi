@@ -29,6 +29,8 @@ export type MessageTemplate = {
   subject: string | null;
   body_html: string;
   body_text: string | null;
+  email_header: string | null;
+  email_footer: string | null;
   variables_used: string[];
   is_active: boolean;
   is_default: boolean;
@@ -156,7 +158,9 @@ export async function createMessageTemplate(
   subject: string | null,
   bodyHtml: string,
   bodyText: string | null,
-  variablesUsed: string[] = []
+  variablesUsed: string[] = [],
+  emailHeader: string | null = null,
+  emailFooter: string | null = null
 ): Promise<{ data: MessageTemplate | null; error: string | null }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -177,9 +181,12 @@ export async function createMessageTemplate(
       event_code: eventCode,
       name: name.trim(),
       channel,
+      type: "custom", // legado: coluna pode existir como NOT NULL em DB antiga
       subject: subject?.trim() || null,
       body_html: bodyHtml,
       body_text: bodyText?.trim() || null,
+      email_header: emailHeader?.trim() || null,
+      email_footer: emailFooter?.trim() || null,
       variables_used: variablesUsed,
       is_active: true,
       is_default: false,
@@ -192,6 +199,45 @@ export async function createMessageTemplate(
   return { data: data as MessageTemplate, error: null };
 }
 
+/** Copia o template padrão do sistema para a clínica (para editar sem alterar o sistema). */
+export async function createMessageTemplateFromSystem(
+  eventCode: string,
+  channel: MessageChannel
+): Promise<{ data: MessageTemplate | null; error: string | null }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const { data: systemRow, error: fetchErr } = await supabase
+    .from("system_message_templates")
+    .select("*")
+    .eq("event_code", eventCode)
+    .eq("channel", channel)
+    .single();
+
+  if (fetchErr || !systemRow) return { data: null, error: "Template padrão do sistema não encontrado." };
+
+  return createMessageTemplate(
+    eventCode,
+    systemRow.name + " (cópia)",
+    channel,
+    systemRow.subject ?? null,
+    systemRow.body_html ?? "",
+    systemRow.body_text ?? null,
+    Array.isArray(systemRow.variables_used) ? systemRow.variables_used : [],
+    systemRow.email_header ?? null,
+    systemRow.email_footer ?? null
+  );
+}
+
 // ========== ATUALIZAR TEMPLATE ==========
 
 export async function updateMessageTemplate(
@@ -200,7 +246,9 @@ export async function updateMessageTemplate(
   subject: string | null,
   bodyHtml: string,
   bodyText: string | null,
-  variablesUsed: string[] = []
+  variablesUsed: string[] = [],
+  emailHeader: string | null = null,
+  emailFooter: string | null = null
 ): Promise<{ data: MessageTemplate | null; error: string | null }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -221,6 +269,8 @@ export async function updateMessageTemplate(
       subject: subject?.trim() || null,
       body_html: bodyHtml,
       body_text: bodyText?.trim() || null,
+      email_header: emailHeader?.trim() ?? null,
+      email_footer: emailFooter?.trim() ?? null,
       variables_used: variablesUsed,
     })
     .eq("id", id)
@@ -490,28 +540,27 @@ export async function approvePendingMessage(
     return { error: "Mensagem não encontrada ou já processada" };
   }
 
-  // Buscar template para pegar subject se necessário
-  const { data: template } = await supabase
-    .from("message_templates")
-    .select("subject, body_html")
-    .eq("id", pendingMessage.template_id)
-    .single();
-
-  // Se não tem processed_body, processar novamente
+  // Assunto e corpo: quando template_id é null (template do sistema), usar processed_subject e processed_body
   let finalBody = pendingMessage.processed_body || "";
-  let finalSubject = template?.subject || null;
+  let finalSubject = (pendingMessage as { processed_subject?: string | null }).processed_subject ?? null;
 
-  // Processar template com variáveis já salvas
-  if (template && pendingMessage.variables) {
-    const { replaceVariables } = await import("@/lib/message-variables");
-    const context = pendingMessage.variables as any;
-    
-    if (!finalBody && template.body_html) {
-      finalBody = replaceVariables(template.body_html, context);
-    }
-    
-    if (finalSubject) {
-      finalSubject = replaceVariables(finalSubject, context);
+  if (pendingMessage.template_id) {
+    const { data: template } = await supabase
+      .from("message_templates")
+      .select("subject, body_html")
+      .eq("id", pendingMessage.template_id)
+      .single();
+
+    if (template) {
+      if (!finalSubject) finalSubject = template.subject ?? null;
+      if (!finalBody && template.body_html) {
+        const { replaceVariables } = await import("@/lib/message-variables");
+        finalBody = replaceVariables(template.body_html, pendingMessage.variables as any);
+      }
+      if (finalSubject && pendingMessage.variables) {
+        const { replaceVariables } = await import("@/lib/message-variables");
+        finalSubject = replaceVariables(finalSubject, pendingMessage.variables as any);
+      }
     }
   }
 

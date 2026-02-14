@@ -71,27 +71,39 @@ export async function processMessageEvent(
       };
     }
 
-    // 3. Buscar template
-    let template;
+    // 3. Buscar template: primeiro customizado (message_templates), senão padrão do sistema (system_message_templates)
+    let template: { id?: string; subject?: string | null; body_html: string; email_header?: string | null; email_footer?: string | null; channel: string } | null = null;
+
     if (setting.template_id) {
       const { data: customTemplate } = await supabase
         .from("message_templates")
-        .select("*")
+        .select("id, subject, body_html, email_header, email_footer")
         .eq("id", setting.template_id)
         .eq("is_active", true)
         .single();
 
       if (customTemplate) {
-        template = customTemplate;
+        template = { ...customTemplate, channel };
       }
     }
 
-    // Se não tem template customizado, usar template padrão (quando implementado)
     if (!template) {
-      // Por enquanto, retornar erro se não houver template
+      const { data: systemTemplate } = await supabase
+        .from("system_message_templates")
+        .select("subject, body_html, email_header, email_footer")
+        .eq("event_code", eventCode)
+        .eq("channel", channel)
+        .single();
+
+      if (systemTemplate) {
+        template = { ...systemTemplate, body_html: systemTemplate.body_html ?? "", channel };
+      }
+    }
+
+    if (!template) {
       return {
         success: false,
-        error: "Template não encontrado. Crie um template para este evento.",
+        error: "Template não encontrado. Crie um template para este evento ou use o padrão do sistema.",
       };
     }
 
@@ -102,11 +114,19 @@ export async function processMessageEvent(
       clinicId
     );
 
-    // 5. Processar template (substituir variáveis)
+    // 5. Processar template (substituir variáveis) e montar corpo email com header/footer
     const processedSubject = template.subject
       ? replaceVariables(template.subject, context)
       : null;
-    const processedBody = replaceVariables(template.body_html, context);
+    const rawBody = replaceVariables(template.body_html || "", context);
+    const processedBody =
+      channel === "email" && (template.email_header || template.email_footer)
+        ? [
+            replaceVariables(template.email_header || "", context),
+            rawBody,
+            replaceVariables(template.email_footer || "", context),
+          ].join("")
+        : rawBody;
 
     // 6. Se modo automático, enviar diretamente
     if (setting.send_mode === "automatic") {
@@ -116,14 +136,14 @@ export async function processMessageEvent(
         patientId,
         appointmentId,
         eventCode,
-        template.id,
+        template.id ?? null,
         processedSubject,
         processedBody,
         context
       );
     }
 
-    // 7. Se modo manual, criar mensagem pendente
+    // 7. Se modo manual, criar mensagem pendente (template_id null quando usa template do sistema)
     const { data: pendingMessage, error: pendingError } = await supabase
       .from("pending_messages")
       .insert({
@@ -132,11 +152,12 @@ export async function processMessageEvent(
         appointment_id: appointmentId,
         event_code: eventCode,
         channel,
-        template_id: template.id,
+        template_id: template.id ?? null,
+        processed_subject: processedSubject,
         variables: context as any,
         processed_body: processedBody,
         status: "pending",
-        suggested_by: null, // Pode ser preenchido depois se necessário
+        suggested_by: null,
       })
       .select("id")
       .single();
@@ -274,7 +295,7 @@ export async function sendMessage(
   patientId: string,
   appointmentId: string | null,
   eventCode: string,
-  templateId: string,
+  templateId: string | null,
   subject: string | null,
   body: string,
   variables: any
@@ -505,25 +526,43 @@ export async function getMessagePreview(
       templateId = setting?.template_id;
     }
 
-    if (!templateId) {
+    let template: { subject?: string | null; body_html: string; name?: string; email_header?: string | null; email_footer?: string | null } | null = null;
+
+    if (templateId) {
+      const { data: customTemplate } = await supabase
+        .from("message_templates")
+        .select("subject, body_html, name, email_header, email_footer")
+        .eq("id", templateId)
+        .eq("is_active", true)
+        .single();
+      template = customTemplate;
+    }
+
+    if (!template) {
+      const { data: systemTemplate } = await supabase
+        .from("system_message_templates")
+        .select("subject, body_html, name, email_header, email_footer")
+        .eq("event_code", event.event_code)
+        .eq("channel", channel)
+        .single();
+      template = systemTemplate;
+    }
+
+    if (!template) {
       result.push({ channel, subject: null, body: "(Nenhum template configurado para este canal)", templateName: undefined });
       continue;
     }
 
-    const { data: template } = await supabase
-      .from("message_templates")
-      .select("subject, body_html, name")
-      .eq("id", templateId)
-      .eq("is_active", true)
-      .single();
-
-    if (!template) {
-      result.push({ channel, subject: null, body: "(Template não encontrado ou inativo)", templateName: undefined });
-      continue;
-    }
-
     const subject = template.subject ? replaceVariables(template.subject, context) : null;
-    const body = replaceVariables(template.body_html || "", context);
+    const rawBody = replaceVariables(template.body_html || "", context);
+    const body =
+      channel === "email" && (template.email_header || template.email_footer)
+        ? [
+            replaceVariables(template.email_header || "", context),
+            rawBody,
+            replaceVariables(template.email_footer || "", context),
+          ].join("")
+        : rawBody;
     result.push({ channel, subject, body, templateName: template.name });
   }
 

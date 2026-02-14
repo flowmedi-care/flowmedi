@@ -44,6 +44,8 @@ export default async function EditarTemplatePage({
       initialSubject={template.subject || ""}
       initialBodyHtml={template.body_html}
       initialBodyText={template.body_text || ""}
+      initialEmailHeader={template.email_header || ""}
+      initialEmailFooter={template.email_footer || ""}
       events={events}
     />
   );
