@@ -224,6 +224,12 @@ export async function getNonRegisteredSubmitters() {
     .eq("clinic_id", profile.clinic_id)
     .not("email", "is", null);
 
+  // Emails que não devem aparecer em não-cadastrados (ex.: foram cadastrados e depois excluídos)
+  const { data: excludedRows } = await supabase
+    .from("excluded_submitter_emails")
+    .select("email")
+    .eq("clinic_id", profile.clinic_id);
+
   // Criar Set com emails normalizados (lowercase, trimmed) para comparação rápida
   const registeredEmails = new Set<string>();
   (registeredPatients ?? []).forEach((p) => {
@@ -232,6 +238,12 @@ export async function getNonRegisteredSubmitters() {
       if (normalized) {
         registeredEmails.add(normalized);
       }
+    }
+  });
+  (excludedRows ?? []).forEach((r) => {
+    if (r.email) {
+      const normalized = r.email.toLowerCase().trim();
+      if (normalized) registeredEmails.add(normalized);
     }
   });
 

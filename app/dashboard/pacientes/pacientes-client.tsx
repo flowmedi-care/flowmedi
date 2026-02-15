@@ -91,6 +91,15 @@ export function PacientesClient({
     custom_fields: {},
   });
 
+  // Sincronizar lista quando o servidor enviar dados novos (ex.: após router.refresh())
+  useEffect(() => {
+    setPatients(initialPatients);
+  }, [initialPatients]);
+
+  useEffect(() => {
+    setNonRegisteredList(nonRegistered);
+  }, [nonRegistered]);
+
   // Abrir formulário se vier ?new=true na URL
   useEffect(() => {
     const shouldOpenForm = searchParams.get("new") === "true";
@@ -197,9 +206,23 @@ export function PacientesClient({
       setError(res.error);
       return;
     }
-    // Remover da lista de não-cadastrados localmente
+    // Remover da lista de não-cadastrados e adicionar em cadastrados na hora
     setNonRegisteredList((prev) => prev.filter((n) => n.email !== nr.email));
-    // Recarregar dados do servidor para atualizar ambas as listas
+    if (res.patientId) {
+      setPatients((prev) => [
+        ...prev,
+        {
+          id: res.patientId,
+          full_name: nr.name || "Sem nome",
+          email: nr.email,
+          phone: nr.phone ?? null,
+          birth_date: nr.birth_date ?? null,
+          notes: null,
+          custom_fields: nr.custom_fields,
+          created_at: new Date().toISOString(),
+        },
+      ]);
+    }
     router.refresh();
   }
 
@@ -262,6 +285,7 @@ export function PacientesClient({
     const res = await deletePatient(patientToExcluir.id);
     setDeletingId(null);
     if (!res.error) {
+      setPatients((prev) => prev.filter((p) => p.id !== patientToExcluir.id));
       setPatientToExcluir(null);
       router.refresh();
     } else {

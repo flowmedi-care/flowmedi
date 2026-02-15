@@ -103,8 +103,20 @@ export async function updatePatient(id: string, data: PatientUpdate) {
 
 export async function deletePatient(id: string) {
   const supabase = await createClient();
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("clinic_id, email")
+    .eq("id", id)
+    .single();
   const { error } = await supabase.from("patients").delete().eq("id", id);
   if (error) return { error: error.message };
+  // Se o paciente tinha email (ex.: veio de não cadastrado), não mostrar de novo em "Não cadastrados"
+  if (patient?.clinic_id && patient?.email?.trim()) {
+    await supabase.from("excluded_submitter_emails").upsert(
+      { clinic_id: patient.clinic_id, email: patient.email.trim().toLowerCase() },
+      { onConflict: "clinic_id,email" }
+    );
+  }
   revalidatePath("/dashboard/pacientes");
   return { error: null };
 }
