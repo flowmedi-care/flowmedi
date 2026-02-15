@@ -268,14 +268,15 @@ export async function buildVariableContext(data: {
     };
   }
 
-  // Dados do formulário
+  // Dados do formulário — link absoluto para emails (NEXT_PUBLIC_APP_URL ou VERCEL_URL)
   if (data.formInstance) {
     const origin =
       process.env.NEXT_PUBLIC_APP_URL ||
-      (typeof window !== "undefined" ? window.location.origin : "");
-    const link = data.formInstance.link_token
-      ? `${origin}/f/${data.formInstance.link_token}`
-      : undefined;
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
+      (typeof window !== "undefined" ? window.location.origin : undefined);
+    const baseUrl = (origin ?? "").replace(/\/$/, "");
+    const path = data.formInstance.link_token ? `/f/${data.formInstance.link_token}` : undefined;
+    const link = path ? (baseUrl ? `${baseUrl}${path}` : path) : undefined;
 
     context.formulario = {
       link,

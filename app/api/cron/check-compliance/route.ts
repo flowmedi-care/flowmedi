@@ -3,9 +3,9 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { runAutoSendForEvent } from "@/lib/event-send-logic-server";
 
 /**
- * Cron: verifica compliance de confirmação e cria eventos "Consulta ainda não confirmada".
- * Chamado periodicamente (ex: 1x/dia). Cria appointment_not_confirmed para consultas
- * cujo prazo de compliance (scheduled_at - X dias) já passou e ainda estão como agendada.
+ * Cron: verifica compliance de confirmação e de formulário vinculado.
+ * 1) Cria eventos "Consulta ainda não confirmada" (appointment_not_confirmed) quando o prazo passou.
+ * 2) Cria eventos "Lembrete para Preencher Formulário" (form_reminder) quando o prazo do formulário passou.
  * Processa envio automático (email/WhatsApp) conforme config da clínica.
  *
  * Protegido por CRON_SECRET no header Authorization: Bearer <CRON_SECRET>
@@ -30,23 +30,55 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceRoleClient();
     const clinicId = request.nextUrl.searchParams.get("clinic_id") || undefined;
 
-    const { data, error } = await supabase.rpc(
+    // 1) Compliance de confirmação: consulta ainda não confirmada
+    const { data: confirmData, error: confirmError } = await supabase.rpc(
       "check_compliance_and_create_not_confirmed_events",
       { p_clinic_id: clinicId || null }
     );
 
-    if (error) {
-      console.error("[cron/check-compliance]", error);
+    if (confirmError) {
+      console.error("[cron/check-compliance] confirmation", confirmError);
       return NextResponse.json(
-        { error: error.message },
+        { error: confirmError.message },
         { status: 500 }
       );
     }
 
-    // Processar envio automático para cada evento criado
-    const eventIds = (data?.event_ids as string[] | null) || [];
+    const confirmEventIds = (confirmData?.event_ids as string[] | null) || [];
     let sentCount = 0;
-    for (const eventId of eventIds) {
+    for (const eventId of confirmEventIds) {
+      const { data: ev } = await supabase
+        .from("event_timeline")
+        .select("clinic_id, event_code")
+        .eq("id", eventId)
+        .single();
+      if (ev) {
+        const { sent } = await runAutoSendForEvent(
+          eventId,
+          ev.clinic_id,
+          ev.event_code,
+          supabase
+        );
+        if (sent) sentCount++;
+      }
+    }
+
+    // 2) Compliance de formulário vinculado: lembrete para preencher formulário
+    const { data: formData, error: formError } = await supabase.rpc(
+      "check_compliance_and_create_form_reminder_events",
+      { p_clinic_id: clinicId || null }
+    );
+
+    if (formError) {
+      console.error("[cron/check-compliance] form_reminder", formError);
+      return NextResponse.json(
+        { error: formError.message },
+        { status: 500 }
+      );
+    }
+
+    const formEventIds = (formData?.event_ids as string[] | null) || [];
+    for (const eventId of formEventIds) {
       const { data: ev } = await supabase
         .from("event_timeline")
         .select("clinic_id, event_code")
@@ -65,7 +97,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      created_count: data?.created_count ?? 0,
+      confirmation_created: confirmData?.created_count ?? 0,
+      form_reminder_created: formData?.created_count ?? 0,
       sent_count: sentCount,
     });
   } catch (e) {
