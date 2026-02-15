@@ -55,21 +55,9 @@ export async function processMessageEvent(
       }
     }
 
-    // 2. Verificar consentimento LGPD
-    const { data: consent } = await supabase
-      .from("consents")
-      .select("id")
-      .eq("patient_id", patientId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (!consent) {
-      return {
-        success: false,
-        error: "Paciente não possui consentimento LGPD",
-      };
-    }
+    // 2. Consentimento LGPD: não bloqueamos envio de mensagens transacionais (lembretes, confirmações, etc.).
+    // A base legal é execução de contrato/legítimo interesse — paciente já se relaciona com a clínica ao agendar.
+    // A tabela consents permanece disponível para clínicas que quiserem registrar consentimento explícito.
 
     // 3. Buscar template: primeiro customizado (message_templates), senão padrão do sistema (system_message_templates)
     let template: { id?: string; subject?: string | null; body_html: string; email_header?: string | null; email_footer?: string | null; channel: string } | null = null;
