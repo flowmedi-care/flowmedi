@@ -17,6 +17,7 @@ export type SupabaseClientType = Awaited<ReturnType<typeof createClient>>;
 /**
  * Processa um evento e cria mensagem (automática ou pendente)
  * @param supabaseAdmin - Cliente com service role (obrigatório quando chamado sem usuário, ex: cron)
+ * @param formInstanceId - ID específico do form_instance (ex.: form_linked usa o form recém-vinculado)
  */
 export async function processMessageEvent(
   eventCode: string,
@@ -24,7 +25,8 @@ export async function processMessageEvent(
   patientId: string,
   appointmentId: string | null,
   channel: MessageChannel,
-  supabaseAdmin?: SupabaseClientType
+  supabaseAdmin?: SupabaseClientType,
+  formInstanceId?: string
 ): Promise<ProcessMessageResult> {
   const supabase = supabaseAdmin ?? (await createClient());
 
@@ -104,7 +106,8 @@ export async function processMessageEvent(
       patientId,
       appointmentId,
       clinicId,
-      supabase
+      supabase,
+      formInstanceId
     );
 
     // 5. Processar template (substituir variáveis) e montar corpo email
@@ -180,12 +183,14 @@ export async function processMessageEvent(
 
 /**
  * Busca dados do contexto a partir dos IDs
+ * @param formInstanceId - Se fornecido, usa este form_instance para link (ex.: form_linked)
  */
 async function buildVariableContextFromIds(
   patientId: string,
   appointmentId: string | null,
   clinicId: string,
-  supabaseClient?: SupabaseClientType
+  supabaseClient?: SupabaseClientType,
+  formInstanceId?: string
 ) {
   const supabase = supabaseClient ?? (await createClient());
 
@@ -252,19 +257,23 @@ async function buildVariableContextFromIds(
         : appointmentData.procedure;
     }
 
-    // Buscar formulário pendente (status != 'respondido') para incluir link no template
-    // Se todos respondidos, não inclui link (template "só consulta agendada")
-    const { data: formData } = await supabase
+    // Buscar formulário: formInstanceId específico (form_linked) ou primeiro pendente (appointment_created)
+    let formQuery = supabase
       .from("form_instances")
       .select(`
         link_token,
         status,
         form_template:form_templates(name)
-      `)
-      .eq("appointment_id", appointmentId)
-      .neq("status", "respondido")
-      .limit(1)
-      .maybeSingle();
+      `);
+    if (formInstanceId) {
+      formQuery = formQuery.eq("id", formInstanceId);
+    } else {
+      formQuery = formQuery
+        .eq("appointment_id", appointmentId)
+        .neq("status", "respondido")
+        .limit(1);
+    }
+    const { data: formData } = await formQuery.maybeSingle();
 
     if (formData) {
       formInstance = {

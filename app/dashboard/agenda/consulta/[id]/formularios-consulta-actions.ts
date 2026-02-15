@@ -79,17 +79,50 @@ export async function linkFormToAppointment(
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
+  const linkToken = crypto.randomUUID().replace(/-/g, "");
 
-  const { error } = await supabase.from("form_instances").insert({
-    appointment_id: appointmentId,
-    form_template_id: formTemplateId,
-    status: "pendente",
-    link_token: crypto.randomUUID().replace(/-/g, ""),
-    link_expires_at: expiresAt.toISOString(),
-    responses: {},
-  });
+  const { data: inserted, error } = await supabase
+    .from("form_instances")
+    .insert({
+      appointment_id: appointmentId,
+      form_template_id: formTemplateId,
+      status: "pendente",
+      link_token: linkToken,
+      link_expires_at: expiresAt.toISOString(),
+      responses: {},
+    })
+    .select("id")
+    .single();
 
   if (error) return { error: error.message };
+  if (!inserted) return { error: "Erro ao vincular formulário." };
+
+  // Buscar appointment (patient_id, clinic_id) para criar evento form_linked
+  const { data: appointment } = await supabase
+    .from("appointments")
+    .select("clinic_id, patient_id")
+    .eq("id", appointmentId)
+    .single();
+
+  if (appointment?.patient_id && appointment?.clinic_id) {
+    try {
+      const { data: eventId, error: eventErr } = await supabase.rpc("create_event_timeline", {
+        p_clinic_id: appointment.clinic_id,
+        p_event_code: "form_linked",
+        p_patient_id: appointment.patient_id,
+        p_appointment_id: appointmentId,
+        p_form_instance_id: inserted.id,
+        p_origin: "user",
+      });
+      if (!eventErr && eventId) {
+        const { runAutoSendForEvent } = await import("@/lib/event-send-logic-server");
+        await runAutoSendForEvent(eventId, appointment.clinic_id, "form_linked", supabase);
+      }
+    } catch (e) {
+      console.error("[linkFormToAppointment] form_linked event:", e);
+      // Não falhar o vínculo se o envio falhar
+    }
+  }
 
   revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
   return { error: null };

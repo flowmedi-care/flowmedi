@@ -31,6 +31,7 @@ export type EventDataForSend = {
   clinic_id: string;
   patient_id: string | null;
   appointment_id: string | null;
+  form_instance_id?: string | null;
   sent_channels: string[] | null;
 };
 
@@ -74,7 +75,8 @@ export async function executeSendForEvent(
           eventData.patient_id,
           eventData.appointment_id || null,
           channel,
-          supabase
+          supabase,
+          eventData.form_instance_id || undefined
         );
         if (!result.success) return { error: result.error ?? "Erro ao enviar." };
         sentThisRound.push(channel);
@@ -118,7 +120,7 @@ export async function runAutoSendForEvent(
 
   const { data: eventRow } = await supabase
     .from("event_timeline")
-    .select("patient_id, appointment_id, sent_channels")
+    .select("patient_id, appointment_id, form_instance_id, sent_channels")
     .eq("id", eventId)
     .single();
 
@@ -131,6 +133,7 @@ export async function runAutoSendForEvent(
       clinic_id: clinicId,
       patient_id: eventRow.patient_id ?? null,
       appointment_id: eventRow.appointment_id ?? null,
+      form_instance_id: eventRow.form_instance_id ?? null,
       sent_channels: (eventRow.sent_channels as string[] | null) ?? null,
     },
     channels,

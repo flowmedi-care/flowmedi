@@ -107,7 +107,7 @@ export function EventosClient({
   initialCompletedEvents,
   patients,
   patientIdsWithAppointment = [],
-  appointmentIdsWithoutForm = [],
+  appointmentIdsNeedingForm = [],
   eventTypes,
   eventConfig,
   msgEvents,
@@ -120,7 +120,7 @@ export function EventosClient({
   initialCompletedEvents: Event[];
   patients: Patient[];
   patientIdsWithAppointment?: string[];
-  appointmentIdsWithoutForm?: string[];
+  appointmentIdsNeedingForm?: string[];
   eventTypes: EventType[];
   eventConfig: ClinicEventConfigItem[];
   msgEvents: MessageEvent[];
@@ -377,10 +377,10 @@ export function EventosClient({
               </div>
             );
           })()}
-          {/* Consulta agendada sem formulário: ação recomendada Vincular formulário */}
+          {/* Consulta agendada sem form respondido: ação recomendada Vincular formulário */}
           {event.event_code === "appointment_created" &&
             event.appointment_id &&
-            appointmentIdsWithoutForm.includes(event.appointment_id) && (
+            appointmentIdsNeedingForm.includes(event.appointment_id) && (
               <div className="mb-4 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="text-sm text-amber-800 dark:text-amber-200">
