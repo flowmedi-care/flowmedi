@@ -46,16 +46,8 @@ export async function POST(request: NextRequest) {
 
     const event = events[0];
 
-    // Só enviar automaticamente se: sistema ligado para o evento E envio em modo automático para email
-    const { data: eventConfig } = await supabase
-      .from("clinic_event_config")
-      .select("system_enabled")
-      .eq("clinic_id", event.clinic_id)
-      .eq("event_code", event.event_code)
-      .maybeSingle();
-
-    const systemEnabled = eventConfig?.system_enabled ?? true;
-
+    // Só enviar automaticamente se o email estiver habilitado e em modo automático para este evento.
+    // (system_enabled serve só para mostrar o card em Pendentes vs Todos; não afeta o envio.)
     const { data: emailSetting } = await supabase
       .from("clinic_message_settings")
       .select("enabled, send_mode")
@@ -67,7 +59,7 @@ export async function POST(request: NextRequest) {
     const emailAutomatic =
       emailSetting?.enabled === true && emailSetting?.send_mode === "automatic";
 
-    if (!systemEnabled || !emailAutomatic) {
+    if (!emailAutomatic) {
       return NextResponse.json({ ok: true, sent: false });
     }
 
