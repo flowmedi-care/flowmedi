@@ -249,6 +249,7 @@ export function AgendaClient({
     specialInstructions: "",
     preparationNotes: "",
   });
+  const [selectedFormTemplateId, setSelectedFormTemplateId] = useState("");
 
 
   const today = useMemo(() => new Date(), []);
@@ -286,6 +287,7 @@ export function AgendaClient({
       return;
     }
     setShowForm(false);
+    setSelectedFormTemplateId("");
     setForm({
       patientId: "",
       doctorId: "",
@@ -764,64 +766,101 @@ export function AgendaClient({
                     Opcional. Pré-preenche recomendações e associa formulários do procedimento.
                   </p>
                 </div>
-                {formTemplates.length > 0 && (
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>Vincular formulário(s)</Label>
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                      value=""
-                      onChange={(e) => {
-                        const id = e.target.value;
-                        if (!id) return;
-                        if (form.linkedFormTemplateIds.includes(id)) return;
-                        setForm((f) => ({
-                          ...f,
-                          linkedFormTemplateIds: [...f.linkedFormTemplateIds, id],
-                        }));
-                        e.target.value = "";
-                      }}
-                    >
-                      <option value="">Selecione para adicionar</option>
-                      {formTemplates
-                        .filter((ft) => !form.linkedFormTemplateIds.includes(ft.id))
-                        .map((ft) => (
-                          <option key={ft.id} value={ft.id}>
-                            {ft.name}
-                          </option>
-                        ))}
-                    </select>
-                    {form.linkedFormTemplateIds.length > 0 && (
-                      <ul className="flex flex-wrap gap-2 mt-1">
-                        {form.linkedFormTemplateIds.map((id) => {
-                          const ft = formTemplates.find((t) => t.id === id);
-                          return (
-                            <li
-                              key={id}
-                              className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-sm"
-                            >
-                              {ft?.name ?? id}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setForm((f) => ({
-                                    ...f,
-                                    linkedFormTemplateIds: f.linkedFormTemplateIds.filter((x) => x !== id),
-                                  }))
-                                }
-                                className="text-muted-foreground hover:text-foreground"
-                              >
-                                ×
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
+                {/* Vincular formulário — mesmo layout da tela da consulta */}
+                <div className="space-y-4 sm:col-span-2">
+                  <Card>
+                    <CardHeader>
+                      <h3 className="font-semibold">Vincular formulário</h3>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {formTemplates.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          Nenhum formulário cadastrado na clínica.
+                        </p>
+                      ) : formTemplates.every((ft) => form.linkedFormTemplateIds.includes(ft.id)) ? (
+                        <p className="text-sm text-muted-foreground">
+                          Todos os formulários disponíveis já estão vinculados a esta consulta.
+                        </p>
+                      ) : (
+                        <>
+                          <select
+                            value={selectedFormTemplateId}
+                            onChange={(e) => setSelectedFormTemplateId(e.target.value)}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="">Selecione um formulário</option>
+                            {formTemplates
+                              .filter((ft) => !form.linkedFormTemplateIds.includes(ft.id))
+                              .map((ft) => (
+                                <option key={ft.id} value={ft.id}>
+                                  {ft.name}
+                                </option>
+                              ))}
+                          </select>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              if (!selectedFormTemplateId) return;
+                              if (form.linkedFormTemplateIds.includes(selectedFormTemplateId)) return;
+                              setForm((f) => ({
+                                ...f,
+                                linkedFormTemplateIds: [...f.linkedFormTemplateIds, selectedFormTemplateId],
+                              }));
+                              setSelectedFormTemplateId("");
+                            }}
+                            disabled={!selectedFormTemplateId}
+                            className="w-full"
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            + Vincular formulário
+                          </Button>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                  {form.patientId && (
                     <p className="text-xs text-muted-foreground">
-                      Opcional. Formulários vinculados à consulta (também pode vincular dentro da consulta).
+                      Se o paciente preencheu formulário público, ele será vinculado automaticamente à consulta.
                     </p>
-                  </div>
-                )}
+                  )}
+                  <Card>
+                    <CardContent className="py-6">
+                      {form.linkedFormTemplateIds.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center">
+                          Nenhum formulário vinculado a esta consulta.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {form.linkedFormTemplateIds.map((id) => {
+                            const ft = formTemplates.find((t) => t.id === id);
+                            return (
+                              <li
+                                key={id}
+                                className="flex items-center justify-between rounded-md border border-border p-3"
+                              >
+                                <span className="font-medium">{ft?.name ?? id}</span>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() =>
+                                    setForm((f) => ({
+                                      ...f,
+                                      linkedFormTemplateIds: f.linkedFormTemplateIds.filter((x) => x !== id),
+                                    }))
+                                  }
+                                >
+                                  Desvincular
+                                </Button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Data e hora *</Label>
                   <div className="flex gap-2">
