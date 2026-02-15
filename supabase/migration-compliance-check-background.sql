@@ -17,9 +17,9 @@ SET search_path = public
 AS $$
 DECLARE
   v_appointment record;
-  v_deadline timestamptz;
   v_event_id uuid;
   v_created_count int := 0;
+  v_event_ids uuid[] := ARRAY[]::uuid[];
 BEGIN
   -- Consultas agendadas (não confirmadas) cujo prazo de compliance já passou
   FOR v_appointment IN
@@ -66,11 +66,13 @@ BEGIN
       )
     ) INTO v_event_id;
     v_created_count := v_created_count + 1;
+    v_event_ids := array_append(v_event_ids, v_event_id);
   END LOOP;
 
   RETURN jsonb_build_object(
     'success', true,
-    'created_count', v_created_count
+    'created_count', v_created_count,
+    'event_ids', to_jsonb(v_event_ids)
   );
 END;
 $$;

@@ -12,17 +12,21 @@ export type ProcessMessageResult = {
   error?: string;
 };
 
+export type SupabaseClientType = Awaited<ReturnType<typeof createClient>>;
+
 /**
  * Processa um evento e cria mensagem (automática ou pendente)
+ * @param supabaseAdmin - Cliente com service role (obrigatório quando chamado sem usuário, ex: cron)
  */
 export async function processMessageEvent(
   eventCode: string,
   clinicId: string,
   patientId: string,
   appointmentId: string | null,
-  channel: MessageChannel
+  channel: MessageChannel,
+  supabaseAdmin?: SupabaseClientType
 ): Promise<ProcessMessageResult> {
-  const supabase = await createClient();
+  const supabase = supabaseAdmin ?? (await createClient());
 
   try {
     // 1. Buscar configuração do evento para este canal
@@ -45,7 +49,7 @@ export async function processMessageEvent(
     // 1.1. Verificar integração se for email
     if (channel === "email") {
       const { checkEmailIntegration } = await import("@/lib/comunicacao/email");
-      const integrationCheck = await checkEmailIntegration(clinicId);
+      const integrationCheck = await checkEmailIntegration(clinicId, supabase);
       
       if (!integrationCheck.connected) {
         return {
@@ -99,7 +103,8 @@ export async function processMessageEvent(
     const context = await buildVariableContextFromIds(
       patientId,
       appointmentId,
-      clinicId
+      clinicId,
+      supabase
     );
 
     // 5. Processar template (substituir variáveis) e montar corpo email
@@ -130,7 +135,8 @@ export async function processMessageEvent(
         template.id ?? null,
         processedSubject,
         processedBody,
-        context
+        context,
+        supabase
       );
     }
 
@@ -178,9 +184,10 @@ export async function processMessageEvent(
 async function buildVariableContextFromIds(
   patientId: string,
   appointmentId: string | null,
-  clinicId: string
+  clinicId: string,
+  supabaseClient?: SupabaseClientType
 ) {
-  const supabase = await createClient();
+  const supabase = supabaseClient ?? (await createClient());
 
   // Buscar paciente
   const { data: patient } = await supabase
@@ -292,9 +299,10 @@ export async function sendMessage(
   templateId: string | null,
   subject: string | null,
   body: string,
-  variables: any
+  variables: any,
+  supabaseClient?: SupabaseClientType
 ): Promise<ProcessMessageResult> {
-  const supabase = await createClient();
+  const supabase = supabaseClient ?? (await createClient());
 
   try {
     // Buscar email/telefone do paciente
@@ -321,7 +329,7 @@ export async function sendMessage(
 
       // Verificar se integração Google está conectada
       const { checkEmailIntegration } = await import("@/lib/comunicacao/email");
-      const integrationCheck = await checkEmailIntegration(clinicId);
+      const integrationCheck = await checkEmailIntegration(clinicId, supabase);
       
       if (!integrationCheck.connected) {
         return {
@@ -330,7 +338,7 @@ export async function sendMessage(
         };
       }
 
-      sendResult = await sendEmail(clinicId, patient.email, subject, body);
+      sendResult = await sendEmail(clinicId, patient.email, subject, body, supabase);
     } else {
       // WhatsApp
       if (!patient.phone) {

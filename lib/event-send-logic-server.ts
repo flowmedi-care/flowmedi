@@ -73,7 +73,8 @@ export async function executeSendForEvent(
           eventData.clinic_id,
           eventData.patient_id,
           eventData.appointment_id || null,
-          channel
+          channel,
+          supabase
         );
         if (!result.success) return { error: result.error ?? "Erro ao enviar." };
         sentThisRound.push(channel);
