@@ -1,9 +1,11 @@
 -- Migration: Job em background para compliance de formulário vinculado
--- Execute APÓS migration-eventos-consultas-full.sql (compliance_form_days, form_reminder)
+-- Execute APÓS migration-compliance-check-background.sql (usa is_appointment_same_day_past_0800_br)
+-- e migration-eventos-consultas-full.sql (compliance_form_days, form_reminder)
 --
 -- Quando o prazo de compliance do formulário passa (X dias antes da consulta) e o
 -- formulário vinculado ainda está pendente, cria o evento form_reminder na event_timeline.
 -- O evento aparece em Pendentes e pode disparar email/WhatsApp (lembrete para preencher).
+-- Usa a mesma regra dos outros jobs do cron: não criar no dia da consulta após 08:00 (Brasília).
 
 -- ========== FUNÇÃO: Verificar compliance de formulário e criar evento "Lembrete Formulário" ==========
 CREATE OR REPLACE FUNCTION public.check_compliance_and_create_form_reminder_events(
@@ -45,6 +47,8 @@ BEGIN
           AND et.event_code = 'form_reminder'
           AND et.status IN ('pending', 'sent', 'completed_without_send', 'completed')
       )
+      -- Regra única do cron: no dia da consulta após 08:00 (Brasília) não criar
+      AND NOT public.is_appointment_same_day_past_0800_br(a.scheduled_at)
   LOOP
     SELECT public.create_event_timeline(
       p_clinic_id := v_row.clinic_id,

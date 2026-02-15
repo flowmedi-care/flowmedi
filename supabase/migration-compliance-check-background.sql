@@ -5,6 +5,29 @@
 -- cria o evento appointment_not_confirmed na event_timeline.
 -- O evento aparece em Pendentes (se system_enabled = true) com ação recomendada:
 -- Confirmar / cancelar / remarcar Consulta.
+--
+-- Inclui função auxiliar usada por TODOS os jobs do cron: no dia da consulta após 08:00 (Brasília)
+-- não criar eventos de compliance, para não competir com as ações de consulta confirmada.
+
+-- ========== FUNÇÃO AUXILIAR: Usar em todos os jobs do cron ==========
+-- Retorna true quando é o dia da consulta e já passou das 08:00 (Brasília).
+-- Quando true, o job NÃO deve criar evento (deixa espaço para consulta confirmada).
+CREATE OR REPLACE FUNCTION public.is_appointment_same_day_past_0800_br(p_scheduled_at timestamptz)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  SELECT
+    (p_scheduled_at AT TIME ZONE 'America/Sao_Paulo')::date = (now() AT TIME ZONE 'America/Sao_Paulo')::date
+    AND (now() AT TIME ZONE 'America/Sao_Paulo')::time >= '08:00';
+$$;
+
+COMMENT ON FUNCTION public.is_appointment_same_day_past_0800_br IS
+  'True se for o dia da consulta (Brasília) e já passou das 08:00. Jobs do cron não devem criar eventos nesse caso.';
+
+GRANT EXECUTE ON FUNCTION public.is_appointment_same_day_past_0800_br TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_appointment_same_day_past_0800_br TO service_role;
 
 -- ========== FUNÇÃO: Verificar compliance e criar evento "Consulta ainda não confirmada" ==========
 CREATE OR REPLACE FUNCTION public.check_compliance_and_create_not_confirmed_events(
@@ -46,6 +69,8 @@ BEGIN
           AND et.event_code = 'appointment_not_confirmed'
           AND et.status IN ('pending', 'sent', 'completed_without_send', 'completed')
       )
+      -- Regra única do cron: no dia da consulta após 08:00 (Brasília) não criar
+      AND NOT public.is_appointment_same_day_past_0800_br(a.scheduled_at)
   LOOP
     SELECT public.create_event_timeline(
       p_clinic_id := v_appointment.clinic_id,
