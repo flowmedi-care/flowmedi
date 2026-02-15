@@ -292,6 +292,29 @@ export async function createAppointment(
     }
   }
 
+  // Vincular formulários públicos já preenchidos pelo paciente (por email) — atualiza as instâncias existentes
+  const { data: patientForLink } = await supabase
+    .from("patients")
+    .select("email")
+    .eq("id", patientId)
+    .single();
+  if (patientForLink?.email) {
+    const { data: publicInstances } = await supabase
+      .from("form_instances")
+      .select("id, form_templates!inner(clinic_id)")
+      .is("appointment_id", null)
+      .eq("status", "respondido")
+      .ilike("public_submitter_email", patientForLink.email.trim())
+      .eq("form_templates.clinic_id", profile.clinic_id);
+    const ids = (publicInstances ?? []).map((r: { id: string }) => r.id);
+    if (ids.length > 0) {
+      await supabase
+        .from("form_instances")
+        .update({ appointment_id: appointment.id })
+        .in("id", ids);
+    }
+  }
+
   // Verificar se paciente estava no pipeline e remover
   const { data: patient } = await supabase
     .from("patients")

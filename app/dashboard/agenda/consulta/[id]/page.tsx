@@ -61,6 +61,26 @@ export default async function ConsultaDetalhePage({
     .eq("clinic_id", profile.clinic_id);
   const retornoType = (appointmentTypes ?? []).find((t: { slug?: string }) => t.slug === "retorno");
 
+  const patient = Array.isArray(appointment.patient)
+    ? appointment.patient[0]
+    : appointment.patient;
+  const patientEmail = (patient as { email?: string } | null)?.email;
+
+  // Vincular formulários públicos já preenchidos pelo paciente (para consultas antigas sem vínculo)
+  if (patientEmail) {
+    const { data: publicInstances } = await supabase
+      .from("form_instances")
+      .select("id, form_templates!inner(clinic_id)")
+      .is("appointment_id", null)
+      .eq("status", "respondido")
+      .ilike("public_submitter_email", patientEmail.trim())
+      .eq("form_templates.clinic_id", profile.clinic_id);
+    const ids = (publicInstances ?? []).map((r: { id: string }) => r.id);
+    if (ids.length > 0) {
+      await supabase.from("form_instances").update({ appointment_id: id }).in("id", ids);
+    }
+  }
+
   const { data: instances } = await supabase
     .from("form_instances")
     .select(`
@@ -72,9 +92,6 @@ export default async function ConsultaDetalhePage({
     `)
     .eq("appointment_id", id);
 
-  const patient = Array.isArray(appointment.patient)
-    ? appointment.patient[0]
-    : appointment.patient;
   const doctor = Array.isArray(appointment.doctor)
     ? appointment.doctor[0]
     : appointment.doctor;
