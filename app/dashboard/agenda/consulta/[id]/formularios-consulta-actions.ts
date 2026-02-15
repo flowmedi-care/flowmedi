@@ -125,6 +125,7 @@ export async function linkFormToAppointment(
   }
 
   revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
+  revalidatePath("/dashboard/eventos");
   return { error: null };
 }
 

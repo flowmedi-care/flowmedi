@@ -311,8 +311,8 @@ export async function getPatientIdsWithAppointment(): Promise<{
 }
 
 // ========== CONSULTAS QUE PRECISAM DE "VINCULAR FORMULÁRIO" ==========
-// Mostrar ação recomendada quando: não tem nenhum formulário com status respondido
-// (ex.: veio de form público = tem respondido → não mostra; tem só pendente = mostra)
+// Mostrar ação recomendada quando: não tem NENHUM formulário vinculado
+// (uma vez vinculado — pendente ou respondido — não mostra mais a ação)
 export async function getAppointmentIdsNeedingFormLink(): Promise<{
   data: string[] | null;
   error: string | null;
@@ -336,15 +336,14 @@ export async function getAppointmentIdsNeedingFormLink(): Promise<{
 
   if (!appts?.length) return { data: [], error: null };
 
-  // Consultas que têm pelo menos um form com status respondido (não precisam da ação)
-  const { data: responded } = await supabase
+  // Consultas que têm pelo menos um form vinculado (não precisam da ação)
+  const { data: linked } = await supabase
     .from("form_instances")
     .select("appointment_id")
-    .in("appointment_id", appts.map((a) => a.id))
-    .eq("status", "respondido");
+    .in("appointment_id", appts.map((a) => a.id));
 
-  const idsWithRespondedForm = new Set((responded || []).map((r) => r.appointment_id).filter(Boolean));
-  const idsNeedingForm = appts.map((a) => a.id).filter((id) => !idsWithRespondedForm.has(id));
+  const idsWithForm = new Set((linked || []).map((r) => r.appointment_id).filter(Boolean));
+  const idsNeedingForm = appts.map((a) => a.id).filter((id) => !idsWithForm.has(id));
   return { data: idsNeedingForm, error: null };
 }
 

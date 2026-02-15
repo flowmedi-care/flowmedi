@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConsultaDetalheClient } from "./consulta-detalhe-client";
@@ -39,7 +40,15 @@ export function ConsultaTabsClient({
   isDoctor: boolean;
   currentUserId: string | null;
 }) {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("consulta");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "formularios" || tab === "paciente" || tab === "exames" || tab === "consulta") {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "consulta", label: "Consulta" },

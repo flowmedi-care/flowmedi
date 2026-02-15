@@ -288,7 +288,29 @@ export async function createAppointment(
           };
         })
       );
-      await supabase.from("form_instances").insert(instancesToCreate);
+      const { data: insertedRows } = await supabase
+        .from("form_instances")
+        .insert(instancesToCreate)
+        .select("id");
+      // Criar evento form_linked para cada formulário vinculado
+      if (insertedRows?.length) {
+        const { runAutoSendForEvent } = await import("@/lib/event-send-logic-server");
+        for (const row of insertedRows) {
+          try {
+            const { data: evId } = await supabase.rpc("create_event_timeline", {
+              p_clinic_id: profile.clinic_id,
+              p_event_code: "form_linked",
+              p_patient_id: patientId,
+              p_appointment_id: appointment.id,
+              p_form_instance_id: row.id,
+              p_origin: "user",
+            });
+            if (evId) await runAutoSendForEvent(evId, profile.clinic_id, "form_linked", supabase);
+          } catch (e) {
+            console.error("[createAppointment] form_linked event:", e);
+          }
+        }
+      }
     }
   }
 
@@ -312,6 +334,23 @@ export async function createAppointment(
         .from("form_instances")
         .update({ appointment_id: appointment.id })
         .in("id", ids);
+      // Criar evento form_linked para cada formulário público vinculado
+      try {
+        const { runAutoSendForEvent } = await import("@/lib/event-send-logic-server");
+        for (const formInstanceId of ids) {
+          const { data: evId } = await supabase.rpc("create_event_timeline", {
+            p_clinic_id: profile.clinic_id,
+            p_event_code: "form_linked",
+            p_patient_id: patientId,
+            p_appointment_id: appointment.id,
+            p_form_instance_id: formInstanceId,
+            p_origin: "user",
+          });
+          if (evId) await runAutoSendForEvent(evId, profile.clinic_id, "form_linked", supabase);
+        }
+      } catch (e) {
+        console.error("[createAppointment] form_linked event (public):", e);
+      }
     }
   }
 
@@ -375,6 +414,7 @@ export async function createAppointment(
   }
 
   revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard/eventos");
   revalidatePath("/dashboard");
   return { data: { id: appointment.id }, error: null };
 }
