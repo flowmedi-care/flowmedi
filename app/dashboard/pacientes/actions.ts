@@ -179,6 +179,29 @@ export async function registerPatientFromPublicForm(
     patientId = newPatient.id;
   }
 
+  // Médico vinculado ao formulário público (se houver) para preencher na Nova consulta
+  let doctorIdForEvent: string | null = null;
+  const { data: publicInstance } = await supabase
+    .from("form_instances")
+    .select("form_template_id")
+    .is("appointment_id", null)
+    .eq("public_submitter_email", email)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (publicInstance?.form_template_id) {
+    const { data: template } = await supabase
+      .from("form_templates")
+      .select("public_doctor_id")
+      .eq("id", publicInstance.form_template_id)
+      .eq("clinic_id", profile.clinic_id)
+      .single();
+    if (template?.public_doctor_id) doctorIdForEvent = template.public_doctor_id;
+  }
+
+  const eventMetadata: Record<string, unknown> = {};
+  if (doctorIdForEvent) eventMetadata.doctor_id = doctorIdForEvent;
+
   // Disparar evento "usuário cadastrado" (ação recomendada: Agendar consulta)
   const { error: eventError } = await supabase.rpc("create_event_timeline", {
     p_clinic_id: profile.clinic_id,
@@ -187,6 +210,7 @@ export async function registerPatientFromPublicForm(
     p_appointment_id: null,
     p_form_instance_id: null,
     p_origin: "user",
+    p_metadata: eventMetadata,
   });
   if (eventError) {
     console.error("[registerPatientFromPublicForm] create_event_timeline:", eventError);

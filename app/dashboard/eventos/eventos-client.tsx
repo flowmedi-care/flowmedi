@@ -381,23 +381,30 @@ export function EventosClient({
             );
           })()}
           {/* Usuário cadastrado: ação recomendada Nova consulta */}
-          {event.event_code === "patient_registered" && event.patient_id && (
-            <div className="mb-4 p-3 rounded-md bg-muted/50 border border-border">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                {event.patient_name && (
-                  <span className="text-sm text-muted-foreground">
-                    Paciente: <strong>{event.patient_name}</strong>
-                  </span>
-                )}
-                <Button asChild size="sm" className="shrink-0">
-                  <Link href="/dashboard/consulta">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nova consulta
-                  </Link>
-                </Button>
+          {event.event_code === "patient_registered" && event.patient_id && (() => {
+            const meta = (event.metadata || {}) as Record<string, unknown>;
+            const doctorId = meta.doctor_id as string | undefined;
+            const href = doctorId
+              ? `/dashboard/consulta?patientId=${event.patient_id}&doctorId=${doctorId}`
+              : `/dashboard/consulta?patientId=${event.patient_id}`;
+            return (
+              <div className="mb-4 p-3 rounded-md bg-muted/50 border border-border">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  {event.patient_name && (
+                    <span className="text-sm text-muted-foreground">
+                      Paciente: <strong>{event.patient_name}</strong>
+                    </span>
+                  )}
+                  <Button asChild size="sm" className="shrink-0">
+                    <Link href={href}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Nova consulta
+                    </Link>
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
             <div className="flex items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
               {isPending && (() => {

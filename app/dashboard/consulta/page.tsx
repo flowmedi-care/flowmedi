@@ -20,7 +20,7 @@ export default async function ConsultaPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id")
+    .select("clinic_id, role")
     .eq("id", user.id)
     .single();
   if (!profile?.clinic_id) redirect("/dashboard");
@@ -51,15 +51,46 @@ export default async function ConsultaPage() {
     .lte("scheduled_at", endRange.toISOString())
     .order("scheduled_at", { ascending: true });
 
-  const { data: doctors } = await supabase
+  const { data: doctorsRaw } = await supabase
     .from("profiles")
     .select("id, full_name")
     .eq("clinic_id", clinicId)
     .eq("role", "medico")
     .order("full_name");
 
+  let doctors = doctorsRaw ?? [];
+  if (profile?.role === "secretaria") {
+    const { data: sd } = await supabase
+      .from("secretary_doctors")
+      .select("doctor_id")
+      .eq("clinic_id", clinicId)
+      .eq("secretary_id", user.id);
+    const allowedDoctorIds = (sd ?? []).map((r) => r.doctor_id);
+    if (allowedDoctorIds.length > 0) {
+      doctors = doctors.filter((d) => allowedDoctorIds.includes(d.id));
+    }
+  }
+
+  const { data: patients } = await supabase
+    .from("patients")
+    .select("id, full_name")
+    .eq("clinic_id", clinicId)
+    .order("full_name");
+
   const { data: appointmentTypes } = await supabase
     .from("appointment_types")
+    .select("id, name")
+    .eq("clinic_id", clinicId)
+    .order("name");
+
+  const { data: procedures } = await supabase
+    .from("procedures")
+    .select("id, name, recommendations")
+    .eq("clinic_id", clinicId)
+    .order("display_order", { ascending: true });
+
+  const { data: formTemplates } = await supabase
+    .from("form_templates")
     .select("id, name")
     .eq("clinic_id", clinicId)
     .order("name");
@@ -107,13 +138,26 @@ export default async function ConsultaPage() {
     <div className="space-y-4">
       <ConsultaClient
         consultas={rows}
-        doctors={(doctors ?? []).map((d) => ({
+        patients={(patients ?? []).map((p) => ({
+          id: p.id,
+          full_name: p.full_name,
+        }))}
+        doctors={doctors.map((d) => ({
           id: d.id,
           full_name: d.full_name,
         }))}
         appointmentTypes={(appointmentTypes ?? []).map((t) => ({
           id: t.id,
           name: t.name,
+        }))}
+        procedures={(procedures ?? []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          recommendations: p.recommendations ?? null,
+        }))}
+        formTemplates={(formTemplates ?? []).map((f) => ({
+          id: f.id,
+          name: f.name,
         }))}
       />
     </div>
