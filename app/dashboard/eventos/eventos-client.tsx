@@ -106,6 +106,7 @@ export function EventosClient({
   initialAllEvents,
   initialCompletedEvents,
   patients,
+  patientIdsWithAppointment = [],
   eventTypes,
   eventConfig,
   msgEvents,
@@ -117,6 +118,7 @@ export function EventosClient({
   initialAllEvents: Event[];
   initialCompletedEvents: Event[];
   patients: Patient[];
+  patientIdsWithAppointment?: string[];
   eventTypes: EventType[];
   eventConfig: ClinicEventConfigItem[];
   msgEvents: MessageEvent[];
@@ -372,8 +374,22 @@ export function EventosClient({
               </div>
             );
           })()}
-          {/* Usuário cadastrado: ação recomendada Nova consulta */}
+          {/* Usuário cadastrado: Nova consulta ou "Consulta agendada" se já tiver consulta */}
           {event.event_code === "patient_registered" && event.patient_id && (() => {
+            const hasAppointment = patientIdsWithAppointment.includes(event.patient_id);
+            if (hasAppointment) {
+              return (
+                <div className="mb-4 p-3 rounded-md bg-muted/50 border border-border">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                    <span className="font-medium text-green-700">Consulta agendada</span>
+                    {event.patient_name && (
+                      <span className="text-muted-foreground">— {event.patient_name}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            }
             const meta = (event.metadata || {}) as Record<string, unknown>;
             const doctorId = meta.doctor_id as string | undefined;
             const href = doctorId

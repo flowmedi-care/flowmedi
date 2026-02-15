@@ -5,6 +5,7 @@ import {
   getAllEvents,
   getCompletedEvents,
   getPatientsForFilter,
+  getPatientIdsWithAppointment,
   getEventTypesForFilter,
   getClinicEventConfig,
 } from "./actions";
@@ -38,6 +39,7 @@ export default async function EventosPage() {
     allResult,
     completedResult,
     patientsResult,
+    patientIdsWithAppointmentResult,
     eventsResult,
     configResult,
     msgEventsResult,
@@ -49,6 +51,7 @@ export default async function EventosPage() {
     getAllEvents(),
     getCompletedEvents(),
     getPatientsForFilter(),
+    getPatientIdsWithAppointment(),
     getEventTypesForFilter(),
     getClinicEventConfig(),
     getMessageEvents(),
@@ -61,6 +64,7 @@ export default async function EventosPage() {
   const allEvents = allResult.data || [];
   const completedEvents = completedResult.data || [];
   const patients = patientsResult.data || [];
+  const patientIdsWithAppointment = patientIdsWithAppointmentResult.data || [];
   const eventTypes = eventsResult.data || [];
   const eventConfig = configResult.data || [];
   const msgEvents = msgEventsResult.data || [];
@@ -74,6 +78,7 @@ export default async function EventosPage() {
       initialAllEvents={allEvents}
       initialCompletedEvents={completedEvents}
       patients={patients}
+      patientIdsWithAppointment={patientIdsWithAppointment}
       eventTypes={eventTypes}
       eventConfig={eventConfig}
       msgEvents={msgEvents}

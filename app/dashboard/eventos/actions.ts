@@ -275,6 +275,33 @@ export async function getPatientsForFilter() {
   return { data: data || [], error: null };
 }
 
+// ========== PACIENTES COM PELO MENOS UMA CONSULTA (para evento "Usuário cadastrado") ==========
+export async function getPatientIdsWithAppointment(): Promise<{
+  data: string[] | null;
+  error: string | null;
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("patient_id")
+    .eq("clinic_id", profile.clinic_id)
+    .not("patient_id", "is", null);
+
+  if (error) return { data: null, error: error.message };
+  const ids = [...new Set((data || []).map((r) => r.patient_id).filter(Boolean))] as string[];
+  return { data: ids, error: null };
+}
+
 // ========== BUSCAR TIPOS DE EVENTOS PARA FILTRO ==========
 export async function getEventTypesForFilter() {
   const supabase = await createClient();
