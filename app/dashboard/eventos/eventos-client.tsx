@@ -325,8 +325,21 @@ export function EventosClient({
           </div>
         </CardHeader>
         <CardContent>
-          {/* Formulário público: dados do solicitante + ação recomendada Cadastrar */}
-          {event.event_code === "public_form_completed" && !event.patient_id && (() => {
+          {/* Formulário público: dados do solicitante + Cadastrar ou "Usuário cadastrado" */}
+          {event.event_code === "public_form_completed" && (() => {
+            if (event.patient_id) {
+              return (
+                <div className="mb-4 p-3 rounded-md bg-muted/50 border border-border">
+                  <div className="flex items-center gap-2 text-sm">
+                    <UserCheck className="h-4 w-4 text-green-600 shrink-0" />
+                    <span className="font-medium text-green-700">Usuário cadastrado</span>
+                    {event.patient_name && (
+                      <span className="text-muted-foreground">— {event.patient_name}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            }
             const meta = (event.metadata || {}) as Record<string, unknown>;
             const nome = (meta.public_submitter_name as string) || null;
             const email = (meta.public_submitter_email as string) || null;
@@ -351,16 +364,16 @@ export function EventosClient({
                   </div>
                   {canRegister && (
                     <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => handleCadastrarFromEvent(event)}
-                        disabled={registeringEventId === event.id}
-                        title="Cadastrar paciente"
-                        className="shrink-0"
-                      >
-                        <UserCheck className="h-4 w-4 mr-1" />
-                        {registeringEventId === event.id ? "Cadastrando..." : "Cadastrar"}
-                      </Button>
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleCadastrarFromEvent(event)}
+                      disabled={registeringEventId === event.id}
+                      title="Cadastrar paciente"
+                      className="shrink-0"
+                    >
+                      <UserCheck className="h-4 w-4 mr-1" />
+                      {registeringEventId === event.id ? "Cadastrando..." : "Cadastrar"}
+                    </Button>
                   )}
                 </div>
               </div>
