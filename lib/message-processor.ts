@@ -18,6 +18,7 @@ export type SupabaseClientType = Awaited<ReturnType<typeof createClient>>;
  * Processa um evento e cria mensagem (automática ou pendente)
  * @param supabaseAdmin - Cliente com service role (obrigatório quando chamado sem usuário, ex: cron)
  * @param formInstanceId - ID específico do form_instance (ex.: form_linked usa o form recém-vinculado)
+ * @param forceImmediateSend - Se true, envia imediatamente mesmo com send_mode=manual (ex.: usuário clicou Enviar na Central de Eventos)
  */
 export async function processMessageEvent(
   eventCode: string,
@@ -26,7 +27,8 @@ export async function processMessageEvent(
   appointmentId: string | null,
   channel: MessageChannel,
   supabaseAdmin?: SupabaseClientType,
-  formInstanceId?: string
+  formInstanceId?: string,
+  forceImmediateSend?: boolean
 ): Promise<ProcessMessageResult> {
   const supabase = supabaseAdmin ?? (await createClient());
 
@@ -127,8 +129,8 @@ export async function processMessageEvent(
       processedBody = header + rawBody + footer;
     }
 
-    // 6. Se modo automático, enviar diretamente
-    if (setting.send_mode === "automatic") {
+    // 6. Enviar diretamente: modo automático OU usuário clicou Enviar (forceImmediateSend)
+    if (setting.send_mode === "automatic" || forceImmediateSend) {
       return await sendMessage(
         channel,
         clinicId,
@@ -143,7 +145,7 @@ export async function processMessageEvent(
       );
     }
 
-    // 7. Se modo manual, criar mensagem pendente (template_id null quando usa template do sistema)
+    // 7. Se modo manual e não for envio explícito do usuário, criar mensagem pendente (template_id null quando usa template do sistema)
     const { data: pendingMessage, error: pendingError } = await supabase
       .from("pending_messages")
       .insert({

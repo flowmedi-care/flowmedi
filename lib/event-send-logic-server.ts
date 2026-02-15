@@ -44,7 +44,9 @@ export async function executeSendForEvent(
   eventId: string,
   eventData: EventDataForSend,
   channelsToSend: ("email" | "whatsapp")[],
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  /** Se true, envia imediatamente (ex.: usuário clicou Enviar na Central de Eventos), ignorando send_mode=manual */
+  forceImmediateSend = false
 ): Promise<{ error: string | null }> {
   if (channelsToSend.length === 0) return { error: null };
 
@@ -76,7 +78,8 @@ export async function executeSendForEvent(
           eventData.appointment_id || null,
           channel,
           supabase,
-          eventData.form_instance_id || undefined
+          eventData.form_instance_id || undefined,
+          forceImmediateSend
         );
         if (!result.success) return { error: result.error ?? "Erro ao enviar." };
         sentThisRound.push(channel);

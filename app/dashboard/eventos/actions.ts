@@ -234,10 +234,12 @@ export async function processEvent(
         clinic_id: profile.clinic_id,
         patient_id: eventData.patient_id ?? null,
         appointment_id: eventData.appointment_id ?? null,
+        form_instance_id: eventData.form_instance_id ?? null,
         sent_channels: (eventData.sent_channels as string[] | null) ?? null,
       },
       channels,
-      supabase
+      supabase,
+      true // forceImmediateSend: usuário clicou Enviar, enviar imediatamente mesmo com send_mode=manual
     );
     return { error: result.error };
   }
