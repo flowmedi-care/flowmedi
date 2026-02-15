@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus } from "lucide-react";
+import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus, FileText } from "lucide-react";
 import { processEvent, concluirEvent, getMessagePreviewForEvent, type ClinicEventConfigItem } from "./actions";
 import { EventosConfigModal } from "./eventos-config-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -107,6 +107,7 @@ export function EventosClient({
   initialCompletedEvents,
   patients,
   patientIdsWithAppointment = [],
+  appointmentIdsWithoutForm = [],
   eventTypes,
   eventConfig,
   msgEvents,
@@ -119,6 +120,7 @@ export function EventosClient({
   initialCompletedEvents: Event[];
   patients: Patient[];
   patientIdsWithAppointment?: string[];
+  appointmentIdsWithoutForm?: string[];
   eventTypes: EventType[];
   eventConfig: ClinicEventConfigItem[];
   msgEvents: MessageEvent[];
@@ -375,6 +377,24 @@ export function EventosClient({
               </div>
             );
           })()}
+          {/* Consulta agendada sem formulário: ação recomendada Vincular formulário */}
+          {event.event_code === "appointment_created" &&
+            event.appointment_id &&
+            appointmentIdsWithoutForm.includes(event.appointment_id) && (
+              <div className="mb-4 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-sm text-amber-800 dark:text-amber-200">
+                    <strong>Ação recomendada:</strong> Vincular formulário a esta consulta
+                  </span>
+                  <Button asChild size="sm" variant="outline" className="shrink-0 border-amber-300 dark:border-amber-700">
+                    <Link href={`/dashboard/agenda/consulta/${event.appointment_id}`}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Vincular formulário
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            )}
           {/* Usuário cadastrado: Nova consulta ou "Consulta agendada" se já tiver consulta */}
           {event.event_code === "patient_registered" && event.patient_id && (() => {
             const hasAppointment = patientIdsWithAppointment.includes(event.patient_id);

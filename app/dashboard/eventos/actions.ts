@@ -310,6 +310,41 @@ export async function getPatientIdsWithAppointment(): Promise<{
   return { data: ids, error: null };
 }
 
+// ========== CONSULTAS SEM FORMULÁRIO VINCULADO (para ação recomendada "Vincular formulário") ==========
+export async function getAppointmentIdsWithoutForm(): Promise<{
+  data: string[] | null;
+  error: string | null;
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const { data: appts } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("clinic_id", profile.clinic_id)
+    .in("status", ["agendada", "confirmada"]);
+
+  if (!appts?.length) return { data: [], error: null };
+
+  const { data: withForms } = await supabase
+    .from("form_instances")
+    .select("appointment_id")
+    .in("appointment_id", appts.map((a) => a.id))
+    .not("appointment_id", "is", null);
+
+  const idsWithForm = new Set((withForms || []).map((r) => r.appointment_id).filter(Boolean));
+  const idsWithoutForm = appts.map((a) => a.id).filter((id) => !idsWithForm.has(id));
+  return { data: idsWithoutForm, error: null };
+}
+
 // ========== BUSCAR TIPOS DE EVENTOS PARA FILTRO ==========
 export async function getEventTypesForFilter() {
   const supabase = await createClient();
