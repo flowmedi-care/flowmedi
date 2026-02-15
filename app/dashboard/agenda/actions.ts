@@ -110,6 +110,8 @@ export async function createAppointment(
   if (insertErr) return { error: insertErr.message };
   if (!appointment) return { error: "Erro ao criar consulta." };
 
+  const formLinkedEventIds: string[] = [];
+
   if (appointmentTypeId) {
     const { data: templates } = await supabase
       .from("form_templates")
@@ -292,9 +294,8 @@ export async function createAppointment(
         .from("form_instances")
         .insert(instancesToCreate)
         .select("id");
-      // Criar evento form_linked para cada formulário vinculado
+      // Criar evento form_linked para cada formulário vinculado (envio será marcado após appointment_created)
       if (insertedRows?.length) {
-        const { runAutoSendForEvent } = await import("@/lib/event-send-logic-server");
         for (const row of insertedRows) {
           try {
             const { data: evId } = await supabase.rpc("create_event_timeline", {
@@ -305,7 +306,7 @@ export async function createAppointment(
               p_form_instance_id: row.id,
               p_origin: "user",
             });
-            if (evId) await runAutoSendForEvent(evId, profile.clinic_id, "form_linked", supabase);
+            if (evId) formLinkedEventIds.push(evId);
           } catch (e) {
             console.error("[createAppointment] form_linked event:", e);
           }
@@ -334,9 +335,8 @@ export async function createAppointment(
         .from("form_instances")
         .update({ appointment_id: appointment.id })
         .in("id", ids);
-      // Criar evento form_linked para cada formulário público vinculado
+      // Criar evento form_linked para cada formulário público vinculado (envio será marcado após appointment_created)
       try {
-        const { runAutoSendForEvent } = await import("@/lib/event-send-logic-server");
         for (const formInstanceId of ids) {
           const { data: evId } = await supabase.rpc("create_event_timeline", {
             p_clinic_id: profile.clinic_id,
@@ -346,7 +346,7 @@ export async function createAppointment(
             p_form_instance_id: formInstanceId,
             p_origin: "user",
           });
-          if (evId) await runAutoSendForEvent(evId, profile.clinic_id, "form_linked", supabase);
+          if (evId) formLinkedEventIds.push(evId);
         }
       } catch (e) {
         console.error("[createAppointment] form_linked event (public):", e);
@@ -393,6 +393,7 @@ export async function createAppointment(
 
   // Processar evento de consulta agendada (template com/sem link conforme form respondido)
   // O trigger cria o evento em event_timeline; enviamos via runAutoSendForEvent
+  let appointmentCreatedSentChannels: string[] = [];
   try {
     const { data: eventRow } = await supabase
       .from("event_timeline")
@@ -407,10 +408,26 @@ export async function createAppointment(
     if (eventRow) {
       const { runAutoSendForEvent } = await import("@/lib/event-send-logic-server");
       await runAutoSendForEvent(eventRow.id, profile.clinic_id, "appointment_created", supabase);
+      // Se criamos form_linked junto ao agendamento, marcar como enviado sem enviar (evitar duplicata)
+      if (formLinkedEventIds.length > 0) {
+        const { data: sentRow } = await supabase
+          .from("event_timeline")
+          .select("sent_channels")
+          .eq("id", eventRow.id)
+          .single();
+        appointmentCreatedSentChannels = (sentRow?.sent_channels as string[]) ?? [];
+      }
     }
   } catch (error) {
     // Não falhar a criação da consulta se o processamento de mensagem falhar
     console.error("Erro ao processar mensagem:", error);
+  }
+
+  if (formLinkedEventIds.length > 0 && appointmentCreatedSentChannels.length > 0) {
+    await supabase
+      .from("event_timeline")
+      .update({ sent_channels: appointmentCreatedSentChannels })
+      .in("id", formLinkedEventIds);
   }
 
   revalidatePath("/dashboard/agenda");
