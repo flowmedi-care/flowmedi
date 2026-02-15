@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { createAppointment, updateAppointment, updateUserPreferences } from "./actions";
+import { createAppointment, updateAppointment, updateUserPreferences, getPublicFormTemplatesForPatient } from "./actions";
 import { useRouter } from "next/navigation";
 import { Plus, CalendarClock, GripVertical, ChevronDown } from "lucide-react";
 import { AgendaFilters } from "./agenda-filters";
@@ -126,39 +126,40 @@ export function AgendaClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Verificar se deve abrir o formulário automaticamente
+  // Verificar se deve abrir o formulário automaticamente (ex: ?new=true ou vindo da aba Consulta)
   useEffect(() => {
-    const shouldOpenForm = searchParams.get("new") === "true";
+    const shouldOpenForm = searchParams.get("new") === "true" || searchParams.get("novaConsulta") === "1";
     const patientIdParam = searchParams.get("patientId");
     const patientEmailParam = searchParams.get("patientEmail");
+    const doctorIdParam = searchParams.get("doctorId");
     
-    if (shouldOpenForm || patientIdParam || patientEmailParam) {
+    if (shouldOpenForm || patientIdParam || patientEmailParam || doctorIdParam) {
       setShowForm(true);
       
-      // Se tem patientId, pré-selecionar
-      if (patientIdParam) {
-        const patient = patients.find((p) => p.id === patientIdParam);
-        if (patient) {
-          setForm((prev) => ({ ...prev, patientId: patient.id }));
+      setForm((prev) => {
+        let next = { ...prev };
+        if (patientIdParam) {
+          const patient = patients.find((p) => p.id === patientIdParam);
+          if (patient) next = { ...next, patientId: patient.id };
+        } else if (patientEmailParam) {
+          const patient = patients.find((p) => p.email?.toLowerCase() === patientEmailParam.toLowerCase());
+          if (patient) next = { ...next, patientId: patient.id };
         }
-      }
-      
-      // Se tem patientEmail, buscar e pré-selecionar
-      if (patientEmailParam && !patientIdParam) {
-        const patient = patients.find((p) => p.email?.toLowerCase() === patientEmailParam.toLowerCase());
-        if (patient) {
-          setForm((prev) => ({ ...prev, patientId: patient.id }));
+        if (doctorIdParam && doctors.some((d) => d.id === doctorIdParam)) {
+          next = { ...next, doctorId: doctorIdParam };
         }
-      }
+        return next;
+      });
       
-      // Limpar query params após usar
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete("new");
+      newUrl.searchParams.delete("novaConsulta");
       newUrl.searchParams.delete("patientId");
       newUrl.searchParams.delete("patientEmail");
+      newUrl.searchParams.delete("doctorId");
       router.replace(newUrl.pathname + newUrl.search, { scroll: false });
     }
-  }, [searchParams, router, patients]);
+  }, [searchParams, router, patients, doctors]);
   const [viewMode, setViewMode] = useState<ViewMode>(
     initialPreferences?.viewMode || "timeline"
   );
@@ -250,6 +251,17 @@ export function AgendaClient({
     preparationNotes: "",
   });
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState("");
+  const [publicFormTemplates, setPublicFormTemplates] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!form.patientId) {
+      setPublicFormTemplates([]);
+      return;
+    }
+    getPublicFormTemplatesForPatient(form.patientId).then((res) => {
+      setPublicFormTemplates(res.data ?? []);
+    });
+  }, [form.patientId]);
 
 
   const today = useMemo(() => new Date(), []);
@@ -825,7 +837,7 @@ export function AgendaClient({
                   )}
                   <Card>
                     <CardContent className="py-6">
-                      {form.linkedFormTemplateIds.length === 0 ? (
+                      {form.linkedFormTemplateIds.length === 0 && publicFormTemplates.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center">
                           Nenhum formulário vinculado a esta consulta.
                         </p>
@@ -856,6 +868,17 @@ export function AgendaClient({
                               </li>
                             );
                           })}
+                          {publicFormTemplates.map((ft) => (
+                            <li
+                              key={ft.id}
+                              className="flex items-center justify-between rounded-md border border-border border-green-200 bg-green-50/50 dark:border-green-900/50 dark:bg-green-950/20 p-3"
+                            >
+                              <span className="font-medium">{ft.name}</span>
+                              <Badge variant="secondary" className="shrink-0">
+                                Vinculado automaticamente (formulário público)
+                              </Badge>
+                            </li>
+                          ))}
                         </ul>
                       )}
                     </CardContent>

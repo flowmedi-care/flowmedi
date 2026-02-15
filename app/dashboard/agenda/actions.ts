@@ -5,6 +5,48 @@ import { revalidatePath } from "next/cache";
 import { getClinicPlanData, countMonthAppointments } from "@/lib/plan-helpers";
 import { canCreateAppointment, getUpgradeMessage } from "@/lib/plan-gates";
 
+/** Formulários públicos preenchidos pelo paciente que serão vinculados automaticamente à consulta */
+export async function getPublicFormTemplatesForPatient(patientId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: [], error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { data: [], error: "Clínica não encontrada." };
+
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("email")
+    .eq("id", patientId)
+    .eq("clinic_id", profile.clinic_id)
+    .single();
+  if (!patient?.email) return { data: [], error: null };
+
+  const { data, error } = await supabase
+    .from("form_instances")
+    .select(`
+      form_template_id,
+      form_templates!inner ( id, name, clinic_id )
+    `)
+    .is("appointment_id", null)
+    .ilike("public_submitter_email", patient.email.trim())
+    .eq("status", "respondido")
+    .eq("form_templates.clinic_id", profile.clinic_id);
+
+  if (error) return { data: [], error: error.message };
+
+  const templates = (data ?? []).map((r: { form_templates: { id: string; name: string } | { id: string; name: string }[] }) => {
+    const t = Array.isArray(r.form_templates) ? r.form_templates[0] : r.form_templates;
+    return { id: t?.id ?? "", name: t?.name ?? "" };
+  });
+  const unique = Array.from(new Map(templates.map((t) => [t.id, t])).values()).filter((t) => t.id);
+  return { data: unique, error: null };
+}
+
 function generateLinkToken(): string {
   return crypto.randomUUID().replace(/-/g, "") + Date.now().toString(36);
 }
