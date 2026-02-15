@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { processEventByIdForPublicForm } from "@/lib/message-processor";
+import { runAutoSendForEvent } from "@/lib/event-send-logic";
 
 /**
  * Chamado após o envio de um formulário público para disparar o envio automático
- * de email (se o evento estiver configurado como automático).
+ * (email e/ou WhatsApp conforme configurado para o evento: enabled + send_mode = automatic).
+ * system_enabled só define Pendentes vs Todos; não afeta o envio.
  * Body: { form_instance_id: string }
  * Requer SUPABASE_SERVICE_ROLE_KEY no .env para rodar sem usuário logado.
  */
@@ -45,34 +46,22 @@ export async function POST(request: NextRequest) {
     }
 
     const event = events[0];
+    const { sent, error } = await runAutoSendForEvent(
+      event.id,
+      event.clinic_id,
+      event.event_code,
+      supabase
+    );
 
-    // Só enviar automaticamente se o email estiver habilitado e em modo automático para este evento.
-    // (system_enabled serve só para mostrar o card em Pendentes vs Todos; não afeta o envio.)
-    const { data: emailSetting } = await supabase
-      .from("clinic_message_settings")
-      .select("enabled, send_mode")
-      .eq("clinic_id", event.clinic_id)
-      .eq("event_code", event.event_code)
-      .eq("channel", "email")
-      .maybeSingle();
-
-    const emailAutomatic =
-      emailSetting?.enabled === true && emailSetting?.send_mode === "automatic";
-
-    if (!emailAutomatic) {
-      return NextResponse.json({ ok: true, sent: false });
-    }
-
-    const result = await processEventByIdForPublicForm(event.id, supabase);
-    if (!result.success) {
-      console.error("[process-public-form-event] processEventByIdForPublicForm:", result.error);
+    if (error) {
+      console.error("[process-public-form-event] runAutoSendForEvent:", error);
       return NextResponse.json(
-        { error: result.error || "Erro ao enviar", debug: result.error },
+        { error: error || "Erro ao enviar", debug: error },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ ok: true, sent: true });
+    return NextResponse.json({ ok: true, sent });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;

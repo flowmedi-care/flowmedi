@@ -202,59 +202,36 @@ export async function processEvent(
     return { error: null, testMode: false };
   }
 
-  // Se ação for "send", processar envio
+  // Se ação for "send", processar envio (lógica centralizada em event-send-logic)
   if (action === "send") {
-    const { processMessageEvent, processEventByIdForPublicForm } = await import("@/lib/message-processor");
+    const { executeSendForEvent } = await import("@/lib/event-send-logic");
 
-    try {
-      const channels = channelsToSend?.length ? channelsToSend : (eventData.channels || []);
-      // Para formulário público, quando o usuário escolheu canais no modal, usar a escolha (eventData.channels pode estar vazio)
-      const channelsFiltered =
-        !eventData.patient_id &&
-        eventData.event_code === "public_form_completed" &&
-        channelsToSend?.length
-          ? channelsToSend.filter((c: string) => c === "email" || c === "whatsapp")
-          : channels.filter((c: string) => (eventData.channels || []).includes(c));
+    const channels =
+      channelsToSend?.length ?
+        channelsToSend
+      : (eventData.event_code === "public_form_completed" && !eventData.patient_id)
+        ? (["email", "whatsapp"] as const).filter((c) =>
+            (eventData.channels as string[] | null)?.includes(c)
+          )
+        : ((eventData.channels as string[] | null) ?? []).filter(
+            (c): c is "email" | "whatsapp" => c === "email" || c === "whatsapp"
+          );
 
-      if (!eventData.patient_id && eventData.event_code === "public_form_completed") {
-        if (channelsFiltered.includes("email")) {
-          const result = await processEventByIdForPublicForm(eventId);
-          if (!result.success) return { error: result.error ?? "Erro ao enviar." };
-        }
-        if (channelsFiltered.includes("whatsapp")) {
-          return { error: "Envio por WhatsApp para formulário público em breve." };
-        }
-      } else {
-        for (const channel of channelsFiltered) {
-          if (eventData.patient_id) {
-            await processMessageEvent(
-              eventData.event_code,
-              profile.clinic_id,
-              eventData.patient_id,
-              eventData.appointment_id || null,
-              channel as "email" | "whatsapp"
-            );
-          }
-        }
-      }
+    if (channels.length === 0) return { error: null };
 
-      const currentSent = (eventData.sent_channels as string[] | null) ?? [];
-      const newSentChannels = Array.from(new Set([...currentSent, ...channelsFiltered]));
-
-      // Mantém status "pending": evento fica em Pendentes até o usuário clicar em Concluir (ação recomendada)
-      const { error: updateError } = await supabase
-        .from("event_timeline")
-        .update({ sent_channels: newSentChannels })
-        .eq("id", eventId);
-
-      if (updateError) {
-        return { error: `Erro ao atualizar evento: ${updateError.message}` };
-      }
-
-      return { error: null };
-    } catch (error: any) {
-      return { error: `Erro ao enviar mensagens: ${error.message}` };
-    }
+    const result = await executeSendForEvent(
+      eventId,
+      {
+        event_code: eventData.event_code,
+        clinic_id: profile.clinic_id,
+        patient_id: eventData.patient_id ?? null,
+        appointment_id: eventData.appointment_id ?? null,
+        sent_channels: (eventData.sent_channels as string[] | null) ?? null,
+      },
+      channels,
+      supabase
+    );
+    return { error: result.error };
   }
 
   // Se ação for "mark_ok", apenas marcar como concluído sem envio

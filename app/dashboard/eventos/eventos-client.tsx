@@ -15,6 +15,7 @@ import { registerPatientFromPublicForm } from "@/app/dashboard/pacientes/actions
 import { toast } from "@/components/ui/toast";
 import type { MessageEvent, ClinicMessageSetting, MessageTemplate, EffectiveTemplateItem } from "@/app/dashboard/mensagens/actions";
 import type { MessagePreviewItem } from "@/lib/message-processor";
+import { getChannelSendState } from "@/lib/event-send-logic";
 
 // Formatação de data
 function formatDate(dateString: string): string {
@@ -183,27 +184,18 @@ export function EventosClient({
   }
 
   function getChannelStatus(event: Event) {
-    const enabledForEvent = settings.filter(
-      (s) => s.event_code === event.event_code && s.enabled
-    );
-    const enabledChannels = enabledForEvent.map((s) => s.channel);
-    const sent = event.sent_channels ?? [];
-    const emailEnabled = enabledChannels.includes("email");
-    const whatsappEnabled = enabledChannels.includes("whatsapp");
-    const emailSent = sent.includes("email");
-    const whatsappSent = sent.includes("whatsapp");
-    const allDisabled = !emailEnabled && !whatsappEnabled;
-    const allSent =
-      enabledChannels.length > 0 &&
-      enabledChannels.every((c) => sent.includes(c));
+    const state = getChannelSendState(event, settings);
     return {
-      emailEnabled,
-      whatsappEnabled,
-      emailSent,
-      whatsappSent,
-      allDisabled,
-      allSent,
-      enabledChannels: enabledChannels as ("email" | "whatsapp")[],
+      emailEnabled: state.email.enabled,
+      whatsappEnabled: state.whatsapp.enabled,
+      emailSent: state.email.alreadySent,
+      whatsappSent: state.whatsapp.alreadySent,
+      allDisabled: state.allDisabled,
+      allSent: state.allSent,
+      enabledChannels: [
+        ...(state.email.enabled ? (["email"] as const) : []),
+        ...(state.whatsapp.enabled ? (["whatsapp"] as const) : []),
+      ],
     };
   }
 
