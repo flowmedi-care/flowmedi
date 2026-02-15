@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { runAutoSendForEvent } from "@/lib/event-send-logic";
+import { runAutoSendForEvent } from "@/lib/event-send-logic-server";
 
 /**
  * Chamado após o envio de um formulário público para disparar o envio automático

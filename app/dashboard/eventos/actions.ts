@@ -204,7 +204,7 @@ export async function processEvent(
 
   // Se ação for "send", processar envio (lógica centralizada em event-send-logic)
   if (action === "send") {
-    const { executeSendForEvent } = await import("@/lib/event-send-logic");
+    const { executeSendForEvent } = await import("@/lib/event-send-logic-server");
 
     const channels =
       channelsToSend?.length ?
