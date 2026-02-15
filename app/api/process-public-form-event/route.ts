@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceRoleClient();
     const { data: events, error: fetchError } = await supabase
       .from("event_timeline")
-      .select("id")
+      .select("id, clinic_id, event_code")
       .eq("form_instance_id", formInstanceId)
       .eq("status", "pending")
       .order("created_at", { ascending: true })
@@ -44,7 +44,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, sent: false });
     }
 
-    const result = await processEventByIdForPublicForm(events[0].id, supabase);
+    const event = events[0];
+
+    // Só enviar automaticamente se: sistema ligado para o evento E envio em modo automático para email
+    const { data: eventConfig } = await supabase
+      .from("clinic_event_config")
+      .select("system_enabled")
+      .eq("clinic_id", event.clinic_id)
+      .eq("event_code", event.event_code)
+      .maybeSingle();
+
+    const systemEnabled = eventConfig?.system_enabled ?? true;
+
+    const { data: emailSetting } = await supabase
+      .from("clinic_message_settings")
+      .select("enabled, send_mode")
+      .eq("clinic_id", event.clinic_id)
+      .eq("event_code", event.event_code)
+      .eq("channel", "email")
+      .maybeSingle();
+
+    const emailAutomatic =
+      emailSetting?.enabled === true && emailSetting?.send_mode === "automatic";
+
+    if (!systemEnabled || !emailAutomatic) {
+      return NextResponse.json({ ok: true, sent: false });
+    }
+
+    const result = await processEventByIdForPublicForm(event.id, supabase);
     if (!result.success) {
       console.error("[process-public-form-event] processEventByIdForPublicForm:", result.error);
       return NextResponse.json(
