@@ -226,6 +226,7 @@ export function EventosClient({
     setProcessing(null);
 
     if (result.error) {
+      toast(result.error, "error");
       alert(`Erro: ${result.error}`);
     } else {
       setSendModalEvent(null);
@@ -645,7 +646,7 @@ export function EventosClient({
                     </Button>
                     <Button
                       onClick={() =>
-                        handleProcessEvent(sendModalEvent.id, "send", sendModalChannels)
+                        handleProcessEvent(sendModalEvent.id, "send", [...sendModalChannels])
                       }
                       disabled={
                         sendModalChannels.length === 0 || processing === sendModalEvent.id

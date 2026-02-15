@@ -199,25 +199,33 @@ export async function processEvent(
 
   // Evento "usuário cadastrado" não dispara contato (apenas ação recomendada)
   if (action === "send" && eventData.event_code === "patient_registered") {
-    return { error: null, testMode: false };
+    return {
+      error: "Este evento não envia mensagens por email ou WhatsApp. Use a ação recomendada (Nova consulta).",
+    };
   }
 
-  // Se ação for "send", processar envio (lógica centralizada em event-send-logic)
+  // Se ação for "send", processar envio (lógica centralizada em event-send-logic-server)
   if (action === "send") {
     const { executeSendForEvent } = await import("@/lib/event-send-logic-server");
 
-    const channels =
-      channelsToSend?.length ?
-        channelsToSend
-      : (eventData.event_code === "public_form_completed" && !eventData.patient_id)
-        ? (["email", "whatsapp"] as const).filter((c) =>
-            (eventData.channels as string[] | null)?.includes(c)
-          )
-        : ((eventData.channels as string[] | null) ?? []).filter(
-            (c): c is "email" | "whatsapp" => c === "email" || c === "whatsapp"
-          );
+    // Priorizar sempre os canais escolhidos no modal; fallback só se não vier nada (ex.: chamada sem UI)
+    const channels: ("email" | "whatsapp")[] =
+      channelsToSend && channelsToSend.length > 0
+        ? channelsToSend
+        : (eventData.event_code === "public_form_completed" && !eventData.patient_id)
+          ? (["email", "whatsapp"] as const).filter((c) =>
+              (eventData.channels as string[] | null)?.includes(c)
+            )
+          : ((eventData.channels as string[] | null) ?? []).filter(
+              (c): c is "email" | "whatsapp" => c === "email" || c === "whatsapp"
+            );
 
-    if (channels.length === 0) return { error: null };
+    if (channels.length === 0) {
+      return {
+        error:
+          "Selecione pelo menos um canal (Email ou WhatsApp) no modal e clique em Enviar.",
+      };
+    }
 
     const result = await executeSendForEvent(
       eventId,
