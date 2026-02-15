@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye } from "lucide-react";
+import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus } from "lucide-react";
 import { processEvent, concluirEvent, getMessagePreviewForEvent, type ClinicEventConfigItem } from "./actions";
 import { EventosConfigModal } from "./eventos-config-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -379,6 +380,24 @@ export function EventosClient({
               </div>
             );
           })()}
+          {/* Usuário cadastrado: ação recomendada Nova consulta */}
+          {event.event_code === "patient_registered" && event.patient_id && (
+            <div className="mb-4 p-3 rounded-md bg-muted/50 border border-border">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {event.patient_name && (
+                  <span className="text-sm text-muted-foreground">
+                    Paciente: <strong>{event.patient_name}</strong>
+                  </span>
+                )}
+                <Button asChild size="sm" className="shrink-0">
+                  <Link href="/dashboard/consulta">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nova consulta
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          )}
             <div className="flex items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
               {isPending && (() => {
@@ -440,9 +459,6 @@ export function EventosClient({
 
           {isExpanded && (
             <div className="mt-4 pt-4 border-t space-y-2 text-sm">
-              <div>
-                <strong>Origem:</strong> {event.origin}
-              </div>
               {(() => {
                 const ch = getChannelStatus(event);
                 return (
@@ -473,14 +489,6 @@ export function EventosClient({
               {(event.sent_channels?.length ?? 0) > 0 && (
                 <div>
                   <strong>Enviado por:</strong> {(event.sent_channels ?? []).join(", ")}
-                </div>
-              )}
-              {Object.keys(event.variables || {}).length > 0 && (
-                <div>
-                  <strong>Variáveis:</strong>
-                  <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-auto">
-                    {JSON.stringify(event.variables, null, 2)}
-                  </pre>
                 </div>
               )}
             </div>

@@ -2,9 +2,10 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStatusBadgeClassName } from "../agenda/status-utils";
 import type { ConsultaRow } from "./page";
@@ -135,7 +136,15 @@ export function ConsultaClient({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-foreground">Consulta</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-foreground">Consulta</h1>
+        <Button asChild>
+          <Link href="/dashboard/agenda?new=true">
+            <Plus className="h-4 w-4 mr-2" />
+            Nova consulta
+          </Link>
+        </Button>
+      </div>
 
       {/* Linha horizontal de filtros */}
       <div className="border-t border-b border-border py-4 space-y-3">
