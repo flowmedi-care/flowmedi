@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 
 // ========== BUSCAR EVENTOS PENDENTES ==========
 export async function getPendingEvents(filters?: {
@@ -241,7 +242,29 @@ export async function processEvent(
       supabase,
       true // forceImmediateSend: usuário clicou Enviar, enviar imediatamente mesmo com send_mode=manual
     );
-    return { error: result.error };
+
+    if (result.error) return { error: result.error };
+
+    // Consulta agendada com link enviada manualmente: marcar form_linked do mesmo appointment como enviado (evitar duplicata)
+    if (
+      eventData.event_code === "appointment_created" &&
+      eventData.appointment_id
+    ) {
+      const newSentChannels = Array.from(
+        new Set([...(eventData.sent_channels as string[] | null) ?? [], ...channels])
+      );
+      if (newSentChannels.length > 0) {
+        await supabase
+          .from("event_timeline")
+          .update({ sent_channels: newSentChannels })
+          .eq("clinic_id", profile.clinic_id)
+          .eq("appointment_id", eventData.appointment_id)
+          .eq("event_code", "form_linked");
+      }
+    }
+
+    revalidatePath("/dashboard/eventos");
+    return { error: null };
   }
 
   // Se ação for "mark_ok", apenas marcar como concluído sem envio
