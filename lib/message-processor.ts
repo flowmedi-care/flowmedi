@@ -245,14 +245,17 @@ async function buildVariableContextFromIds(
         : appointmentData.procedure;
     }
 
-    // Buscar formulário se houver
+    // Buscar formulário pendente (status != 'respondido') para incluir link no template
+    // Se todos respondidos, não inclui link (template "só consulta agendada")
     const { data: formData } = await supabase
       .from("form_instances")
       .select(`
         link_token,
+        status,
         form_template:form_templates(name)
       `)
       .eq("appointment_id", appointmentId)
+      .neq("status", "respondido")
       .limit(1)
       .maybeSingle();
 

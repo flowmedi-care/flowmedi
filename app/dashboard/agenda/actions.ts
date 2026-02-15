@@ -287,27 +287,23 @@ export async function createAppointment(
     }
   }
 
-  // Processar evento de consulta criada
+  // Processar evento de consulta agendada (template com/sem link conforme form respondido)
+  // O trigger cria o evento em event_timeline; enviamos via runAutoSendForEvent
   try {
-    const { processMessageEvent } = await import("@/lib/message-processor");
-    
-    // Processar para email
-    await processMessageEvent(
-      "appointment_created",
-      profile.clinic_id,
-      patientId,
-      appointment.id,
-      "email"
-    );
-    
-    // Processar para WhatsApp
-    await processMessageEvent(
-      "appointment_created",
-      profile.clinic_id,
-      patientId,
-      appointment.id,
-      "whatsapp"
-    );
+    const { data: eventRow } = await supabase
+      .from("event_timeline")
+      .select("id")
+      .eq("clinic_id", profile.clinic_id)
+      .eq("appointment_id", appointment.id)
+      .eq("event_code", "appointment_created")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (eventRow) {
+      const { runAutoSendForEvent } = await import("@/lib/event-send-logic-server");
+      await runAutoSendForEvent(eventRow.id, profile.clinic_id, "appointment_created", supabase);
+    }
   } catch (error) {
     // Não falhar a criação da consulta se o processamento de mensagem falhar
     console.error("Erro ao processar mensagem:", error);
@@ -347,10 +343,7 @@ export async function updateAppointment(
 
   // Processar eventos relacionados a mudanças na consulta
   try {
-    const { processMessageEvent } = await import("@/lib/message-processor");
     const supabase = await createClient();
-    
-    // Buscar dados da consulta
     const { data: appointment } = await supabase
       .from("appointments")
       .select("clinic_id, patient_id, scheduled_at, status")
@@ -358,66 +351,43 @@ export async function updateAppointment(
       .single();
 
     if (appointment) {
-      // Se mudou scheduled_at, é remarcação
+      const { runAutoSendForEvent } = await import("@/lib/event-send-logic-server");
+
+      // Remarcação: trigger cria appointment_rescheduled; processamos via event_timeline
       if (data.scheduled_at) {
-        await processMessageEvent(
-          "appointment_rescheduled",
-          appointment.clinic_id,
-          appointment.patient_id,
-          id,
-          "email"
-        );
-        await processMessageEvent(
-          "appointment_rescheduled",
-          appointment.clinic_id,
-          appointment.patient_id,
-          id,
-          "whatsapp"
-        );
+        const { data: ev } = await supabase
+          .from("event_timeline")
+          .select("id")
+          .eq("clinic_id", appointment.clinic_id)
+          .eq("appointment_id", id)
+          .eq("event_code", "appointment_rescheduled")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (ev) await runAutoSendForEvent(ev.id, appointment.clinic_id, "appointment_rescheduled", supabase);
       }
 
-      // Se mudou status para cancelada
-      if (data.status === "canceled") {
-        await processMessageEvent(
-          "appointment_canceled",
-          appointment.clinic_id,
-          appointment.patient_id,
-          id,
-          "email"
-        );
-        await processMessageEvent(
-          "appointment_canceled",
-          appointment.clinic_id,
-          appointment.patient_id,
-          id,
-          "whatsapp"
-        );
-      }
-
-      // Se mudou status para realizada
-      if (data.status === "realizada") {
-        await processMessageEvent(
-          "appointment_completed",
-          appointment.clinic_id,
-          appointment.patient_id,
-          id,
-          "email"
-        );
-      }
-
-      // Se mudou status para falta
-      if (data.status === "falta") {
-        await processMessageEvent(
-          "appointment_no_show",
-          appointment.clinic_id,
-          appointment.patient_id,
-          id,
-          "email"
-        );
+      // Cancelada, realizada, falta: trigger cria evento; processamos via event_timeline
+      const eventByStatus: Record<string, string> = {
+        canceled: "appointment_canceled",
+        realizada: "appointment_completed",
+        falta: "appointment_no_show",
+      };
+      const eventCode = data.status ? eventByStatus[data.status] : null;
+      if (eventCode) {
+        const { data: ev } = await supabase
+          .from("event_timeline")
+          .select("id")
+          .eq("clinic_id", appointment.clinic_id)
+          .eq("appointment_id", id)
+          .eq("event_code", eventCode)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (ev) await runAutoSendForEvent(ev.id, appointment.clinic_id, eventCode, supabase);
       }
     }
   } catch (error) {
-    // Não falhar a atualização se o processamento de mensagem falhar
     console.error("Erro ao processar mensagem:", error);
   }
 

@@ -137,6 +137,11 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
   "{{link_formulario}}": (ctx) => ctx.formulario?.link || "",
   "{{nome_formulario}}": (ctx) => ctx.formulario?.nome || "",
   "{{prazo_formulario}}": (ctx) => ctx.formulario?.prazo || "",
+  // Bloco condicional: só aparece quando há link (formulário pendente)
+  "{{instrucao_formulario}}": (ctx) =>
+    ctx.formulario?.link
+      ? `Para preencher o formulário, acesse: ${ctx.formulario.link}`
+      : "",
 
   // Variáveis de clínica
   "{{nome_clinica}}": (ctx) => ctx.clinica?.nome || "",
