@@ -377,10 +377,9 @@ export function EventosClient({
               </div>
             );
           })()}
-          {/* Consulta agendada sem form respondido: ação recomendada Vincular formulário */}
-          {event.event_code === "appointment_created" &&
-            event.appointment_id &&
-            appointmentIdsNeedingForm.includes(event.appointment_id) && (
+          {/* Consulta agendada: ação Vincular formulário ou confirmação de já vinculado */}
+          {event.event_code === "appointment_created" && event.appointment_id && (
+            appointmentIdsNeedingForm.includes(event.appointment_id) ? (
               <div className="mb-4 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="text-sm text-amber-800 dark:text-amber-200">
@@ -394,7 +393,18 @@ export function EventosClient({
                   </Button>
                 </div>
               </div>
-            )}
+            ) : (
+              <div className="mb-4 p-3 rounded-md bg-muted/50 border border-border">
+                <div className="flex items-center gap-2 text-sm">
+                  <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                  <span className="font-medium text-green-700">Formulário vinculado</span>
+                  {event.patient_name && (
+                    <span className="text-muted-foreground">— {event.patient_name}</span>
+                  )}
+                </div>
+              </div>
+            )
+          )}
           {/* Usuário cadastrado: Nova consulta ou "Consulta agendada" se já tiver consulta */}
           {event.event_code === "patient_registered" && event.patient_id && (() => {
             const hasAppointment = patientIdsWithAppointment.includes(event.patient_id);
