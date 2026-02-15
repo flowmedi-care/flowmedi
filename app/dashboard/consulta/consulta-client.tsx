@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock, Plus } from "lucide-react";
+import { CalendarClock, CheckCircle, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStatusBadgeClassName } from "../agenda/status-utils";
 import { createAppointment } from "../agenda/actions";
@@ -65,6 +65,7 @@ export function ConsultaClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showNewForm, setShowNewForm] = useState(false);
+  const [showScheduledSuccess, setShowScheduledSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -121,6 +122,7 @@ export function ConsultaClient({
       setFormError(res.error);
       return;
     }
+    setShowScheduledSuccess(true);
     setShowNewForm(false);
     setForm({
       patientId: "",
@@ -137,6 +139,7 @@ export function ConsultaClient({
       specialInstructions: "",
       preparationNotes: "",
     });
+    router.replace("/dashboard/consulta", { scroll: false });
     router.refresh();
   }
 
@@ -232,11 +235,24 @@ export function ConsultaClient({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Consulta</h1>
-        <Button type="button" onClick={() => setShowNewForm(true)}>
+        <Button
+          type="button"
+          onClick={() => {
+            setShowScheduledSuccess(false);
+            setShowNewForm(true);
+          }}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Nova consulta
         </Button>
       </div>
+
+      {showScheduledSuccess && (
+        <div className="p-3 rounded-md bg-muted/50 border border-border flex items-center gap-2 text-sm">
+          <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+          <span className="font-medium text-green-700">Consulta agendada</span>
+        </div>
+      )}
 
       {showNewForm && (
         <Card>
