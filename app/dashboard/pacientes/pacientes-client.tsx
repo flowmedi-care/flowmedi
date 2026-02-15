@@ -9,8 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPatient, updatePatient, deletePatient, registerPatientFromPublicForm, type PatientInsert, type PatientUpdate } from "./actions";
-import { Search, UserPlus, Pencil, Trash2, X, UserCheck, User, Download, FileText, Grid3x3, List } from "lucide-react";
+import { Search, UserPlus, Pencil, Trash2, X, UserCheck, User, Download, FileText, Grid3x3, List, CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/toast";
+import Link from "next/link";
 import { ExamesClient } from "../exames/exames-client";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { getPatientExams, getExamSignedUrl, type PatientExam } from "../exames/actions";
@@ -78,6 +80,7 @@ export function PacientesClient({
   const [patientExams, setPatientExams] = useState<PatientExam[]>([]);
   const [loadingExams, setLoadingExams] = useState(false);
   const [viewMode, setViewMode] = useState<"contacts" | "list">("contacts");
+  const [justRegisteredPatientId, setJustRegisteredPatientId] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const [form, setForm] = useState<PatientInsert & { id?: string; custom_fields?: Record<string, unknown> }>({
     full_name: "",
@@ -285,10 +288,11 @@ export function PacientesClient({
         setLoading(false);
         return;
       }
+      const newId = res.patientId ?? "";
       setPatients((prev) => [
         ...prev,
         {
-          id: "",
+          id: newId,
           full_name: form.full_name,
           email: form.email || null,
           phone: form.phone || null,
@@ -298,7 +302,13 @@ export function PacientesClient({
         },
       ]);
       cancelForm();
-      window.location.reload();
+      setJustRegisteredPatientId(newId);
+      toast(
+        "Paciente cadastrado. Evento criado na Central de Eventos. Sugestão: agendar uma consulta.",
+        "success"
+      );
+      router.refresh();
+      setLoading(false);
       return;
     }
     if (editingId) {
@@ -339,6 +349,29 @@ export function PacientesClient({
 
   return (
     <div className="space-y-6">
+      {justRegisteredPatientId && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+          <span className="text-sm text-green-800 dark:text-green-200">
+            Evento criado. Sugestão: agendar uma consulta para este paciente.
+          </span>
+          <div className="flex items-center gap-2">
+            <Button asChild size="sm" className="bg-green-700 hover:bg-green-800 text-white">
+              <Link href={`/dashboard/consulta?patientId=${justRegisteredPatientId}`}>
+                <CalendarPlus className="h-4 w-4 mr-2" />
+                Agendar consulta
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setJustRegisteredPatientId(null)}
+              className="text-green-800 dark:text-green-200"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

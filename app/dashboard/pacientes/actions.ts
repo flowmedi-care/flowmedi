@@ -19,7 +19,7 @@ export type PatientUpdate = Partial<PatientInsert>;
 export async function createPatient(data: PatientInsert) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Não autorizado." };
+  if (!user) return { error: "Não autorizado.", patientId: null };
   const { data: profile } = await supabase
     .from("profiles")
     .select("clinic_id")
@@ -27,7 +27,7 @@ export async function createPatient(data: PatientInsert) {
     .single();
 
   if (!profile?.clinic_id) {
-    return { error: "Clínica não encontrada." };
+    return { error: "Clínica não encontrada.", patientId: null };
   }
 
   // Verificar limite de pacientes/mês (conta todos criados no mês, mesmo se deletados)
@@ -38,22 +38,44 @@ export async function createPatient(data: PatientInsert) {
     
     if (!check.allowed) {
       const upgradeMsg = getUpgradeMessage("pacientes/mês");
-      return { error: `${check.reason}. ${upgradeMsg}` };
+      return { error: `${check.reason}. ${upgradeMsg}`, patientId: null };
     }
   }
 
-  const { error } = await supabase.from("patients").insert({
-    clinic_id: profile.clinic_id,
-    full_name: data.full_name,
-    email: data.email || null,
-    phone: data.phone || null,
-    birth_date: data.birth_date || null,
-    notes: data.notes || null,
-  });
+  const { data: newPatient, error } = await supabase
+    .from("patients")
+    .insert({
+      clinic_id: profile.clinic_id,
+      full_name: data.full_name,
+      email: data.email || null,
+      phone: data.phone || null,
+      birth_date: data.birth_date || null,
+      notes: data.notes || null,
+    })
+    .select("id")
+    .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: error.message, patientId: null };
+  if (!newPatient?.id) return { error: "Erro ao criar paciente.", patientId: null };
+
+  // Criar evento "usuário cadastrado" (mesma lógica da Central de Eventos: ação recomendada Nova consulta)
+  const { error: eventError } = await supabase.rpc("create_event_timeline", {
+    p_clinic_id: profile.clinic_id,
+    p_event_code: "patient_registered",
+    p_patient_id: newPatient.id,
+    p_appointment_id: null,
+    p_form_instance_id: null,
+    p_origin: "user",
+    p_metadata: {},
+  });
+  if (eventError) {
+    console.error("[createPatient] create_event_timeline:", eventError);
+    // Não falha o cadastro se o evento não for criado
+  }
+
   revalidatePath("/dashboard/pacientes");
-  return { error: null };
+  revalidatePath("/dashboard/eventos");
+  return { error: null, patientId: newPatient.id };
 }
 
 export async function updatePatient(id: string, data: PatientUpdate) {
