@@ -227,18 +227,30 @@ async function buildVariableContextFromIds(
         requires_fasting,
         special_instructions,
         preparation_notes,
+        procedure_id,
         doctor:profiles!appointments_doctor_id_fkey(full_name),
         appointment_type:appointment_types(name),
-        procedure:procedures(name)
+        procedure:procedures(name, recommendations)
       `)
       .eq("id", appointmentId)
       .single();
 
     if (appointmentData) {
+      // Se não tem recommendations na consulta mas tem procedimento vinculado, usar do procedimento
+      let finalRecommendations = appointmentData.recommendations;
+      if (!finalRecommendations && appointmentData.procedure_id && appointmentData.procedure) {
+        const proc = Array.isArray(appointmentData.procedure)
+          ? appointmentData.procedure[0]
+          : appointmentData.procedure;
+        if (proc?.recommendations) {
+          finalRecommendations = proc.recommendations;
+        }
+      }
+
       appointment = {
         scheduled_at: appointmentData.scheduled_at,
         status: appointmentData.status,
-        recommendations: appointmentData.recommendations,
+        recommendations: finalRecommendations,
         requires_fasting: appointmentData.requires_fasting,
         special_instructions: appointmentData.special_instructions,
         preparation_notes: appointmentData.preparation_notes,

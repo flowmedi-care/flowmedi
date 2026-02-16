@@ -132,6 +132,15 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
     ctx.consulta?.instrucoes_especiais || "",
   "{{notas_preparo}}": (ctx) => ctx.consulta?.notas_preparo || "",
   "{{preparo_completo}}": (ctx) => generatePreparoCompleto(ctx),
+  "{{preparo_completo_html}}": (ctx) => {
+    const preparo = generatePreparoCompleto(ctx);
+    if (!preparo) return "";
+    const preparoHtml = preparo.replace(/\n/g, "<br>");
+    return `<div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 12px; margin: 16px 0;">
+  <h3 style="margin-top: 0; color: #0369a1;">Instruções de Preparo:</h3>
+  <div style="white-space: pre-wrap; font-family: inherit; margin: 0; color: #0c4a6e;">${preparoHtml}</div>
+</div>`;
+  },
 
   // Variáveis de formulário
   "{{link_formulario}}": (ctx) => ctx.formulario?.link || "",
