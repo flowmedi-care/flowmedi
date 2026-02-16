@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus, FileText } from "lucide-react";
+import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus, FileText, CalendarCheck, XCircle, UserX } from "lucide-react";
 import { processEvent, concluirEvent, getMessagePreviewForEvent, type ClinicEventConfigItem } from "./actions";
 import { EventosConfigModal } from "./eventos-config-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { registerPatientFromPublicForm } from "@/app/dashboard/pacientes/actions";
+import { updateAppointment } from "@/app/dashboard/agenda/actions";
 import { toast } from "@/components/ui/toast";
 import type { MessageEvent, ClinicMessageSetting, MessageTemplate, EffectiveTemplateItem } from "@/app/dashboard/mensagens/actions";
 import type { MessagePreviewItem } from "@/lib/message-processor";
@@ -27,6 +28,14 @@ function formatDate(dateString: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// Consulta é hoje (data do agendamento = hoje no fuso do usuário)
+function isAppointmentToday(scheduledAt: string | null): boolean {
+  if (!scheduledAt) return false;
+  const d = new Date(scheduledAt);
+  const today = new Date();
+  return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
 }
 
 const CHANNEL_ICONS: Record<string, React.ReactNode> = {
@@ -149,6 +158,7 @@ export function EventosClient({
   const [sendModalEvent, setSendModalEvent] = useState<Event | null>(null);
   const [sendModalChannels, setSendModalChannels] = useState<("email" | "whatsapp")[]>([]);
   const [registeringEventId, setRegisteringEventId] = useState<string | null>(null);
+  const [updatingAppointmentId, setUpdatingAppointmentId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<{
@@ -243,6 +253,18 @@ export function EventosClient({
     setProcessing(null);
     if (result.error) alert(`Erro: ${result.error}`);
     else router.refresh();
+  }
+
+  async function handleAppointmentStatusChange(appointmentId: string, status: "realizada" | "falta" | "cancelada") {
+    setUpdatingAppointmentId(appointmentId);
+    const res = await updateAppointment(appointmentId, { status });
+    setUpdatingAppointmentId(null);
+    if (res.error) {
+      toast(`Erro: ${res.error}`, "error");
+    } else {
+      toast(status === "realizada" ? "Consulta marcada como realizada" : status === "falta" ? "Consulta marcada como falta" : "Consulta cancelada", "success");
+      router.refresh();
+    }
   }
 
   async function handleCadastrarFromEvent(event: Event) {
@@ -444,6 +466,49 @@ export function EventosClient({
               </div>
             );
           })()}
+          {/* Consulta remarcada / confirmada / agendada: no dia da consulta mostrar ações realizada / falta / cancelada */}
+          {event.appointment_id &&
+            event.appointment_scheduled_at &&
+            isAppointmentToday(event.appointment_scheduled_at) &&
+            ["appointment_rescheduled", "appointment_confirmed", "appointment_created"].includes(event.event_code) && (
+              <div className="mb-4 p-3 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                  Ação recomendada: no dia da consulta
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-green-600 text-green-700 hover:bg-green-50 dark:text-green-300 dark:hover:bg-green-950/50"
+                    onClick={() => handleAppointmentStatusChange(event.appointment_id!, "realizada")}
+                    disabled={updatingAppointmentId === event.appointment_id}
+                  >
+                    <CalendarCheck className="h-4 w-4 mr-1" />
+                    {updatingAppointmentId === event.appointment_id ? "..." : "Marcar como realizada"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-600 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/50"
+                    onClick={() => handleAppointmentStatusChange(event.appointment_id!, "falta")}
+                    disabled={updatingAppointmentId === event.appointment_id}
+                  >
+                    <UserX className="h-4 w-4 mr-1" />
+                    {updatingAppointmentId === event.appointment_id ? "..." : "Marcar como falta"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-red-600 text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/50"
+                    onClick={() => handleAppointmentStatusChange(event.appointment_id!, "cancelada")}
+                    disabled={updatingAppointmentId === event.appointment_id}
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    {updatingAppointmentId === event.appointment_id ? "..." : "Marcar como cancelada"}
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
               {isPending && (() => {

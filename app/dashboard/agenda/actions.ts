@@ -514,6 +514,7 @@ export async function updateAppointment(
   }
 
   revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard/eventos");
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/agenda/consulta/${id}`);
   return { error: null };
