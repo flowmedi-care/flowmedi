@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus, FileText, CalendarCheck, XCircle, UserX } from "lucide-react";
+import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus, FileText, CalendarCheck, Calendar, XCircle, UserX } from "lucide-react";
 import { processEvent, concluirEvent, getMessagePreviewForEvent, type ClinicEventConfigItem } from "./actions";
 import { EventosConfigModal } from "./eventos-config-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -400,6 +400,48 @@ export function EventosClient({
               </div>
             );
           })()}
+          {/* Formulário de paciente preenchido: ação Entrar em contato (email e WhatsApp) */}
+          {event.event_code === "patient_form_completed" && (
+            <div className="mb-4 p-3 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>Ação recomendada:</strong> Entrar em contato (email e WhatsApp)
+              </p>
+              {event.patient_name && (
+                <p className="text-xs text-muted-foreground mt-1">Paciente: {event.patient_name}</p>
+              )}
+            </div>
+          )}
+          {/* Falta registrada: ação Remarcar consulta + entrar em contato */}
+          {event.event_code === "appointment_no_show" && event.appointment_id && (
+            <div className="mb-4 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
+                Ação recomendada: Remarcar consulta
+              </p>
+              <Button asChild size="sm" variant="outline" className="border-amber-300 dark:border-amber-700">
+                <Link href={`/dashboard/agenda/consulta/${event.appointment_id}`}>
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Remarcar consulta
+                </Link>
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                E/ou entrar em contato (email e WhatsApp) usando o botão Enviar abaixo.
+              </p>
+            </div>
+          )}
+          {/* Consulta realizada: ação Agendar retorno */}
+          {event.event_code === "appointment_completed" && event.appointment_id && (
+            <div className="mb-4 p-3 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                Ação recomendada: Agendar retorno
+              </p>
+              <Button asChild size="sm" variant="outline" className="border-blue-300 dark:border-blue-700">
+                <Link href={`/dashboard/agenda/consulta/${event.appointment_id}`}>
+                  <CalendarCheck className="h-4 w-4 mr-2" />
+                  Agendar retorno
+                </Link>
+              </Button>
+            </div>
+          )}
           {/* Consulta agendada: ação Vincular formulário ou confirmação de já vinculado */}
           {event.event_code === "appointment_created" && event.appointment_id && (
             appointmentIdsNeedingForm.includes(event.appointment_id) ? (
@@ -482,7 +524,7 @@ export function EventosClient({
                       ? "Consulta marcada como falta"
                       : "Consulta marcada como cancelada";
                 return (
-                  <div className="mb-4 p-3 rounded-md bg-muted/50 border border-border">
+                  <div className="mb-4 p-3 rounded-md bg-muted/50 border border-border space-y-2">
                     <div className="flex items-center gap-2 text-sm">
                       <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
                       <span className="font-medium text-green-700 dark:text-green-300">✓ {label}</span>
@@ -490,6 +532,27 @@ export function EventosClient({
                         <span className="text-muted-foreground">— {event.patient_name}</span>
                       )}
                     </div>
+                    {apptStatus === "realizada" && (
+                      <div className="pt-2 border-t border-border">
+                        <p className="text-xs text-muted-foreground mb-1">Ação recomendada: Agendar retorno</p>
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/dashboard/agenda/consulta/${event.appointment_id}`}>
+                            <CalendarCheck className="h-4 w-4 mr-2" />
+                            Agendar retorno
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
+                    {apptStatus === "falta" && (
+                      <div className="pt-2 border-t border-border">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/dashboard/agenda/consulta/${event.appointment_id}`}>
+                            <Calendar className="h-4 w-4 mr-2" />
+                            Remarcar consulta
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 );
               }
