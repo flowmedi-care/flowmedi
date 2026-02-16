@@ -14,6 +14,7 @@ export type FormInstanceItem = {
   id: string;
   status: string;
   link_token: string | null;
+  slug: string | null;
   responses: Record<string, unknown>;
   template_name: string;
   definition: (import("@/lib/form-types").FormFieldDefinition & { id: string })[];
@@ -87,6 +88,7 @@ export default async function ConsultaDetalhePage({
       id,
       status,
       link_token,
+      slug,
       responses,
       form_template:form_templates ( name, definition )
     `)
@@ -106,6 +108,7 @@ export default async function ConsultaDetalhePage({
       id: String(fi.id ?? ""),
       status: String(fi.status ?? ""),
       link_token: fi.link_token != null ? String(fi.link_token) : null,
+      slug: fi.slug != null ? String(fi.slug) : null,
       responses: (fi.responses as Record<string, unknown>) ?? {},
       template_name: ftObj?.name ?? "",
       definition: (Array.isArray(ftObj?.definition) ? ftObj.definition : []) as FormInstanceItem["definition"],

@@ -47,6 +47,8 @@ export async function getPublicFormTemplatesForPatient(patientId: string) {
   return { data: unique, error: null };
 }
 
+import { generateUniqueFormSlug } from "@/lib/form-slug";
+
 function generateLinkToken(): string {
   return crypto.randomUUID().replace(/-/g, "") + Date.now().toString(36);
 }
@@ -158,11 +160,15 @@ export async function createAppointment(
           const expiresAt = new Date();
           expiresAt.setDate(expiresAt.getDate() + 30);
 
+          // Gerar slug amigável
+          const slug = await generateUniqueFormSlug(supabase);
+
           return {
             appointment_id: appointment.id,
             form_template_id: t.id,
             status,
             link_token: linkToken,
+            slug: slug,
             link_expires_at: expiresAt.toISOString(),
             responses,
           };
@@ -222,11 +228,14 @@ export async function createAppointment(
             }
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 30);
+            // Gerar slug amigável
+            const slug = await generateUniqueFormSlug(supabase);
             return {
               appointment_id: appointment.id,
               form_template_id,
               status,
               link_token: linkToken,
+              slug: slug,
               link_expires_at: expiresAt.toISOString(),
               responses,
             };
@@ -489,9 +498,10 @@ export async function updateAppointment(
         if (ev) await runAutoSendForEvent(ev.id, appointment.clinic_id, "appointment_rescheduled", supabase);
       }
 
-      // Cancelada, realizada, falta: trigger cria evento; processamos via event_timeline
+      // Cancelada, confirmada, realizada, falta: trigger cria evento; processamos via event_timeline
       const eventByStatus: Record<string, string> = {
         canceled: "appointment_canceled",
+        confirmada: "appointment_confirmed",
         realizada: "appointment_completed",
         falta: "appointment_no_show",
       };

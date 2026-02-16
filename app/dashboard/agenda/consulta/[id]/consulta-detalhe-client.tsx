@@ -17,6 +17,7 @@ type FormInstance = {
   id: string;
   status: string;
   link_token: string | null;
+  slug: string | null;
   responses: Record<string, unknown>;
   template_name: string;
   definition: (FormFieldDefinition & { id: string })[];
@@ -67,6 +68,13 @@ export function ConsultaDetalheClient({
 
   const origin = typeof window !== "undefined" ? window.location.origin : baseUrl || "";
   const linkBase = origin ? `${origin}/f/` : "/f/";
+
+  function copyLink(identifier: string) {
+    const url = `${linkBase}${identifier}`;
+    navigator.clipboard.writeText(url);
+    setCopiedToken(identifier);
+    setTimeout(() => setCopiedToken(null), 2000);
+  }
 
   async function handleStatusChange(newStatus: string) {
     setUpdating(true);
@@ -228,17 +236,19 @@ export function ConsultaDetalheClient({
                           <ChevronDown className="h-4 w-4 text-muted-foreground" />
                         )}
                       </div>
-                      {canEdit && fi.link_token && (
+                      {canEdit && (fi.slug || fi.link_token) && (
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            copyLink(fi.link_token!);
+                            // Priorizar slug se disponível, senão usar link_token
+                            const identifier = fi.slug || fi.link_token!;
+                            copyLink(identifier);
                           }}
                         >
-                          {copiedToken === fi.link_token ? (
+                          {copiedToken === (fi.slug || fi.link_token) ? (
                             <Check className="h-4 w-4 text-green-600" />
                           ) : (
                             <Copy className="h-4 w-4" />

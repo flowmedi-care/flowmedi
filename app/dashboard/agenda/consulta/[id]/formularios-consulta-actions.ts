@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { generateUniqueFormSlug } from "@/lib/form-slug";
 
 export async function getFormTemplatesForAppointment(
   appointmentId: string
@@ -80,6 +81,7 @@ export async function linkFormToAppointment(
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
   const linkToken = crypto.randomUUID().replace(/-/g, "");
+  const slug = await generateUniqueFormSlug(supabase);
 
   const { data: inserted, error } = await supabase
     .from("form_instances")
@@ -88,6 +90,7 @@ export async function linkFormToAppointment(
       form_template_id: formTemplateId,
       status: "pendente",
       link_token: linkToken,
+      slug: slug,
       link_expires_at: expiresAt.toISOString(),
       responses: {},
     })

@@ -276,6 +276,7 @@ async function buildVariableContextFromIds(
       .from("form_instances")
       .select(`
         link_token,
+        slug,
         status,
         form_template:form_templates(name)
       `);
@@ -292,6 +293,7 @@ async function buildVariableContextFromIds(
     if (formData) {
       formInstance = {
         link_token: formData.link_token,
+        slug: formData.slug,
         form_template: Array.isArray(formData.form_template)
           ? formData.form_template[0]
           : formData.form_template,

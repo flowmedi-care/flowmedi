@@ -154,6 +154,8 @@ export async function getAppointmentsByPatient(patientId: string) {
   return { error: null, data: list };
 }
 
+import { generateUniqueFormSlug } from "@/lib/form-slug";
+
 function generateLinkToken(): string {
   return crypto.randomUUID().replace(/-/g, "") + Date.now().toString(36);
 }
@@ -360,17 +362,25 @@ export async function ensureFormInstanceAndGetLink(
 
   const { data: existing } = await supabase
     .from("form_instances")
-    .select("link_token")
+    .select("slug, link_token")
     .eq("appointment_id", appointmentId)
     .eq("form_template_id", formTemplateId)
     .maybeSingle();
 
-  if (existing?.link_token) {
-    return { error: null, link: `/f/${existing.link_token}` };
+  if (existing) {
+    // Priorizar slug se disponível, senão usar link_token (compatibilidade)
+    const identifier = existing.slug || existing.link_token;
+    if (identifier) {
+      return { error: null, link: `/f/${identifier}` };
+    }
   }
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
+
+  // Gerar slug amigável
+  const slug = await generateUniqueFormSlug(supabase);
+  const linkToken = generateLinkToken();
 
   const { data: inserted, error } = await supabase
     .from("form_instances")
@@ -378,16 +388,19 @@ export async function ensureFormInstanceAndGetLink(
       appointment_id: appointmentId,
       form_template_id: formTemplateId,
       status: "pendente",
-      link_token: generateLinkToken(),
+      link_token: linkToken,
+      slug: slug,
       link_expires_at: expiresAt.toISOString(),
       responses: {},
     })
-    .select("link_token")
+    .select("slug, link_token")
     .single();
 
   if (error) return { error: error.message, link: null };
+  // Priorizar slug se disponível, senão usar link_token (compatibilidade)
+  const identifier = inserted?.slug || inserted?.link_token;
   return {
     error: null,
-    link: inserted?.link_token ? `/f/${inserted.link_token}` : null,
+    link: identifier ? `/f/${identifier}` : null,
   };
 }

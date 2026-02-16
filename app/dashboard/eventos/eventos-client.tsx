@@ -332,16 +332,26 @@ export function EventosClient({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {/* Ícones de canais */}
-              {event.channels && event.channels.length > 0 && (
-                <div className="flex gap-1">
-                  {event.channels.map((channel) => (
-                    <div key={channel} className="text-muted-foreground">
-                      {CHANNEL_ICONS[channel]}
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* Ícones de canais — verde quando enviado */}
+              {event.channels && event.channels.length > 0 && (() => {
+                const ch = getChannelStatus(event);
+                return (
+                  <div className="flex gap-1">
+                    {event.channels.map((channel) => {
+                      const isSent = channel === "email" ? ch.emailSent : channel === "whatsapp" ? ch.whatsappSent : false;
+                      return (
+                        <div
+                          key={channel}
+                          className={isSent ? "text-green-600" : "text-muted-foreground"}
+                          title={isSent ? `${channel === "email" ? "Email" : "WhatsApp"} já enviado` : undefined}
+                        >
+                          {CHANNEL_ICONS[channel]}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </CardHeader>
@@ -771,7 +781,9 @@ export function EventosClient({
                 </p>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {CHANNEL_ICONS.email}
+                    <span className={ch.emailSent ? "text-green-600" : ""}>
+                      {CHANNEL_ICONS.email}
+                    </span>
                     <span className="text-sm">Email</span>
                     <span className="text-xs text-muted-foreground">— {emailTemplateName}</span>
                     {!ch.emailEnabled && (
@@ -793,7 +805,9 @@ export function EventosClient({
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {CHANNEL_ICONS.whatsapp}
+                    <span className={ch.whatsappSent ? "text-green-600" : ""}>
+                      {CHANNEL_ICONS.whatsapp}
+                    </span>
                     <span className="text-sm">WhatsApp</span>
                     <span className="text-xs text-muted-foreground">— {whatsappTemplateName}</span>
                     {!ch.whatsappEnabled && (

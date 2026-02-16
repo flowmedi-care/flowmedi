@@ -243,6 +243,7 @@ export async function buildVariableContext(data: {
   };
   formInstance?: {
     link_token?: string | null;
+    slug?: string | null;
     form_template?: {
       name?: string | null;
     } | null;
@@ -284,7 +285,9 @@ export async function buildVariableContext(data: {
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
       (typeof window !== "undefined" ? window.location.origin : undefined);
     const baseUrl = (origin ?? "").replace(/\/$/, "");
-    const path = data.formInstance.link_token ? `/f/${data.formInstance.link_token}` : undefined;
+    // Priorizar slug se disponível, senão usar link_token (compatibilidade)
+    const identifier = data.formInstance.slug || data.formInstance.link_token;
+    const path = identifier ? `/f/${identifier}` : undefined;
     const link = path ? (baseUrl ? `${baseUrl}${path}` : path) : undefined;
 
     context.formulario = {
