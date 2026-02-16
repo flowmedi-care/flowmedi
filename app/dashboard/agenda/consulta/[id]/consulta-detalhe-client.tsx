@@ -97,14 +97,6 @@ export function ConsultaDetalheClient({
     }
   }
 
-  function copyLink(token: string) {
-    const url = `${linkBase}${token}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setCopiedToken(token);
-      setTimeout(() => setCopiedToken(null), 2000);
-    });
-  }
-
   return (
     <div className="space-y-6">
       {/* Toggle de status para médicos (apenas realizada/falta) */}
