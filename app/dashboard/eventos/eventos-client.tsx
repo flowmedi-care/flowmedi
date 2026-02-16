@@ -70,6 +70,7 @@ type Event = {
   patient_name: string | null;
   appointment_id: string | null;
   appointment_scheduled_at: string | null;
+  appointment_status?: string | null;
   form_instance_id: string | null;
   status: string;
   origin: string;
@@ -466,49 +467,72 @@ export function EventosClient({
               </div>
             );
           })()}
-          {/* Consulta remarcada / confirmada / agendada: no dia da consulta mostrar ações realizada / falta / cancelada */}
+          {/* Consulta remarcada / confirmada / agendada: no dia da consulta — botões ou confirmação se já executou */}
           {event.appointment_id &&
             event.appointment_scheduled_at &&
             isAppointmentToday(event.appointment_scheduled_at) &&
-            ["appointment_rescheduled", "appointment_confirmed", "appointment_created"].includes(event.event_code) && (
-              <div className="mb-4 p-3 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-                <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                  Ação recomendada: no dia da consulta
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-green-600 text-green-700 hover:bg-green-50 dark:text-green-300 dark:hover:bg-green-950/50"
-                    onClick={() => handleAppointmentStatusChange(event.appointment_id!, "realizada")}
-                    disabled={updatingAppointmentId === event.appointment_id}
-                  >
-                    <CalendarCheck className="h-4 w-4 mr-1" />
-                    {updatingAppointmentId === event.appointment_id ? "..." : "Marcar como realizada"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-amber-600 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/50"
-                    onClick={() => handleAppointmentStatusChange(event.appointment_id!, "falta")}
-                    disabled={updatingAppointmentId === event.appointment_id}
-                  >
-                    <UserX className="h-4 w-4 mr-1" />
-                    {updatingAppointmentId === event.appointment_id ? "..." : "Marcar como falta"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-red-600 text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/50"
-                    onClick={() => handleAppointmentStatusChange(event.appointment_id!, "cancelada")}
-                    disabled={updatingAppointmentId === event.appointment_id}
-                  >
-                    <XCircle className="h-4 w-4 mr-1" />
-                    {updatingAppointmentId === event.appointment_id ? "..." : "Marcar como cancelada"}
-                  </Button>
+            ["appointment_rescheduled", "appointment_confirmed", "appointment_created"].includes(event.event_code) &&
+            (() => {
+              const apptStatus = event.appointment_status ?? null;
+              if (apptStatus === "realizada" || apptStatus === "falta" || apptStatus === "cancelada") {
+                const label =
+                  apptStatus === "realizada"
+                    ? "Consulta marcada como realizada"
+                    : apptStatus === "falta"
+                      ? "Consulta marcada como falta"
+                      : "Consulta marcada como cancelada";
+                return (
+                  <div className="mb-4 p-3 rounded-md bg-muted/50 border border-border">
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                      <span className="font-medium text-green-700 dark:text-green-300">✓ {label}</span>
+                      {event.patient_name && (
+                        <span className="text-muted-foreground">— {event.patient_name}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div className="mb-4 p-3 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                    Ação recomendada: no dia da consulta
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-green-600 text-green-700 hover:bg-green-50 dark:text-green-300 dark:hover:bg-green-950/50"
+                      onClick={() => handleAppointmentStatusChange(event.appointment_id!, "realizada")}
+                      disabled={updatingAppointmentId === event.appointment_id}
+                    >
+                      <CalendarCheck className="h-4 w-4 mr-1" />
+                      {updatingAppointmentId === event.appointment_id ? "..." : "Marcar como realizada"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-amber-600 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/50"
+                      onClick={() => handleAppointmentStatusChange(event.appointment_id!, "falta")}
+                      disabled={updatingAppointmentId === event.appointment_id}
+                    >
+                      <UserX className="h-4 w-4 mr-1" />
+                      {updatingAppointmentId === event.appointment_id ? "..." : "Marcar como falta"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-600 text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/50"
+                      onClick={() => handleAppointmentStatusChange(event.appointment_id!, "cancelada")}
+                      disabled={updatingAppointmentId === event.appointment_id}
+                    >
+                      <XCircle className="h-4 w-4 mr-1" />
+                      {updatingAppointmentId === event.appointment_id ? "..." : "Marcar como cancelada"}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
             <div className="flex items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
               {isPending && (() => {
