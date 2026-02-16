@@ -194,6 +194,51 @@ BEGIN
 END;
 $$;
 
+-- Função para buscar formulário público por slug do nome
+CREATE OR REPLACE FUNCTION public.get_public_form_by_slug(p_slug text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_template_id uuid;
+  v_result json;
+BEGIN
+  -- Buscar template cujo slug do nome corresponde ao slug fornecido
+  SELECT id INTO v_template_id
+  FROM form_templates
+  WHERE is_public = true
+    AND LOWER(REGEXP_REPLACE(
+      REGEXP_REPLACE(
+        REGEXP_REPLACE(name, '[àáâãäå]', 'a', 'gi'),
+        '[èéêë]', 'e', 'gi'
+      ),
+      '[^a-z0-9]+', '-', 'g'
+    )) = LOWER(p_slug)
+  LIMIT 1;
+  
+  -- Se não encontrou por comparação exata, tentar busca mais flexível
+  IF v_template_id IS NULL THEN
+    SELECT id INTO v_template_id
+    FROM form_templates
+    WHERE is_public = true
+      AND LOWER(REGEXP_REPLACE(name, '[^a-z0-9]+', '-', 'g')) LIKE '%' || LOWER(REPLACE(p_slug, '-', '%')) || '%'
+    LIMIT 1;
+  END IF;
+  
+  IF v_template_id IS NULL THEN
+    RETURN json_build_object('found', false);
+  END IF;
+  
+  -- Usar função existente para buscar dados completos
+  SELECT get_public_form_template(v_template_id) INTO v_result;
+  
+  RETURN v_result;
+END;
+$$;
+
 -- Manter permissões
 GRANT EXECUTE ON FUNCTION public.get_form_by_token(text) TO anon;
 GRANT EXECUTE ON FUNCTION public.submit_form_by_token(text, jsonb, text, text, text, date, jsonb) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_public_form_by_slug(text) TO anon;

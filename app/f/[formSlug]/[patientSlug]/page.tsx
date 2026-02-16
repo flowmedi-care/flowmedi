@@ -1,50 +1,48 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import { FormularioPreenchimento } from "./formulario-preenchimento";
+import { FormularioPreenchimento } from "../../[token]/formulario-preenchimento";
 import { LogoImage } from "@/components/logo-image";
 
-export default async function FormularioPublicoPage({
+export default async function FormularioComSlugPage({
   params,
 }: {
-  params: Promise<{ token: string }>;
+  params: Promise<{ formSlug: string; patientSlug: string }>;
 }) {
   try {
-    const { token } = await params;
+    const { formSlug, patientSlug } = await params;
     
-    if (!token || typeof token !== 'string') {
+    if (!formSlug || !patientSlug || typeof formSlug !== 'string' || typeof patientSlug !== 'string') {
       notFound();
     }
 
     const supabase = await createClient();
     
-    // Tentar buscar por slug primeiro (caso seja um slug simples)
-    const { data: instanceBySlug } = await supabase
+    // Buscar instância pelo slug composto
+    const combinedSlug = `${formSlug}/${patientSlug}`;
+    const { data: instanceData, error: slugError } = await supabase
       .from("form_instances")
-      .select("link_token")
-      .eq("slug", token)
+      .select(`
+        id,
+        link_token
+      `)
+      .eq("slug", combinedSlug)
       .maybeSingle();
     
-    let tokenToUse = token;
-    if (instanceBySlug?.link_token) {
-      tokenToUse = instanceBySlug.link_token;
+    if (slugError || !instanceData || !instanceData.link_token) {
+      notFound();
     }
     
-    // Usar função RPC para buscar dados completos
+    // Usar função RPC para buscar dados completos usando link_token
     const { data, error } = await supabase.rpc("get_form_by_token", {
-      p_token: tokenToUse,
+      p_token: instanceData.link_token,
     });
-
-    if (error || !data) {
+    
+    if (error || !data || !data.found) {
       notFound();
     }
-
-    if (!data.found) {
-      notFound();
-    }
-
-    return renderForm(data, token);
+    
+    return renderForm(data, instanceData.link_token);
   } catch (error) {
-    // Em caso de qualquer erro, retornar 404
     notFound();
   }
 }

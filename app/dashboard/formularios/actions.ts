@@ -154,7 +154,7 @@ export async function getAppointmentsByPatient(patientId: string) {
   return { error: null, data: list };
 }
 
-import { generateUniqueFormSlug } from "@/lib/form-slug";
+import { generateUniqueFormSlug, generateUniqueSlugFromName, slugify } from "@/lib/form-slug";
 
 function generateLinkToken(): string {
   return crypto.randomUUID().replace(/-/g, "") + Date.now().toString(36);
@@ -181,7 +181,7 @@ export async function createOrGetPublicFormLink(
   // Verificar se o template permite uso público
   const { data: template } = await supabase
     .from("form_templates")
-    .select("is_public, clinic_id")
+    .select("is_public, clinic_id, name")
     .eq("id", formTemplateId)
     .single();
 
@@ -193,16 +193,14 @@ export async function createOrGetPublicFormLink(
     return { error: "Este formulário não permite uso público.", link: null, isNew: false };
   }
 
-  // Para formulários públicos, o link é baseado no template, não em uma instância específica
-  // Cada pessoa que acessa cria sua própria instância ao submeter
-  // Criamos um token único baseado no template para o link público
-  const publicToken = `pub_template_${formTemplateId}_${Date.now().toString(36)}`;
+  // Gerar slug amigável baseado no nome do formulário
+  const formSlug = slugify(template.name || "formulario");
   
   // O link público sempre aponta para o template, não para uma instância específica
   // A instância será criada quando a pessoa submeter o formulário
   return {
     error: null,
-    link: `/f/public/${formTemplateId}`,
+    link: `/f/public/${formSlug}`,
     isNew: true,
   };
 }
@@ -360,6 +358,21 @@ export async function ensureFormInstanceAndGetLink(
     .single();
   if (!profile?.clinic_id) return { error: "Clínica não encontrada.", link: null };
 
+  // Buscar dados do template e do paciente para gerar slugs amigáveis
+  const { data: appointment } = await supabase
+    .from("appointments")
+    .select(`
+      patient:patients!inner(full_name)
+    `)
+    .eq("id", appointmentId)
+    .single();
+
+  const { data: template } = await supabase
+    .from("form_templates")
+    .select("name")
+    .eq("id", formTemplateId)
+    .single();
+
   const { data: existing } = await supabase
     .from("form_instances")
     .select("slug, link_token")
@@ -368,18 +381,54 @@ export async function ensureFormInstanceAndGetLink(
     .maybeSingle();
 
   if (existing) {
-    // Priorizar slug se disponível, senão usar link_token (compatibilidade)
-    const identifier = existing.slug || existing.link_token;
-    if (identifier) {
-      return { error: null, link: `/f/${identifier}` };
+    // Se já existe, retornar o link existente
+    if (existing.slug) {
+      return { error: null, link: `/f/${existing.slug}` };
+    }
+    // Fallback para link_token se slug não existir (compatibilidade)
+    if (existing.link_token) {
+      return { error: null, link: `/f/${existing.link_token}` };
     }
   }
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
 
-  // Gerar slug amigável
-  const slug = await generateUniqueFormSlug(supabase);
+  // Gerar slugs amigáveis baseados em nomes
+  const patient = Array.isArray(appointment?.patient) 
+    ? appointment.patient[0] 
+    : appointment?.patient;
+
+  const formSlug = template?.name ? slugify(template.name) : "formulario";
+  const patientSlug = patient?.full_name ? slugify(patient.full_name) : "paciente";
+  
+  // Criar slug composto: {formSlug}/{patientSlug}
+  const combinedSlug = `${formSlug}/${patientSlug}`;
+  
+  // Verificar se já existe algum slug similar e adicionar sufixo se necessário
+  const { data: existingSlug } = await supabase
+    .from("form_instances")
+    .select("id")
+    .eq("slug", combinedSlug)
+    .maybeSingle();
+  
+  let finalSlug = combinedSlug;
+  if (existingSlug) {
+    // Se já existe, adicionar sufixo numérico
+    for (let i = 1; i <= 10; i++) {
+      const slugWithSuffix = `${combinedSlug}-${i}`;
+      const { data: check } = await supabase
+        .from("form_instances")
+        .select("id")
+        .eq("slug", slugWithSuffix)
+        .maybeSingle();
+      if (!check) {
+        finalSlug = slugWithSuffix;
+        break;
+      }
+    }
+  }
+
   const linkToken = generateLinkToken();
 
   const { data: inserted, error } = await supabase
@@ -389,7 +438,7 @@ export async function ensureFormInstanceAndGetLink(
       form_template_id: formTemplateId,
       status: "pendente",
       link_token: linkToken,
-      slug: slug,
+      slug: finalSlug,
       link_expires_at: expiresAt.toISOString(),
       responses: {},
     })
@@ -397,10 +446,9 @@ export async function ensureFormInstanceAndGetLink(
     .single();
 
   if (error) return { error: error.message, link: null };
-  // Priorizar slug se disponível, senão usar link_token (compatibilidade)
-  const identifier = inserted?.slug || inserted?.link_token;
+  // Usar slug amigável se disponível
   return {
     error: null,
-    link: identifier ? `/f/${identifier}` : null,
+    link: inserted?.slug ? `/f/${inserted.slug}` : (inserted?.link_token ? `/f/${inserted.link_token}` : null),
   };
 }
