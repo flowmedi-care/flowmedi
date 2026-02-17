@@ -394,29 +394,66 @@ export async function ensureFormInstanceAndGetLink(
     .eq("id", formTemplateId)
     .single();
 
-  // Gerar ou obter slug da clínica
-  let clinicSlug = clinic?.slug;
-  if (!clinicSlug) {
-    // Se não tem slug, gerar um baseado no nome
-    clinicSlug = slugify(clinic?.name || "clinica");
-    // Atualizar no banco
+  // Gerar ou obter slug da clínica (sempre usar nome para garantir correto)
+  const clinicSlugFromName = slugify(clinic?.name || "clinica");
+  let clinicSlug = clinic?.slug || clinicSlugFromName;
+  if (!clinic?.slug || clinic.slug !== clinicSlugFromName) {
     await supabase
       .from("clinics")
-      .update({ slug: clinicSlug })
+      .update({ slug: clinicSlugFromName })
       .eq("id", profile.clinic_id);
+    clinicSlug = clinicSlugFromName;
   }
+
+  // Buscar dados do template e do paciente para gerar slugs amigáveis
+  const patient = Array.isArray(appointment?.patient) 
+    ? appointment.patient[0] 
+    : appointment?.patient;
+  const formSlug = template?.name ? slugify(template.name) : "formulario";
+  const patientSlug = patient?.full_name ? slugify(patient.full_name) : "paciente";
+  const expectedSlugBase = `${clinicSlug}/${formSlug}/${patientSlug}`;
 
   const { data: existing } = await supabase
     .from("form_instances")
-    .select("slug, link_token")
+    .select("id, slug, link_token")
     .eq("appointment_id", appointmentId)
     .eq("form_template_id", formTemplateId)
     .maybeSingle();
 
   if (existing) {
-    // Se já existe, retornar o link existente
-    if (existing.slug) {
+    // Se já existe slug e segue o padrão correto (clinic/form/patient), usar
+    if (existing.slug && existing.slug.startsWith(clinicSlug + "/")) {
       return { error: null, link: `/f/${existing.slug}` };
+    }
+    // Se slug existe mas não segue o padrão (slug antigo aleatório), atualizar
+    if (existing.slug) {
+      // Verificar se já existe slug com o padrão correto
+      let finalSlug = expectedSlugBase;
+      const { data: existingSlug } = await supabase
+        .from("form_instances")
+        .select("id")
+        .eq("slug", finalSlug)
+        .maybeSingle();
+      if (existingSlug) {
+        for (let i = 1; i <= 10; i++) {
+          const slugWithSuffix = `${expectedSlugBase}-${i}`;
+          const { data: check } = await supabase
+            .from("form_instances")
+            .select("id")
+            .eq("slug", slugWithSuffix)
+            .maybeSingle();
+          if (!check) {
+            finalSlug = slugWithSuffix;
+            break;
+          }
+        }
+      }
+      // Atualizar o slug da instância existente
+      await supabase
+        .from("form_instances")
+        .update({ slug: finalSlug })
+        .eq("id", existing.id);
+      return { error: null, link: `/f/${finalSlug}` };
     }
     // Fallback para link_token se slug não existir (compatibilidade)
     if (existing.link_token) {
@@ -427,29 +464,18 @@ export async function ensureFormInstanceAndGetLink(
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
 
-  // Gerar slugs amigáveis baseados em nomes
-  const patient = Array.isArray(appointment?.patient) 
-    ? appointment.patient[0] 
-    : appointment?.patient;
-
-  const formSlug = template?.name ? slugify(template.name) : "formulario";
-  const patientSlug = patient?.full_name ? slugify(patient.full_name) : "paciente";
-  
-  // Criar slug composto incluindo clinic: {clinicSlug}/{formSlug}/{patientSlug}
-  const combinedSlug = `${clinicSlug}/${formSlug}/${patientSlug}`;
-  
   // Verificar se já existe algum slug similar e adicionar sufixo se necessário
   const { data: existingSlug } = await supabase
     .from("form_instances")
     .select("id")
-    .eq("slug", combinedSlug)
+    .eq("slug", expectedSlugBase)
     .maybeSingle();
   
-  let finalSlug = combinedSlug;
+  let finalSlug = expectedSlugBase;
   if (existingSlug) {
     // Se já existe, adicionar sufixo numérico
     for (let i = 1; i <= 10; i++) {
-      const slugWithSuffix = `${combinedSlug}-${i}`;
+      const slugWithSuffix = `${expectedSlugBase}-${i}`;
       const { data: check } = await supabase
         .from("form_instances")
         .select("id")
