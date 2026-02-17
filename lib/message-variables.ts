@@ -17,7 +17,6 @@ export type VariableContext = {
     data_hora?: string;
     nome_medico?: string;
     tipo?: string;
-    procedimento?: string;
     status?: string;
     local?: string;
     recomendacoes?: string;
@@ -120,7 +119,6 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
     ctx.consulta?.data ? formatDateTime(ctx.consulta.data) : "",
   "{{nome_medico}}": (ctx) => ctx.consulta?.nome_medico || "",
   "{{tipo_consulta}}": (ctx) => ctx.consulta?.tipo || "",
-  "{{nome_procedimento}}": (ctx) => ctx.consulta?.procedimento || "",
   "{{status_consulta}}": (ctx) => ctx.consulta?.status || "",
   "{{local_consulta}}": (ctx) => ctx.consulta?.local || "",
 
@@ -132,25 +130,11 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
     ctx.consulta?.instrucoes_especiais || "",
   "{{notas_preparo}}": (ctx) => ctx.consulta?.notas_preparo || "",
   "{{preparo_completo}}": (ctx) => generatePreparoCompleto(ctx),
-  "{{preparo_completo_html}}": (ctx) => {
-    const preparo = generatePreparoCompleto(ctx);
-    if (!preparo) return "";
-    const preparoHtml = preparo.replace(/\n/g, "<br>");
-    return `<div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 12px; margin: 16px 0;">
-  <h3 style="margin-top: 0; color: #0369a1;">Instruções de Preparo:</h3>
-  <div style="white-space: pre-wrap; font-family: inherit; margin: 0; color: #0c4a6e;">${preparoHtml}</div>
-</div>`;
-  },
 
   // Variáveis de formulário
   "{{link_formulario}}": (ctx) => ctx.formulario?.link || "",
   "{{nome_formulario}}": (ctx) => ctx.formulario?.nome || "",
   "{{prazo_formulario}}": (ctx) => ctx.formulario?.prazo || "",
-  // Bloco condicional: só aparece quando há link (formulário pendente)
-  "{{instrucao_formulario}}": (ctx) =>
-    ctx.formulario?.link
-      ? `Para preencher o formulário, acesse: ${ctx.formulario.link}`
-      : "",
 
   // Variáveis de clínica
   "{{nome_clinica}}": (ctx) => ctx.clinica?.nome || "",
@@ -233,9 +217,6 @@ export async function buildVariableContext(data: {
   appointmentType?: {
     name?: string | null;
   };
-  procedure?: {
-    name?: string | null;
-  };
   clinic?: {
     name?: string | null;
     phone?: string | null;
@@ -243,7 +224,6 @@ export async function buildVariableContext(data: {
   };
   formInstance?: {
     link_token?: string | null;
-    slug?: string | null;
     form_template?: {
       name?: string | null;
     } | null;
@@ -269,7 +249,6 @@ export async function buildVariableContext(data: {
       data_hora: data.appointment.scheduled_at || undefined,
       nome_medico: data.doctor?.full_name || undefined,
       tipo: data.appointmentType?.name || undefined,
-      procedimento: data.procedure?.name || undefined,
       status: data.appointment.status || undefined,
       recomendacoes: data.appointment.recommendations || undefined,
       precisa_jejum: data.appointment.requires_fasting || false,
@@ -278,17 +257,18 @@ export async function buildVariableContext(data: {
     };
   }
 
-  // Dados do formulário — link absoluto para emails (usa apenas NEXT_PUBLIC_APP_URL)
+  // Dados do formulário
   if (data.formInstance) {
-    // Usar apenas NEXT_PUBLIC_APP_URL (não usar VERCEL_URL pois são URLs temporárias que requerem login)
     const origin =
       process.env.NEXT_PUBLIC_APP_URL ||
-      (typeof window !== "undefined" ? window.location.origin : undefined);
-    const baseUrl = (origin ?? "").replace(/\/$/, "");
-    // Priorizar slug se disponível, senão usar link_token (compatibilidade)
-    const identifier = data.formInstance.slug || data.formInstance.link_token;
-    const path = identifier ? `/f/${identifier}` : undefined;
-    const link = path ? (baseUrl ? `${baseUrl}${path}` : path) : undefined;
+      (typeof window !== "undefined" ? window.location.origin : "");
+    // Preferir slug amigável (ex: clinica-saude/formulario/paciente) para o link funcionar na rota /f/[token]/[segment2]/[segment3]
+    const path = data.formInstance.slug
+      ? `/f/${data.formInstance.slug}`
+      : data.formInstance.link_token
+        ? `/f/${data.formInstance.link_token}`
+        : undefined;
+    const link = path ? `${origin}${path}` : undefined;
 
     context.formulario = {
       link,
