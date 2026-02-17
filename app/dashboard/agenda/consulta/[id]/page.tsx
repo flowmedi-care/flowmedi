@@ -8,6 +8,7 @@ import { ConsultaTabsClient } from "./consulta-tabs-client";
 import { DataHoraReagendar } from "./data-hora-reagendar";
 import { BackButton } from "./back-button";
 import { getStatusBadgeClassName } from "../../status-utils";
+import { formatPhoneBr } from "@/lib/format-phone";
 import { cn } from "@/lib/utils";
 
 export type FormInstanceItem = {
@@ -181,7 +182,7 @@ export default async function ConsultaDetalhePage({
               <p className="text-sm text-muted-foreground">{patient.email}</p>
             )}
             {patient?.phone && (
-              <p className="text-sm text-muted-foreground">{patient.phone}</p>
+              <p className="text-sm text-muted-foreground">{formatPhoneBr(patient.phone)}</p>
             )}
             {patient?.birth_date && (
               <p className="text-sm text-muted-foreground">

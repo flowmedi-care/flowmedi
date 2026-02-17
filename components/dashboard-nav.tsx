@@ -37,11 +37,13 @@ export function DashboardNav({
   profile,
   isCollapsed,
   onToggleCollapse,
+  mobileSidebarWidth = 260,
 }: {
   user: User;
   profile: Profile;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  mobileSidebarWidth?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -68,18 +70,21 @@ export function DashboardNav({
   return (
     <aside
       className={cn(
-        "flex flex-col overflow-hidden transition-[width,transform] duration-300 ease-out",
+        "flex flex-col overflow-hidden transition-[width,transform] duration-300 ease-out flex-shrink-0",
         "border-border bg-card",
         "md:relative md:h-full md:border-b-0 md:border-r",
         "h-screen border-b",
-        // Mobile: drawer overlay (fixed, slide from left)
-        "fixed inset-y-0 left-0 z-50 w-[min(280px,85vw)] max-w-[280px]",
-        "md:relative md:inset-auto md:z-auto md:h-full md:w-56 md:max-w-none",
+        // Mobile: empurra o conteúdo (não sobrepõe). Largura fixa quando aberto, 0 quando fechado.
+        "fixed inset-y-0 left-0 z-40 md:relative md:inset-auto md:z-auto",
+        "md:h-full md:w-56 md:max-w-none",
         isCollapsed
-          ? "-translate-x-full md:translate-x-0 md:w-16 md:min-w-[4rem]"
-          : "translate-x-0 shadow-xl md:shadow-none"
+          ? "w-0 -translate-x-full md:translate-x-0 md:w-16 md:min-w-[4rem]"
+          : "translate-x-0 shadow-lg md:shadow-none max-md:w-[260px]"
       )}
-      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+      style={{
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
     >
       <div className={cn("p-3 sm:p-4 border-b border-border flex-shrink-0 flex items-center gap-2", isCollapsed ? "justify-center px-2" : "justify-between")}>
         {!isCollapsed && (

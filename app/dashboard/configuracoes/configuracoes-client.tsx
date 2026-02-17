@@ -81,9 +81,9 @@ export function ConfiguracoesClient({
   }, [searchParams]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Configurações</h1>
+    <div className="space-y-6 pb-20 min-w-0">
+      <div className="min-w-0">
+        <h1 className="text-xl font-semibold sm:text-2xl truncate">Configurações</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Gerencie as configurações gerais da clínica
         </p>
@@ -91,10 +91,10 @@ export function ConfiguracoesClient({
 
       <IntegrationsSection clinicId={clinicId} />
 
-      <Card>
-        <CardHeader>
+      <Card className="overflow-visible">
+        <CardHeader className="space-y-1">
           <h2 className="text-lg font-semibold">Logo da Clínica</h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground break-words">
             A logo da clínica aparecerá no topo dos formulários enviados aos pacientes.
           </p>
         </CardHeader>
@@ -107,10 +107,10 @@ export function ConfiguracoesClient({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
+      <Card className="overflow-visible">
+        <CardHeader className="space-y-1">
           <h2 className="text-lg font-semibold">Compliance de Confirmação</h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground break-words">
             Defina quantos dias antes da consulta ela deve estar confirmada. 
             Consultas não confirmadas dentro do prazo aparecerão como alerta no dashboard da secretária.
             Exemplo: se definir 2 dias, uma consulta agendada para dia 17 deve estar confirmada até dia 15.

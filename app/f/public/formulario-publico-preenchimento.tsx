@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import type { FormFieldDefinition } from "@/lib/form-types";
+import { formatPhoneBrInput, parsePhoneBr } from "@/lib/format-phone";
 import { Check } from "lucide-react";
 import { LogoImage } from "@/components/logo-image";
 
@@ -109,7 +110,7 @@ export function FormularioPublicoPreenchimento({
       p_template_id: templateId,
       p_submitter_name: basicForm.name.trim(),
       p_submitter_email: basicForm.email.trim(),
-      p_submitter_phone: basicForm.phone.trim() || null,
+      p_submitter_phone: parsePhoneBr(basicForm.phone) || null,
       p_submitter_birth_date: basicForm.birth_date || null,
       p_responses: formResponses,
       p_custom_fields: Object.keys(customFieldsData).length > 0 ? customFieldsData : null,
@@ -213,9 +214,10 @@ export function FormularioPublicoPreenchimento({
               <Input
                 id="phone"
                 type="tel"
-                value={basicForm.phone}
-                onChange={(e) => setBasicForm((f) => ({ ...f, phone: e.target.value }))}
-                placeholder="(11) 99999-9999"
+                inputMode="numeric"
+                value={formatPhoneBrInput(basicForm.phone || "")}
+                onChange={(e) => setBasicForm((f) => ({ ...f, phone: parsePhoneBr(e.target.value) }))}
+                placeholder="(62) 99691-5034"
               />
             </div>
             <div className="space-y-2">

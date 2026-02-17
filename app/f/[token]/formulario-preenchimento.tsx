@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { FormFieldDefinition, FormFieldType } from "@/lib/form-types";
+import { formatPhoneBr } from "@/lib/format-phone";
 import { Check } from "lucide-react";
 import { LogoImage } from "@/components/logo-image";
 
@@ -366,7 +367,7 @@ export function FormularioPreenchimento({
               {safePatientData.phone && (
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Telefone</Label>
-                  <p className="text-sm font-medium">{safePatientData.phone}</p>
+                  <p className="text-sm font-medium">{formatPhoneBr(safePatientData.phone)}</p>
                 </div>
               )}
             </div>

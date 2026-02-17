@@ -48,6 +48,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatPhoneBr } from "@/lib/format-phone";
 import { toast } from "@/components/ui/toast";
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
@@ -285,7 +286,7 @@ export function PipelineClient({ initialItems }: { initialItems: PipelineItem[] 
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex justify-between gap-4 overflow-x-auto">
+        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 min-w-0">
           {stages.map((stage) => (
             <KanbanColumn
               key={stage}
@@ -369,15 +370,15 @@ function KanbanColumn({
   const itemIds = items.map((item) => item.id);
 
   return (
-    <div className="flex flex-col space-y-2 flex-1 min-w-0">
-      <div className="flex items-center justify-between p-2">
-        <h3 className="text-sm font-semibold">{STAGE_LABELS[stage]}</h3>
-        <Badge variant="outline">{items.length}</Badge>
+    <div className="flex flex-col space-y-2 flex-1 min-w-[140px] sm:min-w-[160px] shrink-0">
+      <div className="flex items-center justify-between p-2 min-w-0">
+        <h3 className="text-sm font-semibold truncate">{STAGE_LABELS[stage]}</h3>
+        <Badge variant="outline" className="shrink-0">{items.length}</Badge>
       </div>
       <div
         ref={setNodeRef}
         className={cn(
-          "min-h-[200px] rounded-lg border-2 border-dashed p-2 space-y-2 flex-1",
+          "min-h-[160px] sm:min-h-[200px] rounded-lg border-2 border-dashed p-2 space-y-2 flex-1",
           items.length === 0 && "border-gray-300 dark:border-gray-700"
         )}
       >
@@ -478,8 +479,8 @@ function PipelineCard({
         </div>
         {item.phone && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Phone className="h-3 w-3" />
-            {item.phone}
+            <Phone className="h-3 w-3 shrink-0" />
+            <span>{formatPhoneBr(item.phone)}</span>
           </div>
         )}
         {item.forms.length > 0 && (
@@ -524,14 +525,15 @@ function PipelineCard({
           <Button
             size="sm"
             variant="outline"
-            className="w-full mt-2 border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-900/20"
+            className="w-full mt-2 border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-900/20 whitespace-nowrap min-w-0"
             onClick={(e) => {
               e.stopPropagation();
               onMarkAsCompleted(item);
             }}
           >
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Marcar como concluído
+            <CheckCircle className="h-3 w-3 mr-1 shrink-0" />
+            <span className="sm:hidden">Concluir</span>
+            <span className="hidden sm:inline">Marcar como concluído</span>
           </Button>
         )}
       </CardContent>
@@ -567,12 +569,12 @@ function PipelineListItem({
                 {STAGE_LABELS[item.stage]}
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground">{item.email}</p>
+            <p className="text-xs text-muted-foreground truncate">{item.email}</p>
             {item.phone && (
-              <p className="text-xs text-muted-foreground">{item.phone}</p>
+              <p className="text-xs text-muted-foreground">{formatPhoneBr(item.phone)}</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button variant="outline" size="sm" onClick={onSelect}>
               <MessageSquare className="h-4 w-4" />
             </Button>

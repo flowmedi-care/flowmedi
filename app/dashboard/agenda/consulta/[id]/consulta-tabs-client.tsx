@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConsultaDetalheClient } from "./consulta-detalhe-client";
 import { ExamesClient } from "../../../exames/exames-client";
 import { FormulariosConsultaClient } from "./formularios-consulta-client";
+import { formatPhoneBr } from "@/lib/format-phone";
 import { cn } from "@/lib/utils";
 import type { FormInstanceItem } from "./page";
 
@@ -108,7 +109,7 @@ export function ConsultaTabsClient({
               {patientData.phone && (
                 <div>
                   <p className="text-sm text-muted-foreground">Telefone</p>
-                  <p className="font-medium">{patientData.phone}</p>
+                  <p className="font-medium">{formatPhoneBr(patientData.phone)}</p>
                 </div>
               )}
               {patientData.birth_date && (

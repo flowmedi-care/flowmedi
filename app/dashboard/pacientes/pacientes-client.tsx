@@ -11,6 +11,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPatient, updatePatient, deletePatient, registerPatientFromPublicForm, type PatientInsert, type PatientUpdate } from "./actions";
 import { Search, UserPlus, Pencil, Trash2, X, UserCheck, User, Download, FileText, Grid3x3, List, CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatPhoneBr, formatPhoneBrInput, parsePhoneBr } from "@/lib/format-phone";
 import { toast } from "@/components/ui/toast";
 import Link from "next/link";
 import { ExamesClient } from "../exames/exames-client";
@@ -302,7 +303,7 @@ export function PacientesClient({
       const res = await createPatient({
         full_name: form.full_name,
         email: form.email || null,
-        phone: form.phone || null,
+        phone: parsePhoneBr(form.phone) || null,
         birth_date: form.birth_date || null,
         notes: form.notes || null,
         custom_fields: form.custom_fields || {},
@@ -339,7 +340,7 @@ export function PacientesClient({
       const update: PatientUpdate = {
         full_name: form.full_name,
         email: form.email || null,
-        phone: form.phone || null,
+        phone: parsePhoneBr(form.phone) || null,
         birth_date: form.birth_date || null,
         notes: form.notes || null,
         custom_fields: form.custom_fields || {},
@@ -529,11 +530,12 @@ export function PacientesClient({
                   <Input
                     id="phone"
                     type="tel"
-                    value={form.phone ?? ""}
+                    inputMode="numeric"
+                    value={formatPhoneBrInput(form.phone ?? "")}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, phone: e.target.value }))
+                      setForm((f) => ({ ...f, phone: parsePhoneBr(e.target.value) }))
                     }
-                    placeholder="(11) 99999-9999"
+                    placeholder="(62) 99691-5034"
                   />
                 </div>
               </div>
@@ -709,7 +711,7 @@ export function PacientesClient({
                         <p className="font-medium text-sm truncate w-full">{p.full_name}</p>
                         {p.phone && (
                           <p className="text-xs text-muted-foreground mt-1 truncate w-full">
-                            {p.phone}
+                            {formatPhoneBr(p.phone)}
                           </p>
                         )}
                       </CardContent>
@@ -730,7 +732,7 @@ export function PacientesClient({
                     <div>
                       <p className="font-medium">{p.full_name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {[p.email, p.phone].filter(Boolean).join(" · ") || "—"}
+                        {[p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") || "—"}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -780,7 +782,7 @@ export function PacientesClient({
                     <div className="flex-1">
                       <p className="font-medium">{nr.name || "Sem nome"}</p>
                       <p className="text-sm text-muted-foreground">
-                        {[nr.email, nr.phone].filter(Boolean).join(" · ") || nr.email}
+                        {[nr.email, nr.phone ? formatPhoneBr(nr.phone) : null].filter(Boolean).join(" · ") || nr.email}
                       </p>
                       {nr.birth_date && (
                         <p className="text-xs text-muted-foreground mt-1">
@@ -853,7 +855,7 @@ export function PacientesClient({
                   {selectedPatient.phone && (
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Telefone</p>
-                      <p className="text-base">{selectedPatient.phone}</p>
+                      <p className="text-base">{formatPhoneBr(selectedPatient.phone)}</p>
                     </div>
                   )}
                   

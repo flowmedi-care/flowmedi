@@ -55,32 +55,32 @@ export function DashboardLayoutClient({
     setIsCollapsed((prev) => !prev);
   };
 
-  const showBackdrop = isMobile && !isCollapsed;
+  // No mobile: sidebar empurra o conteúdo (não sobrepõe). Largura do drawer quando aberto.
+  const mobileSidebarWidth = 260;
 
   return (
     <div className="min-h-screen min-h-[100dvh] flex flex-col md:flex-row overflow-hidden relative bg-muted/30">
-      {/* Backdrop: apenas no mobile quando o drawer está aberto */}
-      {showBackdrop && (
-        <button
-          type="button"
-          aria-label="Fechar menu"
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px] md:hidden animate-in fade-in duration-200"
-          onClick={toggleCollapse}
-        />
-      )}
       <DashboardNav
         user={user}
         profile={profile}
         isCollapsed={isCollapsed}
         onToggleCollapse={toggleCollapse}
+        mobileSidebarWidth={mobileSidebarWidth}
       />
       <main
         className={cn(
-          "flex-1 flex flex-col min-w-0 overflow-y-auto overflow-x-hidden",
+          "flex-1 flex flex-col min-w-0 overflow-y-auto overflow-x-hidden transition-[margin] duration-300 ease-out",
           "py-4 px-4 sm:py-5 sm:px-5 md:py-6 md:px-6 lg:py-8 lg:px-8",
           "pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]",
-          "pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+          "pb-[max(1.5rem,env(safe-area-inset-bottom))]",
+          // No mobile, quando a sidebar está aberta, dá margem à esquerda para o conteúdo não ficar embaixo
+          isMobile && !isCollapsed && "md:ml-0"
         )}
+        style={
+          isMobile && !isCollapsed
+            ? { marginLeft: mobileSidebarWidth }
+            : undefined
+        }
       >
         <div className="w-full max-w-[1600px] mx-auto">{children}</div>
       </main>

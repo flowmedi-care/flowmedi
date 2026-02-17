@@ -555,11 +555,11 @@ export function AgendaClient({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {viewMode === "timeline" && timelineGranularity === "day" ? (
               // Timeline Dia: apenas um campo
               <>
-                <Label htmlFor="date_inicio" className="text-muted-foreground text-sm">
+                <Label htmlFor="date_inicio" className="text-muted-foreground text-xs sm:text-sm shrink-0">
                   Data
                 </Label>
                 <Input
@@ -567,11 +567,12 @@ export function AgendaClient({
                   type="date"
                   value={dateInicio}
                   onChange={(e) => setDateInicio(e.target.value)}
-                  className="w-40"
+                  className="w-[7.5rem] min-w-0 max-w-full text-sm sm:w-40"
                 />
                 <Button
                   variant="outline"
                   size="sm"
+                  className="shrink-0"
                   onClick={() => {
                     const today = todayYMD();
                     setDateInicio(today);
@@ -581,9 +582,9 @@ export function AgendaClient({
                 </Button>
               </>
             ) : (
-              // Timeline Semana/Mês ou Calendário: campos De/Até
+              // Timeline Semana/Mês ou Calendário: campos De/Até (compactos no mobile)
               <>
-                <Label htmlFor="date_inicio" className="text-muted-foreground text-sm">
+                <Label htmlFor="date_inicio" className="text-muted-foreground text-xs sm:text-sm shrink-0">
                   De
                 </Label>
                 <Input
@@ -593,8 +594,6 @@ export function AgendaClient({
                   onChange={(e) => {
                     const novoInicio = e.target.value;
                     setDateInicio(novoInicio);
-                    
-                    // Para calendário, recalcular automaticamente
                     if (viewMode === "calendar") {
                       const inicioDate = new Date(novoInicio + "T12:00:00");
                       let novoFim: Date;
@@ -608,12 +607,11 @@ export function AgendaClient({
                       setDateFim(toYMD(novoFim));
                     }
                   }}
-                  className="w-40"
+                  className="w-[7.5rem] min-w-0 max-w-full text-sm sm:w-40"
                 />
                 {viewMode === "timeline" ? (
-                  // Timeline: permite editar o "até"
                   <>
-                    <Label htmlFor="date_fim" className="text-muted-foreground text-sm">
+                    <Label htmlFor="date_fim" className="text-muted-foreground text-xs sm:text-sm shrink-0">
                       até
                     </Label>
                     <Input
@@ -623,19 +621,17 @@ export function AgendaClient({
                       min={dateInicio}
                       onChange={(e) => {
                         const novoFim = e.target.value;
-                        // Validar que não seja anterior ao início
                         if (novoFim >= dateInicio) {
                           dateFimManuallySet.current = true;
                           setDateFim(novoFim);
                         }
                       }}
-                      className="w-40"
+                      className="w-[7.5rem] min-w-0 max-w-full text-sm sm:w-40"
                     />
                   </>
                 ) : (
-                  // Calendário: mostra "até" mas não permite editar (readonly)
                   <>
-                    <Label htmlFor="date_fim" className="text-muted-foreground text-sm">
+                    <Label htmlFor="date_fim" className="text-muted-foreground text-xs sm:text-sm shrink-0">
                       até
                     </Label>
                     <Input
@@ -643,17 +639,17 @@ export function AgendaClient({
                       type="date"
                       value={dateFim}
                       readOnly
-                      className="w-40 bg-muted cursor-not-allowed"
+                      className="w-[7.5rem] min-w-0 max-w-full text-sm sm:w-40 bg-muted cursor-not-allowed"
                     />
                   </>
                 )}
                 <Button
                   variant="outline"
                   size="sm"
+                  className="shrink-0"
                   onClick={() => {
                     const today = todayYMD();
                     setDateInicio(today);
-                    // O useEffect vai calcular o dateFim automaticamente
                   }}
                 >
                   Hoje
