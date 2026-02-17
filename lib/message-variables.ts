@@ -278,11 +278,11 @@ export async function buildVariableContext(data: {
     };
   }
 
-  // Dados do formulário — link absoluto para emails (NEXT_PUBLIC_APP_URL ou VERCEL_URL)
+  // Dados do formulário — link absoluto para emails (usa apenas NEXT_PUBLIC_APP_URL)
   if (data.formInstance) {
+    // Usar apenas NEXT_PUBLIC_APP_URL (não usar VERCEL_URL pois são URLs temporárias que requerem login)
     const origin =
       process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
       (typeof window !== "undefined" ? window.location.origin : undefined);
     const baseUrl = (origin ?? "").replace(/\/$/, "");
     // Priorizar slug se disponível, senão usar link_token (compatibilidade)
