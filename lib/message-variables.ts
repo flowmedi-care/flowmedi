@@ -224,6 +224,7 @@ export async function buildVariableContext(data: {
   };
   formInstance?: {
     link_token?: string | null;
+    slug?: string | null;
     form_template?: {
       name?: string | null;
     } | null;
