@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { FormularioPublicoPreenchimento } from "../../formulario-publico-preenchimento";
 import { LogoImage } from "@/components/logo-image";
 
+export const dynamic = "force-dynamic";
+
 export default async function FormularioPublicoPage({
   params,
 }: {

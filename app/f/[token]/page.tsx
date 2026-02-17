@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { FormularioPreenchimento } from "./formulario-preenchimento";
 import { LogoImage } from "@/components/logo-image";
 
+// Sempre renderizar no servidor (link deve funcionar para anônimo e em outro dispositivo)
+export const dynamic = "force-dynamic";
+
 export default async function FormularioPublicoPage({
   params,
 }: {
@@ -16,22 +19,9 @@ export default async function FormularioPublicoPage({
     }
 
     const supabase = await createClient();
-    
-    // Tentar buscar por slug primeiro (caso seja um slug simples)
-    const { data: instanceBySlug } = await supabase
-      .from("form_instances")
-      .select("link_token")
-      .eq("slug", token)
-      .maybeSingle();
-    
-    let tokenToUse = token;
-    if (instanceBySlug?.link_token) {
-      tokenToUse = instanceBySlug.link_token;
-    }
-    
-    // Usar função RPC para buscar dados completos
+    // Usar RPC (SECURITY DEFINER): funciona para anônimo/celular; evita RLS em form_instances
     const { data, error } = await supabase.rpc("get_form_by_token", {
-      p_token: tokenToUse,
+      p_token: token,
     });
 
     if (error || !data) {

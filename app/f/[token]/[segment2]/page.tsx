@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { FormularioPreenchimento } from "../formulario-preenchimento";
 import { LogoImage } from "@/components/logo-image";
 
+export const dynamic = "force-dynamic";
+
 export default async function FormularioComSlugPage({
   params,
 }: {
@@ -16,31 +18,17 @@ export default async function FormularioComSlugPage({
     }
 
     const supabase = await createClient();
-
-    // Buscar instância pelo slug composto (formSlug = nome formulário, patientSlug = nome paciente)
     const combinedSlug = `${formSlug}/${patientSlug}`;
-    const { data: instanceData, error: slugError } = await supabase
-      .from("form_instances")
-      .select(`
-        id,
-        link_token
-      `)
-      .eq("slug", combinedSlug)
-      .maybeSingle();
-
-    if (slugError || !instanceData || !instanceData.link_token) {
-      notFound();
-    }
-
+    // RPC (SECURITY DEFINER) aceita slug e funciona para anônimo/celular
     const { data, error } = await supabase.rpc("get_form_by_token", {
-      p_token: instanceData.link_token,
+      p_token: combinedSlug,
     });
 
     if (error || !data || !data.found) {
       notFound();
     }
 
-    return renderForm(data, instanceData.link_token);
+    return renderForm(data, combinedSlug);
   } catch (error) {
     notFound();
   }
