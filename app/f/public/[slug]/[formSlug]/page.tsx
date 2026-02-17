@@ -6,40 +6,37 @@ import { LogoImage } from "@/components/logo-image";
 export default async function FormularioPublicoPage({
   params,
 }: {
-  params: Promise<{ clinicSlug: string; formSlug: string }>;
+  params: Promise<{ slug: string; formSlug: string }>;
 }) {
   try {
-    const { clinicSlug, formSlug } = await params;
+    const { slug: clinicSlug, formSlug } = await params;
 
     if (!clinicSlug || !formSlug || typeof clinicSlug !== "string" || typeof formSlug !== "string") {
       notFound();
     }
 
     const supabase = await createClient();
-    
-    // Buscar clínica pelo slug
+
     const { data: clinic, error: clinicError } = await supabase
       .from("clinics")
       .select("id")
       .eq("slug", clinicSlug)
       .maybeSingle();
-    
+
     if (clinicError || !clinic) {
       notFound();
     }
-    
-    // Buscar template público pelo slug do nome dentro desta clínica
+
     const { data: allTemplates, error: fetchError } = await supabase
       .from("form_templates")
       .select("id, name")
       .eq("is_public", true)
       .eq("clinic_id", clinic.id);
-    
+
     if (fetchError || !allTemplates) {
       notFound();
     }
-    
-    // Função para gerar slug a partir de nome (mesma lógica do TypeScript)
+
     const slugify = (text: string): string => {
       return text
         .toLowerCase()
@@ -50,18 +47,16 @@ export default async function FormularioPublicoPage({
         .replace(/^-+|-+$/g, "")
         .substring(0, 100);
     };
-    
-    // Encontrar template cujo slug do nome corresponde ao formSlug fornecido
+
     const matchingTemplate = allTemplates.find((t) => {
       const templateSlug = slugify(t.name);
       return templateSlug === formSlug;
     });
-    
+
     if (!matchingTemplate) {
       notFound();
     }
-    
-    // Usar função RPC para buscar dados completos
+
     const { data, error } = await supabase.rpc("get_public_form_template", {
       p_template_id: matchingTemplate.id,
     });
@@ -78,10 +73,9 @@ export default async function FormularioPublicoPage({
 
 async function renderForm(data: any, templateId: string) {
   const supabase = await createClient();
-  
-  // Validar e sanitizar dados
+
   const definition = Array.isArray(data.definition) ? data.definition : [];
-  const responses: Record<string, unknown> = {}; // Sempre vazio para nova resposta
+  const responses: Record<string, unknown> = {};
 
   const templateName =
     (data.template_name && typeof data.template_name === "string" && data.template_name.trim())
@@ -101,7 +95,6 @@ async function renderForm(data: any, templateId: string) {
       ? data.clinic_logo_scale
       : 100;
 
-  // Buscar campos customizados que devem aparecer no formulário público
   const clinicId = data.clinic_id ? String(data.clinic_id) : null;
   let customFields: Array<{
     id: string;
@@ -123,7 +116,6 @@ async function renderForm(data: any, templateId: string) {
     customFields = (fields ?? []) as typeof customFields;
   }
 
-  // Dados básicos sempre vazios para formulários públicos (nova resposta)
   const basicData = {
     name: null,
     email: null,
@@ -132,7 +124,6 @@ async function renderForm(data: any, templateId: string) {
     age: null,
   };
 
-  // Dados do médico associado
   const doctorLogoUrl =
     (data.doctor_logo_url && typeof data.doctor_logo_url === "string")
       ? data.doctor_logo_url
