@@ -484,11 +484,12 @@ export function AgendaClient({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 min-w-0">
       {/* Header com título e botão Nova consulta */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Agenda</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-semibold text-foreground sm:text-2xl truncate">Agenda</h1>
         <Button
+          className="w-full sm:w-auto min-h-[44px] touch-manipulation shrink-0"
           onClick={() => {
             setShowForm(true);
             if (doctors.length === 1) {
@@ -502,9 +503,9 @@ export function AgendaClient({
       </div>
 
       {/* Toolbar: modo, granularidade (calendário), período, filtros */}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-4 min-w-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          <div className="flex flex-wrap items-center gap-2">
             <select
               value={viewMode}
               onChange={async (e) => {
@@ -662,7 +663,7 @@ export function AgendaClient({
           </div>
 
           {/* Filtros */}
-          <div className="flex items-center gap-2 border-l pl-4">
+          <div className="flex flex-wrap items-center gap-2 sm:border-l sm:pl-4 sm:border-border">
             <AgendaFilters
               statusFilter={statusFilter}
               formFilter={formFilter}

@@ -707,16 +707,21 @@ export function EventosClient({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Central de Eventos</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+    <div className="space-y-4 sm:space-y-6 min-w-0">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-foreground truncate sm:text-2xl">Central de Eventos</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Gerencie todos os eventos: todos, pendentes e concluídos
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)}>
-          <Settings2 className="h-4 w-4 mr-2" />
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full sm:w-auto min-h-[44px] sm:min-h-9 touch-manipulation shrink-0"
+          onClick={() => setConfigOpen(true)}
+        >
+          <Settings2 className="h-4 w-4 mr-2 shrink-0" />
           Configurar eventos
         </Button>
       </div>

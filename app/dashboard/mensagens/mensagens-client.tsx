@@ -115,41 +115,45 @@ export function MensagensClient() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:justify-between sm:items-center">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-foreground sm:text-2xl truncate">
             Mensagens
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-none">
             Histórico, eventos e templates de email e WhatsApp
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap shrink-0">
           <Button
             variant="outline"
+            className="w-full sm:w-auto min-h-[44px] touch-manipulation"
             onClick={() => router.push("/dashboard/mensagens/pendentes")}
           >
             Mensagens Pendentes
           </Button>
-          <Button onClick={() => router.push("/dashboard/mensagens/templates")}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button
+            className="w-full sm:w-auto min-h-[44px] touch-manipulation"
+            onClick={() => router.push("/dashboard/mensagens/templates")}
+          >
+            <Plus className="h-4 w-4 mr-2 shrink-0" />
             Criar Template
           </Button>
         </div>
       </div>
 
       {/* Testar envio de email */}
-      <Card className="p-5">
-        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-2">
-          <Mail className="h-5 w-5" />
+      <Card className="p-4 sm:p-5">
+        <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-2 sm:text-lg">
+          <Mail className="h-5 w-5 shrink-0" />
           Testar envio de email
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
           Escolha um destinatário e envie um email de teste para verificar se a integração com o Gmail está funcionando.
         </p>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-2 min-w-[240px]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="space-y-2 w-full sm:min-w-[200px] sm:max-w-[280px]">
             <Label htmlFor="test-email-to">Destinatário (email)</Label>
             <Input
               id="test-email-to"
@@ -164,6 +168,7 @@ export function MensagensClient() {
           </div>
           <Button
             disabled={!testEmailTo.trim() || testEmailSending}
+            className="w-full sm:w-auto min-h-[44px] touch-manipulation"
             onClick={async () => {
               setTestEmailSending(true);
               setTestEmailResult(null);
@@ -210,16 +215,16 @@ export function MensagensClient() {
         )}
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Mini dashboard: histórico recente */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Mail className="h-5 w-5" />
-              Histórico de mensagens enviadas
+        <Card className="p-4 sm:p-5 overflow-hidden">
+          <div className="flex items-center justify-between mb-4 min-w-0">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2 truncate sm:text-lg">
+              <Mail className="h-5 w-5 shrink-0" />
+              <span className="truncate">Histórico de mensagens enviadas</span>
             </h2>
           </div>
-          <div className="max-h-64 overflow-y-auto space-y-2">
+          <div className="max-h-48 sm:max-h-64 overflow-y-auto overflow-x-hidden space-y-2">
             {recentLog.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Nenhuma mensagem enviada ainda.
@@ -248,15 +253,16 @@ export function MensagensClient() {
       </div>
 
       {/* 1. Templates salvos (configurados/editados pelos usuários) */}
-      <Card className="p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <FileText className="h-5 w-5" />
+      <Card className="p-4 sm:p-5 overflow-hidden">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2 sm:text-lg">
+            <FileText className="h-5 w-5 shrink-0" />
             Templates salvos
           </h2>
           <Button
             variant="outline"
             size="sm"
+            className="w-full sm:w-auto min-h-[44px] sm:min-h-9 touch-manipulation"
             onClick={() => router.push("/dashboard/mensagens/templates")}
           >
             Ver todos
@@ -305,7 +311,7 @@ export function MensagensClient() {
         )}
         <Button
           variant="outline"
-          className="mt-4"
+          className="mt-4 w-full sm:w-auto min-h-[44px] touch-manipulation"
           onClick={() => router.push("/dashboard/mensagens/templates/novo")}
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -314,10 +320,10 @@ export function MensagensClient() {
       </Card>
 
       {/* 2. Templates do sistema (padrões por evento/canal) */}
-      <Card className="p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <FileText className="h-5 w-5" />
+      <Card className="p-4 sm:p-5 overflow-hidden">
+        <div className="flex items-center justify-between mb-4 min-w-0">
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2 truncate sm:text-lg">
+            <FileText className="h-5 w-5 shrink-0" />
             Templates do sistema
           </h2>
         </div>

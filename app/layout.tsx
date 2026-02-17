@@ -14,6 +14,13 @@ export const metadata: Metadata = {
     "Centralize agenda, formulários clínicos e comunicação com o paciente. Autenticação, papéis e LGPD.",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover" as const,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{

@@ -61,21 +61,22 @@ export function SecretariaDashboardClient({
   }, [upcomingAppointments]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8 min-w-0">
       {/* Header com Quick Actions */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-foreground truncate sm:text-2xl">
             Dashboard da Secretaria
           </h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-sm mt-0.5">
             Gerencie consultas, pacientes e formulários
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"
+            className="min-h-[44px] sm:min-h-9 touch-manipulation"
             onClick={() => setShowPreferences(!showPreferences)}
           >
             <Settings className="h-4 w-4 mr-2" />

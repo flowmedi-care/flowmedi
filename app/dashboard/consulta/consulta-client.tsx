@@ -165,9 +165,10 @@ export function ConsultaClient({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Consulta</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Consulta</h1>
         <Button
+          className="w-full sm:w-auto min-h-[44px] touch-manipulation"
           type="button"
           onClick={() => router.push("/dashboard/agenda?new=true")}
         >

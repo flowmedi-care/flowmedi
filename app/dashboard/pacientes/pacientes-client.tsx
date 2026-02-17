@@ -372,7 +372,7 @@ export function PacientesClient({
   const showForm = isNew || editingId !== null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 min-w-0">
       {justRegisteredPatientId && (
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
           <span className="text-sm text-green-800 dark:text-green-200">
@@ -396,9 +396,9 @@ export function PacientesClient({
           </div>
         </div>
       )}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
+        <div className="relative flex-1 w-full min-w-0 max-w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             placeholder="Buscar por nome, e-mail ou telefone..."
             value={search}
@@ -406,15 +406,16 @@ export function PacientesClient({
               const newValue = e.target.value;
               setSearch(newValue);
             }}
-            className="pl-9"
+            className="pl-9 min-h-[44px] touch-manipulation"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {activeTab === "registered" && (
             <>
               <Button
                 variant={viewMode === "contacts" ? "default" : "outline"}
                 size="sm"
+                className="min-h-[44px] min-w-[44px] touch-manipulation sm:min-h-9 sm:min-w-9"
                 onClick={() => setViewMode("contacts")}
                 title="Visualização de contatos"
               >
@@ -423,13 +424,14 @@ export function PacientesClient({
               <Button
                 variant={viewMode === "list" ? "default" : "outline"}
                 size="sm"
+                className="min-h-[44px] min-w-[44px] touch-manipulation sm:min-h-9 sm:min-w-9"
                 onClick={() => setViewMode("list")}
                 title="Visualização em lista"
               >
                 <List className="h-4 w-4" />
               </Button>
-              <Button onClick={openNew}>
-                <UserPlus className="h-4 w-4 mr-2" />
+              <Button onClick={openNew} className="min-h-[44px] touch-manipulation flex-1 sm:flex-initial">
+                <UserPlus className="h-4 w-4 mr-2 shrink-0" />
                 Novo paciente
               </Button>
             </>
@@ -438,11 +440,12 @@ export function PacientesClient({
       </div>
 
       {/* Abas */}
-      <div className="flex gap-2 border-b border-border">
+      <div className="flex gap-0 border-b border-border overflow-x-auto -mx-1 px-1 scrollbar-thin">
         <button
+          type="button"
           onClick={() => setActiveTab("registered")}
           className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+            "px-4 py-3 min-h-[44px] text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation shrink-0",
             activeTab === "registered"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -451,9 +454,10 @@ export function PacientesClient({
           Cadastrados ({patients.length})
         </button>
         <button
+          type="button"
           onClick={() => setActiveTab("nonRegistered")}
           className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+            "px-4 py-3 min-h-[44px] text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation shrink-0",
             activeTab === "nonRegistered"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"

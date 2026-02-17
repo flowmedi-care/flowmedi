@@ -68,11 +68,20 @@ export function DashboardNav({
   return (
     <aside
       className={cn(
-        "h-screen md:h-full border-b md:border-b-0 md:border-r border-border bg-card flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
-        isCollapsed ? "w-0 md:w-16" : "w-full md:w-56"
+        "flex flex-col overflow-hidden transition-[width,transform] duration-300 ease-out",
+        "border-border bg-card",
+        "md:relative md:h-full md:border-b-0 md:border-r",
+        "h-screen border-b",
+        // Mobile: drawer overlay (fixed, slide from left)
+        "fixed inset-y-0 left-0 z-50 w-[min(280px,85vw)] max-w-[280px]",
+        "md:relative md:inset-auto md:z-auto md:h-full md:w-56 md:max-w-none",
+        isCollapsed
+          ? "-translate-x-full md:translate-x-0 md:w-16 md:min-w-[4rem]"
+          : "translate-x-0 shadow-xl md:shadow-none"
       )}
+      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className={cn("p-4 border-b border-border flex-shrink-0 flex items-center gap-2", isCollapsed ? "justify-center px-2" : "justify-between")}>
+      <div className={cn("p-3 sm:p-4 border-b border-border flex-shrink-0 flex items-center gap-2", isCollapsed ? "justify-center px-2" : "justify-between")}>
         {!isCollapsed && (
           <Link href="/dashboard" className="font-semibold text-foreground whitespace-nowrap">
             FlowMedi
@@ -92,7 +101,7 @@ export function DashboardNav({
           )}
         </Button>
       </div>
-      <nav className={cn("flex-1 p-2 space-y-1 overflow-y-auto", isCollapsed && "px-1")}>
+      <nav className={cn("flex-1 p-2 space-y-0.5 overflow-y-auto overflow-x-hidden", isCollapsed && "px-1")}>
         {navItems.map((item) => {
           const show = !item.roles || item.roles.includes(profile?.role ?? "");
           if (!show) return null;
@@ -101,14 +110,14 @@ export function DashboardNav({
               <Button
                 variant={pathname === item.href ? "secondary" : "ghost"}
                 className={cn(
-                  "w-full justify-start",
+                  "w-full justify-start min-h-[44px] sm:min-h-9 touch-manipulation",
                   pathname === item.href && "bg-primary/10 text-primary",
-                  isCollapsed && "justify-center px-0"
+                  isCollapsed && "justify-center px-0 md:min-h-8"
                 )}
                 title={isCollapsed ? item.label : undefined}
               >
                 {item.icon}
-                {!isCollapsed && <span className="ml-2">{item.label}</span>}
+                {!isCollapsed && <span className="ml-2 truncate">{item.label}</span>}
               </Button>
             </Link>
           );
@@ -119,11 +128,11 @@ export function DashboardNav({
             <Link href="/dashboard/perfil">
               <Button
                 variant={pathname === "/dashboard/perfil" ? "secondary" : "ghost"}
-                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                className={cn("w-full justify-start min-h-[44px] sm:min-h-9 touch-manipulation", isCollapsed && "justify-center px-0 md:min-h-8")}
                 title={isCollapsed ? "Meu Perfil" : undefined}
               >
                 <Users className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Meu Perfil</span>}
+                {!isCollapsed && <span className="ml-2 truncate">Meu Perfil</span>}
               </Button>
             </Link>
           </>
@@ -134,51 +143,51 @@ export function DashboardNav({
             <Link href="/dashboard/equipe">
               <Button
                 variant={pathname === "/dashboard/equipe" ? "secondary" : "ghost"}
-                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                className={cn("w-full justify-start min-h-[44px] sm:min-h-9 touch-manipulation", isCollapsed && "justify-center px-0 md:min-h-8")}
                 title={isCollapsed ? "Equipe" : undefined}
               >
                 <UserPlus className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Equipe</span>}
+                {!isCollapsed && <span className="ml-2 truncate">Equipe</span>}
               </Button>
             </Link>
             <Link href="/dashboard/campos-pacientes">
               <Button
                 variant={pathname === "/dashboard/campos-pacientes" ? "secondary" : "ghost"}
-                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                className={cn("w-full justify-start min-h-[44px] sm:min-h-9 touch-manipulation", isCollapsed && "justify-center px-0 md:min-h-8")}
                 title={isCollapsed ? "Campos" : undefined}
               >
                 <FileEdit className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Campos</span>}
+                {!isCollapsed && <span className="ml-2 truncate">Campos</span>}
               </Button>
             </Link>
             <Link href="/dashboard/configuracoes">
               <Button
                 variant={pathname === "/dashboard/configuracoes" ? "secondary" : "ghost"}
-                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                className={cn("w-full justify-start min-h-[44px] sm:min-h-9 touch-manipulation", isCollapsed && "justify-center px-0 md:min-h-8")}
                 title={isCollapsed ? "Configurações" : undefined}
               >
                 <Settings className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Configurações</span>}
+                {!isCollapsed && <span className="ml-2 truncate">Configurações</span>}
               </Button>
             </Link>
             <Link href="/dashboard/plano">
               <Button
                 variant={pathname === "/dashboard/plano" ? "secondary" : "ghost"}
-                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                className={cn("w-full justify-start min-h-[44px] sm:min-h-9 touch-manipulation", isCollapsed && "justify-center px-0 md:min-h-8")}
                 title={isCollapsed ? "Plano e pagamento" : undefined}
               >
                 <CreditCard className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Plano e pagamento</span>}
+                {!isCollapsed && <span className="ml-2 truncate">Plano e pagamento</span>}
               </Button>
             </Link>
             <Link href="/dashboard/mensagens">
               <Button
                 variant={pathname === "/dashboard/mensagens" ? "secondary" : "ghost"}
-                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                className={cn("w-full justify-start min-h-[44px] sm:min-h-9 touch-manipulation", isCollapsed && "justify-center px-0 md:min-h-8")}
                 title={isCollapsed ? "Mensagens" : undefined}
               >
                 <Mail className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Mensagens</span>}
+                {!isCollapsed && <span className="ml-2 truncate">Mensagens</span>}
               </Button>
             </Link>
           </>
@@ -200,12 +209,12 @@ export function DashboardNav({
         <Button
           variant="ghost"
           size="sm"
-          className={cn("w-full justify-start mt-2", isCollapsed && "justify-center px-0")}
+          className={cn("w-full justify-start mt-2 min-h-[44px] sm:min-h-8 touch-manipulation", isCollapsed && "justify-center px-0 md:min-h-8")}
           onClick={handleSignOut}
           title={isCollapsed ? "Sair" : undefined}
         >
           <LogOut className="h-4 w-4" />
-          {!isCollapsed && <span className="ml-2">Sair</span>}
+          {!isCollapsed && <span className="ml-2 truncate">Sair</span>}
         </Button>
       </div>
     </aside>

@@ -12,6 +12,16 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
       },
+      spacing: {
+        "safe-t": "env(safe-area-inset-top)",
+        "safe-r": "env(safe-area-inset-right)",
+        "safe-b": "env(safe-area-inset-bottom)",
+        "safe-l": "env(safe-area-inset-left)",
+      },
+      minHeight: {
+        screen: "100vh",
+        "screen-dvh": "100dvh",
+      },
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
