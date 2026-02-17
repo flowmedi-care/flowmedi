@@ -1,17 +1,37 @@
 /**
+ * Mapa de caracteres acentuados/c especiais para ASCII (só substitui, nunca remove letras)
+ */
+const ACCENT_MAP: Record<string, string> = {
+  à: 'a', á: 'a', â: 'a', ã: 'a', ä: 'a', å: 'a',
+  è: 'e', é: 'e', ê: 'e', ë: 'e',
+  ì: 'i', í: 'i', î: 'i', ï: 'i',
+  ò: 'o', ó: 'o', ô: 'o', õ: 'o', ö: 'o',
+  ù: 'u', ú: 'u', û: 'u', ü: 'u',
+  ñ: 'n', Ñ: 'n',
+  ç: 'c', Ç: 'c',
+};
+
+/**
  * Gera um slug amigável a partir de um nome/texto
- * Remove acentos, espaços e caracteres especiais
- * Exemplo: "Formulário de Anamnese" -> "formulario-de-anamnese"
+ * Substitui acentos e ç/ñ por equivalentes ASCII (nunca remove letras)
+ * Exemplo: "Clínica Saúde" -> "clinica-saude", "Formulário de Anamnese" -> "formulario-de-anamnese"
  */
 export function slugify(text: string): string {
-  return text
+  if (typeof text !== 'string' || !text.trim()) return '';
+  let s = text.trim();
+  // Substituir caracteres acentuados/ especiais por equivalente ASCII
+  s = s
+    .split('')
+    .map((c) => ACCENT_MAP[c] ?? c)
+    .join('');
+  // Normalizar NFD e remover apenas combining marks (acentos combinados)
+  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return s
     .toLowerCase()
-    .normalize('NFD') // Normaliza caracteres Unicode
-    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
     .trim()
-    .replace(/[^a-z0-9]+/g, '-') // Substitui caracteres não alfanuméricos por hífen
-    .replace(/^-+|-+$/g, '') // Remove hífens no início e fim
-    .substring(0, 100); // Limita tamanho máximo
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 100);
 }
 
 /**

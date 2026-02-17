@@ -47,7 +47,7 @@ export async function getPublicFormTemplatesForPatient(patientId: string) {
   return { data: unique, error: null };
 }
 
-import { generateUniqueFormSlug } from "@/lib/form-slug";
+import { slugify } from "@/lib/form-slug";
 
 function generateLinkToken(): string {
   return crypto.randomUUID().replace(/-/g, "") + Date.now().toString(36);
@@ -114,30 +114,52 @@ export async function createAppointment(
 
   const formLinkedEventIds: string[] = [];
 
+  // Dados para slug amigável (clínica + formulário + paciente)
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("slug, name")
+    .eq("id", profile.clinic_id)
+    .single();
+  let clinicSlug = clinic?.slug || slugify(clinic?.name || "clinica");
+  if (!clinic?.slug) {
+    await supabase.from("clinics").update({ slug: clinicSlug }).eq("id", profile.clinic_id);
+  }
+  const { data: patientForSlug } = await supabase
+    .from("patients")
+    .select("full_name, email")
+    .eq("id", patientId)
+    .single();
+  const patientSlug = slugify(patientForSlug?.full_name || "paciente");
+
+  async function ensureUniqueSlug(baseSlug: string): Promise<string> {
+    let slug = baseSlug;
+    for (let i = 0; i <= 10; i++) {
+      const candidate = i === 0 ? slug : `${baseSlug}-${i}`;
+      const { data: existing } = await supabase
+        .from("form_instances")
+        .select("id")
+        .eq("slug", candidate)
+        .maybeSingle();
+      if (!existing) return candidate;
+    }
+    return `${baseSlug}-${Date.now().toString(36).slice(-4)}`;
+  }
+
   if (appointmentTypeId) {
     const { data: templates } = await supabase
       .from("form_templates")
-      .select("id")
+      .select("id, name")
       .eq("appointment_type_id", appointmentTypeId);
 
     if (templates?.length) {
-      // Buscar email do paciente para verificar se já respondeu formulários públicos
-      const { data: patient } = await supabase
-        .from("patients")
-        .select("email")
-        .eq("id", patientId)
-        .single();
+      const patientEmail = patientForSlug?.email;
 
-      const patientEmail = patient?.email;
-
-      // Para cada template, verificar se já existe resposta pública
       const instancesToCreate = await Promise.all(
         templates.map(async (t) => {
           let status = "pendente";
           let responses: Record<string, unknown> = {};
           let linkToken = generateLinkToken();
 
-          // Se paciente tem email, verificar se já respondeu este formulário publicamente
           if (patientEmail) {
             const { data: publicInstance } = await supabase
               .from("form_instances")
@@ -149,26 +171,23 @@ export async function createAppointment(
               .maybeSingle();
 
             if (publicInstance && publicInstance.responses) {
-              // Paciente já respondeu este formulário publicamente
               status = "respondido";
               responses = (publicInstance.responses as Record<string, unknown>) || {};
-              // Não precisa de link_token se já está respondido
-              linkToken = generateLinkToken(); // Ainda geramos para compatibilidade
+              linkToken = generateLinkToken();
             }
           }
 
           const expiresAt = new Date();
           expiresAt.setDate(expiresAt.getDate() + 30);
-
-          // Gerar slug amigável
-          const slug = await generateUniqueFormSlug(supabase);
+          const formSlug = slugify((t as { name?: string }).name || "formulario");
+          const combinedSlug = await ensureUniqueSlug(`${clinicSlug}/${formSlug}/${patientSlug}`);
 
           return {
             appointment_id: appointment.id,
             form_template_id: t.id,
             status,
             link_token: linkToken,
-            slug: slug,
+            slug: combinedSlug,
             link_expires_at: expiresAt.toISOString(),
             responses,
           };
@@ -201,17 +220,17 @@ export async function createAppointment(
       );
       const toCreate = procedureTemplateIds.filter((id) => !existingIds.has(id));
       if (toCreate.length > 0) {
-        const { data: patient } = await supabase
-          .from("patients")
-          .select("email")
-          .eq("id", patientId)
-          .single();
-        const patientEmail = patient?.email;
+        const patientEmail = patientForSlug?.email;
+        const { data: procTemplates } = await supabase
+          .from("form_templates")
+          .select("id, name")
+          .in("id", toCreate);
+        const nameById = new Map((procTemplates ?? []).map((r: { id: string; name: string }) => [r.id, r.name]));
         const instancesToCreate = await Promise.all(
           toCreate.map(async (form_template_id: string) => {
             let status = "pendente";
             let responses: Record<string, unknown> = {};
-            let linkToken = generateLinkToken();
+            const linkToken = generateLinkToken();
             if (patientEmail) {
               const { data: publicInstance } = await supabase
                 .from("form_instances")
@@ -228,14 +247,14 @@ export async function createAppointment(
             }
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 30);
-            // Gerar slug amigável
-            const slug = await generateUniqueFormSlug(supabase);
+            const formSlug = slugify(nameById.get(form_template_id) || "formulario");
+            const combinedSlug = await ensureUniqueSlug(`${clinicSlug}/${formSlug}/${patientSlug}`);
             return {
               appointment_id: appointment.id,
               form_template_id,
               status,
               link_token: linkToken,
-              slug: slug,
+              slug: combinedSlug,
               link_expires_at: expiresAt.toISOString(),
               responses,
             };
@@ -262,12 +281,12 @@ export async function createAppointment(
     );
     const toCreate = linkedFormTemplateIds.filter((id) => id && !existingIds.has(id));
     if (toCreate.length > 0) {
-      const { data: patientForForms } = await supabase
-        .from("patients")
-        .select("email")
-        .eq("id", patientId)
-        .single();
-      const patientEmail = patientForForms?.email;
+      const patientEmail = patientForSlug?.email;
+      const { data: linkedTemplates } = await supabase
+        .from("form_templates")
+        .select("id, name")
+        .in("id", toCreate);
+      const nameById = new Map((linkedTemplates ?? []).map((r: { id: string; name: string }) => [r.id, r.name]));
       const instancesToCreate = await Promise.all(
         toCreate.map(async (form_template_id: string) => {
           let status = "pendente";
@@ -289,11 +308,14 @@ export async function createAppointment(
           }
           const expiresAt = new Date();
           expiresAt.setDate(expiresAt.getDate() + 30);
+          const formSlug = slugify(nameById.get(form_template_id) || "formulario");
+          const combinedSlug = await ensureUniqueSlug(`${clinicSlug}/${formSlug}/${patientSlug}`);
           return {
             appointment_id: appointment.id,
             form_template_id,
             status,
             link_token: linkToken,
+            slug: combinedSlug,
             link_expires_at: expiresAt.toISOString(),
             responses,
           };

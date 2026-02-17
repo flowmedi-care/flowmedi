@@ -200,23 +200,18 @@ export async function createOrGetPublicFormLink(
     return { error: "Este formulário não permite uso público.", link: null, isNew: false };
   }
 
-  // Gerar ou obter slug da clínica
-  let clinicSlug = clinic?.slug;
-  if (!clinicSlug) {
-    // Se não tem slug, gerar um baseado no nome
-    clinicSlug = slugify(clinic?.name || "clinica");
-    // Atualizar no banco
+  // Slug da clínica: sempre gerar a partir do nome para URL correta (ex: "Clínica Saúde" → "clinica-saude")
+  const clinicSlugFromName = slugify(clinic?.name || "clinica");
+  const clinicSlug = clinicSlugFromName || clinic?.slug || "clinica";
+  if (!clinic?.slug || clinic.slug !== clinicSlugFromName) {
     await supabase
       .from("clinics")
-      .update({ slug: clinicSlug })
+      .update({ slug: clinicSlugFromName })
       .eq("id", profile.clinic_id);
   }
 
-  // Gerar slug amigável baseado no nome do formulário
   const formSlug = slugify(template.name || "formulario");
-  
-  // O link público sempre aponta para o template, não para uma instância específica
-  // A instância será criada quando a pessoa submeter o formulário
+
   return {
     error: null,
     link: `/f/public/${clinicSlug}/${formSlug}`,
