@@ -17,6 +17,39 @@ export default async function FormularioPublicoPage({
 
     const supabase = await createClient();
     
+    // Se o slug for um UUID, tratar como template_id (compatibilidade com links antigos)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(slug)) {
+      // É um UUID (template_id), buscar template diretamente
+      const { data, error } = await supabase.rpc("get_public_form_template", {
+        p_template_id: slug,
+      });
+      
+      if (error || !data || !data.found) {
+        notFound();
+      }
+      
+      return renderForm(data, slug);
+    }
+    
+    // Se não for UUID, pode ser um token antigo - tentar buscar por link_token
+    const { data: instanceByToken } = await supabase
+      .from("form_instances")
+      .select("form_template_id")
+      .or(`link_token.eq.${slug},public_link_token.eq.${slug}`)
+      .maybeSingle();
+    
+    if (instanceByToken?.form_template_id) {
+      // Encontrou instância com este token, buscar template
+      const { data, error } = await supabase.rpc("get_public_form_template", {
+        p_template_id: instanceByToken.form_template_id,
+      });
+      
+      if (!error && data?.found) {
+        return renderForm(data, instanceByToken.form_template_id);
+      }
+    }
+    
     // Buscar todos os templates públicos e encontrar o que corresponde ao slug
     const { data: allTemplates, error: fetchError } = await supabase
       .from("form_templates")
