@@ -88,6 +88,8 @@ export async function linkFormToAppointment(
   const { data: appointment } = await supabase
     .from("appointments")
     .select(`
+      clinic_id,
+      patient_id,
       patient:patients!inner(full_name)
     `)
     .eq("id", appointmentId)
@@ -161,13 +163,6 @@ export async function linkFormToAppointment(
 
   if (error) return { error: error.message };
   if (!inserted) return { error: "Erro ao vincular formulário." };
-
-  // Buscar appointment (patient_id, clinic_id) para criar evento form_linked
-  const { data: appointment } = await supabase
-    .from("appointments")
-    .select("clinic_id, patient_id")
-    .eq("id", appointmentId)
-    .single();
 
   if (appointment?.patient_id && appointment?.clinic_id) {
     try {
