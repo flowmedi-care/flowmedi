@@ -1,15 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import { FormularioPreenchimento } from "../../[token]/formulario-preenchimento";
+import { FormularioPreenchimento } from "../formulario-preenchimento";
 import { LogoImage } from "@/components/logo-image";
 
 export default async function FormularioComSlugPage({
   params,
 }: {
-  params: Promise<{ formSlug: string; patientSlug: string }>;
+  params: Promise<{ token: string; patientSlug: string }>;
 }) {
   try {
-    const { formSlug, patientSlug } = await params;
+    const { token: formSlug, patientSlug } = await params;
     
     if (!formSlug || !patientSlug || typeof formSlug !== 'string' || typeof patientSlug !== 'string') {
       notFound();
@@ -17,7 +17,7 @@ export default async function FormularioComSlugPage({
 
     const supabase = await createClient();
     
-    // Buscar instância pelo slug composto
+    // Buscar instância pelo slug composto (formSlug = nome formulário, patientSlug = nome paciente)
     const combinedSlug = `${formSlug}/${patientSlug}`;
     const { data: instanceData, error: slugError } = await supabase
       .from("form_instances")
