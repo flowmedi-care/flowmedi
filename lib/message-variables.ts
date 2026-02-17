@@ -270,12 +270,11 @@ export async function buildVariableContext(data: {
     const origin =
       process.env.NEXT_PUBLIC_APP_URL ||
       (typeof window !== "undefined" ? window.location.origin : "");
-    // Preferir slug amigável (ex: clinica-saude/formulario/paciente) para o link funcionar na rota /f/[token]/[segment2]/[segment3]
-    const path = data.formInstance.slug
-      ? `/f/${data.formInstance.slug}`
-      : data.formInstance.link_token
-        ? `/f/${data.formInstance.link_token}`
-        : undefined;
+    // Usar link_token (URL de um único segmento) para mensagens: evita 404 no celular quando
+    // o link é aberto pelo WhatsApp/email (links com várias barras às vezes são truncados).
+    const path = data.formInstance.link_token
+      ? `/f/${data.formInstance.link_token}`
+      : undefined;
     const link = path ? `${origin}${path}` : undefined;
 
     context.formulario = {
