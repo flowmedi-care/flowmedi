@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { generateUniqueFormSlug } from "@/lib/form-slug";
+import { slugify } from "@/lib/form-slug";
 
 export async function getFormTemplatesForAppointment(
   appointmentId: string
@@ -78,10 +78,72 @@ export async function linkFormToAppointment(
     return { error: "Este formulário já está vinculado a esta consulta." };
   }
 
+  // Buscar dados da clínica, template e paciente para gerar slug amigável
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("slug, name")
+    .eq("id", profile.clinic_id)
+    .single();
+
+  const { data: appointment } = await supabase
+    .from("appointments")
+    .select(`
+      patient:patients!inner(full_name)
+    `)
+    .eq("id", appointmentId)
+    .single();
+
+  const { data: template } = await supabase
+    .from("form_templates")
+    .select("name")
+    .eq("id", formTemplateId)
+    .single();
+
+  // Gerar ou obter slug da clínica
+  let clinicSlug = clinic?.slug;
+  if (!clinicSlug) {
+    clinicSlug = slugify(clinic?.name || "clinica");
+    await supabase
+      .from("clinics")
+      .update({ slug: clinicSlug })
+      .eq("id", profile.clinic_id);
+  }
+
+  // Gerar slugs amigáveis
+  const patient = Array.isArray(appointment?.patient) 
+    ? appointment.patient[0] 
+    : appointment?.patient;
+  const formSlug = template?.name ? slugify(template.name) : "formulario";
+  const patientSlug = patient?.full_name ? slugify(patient.full_name) : "paciente";
+  
+  // Criar slug composto: {clinicSlug}/{formSlug}/{patientSlug}
+  let combinedSlug = `${clinicSlug}/${formSlug}/${patientSlug}`;
+  
+  // Verificar se já existe e adicionar sufixo se necessário
+  const { data: existingSlug } = await supabase
+    .from("form_instances")
+    .select("id")
+    .eq("slug", combinedSlug)
+    .maybeSingle();
+  
+  if (existingSlug) {
+    for (let i = 1; i <= 10; i++) {
+      const slugWithSuffix = `${combinedSlug}-${i}`;
+      const { data: check } = await supabase
+        .from("form_instances")
+        .select("id")
+        .eq("slug", slugWithSuffix)
+        .maybeSingle();
+      if (!check) {
+        combinedSlug = slugWithSuffix;
+        break;
+      }
+    }
+  }
+
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
   const linkToken = crypto.randomUUID().replace(/-/g, "");
-  const slug = await generateUniqueFormSlug(supabase);
 
   const { data: inserted, error } = await supabase
     .from("form_instances")
@@ -90,7 +152,7 @@ export async function linkFormToAppointment(
       form_template_id: formTemplateId,
       status: "pendente",
       link_token: linkToken,
-      slug: slug,
+      slug: combinedSlug,
       link_expires_at: expiresAt.toISOString(),
       responses: {},
     })

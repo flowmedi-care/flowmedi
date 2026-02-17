@@ -178,6 +178,13 @@ export async function createOrGetPublicFormLink(
     .single();
   if (!profile?.clinic_id) return { error: "Clínica não encontrada.", link: null, isNew: false };
 
+  // Buscar dados da clínica para obter o slug
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("slug, name")
+    .eq("id", profile.clinic_id)
+    .single();
+
   // Verificar se o template permite uso público
   const { data: template } = await supabase
     .from("form_templates")
@@ -193,6 +200,18 @@ export async function createOrGetPublicFormLink(
     return { error: "Este formulário não permite uso público.", link: null, isNew: false };
   }
 
+  // Gerar ou obter slug da clínica
+  let clinicSlug = clinic?.slug;
+  if (!clinicSlug) {
+    // Se não tem slug, gerar um baseado no nome
+    clinicSlug = slugify(clinic?.name || "clinica");
+    // Atualizar no banco
+    await supabase
+      .from("clinics")
+      .update({ slug: clinicSlug })
+      .eq("id", profile.clinic_id);
+  }
+
   // Gerar slug amigável baseado no nome do formulário
   const formSlug = slugify(template.name || "formulario");
   
@@ -200,7 +219,7 @@ export async function createOrGetPublicFormLink(
   // A instância será criada quando a pessoa submeter o formulário
   return {
     error: null,
-    link: `/f/public/${formSlug}`,
+    link: `/f/public/${clinicSlug}/${formSlug}`,
     isNew: true,
   };
 }
@@ -358,6 +377,13 @@ export async function ensureFormInstanceAndGetLink(
     .single();
   if (!profile?.clinic_id) return { error: "Clínica não encontrada.", link: null };
 
+  // Buscar dados da clínica para obter o slug
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("slug, name")
+    .eq("id", profile.clinic_id)
+    .single();
+
   // Buscar dados do template e do paciente para gerar slugs amigáveis
   const { data: appointment } = await supabase
     .from("appointments")
@@ -372,6 +398,18 @@ export async function ensureFormInstanceAndGetLink(
     .select("name")
     .eq("id", formTemplateId)
     .single();
+
+  // Gerar ou obter slug da clínica
+  let clinicSlug = clinic?.slug;
+  if (!clinicSlug) {
+    // Se não tem slug, gerar um baseado no nome
+    clinicSlug = slugify(clinic?.name || "clinica");
+    // Atualizar no banco
+    await supabase
+      .from("clinics")
+      .update({ slug: clinicSlug })
+      .eq("id", profile.clinic_id);
+  }
 
   const { data: existing } = await supabase
     .from("form_instances")
@@ -402,8 +440,8 @@ export async function ensureFormInstanceAndGetLink(
   const formSlug = template?.name ? slugify(template.name) : "formulario";
   const patientSlug = patient?.full_name ? slugify(patient.full_name) : "paciente";
   
-  // Criar slug composto: {formSlug}/{patientSlug}
-  const combinedSlug = `${formSlug}/${patientSlug}`;
+  // Criar slug composto incluindo clinic: {clinicSlug}/{formSlug}/{patientSlug}
+  const combinedSlug = `${clinicSlug}/${formSlug}/${patientSlug}`;
   
   // Verificar se já existe algum slug similar e adicionar sufixo se necessário
   const { data: existingSlug } = await supabase
