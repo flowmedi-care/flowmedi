@@ -135,6 +135,10 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
   "{{link_formulario}}": (ctx) => ctx.formulario?.link || "",
   "{{nome_formulario}}": (ctx) => ctx.formulario?.nome || "",
   "{{prazo_formulario}}": (ctx) => ctx.formulario?.prazo || "",
+  "{{instrucao_formulario}}": (ctx) =>
+    ctx.formulario?.link
+      ? `Por favor, preencha o formulário antes da consulta através do link: ${ctx.formulario.link}`
+      : "",
 
   // Variáveis de clínica
   "{{nome_clinica}}": (ctx) => ctx.clinica?.nome || "",
