@@ -217,6 +217,9 @@ export async function buildVariableContext(data: {
   appointmentType?: {
     name?: string | null;
   };
+  procedure?: {
+    name?: string | null;
+  };
   clinic?: {
     name?: string | null;
     phone?: string | null;
