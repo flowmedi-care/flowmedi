@@ -269,15 +269,24 @@ export function EmailBrandingEditor({
   }, [template, colors, logoUrl]);
 
   const loadTemplate = (selectedTemplate: EmailBrandingTemplate) => {
-    const templateFn = type === "header" ? HEADER_TEMPLATES : FOOTER_TEMPLATES;
-    const newBlocks = templateFn[selectedTemplate](
-      colors,
-      logoUrl ?? null,
-      clinicName || "",
-      clinicPhone ?? null,
-      clinicEmail ?? null
-    );
-    setBlocks(newBlocks);
+    if (type === "header") {
+      const newBlocks = HEADER_TEMPLATES[selectedTemplate](
+        colors,
+        logoUrl ?? undefined,
+        clinicName || "",
+        clinicPhone ?? undefined,
+        clinicEmail ?? undefined
+      );
+      setBlocks(newBlocks);
+    } else {
+      const newBlocks = FOOTER_TEMPLATES[selectedTemplate](
+        colors,
+        clinicName || "",
+        clinicPhone ?? undefined,
+        clinicEmail ?? undefined
+      );
+      setBlocks(newBlocks);
+    }
   };
 
   const handleBlocksChange = (newBlocks: EmailBlock[]) => {
