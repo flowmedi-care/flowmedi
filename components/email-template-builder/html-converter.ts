@@ -80,7 +80,8 @@ export function htmlToBlocks(html: string): EmailBlock[] {
 
       case "a":
         // Verifica se é um botão (estilizado como botão)
-        const isButton = el.style.backgroundColor || 
+        const htmlEl = el as HTMLElement;
+        const isButton = (htmlEl.style && htmlEl.style.backgroundColor) || 
                         el.classList.contains("button") ||
                         el.getAttribute("style")?.includes("background");
         
