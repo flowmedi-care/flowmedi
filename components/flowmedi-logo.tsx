@@ -26,7 +26,7 @@ export function FlowmediLogo({
   size = "md",
   variant = "default",
 }: FlowmediLogoProps) {
-  const { icon: iconSize, text: textClass } = sizes;
+  const { icon: iconSize, text: textClass } = sizes[size];
   const gradId = useId();
   const content = (
     <>
