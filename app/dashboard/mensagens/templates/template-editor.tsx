@@ -371,7 +371,7 @@ export function TemplateEditor({
                     required
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    Use as variáveis disponíveis no painel ao lado. Exemplo: Olá {{nome_paciente}}, sua consulta está agendada para {{data_consulta}}.
+                    Use as variáveis disponíveis no painel ao lado. Exemplo: Olá {"{{"}nome_paciente{"}}"}, sua consulta está agendada para {"{{"}data_consulta{"}}"}.
                   </p>
                 </div>
 
