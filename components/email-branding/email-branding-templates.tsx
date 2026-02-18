@@ -47,7 +47,7 @@ function generateHeaderHTML(
               ${(phone || email) ? `
                 <p style="margin: 8px 0 0 0; font-size: 14px; color: #6b7280; line-height: 1.5;">
                   ${phone ? `<span style="color: #374151;">${phone}</span>` : ""}
-                  ${phone && email ? " <span style="color: #d1d5db;">•</span> " : ""}
+                  ${phone && email ? ` <span style="color: #d1d5db;">•</span> ` : ""}
                   ${email ? `<a href="mailto:${email}" style="color: #2563eb; text-decoration: none;">${email}</a>` : ""}
                 </p>
               ` : ""}
