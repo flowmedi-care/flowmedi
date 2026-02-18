@@ -33,12 +33,19 @@ export function EmailBrandingCard() {
     );
   }
 
-  const colors = (brandingData.email_branding_colors || {
-    primary: "#007bff",
-    secondary: "#6c757d",
-    text: "#333333",
-    background: "#ffffff",
-  }) as EmailBrandingColors;
+  const colors: EmailBrandingColors = brandingData.email_branding_colors && 
+    typeof brandingData.email_branding_colors === 'object' &&
+    'primary' in brandingData.email_branding_colors &&
+    'secondary' in brandingData.email_branding_colors &&
+    'text' in brandingData.email_branding_colors &&
+    'background' in brandingData.email_branding_colors
+    ? (brandingData.email_branding_colors as unknown as EmailBrandingColors)
+    : {
+        primary: "#007bff",
+        secondary: "#6c757d",
+        text: "#333333",
+        background: "#ffffff",
+      };
 
   const [headerHtml, setHeaderHtml] = useState<string | null>(brandingData.email_header);
   const [footerHtml, setFooterHtml] = useState<string | null>(brandingData.email_footer);
