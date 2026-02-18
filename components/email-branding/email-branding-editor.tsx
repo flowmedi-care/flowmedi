@@ -272,10 +272,10 @@ export function EmailBrandingEditor({
     const templateFn = type === "header" ? HEADER_TEMPLATES : FOOTER_TEMPLATES;
     const newBlocks = templateFn[selectedTemplate](
       colors,
-      logoUrl || null,
+      logoUrl ?? null,
       clinicName || "",
-      clinicPhone || null,
-      clinicEmail || null
+      clinicPhone ?? null,
+      clinicEmail ?? null
     );
     setBlocks(newBlocks);
   };
