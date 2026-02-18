@@ -216,6 +216,7 @@ export async function getClinicEmailBranding(): Promise<{
     name: string | null;
     phone: string | null;
     email: string | null;
+    address: string | null;
   } | null;
   error: string | null;
 }> {
