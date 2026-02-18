@@ -11,6 +11,8 @@ export function OnboardingForm() {
   const router = useRouter();
   const [clinicName, setClinicName] = useState("");
   const [fullName, setFullName] = useState("");
+  const [clinicPhone, setClinicPhone] = useState("");
+  const [clinicEmail, setClinicEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -23,6 +25,8 @@ export function OnboardingForm() {
     const { data: clinicId, error: rpcErr } = await supabase.rpc("create_clinic_and_profile", {
       p_clinic_name: clinicName,
       p_full_name: fullName || null,
+      p_clinic_phone: clinicPhone.trim() || null,
+      p_clinic_email: clinicEmail.trim() || null,
     });
 
     if (rpcErr || !clinicId) {
@@ -44,7 +48,7 @@ export function OnboardingForm() {
         </p>
       )}
       <div className="space-y-2">
-        <Label htmlFor="clinicName">Nome da clínica</Label>
+        <Label htmlFor="clinicName">Nome da clínica *</Label>
         <Input
           id="clinicName"
           type="text"
@@ -53,6 +57,32 @@ export function OnboardingForm() {
           onChange={(e) => setClinicName(e.target.value)}
           required
         />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="clinicPhone">Telefone da clínica</Label>
+        <Input
+          id="clinicPhone"
+          type="tel"
+          placeholder="(11) 99999-9999"
+          value={clinicPhone}
+          onChange={(e) => setClinicPhone(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          Será usado nos cabeçalhos e rodapés dos emails
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="clinicEmail">Email da clínica</Label>
+        <Input
+          id="clinicEmail"
+          type="email"
+          placeholder="contato@clinica.com"
+          value={clinicEmail}
+          onChange={(e) => setClinicEmail(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          Será usado nos cabeçalhos e rodapés dos emails
+        </p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="fullName">Seu nome completo</Label>

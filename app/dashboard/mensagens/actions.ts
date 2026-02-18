@@ -206,7 +206,17 @@ export async function getSystemTemplatesForDisplay(): Promise<{
 // ========== CABEÇALHO E RODAPÉ DOS EMAILS (por clínica, vale para todos) ==========
 
 export async function getClinicEmailBranding(): Promise<{
-  data: { email_header: string | null; email_footer: string | null } | null;
+  data: { 
+    email_header: string | null; 
+    email_footer: string | null;
+    email_header_template: string | null;
+    email_footer_template: string | null;
+    email_branding_colors: Record<string, unknown> | null;
+    logo_url: string | null;
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+  } | null;
   error: string | null;
 }> {
   const supabase = await createClient();
@@ -223,17 +233,33 @@ export async function getClinicEmailBranding(): Promise<{
 
   const { data, error } = await supabase
     .from("clinics")
-    .select("email_header, email_footer")
+    .select("email_header, email_footer, email_header_template, email_footer_template, email_branding_colors, logo_url, name, phone, email")
     .eq("id", profile.clinic_id)
     .single();
 
   if (error) return { data: null, error: error.message };
-  return { data: { email_header: data?.email_header ?? null, email_footer: data?.email_footer ?? null }, error: null };
+  return { 
+    data: { 
+      email_header: data?.email_header ?? null, 
+      email_footer: data?.email_footer ?? null,
+      email_header_template: data?.email_header_template ?? "minimal",
+      email_footer_template: data?.email_footer_template ?? "minimal",
+      email_branding_colors: data?.email_branding_colors ?? { primary: "#007bff", secondary: "#6c757d", text: "#333333", background: "#ffffff" },
+      logo_url: data?.logo_url ?? null,
+      name: data?.name ?? null,
+      phone: data?.phone ?? null,
+      email: data?.email ?? null,
+    }, 
+    error: null 
+  };
 }
 
 export async function updateClinicEmailBranding(
   emailHeader: string | null,
-  emailFooter: string | null
+  emailFooter: string | null,
+  headerTemplate?: string,
+  footerTemplate?: string,
+  brandingColors?: Record<string, unknown>
 ): Promise<{ error: string | null }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -247,12 +273,18 @@ export async function updateClinicEmailBranding(
 
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
 
+  const updateData: Record<string, unknown> = {
+    email_header: emailHeader?.trim() || null,
+    email_footer: emailFooter?.trim() || null,
+  };
+
+  if (headerTemplate) updateData.email_header_template = headerTemplate;
+  if (footerTemplate) updateData.email_footer_template = footerTemplate;
+  if (brandingColors) updateData.email_branding_colors = brandingColors;
+
   const { error } = await supabase
     .from("clinics")
-    .update({
-      email_header: emailHeader?.trim() || null,
-      email_footer: emailFooter?.trim() || null,
-    })
+    .update(updateData)
     .eq("id", profile.clinic_id);
 
   if (error) return { error: error.message };
