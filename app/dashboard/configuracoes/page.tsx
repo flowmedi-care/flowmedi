@@ -20,15 +20,19 @@ export default async function ConfiguracoesPage() {
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("logo_url, logo_scale, compliance_confirmation_days, compliance_form_days")
+    .select("name, logo_url, logo_scale, phone, email, address, compliance_confirmation_days, compliance_form_days")
     .eq("id", profile.clinic_id)
     .single();
 
   return (
     <Suspense fallback={<div>Carregando...</div>}>
       <ConfiguracoesClient
+        clinicName={clinic?.name ?? null}
         clinicLogoUrl={clinic?.logo_url ?? null}
         clinicLogoScale={clinic?.logo_scale ?? 100}
+        clinicPhone={clinic?.phone ?? null}
+        clinicEmail={clinic?.email ?? null}
+        clinicAddress={clinic?.address ?? null}
         complianceConfirmationDays={clinic?.compliance_confirmation_days ?? null}
         complianceFormDays={clinic?.compliance_form_days ?? null}
         clinicId={profile.clinic_id}

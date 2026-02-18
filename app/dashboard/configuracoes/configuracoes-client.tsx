@@ -9,16 +9,25 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { updateComplianceConfirmationDays, updateComplianceFormDays } from "./actions";
 import { LogoUpload } from "./logo-upload";
 import { IntegrationsSection } from "./integrations-section";
+import { ClinicInfoTabs } from "@/components/clinic-info/clinic-info-tabs";
 
 export function ConfiguracoesClient({
+  clinicName,
   clinicLogoUrl,
   clinicLogoScale,
+  clinicPhone,
+  clinicEmail,
+  clinicAddress,
   complianceConfirmationDays,
   complianceFormDays,
   clinicId,
 }: {
+  clinicName: string | null;
   clinicLogoUrl: string | null;
   clinicLogoScale: number;
+  clinicPhone: string | null;
+  clinicEmail: string | null;
+  clinicAddress: string | null;
   complianceConfirmationDays: number | null;
   complianceFormDays: number | null;
   clinicId: string;
@@ -91,21 +100,17 @@ export function ConfiguracoesClient({
 
       <IntegrationsSection clinicId={clinicId} />
 
-      <Card className="overflow-visible">
-        <CardHeader className="space-y-1">
-          <h2 className="text-lg font-semibold">Logo da Clínica</h2>
-          <p className="text-sm text-muted-foreground break-words">
-            A logo da clínica aparecerá no topo dos formulários enviados aos pacientes.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <LogoUpload
-            currentLogoUrl={clinicLogoUrl}
-            currentScale={clinicLogoScale}
-            type="clinic"
-          />
-        </CardContent>
-      </Card>
+      <ClinicInfoTabs
+        clinicId={clinicId}
+        initialData={{
+          name: clinicName,
+          logoUrl: clinicLogoUrl,
+          logoScale: clinicLogoScale,
+          phone: clinicPhone,
+          email: clinicEmail,
+          address: clinicAddress,
+        }}
+      />
 
       <Card className="overflow-visible">
         <CardHeader className="space-y-1">

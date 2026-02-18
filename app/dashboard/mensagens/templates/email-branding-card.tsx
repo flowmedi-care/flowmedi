@@ -18,11 +18,47 @@ export function EmailBrandingCard() {
     email: string | null;
   } | null>(null);
 
+  const defaultColors: EmailBrandingColors = {
+    primary: "#007bff",
+    secondary: "#6c757d",
+    text: "#333333",
+    background: "#ffffff",
+  };
+
+  const colors: EmailBrandingColors = brandingData?.email_branding_colors && 
+    typeof brandingData.email_branding_colors === 'object' &&
+    'primary' in brandingData.email_branding_colors &&
+    'secondary' in brandingData.email_branding_colors &&
+    'text' in brandingData.email_branding_colors &&
+    'background' in brandingData.email_branding_colors
+    ? (brandingData.email_branding_colors as unknown as EmailBrandingColors)
+    : defaultColors;
+
+  const [headerHtml, setHeaderHtml] = useState<string | null>(null);
+  const [footerHtml, setFooterHtml] = useState<string | null>(null);
+  const [headerTemplate, setHeaderTemplate] = useState<EmailBrandingTemplate>("minimal");
+  const [footerTemplate, setFooterTemplate] = useState<EmailBrandingTemplate>("minimal");
+  const [currentColors, setCurrentColors] = useState<EmailBrandingColors>(defaultColors);
+
   useEffect(() => {
     getClinicEmailBranding().then((res) => {
       setLoading(false);
       if (res.data) {
         setBrandingData(res.data);
+        setHeaderHtml(res.data.email_header);
+        setFooterHtml(res.data.email_footer);
+        setHeaderTemplate((res.data.email_header_template as EmailBrandingTemplate) || "minimal");
+        setFooterTemplate((res.data.email_footer_template as EmailBrandingTemplate) || "minimal");
+        
+        const loadedColors: EmailBrandingColors = res.data.email_branding_colors && 
+          typeof res.data.email_branding_colors === 'object' &&
+          'primary' in res.data.email_branding_colors &&
+          'secondary' in res.data.email_branding_colors &&
+          'text' in res.data.email_branding_colors &&
+          'background' in res.data.email_branding_colors
+          ? (res.data.email_branding_colors as unknown as EmailBrandingColors)
+          : defaultColors;
+        setCurrentColors(loadedColors);
       }
     });
   }, []);
@@ -32,26 +68,6 @@ export function EmailBrandingCard() {
       <div className="text-sm text-muted-foreground p-4">Carregando...</div>
     );
   }
-
-  const colors: EmailBrandingColors = brandingData.email_branding_colors && 
-    typeof brandingData.email_branding_colors === 'object' &&
-    'primary' in brandingData.email_branding_colors &&
-    'secondary' in brandingData.email_branding_colors &&
-    'text' in brandingData.email_branding_colors &&
-    'background' in brandingData.email_branding_colors
-    ? (brandingData.email_branding_colors as unknown as EmailBrandingColors)
-    : {
-        primary: "#007bff",
-        secondary: "#6c757d",
-        text: "#333333",
-        background: "#ffffff",
-      };
-
-  const [headerHtml, setHeaderHtml] = useState<string | null>(brandingData.email_header);
-  const [footerHtml, setFooterHtml] = useState<string | null>(brandingData.email_footer);
-  const [headerTemplate, setHeaderTemplate] = useState<EmailBrandingTemplate>((brandingData.email_header_template as EmailBrandingTemplate) || "minimal");
-  const [footerTemplate, setFooterTemplate] = useState<EmailBrandingTemplate>((brandingData.email_footer_template as EmailBrandingTemplate) || "minimal");
-  const [currentColors, setCurrentColors] = useState<EmailBrandingColors>(colors);
 
   const handleHeaderSave = async (html: string, template: EmailBrandingTemplate, newColors: EmailBrandingColors) => {
     setHeaderHtml(html);

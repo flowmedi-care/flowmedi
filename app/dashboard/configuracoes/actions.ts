@@ -343,3 +343,40 @@ export async function updateComplianceFormDays(days: number | null) {
   revalidatePath("/dashboard");
   return { error: null };
 }
+
+export async function updateClinicInfo(data: {
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+}): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") {
+    return { error: "Apenas administradores podem atualizar informações da clínica." };
+  }
+
+  const updateData: Record<string, unknown> = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.phone !== undefined) updateData.phone = data.phone;
+  if (data.email !== undefined) updateData.email = data.email;
+  if (data.address !== undefined) updateData.address = data.address;
+
+  const { error } = await supabase
+    .from("clinics")
+    .update(updateData)
+    .eq("id", profile.clinic_id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/configuracoes");
+  revalidatePath("/dashboard/mensagens/templates");
+  return { error: null };
+}
