@@ -349,6 +349,9 @@ export async function updateClinicInfo(data: {
   phone?: string | null;
   email?: string | null;
   address?: string | null;
+  whatsapp_url?: string | null;
+  facebook_url?: string | null;
+  instagram_url?: string | null;
 }): Promise<{ error: string | null }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -369,6 +372,9 @@ export async function updateClinicInfo(data: {
   if (data.phone !== undefined) updateData.phone = data.phone;
   if (data.email !== undefined) updateData.email = data.email;
   if (data.address !== undefined) updateData.address = data.address;
+  if (data.whatsapp_url !== undefined) updateData.whatsapp_url = data.whatsapp_url?.trim() || null;
+  if (data.facebook_url !== undefined) updateData.facebook_url = data.facebook_url?.trim() || null;
+  if (data.instagram_url !== undefined) updateData.instagram_url = data.instagram_url?.trim() || null;
 
   const { error } = await supabase
     .from("clinics")

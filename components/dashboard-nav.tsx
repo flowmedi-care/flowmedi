@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { FlowmediLogo } from "@/components/flowmedi-logo";
 import { type User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import {
@@ -87,11 +88,12 @@ export function DashboardNav({
       }}
     >
       <div className={cn("p-3 sm:p-4 border-b border-border flex-shrink-0 flex items-center gap-2", isCollapsed ? "justify-center px-2" : "justify-between")}>
-        {!isCollapsed && (
-          <Link href="/dashboard" className="font-semibold text-foreground whitespace-nowrap">
-            FlowMedi
-          </Link>
-        )}
+        <FlowmediLogo
+          href="/dashboard"
+          size="sm"
+          showText={!isCollapsed}
+          className="shrink-0"
+        />
         <Button
           variant="ghost"
           size="icon"

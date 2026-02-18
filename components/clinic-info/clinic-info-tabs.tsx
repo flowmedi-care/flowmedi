@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Image as ImageIcon, Phone, Mail, MapPin } from "lucide-react";
+import { Building2, Image as ImageIcon, Phone, Mail, MapPin, MessageCircle, Facebook, Instagram } from "lucide-react";
 import { LogoUpload } from "@/app/dashboard/configuracoes/logo-upload";
 import { updateClinicInfo } from "@/app/dashboard/configuracoes/actions";
 
@@ -18,6 +18,9 @@ interface ClinicInfoTabsProps {
     phone: string | null;
     email: string | null;
     address: string | null;
+    whatsappUrl: string | null;
+    facebookUrl: string | null;
+    instagramUrl: string | null;
   };
 }
 
@@ -27,6 +30,9 @@ export function ClinicInfoTabs({ clinicId, initialData }: ClinicInfoTabsProps) {
   const [phone, setPhone] = useState(initialData.phone || "");
   const [email, setEmail] = useState(initialData.email || "");
   const [address, setAddress] = useState(initialData.address || "");
+  const [whatsappUrl, setWhatsappUrl] = useState(initialData.whatsappUrl || "");
+  const [facebookUrl, setFacebookUrl] = useState(initialData.facebookUrl || "");
+  const [instagramUrl, setInstagramUrl] = useState(initialData.instagramUrl || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -41,6 +47,9 @@ export function ClinicInfoTabs({ clinicId, initialData }: ClinicInfoTabsProps) {
       phone: phone.trim() || null,
       email: email.trim() || null,
       address: address.trim() || null,
+      whatsapp_url: whatsappUrl.trim() || null,
+      facebook_url: facebookUrl.trim() || null,
+      instagram_url: instagramUrl.trim() || null,
     });
 
     setSaving(false);
@@ -199,6 +208,52 @@ export function ClinicInfoTabs({ clinicId, initialData }: ClinicInfoTabsProps) {
                 <p className="text-xs text-muted-foreground">
                   Endereço completo da clínica (opcional)
                 </p>
+              </div>
+
+              <div className="pt-4 border-t space-y-4">
+                <p className="text-sm font-medium">Redes sociais</p>
+                <p className="text-xs text-muted-foreground">
+                  Links que podem aparecer no rodapé dos emails (opcional)
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="clinic-whatsapp">
+                    <MessageCircle className="h-4 w-4 inline mr-2" />
+                    WhatsApp
+                  </Label>
+                  <Input
+                    id="clinic-whatsapp"
+                    type="url"
+                    value={whatsappUrl}
+                    onChange={(e) => setWhatsappUrl(e.target.value)}
+                    placeholder="https://wa.me/5562999999999"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="clinic-facebook">
+                    <Facebook className="h-4 w-4 inline mr-2" />
+                    Facebook
+                  </Label>
+                  <Input
+                    id="clinic-facebook"
+                    type="url"
+                    value={facebookUrl}
+                    onChange={(e) => setFacebookUrl(e.target.value)}
+                    placeholder="https://facebook.com/sua-pagina"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="clinic-instagram">
+                    <Instagram className="h-4 w-4 inline mr-2" />
+                    Instagram
+                  </Label>
+                  <Input
+                    id="clinic-instagram"
+                    type="url"
+                    value={instagramUrl}
+                    onChange={(e) => setInstagramUrl(e.target.value)}
+                    placeholder="https://instagram.com/sua-conta"
+                  />
+                </div>
               </div>
             </div>
             <Button onClick={handleSaveInfo} disabled={saving}>

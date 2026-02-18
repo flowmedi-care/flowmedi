@@ -217,6 +217,9 @@ export async function getClinicEmailBranding(): Promise<{
     phone: string | null;
     email: string | null;
     address: string | null;
+    whatsapp_url: string | null;
+    facebook_url: string | null;
+    instagram_url: string | null;
   } | null;
   error: string | null;
 }> {
@@ -234,7 +237,7 @@ export async function getClinicEmailBranding(): Promise<{
 
   const { data, error } = await supabase
     .from("clinics")
-    .select("email_header, email_footer, email_header_template, email_footer_template, email_branding_colors, logo_url, name, phone, email, address")
+    .select("email_header, email_footer, email_header_template, email_footer_template, email_branding_colors, logo_url, name, phone, email, address, whatsapp_url, facebook_url, instagram_url")
     .eq("id", profile.clinic_id)
     .single();
 
@@ -251,6 +254,9 @@ export async function getClinicEmailBranding(): Promise<{
       phone: data?.phone ?? null,
       email: data?.email ?? null,
       address: data?.address ?? null,
+      whatsapp_url: data?.whatsapp_url ?? null,
+      facebook_url: data?.facebook_url ?? null,
+      instagram_url: data?.instagram_url ?? null,
     }, 
     error: null 
   };

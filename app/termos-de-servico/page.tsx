@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { PublicHeader } from "@/components/public-header";
+import { PublicFooter } from "@/components/public-footer";
 
 export const metadata = {
   title: "Termos de Serviço — FlowMedi",
@@ -7,21 +9,7 @@ export const metadata = {
 export default function TermosServicoPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <header className="border-b border-border bg-card/50 backdrop-blur">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/" className="font-semibold text-lg">
-            FlowMedi
-          </Link>
-          <nav className="flex items-center gap-4 text-sm text-muted-foreground">
-            <Link href="/precos" className="hover:text-foreground">
-              Preços
-            </Link>
-            <Link href="/entrar" className="hover:text-foreground">
-              Entrar
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <PublicHeader />
 
       <main className="flex-1">
         <section className="container mx-auto px-4 py-10 md:py-16 max-w-3xl">
@@ -168,6 +156,8 @@ export default function TermosServicoPage() {
           </div>
         </section>
       </main>
+
+      <PublicFooter />
     </div>
   );
 }

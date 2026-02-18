@@ -12,15 +12,20 @@ export function EmailBrandingCard() {
     email_footer: string | null;
     email_header_template: string | null;
     email_footer_template: string | null;
+    email_branding_colors: Record<string, unknown> | null;
     logo_url: string | null;
     name: string | null;
     phone: string | null;
     email: string | null;
     address: string | null;
+    whatsapp_url: string | null;
+    facebook_url: string | null;
+    instagram_url: string | null;
   } | null>(null);
 
   const [headerTemplate, setHeaderTemplate] = useState<EmailBrandingTemplate>("professional");
   const [footerTemplate, setFooterTemplate] = useState<EmailBrandingTemplate>("professional");
+  const [modernHeaderColor, setModernHeaderColor] = useState<string>("#667eea");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -32,6 +37,9 @@ export function EmailBrandingCard() {
         setBrandingData(res.data);
         setHeaderTemplate((res.data.email_header_template as EmailBrandingTemplate) || "professional");
         setFooterTemplate((res.data.email_footer_template as EmailBrandingTemplate) || "professional");
+        const colors = res.data.email_branding_colors as Record<string, unknown> | null;
+        const saved = colors && typeof colors.modern_header_color === "string" ? colors.modern_header_color : null;
+        setModernHeaderColor(saved || "#667eea");
       }
     });
   }, []);
@@ -56,7 +64,8 @@ export function EmailBrandingCard() {
           brandingData.email || "",
           brandingData.address || null,
           brandingData.logo_url,
-          true // usar variáveis
+          true,
+          headerTemplate === "modern" ? modernHeaderColor : undefined
         );
 
     const footerHtml = footerTemplate === "none"
@@ -69,14 +78,28 @@ export function EmailBrandingCard() {
           brandingData.email || "",
           brandingData.address || null,
           brandingData.logo_url,
-          true // usar variáveis
+          true,
+          undefined,
+          brandingData.whatsapp_url ?? null,
+          brandingData.facebook_url ?? null,
+          brandingData.instagram_url ?? null
         );
+
+    const brandingColors: Record<string, unknown> = {
+      ...(typeof brandingData.email_branding_colors === "object" && brandingData.email_branding_colors
+        ? brandingData.email_branding_colors
+        : {}),
+    };
+    if (headerTemplate === "modern") {
+      brandingColors.modern_header_color = modernHeaderColor;
+    }
 
     const result = await updateClinicEmailBranding(
       headerHtml,
       footerHtml,
       headerTemplate,
-      footerTemplate
+      footerTemplate,
+      brandingColors
     );
 
     setSaving(false);
@@ -117,6 +140,8 @@ export function EmailBrandingCard() {
         clinicAddress={brandingData.address}
         logoUrl={brandingData.logo_url}
         hasPhoneOrEmail={!!(brandingData.phone || brandingData.email)}
+        modernHeaderColor={modernHeaderColor}
+        onModernHeaderColorChange={setModernHeaderColor}
       />
 
       <EmailBrandingTemplates
@@ -129,6 +154,9 @@ export function EmailBrandingCard() {
         clinicAddress={brandingData.address}
         logoUrl={null}
         hasPhoneOrEmail={!!(brandingData.phone || brandingData.email)}
+        clinicWhatsappUrl={brandingData.whatsapp_url}
+        clinicFacebookUrl={brandingData.facebook_url}
+        clinicInstagramUrl={brandingData.instagram_url}
       />
 
       <div className="flex justify-end">

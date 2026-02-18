@@ -35,6 +35,9 @@ export type VariableContext = {
     nome?: string;
     telefone?: string;
     endereco?: string;
+    link_whatsapp?: string;
+    link_facebook?: string;
+    link_instagram?: string;
   };
 };
 
@@ -144,6 +147,9 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
   "{{nome_clinica}}": (ctx) => ctx.clinica?.nome || "",
   "{{telefone_clinica}}": (ctx) => ctx.clinica?.telefone || "",
   "{{endereco_clinica}}": (ctx) => ctx.clinica?.endereco || "",
+  "{{link_whatsapp_clinica}}": (ctx) => ctx.clinica?.link_whatsapp || "",
+  "{{link_facebook_clinica}}": (ctx) => ctx.clinica?.link_facebook || "",
+  "{{link_instagram_clinica}}": (ctx) => ctx.clinica?.link_instagram || "",
 };
 
 /**
@@ -228,6 +234,9 @@ export async function buildVariableContext(data: {
     name?: string | null;
     phone?: string | null;
     address?: string | null;
+    whatsapp_url?: string | null;
+    facebook_url?: string | null;
+    instagram_url?: string | null;
   };
   formInstance?: {
     link_token?: string | null;
@@ -289,6 +298,9 @@ export async function buildVariableContext(data: {
       nome: data.clinic.name || undefined,
       telefone: data.clinic.phone || undefined,
       endereco: data.clinic.address || undefined,
+      link_whatsapp: data.clinic.whatsapp_url || undefined,
+      link_facebook: data.clinic.facebook_url || undefined,
+      link_instagram: data.clinic.instagram_url || undefined,
     };
   }
 

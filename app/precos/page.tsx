@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Check } from "lucide-react";
+import { PublicHeader } from "@/components/public-header";
+import { PublicFooter } from "@/components/public-footer";
+import { Check, Sparkles } from "lucide-react";
 
 const plans = [
   {
@@ -39,86 +41,88 @@ const plans = [
 export default function PrecosPage() {
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-border bg-card/50 backdrop-blur">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/" className="font-semibold text-lg text-foreground">
-            FlowMedi
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link
-              href="/precos"
-              className="text-sm font-medium text-foreground"
-            >
-              Preços
-            </Link>
-            <Link href="/entrar">
-              <Button variant="ghost">Entrar</Button>
-            </Link>
-            <Link href="/criar-conta">
-              <Button>Começar grátis</Button>
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <PublicHeader />
 
-      <main className="flex-1 container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h1 className="text-3xl font-bold text-foreground">
-            Planos para sua clínica
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            Comece grátis. Assine o Pro quando precisar de mais recursos.
-          </p>
-        </div>
+      <main className="flex-1">
+        <section className="gradient-mesh py-16 md:py-24">
+          <div className="container mx-auto px-4">
+            <div className="mx-auto max-w-2xl text-center mb-12">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl">
+                Planos para sua clínica
+              </h1>
+              <p className="mt-4 text-lg text-muted-foreground">
+                Comece grátis. Assine o Profissional quando precisar de mais recursos.
+              </p>
+            </div>
 
-        <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-          {plans.map((plan) => (
-            <Card
-              key={plan.name}
-              className={plan.highlighted ? "border-primary shadow-md" : ""}
-            >
-              <CardHeader>
-                <p className="text-sm font-medium text-primary">
-                  {plan.description}
-                </p>
-                <h2 className="text-xl font-semibold text-foreground">
-                  {plan.name}
-                </h2>
-                <p className="text-2xl font-bold text-foreground">
-                  {plan.price}
-                  {plan.period && (
-                    <span className="text-sm font-normal text-muted-foreground">
-                      {" "}
-                      / {plan.period}
-                    </span>
+            <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
+              {plans.map((plan) => (
+                <Card
+                  key={plan.name}
+                  className={`relative overflow-hidden transition-all ${
+                    plan.highlighted
+                      ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
+                      : "border-border hover:border-primary/30"
+                  }`}
+                >
+                  {plan.highlighted && (
+                    <div className="absolute right-4 top-4">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Popular
+                      </span>
+                    </div>
                   )}
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ul className="space-y-2">
-                  {plan.features.map((f) => (
-                    <li
-                      key={f}
-                      className="flex items-center gap-2 text-sm text-muted-foreground"
-                    >
-                      <Check className="h-4 w-4 text-primary shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <Link href={plan.href} className="block">
-                  <Button
-                    className="w-full"
-                    variant={plan.highlighted ? "default" : "outline"}
-                  >
-                    {plan.cta}
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  <CardHeader className="pb-4">
+                    <p className="text-sm font-medium text-primary">
+                      {plan.description}
+                    </p>
+                    <h2 className="text-xl font-semibold text-foreground">
+                      {plan.name}
+                    </h2>
+                    <p className="text-3xl font-bold text-foreground">
+                      {plan.price}
+                      {plan.period && (
+                        <span className="text-base font-normal text-muted-foreground">
+                          {" "}/ {plan.period}
+                        </span>
+                      )}
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <ul className="space-y-3">
+                      {plan.features.map((f) => (
+                        <li
+                          key={f}
+                          className="flex items-center gap-3 text-sm text-muted-foreground"
+                        >
+                          <Check className="h-4 w-4 shrink-0 text-primary" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    <Link href={plan.href} className="block">
+                      <Button
+                        className="w-full h-11"
+                        variant={plan.highlighted ? "default" : "outline"}
+                        size="lg"
+                      >
+                        {plan.cta}
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <p className="mt-8 text-center text-sm text-muted-foreground">
+              Sem fidelidade. Cancele quando quiser.
+            </p>
+          </div>
+        </section>
       </main>
+
+      <PublicFooter />
     </div>
   );
 }

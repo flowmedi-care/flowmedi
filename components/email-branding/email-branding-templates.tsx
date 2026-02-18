@@ -16,7 +16,24 @@ interface EmailBrandingTemplatesProps {
   clinicEmail: string | null;
   clinicAddress: string | null;
   logoUrl: string | null;
-  hasPhoneOrEmail?: boolean; // Indica se há telefone ou email cadastrado (para usar variáveis quando salvar)
+  hasPhoneOrEmail?: boolean;
+  /** Cor do cabeçalho moderno (só usado quando type="header" e template="modern") */
+  modernHeaderColor?: string | null;
+  onModernHeaderColorChange?: (color: string) => void;
+  /** Redes sociais (só usados quando type="footer") */
+  clinicWhatsappUrl?: string | null;
+  clinicFacebookUrl?: string | null;
+  clinicInstagramUrl?: string | null;
+}
+
+/** Escurece um hex para usar como fim do gradiente */
+function darkenHex(hex: string, factor: number): string {
+  const match = hex.replace(/^#/, "").match(/.{2}/g);
+  if (!match) return hex;
+  const r = Math.max(0, Math.floor(parseInt(match[0], 16) * factor));
+  const g = Math.max(0, Math.floor(parseInt(match[1], 16) * factor));
+  const b = Math.max(0, Math.floor(parseInt(match[2], 16) * factor));
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 }
 
 // Templates profissionais inspirados em grandes marcas
@@ -26,10 +43,10 @@ function generateHeaderHTML(
   clinicPhone: string | null,
   clinicEmail: string | null,
   logoUrl: string | null,
-  useVariables: boolean = false
+  useVariables: boolean = false,
+  modernHeaderColor?: string | null
 ): string {
   const name = useVariables ? "{{nome_clinica}}" : (clinicName || "{{nome_clinica}}");
-  // Se useVariables=true, só usa variável se houver telefone cadastrado
   const phone = useVariables 
     ? (clinicPhone ? "{{telefone_clinica}}" : null)
     : (clinicPhone || null);
@@ -41,7 +58,7 @@ function generateHeaderHTML(
       return `
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
           <tr>
-            <td style="padding: 30px 20px 20px 20px; text-align: center; border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 30px 20px 32px 20px; text-align: center; border-bottom: 1px solid #e5e7eb;">
               ${logoUrl ? `<img src="${logoUrl}" alt="${name}" style="max-height: 60px; margin-bottom: 15px;" />` : ""}
               <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #111827; letter-spacing: -0.5px;">${name}</h1>
             </td>
@@ -54,7 +71,7 @@ function generateHeaderHTML(
       return `
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
           <tr>
-            <td style="padding: 40px 20px 30px 20px;">
+            <td style="padding: 40px 20px 40px 20px;">
               ${logoUrl ? `
                 <div style="margin-bottom: 20px;">
                   <img src="${logoUrl}" alt="${name}" style="max-height: 50px;" />
@@ -68,12 +85,13 @@ function generateHeaderHTML(
         </table>
       `;
 
-    case "modern":
-      // Inspirado em Airbnb/Mailchimp - moderno e colorido (apenas logo + nome, logo sem filtro)
+    case "modern": {
+      const startColor = (modernHeaderColor && /^#[0-9A-Fa-f]{6}$/.test(modernHeaderColor)) ? modernHeaderColor : "#667eea";
+      const endColor = darkenHex(startColor, 0.7);
       return `
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
           <tr>
-            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 20px; border-radius: 8px 8px 0 0;">
+            <td style="background: linear-gradient(135deg, ${startColor} 0%, ${endColor} 100%); padding: 30px 20px 32px 20px; border-radius: 8px 8px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="text-align: center;">
@@ -90,6 +108,7 @@ function generateHeaderHTML(
           </tr>
         </table>
       `;
+    }
 
     case "none":
       return "";
@@ -99,31 +118,80 @@ function generateHeaderHTML(
   }
 }
 
+/** Gera a linha de redes sociais para o rodapé (só inclui links que existem) */
+function getSocialLinksRow(
+  whatsappUrl: string | null,
+  facebookUrl: string | null,
+  instagramUrl: string | null,
+  useVariables: boolean,
+  linkColor: string
+): string {
+  const hasAny = !!(whatsappUrl || facebookUrl || instagramUrl);
+  if (!hasAny) return "";
+  const links: string[] = [];
+  if (whatsappUrl) {
+    const href = useVariables ? "{{link_whatsapp_clinica}}" : whatsappUrl;
+    links.push(`<a href="${href}" style="color: ${linkColor}; text-decoration: none;">WhatsApp</a>`);
+  }
+  if (facebookUrl) {
+    const href = useVariables ? "{{link_facebook_clinica}}" : facebookUrl;
+    links.push(`<a href="${href}" style="color: ${linkColor}; text-decoration: none;">Facebook</a>`);
+  }
+  if (instagramUrl) {
+    const href = useVariables ? "{{link_instagram_clinica}}" : instagramUrl;
+    links.push(`<a href="${href}" style="color: ${linkColor}; text-decoration: none;">Instagram</a>`);
+  }
+  if (links.length === 0) return "";
+  return `<p style="margin: 0 0 12px 0; font-size: 12px; line-height: 1.5;">${links.join(" &nbsp;|&nbsp; ")}</p>`;
+}
+
 function generateFooterHTML(
   template: EmailBrandingTemplate,
   clinicName: string,
   clinicPhone: string | null,
   clinicEmail: string | null,
   clinicAddress: string | null,
-  useVariables: boolean = false
+  useVariables: boolean = false,
+  clinicWhatsappUrl?: string | null,
+  clinicFacebookUrl?: string | null,
+  clinicInstagramUrl?: string | null
 ): string {
   const name = useVariables ? "{{nome_clinica}}" : (clinicName || "{{nome_clinica}}");
-  // Se useVariables=true, só usa variável se houver telefone cadastrado
   const phone = useVariables 
     ? (clinicPhone ? "{{telefone_clinica}}" : null)
     : (clinicPhone || null);
   const email = clinicEmail || "";
-  // Se useVariables=true, só usa variável se houver endereço cadastrado
   const address = useVariables 
     ? (clinicAddress ? "{{endereco_clinica}}" : null)
     : (clinicAddress || null);
+  const socialRow = getSocialLinksRow(
+    clinicWhatsappUrl ?? null,
+    clinicFacebookUrl ?? null,
+    clinicInstagramUrl ?? null,
+    useVariables,
+    "#2563eb"
+  );
+  const socialRowGray = getSocialLinksRow(
+    clinicWhatsappUrl ?? null,
+    clinicFacebookUrl ?? null,
+    clinicInstagramUrl ?? null,
+    useVariables,
+    "#6b7280"
+  );
+  const socialRowDark = getSocialLinksRow(
+    clinicWhatsappUrl ?? null,
+    clinicFacebookUrl ?? null,
+    clinicInstagramUrl ?? null,
+    useVariables,
+    "#4b5563"
+  );
 
   switch (template) {
     case "professional":
       return `
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
           <tr>
-            <td style="padding: 30px 20px; border-top: 1px solid #e5e7eb; background-color: #f9fafb;">
+            <td style="padding: 32px 20px 30px 20px; border-top: 1px solid #e5e7eb; background-color: #f9fafb;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="text-align: center;">
@@ -134,6 +202,7 @@ function generateFooterHTML(
                       </p>
                       ${address ? `<p style="margin: 0 0 12px 0; font-size: 12px; color: #9ca3af; line-height: 1.5;">${address}</p>` : ""}
                     ` : ""}
+                    ${socialRow}
                     <p style="margin: 0; font-size: 11px; color: #9ca3af; line-height: 1.5;">
                       Este é um email automático. Em caso de dúvidas, entre em contato conosco.
                     </p>
@@ -150,7 +219,7 @@ function generateFooterHTML(
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
           <tr>
             <td style="padding: 40px 20px 30px 20px;">
-              <div style="border-top: 1px solid #e5e7eb; padding-top: 30px;">
+              <div style="border-top: 1px solid #e5e7eb; padding-top: 40px;">
                 <p style="margin: 0 0 12px 0; font-size: 14px; font-weight: 500; color: #000;">${name}</p>
                 ${(phone || email || address) ? `
                   <p style="margin: 0 0 8px 0; font-size: 12px; color: #666; line-height: 1.6;">
@@ -158,6 +227,7 @@ function generateFooterHTML(
                   </p>
                   ${address ? `<p style="margin: 0 0 20px 0; font-size: 11px; color: #999; line-height: 1.5;">${address}</p>` : ""}
                 ` : ""}
+                ${socialRowGray}
                 <p style="margin: 0; font-size: 11px; color: #999; line-height: 1.5;">
                   Este é um email automático. Em caso de dúvidas, entre em contato conosco.
                 </p>
@@ -171,7 +241,7 @@ function generateFooterHTML(
       return `
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
           <tr>
-            <td style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 30px 20px; border-radius: 0 0 8px 8px;">
+            <td style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 32px 20px 30px 20px; border-radius: 0 0 8px 8px;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="text-align: center;">
@@ -182,6 +252,7 @@ function generateFooterHTML(
                       </p>
                       ${address ? `<p style="margin: 0 0 15px 0; font-size: 12px; color: #6b7280; line-height: 1.5;">${address}</p>` : ""}
                     ` : ""}
+                    ${socialRowDark}
                     <p style="margin: 0; font-size: 11px; color: #6b7280; line-height: 1.5;">
                       Este é um email automático. Em caso de dúvidas, entre em contato conosco.
                     </p>
@@ -208,11 +279,15 @@ export function EmailBrandingTemplates({
   clinicAddress,
   logoUrl,
   hasPhoneOrEmail = false,
+  modernHeaderColor = null,
+  onModernHeaderColorChange,
+  clinicWhatsappUrl = null,
+  clinicFacebookUrl = null,
+  clinicInstagramUrl = null,
 }: EmailBrandingTemplatesProps) {
-  // Para preview, usa valores reais (useVariables = false)
   const html = type === "header"
-    ? generateHeaderHTML(selectedTemplate, clinicName || "", clinicPhone, clinicEmail, logoUrl, false)
-    : generateFooterHTML(selectedTemplate, clinicName || "", clinicPhone, clinicEmail, clinicAddress, false);
+    ? generateHeaderHTML(selectedTemplate, clinicName || "", clinicPhone, clinicEmail, logoUrl, false, modernHeaderColor)
+    : generateFooterHTML(selectedTemplate, clinicName || "", clinicPhone, clinicEmail, clinicAddress, false, clinicWhatsappUrl, clinicFacebookUrl, clinicInstagramUrl);
 
   return (
     <Card>
@@ -273,6 +348,21 @@ export function EmailBrandingTemplates({
           </div>
         </div>
 
+        {type === "header" && selectedTemplate === "modern" && onModernHeaderColorChange && (
+          <div className="flex items-center gap-3">
+            <Label className="shrink-0">Cor do cabeçalho</Label>
+            <input
+              type="color"
+              value={modernHeaderColor || "#667eea"}
+              onChange={(e) => onModernHeaderColorChange(e.target.value)}
+              className="h-10 w-14 cursor-pointer rounded border border-input bg-background"
+            />
+            <span className="text-sm text-muted-foreground">
+              {modernHeaderColor || "#667eea"}
+            </span>
+          </div>
+        )}
+
         {/* Preview */}
         <div>
           <Label className="mb-2 block">Preview</Label>
@@ -300,9 +390,13 @@ export function getTemplateHTML(
   clinicEmail: string | null,
   clinicAddress: string | null,
   logoUrl: string | null,
-  useVariables: boolean = true
+  useVariables: boolean = true,
+  modernHeaderColor?: string | null,
+  clinicWhatsappUrl?: string | null,
+  clinicFacebookUrl?: string | null,
+  clinicInstagramUrl?: string | null
 ): string {
   return type === "header"
-    ? generateHeaderHTML(template, clinicName, clinicPhone, clinicEmail, logoUrl, useVariables)
-    : generateFooterHTML(template, clinicName, clinicPhone, clinicEmail, clinicAddress, useVariables);
+    ? generateHeaderHTML(template, clinicName, clinicPhone, clinicEmail, logoUrl, useVariables, modernHeaderColor)
+    : generateFooterHTML(template, clinicName, clinicPhone, clinicEmail, clinicAddress, useVariables, clinicWhatsappUrl, clinicFacebookUrl, clinicInstagramUrl);
 }

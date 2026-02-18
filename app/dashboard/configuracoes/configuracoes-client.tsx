@@ -18,6 +18,9 @@ export function ConfiguracoesClient({
   clinicPhone,
   clinicEmail,
   clinicAddress,
+  clinicWhatsappUrl,
+  clinicFacebookUrl,
+  clinicInstagramUrl,
   complianceConfirmationDays,
   complianceFormDays,
   clinicId,
@@ -28,6 +31,9 @@ export function ConfiguracoesClient({
   clinicPhone: string | null;
   clinicEmail: string | null;
   clinicAddress: string | null;
+  clinicWhatsappUrl: string | null;
+  clinicFacebookUrl: string | null;
+  clinicInstagramUrl: string | null;
   complianceConfirmationDays: number | null;
   complianceFormDays: number | null;
   clinicId: string;
@@ -109,6 +115,9 @@ export function ConfiguracoesClient({
           phone: clinicPhone,
           email: clinicEmail,
           address: clinicAddress,
+          whatsappUrl: clinicWhatsappUrl,
+          facebookUrl: clinicFacebookUrl,
+          instagramUrl: clinicInstagramUrl,
         }}
       />
 
