@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,10 @@ import {
   updateMessageTemplate,
 } from "../actions";
 import { extractVariables, validateVariables } from "@/lib/message-variables";
-import { ArrowLeft, Mail, MessageSquare, AlertCircle } from "lucide-react";
+import { ArrowLeft, Mail, MessageSquare, AlertCircle, Code2, Palette } from "lucide-react";
+import { VisualEditor, blocksToHtml } from "@/components/email-template-builder/visual-editor";
+import { EmailBlock } from "@/components/email-template-builder/types";
+import { htmlToBlocks } from "@/components/email-template-builder/html-converter";
 
 const AVAILABLE_VARIABLES = [
   { category: "Paciente", vars: ["{{nome_paciente}}", "{{email_paciente}}", "{{telefone_paciente}}", "{{data_nascimento}}"] },
@@ -54,10 +57,39 @@ export function TemplateEditor({
   const [bodyText, setBodyText] = useState(initialBodyText);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editorMode, setEditorMode] = useState<"visual" | "html">("visual");
+  const [blocks, setBlocks] = useState<EmailBlock[]>([]);
 
   const isEdit = !!templateId;
   const variablesUsed = extractVariables(bodyHtml + (subject || ""));
   const validation = validateVariables(bodyHtml + (subject || ""));
+
+  // Inicializa blocos a partir do HTML existente apenas uma vez
+  useEffect(() => {
+    if (initialBodyHtml && editorMode === "visual" && blocks.length === 0) {
+      try {
+        // Tenta converter HTML existente em blocos
+        const convertedBlocks = htmlToBlocks(initialBodyHtml);
+        if (convertedBlocks.length > 0) {
+          setBlocks(convertedBlocks);
+          // Atualiza o HTML para garantir sincronização
+          const html = blocksToHtml(convertedBlocks);
+          setBodyHtml(html);
+        }
+      } catch (e) {
+        // Se falhar, mantém vazio
+        console.error("Erro ao converter HTML para blocos:", e);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Atualiza HTML quando blocos mudam
+  const handleBlocksChange = (newBlocks: EmailBlock[]) => {
+    setBlocks(newBlocks);
+    const html = blocksToHtml(newBlocks);
+    setBodyHtml(html);
+  };
 
   function insertVariable(variable: string) {
     const textarea = document.getElementById("body_html") as HTMLTextAreaElement;
@@ -261,108 +293,153 @@ export function TemplateEditor({
         </Card>
 
         {/* Editor de Mensagem */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-4">
-            <Card>
-              <CardHeader>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
                 <h2 className="text-lg font-semibold">Corpo da Mensagem *</h2>
                 <p className="text-sm text-muted-foreground">
-                  Use as variáveis disponíveis no painel ao lado
+                  {editorMode === "visual" 
+                    ? "Use o editor visual para criar seu template de forma fácil e intuitiva"
+                    : "Use o modo HTML para edição avançada"}
                 </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Textarea
-                  id="body_html"
-                  value={bodyHtml}
-                  onChange={(e) => setBodyHtml(e.target.value)}
-                  placeholder={
-                    channel === "email"
-                      ? "Digite o conteúdo do email aqui..."
-                      : "Digite a mensagem do WhatsApp aqui..."
-                  }
-                  rows={12}
-                  className="font-mono text-sm"
-                  required
-                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={editorMode === "visual" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    if (editorMode === "html" && bodyHtml) {
+                      // Tenta converter HTML para blocos ao voltar para visual
+                      try {
+                        const convertedBlocks = htmlToBlocks(bodyHtml);
+                        if (convertedBlocks.length > 0) {
+                          setBlocks(convertedBlocks);
+                        }
+                      } catch (e) {
+                        console.error("Erro ao converter:", e);
+                      }
+                    }
+                    setEditorMode("visual");
+                  }}
+                >
+                  <Palette className="h-4 w-4 mr-2" />
+                  Visual
+                </Button>
+                <Button
+                  type="button"
+                  variant={editorMode === "html" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    if (editorMode === "visual") {
+                      // Converte blocos para HTML ao mudar para modo HTML
+                      const html = blocksToHtml(blocks);
+                      setBodyHtml(html);
+                    }
+                    setEditorMode("html");
+                  }}
+                >
+                  <Code2 className="h-4 w-4 mr-2" />
+                  HTML
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {editorMode === "visual" ? (
+              <VisualEditor
+                initialBlocks={blocks}
+                onBlocksChange={handleBlocksChange}
+                channel={channel}
+              />
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="body_html">HTML da Mensagem *</Label>
+                  <Textarea
+                    id="body_html"
+                    value={bodyHtml}
+                    onChange={(e) => setBodyHtml(e.target.value)}
+                    placeholder={
+                      channel === "email"
+                        ? "Digite o conteúdo HTML do email aqui..."
+                        : "Digite a mensagem do WhatsApp aqui..."
+                    }
+                    rows={12}
+                    className="font-mono text-sm mt-2"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Use as variáveis disponíveis no painel ao lado. Exemplo: Olá {{nome_paciente}}, sua consulta está agendada para {{data_consulta}}.
+                  </p>
+                </div>
 
-                {channel === "email" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="body_text">Versão Texto (Opcional)</Label>
-                    <Textarea
-                      id="body_text"
-                      value={bodyText}
-                      onChange={(e) => setBodyText(e.target.value)}
-                      placeholder="Versão texto simples do email (para clientes que não suportam HTML)"
-                      rows={6}
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                )}
-
-                {validation.missing.length > 0 && (
-                  <div className="text-sm text-destructive">
-                    <strong>Atenção:</strong> Variáveis não reconhecidas:{" "}
-                    {validation.missing.join(", ")}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Painel de Variáveis */}
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <h3 className="text-sm font-semibold">Variáveis Disponíveis</h3>
-                <p className="text-xs text-muted-foreground">
-                  Clique para inserir no texto
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {AVAILABLE_VARIABLES.map((group) => (
-                  <div key={group.category}>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">
-                      {group.category}
-                    </p>
-                    <div className="space-y-1">
-                      {group.vars.map((variable) => (
-                        <button
-                          key={variable}
-                          type="button"
-                          onClick={() => insertVariable(variable)}
-                          className="w-full text-left px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded border border-border transition-colors font-mono"
-                        >
-                          {variable}
-                        </button>
-                      ))}
+                <div className="flex gap-2">
+                  {AVAILABLE_VARIABLES.map((group) => (
+                    <div key={group.category} className="flex-1">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">
+                        {group.category}
+                      </p>
+                      <div className="space-y-1">
+                        {group.vars.map((variable) => (
+                          <button
+                            key={variable}
+                            type="button"
+                            onClick={() => insertVariable(variable)}
+                            className="w-full text-left px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded border border-border transition-colors font-mono"
+                          >
+                            {variable}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Variáveis Usadas */}
-            {variablesUsed.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <h3 className="text-sm font-semibold">Variáveis Usadas</h3>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-1">
-                    {variablesUsed.map((variable) => (
-                      <span
-                        key={variable}
-                        className="text-xs px-2 py-1 bg-primary/10 text-primary rounded font-mono"
-                      >
-                        {variable}
-                      </span>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                  ))}
+                </div>
+              </div>
             )}
-          </div>
-        </div>
+
+            {channel === "email" && (
+              <div className="space-y-2 pt-4 border-t">
+                <Label htmlFor="body_text">Versão Texto (Opcional)</Label>
+                <Textarea
+                  id="body_text"
+                  value={bodyText}
+                  onChange={(e) => setBodyText(e.target.value)}
+                  placeholder="Versão texto simples do email (para clientes que não suportam HTML)"
+                  rows={6}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se não preenchido, será gerado automaticamente a partir do HTML.
+                </p>
+              </div>
+            )}
+
+            {validation.missing.length > 0 && (
+              <div className="text-sm text-destructive p-3 bg-destructive/10 rounded border border-destructive/20">
+                <strong>Atenção:</strong> Variáveis não reconhecidas:{" "}
+                {validation.missing.join(", ")}
+              </div>
+            )}
+
+            {variablesUsed.length > 0 && (
+              <div className="pt-4 border-t">
+                <Label className="text-sm font-semibold mb-2 block">Variáveis Usadas</Label>
+                <div className="flex flex-wrap gap-2">
+                  {variablesUsed.map((variable) => (
+                    <span
+                      key={variable}
+                      className="text-xs px-2 py-1 bg-primary/10 text-primary rounded font-mono"
+                    >
+                      {variable}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Ações */}
         <div className="flex items-center justify-between pt-4 border-t">
