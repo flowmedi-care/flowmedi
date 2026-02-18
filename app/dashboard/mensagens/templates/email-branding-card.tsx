@@ -57,14 +57,14 @@ export function EmailBrandingCard() {
     setHeaderHtml(html);
     setHeaderTemplate(template);
     setCurrentColors(newColors);
-    await updateClinicEmailBranding(html, footerHtml, template, footerTemplate, newColors);
+    await updateClinicEmailBranding(html, footerHtml, template, footerTemplate, newColors as Record<string, unknown>);
   };
 
   const handleFooterSave = async (html: string, template: EmailBrandingTemplate, newColors: EmailBrandingColors) => {
     setFooterHtml(html);
     setFooterTemplate(template);
     setCurrentColors(newColors);
-    await updateClinicEmailBranding(headerHtml, html, headerTemplate, template, newColors);
+    await updateClinicEmailBranding(headerHtml, html, headerTemplate, template, newColors as Record<string, unknown>);
   };
 
   return (
