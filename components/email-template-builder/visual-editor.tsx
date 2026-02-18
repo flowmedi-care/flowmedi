@@ -376,13 +376,57 @@ export function VisualEditor({ initialBlocks = [], onBlocksChange, channel }: Vi
   );
 }
 
+// Função para escapar HTML e preservar variáveis
+function escapeHtml(text: string): string {
+  if (typeof window === "undefined") {
+    // No servidor, usa escape manual
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Função para processar variáveis no texto (mantém as variáveis mas escapa o resto)
+function processTextWithVariables(text: string): string {
+  // Escapa HTML mas preserva variáveis
+  const variableRegex = /\{\{[\w_]+\}\}/g;
+  const parts: string[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = variableRegex.exec(text)) !== null) {
+    // Escapa o texto antes da variável
+    if (match.index > lastIndex) {
+      parts.push(escapeHtml(text.substring(lastIndex, match.index)));
+    }
+    // Mantém a variável sem escapar
+    parts.push(match[0]);
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Escapa o texto restante
+  if (lastIndex < text.length) {
+    parts.push(escapeHtml(text.substring(lastIndex)));
+  }
+
+  return parts.length > 0 ? parts.join("") : escapeHtml(text);
+}
+
 export function blocksToHtml(blocks: EmailBlock[]): string {
   return blocks.map((block) => {
     switch (block.type) {
       case "heading":
-        return `<h2 style="font-size: ${block.styles?.fontSize || "24px"}; font-weight: ${block.styles?.fontWeight || "bold"}; text-align: ${block.styles?.textAlign || "left"}; color: ${block.styles?.color || "inherit"}; margin: ${block.styles?.margin || "16px 0"};">${block.content}</h2>`;
+        const headingContent = processTextWithVariables(block.content);
+        return `<h2 style="font-size: ${block.styles?.fontSize || "24px"}; font-weight: ${block.styles?.fontWeight || "bold"}; text-align: ${block.styles?.textAlign || "left"}; color: ${block.styles?.color || "inherit"}; margin: ${block.styles?.margin || "16px 0"};">${headingContent}</h2>`;
       case "text":
-        return `<p style="font-size: ${block.styles?.fontSize || "16px"}; text-align: ${block.styles?.textAlign || "left"}; color: ${block.styles?.color || "inherit"}; margin: ${block.styles?.margin || "8px 0"}; padding: ${block.styles?.padding || "0"};">${block.content}</p>`;
+        const textContent = processTextWithVariables(block.content.replace(/\n/g, "<br />"));
+        return `<p style="font-size: ${block.styles?.fontSize || "16px"}; text-align: ${block.styles?.textAlign || "left"}; color: ${block.styles?.color || "inherit"}; margin: ${block.styles?.margin || "8px 0"}; padding: ${block.styles?.padding || "0"};">${textContent}</p>`;
       case "button":
         const buttonBg = block.buttonStyle === "primary" ? "#007bff" : block.buttonStyle === "secondary" ? "#6c757d" : "transparent";
         const buttonColor = block.buttonStyle === "outline" ? "#007bff" : "white";

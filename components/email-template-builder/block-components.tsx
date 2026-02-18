@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { GripVertical, X, Type, Heading1, Square, Minus, Image as ImageIcon, Hash } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TextEditorWithVariables } from "./text-editor-with-variables";
 
 interface BlockComponentProps {
   block: EmailBlock;
@@ -25,6 +26,14 @@ export function BlockComponent({
   onEdit,
   availableVariables 
 }: BlockComponentProps) {
+  // Função para destacar variáveis no texto
+  const highlightVariables = (text: string): string => {
+    const variableRegex = /\{\{[\w_]+\}\}/g;
+    return text.replace(variableRegex, (match) => {
+      return `<span style="display: inline-block; padding: 2px 6px; background-color: #e3f2fd; color: #1976d2; border-radius: 4px; font-family: monospace; font-size: 0.9em; font-weight: 600; margin: 0 2px;">${match}</span>`;
+    });
+  };
+
   const renderPreview = () => {
     switch (block.type) {
       case "heading":
@@ -37,7 +46,7 @@ export function BlockComponent({
               color: block.styles?.color || "inherit",
               margin: block.styles?.margin || "16px 0",
             }}
-            dangerouslySetInnerHTML={{ __html: block.content }}
+            dangerouslySetInnerHTML={{ __html: highlightVariables(block.content) }}
           />
         );
       case "text":
@@ -50,7 +59,7 @@ export function BlockComponent({
               margin: block.styles?.margin || "8px 0",
               padding: block.styles?.padding || "0",
             }}
-            dangerouslySetInnerHTML={{ __html: block.content }}
+            dangerouslySetInnerHTML={{ __html: highlightVariables(block.content.replace(/\n/g, "<br />")) }}
           />
         );
       case "button":
@@ -143,15 +152,14 @@ export function BlockComponent({
 
         {block.type === "heading" && (
           <div className="space-y-3">
-            <div>
-              <Label>Título</Label>
-              <Textarea
-                value={block.content}
-                onChange={(e) => onUpdate({ ...block, content: e.target.value })}
-                rows={2}
-                placeholder="Digite o título..."
-              />
-            </div>
+            <TextEditorWithVariables
+              value={block.content}
+              onChange={(value) => onUpdate({ ...block, content: value })}
+              label="Título"
+              placeholder="Digite o título... Use variáveis como {{nome_paciente}}"
+              rows={2}
+              availableVariables={availableVariables}
+            />
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label>Tamanho da fonte</Label>
@@ -186,15 +194,14 @@ export function BlockComponent({
 
         {block.type === "text" && (
           <div className="space-y-3">
-            <div>
-              <Label>Texto</Label>
-              <Textarea
-                value={block.content}
-                onChange={(e) => onUpdate({ ...block, content: e.target.value })}
-                rows={4}
-                placeholder="Digite o texto..."
-              />
-            </div>
+            <TextEditorWithVariables
+              value={block.content}
+              onChange={(value) => onUpdate({ ...block, content: value })}
+              label="Texto"
+              placeholder="Digite o texto aqui... Você pode usar variáveis como {{nome_paciente}}, {{data_consulta}}, etc."
+              rows={6}
+              availableVariables={availableVariables}
+            />
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label>Tamanho da fonte</Label>
@@ -223,29 +230,6 @@ export function BlockComponent({
                   <option value="right">Direita</option>
                 </select>
               </div>
-            </div>
-            <div>
-              <Label>Inserir Variável</Label>
-              <select
-                onChange={(e) => {
-                  if (e.target.value) {
-                    const cursorPos = (document.activeElement as HTMLTextAreaElement)?.selectionStart || 0;
-                    const textarea = document.activeElement as HTMLTextAreaElement;
-                    if (textarea) {
-                      const text = block.content;
-                      const newText = text.substring(0, cursorPos) + e.target.value + text.substring(cursorPos);
-                      onUpdate({ ...block, content: newText });
-                      e.target.value = "";
-                    }
-                  }
-                }}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">Selecione uma variável...</option>
-                {availableVariables.map((variable) => (
-                  <option key={variable} value={variable}>{variable}</option>
-                ))}
-              </select>
             </div>
           </div>
         )}
