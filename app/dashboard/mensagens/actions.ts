@@ -233,7 +233,7 @@ export async function getClinicEmailBranding(): Promise<{
 
   const { data, error } = await supabase
     .from("clinics")
-    .select("email_header, email_footer, email_header_template, email_footer_template, email_branding_colors, logo_url, name, phone, email")
+    .select("email_header, email_footer, email_header_template, email_footer_template, email_branding_colors, logo_url, name, phone, email, address")
     .eq("id", profile.clinic_id)
     .single();
 
@@ -249,6 +249,7 @@ export async function getClinicEmailBranding(): Promise<{
       name: data?.name ?? null,
       phone: data?.phone ?? null,
       email: data?.email ?? null,
+      address: data?.address ?? null,
     }, 
     error: null 
   };
@@ -280,7 +281,10 @@ export async function updateClinicEmailBranding(
 
   if (headerTemplate) updateData.email_header_template = headerTemplate;
   if (footerTemplate) updateData.email_footer_template = footerTemplate;
-  if (brandingColors) updateData.email_branding_colors = brandingColors;
+  // Mantém cores existentes se não foram passadas
+  if (brandingColors) {
+    updateData.email_branding_colors = brandingColors;
+  }
 
   const { error } = await supabase
     .from("clinics")

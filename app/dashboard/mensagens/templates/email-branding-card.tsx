@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { getClinicEmailBranding, updateClinicEmailBranding } from "../actions";
-import { EmailBrandingEditor, EmailBrandingTemplate, EmailBrandingColors } from "@/components/email-branding/email-branding-editor";
+import { EmailBrandingTemplates, EmailBrandingTemplate, getTemplateHTML } from "@/components/email-branding/email-branding-templates";
+import { Button } from "@/components/ui/button";
 
 export function EmailBrandingCard() {
   const [loading, setLoading] = useState(true);
@@ -11,57 +12,76 @@ export function EmailBrandingCard() {
     email_footer: string | null;
     email_header_template: string | null;
     email_footer_template: string | null;
-    email_branding_colors: Record<string, unknown> | null;
     logo_url: string | null;
     name: string | null;
     phone: string | null;
     email: string | null;
+    address: string | null;
   } | null>(null);
 
-  const defaultColors: EmailBrandingColors = {
-    primary: "#007bff",
-    secondary: "#6c757d",
-    text: "#333333",
-    background: "#ffffff",
-  };
-
-  const colors: EmailBrandingColors = brandingData?.email_branding_colors && 
-    typeof brandingData.email_branding_colors === 'object' &&
-    'primary' in brandingData.email_branding_colors &&
-    'secondary' in brandingData.email_branding_colors &&
-    'text' in brandingData.email_branding_colors &&
-    'background' in brandingData.email_branding_colors
-    ? (brandingData.email_branding_colors as unknown as EmailBrandingColors)
-    : defaultColors;
-
-  const [headerHtml, setHeaderHtml] = useState<string | null>(null);
-  const [footerHtml, setFooterHtml] = useState<string | null>(null);
-  const [headerTemplate, setHeaderTemplate] = useState<EmailBrandingTemplate>("minimal");
-  const [footerTemplate, setFooterTemplate] = useState<EmailBrandingTemplate>("minimal");
-  const [currentColors, setCurrentColors] = useState<EmailBrandingColors>(defaultColors);
+  const [headerTemplate, setHeaderTemplate] = useState<EmailBrandingTemplate>("professional");
+  const [footerTemplate, setFooterTemplate] = useState<EmailBrandingTemplate>("professional");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     getClinicEmailBranding().then((res) => {
       setLoading(false);
       if (res.data) {
         setBrandingData(res.data);
-        setHeaderHtml(res.data.email_header);
-        setFooterHtml(res.data.email_footer);
-        setHeaderTemplate((res.data.email_header_template as EmailBrandingTemplate) || "minimal");
-        setFooterTemplate((res.data.email_footer_template as EmailBrandingTemplate) || "minimal");
-        
-        const loadedColors: EmailBrandingColors = res.data.email_branding_colors && 
-          typeof res.data.email_branding_colors === 'object' &&
-          'primary' in res.data.email_branding_colors &&
-          'secondary' in res.data.email_branding_colors &&
-          'text' in res.data.email_branding_colors &&
-          'background' in res.data.email_branding_colors
-          ? (res.data.email_branding_colors as unknown as EmailBrandingColors)
-          : defaultColors;
-        setCurrentColors(loadedColors);
+        setHeaderTemplate((res.data.email_header_template as EmailBrandingTemplate) || "professional");
+        setFooterTemplate((res.data.email_footer_template as EmailBrandingTemplate) || "professional");
       }
     });
   }, []);
+
+  const handleSave = async () => {
+    if (!brandingData) return;
+    
+    setSaving(true);
+    setError(null);
+    setSuccess(false);
+
+    // Gerar HTML com variáveis (serão substituídas na hora do envio)
+    // useVariables = true para salvar com variáveis
+    const headerHtml = getTemplateHTML(
+      "header",
+      headerTemplate,
+      brandingData.name || "",
+      brandingData.phone,
+      brandingData.email || "",
+      brandingData.address || null,
+      brandingData.logo_url,
+      true // usar variáveis
+    );
+
+    const footerHtml = getTemplateHTML(
+      "footer",
+      footerTemplate,
+      brandingData.name || "",
+      brandingData.phone,
+      brandingData.email || "",
+      brandingData.address || null,
+      brandingData.logo_url,
+      true // usar variáveis
+    );
+
+    const result = await updateClinicEmailBranding(
+      headerHtml,
+      footerHtml,
+      headerTemplate,
+      footerTemplate
+    );
+
+    setSaving(false);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    }
+  };
 
   if (loading || !brandingData) {
     return (
@@ -69,45 +89,48 @@ export function EmailBrandingCard() {
     );
   }
 
-  const handleHeaderSave = async (html: string, template: EmailBrandingTemplate, newColors: EmailBrandingColors) => {
-    setHeaderHtml(html);
-    setHeaderTemplate(template);
-    setCurrentColors(newColors);
-    await updateClinicEmailBranding(html, footerHtml, template, footerTemplate, newColors as unknown as Record<string, unknown>);
-  };
-
-  const handleFooterSave = async (html: string, template: EmailBrandingTemplate, newColors: EmailBrandingColors) => {
-    setFooterHtml(html);
-    setFooterTemplate(template);
-    setCurrentColors(newColors);
-    await updateClinicEmailBranding(headerHtml, html, headerTemplate, template, newColors as unknown as Record<string, unknown>);
-  };
-
   return (
     <div className="space-y-6">
-      <EmailBrandingEditor
+      {error && (
+        <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="p-3 bg-green-500/10 text-green-700 dark:text-green-400 rounded-md text-sm">
+          Templates salvos com sucesso!
+        </div>
+      )}
+
+      <EmailBrandingTemplates
         type="header"
-        initialHtml={headerHtml}
-        initialTemplate={headerTemplate}
-        initialColors={currentColors}
-        logoUrl={brandingData.logo_url}
+        selectedTemplate={headerTemplate}
+        onTemplateSelect={setHeaderTemplate}
         clinicName={brandingData.name || ""}
         clinicPhone={brandingData.phone}
         clinicEmail={brandingData.email}
-        onSave={handleHeaderSave}
+        clinicAddress={brandingData.address}
+        logoUrl={brandingData.logo_url}
+        hasPhoneOrEmail={!!(brandingData.phone || brandingData.email)}
       />
 
-      <EmailBrandingEditor
+      <EmailBrandingTemplates
         type="footer"
-        initialHtml={footerHtml}
-        initialTemplate={footerTemplate}
-        initialColors={currentColors}
-        logoUrl={null}
+        selectedTemplate={footerTemplate}
+        onTemplateSelect={setFooterTemplate}
         clinicName={brandingData.name || ""}
         clinicPhone={brandingData.phone}
         clinicEmail={brandingData.email}
-        onSave={handleFooterSave}
+        clinicAddress={brandingData.address}
+        logoUrl={null}
+        hasPhoneOrEmail={!!(brandingData.phone || brandingData.email)}
       />
+
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? "Salvando..." : "Salvar Templates"}
+        </Button>
+      </div>
     </div>
   );
 }
