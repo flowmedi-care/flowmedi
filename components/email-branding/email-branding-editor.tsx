@@ -31,7 +31,7 @@ interface EmailBrandingEditorProps {
   onSave: (html: string, template: EmailBrandingTemplate, colors: EmailBrandingColors) => Promise<void>;
 }
 
-const HEADER_TEMPLATES: Record<EmailBrandingTemplate, (colors: EmailBrandingColors, logoUrl: string | null, clinicName: string, phone: string | null, email: string | null) => EmailBlock[]> = {
+const HEADER_TEMPLATES: Record<EmailBrandingTemplate, (colors: EmailBrandingColors, logoUrl: string | null | undefined, clinicName: string, phone: string | null | undefined, email: string | null | undefined) => EmailBlock[]> = {
   minimal: (colors, logoUrl, clinicName, phone, email) => [
     {
       id: "header-1",
@@ -132,7 +132,7 @@ const HEADER_TEMPLATES: Record<EmailBrandingTemplate, (colors: EmailBrandingColo
   ],
 };
 
-const FOOTER_TEMPLATES: Record<EmailBrandingTemplate, (colors: EmailBrandingColors, clinicName: string, phone: string | null, email: string | null) => EmailBlock[]> = {
+const FOOTER_TEMPLATES: Record<EmailBrandingTemplate, (colors: EmailBrandingColors, clinicName: string, phone: string | null | undefined, email: string | null | undefined) => EmailBlock[]> = {
   minimal: (colors, clinicName, phone, email) => [
     {
       id: "footer-divider",
