@@ -330,6 +330,52 @@ export async function GET(request: NextRequest) {
       // Continuar mesmo sem WABA - o usuário pode configurar depois
     }
     
+    // Inscrever o app no WABA para receber webhooks (mensagens e status) — evita "accepted" sem entrega
+    if (wabaId && accessToken) {
+      try {
+        const subscribeUrl = `https://graph.facebook.com/v22.0/${wabaId}/subscribed_apps`;
+        const subscribeRes = await fetch(subscribeUrl, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const subscribeData = await subscribeRes.json();
+        console.log("📡 [WhatsApp Callback] subscribed_apps:", {
+          ok: subscribeRes.ok,
+          status: subscribeRes.status,
+          data: subscribeData,
+        });
+      } catch (subscribeErr) {
+        console.warn("⚠️ [WhatsApp Callback] Erro ao inscrever app no WABA:", subscribeErr);
+      }
+    }
+
+    // Registrar número com PIN (opcional) — ajuda quando mensagens ficam "accepted" mas não entregues
+    const registerPin = process.env.META_WHATSAPP_REGISTER_PIN?.trim();
+    if (phoneNumberId && accessToken && registerPin && /^\d{6}$/.test(registerPin)) {
+      try {
+        const registerUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/register`;
+        const registerRes = await fetch(registerUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            pin: registerPin,
+          }),
+        });
+        const registerData = await registerRes.json();
+        console.log("📞 [WhatsApp Callback] register (PIN):", {
+          ok: registerRes.ok,
+          status: registerRes.status,
+          data: registerData,
+        });
+      } catch (registerErr) {
+        console.warn("⚠️ [WhatsApp Callback] Erro ao registrar número com PIN:", registerErr);
+      }
+    }
+
     console.log("📊 [WhatsApp Callback] Resumo final:", {
       phoneNumberId,
       wabaId,
