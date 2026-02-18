@@ -45,27 +45,32 @@ export function EmailBrandingCard() {
 
     // Gerar HTML com variáveis (serão substituídas na hora do envio)
     // useVariables = true para salvar com variáveis
-    const headerHtml = getTemplateHTML(
-      "header",
-      headerTemplate,
-      brandingData.name || "",
-      brandingData.phone,
-      brandingData.email || "",
-      brandingData.address || null,
-      brandingData.logo_url,
-      true // usar variáveis
-    );
+    // Se template for "none", salva null
+    const headerHtml = headerTemplate === "none" 
+      ? null
+      : getTemplateHTML(
+          "header",
+          headerTemplate,
+          brandingData.name || "",
+          brandingData.phone,
+          brandingData.email || "",
+          brandingData.address || null,
+          brandingData.logo_url,
+          true // usar variáveis
+        );
 
-    const footerHtml = getTemplateHTML(
-      "footer",
-      footerTemplate,
-      brandingData.name || "",
-      brandingData.phone,
-      brandingData.email || "",
-      brandingData.address || null,
-      brandingData.logo_url,
-      true // usar variáveis
-    );
+    const footerHtml = footerTemplate === "none"
+      ? null
+      : getTemplateHTML(
+          "footer",
+          footerTemplate,
+          brandingData.name || "",
+          brandingData.phone,
+          brandingData.email || "",
+          brandingData.address || null,
+          brandingData.logo_url,
+          true // usar variáveis
+        );
 
     const result = await updateClinicEmailBranding(
       headerHtml,

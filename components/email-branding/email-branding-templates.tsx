@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Mail } from "lucide-react";
 
-export type EmailBrandingTemplate = "professional" | "minimal" | "modern";
+export type EmailBrandingTemplate = "professional" | "minimal" | "modern" | "none";
 
 interface EmailBrandingTemplatesProps {
   type: "header" | "footer";
@@ -37,27 +37,20 @@ function generateHeaderHTML(
 
   switch (template) {
     case "professional":
-      // Inspirado em Apple/Google - limpo e profissional
+      // Inspirado em Apple/Google - limpo e profissional (apenas logo + nome)
       return `
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
           <tr>
             <td style="padding: 30px 20px 20px 20px; text-align: center; border-bottom: 1px solid #e5e7eb;">
               ${logoUrl ? `<img src="${logoUrl}" alt="${name}" style="max-height: 60px; margin-bottom: 15px;" />` : ""}
               <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #111827; letter-spacing: -0.5px;">${name}</h1>
-              ${(phone || email) ? `
-                <p style="margin: 8px 0 0 0; font-size: 14px; color: #6b7280; line-height: 1.5;">
-                  ${phone ? `<span style="color: #374151;">${phone}</span>` : ""}
-                  ${phone && email ? ` <span style="color: #d1d5db;">•</span> ` : ""}
-                  ${email ? `<a href="mailto:${email}" style="color: #2563eb; text-decoration: none;">${email}</a>` : ""}
-                </p>
-              ` : ""}
             </td>
           </tr>
         </table>
       `;
 
     case "minimal":
-      // Inspirado em Stripe - minimalista e elegante
+      // Inspirado em Stripe - minimalista e elegante (apenas logo + nome)
       return `
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
           <tr>
@@ -68,12 +61,7 @@ function generateHeaderHTML(
                 </div>
               ` : ""}
               <div style="border-top: 2px solid #000; padding-top: 20px;">
-                <h2 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 500; color: #000; letter-spacing: -0.3px;">${name}</h2>
-                ${(phone || email) ? `
-                  <p style="margin: 0; font-size: 13px; color: #666; line-height: 1.6;">
-                    ${phone || ""}${phone && email ? " • " : ""}${email || ""}
-                  </p>
-                ` : ""}
+                <h2 style="margin: 0; font-size: 20px; font-weight: 500; color: #000; letter-spacing: -0.3px;">${name}</h2>
               </div>
             </td>
           </tr>
@@ -81,23 +69,20 @@ function generateHeaderHTML(
       `;
 
     case "modern":
-      // Inspirado em Airbnb/Mailchimp - moderno e colorido
+      // Inspirado em Airbnb/Mailchimp - moderno e colorido (apenas logo + nome, logo sem filtro)
       return `
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
           <tr>
             <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 20px; border-radius: 8px 8px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="text-align: ${logoUrl ? "left" : "center"};">
+                  <td style="text-align: center;">
                     ${logoUrl ? `
-                      <img src="${logoUrl}" alt="${name}" style="max-height: 50px; margin-bottom: 15px; filter: brightness(0) invert(1);" />
+                      <div style="margin-bottom: 15px;">
+                        <img src="${logoUrl}" alt="${name}" style="max-height: 50px; background-color: rgba(255, 255, 255, 0.95); padding: 8px; border-radius: 8px; display: inline-block;" />
+                      </div>
                     ` : ""}
                     <h1 style="margin: 0; font-size: 26px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">${name}</h1>
-                    ${(phone || email) ? `
-                      <p style="margin: 10px 0 0 0; font-size: 14px; color: rgba(255, 255, 255, 0.9); line-height: 1.5;">
-                        ${phone ? phone : ""}${phone && email ? " • " : ""}${email ? email : ""}
-                      </p>
-                    ` : ""}
                   </td>
                 </tr>
               </table>
@@ -105,6 +90,9 @@ function generateHeaderHTML(
           </tr>
         </table>
       `;
+
+    case "none":
+      return "";
 
     default:
       return "";
@@ -245,7 +233,7 @@ export function EmailBrandingTemplates({
         {/* Seleção de Template */}
         <div>
           <Label className="mb-3 block">Escolha um Template</Label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <Button
               type="button"
               variant={selectedTemplate === "professional" ? "default" : "outline"}
@@ -273,15 +261,30 @@ export function EmailBrandingTemplates({
               <span className="text-sm font-medium">Moderno</span>
               <span className="text-xs text-muted-foreground">Estilo Airbnb</span>
             </Button>
+            <Button
+              type="button"
+              variant={selectedTemplate === "none" ? "default" : "outline"}
+              onClick={() => onTemplateSelect("none")}
+              className="h-auto py-4 flex flex-col items-center gap-2"
+            >
+              <span className="text-sm font-medium">Nenhum</span>
+              <span className="text-xs text-muted-foreground">Sem cabeçalho/rodapé</span>
+            </Button>
           </div>
         </div>
 
         {/* Preview */}
         <div>
           <Label className="mb-2 block">Preview</Label>
-          <div className="border rounded-lg p-4 bg-white">
-            <div dangerouslySetInnerHTML={{ __html: html }} />
-          </div>
+          {selectedTemplate === "none" ? (
+            <div className="border rounded-lg p-4 bg-muted/50 text-center text-sm text-muted-foreground">
+              Nenhum template selecionado. O email será enviado sem cabeçalho/rodapé.
+            </div>
+          ) : (
+            <div className="border rounded-lg p-4 bg-white">
+              <div dangerouslySetInnerHTML={{ __html: html }} />
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
