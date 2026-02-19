@@ -48,8 +48,8 @@ export default async function WhatsAppPage() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 flex-1">
-      <div className="flex-1 flex min-h-0 min-w-0 overflow-hidden border-0 bg-card rounded-none">
+    <div className="flex flex-col h-full min-h-0 flex-1 w-full overflow-hidden">
+      <div className="flex-1 flex min-h-0 min-w-0 overflow-hidden w-full">
         <WhatsAppChatSidebar fullWidth />
       </div>
     </div>

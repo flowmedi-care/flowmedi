@@ -33,6 +33,13 @@ function formatTime(iso: string) {
   }
 }
 
+function formatPhone(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 12) return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  if (digits.length >= 10) return `+${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4)}`;
+  return phone;
+}
+
 export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -121,9 +128,19 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
 
   const handleSendInChat = async () => {
     if (!selectedConversation || !replyText.trim()) return;
-    setSendingReply(true);
     const text = replyText.trim();
     setReplyText("");
+    setSendingReply(true);
+    const tempId = `temp-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        direction: "outbound" as const,
+        body: text,
+        sent_at: new Date().toISOString(),
+      },
+    ]);
     try {
       const res = await fetch("/api/whatsapp/send", {
         method: "POST",
@@ -132,7 +149,11 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       });
       if (res.ok) {
         loadMessages();
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
       }
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
     } finally {
       setSendingReply(false);
     }
@@ -142,14 +163,14 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     <>
       <div
         className={cn(
-          "flex h-full min-h-0",
-          fullWidth ? "flex-col sm:flex-row" : "flex-row"
+          "flex h-full min-h-0 w-full",
+          fullWidth ? "flex-col sm:flex-row sm:h-full" : "flex-row"
         )}
       >
         <div
           className={cn(
-            "flex flex-col border-r border-border bg-muted/30 min-w-0",
-            fullWidth ? "w-full sm:w-80 sm:min-h-[200px]" : "w-80"
+            "flex flex-col border-r border-border bg-muted/30 min-w-0 shrink-0",
+            fullWidth ? "w-full sm:w-80 sm:min-w-[280px] sm:min-h-0" : "w-80"
           )}
         >
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
@@ -186,7 +207,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                         <Phone className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <span className="block font-medium truncate">{c.phone_number}</span>
+                        <span className="block font-medium truncate">{formatPhone(c.phone_number)}</span>
                       </div>
                     </button>
                   </li>
@@ -196,7 +217,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-background">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-background overflow-hidden">
           {selectedId ? (
             <>
               <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card">
@@ -204,10 +225,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   <Phone className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <span className="font-semibold truncate">
-                  {selectedConversation?.phone_number ?? selectedId}
+                  {selectedConversation ? formatPhone(selectedConversation.phone_number) : selectedId}
                 </span>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 bg-muted/20">
+              <div className="flex-1 overflow-y-auto p-4 bg-muted/10 min-h-0">
                 {loadingMessages ? (
                   <p className="text-muted-foreground text-sm">Carregando mensagens...</p>
                 ) : messages.length === 0 ? (
@@ -228,10 +249,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                       >
                         <div
                           className={cn(
-                            "rounded-lg px-3 py-2 text-sm shadow-sm max-w-full break-words",
+                            "rounded-2xl px-4 py-2.5 text-[15px] shadow-sm max-w-full break-words",
                             m.direction === "outbound"
-                              ? "bg-primary text-primary-foreground rounded-br-sm"
-                              : "bg-muted rounded-bl-sm"
+                              ? "bg-[#25D366] text-white rounded-br-md"
+                              : "bg-white border border-border rounded-bl-md"
                           )}
                         >
                           {m.body ?? "(mídia)"}

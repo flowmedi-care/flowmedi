@@ -58,9 +58,11 @@ export function DashboardLayoutClient({ user, profile, children }: DashboardLayo
         onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
         hasWhatsAppSimple={hasWhatsAppSimple}
       />
-      <main className={`flex-1 flex flex-col overflow-hidden bg-background ${!isWhatsAppPage ? "overflow-y-auto" : ""}`}>
+      <main className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-background ${!isWhatsAppPage ? "overflow-y-auto" : ""}`}>
         {isWhatsAppPage ? (
-          children
+          <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
+            {children}
+          </div>
         ) : (
           <div className="container mx-auto py-6 px-4 md:px-6 lg:px-8 max-w-7xl flex-1">
             {children}
