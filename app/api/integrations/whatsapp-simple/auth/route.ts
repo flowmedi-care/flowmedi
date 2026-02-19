@@ -25,10 +25,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Scopes básicos (sem business_management - não precisa para fluxo simples)
+    // Scopes necessários para descobrir WABAs e números automaticamente
     const scopes = [
       "whatsapp_business_management",
       "whatsapp_business_messaging",
+      "business_management", // Necessário para acessar /me/businesses
     ];
 
     const state = JSON.stringify({

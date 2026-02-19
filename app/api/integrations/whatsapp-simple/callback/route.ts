@@ -65,6 +65,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // appId será usado para buscar números de teste
+
     // Trocar código por access token
     const tokenUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
     tokenUrl.searchParams.set("client_id", appId);
@@ -251,7 +253,38 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Método alternativo 2: Tentar /me/owned_whatsapp_business_accounts
+      // Método alternativo 2: Tentar buscar números de teste através do app_id
+      if (!phoneNumberId && appId) {
+        console.log("📋 [WhatsApp Simple Callback] Tentando método alternativo: buscar números de teste via app_id...");
+        try {
+          const testNumbersUrl = `https://graph.facebook.com/v21.0/${appId}/phone_numbers?access_token=${accessToken}`;
+          const testNumbersResponse = await fetch(testNumbersUrl);
+          const testNumbersData = await testNumbersResponse.json();
+
+          console.log("📋 [WhatsApp Simple Callback] Test Numbers Response (via app_id):", {
+            ok: testNumbersResponse.ok,
+            status: testNumbersResponse.status,
+            dataCount: testNumbersData.data?.length || 0,
+            error: testNumbersData.error,
+            fullResponse: testNumbersData,
+            numbers: testNumbersData.data?.map((n: { id: string; verified_name?: string; display_phone_number?: string }) => ({
+              id: n.id,
+              verified_name: n.verified_name,
+              display_phone_number: n.display_phone_number,
+            })) || [],
+          });
+
+          if (testNumbersData.data && testNumbersData.data.length > 0 && testNumbersData.data[0].id) {
+            phoneNumberId = testNumbersData.data[0].id;
+            // Para números de teste, não temos WABA ID, mas podemos tentar descobrir
+            console.log(`✅ [WhatsApp Simple Callback] Número de teste encontrado via app_id: ${phoneNumberId}`);
+          }
+        } catch (appError) {
+          console.warn("⚠️ [WhatsApp Simple Callback] Erro ao buscar números via app_id:", appError);
+        }
+      }
+
+      // Método alternativo 3: Tentar /me/owned_whatsapp_business_accounts (pode não existir)
       if (!phoneNumberId) {
         console.log("📋 [WhatsApp Simple Callback] Tentando método alternativo: /me/owned_whatsapp_business_accounts...");
         const ownedWabaUrl = `https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts?access_token=${accessToken}`;
@@ -280,9 +313,15 @@ export async function GET(request: NextRequest) {
             fullResponse: phoneData,
           });
 
-          if (phoneData.data && phoneData.data.length > 0 && phoneData.data[0].id) {
-            phoneNumberId = phoneData.data[0].id;
-            console.log(`✅ [WhatsApp Simple Callback] Número encontrado via owned_whatsapp_business_accounts: ${phoneNumberId}`);
+          if (phoneData.data && phoneData.data.length > 0 && phoneData.data[0].id && wabaId) {
+            const foundPhoneNumberId = phoneData.data[0].id;
+            phoneNumberId = foundPhoneNumberId;
+            debugInfo.phoneNumbers.push({
+              wabaId,
+              phoneNumberId: foundPhoneNumberId,
+              display_phone_number: phoneData.data[0].display_phone_number,
+            });
+            console.log(`✅ [WhatsApp Simple Callback] Número encontrado via owned_whatsapp_business_accounts: ${foundPhoneNumberId}`);
           }
         }
       }
