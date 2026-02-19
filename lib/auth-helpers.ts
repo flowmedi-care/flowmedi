@@ -68,3 +68,37 @@ export async function requireClinicAdmin(): Promise<{
     email: profile.email,
   };
 }
+
+/**
+ * Verifica se o usuário atual é membro de uma clínica (qualquer role)
+ */
+export async function requireClinicMember(): Promise<{
+  id: string;
+  clinicId: string;
+  email: string | null;
+}> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/entrar");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, clinic_id, email, active")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || !profile.clinic_id || profile.active === false) {
+    redirect("/dashboard");
+  }
+
+  return {
+    id: user.id,
+    clinicId: profile.clinic_id,
+    email: profile.email,
+  };
+}

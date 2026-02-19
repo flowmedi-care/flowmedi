@@ -8,17 +8,19 @@ import { requireClinicMember } from "@/lib/auth-helpers";
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const member = await requireClinicMember();
     const supabase = await createClient();
 
     // Verificar se a conversa pertence à clínica
+    const conversationId = params.id;
     const { data: conversation } = await supabase
       .from("whatsapp_conversations")
       .select("id")
-      .eq("id", params.id)
+      .eq("id", conversationId)
       .eq("clinic_id", member.clinicId)
       .single();
 
@@ -32,7 +34,7 @@ export async function GET(
     const { data: messages, error } = await supabase
       .from("whatsapp_messages")
       .select("*")
-      .eq("conversation_id", params.id)
+      .eq("conversation_id", conversationId)
       .order("sent_at", { ascending: true })
       .limit(100);
 
@@ -47,7 +49,7 @@ export async function GET(
     await supabase
       .from("whatsapp_conversations")
       .update({ unread_count: 0 })
-      .eq("id", params.id);
+      .eq("id", conversationId);
 
     return NextResponse.json({ messages: messages || [] });
   } catch (error) {
