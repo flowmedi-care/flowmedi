@@ -17,6 +17,9 @@ export default async function OnboardingPage() {
 
   if (profile?.clinic_id) redirect("/dashboard");
 
+  // Buscar o nome do usuário do user_metadata (preenchido no cadastro)
+  const userFullName = (user.user_metadata?.full_name as string) || "";
+
   return (
     <div className="max-w-md mx-auto py-12 px-4">
       <h1 className="text-xl font-semibold text-foreground mb-2">
@@ -26,7 +29,7 @@ export default async function OnboardingPage() {
         Você será o administrador. Depois poderá convidar médicos e
         secretárias.
       </p>
-      <OnboardingForm />
+      <OnboardingForm initialFullName={userFullName} />
     </div>
   );
 }

@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
-export function OnboardingForm() {
+export function OnboardingForm({ initialFullName = "" }: { initialFullName?: string }) {
   const router = useRouter();
   const [clinicName, setClinicName] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [fullName, setFullName] = useState(initialFullName);
   const [clinicPhone, setClinicPhone] = useState("");
   const [clinicEmail, setClinicEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -108,16 +108,18 @@ export function OnboardingForm() {
           Será usado nos cabeçalhos e rodapés dos emails
         </p>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="fullName">Seu nome completo</Label>
-        <Input
-          id="fullName"
-          type="text"
-          placeholder="Seu nome"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-        />
-      </div>
+      {!initialFullName && (
+        <div className="space-y-2">
+          <Label htmlFor="fullName">Seu nome completo</Label>
+          <Input
+            id="fullName"
+            type="text"
+            placeholder="Seu nome"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+          />
+        </div>
+      )}
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "Criando…" : "Criar clínica e continuar"}
       </Button>
