@@ -225,13 +225,14 @@ export async function GET(request: NextRequest) {
                     });
 
                     if (phoneData.data && phoneData.data.length > 0 && phoneData.data[0].id && wabaId) {
-                      phoneNumberId = phoneData.data[0].id;
+                      const foundPhoneNumberId = phoneData.data[0].id;
+                      phoneNumberId = foundPhoneNumberId;
                       debugInfo.phoneNumbers.push({
                         wabaId,
-                        phoneNumberId,
+                        phoneNumberId: foundPhoneNumberId,
                         display_phone_number: phoneData.data[0].display_phone_number,
                       });
-                      console.log(`✅ [WhatsApp Simple Callback] Número encontrado via /me/businesses: ${phoneNumberId}`);
+                      console.log(`✅ [WhatsApp Simple Callback] Número encontrado via /me/businesses: ${foundPhoneNumberId}`);
                       break;
                     }
                   } catch (phoneError) {
