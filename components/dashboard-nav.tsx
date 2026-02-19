@@ -51,6 +51,12 @@ export function DashboardNav({
   const isMedico = profile?.role === "medico";
   const isSecretaria = profile?.role === "secretaria";
 
+  // Debug: log do profile para verificar se está sendo carregado corretamente
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
+    console.log("[DashboardNav] Profile:", profile);
+    console.log("[DashboardNav] isAdmin:", isAdmin);
+  }
+
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();

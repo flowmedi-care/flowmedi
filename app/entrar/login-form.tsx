@@ -23,14 +23,33 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
       email,
       password,
     });
-    setLoading(false);
     if (err) {
+      setLoading(false);
       setError(err.message);
       return;
     }
+
+    // Verificar se o usuário é system_admin e redirecionar para /admin/system
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.role === "system_admin") {
+        router.refresh();
+        router.push("/admin/system");
+        setLoading(false);
+        return;
+      }
+    }
+
     router.refresh();
     const path = redirectTo && redirectTo.startsWith("/") ? redirectTo : "/dashboard";
     router.push(path);
+    setLoading(false);
   }
 
   return (

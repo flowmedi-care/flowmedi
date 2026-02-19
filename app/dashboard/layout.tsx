@@ -16,11 +16,17 @@ export default async function DashboardLayout({
     redirect("/entrar");
   }
 
+  // Buscar profile sem cache para garantir dados atualizados
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, full_name, role, clinic_id, active")
     .eq("id", user.id)
     .single();
+
+  // Redirecionar system_admin para /admin/system
+  if (profile?.role === "system_admin") {
+    redirect("/admin/system");
+  }
 
   if (profile?.active === false) {
     redirect("/acesso-removido");

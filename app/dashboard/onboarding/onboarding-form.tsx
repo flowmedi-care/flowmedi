@@ -35,9 +35,33 @@ export function OnboardingForm() {
       return;
     }
 
+    // Aguardar um pouco para garantir que o banco de dados foi atualizado
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Verificar se o profile foi atualizado corretamente
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, role, clinic_id")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.role !== "admin" || profile?.clinic_id !== clinicId) {
+        console.error("Profile não foi atualizado corretamente:", profile);
+        setError("Erro ao atualizar perfil. Por favor, recarregue a página.");
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Forçar refresh completo e redirecionar
+    // Usar window.location para garantir reload completo do servidor
     router.refresh();
-    router.push("/dashboard");
-    setLoading(false);
+    // Pequeno delay para garantir que o refresh seja processado
+    setTimeout(() => {
+      window.location.href = "/dashboard";
+    }, 100);
   }
 
   return (
