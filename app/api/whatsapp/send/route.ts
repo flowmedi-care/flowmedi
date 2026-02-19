@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicMember } from "@/lib/auth-helpers";
 import { sendWhatsAppMessage } from "@/lib/comunicacao/whatsapp";
+import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 
 /**
  * POST /api/whatsapp/send
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const normalizedTo = to.replace(/\D/g, "");
+    const normalizedTo = normalizeWhatsAppPhone(to.replace(/\D/g, ""));
     if (normalizedTo.length < 10) {
       return NextResponse.json(
         { error: "Número inválido" },
@@ -68,10 +69,11 @@ export async function POST(request: NextRequest) {
 
     await supabase.from("whatsapp_messages").insert({
       conversation_id: conversationId,
+      clinic_id: clinicId,
       direction: "outbound",
       body: text.trim(),
       sent_at: new Date().toISOString(),
-    });
+    } as Record<string, unknown>);
 
     return NextResponse.json({ success: true, messageId: result.messageId });
   } catch (e) {

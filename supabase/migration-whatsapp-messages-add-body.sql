@@ -1,8 +1,13 @@
--- Corrige erro PGRST204: coluna 'body' não encontrada em whatsapp_messages
+-- Corrige erros em whatsapp_messages
 -- Execute no SQL Editor do Supabase
 
--- Adiciona coluna body se não existir (tabela pode ter sido criada com schema diferente)
+-- Coluna body (erro PGRST204)
 ALTER TABLE public.whatsapp_messages ADD COLUMN IF NOT EXISTS body text;
+
+-- Coluna clinic_id (erro 23502; se sua tabela já tiver clinic_id NOT NULL, ignore esta parte)
+ALTER TABLE public.whatsapp_messages ADD COLUMN IF NOT EXISTS clinic_id uuid REFERENCES public.clinics(id) ON DELETE CASCADE;
+UPDATE public.whatsapp_messages wm SET clinic_id = wc.clinic_id
+  FROM public.whatsapp_conversations wc WHERE wm.conversation_id = wc.id AND wm.clinic_id IS NULL;
 
 -- Se a tabela tiver 'content' em vez de 'body', copiar dados e usar body
 DO $$

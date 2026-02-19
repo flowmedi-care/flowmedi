@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { setLastWebhookPayload } from "@/lib/whatsapp-webhook-debug";
 
+import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
+
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
 /**
@@ -89,8 +91,9 @@ export async function POST(request: NextRequest) {
         }
 
         for (const msg of messages) {
-          const from = String((msg as { from?: string }).from ?? "").replace(/\D/g, "");
-          if (!from) continue;
+          const fromRaw = String((msg as { from?: string }).from ?? "").replace(/\D/g, "");
+          if (!fromRaw) continue;
+          const from = normalizeWhatsAppPhone(fromRaw);
 
           let bodyText: string | null = null;
           const text = (msg as { text?: { body?: string } }).text;
@@ -115,19 +118,33 @@ export async function POST(request: NextRequest) {
               .select("id")
               .single();
             if (insertConv.error) {
-              console.error("[WhatsApp Webhook] Erro ao criar conversa:", insertConv.error);
+              if (insertConv.error.code === "23505") {
+                const retry = await supabase
+                  .from("whatsapp_conversations")
+                  .select("id")
+                  .eq("clinic_id", clinicId)
+                  .eq("phone_number", from)
+                  .maybeSingle();
+                if (!retry.data?.id) { console.error("[WhatsApp Webhook] Erro ao criar conversa:", insertConv.error); continue; }
+                conversationId = retry.data.id;
+              } else {
+                console.error("[WhatsApp Webhook] Erro ao criar conversa:", insertConv.error);
+                continue;
+              }
+            } else if (insertConv.data?.id) {
+              conversationId = insertConv.data.id;
+            } else {
               continue;
             }
-            if (!insertConv.data?.id) continue;
-            conversationId = insertConv.data.id;
           }
 
           const insertMsg = await supabase.from("whatsapp_messages").insert({
             conversation_id: conversationId,
+            clinic_id: clinicId,
             direction: "inbound",
             body: bodyText,
             sent_at: new Date().toISOString(),
-          });
+          } as Record<string, unknown>);
 
           if (insertMsg.error) {
             console.error("[WhatsApp Webhook] Erro ao inserir mensagem:", insertMsg.error);
