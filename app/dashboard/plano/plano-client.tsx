@@ -6,10 +6,6 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { CreditCard, ExternalLink, Loader2 } from "lucide-react";
 
 type PlanInfo = {
@@ -50,10 +46,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const [resuming, setResuming] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [canceling, setCanceling] = useState(false);
-  const [taxIdDialogOpen, setTaxIdDialogOpen] = useState(false);
-  const [taxIdType, setTaxIdType] = useState<"cpf" | "cnpj">("cpf");
-  const [taxIdValue, setTaxIdValue] = useState("");
-  const [taxIdError, setTaxIdError] = useState("");
 
   const isPro = plan?.planSlug === "pro" && plan?.subscriptionStatus === "active";
   const isProPastDue = plan?.planSlug === "pro" && plan?.subscriptionStatus === "past_due";
@@ -91,56 +83,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     loadSubscriptionInfo();
   }, [plan?.stripeSubscriptionId]);
 
-  // Validar CPF/CNPJ
-  const validateTaxId = (value: string, type: "cpf" | "cnpj"): boolean => {
-    const cleaned = value.replace(/\D/g, "");
-    if (type === "cpf") {
-      return cleaned.length === 11;
-    } else {
-      return cleaned.length === 14;
-    }
-  };
-
-  // Formatar CPF/CNPJ
-  const formatTaxId = (value: string, type: "cpf" | "cnpj"): string => {
-    const cleaned = value.replace(/\D/g, "");
-    if (type === "cpf") {
-      if (cleaned.length <= 3) return cleaned;
-      if (cleaned.length <= 6) return cleaned.replace(/(\d{3})(\d+)/, "$1.$2");
-      if (cleaned.length <= 9) return cleaned.replace(/(\d{3})(\d{3})(\d+)/, "$1.$2.$3");
-      return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-    } else {
-      if (cleaned.length <= 2) return cleaned;
-      if (cleaned.length <= 5) return cleaned.replace(/(\d{2})(\d+)/, "$1.$2");
-      if (cleaned.length <= 8) return cleaned.replace(/(\d{2})(\d{3})(\d+)/, "$1.$2.$3");
-      if (cleaned.length <= 12) return cleaned.replace(/(\d{2})(\d{3})(\d{3})(\d+)/, "$1.$2.$3/$4");
-      return cleaned.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-    }
-  };
-
-  const handleTaxIdSubmit = () => {
-    setTaxIdError("");
-    const cleaned = taxIdValue.replace(/\D/g, "");
-    
-    if (!cleaned) {
-      setTaxIdError("Por favor, informe o CPF ou CNPJ.");
-      return;
-    }
-
-    if (!validateTaxId(cleaned, taxIdType)) {
-      setTaxIdError(`O ${taxIdType === "cpf" ? "CPF" : "CNPJ"} deve ter ${taxIdType === "cpf" ? "11" : "14"} dígitos.`);
-      return;
-    }
-
-    setTaxIdDialogOpen(false);
-    startCheckoutWithTaxId(cleaned, taxIdType);
-  };
-
-  const startCheckout = () => {
-    setTaxIdDialogOpen(true);
-  };
-
-  const startCheckoutWithTaxId = async (taxId: string, taxIdType: "cpf" | "cnpj") => {
+  const startCheckout = async () => {
     setLoadingCheckout(true);
     try {
       let pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
@@ -163,11 +106,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       const fetchClientSecret = async () => {
         const res = await fetch("/api/stripe/create-checkout-session", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tax_id: taxId,
-            tax_id_type: taxIdType,
-          }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -429,72 +367,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         onConfirm={handleCancelSubscription}
         onCancel={() => setCancelOpen(false)}
       />
-
-      <Dialog open={taxIdDialogOpen} onOpenChange={setTaxIdDialogOpen}>
-        <DialogContent title="Dados para nota fiscal" onClose={() => setTaxIdDialogOpen(false)}>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Informe seu CPF ou CNPJ para emissão da nota fiscal. Esta informação é obrigatória para processar o pagamento.
-            </p>
-            
-            <div className="space-y-2">
-              <Label htmlFor="tax_id_type">Tipo de documento</Label>
-              <Select
-                id="tax_id_type"
-                value={taxIdType}
-                onChange={(e) => {
-                  setTaxIdType(e.target.value as "cpf" | "cnpj");
-                  setTaxIdValue("");
-                  setTaxIdError("");
-                }}
-              >
-                <option value="cpf">CPF (Pessoa Física)</option>
-                <option value="cnpj">CNPJ (Pessoa Jurídica)</option>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tax_id_value">
-                {taxIdType === "cpf" ? "CPF" : "CNPJ"}
-              </Label>
-              <Input
-                id="tax_id_value"
-                value={formatTaxId(taxIdValue, taxIdType)}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, "");
-                  setTaxIdValue(value);
-                  setTaxIdError("");
-                }}
-                placeholder={taxIdType === "cpf" ? "000.000.000-00" : "00.000.000/0000-00"}
-                maxLength={taxIdType === "cpf" ? 14 : 18}
-              />
-              {taxIdError && (
-                <p className="text-xs text-destructive">{taxIdError}</p>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setTaxIdDialogOpen(false)}
-                disabled={loadingCheckout}
-              >
-                Cancelar
-              </Button>
-              <Button onClick={handleTaxIdSubmit} disabled={loadingCheckout}>
-                {loadingCheckout ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Processando...
-                  </>
-                ) : (
-                  "Continuar para pagamento"
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
     </div>
   );

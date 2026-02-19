@@ -2,24 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
 
-export async function POST(request: Request) {
+export async function POST() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-  }
-
-  // Ler tax_id e tax_id_type do body se fornecido
-  let taxId: string | null = null;
-  let taxIdType: "cpf" | "cnpj" | null = null;
-  try {
-    const body = await request.json().catch(() => ({}));
-    taxId = body.tax_id || null;
-    taxIdType = body.tax_id_type || null;
-  } catch {
-    // Body vazio ou inválido, continuar sem tax_id
   }
 
   const { data: profile } = await supabase
@@ -122,21 +111,6 @@ export async function POST(request: Request) {
 
       const customer = await stripe.customers.create(customerData);
       customerId = customer.id;
-      
-      // Adicionar tax_id se fornecido
-      if (taxId && taxIdType) {
-        try {
-          const stripeTaxIdType = taxIdType === "cpf" ? "br_cpf" : "br_cnpj";
-          await stripe.customers.createTaxId(customerId, {
-            type: stripeTaxIdType,
-            value: taxId,
-          });
-        } catch (taxErr) {
-          console.error("Stripe tax_id create error:", taxErr);
-          // Não falhar se não conseguir adicionar tax_id
-        }
-      }
-
       await supabase
         .from("clinics")
         .update({ stripe_customer_id: customerId })
@@ -145,18 +119,6 @@ export async function POST(request: Request) {
       console.error("Stripe customer create error:", err);
       const msg = err instanceof Error ? err.message : "Erro ao criar cliente na Stripe.";
       return NextResponse.json({ error: msg }, { status: 500 });
-    }
-  } else if (taxId && taxIdType) {
-    // Se customer já existe, adicionar tax_id
-    try {
-      const stripeTaxIdType = taxIdType === "cpf" ? "br_cpf" : "br_cnpj";
-      await stripe.customers.createTaxId(customerId, {
-        type: stripeTaxIdType,
-        value: taxId,
-      });
-    } catch (taxErr) {
-      console.error("Stripe tax_id create error:", taxErr);
-      // Não falhar se não conseguir adicionar tax_id (pode já existir)
     }
   }
 
@@ -188,12 +150,16 @@ export async function POST(request: Request) {
       subscription_data: {
         metadata: { clinic_id: clinic.id },
       },
-      // Coletar CPF/CNPJ durante o checkout (necessário para nota fiscal)
-      // O Stripe mostra automaticamente quando detecta país = BR no endereço
-      tax_id_collection: {
+      // Habilitar cálculo automático de impostos (necessário para tax_id aparecer)
+      automatic_tax: {
         enabled: true,
       },
-      // Coletar endereço completo (obrigatório para Stripe detectar país BR e mostrar CPF/CNPJ)
+      // Coletar CPF/CNPJ durante o checkout (obrigatório para países suportados como Brasil)
+      tax_id_collection: {
+        enabled: true,
+        required: "if_supported", // Obrigatório se o país suportar (Brasil suporta)
+      },
+      // Coletar endereço completo (obrigatório para Stripe detectar país BR e calcular impostos)
       billing_address_collection: "required",
       // Permitir atualizar informações do customer durante o checkout
       customer_update: {
@@ -201,7 +167,7 @@ export async function POST(request: Request) {
         address: "auto",
       },
       payment_method_types: ["card"],
-      // Configurar locale para português brasileiro (ajuda a mostrar campos corretos)
+      // Configurar locale para português brasileiro
       locale: "pt-BR",
     });
 
