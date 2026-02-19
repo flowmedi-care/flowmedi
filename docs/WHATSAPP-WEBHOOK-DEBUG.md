@@ -31,6 +31,6 @@ O webhook faz `console.log` do payload. Para ver:
 
 ## Configuração na Meta
 
-1. **URL do webhook:** `https://www.flowmedi.com.br/api/whatsapp/webhook`
+1. **URL do webhook:** `https://www.flowmedi.com.br/api/integrations/whatsapp/webhook`
 2. **Token de verificação:** o mesmo valor de `META_WHATSAPP_WEBHOOK_VERIFY_TOKEN` no `.env`
 3. **Assinatura:** marcar o campo `messages` (mensagens recebidas)
