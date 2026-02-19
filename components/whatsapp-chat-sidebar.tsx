@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Send, Loader2, AlertCircle, X } from "lucide-react";
+import { MessageSquare, Send, Loader2, AlertCircle, X, Plus } from "lucide-react";
+import { Label } from "@/components/ui/label";
 
 interface Conversation {
   id: string;
@@ -38,6 +39,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps = {}
   const [loading, setLoading] = useState(true);
   const [showOutsideWindowDialog, setShowOutsideWindowDialog] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<{ conversationId: string; text: string } | null>(null);
+  const [showNewConversation, setShowNewConversation] = useState(false);
+  const [newConversationTo, setNewConversationTo] = useState("");
+  const [newConversationText, setNewConversationText] = useState("");
+  const [sendingNew, setSendingNew] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,13 +66,16 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps = {}
   async function loadConversations() {
     try {
       const res = await fetch("/api/whatsapp/conversations");
-      if (!res.ok) return;
+      if (!res.ok) return [];
       const data = await res.json();
-      setConversations(data.conversations || []);
+      const convs = data.conversations || [];
+      setConversations(convs);
       setLoading(false);
+      return convs;
     } catch (error) {
       console.error("Erro ao carregar conversas:", error);
       setLoading(false);
+      return [];
     }
   }
 
@@ -125,6 +133,45 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps = {}
     setPendingMessage(null);
   }
 
+  async function sendNewConversation() {
+    if (!newConversationTo.trim() || !newConversationText.trim() || sendingNew) return;
+    setSendingNew(true);
+    try {
+      const res = await fetch("/api/whatsapp/send-direct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: newConversationTo.trim(),
+          text: newConversationText.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Erro ao enviar mensagem");
+        return;
+      }
+
+      setNewConversationTo("");
+      setNewConversationText("");
+      setShowNewConversation(false);
+      
+      // Recarregar conversas e selecionar a criada
+      const updatedConversations = await loadConversations();
+      if (data.conversation_id) {
+        const foundConv = updatedConversations.find((c: Conversation) => c.id === data.conversation_id);
+        if (foundConv) {
+          setSelectedConversation(foundConv);
+        }
+      }
+    } catch (error) {
+      alert("Erro ao enviar mensagem");
+    } finally {
+      setSendingNew(false);
+    }
+  }
+
   function formatPhoneNumber(phone: string): string {
     // Formatar: 5511999999999 -> (11) 99999-9999
     if (phone.length >= 13) {
@@ -169,25 +216,98 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps = {}
             <MessageSquare className="h-5 w-5 text-green-600" />
             <h3 className="font-semibold">WhatsApp</h3>
           </div>
-          {selectedConversation && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setSelectedConversation(null)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {!selectedConversation && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowNewConversation(true)}
+                className="h-8"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Nova conversa
+              </Button>
+            )}
+            {selectedConversation && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setSelectedConversation(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {!selectedConversation ? (
           /* Lista de conversas */
           <div className="flex-1 overflow-y-auto">
             <div className="p-2 space-y-1">
-              {conversations.length === 0 ? (
+              {conversations.length === 0 && !showNewConversation ? (
                 <div className="p-8 text-center text-sm text-muted-foreground">
-                  Nenhuma conversa ainda. As mensagens recebidas aparecerão aqui.
+                  Nenhuma conversa ainda. Use &quot;Nova conversa&quot; para enviar uma mensagem de teste.
+                </div>
+              ) : showNewConversation ? (
+                /* Formulário nova conversa */
+                <div className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">Nova conversa</h4>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => {
+                        setShowNewConversation(false);
+                        setNewConversationTo("");
+                        setNewConversationText("");
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-to">Número (com DDI)</Label>
+                    <Input
+                      id="new-to"
+                      placeholder="5562996915034"
+                      value={newConversationTo}
+                      onChange={(e) => setNewConversationTo(e.target.value.replace(/\D/g, ""))}
+                      className="font-mono"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Formato: código do país + DDD + número (ex.: 5562996915034)
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-text">Mensagem</Label>
+                    <textarea
+                      id="new-text"
+                      placeholder="Digite sua mensagem..."
+                      value={newConversationText}
+                      onChange={(e) => setNewConversationText(e.target.value)}
+                      className="w-full min-h-[100px] px-3 py-2 rounded-md border border-input bg-background text-sm resize-none"
+                      disabled={sendingNew}
+                    />
+                  </div>
+                  <Button
+                    onClick={sendNewConversation}
+                    disabled={sendingNew || !newConversationTo.trim() || !newConversationText.trim()}
+                    className="w-full"
+                  >
+                    {sendingNew ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Enviar mensagem
+                      </>
+                    )}
+                  </Button>
                 </div>
               ) : (
                 conversations.map((conv) => (

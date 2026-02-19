@@ -40,6 +40,9 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
   const [registerPin, setRegisterPin] = useState("");
   const [registering, setRegistering] = useState(false);
   const [registerResult, setRegisterResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [whatsappSimplePhoneIdInput, setWhatsappSimplePhoneIdInput] = useState("");
+  const [savingSimplePhoneId, setSavingSimplePhoneId] = useState(false);
+  const [simplePhoneIdError, setSimplePhoneIdError] = useState<string | null>(null);
 
   useEffect(() => {
     loadIntegrations();
@@ -150,6 +153,35 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
     } catch (error) {
       console.error("Erro ao conectar WhatsApp Simples:", error);
       setConnecting(null);
+    }
+  }
+
+  async function saveWhatsAppSimplePhoneId() {
+    if (!whatsappSimplePhoneIdInput.trim()) {
+      setSimplePhoneIdError("Informe o Phone Number ID");
+      return;
+    }
+    setSavingSimplePhoneId(true);
+    setSimplePhoneIdError(null);
+    try {
+      const res = await fetch("/api/integrations/whatsapp-simple/set-phone-id", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone_number_id: whatsappSimplePhoneIdInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSimplePhoneIdError(data.error || "Erro ao salvar");
+        return;
+      }
+      setSuccessMessage("Phone Number ID salvo. Agora você pode registrar o número e enviar mensagens.");
+      setWhatsappSimplePhoneIdInput("");
+      setTimeout(() => setSuccessMessage(null), 5000);
+      await loadIntegrations();
+    } catch (error) {
+      setSimplePhoneIdError("Erro de conexão");
+    } finally {
+      setSavingSimplePhoneId(false);
     }
   }
 
@@ -646,6 +678,49 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
               )}
             </div>
           </div>
+
+          {/* Campo para informar Phone Number ID quando conectado mas sem número */}
+          {whatsappSimpleIntegration?.status === "connected" && !whatsappSimpleIntegration?.metadata?.phone_number_id && (
+            <div className="pt-3 border-t border-border space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                <Label className="font-normal text-muted-foreground">
+                  A Meta não retornou o número automaticamente. Cole o <strong>Phone Number ID</strong> do painel do app:
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Meta for Developers → seu app → WhatsApp → Configuração da API → em &quot;Enviar e receber mensagens&quot;, copie o <strong>Identificação do número de telefone</strong> (ex.: 934622009742794).
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                <Input
+                  placeholder="Ex.: 934622009742794"
+                  value={whatsappSimplePhoneIdInput}
+                  onChange={(e) => {
+                    setWhatsappSimplePhoneIdInput(e.target.value);
+                    setSimplePhoneIdError(null);
+                  }}
+                  className="max-w-xs font-mono text-sm"
+                />
+                <Button
+                  size="sm"
+                  onClick={saveWhatsAppSimplePhoneId}
+                  disabled={savingSimplePhoneId || !whatsappSimplePhoneIdInput.trim()}
+                >
+                  {savingSimplePhoneId ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    "Salvar número"
+                  )}
+                </Button>
+              </div>
+              {simplePhoneIdError && (
+                <p className="text-xs text-destructive">{simplePhoneIdError}</p>
+              )}
+            </div>
+          )}
 
           {/* Registrar número (resolve mensagem "accepted" mas não entregue) */}
           {whatsappSimpleIntegration?.status === "connected" && whatsappSimpleIntegration?.metadata?.phone_number_id && (
