@@ -19,6 +19,8 @@ interface ClinicMember {
  * Requer que o usuário seja admin de uma clínica.
  * Se não for, redireciona para /dashboard (ou retorna null se noRedirect=true).
  */
+export async function requireClinicAdmin(noRedirect?: false): Promise<ClinicAdmin>;
+export async function requireClinicAdmin(noRedirect: true): Promise<ClinicAdmin | null>;
 export async function requireClinicAdmin(noRedirect = false): Promise<ClinicAdmin | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -49,6 +51,8 @@ export async function requireClinicAdmin(noRedirect = false): Promise<ClinicAdmi
  * Requer que o usuário seja system_admin.
  * Se não for, redireciona para /dashboard (ou retorna null se noRedirect=true).
  */
+export async function requireSystemAdmin(noRedirect?: false): Promise<SystemAdmin>;
+export async function requireSystemAdmin(noRedirect: true): Promise<SystemAdmin | null>;
 export async function requireSystemAdmin(noRedirect = false): Promise<SystemAdmin | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
