@@ -6,7 +6,6 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -52,11 +51,24 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const [resuming, setResuming] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [canceling, setCanceling] = useState(false);
-  const [taxIdModalOpen, setTaxIdModalOpen] = useState(false);
   const [taxIdType, setTaxIdType] = useState<"cpf" | "cnpj">("cpf");
   const [taxIdValue, setTaxIdValue] = useState("");
   const [taxIdError, setTaxIdError] = useState("");
   const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [planPrice, setPlanPrice] = useState<{ amount: number; currency: string; formatted: string } | null>(null);
+  const [loadingPrice, setLoadingPrice] = useState(false);
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  
+  // Campos de endereço
+  const [address, setAddress] = useState({
+    street: "",
+    number: "",
+    complement: "",
+    neighborhood: "",
+    city: "",
+    state: "",
+    zipCode: "",
+  });
 
   const isPro = plan?.planSlug === "pro" && plan?.subscriptionStatus === "active";
   const isProPastDue = plan?.planSlug === "pro" && plan?.subscriptionStatus === "past_due";
@@ -71,6 +83,25 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       })
       .finally(() => setLoadingInvoices(false));
   }, []);
+
+  // Carregar preço do plano Pro
+  useEffect(() => {
+    if (!isPro) {
+      setLoadingPrice(true);
+      fetch("/api/stripe/price")
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.price && data.formatted) {
+            setPlanPrice({
+              amount: data.price.amount,
+              currency: data.price.currency,
+              formatted: data.formatted,
+            });
+          }
+        })
+        .finally(() => setLoadingPrice(false));
+    }
+  }, [isPro]);
 
   const loadSubscriptionInfo = async () => {
     try {
@@ -246,20 +277,27 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!stripeRef.current || !clientSecret || !paymentIntentId) {
+    
+    // Validar consentimento
+    if (!consentAccepted) {
+      alert("Você precisa aceitar os termos para continuar.");
       return;
     }
 
-    const { stripe, paymentElement } = stripeRef.current;
-
-    // Interceptar antes de confirmar - mostrar modal de CPF/CNPJ
-    setTaxIdModalOpen(true);
-  };
-
-  const handleConfirmWithTaxId = async () => {
+    // Validar CPF/CNPJ
     const cleaned = taxIdValue.replace(/\D/g, "");
     if (!validateTaxId(taxIdValue, taxIdType)) {
       setTaxIdError(`O ${taxIdType === "cpf" ? "CPF" : "CNPJ"} deve ter ${taxIdType === "cpf" ? 11 : 14} dígitos.`);
+      return;
+    }
+
+    // Validar endereço básico
+    if (!address.street || !address.number || !address.city || !address.state || !address.zipCode) {
+      alert("Por favor, preencha todos os campos obrigatórios do endereço.");
+      return;
+    }
+
+    if (!stripeRef.current || !clientSecret || !paymentIntentId) {
       return;
     }
 
@@ -267,10 +305,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     setConfirmingPayment(true);
 
     try {
-      if (!stripeRef.current || !clientSecret || !paymentIntentId) {
-        throw new Error("Dados de pagamento não encontrados.");
-      }
-
       const { stripe, elements } = stripeRef.current;
 
       // Obter payment method do Payment Element
@@ -291,6 +325,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
           paymentMethodId: paymentMethod.id,
           taxId: cleaned,
           taxIdType,
+          address,
         }),
       });
 
@@ -299,8 +334,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         throw new Error(subData.error ?? "Erro ao processar pagamento.");
       }
 
-      // Sucesso - fechar modal e atualizar página
-      setTaxIdModalOpen(false);
+      // Sucesso - atualizar página
       router.refresh();
       window.location.reload();
     } catch (e) {
@@ -312,11 +346,10 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     }
   };
 
-  const handleCancelTaxIdModal = () => {
-    setTaxIdModalOpen(false);
-    setTaxIdValue("");
-    setTaxIdError("");
-    // Não processa pagamento se cancelar
+  const formatZipCode = (value: string): string => {
+    const cleaned = value.replace(/\D/g, "");
+    if (cleaned.length <= 5) return cleaned;
+    return cleaned.replace(/(\d{5})(\d+)/, "$1-$2");
   };
 
   useEffect(() => {
@@ -450,22 +483,207 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
                   )}
                 </Button>
               ) : (
-                <form onSubmit={handlePaymentSubmit} className="space-y-4">
-                  <div 
-                    ref={paymentElementRef} 
-                    className="border rounded-lg p-4 min-h-[200px]" 
-                    style={{ minHeight: '200px' }}
-                  />
-                  <Button type="submit" disabled={confirmingPayment} className="w-full">
+                <form onSubmit={handlePaymentSubmit} className="space-y-6">
+                  {/* Detalhes do pedido */}
+                  <div className="border rounded-lg p-4 bg-muted/50">
+                    <h3 className="font-semibold mb-3">Detalhes do pedido</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm">Plano Pro</span>
+                        <span className="text-sm font-medium">
+                          {loadingPrice ? (
+                            <Loader2 className="h-4 w-4 animate-spin inline" />
+                          ) : planPrice ? (
+                            planPrice.formatted
+                          ) : (
+                            "Carregando..."
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Cobrança mensal recorrente</span>
+                        <span>Cancelável a qualquer momento</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CPF/CNPJ */}
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium">Dados para nota fiscal</Label>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Informe seu CPF ou CNPJ para emissão da nota fiscal
+                      </p>
+                    </div>
+                    
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="tax_id_type">Tipo de documento</Label>
+                        <Select
+                          id="tax_id_type"
+                          value={taxIdType}
+                          onChange={(e) => {
+                            setTaxIdType(e.target.value as "cpf" | "cnpj");
+                            setTaxIdValue("");
+                            setTaxIdError("");
+                          }}
+                        >
+                          <option value="cpf">CPF (Pessoa Física)</option>
+                          <option value="cnpj">CNPJ (Pessoa Jurídica)</option>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="tax_id_value">
+                          {taxIdType === "cpf" ? "CPF" : "CNPJ"} <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          id="tax_id_value"
+                          value={formatTaxId(taxIdValue, taxIdType)}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, "");
+                            setTaxIdValue(value);
+                            setTaxIdError("");
+                          }}
+                          placeholder={taxIdType === "cpf" ? "000.000.000-00" : "00.000.000/0000-00"}
+                          maxLength={taxIdType === "cpf" ? 14 : 18}
+                          className={taxIdError ? "border-destructive" : ""}
+                        />
+                        {taxIdError && (
+                          <p className="text-sm text-destructive">{taxIdError}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Endereço */}
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium">Endereço de cobrança</Label>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Preencha os dados do endereço para emissão da nota fiscal
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor="street">Rua <span className="text-destructive">*</span></Label>
+                        <Input
+                          id="street"
+                          value={address.street}
+                          onChange={(e) => setAddress({ ...address, street: e.target.value })}
+                          placeholder="Nome da rua"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="number">Número <span className="text-destructive">*</span></Label>
+                        <Input
+                          id="number"
+                          value={address.number}
+                          onChange={(e) => setAddress({ ...address, number: e.target.value })}
+                          placeholder="123"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="complement">Complemento</Label>
+                        <Input
+                          id="complement"
+                          value={address.complement}
+                          onChange={(e) => setAddress({ ...address, complement: e.target.value })}
+                          placeholder="Apto, Bloco, etc."
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="neighborhood">Bairro</Label>
+                        <Input
+                          id="neighborhood"
+                          value={address.neighborhood}
+                          onChange={(e) => setAddress({ ...address, neighborhood: e.target.value })}
+                          placeholder="Nome do bairro"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="city">Cidade <span className="text-destructive">*</span></Label>
+                        <Input
+                          id="city"
+                          value={address.city}
+                          onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                          placeholder="Nome da cidade"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="state">Estado <span className="text-destructive">*</span></Label>
+                        <Input
+                          id="state"
+                          value={address.state}
+                          onChange={(e) => setAddress({ ...address, state: e.target.value.toUpperCase() })}
+                          placeholder="SP"
+                          maxLength={2}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="zipCode">CEP <span className="text-destructive">*</span></Label>
+                        <Input
+                          id="zipCode"
+                          value={formatZipCode(address.zipCode)}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, "");
+                            setAddress({ ...address, zipCode: value });
+                          }}
+                          placeholder="00000-000"
+                          maxLength={9}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Element */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Dados do cartão</Label>
+                    <div 
+                      ref={paymentElementRef} 
+                      className="border rounded-lg p-4 min-h-[200px]" 
+                      style={{ minHeight: '200px' }}
+                    />
+                  </div>
+
+                  {/* Cláusula de consentimento */}
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        id="consent"
+                        checked={consentAccepted}
+                        onChange={(e) => setConsentAccepted(e.target.checked)}
+                        className="mt-1"
+                      />
+                      <Label htmlFor="consent" className="text-sm cursor-pointer">
+                        Você concorda que a FlowMedi cobrará do seu cartão o valor acima agora e de forma recorrente mensalmente até que você cancele de acordo com nossos{" "}
+                        <a href="/termos" target="_blank" className="text-primary underline" rel="noopener noreferrer">
+                          termos
+                        </a>
+                        . Você pode cancelar a qualquer momento nas configurações da sua conta.
+                      </Label>
+                    </div>
+                  </div>
+
+                  {/* Botão de pagamento */}
+                  <Button type="submit" disabled={confirmingPayment || !consentAccepted} className="w-full">
                     {confirmingPayment ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Processando…
+                        Processando pagamento…
                       </>
                     ) : (
                       <>
                         <CreditCard className="h-4 w-4 mr-2" />
-                        Finalizar pagamento
+                        Assinar Pro
                       </>
                     )}
                   </Button>
@@ -560,80 +778,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         onCancel={() => setCancelOpen(false)}
       />
 
-      <Dialog open={taxIdModalOpen} onOpenChange={setTaxIdModalOpen}>
-        <DialogContent
-          title="Dados para nota fiscal"
-          onClose={handleCancelTaxIdModal}
-        >
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Para finalizar o pagamento e emitir a nota fiscal, precisamos do seu CPF ou CNPJ.
-            </p>
-            
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="modal_tax_id_type">Tipo de documento</Label>
-                <Select
-                  id="modal_tax_id_type"
-                  value={taxIdType}
-                  onChange={(e) => {
-                    setTaxIdType(e.target.value as "cpf" | "cnpj");
-                    setTaxIdValue("");
-                    setTaxIdError("");
-                  }}
-                >
-                  <option value="cpf">CPF (Pessoa Física)</option>
-                  <option value="cnpj">CNPJ (Pessoa Jurídica)</option>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="modal_tax_id_value">
-                  {taxIdType === "cpf" ? "CPF" : "CNPJ"}
-                </Label>
-                <Input
-                  id="modal_tax_id_value"
-                  value={formatTaxId(taxIdValue, taxIdType)}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, "");
-                    setTaxIdValue(value);
-                    setTaxIdError("");
-                  }}
-                  placeholder={taxIdType === "cpf" ? "000.000.000-00" : "00.000.000/0000-00"}
-                  maxLength={taxIdType === "cpf" ? 14 : 18}
-                  className={taxIdError ? "border-destructive" : ""}
-                />
-                {taxIdError && (
-                  <p className="text-sm text-destructive">{taxIdError}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-2 justify-end pt-4">
-              <Button
-                variant="outline"
-                onClick={handleCancelTaxIdModal}
-                disabled={confirmingPayment}
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleConfirmWithTaxId}
-                disabled={confirmingPayment || !taxIdValue}
-              >
-                {confirmingPayment ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Processando…
-                  </>
-                ) : (
-                  "Confirmar e pagar"
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
     </div>
   );

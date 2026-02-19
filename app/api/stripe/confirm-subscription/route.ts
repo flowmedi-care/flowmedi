@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { paymentIntentId, taxId, taxIdType, paymentMethodId } = body;
+  const { paymentIntentId, taxId, taxIdType, paymentMethodId, address } = body;
 
   if (!paymentIntentId) {
     return NextResponse.json({ error: "Payment Intent ID não fornecido." }, { status: 400 });
@@ -33,6 +33,25 @@ export async function POST(request: Request) {
     
     if (!paymentIntent.customer || typeof paymentIntent.customer !== "string") {
       return NextResponse.json({ error: "Customer não encontrado." }, { status: 400 });
+    }
+
+    // Atualizar endereço do customer se fornecido
+    if (address) {
+      try {
+        await stripe.customers.update(paymentIntent.customer, {
+          address: {
+            line1: `${address.street}, ${address.number}`,
+            line2: address.complement || undefined,
+            city: address.city,
+            state: address.state,
+            postal_code: address.zipCode.replace(/\D/g, ""),
+            country: "BR",
+          },
+        });
+      } catch (addrErr) {
+        console.error("Stripe address update error:", addrErr);
+        // Não falhar se não conseguir atualizar endereço
+      }
     }
 
     // Adicionar tax_id se fornecido
