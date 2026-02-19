@@ -94,6 +94,44 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     loadSubscriptionInfo();
   }, [plan?.stripeSubscriptionId]);
 
+  // Montar Payment Element quando paymentMounted for true e o elemento estiver no DOM
+  useEffect(() => {
+    if (paymentMounted && stripeRef.current?.paymentElement && paymentElementRef.current) {
+      console.log("Tentando montar Payment Element...");
+      const mountElement = () => {
+        if (paymentElementRef.current && stripeRef.current?.paymentElement) {
+          console.log("Montando Payment Element no elemento:", paymentElementRef.current);
+          paymentElementRef.current.innerHTML = "";
+          try {
+            stripeRef.current.paymentElement.mount(paymentElementRef.current);
+            console.log("Payment Element montado com sucesso!");
+          } catch (error) {
+            console.error("Erro ao montar Payment Element:", error);
+          }
+        } else {
+          console.log("Elemento ou Payment Element não disponível:", {
+            hasElement: !!paymentElementRef.current,
+            hasPaymentElement: !!stripeRef.current?.paymentElement,
+          });
+        }
+      };
+      
+      // Tentar montar imediatamente
+      mountElement();
+      
+      // Se não funcionou, tentar após um pequeno delay
+      const timeout = setTimeout(mountElement, 100);
+      
+      return () => clearTimeout(timeout);
+    } else {
+      console.log("Condições não atendidas para montar:", {
+        paymentMounted,
+        hasPaymentElement: !!stripeRef.current?.paymentElement,
+        hasElement: !!paymentElementRef.current,
+      });
+    }
+  }, [paymentMounted]);
+
   // Formatar CPF/CNPJ enquanto digita
   const formatTaxId = (value: string, type: "cpf" | "cnpj"): string => {
     const cleaned = value.replace(/\D/g, "");
@@ -137,16 +175,14 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       }
 
       const { clientSecret, paymentIntentId } = data;
+      console.log("Payment Intent criado:", { clientSecret: clientSecret?.substring(0, 20) + "...", paymentIntentId });
       if (!clientSecret || !paymentIntentId) {
         alert("Resposta inválida do servidor.");
         setLoadingCheckout(false);
         return;
       }
 
-      setClientSecret(clientSecret);
-      setPaymentIntentId(paymentIntentId);
-
-      // Carregar Stripe.js
+      // Carregar Stripe.js primeiro
       let pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
       if (!pk) {
         const configRes = await fetch("/api/stripe/config");
@@ -166,6 +202,10 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         return;
       }
 
+      // Salvar dados antes de atualizar estado
+      setClientSecret(clientSecret);
+      setPaymentIntentId(paymentIntentId);
+      
       // Criar Elements e Payment Element
       const elements = stripe.elements({
         clientSecret,
@@ -181,16 +221,25 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       
       stripeRef.current = { stripe, elements, paymentElement };
       
-      // Montar Payment Element
-      if (paymentElementRef.current) {
-        paymentElementRef.current.innerHTML = "";
-        paymentElement.mount(paymentElementRef.current);
-        setPaymentMounted(true);
-      }
+      // Atualizar estado para renderizar o elemento primeiro
+      // O useEffect vai montar o Payment Element quando o elemento estiver no DOM
+      setPaymentMounted(true);
     } catch (e) {
       console.error("Checkout error:", e);
       const msg = e instanceof Error ? e.message : String(e);
       alert(`Erro ao iniciar checkout: ${msg}`);
+      // Resetar estado em caso de erro
+      setPaymentMounted(false);
+      setClientSecret(null);
+      setPaymentIntentId(null);
+      if (stripeRef.current?.paymentElement) {
+        try {
+          stripeRef.current.paymentElement.destroy();
+        } catch (destroyError) {
+          console.error("Erro ao destruir Payment Element:", destroyError);
+        }
+      }
+      stripeRef.current = null;
     }
     setLoadingCheckout(false);
   };
@@ -273,7 +322,11 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   useEffect(() => {
     return () => {
       if (stripeRef.current?.paymentElement) {
-        stripeRef.current.paymentElement.destroy();
+        try {
+          stripeRef.current.paymentElement.destroy();
+        } catch (e) {
+          console.error("Erro ao destruir Payment Element:", e);
+        }
         stripeRef.current = null;
       }
     };
@@ -398,7 +451,11 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
                 </Button>
               ) : (
                 <form onSubmit={handlePaymentSubmit} className="space-y-4">
-                  <div ref={paymentElementRef} className="border rounded-lg p-4" />
+                  <div 
+                    ref={paymentElementRef} 
+                    className="border rounded-lg p-4 min-h-[200px]" 
+                    style={{ minHeight: '200px' }}
+                  />
                   <Button type="submit" disabled={confirmingPayment} className="w-full">
                     {confirmingPayment ? (
                       <>
