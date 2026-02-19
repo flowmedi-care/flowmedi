@@ -75,42 +75,150 @@ export async function GET(request: NextRequest) {
     const tokenResponse = await fetch(tokenUrl.toString());
     const tokenData = await tokenResponse.json();
 
+    console.log("🔑 [WhatsApp Simple Callback] Token Response:", {
+      ok: tokenResponse.ok,
+      status: tokenResponse.status,
+      hasToken: !!tokenData.access_token,
+      error: tokenData.error,
+      expiresIn: tokenData.expires_in,
+      scopes: tokenData.scopes || "não informado",
+    });
+
     if (!tokenResponse.ok || !tokenData.access_token) {
       console.error("❌ [WhatsApp Simple Callback] Erro ao obter token:", tokenData);
       return NextResponse.redirect(
-        new URL(`/dashboard/configuracoes?error=token_failed`, request.url)
+        new URL(`/dashboard/configuracoes?error=token_failed&debug=${encodeURIComponent(JSON.stringify({ error: tokenData.error }))}`, request.url)
       );
     }
 
     const accessToken = tokenData.access_token;
     const expiresIn = tokenData.expires_in || null;
 
-    // Buscar phone_number_id e WABA
+    // Buscar phone_number_id e WABA seguindo o fluxo correto:
+    // User Token → /me/whatsapp_business_accounts → WABA → /WABA_ID/phone_numbers → Phone Number ID
     let phoneNumberId: string | null = null;
     let wabaId: string | null = null;
 
+    const debugInfo: {
+      wabaMethod1: { ok: boolean; status: number; dataCount: number; error?: unknown; wabas: Array<{ id: string }> } | null;
+      phoneNumbers: Array<{ wabaId: string; phoneNumberId: string; display_phone_number?: string }>;
+    } = {
+      wabaMethod1: null,
+      phoneNumbers: [],
+    };
+
     try {
-      // Método 1: Buscar WABAs através de /me/businesses
-      const wabaUrl = `https://graph.facebook.com/v21.0/me/businesses?access_token=${accessToken}`;
+      // Método CORRETO: Buscar WABAs através de /me/whatsapp_business_accounts
+      console.log("📋 [WhatsApp Simple Callback] Tentando buscar WABAs via /me/whatsapp_business_accounts...");
+      const wabaUrl = `https://graph.facebook.com/v21.0/me/whatsapp_business_accounts?access_token=${accessToken}`;
       const wabaResponse = await fetch(wabaUrl);
       const wabaData = await wabaResponse.json();
 
-      if (wabaData.data && wabaData.data.length > 0) {
-        wabaId = wabaData.data[0].id;
-        const phoneUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
-        const phoneResponse = await fetch(phoneUrl);
-        const phoneData = await phoneResponse.json();
+      console.log("📋 [WhatsApp Simple Callback] WABA Response (/me/whatsapp_business_accounts):", {
+        ok: wabaResponse.ok,
+        status: wabaResponse.status,
+        dataCount: wabaData.data?.length || 0,
+        error: wabaData.error,
+        fullResponse: wabaData,
+      });
 
-        if (phoneData.data && phoneData.data.length > 0) {
-          phoneNumberId = phoneData.data[0].id;
+      debugInfo.wabaMethod1 = {
+        ok: wabaResponse.ok,
+        status: wabaResponse.status,
+        dataCount: wabaData.data?.length || 0,
+        error: wabaData.error,
+        wabas: wabaData.data?.map((w: { id: string }) => ({ id: w.id })) || [],
+      };
+
+      if (wabaData.data && wabaData.data.length > 0) {
+        // Tentar todos os WABAs até encontrar um número
+        for (const waba of wabaData.data) {
+          wabaId = waba.id;
+          console.log(`📞 [WhatsApp Simple Callback] Buscando números para WABA ${wabaId}...`);
+          
+          try {
+            const phoneUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
+            const phoneResponse = await fetch(phoneUrl);
+            const phoneData = await phoneResponse.json();
+
+            console.log(`📞 [WhatsApp Simple Callback] Phone Numbers para WABA ${wabaId}:`, {
+              ok: phoneResponse.ok,
+              status: phoneResponse.status,
+              count: phoneData.data?.length || 0,
+              error: phoneData.error,
+              fullResponse: phoneData,
+              numbers: phoneData.data?.map((p: { id: string; display_phone_number?: string }) => ({
+                id: p.id,
+                display_phone_number: p.display_phone_number,
+              })) || [],
+            });
+
+            if (phoneData.data && phoneData.data.length > 0 && phoneData.data[0].id) {
+              phoneNumberId = phoneData.data[0].id;
+              debugInfo.phoneNumbers.push({
+                wabaId,
+                phoneNumberId,
+                display_phone_number: phoneData.data[0].display_phone_number,
+              });
+              console.log(`✅ [WhatsApp Simple Callback] Número encontrado: ${phoneNumberId} no WABA ${wabaId}`);
+              break; // Parar quando encontrar um número
+            }
+          } catch (phoneError) {
+            console.warn(`⚠️ [WhatsApp Simple Callback] Erro ao buscar números do WABA ${wabaId}:`, phoneError);
+            continue; // Tentar próximo WABA
+          }
         }
       }
 
-      // Método 2: Se não encontrou, tentar /me/owned_whatsapp_business_accounts
+      // Método alternativo 1: Se não encontrou, tentar /me/businesses
       if (!phoneNumberId) {
+        console.log("📋 [WhatsApp Simple Callback] Tentando método alternativo: /me/businesses...");
+        const businessesUrl = `https://graph.facebook.com/v21.0/me/businesses?access_token=${accessToken}`;
+        const businessesResponse = await fetch(businessesUrl);
+        const businessesData = await businessesResponse.json();
+
+        console.log("📋 [WhatsApp Simple Callback] Businesses Response:", {
+          ok: businessesResponse.ok,
+          status: businessesResponse.status,
+          dataCount: businessesData.data?.length || 0,
+          error: businessesData.error,
+          fullResponse: businessesData,
+        });
+
+        if (businessesData.data && businessesData.data.length > 0) {
+          for (const business of businessesData.data) {
+            wabaId = business.id;
+            try {
+              const phoneUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
+              const phoneResponse = await fetch(phoneUrl);
+              const phoneData = await phoneResponse.json();
+
+              if (phoneData.data && phoneData.data.length > 0 && phoneData.data[0].id) {
+                phoneNumberId = phoneData.data[0].id;
+                console.log(`✅ [WhatsApp Simple Callback] Número encontrado via /me/businesses: ${phoneNumberId}`);
+                break;
+              }
+            } catch (phoneError) {
+              continue;
+            }
+          }
+        }
+      }
+
+      // Método alternativo 2: Tentar /me/owned_whatsapp_business_accounts
+      if (!phoneNumberId) {
+        console.log("📋 [WhatsApp Simple Callback] Tentando método alternativo: /me/owned_whatsapp_business_accounts...");
         const ownedWabaUrl = `https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts?access_token=${accessToken}`;
         const ownedWabaResponse = await fetch(ownedWabaUrl);
         const ownedWabaData = await ownedWabaResponse.json();
+
+        console.log("📋 [WhatsApp Simple Callback] Owned WABA Response:", {
+          ok: ownedWabaResponse.ok,
+          status: ownedWabaResponse.status,
+          dataCount: ownedWabaData.data?.length || 0,
+          error: ownedWabaData.error,
+          fullResponse: ownedWabaData,
+        });
 
         if (ownedWabaData.data && ownedWabaData.data.length > 0) {
           wabaId = ownedWabaData.data[0].id;
@@ -118,14 +226,30 @@ export async function GET(request: NextRequest) {
           const phoneResponse = await fetch(phoneUrl);
           const phoneData = await phoneResponse.json();
 
-          if (phoneData.data && phoneData.data.length > 0) {
+          console.log(`📞 [WhatsApp Simple Callback] Phone Numbers (owned) para WABA ${wabaId}:`, {
+            ok: phoneResponse.ok,
+            status: phoneResponse.status,
+            count: phoneData.data?.length || 0,
+            error: phoneData.error,
+            fullResponse: phoneData,
+          });
+
+          if (phoneData.data && phoneData.data.length > 0 && phoneData.data[0].id) {
             phoneNumberId = phoneData.data[0].id;
+            console.log(`✅ [WhatsApp Simple Callback] Número encontrado via owned_whatsapp_business_accounts: ${phoneNumberId}`);
           }
         }
       }
     } catch (error) {
-      console.warn("⚠️ [WhatsApp Simple Callback] Erro ao buscar número:", error);
+      console.error("❌ [WhatsApp Simple Callback] Erro ao buscar número:", error);
     }
+
+    console.log("📊 [WhatsApp Simple Callback] Resumo final:", {
+      phoneNumberId,
+      wabaId,
+      hasAccessToken: !!accessToken,
+      debugInfo,
+    });
 
     // Inscrever app no WABA para receber webhooks
     if (wabaId && accessToken) {
@@ -169,9 +293,17 @@ export async function GET(request: NextRequest) {
       token_type: tokenData.token_type || "bearer",
     };
 
-    const metadata: Record<string, unknown> = {};
-    if (phoneNumberId) metadata.phone_number_id = phoneNumberId;
-    if (wabaId) metadata.waba_id = wabaId;
+    const metadata: Record<string, unknown> = {
+      phone_number_id: phoneNumberId || null,
+      waba_id: wabaId || null,
+      phone_number_status: phoneNumberId ? "found" : "not_found",
+      debug_info: {
+        wabaMethod1Found: debugInfo.wabaMethod1 ? debugInfo.wabaMethod1.dataCount > 0 : false,
+        wabaMethod1Error: debugInfo.wabaMethod1?.error,
+        wabaMethod1Status: debugInfo.wabaMethod1?.status,
+        phoneNumbersCount: debugInfo.phoneNumbers.length,
+      },
+    };
 
     const integrationStatus = accessToken ? "connected" : "pending";
 
@@ -195,13 +327,41 @@ export async function GET(request: NextRequest) {
     if (upsertError) {
       console.error("❌ [WhatsApp Simple Callback] Erro ao salvar:", upsertError);
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=save_failed", request.url)
+        new URL(`/dashboard/configuracoes?error=save_failed&debug=${encodeURIComponent(JSON.stringify({ error: upsertError.message }))}`, request.url)
       );
     }
 
-    return NextResponse.redirect(
-      new URL("/dashboard/configuracoes?integration=whatsapp_simple&status=connected", request.url)
-    );
+    // Preparar informações de debug para o cliente (sem dados sensíveis)
+    const clientDebugInfo = {
+      phoneNumberId: phoneNumberId || null,
+      wabaId: wabaId || null,
+      phoneNumberStatus: phoneNumberId ? "found" : "not_found",
+      wabaMethod1Found: debugInfo.wabaMethod1 ? debugInfo.wabaMethod1.dataCount > 0 : false,
+      wabaMethod1Error: debugInfo.wabaMethod1?.error
+        ? (typeof debugInfo.wabaMethod1.error === "object" && debugInfo.wabaMethod1.error !== null && "message" in debugInfo.wabaMethod1.error
+          ? (debugInfo.wabaMethod1.error as { message?: string }).message
+          : String(debugInfo.wabaMethod1.error))
+        : null,
+      wabaMethod1Status: debugInfo.wabaMethod1?.status || null,
+      phoneNumbersCount: debugInfo.phoneNumbers.length,
+      suggestion: !phoneNumberId 
+        ? "Número não encontrado automaticamente. Verifique se você tem um número de teste configurado no app da Meta ou se o número real está registrado no Business Manager. Você pode configurar manualmente o Phone Number ID nas configurações."
+        : null,
+    };
+
+    console.log("✅ [WhatsApp Simple Callback] Integração salva com sucesso:", {
+      clinicId: stateData.clinicId,
+      status: integrationStatus,
+      ...clientDebugInfo,
+    });
+
+    // Redirecionar para página de configurações com sucesso e debug info
+    const redirectUrl = new URL("/dashboard/configuracoes", request.url);
+    redirectUrl.searchParams.set("integration", "whatsapp_simple");
+    redirectUrl.searchParams.set("status", integrationStatus);
+    redirectUrl.searchParams.set("debug", encodeURIComponent(JSON.stringify(clientDebugInfo)));
+    
+    return NextResponse.redirect(redirectUrl);
   } catch (error) {
     console.error("Erro no callback OAuth Meta (simples):", error);
     return NextResponse.redirect(

@@ -56,24 +56,38 @@ export function ConfiguracoesClient({
     const integration = searchParams.get("integration");
     const status = searchParams.get("status");
 
-    if (integration === "whatsapp" && debugParam) {
+    if ((integration === "whatsapp" || integration === "whatsapp_simple") && debugParam) {
       try {
         const debugInfo = JSON.parse(decodeURIComponent(debugParam));
-        console.group("🔍 [WhatsApp Integration Debug] Informações da API Meta");
+        const integrationName = integration === "whatsapp_simple" ? "WhatsApp Simple" : "WhatsApp (Coexistência)";
+        
+        console.group(`🔍 [${integrationName} Integration Debug] Informações da API Meta`);
         console.log("Status da integração:", status);
         console.log("Phone Number ID:", debugInfo.phoneNumberId || "❌ Não encontrado");
         console.log("WABA ID:", debugInfo.wabaId || "❌ Não encontrado");
         console.log("Status do número:", debugInfo.phoneNumberStatus);
-        console.log("Método 1 (/me/businesses):", {
-          encontrou: debugInfo.wabaMethod1Found ? "✅ Sim" : "❌ Não",
-          statusHTTP: debugInfo.wabaMethod1Status,
-          erroMeta: debugInfo.wabaMethod1Error || "Nenhum",
-        });
-        console.log("Método 2 (/me/owned_whatsapp_business_accounts):", {
-          encontrou: debugInfo.wabaMethod2Found ? "✅ Sim" : "❌ Não",
-          statusHTTP: debugInfo.wabaMethod2Status,
-          erroMeta: debugInfo.wabaMethod2Error || "Nenhum",
-        });
+        
+        if (integration === "whatsapp_simple") {
+          // Debug específico para WhatsApp Simple
+          console.log("Método 1 (/me/whatsapp_business_accounts):", {
+            encontrou: debugInfo.wabaMethod1Found ? "✅ Sim" : "❌ Não",
+            statusHTTP: debugInfo.wabaMethod1Status,
+            erroMeta: debugInfo.wabaMethod1Error || "Nenhum",
+          });
+        } else {
+          // Debug para WhatsApp coexistência
+          console.log("Método 1 (/me/businesses):", {
+            encontrou: debugInfo.wabaMethod1Found ? "✅ Sim" : "❌ Não",
+            statusHTTP: debugInfo.wabaMethod1Status,
+            erroMeta: debugInfo.wabaMethod1Error || "Nenhum",
+          });
+          console.log("Método 2 (/me/owned_whatsapp_business_accounts):", {
+            encontrou: debugInfo.wabaMethod2Found ? "✅ Sim" : "❌ Não",
+            statusHTTP: debugInfo.wabaMethod2Status,
+            erroMeta: debugInfo.wabaMethod2Error || "Nenhum",
+          });
+        }
+        
         console.log("Total de números encontrados:", debugInfo.phoneNumbersCount);
         if (debugInfo.suggestion) {
           console.warn("💡 Sugestão:", debugInfo.suggestion);
