@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
       .order("sent_at", { ascending: true });
 
     if (error) {
+      console.error("[WhatsApp Messages] Erro:", error.message);
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
