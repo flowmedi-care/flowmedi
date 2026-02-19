@@ -143,18 +143,21 @@ export async function POST() {
       subscription_data: {
         metadata: { clinic_id: clinic.id },
       },
-      // Coletar CPF/CNPJ durante o checkout (só aparece se país = BR)
+      // Coletar CPF/CNPJ durante o checkout (necessário para nota fiscal)
+      // O Stripe mostra automaticamente quando detecta país = BR no endereço
       tax_id_collection: {
         enabled: true,
       },
-      // Não coletar endereço completo - apenas país se necessário para tax_id
-      billing_address_collection: "auto", // "auto" permite mas não obriga
-      // Permitir atualizar nome durante o checkout
+      // Coletar endereço completo (obrigatório para Stripe detectar país BR e mostrar CPF/CNPJ)
+      billing_address_collection: "required",
+      // Permitir atualizar informações do customer durante o checkout
       customer_update: {
         name: "auto",
-        address: "never", // Não atualizar endereço automaticamente
+        address: "auto",
       },
       payment_method_types: ["card"],
+      // Configurar locale para português brasileiro (ajuda a mostrar campos corretos)
+      locale: "pt-BR",
     });
 
     return NextResponse.json({ clientSecret: session.client_secret });
