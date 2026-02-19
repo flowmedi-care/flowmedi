@@ -60,9 +60,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const [consentAccepted, setConsentAccepted] = useState(false);
   
   // Campos de endereço
-  const [addressInput, setAddressInput] = useState("");
-  const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingCEP, setLoadingCEP] = useState(false);
   const [address, setAddress] = useState({
     street: "",
     number: "",
@@ -72,8 +70,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     state: "",
     zipCode: "",
   });
-  const autocompleteRef = useRef<HTMLInputElement>(null);
-  const googleMapsLoaded = useRef(false);
 
   const isPro = plan?.planSlug === "pro" && plan?.subscriptionStatus === "active";
   const isProPastDue = plan?.planSlug === "pro" && plan?.subscriptionStatus === "past_due";
@@ -357,216 +353,52 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     return cleaned.replace(/(\d{5})(\d+)/, "$1-$2");
   };
 
-  // Carregar Google Maps API (se disponível)
-  useEffect(() => {
-    if (googleMapsLoaded.current || !process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) return;
-    
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&language=pt-BR`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      googleMapsLoaded.current = true;
-    };
-    script.onerror = () => {
-      console.warn("Google Maps API não carregou. Usando fallback ViaCEP.");
-    };
-    document.head.appendChild(script);
-
-    return () => {
-      // Cleanup se necessário
-    };
-  }, []);
-
-  // Buscar sugestões de endereço usando ViaCEP
-  const searchAddress = async (query: string) => {
-    if (query.length < 3) {
-      setAddressSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
-    const cleaned = query.replace(/\D/g, "");
-    
-    // Se parece ser um CEP (8 dígitos), buscar diretamente
-    if (cleaned.length === 8) {
-      try {
-        const response = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`);
-        const data = await response.json();
-        
-        if (!data.erro && data.logradouro) {
-          setAddressSuggestions([{
-            description: `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`,
-            place_id: data.cep,
-            structured_formatting: {
-              main_text: data.logradouro,
-              secondary_text: `${data.bairro}, ${data.localidade} - ${data.uf}`,
-            },
-            cep: data.cep,
-            logradouro: data.logradouro,
-            bairro: data.bairro,
-            localidade: data.localidade,
-            uf: data.uf,
-          }]);
-          setShowSuggestions(true);
-        } else {
-          setAddressSuggestions([]);
-          setShowSuggestions(false);
-        }
-      } catch (error) {
-        console.error("Erro ao buscar CEP:", error);
-        setAddressSuggestions([]);
-        setShowSuggestions(false);
-      }
-    } else {
-      // Para busca por texto, usar API de busca de CEPs por logradouro
-      // ViaCEP não tem busca por texto, então vamos usar uma abordagem diferente
-      // Por enquanto, vamos apenas limpar sugestões se não for CEP
-      setAddressSuggestions([]);
-      setShowSuggestions(false);
-    }
-  };
-
-  // Usar Google Places Autocomplete se disponível
-  useEffect(() => {
-    if (!googleMapsLoaded.current || !autocompleteRef.current || !paymentMounted) return;
-    if (!(window as any).google?.maps?.places) return;
-
-    try {
-      const autocomplete = new (window as any).google.maps.places.Autocomplete(
-        autocompleteRef.current,
-        {
-          componentRestrictions: { country: "br" },
-          fields: ["address_components", "formatted_address"],
-          types: ["address"],
-        }
-      );
-
-      autocomplete.addListener("place_changed", () => {
-        const place = autocomplete.getPlace();
-        if (!place.address_components) return;
-
-        let street = "";
-        let number = "";
-        let neighborhood = "";
-        let city = "";
-        let state = "";
-        let zipCode = "";
-
-        place.address_components.forEach((component: any) => {
-          const type = component.types[0];
-          if (type === "street_number") {
-            number = component.long_name;
-          } else if (type === "route") {
-            street = component.long_name;
-          } else if (type === "sublocality_level_1" || type === "sublocality") {
-            neighborhood = component.long_name;
-          } else if (type === "administrative_area_level_2") {
-            city = component.long_name;
-          } else if (type === "administrative_area_level_1") {
-            state = component.short_name;
-          } else if (type === "postal_code") {
-            zipCode = component.long_name.replace(/\D/g, "");
-          }
-        });
-
-        setAddress({
-          street,
-          number,
-          complement: "",
-          neighborhood,
-          city,
-          state,
-          zipCode,
-        });
-        setAddressInput(place.formatted_address);
-        setShowSuggestions(false);
-      });
-
-      return () => {
-        if (autocomplete && (window as any).google?.maps?.event) {
-          (window as any).google.maps.event.clearInstanceListeners(autocomplete);
-        }
-      };
-    } catch (error) {
-      console.error("Erro ao inicializar Google Places:", error);
-    }
-  }, [googleMapsLoaded.current, paymentMounted]);
-
-  // Handler para mudança no input de endereço
-  const handleAddressInputChange = (value: string) => {
-    setAddressInput(value);
-    
-    // Se parece ser um CEP (8 dígitos), buscar automaticamente
-    const cleaned = value.replace(/\D/g, "");
-    if (cleaned.length === 8) {
-      fetchAddressByCEP(cleaned);
-    } else if (value.length >= 3) {
-      searchAddress(value);
-    } else {
-      setAddressSuggestions([]);
-      setShowSuggestions(false);
-    }
-  };
-
+  // Buscar endereço por CEP usando ViaCEP
   const fetchAddressByCEP = async (cep: string) => {
     const cleaned = cep.replace(/\D/g, "");
     if (cleaned.length !== 8) return;
 
+    setLoadingCEP(true);
     try {
       const response = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`);
       const data = await response.json();
       
       if (data.erro) {
-        console.error("CEP não encontrado");
+        alert("CEP não encontrado. Verifique se o CEP está correto.");
+        setLoadingCEP(false);
         return;
       }
 
       // Preencher automaticamente os campos do endereço
       setAddress({
-        ...address,
         street: data.logradouro || "",
+        number: "",
+        complement: "",
         neighborhood: data.bairro || "",
         city: data.localidade || "",
         state: data.uf || "",
         zipCode: cleaned,
       });
-      setAddressInput(`${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`);
     } catch (error) {
       console.error("Erro ao buscar CEP:", error);
+      alert("Erro ao buscar CEP. Tente novamente.");
+    } finally {
+      setLoadingCEP(false);
     }
   };
 
-  const selectSuggestion = (suggestion: any) => {
-    if (suggestion.cep) {
-      // É resultado do ViaCEP
-      setAddress({
-        street: suggestion.logradouro || "",
-        number: "",
-        complement: "",
-        neighborhood: suggestion.bairro || "",
-        city: suggestion.localidade || "",
-        state: suggestion.uf || "",
-        zipCode: suggestion.cep.replace(/\D/g, ""),
-      });
-      setAddressInput(suggestion.description);
+  // Handler para mudança no input de CEP
+  const handleCEPInputChange = (value: string) => {
+    const cleaned = value.replace(/\D/g, "");
+    const formatted = cleaned.length <= 5 ? cleaned : cleaned.replace(/(\d{5})(\d+)/, "$1-$2");
+    
+    setAddress({ ...address, zipCode: cleaned });
+    
+    // Buscar automaticamente quando CEP estiver completo
+    if (cleaned.length === 8) {
+      fetchAddressByCEP(cleaned);
     }
-    setShowSuggestions(false);
   };
-
-  // Fechar sugestões ao clicar fora
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (autocompleteRef.current && !autocompleteRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -772,49 +604,35 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
                     </div>
                   </div>
 
-                  {/* Endereço com autocomplete */}
+                  {/* Endereço com busca por CEP */}
                   <div className="space-y-4">
                     <div>
                       <Label className="text-sm font-medium">Endereço de cobrança</Label>
                       <p className="text-xs text-muted-foreground mb-3">
-                        Digite o endereço e selecione uma sugestão para preencher automaticamente
+                        Digite o CEP e os campos serão preenchidos automaticamente
                       </p>
                     </div>
 
-                    <div className="relative space-y-2">
-                      <Label htmlFor="address-input">Endereço completo <span className="text-destructive">*</span></Label>
-                      <Input
-                        ref={autocompleteRef}
-                        id="address-input"
-                        value={addressInput}
-                        onChange={(e) => handleAddressInputChange(e.target.value)}
-                        onFocus={() => {
-                          if (addressSuggestions.length > 0) {
-                            setShowSuggestions(true);
-                          }
-                        }}
-                        placeholder="Digite o endereço ou CEP (ex: 01310-100)"
-                        className="w-full"
-                      />
-                      
-                      {/* Sugestões de endereço */}
-                      {showSuggestions && addressSuggestions.length > 0 && (
-                        <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                          {addressSuggestions.map((suggestion, index) => (
-                            <button
-                              key={index}
-                              type="button"
-                              onClick={() => selectSuggestion(suggestion)}
-                              className="w-full text-left px-4 py-2 hover:bg-muted transition-colors border-b border-border last:border-b-0"
-                            >
-                              <div className="font-medium">{suggestion.structured_formatting?.main_text || suggestion.logradouro}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {suggestion.structured_formatting?.secondary_text || `${suggestion.bairro}, ${suggestion.localidade} - ${suggestion.uf}`}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                    <div className="space-y-2">
+                      <Label htmlFor="zipCode">CEP <span className="text-destructive">*</span></Label>
+                      <div className="relative">
+                        <Input
+                          id="zipCode"
+                          value={formatZipCode(address.zipCode)}
+                          onChange={(e) => handleCEPInputChange(e.target.value)}
+                          placeholder="00000-000"
+                          maxLength={9}
+                          className="w-full"
+                        />
+                        {loadingCEP && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Digite o CEP completo e os campos abaixo serão preenchidos automaticamente
+                      </p>
                     </div>
 
                     {/* Campos detalhados (preenchidos automaticamente, mas editáveis) */}
@@ -877,23 +695,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
                           onChange={(e) => setAddress({ ...address, state: e.target.value.toUpperCase() })}
                           placeholder="SP"
                           maxLength={2}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="zipCode">CEP <span className="text-destructive">*</span></Label>
-                        <Input
-                          id="zipCode"
-                          value={formatZipCode(address.zipCode)}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, "");
-                            setAddress({ ...address, zipCode: value });
-                            if (value.length === 8) {
-                              fetchAddressByCEP(value);
-                            }
-                          }}
-                          placeholder="00000-000"
-                          maxLength={9}
                         />
                       </div>
                     </div>
