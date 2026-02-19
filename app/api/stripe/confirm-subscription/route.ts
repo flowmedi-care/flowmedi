@@ -155,6 +155,22 @@ export async function POST(request: Request) {
       );
     }
 
+    // Anexar payment method ao customer antes de criar a assinatura
+    try {
+      await stripe.paymentMethods.attach(paymentMethodId, {
+        customer: paymentIntent.customer,
+      });
+    } catch (attachErr: any) {
+      // Se já está anexado, ignorar o erro
+      if (!attachErr.message?.includes("already been attached")) {
+        console.error("Erro ao anexar payment method:", attachErr);
+        return NextResponse.json(
+          { error: "Erro ao anexar método de pagamento ao cliente." },
+          { status: 500 }
+        );
+      }
+    }
+
     // Se Payment Intent ainda não foi confirmado, cancelá-lo
     // porque vamos criar a assinatura que vai processar o pagamento
     if (paymentIntent.status === "requires_payment_method" || paymentIntent.status === "requires_confirmation") {
