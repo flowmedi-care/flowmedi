@@ -39,9 +39,15 @@ export async function POST() {
     return NextResponse.json({ error: "Stripe não configurado." }, { status: 500 });
   }
 
-  await stripe.subscriptions.update(clinic.stripe_subscription_id, {
-    cancel_at_period_end: true,
-  });
+  try {
+    await stripe.subscriptions.update(clinic.stripe_subscription_id, {
+      cancel_at_period_end: true,
+    });
 
-  return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("Stripe cancel subscription error:", err);
+    const message = err instanceof Error ? err.message : "Erro ao cancelar assinatura.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
