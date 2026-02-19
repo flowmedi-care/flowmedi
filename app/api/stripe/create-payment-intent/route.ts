@@ -113,6 +113,7 @@ export async function POST(request: Request) {
       metadata: { clinic_id: clinic.id },
       automatic_payment_methods: {
         enabled: true,
+        allow_redirects: "never", // Não permitir métodos que redirecionam (PIX, boleto, etc.)
       },
     });
 
