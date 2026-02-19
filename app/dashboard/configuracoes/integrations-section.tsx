@@ -37,6 +37,9 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
   const [testPhoneNumber, setTestPhoneNumber] = useState("");
   const [sendingTest, setSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string; debug?: unknown } | null>(null);
+  const [registerPin, setRegisterPin] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const [registerResult, setRegisterResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     loadIntegrations();
@@ -147,6 +150,34 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
     } catch (error) {
       console.error("Erro ao conectar WhatsApp Simples:", error);
       setConnecting(null);
+    }
+  }
+
+  async function registerWhatsAppNumber() {
+    const pin = registerPin.trim();
+    if (!pin || !/^\d{6}$/.test(pin)) {
+      setRegisterResult({ ok: false, message: "Informe um PIN de 6 dígitos" });
+      return;
+    }
+    setRegistering(true);
+    setRegisterResult(null);
+    try {
+      const res = await fetch("/api/integrations/whatsapp-simple/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRegisterResult({ ok: true, message: data.message || "Número registrado." });
+        setRegisterPin("");
+      } else {
+        setRegisterResult({ ok: false, message: data.error || "Erro ao registrar" });
+      }
+    } catch (error) {
+      setRegisterResult({ ok: false, message: "Erro de conexão" });
+    } finally {
+      setRegistering(false);
     }
   }
 
@@ -615,6 +646,47 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
               )}
             </div>
           </div>
+
+          {/* Registrar número (resolve mensagem "accepted" mas não entregue) */}
+          {whatsappSimpleIntegration?.status === "connected" && whatsappSimpleIntegration?.metadata?.phone_number_id && (
+            <div className="pt-3 border-t border-border space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Se mensagens não chegarem, registre o número com o PIN de 6 dígitos (ex.: 123456):
+              </p>
+              <div className="flex gap-2 flex-wrap items-center">
+                <Input
+                  placeholder="PIN 6 dígitos (ex.: 123456)"
+                  value={registerPin}
+                  onChange={(e) => {
+                    setRegisterPin(e.target.value.replace(/\D/g, "").slice(0, 6));
+                    setRegisterResult(null);
+                  }}
+                  className="max-w-[180px] font-mono"
+                  maxLength={6}
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={registerWhatsAppNumber}
+                  disabled={registering || registerPin.length !== 6}
+                >
+                  {registering ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Registrando...
+                    </>
+                  ) : (
+                    "Registrar número"
+                  )}
+                </Button>
+              </div>
+              {registerResult && (
+                <p className={`text-sm ${registerResult.ok ? "text-green-600" : "text-destructive"}`}>
+                  {registerResult.ok ? "✓ " : ""}{registerResult.message}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
