@@ -47,7 +47,29 @@ export async function POST() {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Stripe cancel subscription error:", err);
-    const message = err instanceof Error ? err.message : "Erro ao cancelar assinatura.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const errorMessage = err instanceof Error ? err.message : "Erro ao cancelar assinatura.";
+    
+    // Se a subscription não existe (modo teste vs produção), limpar do banco
+    if (errorMessage.includes("No such subscription") || errorMessage.includes("No such subscription")) {
+      // Limpar dados da subscription que não existe mais
+      await supabase
+        .from("clinics")
+        .update({
+          stripe_subscription_id: null,
+          subscription_status: null,
+          plan_id: (await supabase.from("plans").select("id").eq("slug", "starter").single()).data?.id ?? null,
+        })
+        .eq("id", profile.clinic_id);
+      
+      return NextResponse.json(
+        { 
+          error: "Assinatura não encontrada na Stripe (pode ter sido criada em modo de teste). Dados limpos do banco.",
+          cleared: true 
+        },
+        { status: 404 }
+      );
+    }
+    
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

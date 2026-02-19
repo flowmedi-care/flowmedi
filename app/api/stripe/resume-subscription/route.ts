@@ -39,9 +39,38 @@ export async function POST() {
     return NextResponse.json({ error: "Stripe não configurado." }, { status: 500 });
   }
 
-  await stripe.subscriptions.update(clinic.stripe_subscription_id, {
-    cancel_at_period_end: false,
-  });
+  try {
+    await stripe.subscriptions.update(clinic.stripe_subscription_id, {
+      cancel_at_period_end: false,
+    });
 
-  return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : "Erro ao renovar assinatura.";
+    
+    // Se a subscription não existe (modo teste vs produção), limpar do banco
+    if (errorMessage.includes("No such subscription")) {
+      const { data: starterPlan } = await supabase
+        .from("plans")
+        .select("id")
+        .eq("slug", "starter")
+        .single();
+      
+      await supabase
+        .from("clinics")
+        .update({
+          stripe_subscription_id: null,
+          subscription_status: null,
+          plan_id: starterPlan?.id ?? null,
+        })
+        .eq("id", profile.clinic_id);
+      
+      return NextResponse.json(
+        { error: "Assinatura não encontrada na Stripe (pode ter sido criada em modo de teste). Dados limpos do banco." },
+        { status: 404 }
+      );
+    }
+    
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
 }

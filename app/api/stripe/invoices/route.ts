@@ -36,22 +36,39 @@ export async function GET() {
     return NextResponse.json({ invoices: [] });
   }
 
-  const list = await stripe.invoices.list({
-    customer: clinic.stripe_customer_id,
-    limit: 24,
-  });
+  try {
+    const list = await stripe.invoices.list({
+      customer: clinic.stripe_customer_id,
+      limit: 24,
+    });
 
-  const invoices = list.data.map((inv) => ({
-    id: inv.id,
-    number: inv.number ?? undefined,
-    created: inv.created,
-    amount_paid: inv.amount_paid,
-    currency: inv.currency,
-    status: inv.status,
-    hosted_invoice_url: inv.hosted_invoice_url ?? undefined,
-    period_start: inv.period_start,
-    period_end: inv.period_end,
-  }));
+    const invoices = list.data.map((inv) => ({
+      id: inv.id,
+      number: inv.number ?? undefined,
+      created: inv.created,
+      amount_paid: inv.amount_paid,
+      currency: inv.currency,
+      status: inv.status,
+      hosted_invoice_url: inv.hosted_invoice_url ?? undefined,
+      period_start: inv.period_start,
+      period_end: inv.period_end,
+    }));
 
-  return NextResponse.json({ invoices });
+    return NextResponse.json({ invoices });
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : "Erro ao buscar faturas.";
+    
+    // Se o customer não existe (modo teste vs produção), limpar do banco
+    if (errorMessage.includes("No such customer")) {
+      await supabase
+        .from("clinics")
+        .update({ stripe_customer_id: null })
+        .eq("id", profile.clinic_id);
+      
+      return NextResponse.json({ invoices: [] });
+    }
+    
+    console.error("Stripe invoices error:", err);
+    return NextResponse.json({ invoices: [] });
+  }
 }

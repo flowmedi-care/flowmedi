@@ -62,6 +62,28 @@ export async function POST() {
   }
 
   let customerId = clinic.stripe_customer_id;
+  
+  // Se tem customer_id, verificar se existe na Stripe
+  if (customerId) {
+    try {
+      await stripe.customers.retrieve(customerId);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "";
+      // Se o customer não existe (modo teste vs produção), limpar e criar novo
+      if (errorMessage.includes("No such customer")) {
+        console.log(`Customer ${customerId} não existe na Stripe (modo teste vs produção). Criando novo.`);
+        customerId = null;
+        await supabase
+          .from("clinics")
+          .update({ stripe_customer_id: null })
+          .eq("id", clinic.id);
+      } else {
+        throw err;
+      }
+    }
+  }
+  
+  // Criar customer se não existe
   if (!customerId) {
     try {
       const customer = await stripe.customers.create({

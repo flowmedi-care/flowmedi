@@ -39,16 +39,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Stripe não configurado." }, { status: 500 });
   }
 
+  // Verificar se o customer existe na Stripe
+  try {
+    await stripe.customers.retrieve(clinic.stripe_customer_id);
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : "";
+    // Se o customer não existe (modo teste vs produção), limpar do banco
+    if (errorMessage.includes("No such customer")) {
+      await supabase
+        .from("clinics")
+        .update({ stripe_customer_id: null })
+        .eq("id", profile.clinic_id);
+      
+      return NextResponse.json(
+        { error: "Cliente não encontrado na Stripe (pode ter sido criado em modo de teste). Tente criar uma nova assinatura." },
+        { status: 404 }
+      );
+    }
+    throw err;
+  }
+
   const body = await request.json().catch(() => ({}));
   const returnUrl =
     (body.return_url as string) ??
     process.env.NEXT_PUBLIC_APP_URL ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer: clinic.stripe_customer_id,
-    return_url: `${returnUrl}/dashboard/plano`,
-  });
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: clinic.stripe_customer_id,
+      return_url: `${returnUrl}/dashboard/plano`,
+    });
 
-  return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: session.url });
+  } catch (err) {
+    console.error("Stripe portal session error:", err);
+    const message = err instanceof Error ? err.message : "Erro ao criar sessão do portal.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

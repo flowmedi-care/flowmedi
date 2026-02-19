@@ -59,7 +59,32 @@ export async function GET() {
       status: subscription.status ?? null,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro ao buscar assinatura.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const errorMessage = err instanceof Error ? err.message : "Erro ao buscar assinatura.";
+    
+    // Se a subscription não existe (modo teste vs produção), limpar do banco
+    if (errorMessage.includes("No such subscription")) {
+      const { data: starterPlan } = await supabase
+        .from("plans")
+        .select("id")
+        .eq("slug", "starter")
+        .single();
+      
+      await supabase
+        .from("clinics")
+        .update({
+          stripe_subscription_id: null,
+          subscription_status: null,
+          plan_id: starterPlan?.id ?? null,
+        })
+        .eq("id", profile.clinic_id);
+      
+      return NextResponse.json({
+        cancelAtPeriodEnd: false,
+        currentPeriodEnd: null,
+        status: null,
+      });
+    }
+    
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

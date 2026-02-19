@@ -49,7 +49,16 @@ export async function PUT(
       ? (() => {
           const gbValue = parseFloatOrNull(body.storage_mb);
           if (gbValue === null || gbValue === 0) return null;
-          return Math.round(gbValue * 1024);
+          // Validar: máximo 1000 GB (1 TB) para evitar overflow
+          if (gbValue > 1000) {
+            throw new Error("Armazenamento muito grande. Máximo permitido: 1000 GB (1 TB)");
+          }
+          const mbValue = Math.round(gbValue * 1024);
+          // Validar: máximo 2.147.483.647 MB (limite do int32)
+          if (mbValue > 2147483647) {
+            throw new Error("Armazenamento muito grande. Máximo permitido: 2097151 GB");
+          }
+          return mbValue;
         })()
       : null;
 

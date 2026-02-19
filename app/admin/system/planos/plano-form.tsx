@@ -81,9 +81,24 @@ export function PlanoForm({ plan }: PlanoFormProps) {
         ? (() => {
             const gbValue = parseFloatOrNull(formData.storage_mb);
             if (gbValue === null || gbValue === 0) return null;
-            return Math.round(gbValue * 1024);
+            // Validar: máximo 1000 GB (1 TB) para evitar overflow
+            if (gbValue > 1000) {
+              throw new Error("Armazenamento muito grande. Máximo permitido: 1000 GB (1 TB)");
+            }
+            const mbValue = Math.round(gbValue * 1024);
+            // Validar: máximo 2.147.483.647 MB (limite do int32)
+            if (mbValue > 2147483647) {
+              throw new Error("Armazenamento muito grande. Máximo permitido: 2097151 GB");
+            }
+            return mbValue;
           })()
         : null;
+
+      // Validar stripe_price_id: deve começar com "price_" ou ser vazio/null
+      const stripePriceId = formData.stripe_price_id?.trim() || null;
+      if (stripePriceId && !stripePriceId.startsWith("price_")) {
+        throw new Error('Stripe Price ID deve começar com "price_" (ex: price_1ABC123...). Você colou um número?');
+      }
 
       const payload: Record<string, unknown> = {
         name: formData.name,
@@ -100,7 +115,7 @@ export function PlanoForm({ plan }: PlanoFormProps) {
         email_enabled: formData.email_enabled,
         custom_logo_enabled: formData.custom_logo_enabled,
         priority_support: formData.priority_support,
-        stripe_price_id: formData.stripe_price_id || null,
+        stripe_price_id: stripePriceId,
         is_active: formData.is_active,
       };
 
@@ -336,11 +351,19 @@ export function PlanoForm({ plan }: PlanoFormProps) {
             <Input
               id="stripe_price_id"
               value={formData.stripe_price_id}
-              onChange={(e) => setFormData({ ...formData, stripe_price_id: e.target.value })}
+              onChange={(e) => {
+                const value = e.target.value.trim();
+                // Validar formato básico: deve começar com "price_"
+                if (value && !value.startsWith("price_")) {
+                  toast("Stripe Price ID deve começar com 'price_' (ex: price_1ABC123...)", "error");
+                  return;
+                }
+                setFormData({ ...formData, stripe_price_id: value });
+              }}
               placeholder="price_xxxxx"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              ID do Price criado no Stripe Dashboard (ex: price_1ABC123...)
+              ID do Price criado no Stripe Dashboard (ex: price_1ABC123...). Cole apenas o ID, não números grandes.
             </p>
           </div>
         </CardContent>
