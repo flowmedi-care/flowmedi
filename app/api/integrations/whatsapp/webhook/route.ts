@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
                 last_message_preview: messageText,
                 unread_count: 1,
               })
-              .select("id")
+              .select("id, unread_count")
               .single();
             conversation = newConv;
           } else {
