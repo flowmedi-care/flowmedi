@@ -71,9 +71,9 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     }
   };
 
-  const loadMessages = () => {
+  const loadMessages = (showLoading = false) => {
     if (!selectedId) return;
-    setLoadingMessages(true);
+    if (showLoading) setLoadingMessages(true);
     fetch(`/api/whatsapp/messages?conversationId=${encodeURIComponent(selectedId)}`)
       .then((res) => {
         if (!res.ok) return [];
@@ -94,8 +94,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       setReplyText("");
       return;
     }
-    loadMessages();
-    const interval = setInterval(loadMessages, 3000);
+    loadMessages(true); // loading só na primeira vez
+    const interval = setInterval(() => loadMessages(false), 5000); // 5s, sem piscar
     return () => clearInterval(interval);
   }, [selectedId]);
 
