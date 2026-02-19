@@ -17,6 +17,7 @@ import {
   Menu,
   ChevronLeft,
   Mail,
+  MessageSquare,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -35,11 +36,13 @@ export function DashboardNav({
   profile,
   isCollapsed,
   onToggleCollapse,
+  hasWhatsAppSimple,
 }: {
   user: User;
   profile: Profile;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  hasWhatsAppSimple?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -60,6 +63,7 @@ export function DashboardNav({
     { href: "/dashboard/pacientes", label: "Pacientes", icon: <Users className="h-4 w-4" /> },
     { href: "/dashboard/formularios", label: "Formulários", icon: <FileText className="h-4 w-4" /> },
     { href: "/dashboard/mensagens", label: "Mensagens", icon: <Mail className="h-4 w-4" />, roles: ["admin"] },
+    ...(hasWhatsAppSimple ? [{ href: "/dashboard/whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" /> }] : []),
   ];
 
   return (
