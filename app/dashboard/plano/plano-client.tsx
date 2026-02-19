@@ -6,6 +6,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -39,18 +40,23 @@ type SubscriptionInfo = {
 
 export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const router = useRouter();
-  const checkoutRef = useRef<HTMLDivElement>(null);
-  const embeddedCheckoutRef = useRef<{ destroy: () => void } | null>(null);
+  const paymentElementRef = useRef<HTMLDivElement>(null);
+  const stripeRef = useRef<{ stripe: any; elements: any; paymentElement: any } | null>(null);
   const [loadingCheckout, setLoadingCheckout] = useState(false);
-  const [checkoutMounted, setCheckoutMounted] = useState(false);
+  const [paymentMounted, setPaymentMounted] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
   const [resuming, setResuming] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [canceling, setCanceling] = useState(false);
+  const [taxIdModalOpen, setTaxIdModalOpen] = useState(false);
   const [taxIdType, setTaxIdType] = useState<"cpf" | "cnpj">("cpf");
   const [taxIdValue, setTaxIdValue] = useState("");
+  const [taxIdError, setTaxIdError] = useState("");
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
 
   const isPro = plan?.planSlug === "pro" && plan?.subscriptionStatus === "active";
   const isProPastDue = plan?.planSlug === "pro" && plan?.subscriptionStatus === "past_due";
@@ -105,22 +111,42 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     }
   };
 
-  const startCheckout = async () => {
-    // Validar CPF/CNPJ antes de iniciar checkout
-    const cleaned = taxIdValue.replace(/\D/g, "");
-    if (!cleaned) {
-      alert("Por favor, informe seu CPF ou CNPJ para emissão da nota fiscal.");
-      return;
-    }
-    
-    const expectedLength = taxIdType === "cpf" ? 11 : 14;
-    if (cleaned.length !== expectedLength) {
-      alert(`O ${taxIdType === "cpf" ? "CPF" : "CNPJ"} deve ter ${expectedLength} dígitos.`);
-      return;
-    }
+  const validateTaxId = (value: string, type: "cpf" | "cnpj"): boolean => {
+    const cleaned = value.replace(/\D/g, "");
+    const expectedLength = type === "cpf" ? 11 : 14;
+    return cleaned.length === expectedLength;
+  };
 
+  const startCheckout = async () => {
     setLoadingCheckout(true);
     try {
+      // Criar Payment Intent
+      const res = await fetch("/api/stripe/create-payment-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.error ?? "Erro ao criar intenção de pagamento.";
+        if (msg.includes("Crie sua clínica primeiro")) {
+          window.location.href = "/dashboard/onboarding";
+        }
+        alert(msg);
+        setLoadingCheckout(false);
+        return;
+      }
+
+      const { clientSecret, paymentIntentId } = data;
+      if (!clientSecret || !paymentIntentId) {
+        alert("Resposta inválida do servidor.");
+        setLoadingCheckout(false);
+        return;
+      }
+
+      setClientSecret(clientSecret);
+      setPaymentIntentId(paymentIntentId);
+
+      // Carregar Stripe.js
       let pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
       if (!pk) {
         const configRes = await fetch("/api/stripe/config");
@@ -128,53 +154,39 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         pk = config.publishableKey ?? null;
       }
       if (!pk) {
-        alert("Stripe não configurado. Verifique NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY no Vercel.");
+        alert("Stripe não configurado.");
         setLoadingCheckout(false);
         return;
       }
+
       const stripe = await loadStripe(pk);
       if (!stripe) {
-        alert("Stripe.js não carregou. Tente novamente.");
+        alert("Stripe.js não carregou.");
         setLoadingCheckout(false);
         return;
       }
-      const fetchClientSecret = async () => {
-        const res = await fetch("/api/stripe/create-checkout-session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tax_id: cleaned,
-            tax_id_type: taxIdType,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          const msg = data.error ?? "Erro ao criar sessão de checkout.";
-          if (msg.includes("Crie sua clínica primeiro")) {
-            window.location.href = "/dashboard/onboarding";
-          }
-          throw new Error(msg);
-        }
-        const { clientSecret } = data;
-        if (!clientSecret) {
-          throw new Error(data.error ?? "Resposta inválida do servidor. Verifique o console (F12).");
-        }
-        return clientSecret;
-      };
-      if (embeddedCheckoutRef.current) {
-        embeddedCheckoutRef.current.destroy();
-        embeddedCheckoutRef.current = null;
+
+      // Criar Elements e Payment Element
+      const elements = stripe.elements({
+        clientSecret,
+        appearance: {
+          theme: "stripe",
+          variables: {
+            colorPrimary: "#2563eb",
+          },
+        },
+      });
+
+      const paymentElement = elements.create("payment");
+      
+      stripeRef.current = { stripe, elements, paymentElement };
+      
+      // Montar Payment Element
+      if (paymentElementRef.current) {
+        paymentElementRef.current.innerHTML = "";
+        paymentElement.mount(paymentElementRef.current);
+        setPaymentMounted(true);
       }
-      const checkout = await stripe.initEmbeddedCheckout({ fetchClientSecret });
-      embeddedCheckoutRef.current = checkout;
-      setCheckoutMounted(true);
-      setTimeout(() => {
-        const el = document.getElementById("stripe-embedded-checkout");
-        if (el) {
-          el.innerHTML = "";
-          checkout.mount("#stripe-embedded-checkout");
-        }
-      }, 100);
     } catch (e) {
       console.error("Checkout error:", e);
       const msg = e instanceof Error ? e.message : String(e);
@@ -183,11 +195,86 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     setLoadingCheckout(false);
   };
 
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripeRef.current || !clientSecret || !paymentIntentId) {
+      return;
+    }
+
+    const { stripe, paymentElement } = stripeRef.current;
+
+    // Interceptar antes de confirmar - mostrar modal de CPF/CNPJ
+    setTaxIdModalOpen(true);
+  };
+
+  const handleConfirmWithTaxId = async () => {
+    const cleaned = taxIdValue.replace(/\D/g, "");
+    if (!validateTaxId(taxIdValue, taxIdType)) {
+      setTaxIdError(`O ${taxIdType === "cpf" ? "CPF" : "CNPJ"} deve ter ${taxIdType === "cpf" ? 11 : 14} dígitos.`);
+      return;
+    }
+
+    setTaxIdError("");
+    setConfirmingPayment(true);
+
+    try {
+      if (!stripeRef.current || !clientSecret || !paymentIntentId) {
+        throw new Error("Dados de pagamento não encontrados.");
+      }
+
+      const { stripe, elements } = stripeRef.current;
+
+      // Obter payment method do Payment Element
+      const { error: submitError, paymentMethod } = await stripe.createPaymentMethod({
+        elements,
+      });
+
+      if (submitError || !paymentMethod) {
+        throw submitError || new Error("Erro ao criar método de pagamento.");
+      }
+
+      // Confirmar pagamento e criar assinatura no backend
+      const subRes = await fetch("/api/stripe/confirm-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentIntentId,
+          paymentMethodId: paymentMethod.id,
+          taxId: cleaned,
+          taxIdType,
+        }),
+      });
+
+      const subData = await subRes.json();
+      if (!subRes.ok) {
+        throw new Error(subData.error ?? "Erro ao processar pagamento.");
+      }
+
+      // Sucesso - fechar modal e atualizar página
+      setTaxIdModalOpen(false);
+      router.refresh();
+      window.location.reload();
+    } catch (e) {
+      console.error("Payment confirmation error:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(`Erro ao processar pagamento: ${msg}`);
+    } finally {
+      setConfirmingPayment(false);
+    }
+  };
+
+  const handleCancelTaxIdModal = () => {
+    setTaxIdModalOpen(false);
+    setTaxIdValue("");
+    setTaxIdError("");
+    // Não processa pagamento se cancelar
+  };
+
   useEffect(() => {
     return () => {
-      if (embeddedCheckoutRef.current) {
-        embeddedCheckoutRef.current.destroy();
-        embeddedCheckoutRef.current = null;
+      if (stripeRef.current?.paymentElement) {
+        stripeRef.current.paymentElement.destroy();
+        stripeRef.current = null;
       }
     };
   }, []);
@@ -295,63 +382,38 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
           )}
           {!isPro && (
             <>
-              <div className="space-y-4 border-t pt-4">
-                <div>
-                  <Label htmlFor="tax_id_type" className="text-sm font-medium">
-                    Dados para nota fiscal
-                  </Label>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Informe seu CPF ou CNPJ para emissão da nota fiscal
-                  </p>
-                </div>
-                
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="tax_id_type">Tipo de documento</Label>
-                    <Select
-                      id="tax_id_type"
-                      value={taxIdType}
-                      onChange={(e) => {
-                        setTaxIdType(e.target.value as "cpf" | "cnpj");
-                        setTaxIdValue("");
-                      }}
-                    >
-                      <option value="cpf">CPF (Pessoa Física)</option>
-                      <option value="cnpj">CNPJ (Pessoa Jurídica)</option>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="tax_id_value">
-                      {taxIdType === "cpf" ? "CPF" : "CNPJ"}
-                    </Label>
-                    <Input
-                      id="tax_id_value"
-                      value={formatTaxId(taxIdValue, taxIdType)}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, "");
-                        setTaxIdValue(value);
-                      }}
-                      placeholder={taxIdType === "cpf" ? "000.000.000-00" : "00.000.000/0000-00"}
-                      maxLength={taxIdType === "cpf" ? 14 : 18}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Button onClick={startCheckout} disabled={loadingCheckout} className="w-full">
-                {loadingCheckout ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Preparando checkout…
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    Assinar Pro
-                  </>
-                )}
-              </Button>
+              {!paymentMounted ? (
+                <Button onClick={startCheckout} disabled={loadingCheckout} className="w-full">
+                  {loadingCheckout ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Preparando checkout…
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Assinar Pro
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <form onSubmit={handlePaymentSubmit} className="space-y-4">
+                  <div ref={paymentElementRef} className="border rounded-lg p-4" />
+                  <Button type="submit" disabled={confirmingPayment} className="w-full">
+                    {confirmingPayment ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Processando…
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Finalizar pagamento
+                      </>
+                    )}
+                  </Button>
+                </form>
+              )}
               {!plan.proStripePriceId && (
                 <p className="text-sm text-muted-foreground">
                   Se o checkout não abrir, configure o preço do plano Pro no Stripe e o campo{" "}
@@ -380,17 +442,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         </CardContent>
       </Card>
 
-      {checkoutMounted && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Checkout</CardTitle>
-            <p className="text-sm text-muted-foreground">Preencha os dados abaixo para assinar o plano Pro.</p>
-          </CardHeader>
-          <CardContent>
-            <div id="stripe-embedded-checkout" ref={checkoutRef} />
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>
@@ -451,6 +502,81 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         onConfirm={handleCancelSubscription}
         onCancel={() => setCancelOpen(false)}
       />
+
+      <Dialog open={taxIdModalOpen} onOpenChange={setTaxIdModalOpen}>
+        <DialogContent
+          title="Dados para nota fiscal"
+          onClose={handleCancelTaxIdModal}
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Para finalizar o pagamento e emitir a nota fiscal, precisamos do seu CPF ou CNPJ.
+            </p>
+            
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="modal_tax_id_type">Tipo de documento</Label>
+                <Select
+                  id="modal_tax_id_type"
+                  value={taxIdType}
+                  onChange={(e) => {
+                    setTaxIdType(e.target.value as "cpf" | "cnpj");
+                    setTaxIdValue("");
+                    setTaxIdError("");
+                  }}
+                >
+                  <option value="cpf">CPF (Pessoa Física)</option>
+                  <option value="cnpj">CNPJ (Pessoa Jurídica)</option>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="modal_tax_id_value">
+                  {taxIdType === "cpf" ? "CPF" : "CNPJ"}
+                </Label>
+                <Input
+                  id="modal_tax_id_value"
+                  value={formatTaxId(taxIdValue, taxIdType)}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "");
+                    setTaxIdValue(value);
+                    setTaxIdError("");
+                  }}
+                  placeholder={taxIdType === "cpf" ? "000.000.000-00" : "00.000.000/0000-00"}
+                  maxLength={taxIdType === "cpf" ? 14 : 18}
+                  className={taxIdError ? "border-destructive" : ""}
+                />
+                {taxIdError && (
+                  <p className="text-sm text-destructive">{taxIdError}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-4">
+              <Button
+                variant="outline"
+                onClick={handleCancelTaxIdModal}
+                disabled={confirmingPayment}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleConfirmWithTaxId}
+                disabled={confirmingPayment || !taxIdValue}
+              >
+                {confirmingPayment ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Processando…
+                  </>
+                ) : (
+                  "Confirmar e pagar"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
