@@ -150,16 +150,11 @@ export async function POST() {
       subscription_data: {
         metadata: { clinic_id: clinic.id },
       },
-      // Habilitar cálculo automático de impostos (necessário para tax_id aparecer)
-      automatic_tax: {
-        enabled: true,
-      },
-      // Coletar CPF/CNPJ durante o checkout (obrigatório para países suportados como Brasil)
+      // Coletar CPF/CNPJ durante o checkout (aparece automaticamente quando país = BR)
       tax_id_collection: {
         enabled: true,
-        required: "if_supported", // Obrigatório se o país suportar (Brasil suporta)
       },
-      // Coletar endereço completo (obrigatório para Stripe detectar país BR e calcular impostos)
+      // Coletar endereço completo (necessário para Stripe detectar país BR e mostrar CPF/CNPJ)
       billing_address_collection: "required",
       // Permitir atualizar informações do customer durante o checkout
       customer_update: {
