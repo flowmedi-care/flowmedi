@@ -63,10 +63,18 @@ export async function POST() {
 
   let customerId = clinic.stripe_customer_id;
   
-  // Se tem customer_id, verificar se existe na Stripe
+  // Se tem customer_id, verificar se existe na Stripe e garantir país BR
   if (customerId) {
     try {
-      await stripe.customers.retrieve(customerId);
+      const existingCustomer = await stripe.customers.retrieve(customerId);
+      // Se o customer não tem país ou não é BR, atualizar para BR
+      if (!existingCustomer.deleted && (!existingCustomer.address?.country || existingCustomer.address.country !== "BR")) {
+        await stripe.customers.update(customerId, {
+          address: {
+            country: "BR", // Garantir país Brasil para tax_id_collection funcionar
+          },
+        });
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "";
       // Se o customer não existe (modo teste vs produção), limpar e criar novo
@@ -86,10 +94,14 @@ export async function POST() {
   // Criar customer se não existe
   if (!customerId) {
     try {
+      // Criar customer com país Brasil para garantir que CPF/CNPJ apareça
       const customer = await stripe.customers.create({
         email: user.email ?? undefined,
         name: clinic.name,
         metadata: { clinic_id: clinic.id },
+        address: {
+          country: "BR", // Brasil - necessário para tax_id_collection mostrar CPF/CNPJ
+        },
       });
       customerId = customer.id;
       await supabase
@@ -131,18 +143,18 @@ export async function POST() {
       subscription_data: {
         metadata: { clinic_id: clinic.id },
       },
-      // Coletar CPF/CNPJ durante o checkout
+      // Coletar CPF/CNPJ durante o checkout (só aparece se país = BR)
       tax_id_collection: {
         enabled: true,
       },
-      // Permitir atualizar informações do customer durante o checkout
+      // Não coletar endereço completo - apenas país se necessário para tax_id
+      billing_address_collection: "auto", // "auto" permite mas não obriga
+      // Permitir atualizar nome durante o checkout
       customer_update: {
         name: "auto",
-        address: "auto",
+        address: "never", // Não atualizar endereço automaticamente
       },
-      // Configurações específicas para Brasil
       payment_method_types: ["card"],
-      billing_address_collection: "required",
     });
 
     return NextResponse.json({ clientSecret: session.client_secret });
