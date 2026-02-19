@@ -28,8 +28,10 @@ export async function fetchAndStoreWhatsAppMedia(
       return null;
     }
 
-    // 2. Baixar o arquivo
-    const downloadRes = await fetch(mediaUrl);
+    // 2. Baixar o arquivo (URL da Meta exige Bearer token)
+    const downloadRes = await fetch(mediaUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     if (!downloadRes.ok) {
       console.error("[WhatsApp Media] Download failed:", downloadRes.status);
       return null;
