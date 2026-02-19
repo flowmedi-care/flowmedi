@@ -60,10 +60,23 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const returnUrl =
-    (body.return_url as string) ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  
+  // Garantir que a URL sempre tenha o esquema https://
+  let returnUrl = (body.return_url as string) ?? process.env.NEXT_PUBLIC_APP_URL;
+  if (!returnUrl) {
+    if (process.env.VERCEL_URL) {
+      returnUrl = `https://${process.env.VERCEL_URL}`;
+    } else {
+      returnUrl = "https://flowmedi.com.br"; // Fallback para produção
+    }
+  }
+  
+  // Garantir que a URL comece com https:// ou http://
+  if (!returnUrl.startsWith("http://") && !returnUrl.startsWith("https://")) {
+    returnUrl = `https://${returnUrl}`;
+  }
+  
+  returnUrl = `${returnUrl}/dashboard/plano`;
 
   try {
     const session = await stripe.billingPortal.sessions.create({

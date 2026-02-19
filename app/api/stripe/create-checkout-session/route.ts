@@ -103,9 +103,21 @@ export async function POST() {
     }
   }
 
-  const origin =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  // Garantir que a URL sempre tenha o esquema https://
+  let origin = process.env.NEXT_PUBLIC_APP_URL;
+  if (!origin) {
+    if (process.env.VERCEL_URL) {
+      origin = `https://${process.env.VERCEL_URL}`;
+    } else {
+      origin = "https://flowmedi.com.br"; // Fallback para produção
+    }
+  }
+  
+  // Garantir que a URL comece com https:// ou http://
+  if (!origin.startsWith("http://") && !origin.startsWith("https://")) {
+    origin = `https://${origin}`;
+  }
+  
   const returnUrl = `${origin}/dashboard/plano?session_id={CHECKOUT_SESSION_ID}`;
 
   try {
