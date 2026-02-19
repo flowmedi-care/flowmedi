@@ -68,14 +68,75 @@ export async function POST(request: Request) {
       }
     }
 
-    // Confirmar Payment Intent com o payment method
-    const confirmedIntent = await stripe.paymentIntents.confirm(paymentIntentId, {
-      payment_method: paymentMethodId,
+    // Verificar status do Payment Intent antes de processar
+    if (paymentIntent.status === "succeeded") {
+      // Payment Intent já foi confirmado e pago
+      // Verificar se já existe assinatura para evitar duplicação
+      const existingSubscriptions = await stripe.subscriptions.list({
+        customer: paymentIntent.customer,
+        status: "active",
+        limit: 1,
+      });
+
+      if (existingSubscriptions.data.length > 0) {
+        // Já existe assinatura, apenas atualizar dados
+        const existingSubscription = existingSubscriptions.data[0];
+        const clinicId = paymentIntent.metadata.clinic_id;
+        
+        if (clinicId) {
+          const { data: proPlan } = await supabase
+            .from("plans")
+            .select("id")
+            .eq("slug", "pro")
+            .single();
+
+          const updateData: any = {
+            plan_id: proPlan?.id,
+            stripe_subscription_id: existingSubscription.id,
+            subscription_status: "active",
+          };
+
+          if (taxId && taxIdType) {
+            updateData.tax_id = taxId;
+            updateData.tax_id_type = taxIdType;
+          }
+
+          if (address) {
+            const addressString = [
+              `${address.street}, ${address.number}`,
+              address.complement,
+              address.neighborhood,
+              `${address.city} - ${address.state}`,
+              address.zipCode.replace(/\D/g, "").replace(/(\d{5})(\d{3})/, "$1-$2"),
+            ]
+              .filter(Boolean)
+              .join(", ");
+            updateData.address = addressString;
+          }
+
+          await supabase
+            .from("clinics")
+            .update(updateData)
+            .eq("id", clinicId);
+        }
+
+        return NextResponse.json({ 
+          success: true,
+          subscriptionId: existingSubscription.id,
+        });
+      }
+    }
+
+    // Verificar se já existe assinatura ativa para evitar duplicação
+    const existingSubscriptions = await stripe.subscriptions.list({
+      customer: paymentIntent.customer,
+      status: "active",
+      limit: 1,
     });
 
-    if (confirmedIntent.status !== "succeeded") {
+    if (existingSubscriptions.data.length > 0) {
       return NextResponse.json(
-        { error: `Pagamento não foi confirmado. Status: ${confirmedIntent.status}` },
+        { error: "Já existe uma assinatura ativa para este cliente." },
         { status: 400 }
       );
     }
@@ -94,7 +155,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Criar assinatura após pagamento confirmado
+    // Se Payment Intent ainda não foi confirmado, cancelá-lo
+    // porque vamos criar a assinatura que vai processar o pagamento
+    if (paymentIntent.status === "requires_payment_method" || paymentIntent.status === "requires_confirmation") {
+      try {
+        await stripe.paymentIntents.cancel(paymentIntentId);
+      } catch (cancelErr) {
+        // Ignorar erro se não conseguir cancelar
+        console.log("Não foi possível cancelar Payment Intent:", cancelErr);
+      }
+    }
+
+    // Criar assinatura diretamente (ela vai cobrar o primeiro pagamento automaticamente)
+    // NÃO confirmar o Payment Intent separadamente para evitar cobrança dupla
     const subscription = await stripe.subscriptions.create({
       customer: paymentIntent.customer,
       items: [{ price: proPlan.stripe_price_id }],
@@ -105,13 +178,35 @@ export async function POST(request: Request) {
     // Atualizar clínica no banco
     const clinicId = paymentIntent.metadata.clinic_id;
     if (clinicId) {
+      const updateData: any = {
+        plan_id: proPlan.id,
+        stripe_subscription_id: subscription.id,
+        subscription_status: "active",
+      };
+
+      // Salvar CPF/CNPJ se fornecido
+      if (taxId && taxIdType) {
+        updateData.tax_id = taxId;
+        updateData.tax_id_type = taxIdType;
+      }
+
+      // Salvar endereço se fornecido
+      if (address) {
+        const addressString = [
+          `${address.street}, ${address.number}`,
+          address.complement,
+          address.neighborhood,
+          `${address.city} - ${address.state}`,
+          address.zipCode.replace(/\D/g, "").replace(/(\d{5})(\d{3})/, "$1-$2"),
+        ]
+          .filter(Boolean)
+          .join(", ");
+        updateData.address = addressString;
+      }
+
       await supabase
         .from("clinics")
-        .update({
-          plan_id: proPlan.id,
-          stripe_subscription_id: subscription.id,
-          subscription_status: "active",
-        })
+        .update(updateData)
         .eq("id", clinicId);
     }
 

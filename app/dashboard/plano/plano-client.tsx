@@ -303,6 +303,11 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       return;
     }
 
+    // Prevenir múltiplos cliques
+    if (confirmingPayment) {
+      return;
+    }
+
     setTaxIdError("");
     setConfirmingPayment(true);
 
