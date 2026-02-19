@@ -238,9 +238,10 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       setClientSecret(clientSecret);
       setPaymentIntentId(paymentIntentId);
       
-      // Criar Elements e Payment Element
+      // Criar Elements e Payment Element com paymentMethodCreation manual
       const elements = stripe.elements({
         clientSecret,
+        paymentMethodCreation: "manual",
         appearance: {
           theme: "stripe",
           variables: {
