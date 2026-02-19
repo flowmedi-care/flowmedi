@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { type User } from "@supabase/supabase-js";
 import { DashboardNav } from "@/components/dashboard-nav";
-import { WhatsAppChatSidebar } from "@/components/whatsapp-chat-sidebar";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -86,6 +85,7 @@ export function DashboardLayoutClient({
         isCollapsed={isCollapsed}
         onToggleCollapse={toggleCollapse}
         mobileSidebarWidth={mobileSidebarWidth}
+        hasWhatsAppSimple={hasWhatsAppSimple}
       />
       <main
         className={cn(
@@ -104,8 +104,6 @@ export function DashboardLayoutClient({
       >
         <div className="w-full max-w-[1600px] mx-auto">{children}</div>
       </main>
-      {/* Chat WhatsApp na sidebar direita */}
-      {hasWhatsAppSimple && <WhatsAppChatSidebar />}
       {/* Botão flutuante para abrir menu no mobile (safe area) */}
       {isCollapsed && (
         <Button

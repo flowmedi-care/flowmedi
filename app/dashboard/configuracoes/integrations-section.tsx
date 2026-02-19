@@ -555,13 +555,13 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
                     <>
                       Conectado
                       {whatsappSimpleIntegration.metadata?.phone_number_id ? (
-                        <> — Pronto para usar</>
+                        <> — Pronto para usar. Token e número salvos automaticamente.</>
                       ) : (
                         <> — Configure o número</>
                       )}
                     </>
                   ) : (
-                    "Integração simples (sem coexistência). Conecte para testar mensagens."
+                    "Integração simples (sem coexistência). Ao conectar, o token e o ID do número são salvos automaticamente."
                   )}
                 </div>
                 {whatsappSimpleIntegration?.error_message && (

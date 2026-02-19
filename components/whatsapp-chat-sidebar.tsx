@@ -24,7 +24,12 @@ interface Message {
   sent_at: string;
 }
 
-export function WhatsAppChatSidebar() {
+interface WhatsAppChatSidebarProps {
+  /** Quando true, ocupa a área principal (página) em vez de sidebar fixa */
+  fullWidth?: boolean;
+}
+
+export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps = {}) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -143,9 +148,13 @@ export function WhatsAppChatSidebar() {
     return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
   }
 
+  const containerClass = fullWidth
+    ? "flex-1 min-w-0 rounded-lg border border-border bg-card flex flex-col min-h-0"
+    : "w-80 border-l border-border bg-card flex flex-col h-full";
+
   if (loading) {
     return (
-      <div className="w-80 border-l border-border bg-card flex items-center justify-center">
+      <div className={fullWidth ? "flex-1 flex items-center justify-center rounded-lg border bg-card" : "w-80 border-l border-border bg-card flex items-center justify-center"}>
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
@@ -153,7 +162,7 @@ export function WhatsAppChatSidebar() {
 
   return (
     <>
-      <div className="w-80 border-l border-border bg-card flex flex-col h-full">
+      <div className={containerClass}>
         {/* Header */}
         <div className="p-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
