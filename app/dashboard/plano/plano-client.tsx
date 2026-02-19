@@ -6,6 +6,9 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { CreditCard, ExternalLink, Loader2 } from "lucide-react";
 
 type PlanInfo = {
@@ -46,6 +49,8 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const [resuming, setResuming] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [canceling, setCanceling] = useState(false);
+  const [taxIdType, setTaxIdType] = useState<"cpf" | "cnpj">("cpf");
+  const [taxIdValue, setTaxIdValue] = useState("");
 
   const isPro = plan?.planSlug === "pro" && plan?.subscriptionStatus === "active";
   const isProPastDue = plan?.planSlug === "pro" && plan?.subscriptionStatus === "past_due";
@@ -83,7 +88,37 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     loadSubscriptionInfo();
   }, [plan?.stripeSubscriptionId]);
 
+  // Formatar CPF/CNPJ enquanto digita
+  const formatTaxId = (value: string, type: "cpf" | "cnpj"): string => {
+    const cleaned = value.replace(/\D/g, "");
+    if (type === "cpf") {
+      if (cleaned.length <= 3) return cleaned;
+      if (cleaned.length <= 6) return cleaned.replace(/(\d{3})(\d+)/, "$1.$2");
+      if (cleaned.length <= 9) return cleaned.replace(/(\d{3})(\d{3})(\d+)/, "$1.$2.$3");
+      return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    } else {
+      if (cleaned.length <= 2) return cleaned;
+      if (cleaned.length <= 5) return cleaned.replace(/(\d{2})(\d+)/, "$1.$2");
+      if (cleaned.length <= 8) return cleaned.replace(/(\d{2})(\d{3})(\d+)/, "$1.$2.$3");
+      if (cleaned.length <= 12) return cleaned.replace(/(\d{2})(\d{3})(\d{3})(\d+)/, "$1.$2.$3/$4");
+      return cleaned.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    }
+  };
+
   const startCheckout = async () => {
+    // Validar CPF/CNPJ antes de iniciar checkout
+    const cleaned = taxIdValue.replace(/\D/g, "");
+    if (!cleaned) {
+      alert("Por favor, informe seu CPF ou CNPJ para emissão da nota fiscal.");
+      return;
+    }
+    
+    const expectedLength = taxIdType === "cpf" ? 11 : 14;
+    if (cleaned.length !== expectedLength) {
+      alert(`O ${taxIdType === "cpf" ? "CPF" : "CNPJ"} deve ter ${expectedLength} dígitos.`);
+      return;
+    }
+
     setLoadingCheckout(true);
     try {
       let pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
@@ -106,6 +141,11 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       const fetchClientSecret = async () => {
         const res = await fetch("/api/stripe/create-checkout-session", {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tax_id: cleaned,
+            tax_id_type: taxIdType,
+          }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -255,15 +295,59 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
           )}
           {!isPro && (
             <>
-              <Button onClick={startCheckout} disabled={loadingCheckout}>
+              <div className="space-y-4 border-t pt-4">
+                <div>
+                  <Label htmlFor="tax_id_type" className="text-sm font-medium">
+                    Dados para nota fiscal
+                  </Label>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Informe seu CPF ou CNPJ para emissão da nota fiscal
+                  </p>
+                </div>
+                
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="tax_id_type">Tipo de documento</Label>
+                    <Select
+                      id="tax_id_type"
+                      value={taxIdType}
+                      onChange={(e) => {
+                        setTaxIdType(e.target.value as "cpf" | "cnpj");
+                        setTaxIdValue("");
+                      }}
+                    >
+                      <option value="cpf">CPF (Pessoa Física)</option>
+                      <option value="cnpj">CNPJ (Pessoa Jurídica)</option>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="tax_id_value">
+                      {taxIdType === "cpf" ? "CPF" : "CNPJ"}
+                    </Label>
+                    <Input
+                      id="tax_id_value"
+                      value={formatTaxId(taxIdValue, taxIdType)}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, "");
+                        setTaxIdValue(value);
+                      }}
+                      placeholder={taxIdType === "cpf" ? "000.000.000-00" : "00.000.000/0000-00"}
+                      maxLength={taxIdType === "cpf" ? 14 : 18}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={startCheckout} disabled={loadingCheckout} className="w-full">
                 {loadingCheckout ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     Preparando checkout…
                   </>
                 ) : (
                   <>
-                    <CreditCard className="h-4 w-4" />
+                    <CreditCard className="h-4 w-4 mr-2" />
                     Assinar Pro
                   </>
                 )}
