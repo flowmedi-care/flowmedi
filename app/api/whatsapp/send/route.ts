@@ -71,7 +71,8 @@ export async function POST(request: NextRequest) {
       conversation_id: conversationId,
       clinic_id: clinicId,
       direction: "outbound",
-      body: text.trim(),
+      message_type: "text",
+      content: text.trim(),
       sent_at: new Date().toISOString(),
     } as Record<string, unknown>);
 

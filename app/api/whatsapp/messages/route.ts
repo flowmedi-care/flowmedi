@@ -33,21 +33,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { data: messages, error } = await supabase
+    const { data: rows, error } = await supabase
       .from("whatsapp_messages")
-      .select("id, direction, body, sent_at")
+      .select("id, direction, content, sent_at")
       .eq("conversation_id", conversationId)
       .order("sent_at", { ascending: true });
 
     if (error) {
       console.error("[WhatsApp Messages] Erro:", error.message);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(messages || []);
+    const messages = (rows || []).map((r: { content?: string; [k: string]: unknown }) => ({
+      id: r.id,
+      direction: r.direction,
+      body: r.content ?? null,
+      sent_at: r.sent_at,
+    }));
+    return NextResponse.json(messages);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao listar mensagens";
     return NextResponse.json({ error: message }, { status: 401 });
