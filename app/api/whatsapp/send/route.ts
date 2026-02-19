@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { requireClinicMember } from "@/lib/auth-helpers";
-import { sendWhatsAppMessage, isWithin24HourWindow } from "@/lib/comunicacao/whatsapp";
+import { sendWhatsAppMessage } from "@/lib/comunicacao/whatsapp";
 
 /**
  * POST /api/whatsapp/send
  * Body: { to: string (ex: 5511999999999), text: string }
- * Envia mensagem de texto. Se fora da janela de 24h, retorna erro para o cliente exibir aviso.
+ * Envia mensagem de texto e persiste na conversa para aparecer no chat.
+ * (Regra de 24h pode ser reimplementada depois.)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -28,14 +30,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const within24 = await isWithin24HourWindow(clinicId, normalizedTo);
-    if (!within24) {
-      return NextResponse.json(
-        { error: "outside_24h", message: "Só é possível enviar mensagem de texto se o paciente tiver enviado uma mensagem nas últimas 24 horas." },
-        { status: 400 }
-      );
-    }
-
     const result = await sendWhatsAppMessage(
       clinicId,
       { to: normalizedTo, text: text.trim() },
@@ -48,6 +42,36 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    const supabase = await createClient();
+    const { data: existing } = await supabase
+      .from("whatsapp_conversations")
+      .select("id")
+      .eq("clinic_id", clinicId)
+      .eq("phone_number", normalizedTo)
+      .maybeSingle();
+
+    let conversationId: string;
+    if (existing?.id) {
+      conversationId = existing.id;
+    } else {
+      const { data: inserted, error: insertErr } = await supabase
+        .from("whatsapp_conversations")
+        .insert({ clinic_id: clinicId, phone_number: normalizedTo })
+        .select("id")
+        .single();
+      if (insertErr || !inserted?.id) {
+        return NextResponse.json({ success: true, messageId: result.messageId });
+      }
+      conversationId = inserted.id;
+    }
+
+    await supabase.from("whatsapp_messages").insert({
+      conversation_id: conversationId,
+      direction: "outbound",
+      body: text.trim(),
+      sent_at: new Date().toISOString(),
+    });
 
     return NextResponse.json({ success: true, messageId: result.messageId });
   } catch (e) {

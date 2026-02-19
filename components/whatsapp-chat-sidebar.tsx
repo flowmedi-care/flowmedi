@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -24,6 +24,15 @@ interface WhatsAppChatSidebarProps {
   fullWidth?: boolean;
 }
 
+function formatTime(iso: string) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
 export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -34,7 +43,9 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [newTo, setNewTo] = useState("");
   const [newText, setNewText] = useState("");
   const [sending, setSending] = useState(false);
-  const [error24hOpen, setError24hOpen] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const loadConversations = async () => {
     setLoading(true);
@@ -53,6 +64,16 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     }
   };
 
+  const loadMessages = () => {
+    if (!selectedId) return;
+    setLoadingMessages(true);
+    fetch(`/api/whatsapp/messages?conversationId=${encodeURIComponent(selectedId)}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setMessages)
+      .catch(() => setMessages([]))
+      .finally(() => setLoadingMessages(false));
+  };
+
   useEffect(() => {
     loadConversations();
   }, []);
@@ -60,15 +81,15 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   useEffect(() => {
     if (!selectedId) {
       setMessages([]);
+      setReplyText("");
       return;
     }
-    setLoadingMessages(true);
-    fetch(`/api/whatsapp/messages?conversationId=${encodeURIComponent(selectedId)}`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then(setMessages)
-      .catch(() => setMessages([]))
-      .finally(() => setLoadingMessages(false));
+    loadMessages();
   }, [selectedId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const selectedConversation = conversations.find((c) => c.id === selectedId);
 
@@ -82,17 +103,33 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to, text: newText.trim() }),
       });
-      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setNewChatOpen(false);
         setNewTo("");
         setNewText("");
         loadConversations();
-      } else if (data.error === "outside_24h") {
-        setError24hOpen(true);
       }
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleSendInChat = async () => {
+    if (!selectedConversation || !replyText.trim()) return;
+    setSendingReply(true);
+    const text = replyText.trim();
+    setReplyText("");
+    try {
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: selectedConversation.phone_number, text }),
+      });
+      if (res.ok) {
+        loadMessages();
+      }
+    } finally {
+      setSendingReply(false);
     }
   };
 
@@ -126,7 +163,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
               <p className="p-3 text-muted-foreground text-sm">Carregando...</p>
             ) : conversations.length === 0 ? (
               <p className="p-3 text-muted-foreground text-sm">
-                Nenhuma conversa. Use &quot;Nova conversa&quot; para enviar.
+                Nenhuma conversa. Use &quot;+&quot; para nova conversa.
               </p>
             ) : (
               <ul className="divide-y divide-border">
@@ -136,7 +173,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                       type="button"
                       onClick={() => setSelectedId(c.id)}
                       className={cn(
-                        "w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors",
+                        "w-full text-left px-3 py-2.5 text-sm hover:bg-muted/50 transition-colors",
                         selectedId === c.id && "bg-muted"
                       )}
                     >
@@ -149,13 +186,15 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-background">
           {selectedId ? (
             <>
-              <div className="p-2 border-b border-border font-medium text-sm truncate">
-                {selectedConversation?.phone_number ?? selectedId}
+              <div className="px-4 py-3 border-b border-border flex items-center">
+                <span className="font-semibold text-sm truncate">
+                  {selectedConversation?.phone_number ?? selectedId}
+                </span>
               </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {loadingMessages ? (
                   <p className="text-muted-foreground text-sm">Carregando...</p>
                 ) : (
@@ -163,23 +202,56 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                     <div
                       key={m.id}
                       className={cn(
-                        "max-w-[85%] rounded-lg px-3 py-2 text-sm",
-                        m.direction === "outbound"
-                          ? "ml-auto bg-primary text-primary-foreground"
-                          : "bg-muted"
+                        "flex flex-col max-w-[85%]",
+                        m.direction === "outbound" ? "ml-auto items-end" : "items-start"
                       )}
                     >
-                      {m.body ?? "(mídia)"}
+                      <div
+                        className={cn(
+                          "rounded-2xl px-4 py-2.5 text-sm shadow-sm",
+                          m.direction === "outbound"
+                            ? "bg-[#005c4b] text-white rounded-br-md"
+                            : "bg-[#202c33] text-[#e9edef] rounded-bl-md"
+                        )}
+                      >
+                        {m.body ?? "(mídia)"}
+                      </div>
+                      <span className="text-xs text-muted-foreground mt-0.5">
+                        {formatTime(m.sent_at)}
+                      </span>
                     </div>
                   ))
                 )}
+                <div ref={messagesEndRef} />
+              </div>
+              <div className="p-3 border-t border-border flex gap-2 items-end">
+                <Input
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendInChat();
+                    }
+                  }}
+                  placeholder="Digite uma mensagem..."
+                  className="min-h-10 flex-1 rounded-full border-2 focus-visible:ring-2"
+                />
+                <Button
+                  onClick={handleSendInChat}
+                  disabled={sendingReply || !replyText.trim()}
+                  size="icon"
+                  className="rounded-full h-10 w-10 shrink-0 bg-[#005c4b] hover:bg-[#004d40]"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
               </div>
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               <div className="text-center">
                 <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Selecione uma conversa ou inicie uma nova.</p>
+                <p className="text-sm">Selecione uma conversa ou use + para nova conversa.</p>
               </div>
             </div>
           )}
@@ -216,17 +288,6 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
               Enviar
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={error24hOpen} onOpenChange={setError24hOpen}>
-        <DialogContent
-          title="Janela de 24 horas"
-          onClose={() => setError24hOpen(false)}
-        >
-          <p className="text-sm text-muted-foreground">
-            Só é possível enviar mensagem de texto se o paciente tiver enviado uma mensagem nas últimas 24 horas. Use um template aprovado pela Meta para o primeiro contato.
-          </p>
         </DialogContent>
       </Dialog>
     </>
