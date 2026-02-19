@@ -59,11 +59,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.error.message }, { status: 400 });
     }
 
+    const clinicName = clinicId && result.data && !Array.isArray(result.data) 
+      ? result.data.name 
+      : null;
+    const clinicsCount = !clinicId && Array.isArray(result.data) 
+      ? result.data.length 
+      : 0;
+
     return NextResponse.json({
       success: true,
       message: clinicId
-        ? `Dados Stripe limpos para a clínica ${result.data?.name || clinicId}`
-        : `Dados Stripe limpos para ${result.data?.length || 0} clínica(s)`,
+        ? `Dados Stripe limpos para a clínica ${clinicName || clinicId}`
+        : `Dados Stripe limpos para ${clinicsCount} clínica(s)`,
       clinics: result.data,
     });
   } catch (error) {
