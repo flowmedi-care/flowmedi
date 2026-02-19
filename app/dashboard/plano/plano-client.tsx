@@ -308,13 +308,20 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     try {
       const { stripe, elements } = stripeRef.current;
 
-      // Obter payment method do Payment Element
-      const { error: submitError, paymentMethod } = await stripe.createPaymentMethod({
+      // Primeiro, validar os elementos do Payment Element
+      const { error: submitError } = await elements.submit();
+      
+      if (submitError) {
+        throw submitError;
+      }
+
+      // Depois, criar o payment method
+      const { error: createError, paymentMethod } = await stripe.createPaymentMethod({
         elements,
       });
 
-      if (submitError || !paymentMethod) {
-        throw submitError || new Error("Erro ao criar método de pagamento.");
+      if (createError || !paymentMethod) {
+        throw createError || new Error("Erro ao criar método de pagamento.");
       }
 
       // Confirmar pagamento e criar assinatura no backend
