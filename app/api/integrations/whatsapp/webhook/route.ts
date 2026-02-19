@@ -41,22 +41,14 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
 
     for (const entry of body.entry ?? []) {
-      const phoneId = entry.id;
+      const wabaId = entry.id; // entry.id é o WABA ID
       for (const change of entry.changes ?? []) {
         if (change.field !== "messages") continue;
         const value = change.value;
-        const phoneNumberId = value?.metadata?.phone_number_id ?? phoneId;
+        const phoneNumberId = value?.metadata?.phone_number_id; // Phone Number ID da mensagem
 
         // Status updates (delivered, read, sent, failed)
         for (const status of value?.statuses ?? []) {
-          console.log("[WhatsApp Webhook] status:", {
-            phone_number_id: phoneNumberId,
-            message_id: status.id,
-            status: status.status,
-            recipient_id: status.recipient_id,
-            errors: status.errors,
-          });
-
           // Atualizar status da mensagem no banco
           if (status.id) {
             await supabase
@@ -73,13 +65,6 @@ export async function POST(request: NextRequest) {
 
         // Mensagens recebidas
         for (const msg of value?.messages ?? []) {
-          console.log("[WhatsApp Webhook] message:", {
-            phone_number_id: phoneNumberId,
-            from: msg.from,
-            type: msg.type,
-            id: msg.id,
-          });
-
           // Encontrar clínica pelo phone_number_id
           const { data: integrations } = await supabase
             .from("clinic_integrations")
@@ -88,13 +73,16 @@ export async function POST(request: NextRequest) {
             .eq("status", "connected");
 
           const integration = integrations?.find(
-            (int) =>
-              (int.metadata as { phone_number_id?: string })?.phone_number_id === phoneNumberId ||
-              (int.metadata as { waba_id?: string })?.waba_id === phoneNumberId
+            (int) => {
+              const meta = int.metadata as { phone_number_id?: string; waba_id?: string };
+              return (
+                (phoneNumberId && meta.phone_number_id === phoneNumberId) ||
+                (wabaId && meta.waba_id === wabaId)
+              );
+            }
           );
 
           if (!integration) {
-            console.warn("[WhatsApp Webhook] Clínica não encontrada para phone_number_id:", phoneNumberId);
             continue;
           }
 
@@ -156,7 +144,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("[WhatsApp Webhook] Erro:", error);
     return NextResponse.json({ ok: true }); // Sempre retornar 200 para não bloquear webhook
   }
 }

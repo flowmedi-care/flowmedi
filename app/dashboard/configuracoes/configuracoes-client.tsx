@@ -50,61 +50,18 @@ export function ConfiguracoesClient({
   const [complianceFormError, setComplianceFormError] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
-  // Capturar e mostrar dados de debug do WhatsApp no console
+  // Limpar parâmetros de URL após carregar
   useEffect(() => {
-    const debugParam = searchParams.get("debug");
     const integration = searchParams.get("integration");
     const status = searchParams.get("status");
 
-    if ((integration === "whatsapp" || integration === "whatsapp_simple") && debugParam) {
-      try {
-        const debugInfo = JSON.parse(decodeURIComponent(debugParam));
-        const integrationName = integration === "whatsapp_simple" ? "WhatsApp Simple" : "WhatsApp (Coexistência)";
-        
-        console.group(`🔍 [${integrationName} Integration Debug] Informações da API Meta`);
-        console.log("Status da integração:", status);
-        console.log("Phone Number ID:", debugInfo.phoneNumberId || "❌ Não encontrado");
-        console.log("WABA ID:", debugInfo.wabaId || "❌ Não encontrado");
-        console.log("Status do número:", debugInfo.phoneNumberStatus);
-        
-        if (integration === "whatsapp_simple") {
-          // Debug específico para WhatsApp Simple
-          console.log("Método 1 (/me/whatsapp_business_accounts):", {
-            encontrou: debugInfo.wabaMethod1Found ? "✅ Sim" : "❌ Não",
-            statusHTTP: debugInfo.wabaMethod1Status,
-            erroMeta: debugInfo.wabaMethod1Error || "Nenhum",
-          });
-        } else {
-          // Debug para WhatsApp coexistência
-          console.log("Método 1 (/me/businesses):", {
-            encontrou: debugInfo.wabaMethod1Found ? "✅ Sim" : "❌ Não",
-            statusHTTP: debugInfo.wabaMethod1Status,
-            erroMeta: debugInfo.wabaMethod1Error || "Nenhum",
-          });
-          console.log("Método 2 (/me/owned_whatsapp_business_accounts):", {
-            encontrou: debugInfo.wabaMethod2Found ? "✅ Sim" : "❌ Não",
-            statusHTTP: debugInfo.wabaMethod2Status,
-            erroMeta: debugInfo.wabaMethod2Error || "Nenhum",
-          });
-        }
-        
-        console.log("Total de números encontrados:", debugInfo.phoneNumbersCount);
-        if (debugInfo.suggestion) {
-          console.warn("💡 Sugestão:", debugInfo.suggestion);
-        }
-        console.log("Dados completos:", debugInfo);
-        console.groupEnd();
-
-        // Limpar URL após mostrar no console
-        if (typeof window !== "undefined") {
-          const url = new URL(window.location.href);
-          url.searchParams.delete("debug");
-          url.searchParams.delete("integration");
-          url.searchParams.delete("status");
-          window.history.replaceState({}, "", url.toString());
-        }
-      } catch (error) {
-        console.error("Erro ao parsear debug info:", error);
+    if ((integration === "whatsapp" || integration === "whatsapp_simple") && status) {
+      // Limpar URL após mostrar mensagem de sucesso
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("integration");
+        url.searchParams.delete("status");
+        window.history.replaceState({}, "", url.toString());
       }
     }
   }, [searchParams]);

@@ -44,6 +44,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps = {}
   const [newConversationText, setNewConversationText] = useState("");
   const [sendingNew, setSendingNew] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     loadConversations();
@@ -62,6 +63,13 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps = {}
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 100)}px`;
+    }
+  }, [messageText]);
 
   async function loadConversations() {
     try {
@@ -345,72 +353,106 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps = {}
           /* Chat */
           <div className="flex flex-col flex-1 min-h-0">
             {/* Header da conversa */}
-            <div className="p-4 border-b border-border">
-              <div className="font-medium">
-                {selectedConversation.contact_name || formatPhoneNumber(selectedConversation.phone_number)}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {selectedConversation.phone_number}
+            <div className="p-3 border-b border-border bg-[#f0f2f5] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-semibold">
+                  {(selectedConversation.contact_name || selectedConversation.phone_number).charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div className="font-medium text-gray-900">
+                    {selectedConversation.contact_name || formatPhoneNumber(selectedConversation.phone_number)}
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    {selectedConversation.phone_number}
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Mensagens */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="space-y-3">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-[80%] rounded-lg px-3 py-2 ${
-                        msg.direction === "outbound"
-                          ? "bg-green-500 text-white"
-                          : "bg-muted text-foreground"
-                      }`}
-                    >
-                      <div className="text-sm whitespace-pre-wrap break-words">{msg.content}</div>
-                      <div
-                        className={`text-xs mt-1 ${
-                          msg.direction === "outbound" ? "text-green-100" : "text-muted-foreground"
-                        }`}
-                      >
-                        {formatTime(msg.sent_at)}
-                        {msg.direction === "outbound" && (
-                          <span className="ml-1">
-                            {msg.status === "read" ? "✓✓" : msg.status === "delivered" ? "✓" : ""}
-                          </span>
-                        )}
+            <div className="flex-1 overflow-y-auto relative" style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg width=\'100\' height=\'100\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cdefs%3E%3Cpattern id=\'grid\' width=\'100\' height=\'100\' patternUnits=\'userSpaceOnUse\'%3E%3Cpath d=\'M 100 0 L 0 0 0 100\' fill=\'none\' stroke=\'%23e5e7eb\' stroke-width=\'0.5\' opacity=\'0.3\'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width=\'100\' height=\'100\' fill=\'url(%23grid)\'/%3E%3C/svg%3E')", backgroundColor: "#e5ddd5" }}>
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#e5ddd5]" />
+              <div className="relative p-4 space-y-2">
+                {messages.map((msg, index) => {
+                  const prevMsg = index > 0 ? messages[index - 1] : null;
+                  const showDate = !prevMsg || new Date(msg.sent_at).toDateString() !== new Date(prevMsg.sent_at).toDateString();
+                  const date = new Date(msg.sent_at);
+                  const timeStr = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+                  
+                  return (
+                    <div key={msg.id}>
+                      {showDate && (
+                        <div className="flex justify-center my-4">
+                          <div className="bg-black/10 text-xs text-gray-600 px-3 py-1 rounded-full">
+                            {date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                          </div>
+                        </div>
+                      )}
+                      <div className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}>
+                        <div
+                          className={`max-w-[65%] rounded-lg px-2 py-1.5 shadow-sm ${
+                            msg.direction === "outbound"
+                              ? "bg-[#dcf8c6] text-gray-900 rounded-tr-none"
+                              : "bg-white text-gray-900 rounded-tl-none"
+                          }`}
+                          style={{
+                            borderRadius: msg.direction === "outbound" 
+                              ? "7.5px 7.5px 0 7.5px" 
+                              : "7.5px 7.5px 7.5px 0"
+                          }}
+                        >
+                          <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.content}</div>
+                          <div className="flex items-center justify-end gap-1 mt-0.5">
+                            <span className="text-[10px] text-gray-500">
+                              {timeStr}
+                            </span>
+                            {msg.direction === "outbound" && (
+                              <span className="text-[10px] text-gray-500">
+                                {msg.status === "read" ? "✓✓" : msg.status === "delivered" ? "✓✓" : msg.status === "sent" ? "✓" : ""}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
             </div>
 
             {/* Input */}
-            <div className="p-4 border-t border-border">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Digite sua mensagem..."
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  disabled={sending}
-                />
-                <Button onClick={handleSend} disabled={sending || !messageText.trim()} size="icon">
+            <div className="p-3 border-t border-border bg-[#f0f2f5]">
+              <div className="flex items-end gap-2">
+                <div className="flex-1 bg-white rounded-full px-4 py-2 border border-gray-200">
+                  <textarea
+                    ref={textareaRef}
+                    placeholder="Digite uma mensagem"
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                    disabled={sending}
+                    rows={1}
+                    className="w-full resize-none border-0 focus:outline-none text-sm bg-transparent overflow-hidden"
+                    style={{ maxHeight: "100px", minHeight: "24px" }}
+                  />
+                </div>
+                <button
+                  onClick={handleSend}
+                  disabled={sending || !messageText.trim()}
+                  className="w-10 h-10 rounded-full bg-green-500 text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-600 transition-colors"
+                >
                   {sending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    <Send className="h-4 w-4" />
+                    <Send className="h-5 w-5" />
                   )}
-                </Button>
+                </button>
               </div>
             </div>
           </div>

@@ -679,7 +679,7 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
             </div>
           </div>
 
-          {/* Campo para informar Phone Number ID quando conectado mas sem número */}
+          {/* Campo para informar Phone Number ID quando conectado mas sem número - só mostrar se realmente não foi encontrado */}
           {whatsappSimpleIntegration?.status === "connected" && !whatsappSimpleIntegration?.metadata?.phone_number_id && (
             <div className="pt-3 border-t border-border space-y-2">
               <div className="flex items-center gap-2 text-sm">
