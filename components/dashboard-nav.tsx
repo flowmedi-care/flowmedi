@@ -15,7 +15,7 @@ import {
   CreditCard,
   LogOut,
   FileEdit,
-  Menu,
+  PanelLeft,
   ChevronLeft,
   Mail,
   Bell,
@@ -23,7 +23,6 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
 
 type Profile = {
   id: string;
@@ -87,26 +86,36 @@ export function DashboardNav({
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
-      <div className={cn("p-3 sm:p-4 border-b border-border flex-shrink-0 flex items-center gap-2", isCollapsed ? "justify-center px-2" : "justify-between")}>
-        <FlowmediLogo
-          href="/dashboard"
-          size="sm"
-          showText={!isCollapsed}
-          className="shrink-0"
-        />
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn("h-8 w-8 flex-shrink-0", !isCollapsed && "ml-auto")}
-          onClick={onToggleCollapse}
-          title={isCollapsed ? "Expandir sidebar" : "Colapsar sidebar"}
-        >
-          {isCollapsed ? (
-            <Menu className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
-        </Button>
+      <div
+        className={cn(
+          "p-3 sm:p-4 border-b border-border flex-shrink-0 flex",
+          isCollapsed ? "flex-col items-center gap-2 px-2" : "items-center justify-between"
+        )}
+      >
+        {isCollapsed ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            onClick={onToggleCollapse}
+            title="Expandir sidebar"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
+        ) : (
+          <>
+            <FlowmediLogo href="/dashboard" size="sm" showText className="shrink-0" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0 ml-auto"
+              onClick={onToggleCollapse}
+              title="Colapsar sidebar"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </div>
       <nav className={cn("flex-1 p-2 space-y-0.5 overflow-y-auto overflow-x-hidden", isCollapsed && "px-1")}>
         {navItems.map((item) => {
