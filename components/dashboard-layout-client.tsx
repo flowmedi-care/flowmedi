@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import { type User } from "@supabase/supabase-js";
 import { DashboardNav } from "@/components/dashboard-nav";
+import { WhatsAppChatSidebar } from "@/components/whatsapp-chat-sidebar";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 type Profile = {
   id: string;
@@ -26,6 +28,24 @@ export function DashboardLayoutClient({
 }) {
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [hasWhatsAppSimple, setHasWhatsAppSimple] = useState(false);
+
+  // Verificar se há integração WhatsApp simples conectada
+  useEffect(() => {
+    async function checkWhatsApp() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("clinic_integrations")
+        .select("id")
+        .eq("integration_type", "whatsapp_simple")
+        .eq("status", "connected")
+        .limit(1);
+      setHasWhatsAppSimple((data?.length || 0) > 0);
+    }
+    if (profile?.clinic_id) {
+      checkWhatsApp();
+    }
+  }, [profile?.clinic_id]);
 
   // Detectar mobile para backdrop e comportamento do drawer
   useEffect(() => {
@@ -84,6 +104,8 @@ export function DashboardLayoutClient({
       >
         <div className="w-full max-w-[1600px] mx-auto">{children}</div>
       </main>
+      {/* Chat WhatsApp na sidebar direita */}
+      {hasWhatsAppSimple && <WhatsAppChatSidebar />}
       {/* Botão flutuante para abrir menu no mobile (safe area) */}
       {isCollapsed && (
         <Button

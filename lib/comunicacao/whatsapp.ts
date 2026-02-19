@@ -9,17 +9,33 @@ interface WhatsAppOptions {
 
 /**
  * Obtém as credenciais do WhatsApp/Meta para uma clínica
+ * Tenta primeiro whatsapp_simple, depois whatsapp_meta (coexistência)
  */
-async function getWhatsAppCredentials(clinicId: string) {
+async function getWhatsAppCredentials(clinicId: string, preferSimple = true) {
   const supabase = await createClient();
   
-  const { data: integration, error } = await supabase
+  const integrationType = preferSimple ? "whatsapp_simple" : "whatsapp_meta";
+  
+  let { data: integration, error } = await supabase
     .from("clinic_integrations")
     .select("credentials, metadata")
     .eq("clinic_id", clinicId)
-    .eq("integration_type", "whatsapp_meta")
+    .eq("integration_type", integrationType)
     .eq("status", "connected")
     .single();
+
+  // Se não encontrou e preferSimple=true, tentar whatsapp_meta
+  if ((error || !integration) && preferSimple) {
+    const fallback = await supabase
+      .from("clinic_integrations")
+      .select("credentials, metadata")
+      .eq("clinic_id", clinicId)
+      .eq("integration_type", "whatsapp_meta")
+      .eq("status", "connected")
+      .single();
+    integration = fallback.data;
+    error = fallback.error;
+  }
 
   if (error || !integration) {
     throw new Error("Integração WhatsApp não encontrada ou não conectada");
@@ -49,10 +65,11 @@ export type SendWhatsAppResult = {
 
 export async function sendWhatsAppMessage(
   clinicId: string,
-  options: WhatsAppOptions
+  options: WhatsAppOptions,
+  preferSimple = true
 ): Promise<SendWhatsAppResult> {
   try {
-    const { credentials, phoneNumberId } = await getWhatsAppCredentials(clinicId);
+    const { credentials, phoneNumberId } = await getWhatsAppCredentials(clinicId, preferSimple);
 
     if (!phoneNumberId) {
       throw new Error("Phone Number ID não configurado. Configure um número no Meta Business Manager.");
@@ -133,7 +150,7 @@ export async function sendWhatsAppMessage(
             error_message: "Token de acesso expirado ou inválido",
           })
           .eq("clinic_id", clinicId)
-          .eq("integration_type", "whatsapp_meta");
+          .in("integration_type", ["whatsapp_meta", "whatsapp_simple"]);
       }
 
       return {
@@ -161,18 +178,55 @@ export async function sendWhatsAppMessage(
 /**
  * Verifica se a integração de WhatsApp está conectada e funcionando
  */
-export async function checkWhatsAppIntegration(clinicId: string): Promise<{
+export async function checkWhatsAppIntegration(clinicId: string, preferSimple = true): Promise<{
   connected: boolean;
   phoneNumberId?: string;
   error?: string;
 }> {
   try {
-    const { phoneNumberId } = await getWhatsAppCredentials(clinicId);
+    const { phoneNumberId } = await getWhatsAppCredentials(clinicId, preferSimple);
     return { connected: true, phoneNumberId: phoneNumberId || undefined };
   } catch (error) {
     return {
       connected: false,
       error: error instanceof Error ? error.message : "Integração não encontrada",
     };
+  }
+}
+
+/**
+ * Verifica se há mensagem dentro da janela de 24h para um número
+ * Verifica se há mensagem INBOUND (recebida) nas últimas 24h
+ */
+export async function isWithin24HourWindow(clinicId: string, phoneNumber: string): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    // Buscar conversa
+    const { data: conversation } = await supabase
+      .from("whatsapp_conversations")
+      .select("id")
+      .eq("clinic_id", clinicId)
+      .eq("phone_number", phoneNumber)
+      .single();
+
+    if (!conversation) {
+      return false;
+    }
+
+    // Verificar se há mensagem recebida (inbound) nas últimas 24h
+    const { data: recentMessage } = await supabase
+      .from("whatsapp_messages")
+      .select("id")
+      .eq("conversation_id", conversation.id)
+      .eq("direction", "inbound")
+      .gte("sent_at", twentyFourHoursAgo)
+      .limit(1)
+      .single();
+
+    return !!recentMessage;
+  } catch {
+    return false;
   }
 }
