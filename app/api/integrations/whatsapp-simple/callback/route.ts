@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
     };
 
     try {
-      // Método CORRETO: Buscar WABAs através de /me/whatsapp_business_accounts
+      // Método 1: Tentar /me/whatsapp_business_accounts (pode não existir no tipo User)
       console.log("📋 [WhatsApp Simple Callback] Tentando buscar WABAs via /me/whatsapp_business_accounts...");
       const wabaUrl = `https://graph.facebook.com/v21.0/me/whatsapp_business_accounts?access_token=${accessToken}`;
       const wabaResponse = await fetch(wabaUrl);
@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Método alternativo 1: Se não encontrou, tentar /me/businesses
+      // Método 2: Se não encontrou, tentar /me/businesses e depois buscar WABAs dentro de cada business
       if (!phoneNumberId) {
         console.log("📋 [WhatsApp Simple Callback] Tentando método alternativo: /me/businesses...");
         const businessesUrl = `https://graph.facebook.com/v21.0/me/businesses?access_token=${accessToken}`;
@@ -188,18 +188,62 @@ export async function GET(request: NextRequest) {
 
         if (businessesData.data && businessesData.data.length > 0) {
           for (const business of businessesData.data) {
-            wabaId = business.id;
+            const businessId = business.id;
+            console.log(`📋 [WhatsApp Simple Callback] Buscando WABAs dentro do business ${businessId}...`);
+            
             try {
-              const phoneUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
-              const phoneResponse = await fetch(phoneUrl);
-              const phoneData = await phoneResponse.json();
+              // Buscar WABAs dentro deste business
+              const businessWabaUrl = `https://graph.facebook.com/v21.0/${businessId}/owned_whatsapp_business_accounts?access_token=${accessToken}`;
+              const businessWabaResponse = await fetch(businessWabaUrl);
+              const businessWabaData = await businessWabaResponse.json();
 
-              if (phoneData.data && phoneData.data.length > 0 && phoneData.data[0].id) {
-                phoneNumberId = phoneData.data[0].id;
-                console.log(`✅ [WhatsApp Simple Callback] Número encontrado via /me/businesses: ${phoneNumberId}`);
-                break;
+              console.log(`📋 [WhatsApp Simple Callback] WABAs do business ${businessId}:`, {
+                ok: businessWabaResponse.ok,
+                status: businessWabaResponse.status,
+                count: businessWabaData.data?.length || 0,
+                error: businessWabaData.error,
+                fullResponse: businessWabaData,
+              });
+
+              if (businessWabaData.data && businessWabaData.data.length > 0) {
+                // Tentar cada WABA deste business
+                for (const waba of businessWabaData.data) {
+                  wabaId = waba.id;
+                  console.log(`📞 [WhatsApp Simple Callback] Buscando números para WABA ${wabaId}...`);
+                  
+                  try {
+                    const phoneUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
+                    const phoneResponse = await fetch(phoneUrl);
+                    const phoneData = await phoneResponse.json();
+
+                    console.log(`📞 [WhatsApp Simple Callback] Phone Numbers para WABA ${wabaId}:`, {
+                      ok: phoneResponse.ok,
+                      status: phoneResponse.status,
+                      count: phoneData.data?.length || 0,
+                      error: phoneData.error,
+                      fullResponse: phoneData,
+                    });
+
+                    if (phoneData.data && phoneData.data.length > 0 && phoneData.data[0].id && wabaId) {
+                      phoneNumberId = phoneData.data[0].id;
+                      debugInfo.phoneNumbers.push({
+                        wabaId,
+                        phoneNumberId,
+                        display_phone_number: phoneData.data[0].display_phone_number,
+                      });
+                      console.log(`✅ [WhatsApp Simple Callback] Número encontrado via /me/businesses: ${phoneNumberId}`);
+                      break;
+                    }
+                  } catch (phoneError) {
+                    console.warn(`⚠️ [WhatsApp Simple Callback] Erro ao buscar números do WABA ${wabaId}:`, phoneError);
+                    continue;
+                  }
+                }
+                
+                if (phoneNumberId) break; // Se encontrou, parar de buscar em outros businesses
               }
-            } catch (phoneError) {
+            } catch (businessError) {
+              console.warn(`⚠️ [WhatsApp Simple Callback] Erro ao buscar WABAs do business ${businessId}:`, businessError);
               continue;
             }
           }
