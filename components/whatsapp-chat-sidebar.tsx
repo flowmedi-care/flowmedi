@@ -148,45 +148,45 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       >
         <div
           className={cn(
-            "flex flex-col border-r border-border bg-[#111b21] min-w-0",
+            "flex flex-col border-r border-border bg-muted/30 min-w-0",
             fullWidth ? "w-full sm:w-80 sm:min-h-[200px]" : "w-80"
           )}
         >
-          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[#2a3942]">
-            <span className="font-semibold text-sm text-[#e9edef] truncate">Conversas</span>
+          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
+            <span className="font-semibold text-sm truncate">Conversas</span>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setNewChatOpen(true)}
-              className="shrink-0 h-9 w-9 text-[#aebac1] hover:text-[#e9edef] hover:bg-[#202c33]"
+              className="shrink-0 h-9 w-9"
             >
               <Plus className="h-5 w-5" />
             </Button>
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
-              <p className="p-4 text-[#8696a0] text-sm">Carregando...</p>
+              <p className="p-4 text-muted-foreground text-sm">Carregando...</p>
             ) : conversations.length === 0 ? (
-              <p className="p-4 text-[#8696a0] text-sm">
+              <p className="p-4 text-muted-foreground text-sm">
                 Nenhuma conversa ainda. Use o botão acima para iniciar.
               </p>
             ) : (
-              <ul className="divide-y divide-[#2a3942]">
+              <ul className="divide-y divide-border">
                 {conversations.map((c) => (
                   <li key={c.id}>
                     <button
                       type="button"
                       onClick={() => setSelectedId(c.id)}
                       className={cn(
-                        "w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-[#202c33] transition-colors",
-                        selectedId === c.id && "bg-[#2a3942]"
+                        "w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-muted/50 transition-colors",
+                        selectedId === c.id && "bg-muted"
                       )}
                     >
-                      <div className="flex h-12 w-12 rounded-full bg-[#6a7175] items-center justify-center shrink-0">
-                        <Phone className="h-6 w-6 text-[#e9edef]" />
+                      <div className="flex h-10 w-10 rounded-full bg-muted items-center justify-center shrink-0">
+                        <Phone className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <span className="block font-medium text-[#e9edef] truncate">{c.phone_number}</span>
+                        <span className="block font-medium truncate">{c.phone_number}</span>
                       </div>
                     </button>
                   </li>
@@ -196,25 +196,25 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-[#0b141a]">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-background">
           {selectedId ? (
             <>
-              <div className="px-4 py-3 border-b border-[#2a3942] flex items-center gap-3 bg-[#202c33]">
-                <div className="flex h-10 w-10 rounded-full bg-[#6a7175] items-center justify-center shrink-0">
-                  <Phone className="h-5 w-5 text-[#e9edef]" />
+              <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card">
+                <div className="flex h-10 w-10 rounded-full bg-muted items-center justify-center shrink-0">
+                  <Phone className="h-5 w-5 text-muted-foreground" />
                 </div>
-                <span className="font-semibold text-[#e9edef] truncate">
+                <span className="font-semibold truncate">
                   {selectedConversation?.phone_number ?? selectedId}
                 </span>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 bg-[#0b141a]">
+              <div className="flex-1 overflow-y-auto p-4 bg-muted/20">
                 {loadingMessages ? (
-                  <p className="text-[#8696a0] text-sm">Carregando mensagens...</p>
+                  <p className="text-muted-foreground text-sm">Carregando mensagens...</p>
                 ) : messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <MessageSquare className="h-16 w-16 text-[#2a3942] mb-3" />
-                    <p className="text-[#8696a0] text-sm">Nenhuma mensagem ainda</p>
-                    <p className="text-[#667781] text-xs mt-1">Envie ou receba uma mensagem para começar</p>
+                    <MessageSquare className="h-16 w-16 text-muted-foreground/50 mb-3" />
+                    <p className="text-muted-foreground text-sm">Nenhuma mensagem ainda</p>
+                    <p className="text-muted-foreground/70 text-xs mt-1">Envie ou receba uma mensagem para começar</p>
                   </div>
                 ) : (
                   <div className="space-y-1">
@@ -228,15 +228,15 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                       >
                         <div
                           className={cn(
-                            "rounded-lg px-3 py-2 text-sm shadow-md max-w-full break-words",
+                            "rounded-lg px-3 py-2 text-sm shadow-sm max-w-full break-words",
                             m.direction === "outbound"
-                              ? "bg-[#005c4b] text-[#e9edef] rounded-br-sm"
-                              : "bg-[#202c33] text-[#e9edef] rounded-bl-sm"
+                              ? "bg-primary text-primary-foreground rounded-br-sm"
+                              : "bg-muted rounded-bl-sm"
                           )}
                         >
                           {m.body ?? "(mídia)"}
                         </div>
-                        <span className="text-[10px] text-[#667781] mt-0.5 px-1">
+                        <span className="text-[10px] text-muted-foreground mt-0.5 px-1">
                           {formatTime(m.sent_at)}
                         </span>
                       </div>
@@ -245,7 +245,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                 )}
                 <div ref={messagesEndRef} />
               </div>
-              <div className="p-3 border-t border-[#2a3942] flex gap-2 items-center bg-[#202c33]">
+              <div className="p-3 border-t border-border flex gap-2 items-center bg-card">
                 <Input
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
@@ -256,26 +256,26 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                     }
                   }}
                   placeholder="Digite uma mensagem..."
-                  className="min-h-11 flex-1 rounded-lg border-[#2a3942] bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] focus-visible:ring-2 focus-visible:ring-[#005c4b]"
+                  className="min-h-11 flex-1"
                 />
                 <Button
                   onClick={handleSendInChat}
                   disabled={sendingReply || !replyText.trim()}
                   size="icon"
-                  className="rounded-lg h-11 w-11 shrink-0 bg-[#005c4b] hover:bg-[#006d5b] text-white"
+                  className="rounded-lg h-11 w-11 shrink-0 bg-[#25D366] hover:bg-[#20bd5a] text-white"
                 >
                   <Send className="h-5 w-5" />
                 </Button>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-[#0b141a]">
+            <div className="flex-1 flex items-center justify-center bg-muted/20">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#202c33] mb-4">
-                  <MessageSquare className="h-10 w-10 text-[#667781]" />
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mb-4">
+                  <MessageSquare className="h-10 w-10 text-muted-foreground" />
                 </div>
-                <p className="text-[#e9edef] font-medium">Selecione uma conversa</p>
-                <p className="text-[#8696a0] text-sm mt-1">ou use o botão + para iniciar uma nova</p>
+                <p className="font-medium">Selecione uma conversa</p>
+                <p className="text-muted-foreground text-sm mt-1">ou use o botão + para iniciar uma nova</p>
               </div>
             </div>
           )}

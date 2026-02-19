@@ -1,8 +1,17 @@
 # Debug do Webhook WhatsApp
 
-## Onde ver os logs do webhook
+## Endpoint de debug (ver último payload)
 
-O webhook (`/api/whatsapp/webhook`) faz `console.log` do payload que a Meta envia. Para ver esses logs:
+Acesse **https://www.flowmedi.com.br/api/whatsapp/webhook/debug** no navegador ou Postman.
+
+- Se `lastPayload` for `null`: o webhook **não está sendo chamado** pela Meta (URL errada, webhook não inscrito, etc.)
+- Se tiver dados: o webhook recebeu algo; o objeto mostra o que a Meta enviou
+
+**Importante:** O webhook recebe mensagens **inbound** (quando alguém envia DO celular PARA o número do negócio). Quando você digita no FlowMedi e envia, isso é **outbound** e não aciona o webhook.
+
+## Onde ver os logs no servidor (Vercel)
+
+O webhook faz `console.log` do payload. Para ver:
 
 ### 1. Vercel (produção)
 

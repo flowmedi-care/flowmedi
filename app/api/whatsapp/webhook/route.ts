@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { setLastWebhookPayload } from "@/lib/whatsapp-webhook-debug";
 
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
@@ -32,12 +33,14 @@ export async function POST(request: NextRequest) {
     return new NextResponse(null, { status: 200 });
   }
 
-  // Debug: logar exatamente o que a Meta envia (ver em Vercel → Logs ou terminal)
+  // Debug: logar e armazenar para /api/whatsapp/webhook/debug
   try {
     const parsed = JSON.parse(rawBody);
     console.log("[WhatsApp Webhook] Payload recebido:", JSON.stringify(parsed, null, 2));
+    setLastWebhookPayload(parsed);
   } catch {
     console.log("[WhatsApp Webhook] Body (raw):", rawBody?.slice(0, 2000));
+    setLastWebhookPayload({ raw: rawBody?.slice(0, 2000) });
   }
 
   try {
