@@ -98,18 +98,49 @@ export async function POST(request: Request) {
         }
         if (!proPlan) break;
         const subId = session.subscription as string | null;
+        
+        // Buscar tax_id (CPF/CNPJ) do customer se disponível
+        let taxId: string | null = null;
+        let taxIdType: "cpf" | "cnpj" | null = null;
+        if (session.customer && typeof session.customer === "string") {
+          try {
+            const customer = await stripe.customers.retrieve(session.customer);
+            if (!customer.deleted && customer.tax_ids?.data && customer.tax_ids.data.length > 0) {
+              const taxIdObj = customer.tax_ids.data[0];
+              taxId = taxIdObj.value;
+              // Determinar tipo baseado no tipo do Stripe
+              if (taxIdObj.type === "br_cnpj") {
+                taxIdType = "cnpj";
+              } else if (taxIdObj.type === "br_cpf") {
+                taxIdType = "cpf";
+              }
+            }
+          } catch (err) {
+            console.error("Webhook error fetching customer tax_id:", err);
+            // Não falhar o webhook se não conseguir buscar tax_id
+          }
+        }
+        
+        const updateData: Record<string, unknown> = {
+          plan_id: proPlan.id,
+          stripe_subscription_id: subId,
+          subscription_status: "active",
+        };
+        
+        // Adicionar tax_id se disponível (só atualiza se a coluna existir)
+        if (taxId && taxIdType) {
+          updateData.tax_id = taxId;
+          updateData.tax_id_type = taxIdType;
+        }
+        
         const { error: updateError } = await supabase
           .from("clinics")
-          .update({
-            plan_id: proPlan.id,
-            stripe_subscription_id: subId,
-            subscription_status: "active",
-          })
+          .update(updateData)
           .eq("id", clinicId);
         if (updateError) {
           console.error("Webhook clinic update error:", updateError);
         } else {
-          console.log("Webhook clinic updated to pro:", { clinicId, subId });
+          console.log("Webhook clinic updated to pro:", { clinicId, subId, taxId, taxIdType });
         }
         break;
       }

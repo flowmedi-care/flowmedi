@@ -131,6 +131,18 @@ export async function POST() {
       subscription_data: {
         metadata: { clinic_id: clinic.id },
       },
+      // Coletar CPF/CNPJ durante o checkout
+      tax_id_collection: {
+        enabled: true,
+      },
+      // Permitir atualizar informações do customer durante o checkout
+      customer_update: {
+        name: "auto",
+        address: "auto",
+      },
+      // Configurações específicas para Brasil
+      payment_method_types: ["card"],
+      billing_address_collection: "required",
     });
 
     return NextResponse.json({ clientSecret: session.client_secret });
