@@ -17,6 +17,8 @@ type Message = {
   id: string;
   direction: "inbound" | "outbound";
   body: string | null;
+  media_url: string | null;
+  message_type: string;
   sent_at: string;
 };
 
@@ -138,6 +140,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         id: tempId,
         direction: "outbound" as const,
         body: text,
+        media_url: null,
+        message_type: "text",
         sent_at: new Date().toISOString(),
       },
     ]);
@@ -249,13 +253,35 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                       >
                         <div
                           className={cn(
-                            "rounded-2xl px-4 py-2.5 text-[15px] shadow-sm max-w-full break-words",
+                            "rounded-2xl px-4 py-2.5 text-[15px] shadow-sm max-w-full break-words overflow-hidden",
                             m.direction === "outbound"
                               ? "bg-[#25D366] text-white rounded-br-md"
                               : "bg-white border border-border rounded-bl-md"
                           )}
                         >
-                          {m.body ?? "(mídia)"}
+                          {m.media_url && m.message_type === "image" ? (
+                            <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="block">
+                              <img
+                                src={m.media_url}
+                                alt="Imagem recebida"
+                                className="max-w-full max-h-64 rounded-lg object-contain"
+                              />
+                            </a>
+                          ) : m.media_url && m.message_type === "audio" ? (
+                            <audio controls className="max-w-full" src={m.media_url}>
+                              Áudio não suportado.
+                            </audio>
+                          ) : m.media_url && m.message_type === "video" ? (
+                            <video controls className="max-w-full max-h-64 rounded-lg" src={m.media_url}>
+                              Vídeo não suportado.
+                            </video>
+                          ) : m.media_url && m.message_type === "document" ? (
+                            <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                              Ver documento
+                            </a>
+                          ) : (
+                            m.body ?? "(mídia)"
+                          )}
                         </div>
                         <span className="text-[10px] text-muted-foreground mt-0.5 px-1">
                           {formatTime(m.sent_at)}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { setLastWebhookPayload } from "@/lib/whatsapp-webhook-debug";
+import { fetchAndStoreWhatsAppMedia } from "@/lib/whatsapp-media";
 
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 
@@ -90,16 +91,69 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        // Buscar access_token para mídia (image, audio, etc.)
+        let accessToken: string | null = null;
+        const { data: credsData } = await supabase
+          .from("clinic_integrations")
+          .select("credentials")
+          .eq("clinic_id", clinicId)
+          .in("integration_type", ["whatsapp_simple", "whatsapp_meta"])
+          .eq("status", "connected")
+          .limit(1)
+          .maybeSingle();
+        accessToken = (credsData?.credentials as { access_token?: string })?.access_token ?? null;
+
         for (const msg of messages) {
           const fromRaw = String((msg as { from?: string }).from ?? "").replace(/\D/g, "");
           if (!fromRaw) continue;
           const from = normalizeWhatsAppPhone(fromRaw);
 
           let bodyText: string | null = null;
+          let mediaUrl: string | null = null;
           const text = (msg as { text?: { body?: string } }).text;
-          const msgType = (msg as { type?: string }).type;
-          if (text?.body) bodyText = String(text.body);
-          else if (msgType) bodyText = `[${msgType}]`;
+          const msgType = (msg as { type?: string }).type || "text";
+          const image = (msg as { image?: { id?: string; mime_type?: string } }).image;
+          const audio = (msg as { audio?: { id?: string; mime_type?: string } }).audio;
+          const video = (msg as { video?: { id?: string; mime_type?: string } }).video;
+          const document = (msg as { document?: { id?: string; mime_type?: string } }).document;
+
+          if (text?.body) {
+            bodyText = String(text.body);
+          } else if (image?.id && accessToken) {
+            mediaUrl = await fetchAndStoreWhatsAppMedia(
+              image.id,
+              accessToken,
+              supabase,
+              { clinicId, mediaId: image.id, mimeType: image.mime_type }
+            );
+            bodyText = mediaUrl ? "" : "[image]";
+          } else if (audio?.id && accessToken) {
+            mediaUrl = await fetchAndStoreWhatsAppMedia(
+              audio.id,
+              accessToken,
+              supabase,
+              { clinicId, mediaId: audio.id, mimeType: audio.mime_type }
+            );
+            bodyText = mediaUrl ? "" : "[audio]";
+          } else if (video?.id && accessToken) {
+            mediaUrl = await fetchAndStoreWhatsAppMedia(
+              video.id,
+              accessToken,
+              supabase,
+              { clinicId, mediaId: video.id, mimeType: video.mime_type }
+            );
+            bodyText = mediaUrl ? "" : "[video]";
+          } else if (document?.id && accessToken) {
+            mediaUrl = await fetchAndStoreWhatsAppMedia(
+              document.id,
+              accessToken,
+              supabase,
+              { clinicId, mediaId: document.id, mimeType: document.mime_type }
+            );
+            bodyText = mediaUrl ? "" : "[documento]";
+          } else if (msgType) {
+            bodyText = `[${msgType}]`;
+          }
 
           const conversationRes = await supabase
             .from("whatsapp_conversations")
@@ -142,8 +196,9 @@ export async function POST(request: NextRequest) {
             conversation_id: conversationId,
             clinic_id: clinicId,
             direction: "inbound",
-            message_type: msgType || "text",
+            message_type: msgType,
             content: bodyText ?? "",
+            media_url: mediaUrl ?? null,
             sent_at: new Date().toISOString(),
           } as Record<string, unknown>);
 

@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     const { data: rows, error } = await supabase
       .from("whatsapp_messages")
-      .select("id, direction, content, sent_at")
+      .select("id, direction, content, media_url, message_type, sent_at")
       .eq("conversation_id", conversationId)
       .order("sent_at", { ascending: true });
 
@@ -44,10 +44,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const messages = (rows || []).map((r: { content?: string; [k: string]: unknown }) => ({
+    const messages = (rows || []).map((r: { content?: string; media_url?: string | null; message_type?: string; [k: string]: unknown }) => ({
       id: r.id,
       direction: r.direction,
       body: r.content ?? null,
+      media_url: r.media_url ?? null,
+      message_type: r.message_type ?? "text",
       sent_at: r.sent_at,
     }));
     return NextResponse.json(messages);
