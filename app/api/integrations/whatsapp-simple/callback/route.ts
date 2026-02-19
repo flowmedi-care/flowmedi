@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
               })) || [],
             });
 
-            if (phoneData.data && phoneData.data.length > 0 && phoneData.data[0].id) {
+            if (phoneData.data && phoneData.data.length > 0 && phoneData.data[0].id && wabaId) {
               phoneNumberId = phoneData.data[0].id;
               debugInfo.phoneNumbers.push({
                 wabaId,
