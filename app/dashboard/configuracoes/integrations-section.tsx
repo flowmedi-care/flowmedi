@@ -43,10 +43,11 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
   const [whatsappSimplePhoneIdInput, setWhatsappSimplePhoneIdInput] = useState("");
   const [savingSimplePhoneId, setSavingSimplePhoneId] = useState(false);
   const [simplePhoneIdError, setSimplePhoneIdError] = useState<string | null>(null);
+  const [discoveringPhoneId, setDiscoveringPhoneId] = useState(false);
 
   useEffect(() => {
     loadIntegrations();
-    
+
     // Verificar mensagens de sucesso/erro na URL
     const status = searchParams.get("status");
     const integration = searchParams.get("integration");
@@ -208,6 +209,28 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
       setPhoneIdError("Erro de conexão");
     } finally {
       setSavingPhoneId(false);
+    }
+  }
+
+  async function discoverWhatsAppSimplePhoneId() {
+    setDiscoveringPhoneId(true);
+    setSimplePhoneIdError(null);
+    try {
+      const res = await fetch("/api/integrations/whatsapp-simple/discover-phone-id", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccessMessage("Phone Number ID encontrado automaticamente!");
+        setTimeout(() => setSuccessMessage(null), 5000);
+        await loadIntegrations();
+      } else {
+        setSimplePhoneIdError(data.error || "Não foi possível descobrir. Cole manualmente abaixo.");
+      }
+    } catch {
+      setSimplePhoneIdError("Erro de conexão. Cole o número manualmente abaixo.");
+    } finally {
+      setDiscoveringPhoneId(false);
     }
   }
 
@@ -665,13 +688,30 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
           {whatsappSimpleIntegration?.status === "connected" && !whatsappSimpleIntegration?.metadata?.phone_number_id && (
             <div className="pt-3 border-t border-border space-y-2">
               <div className="flex items-center gap-2 text-sm">
-                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                <HelpCircle className="h-4 w-4 text-muted-foreground shrink-0" />
                 <Label className="font-normal text-muted-foreground">
-                  A Meta não retornou o número automaticamente. Cole o <strong>Phone Number ID</strong> do painel do app:
+                  A Meta não retornou o número automaticamente.
                 </Label>
               </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={discoverWhatsAppSimplePhoneId}
+                  disabled={discoveringPhoneId}
+                >
+                  {discoveringPhoneId ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Descobrindo...
+                    </>
+                  ) : (
+                    "Tentar descobrir automaticamente"
+                  )}
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Meta for Developers → seu app → WhatsApp → Configuração da API → em &quot;Enviar e receber mensagens&quot;, copie o <strong>Identificação do número de telefone</strong> (ex.: 934622009742794).
+                Ou cole manualmente o <strong>Phone Number ID</strong>: Meta for Developers → seu app → WhatsApp → Configuração da API → &quot;Identificação do número de telefone&quot; (ex.: 934622009742794).
               </p>
               <div className="flex gap-2 flex-wrap">
                 <Input
