@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireClinicMember } from "@/lib/auth-helpers";
+import { requireClinicMemberWithRole } from "@/lib/auth-helpers";
 import { sendWhatsAppMessage } from "@/lib/comunicacao/whatsapp";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 
@@ -12,7 +12,7 @@ import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
  */
 export async function POST(request: NextRequest) {
   try {
-    const { clinicId } = await requireClinicMember();
+    const { clinicId, role, id: userId } = await requireClinicMemberWithRole();
     const body = await request.json();
     const { to, text } = body as { to?: string; text?: string };
 
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     const { data: existing } = await supabase
       .from("whatsapp_conversations")
-      .select("id, status")
+      .select("id, status, assigned_secretary_id")
       .eq("clinic_id", clinicId)
       .eq("phone_number", normalizedTo)
       .maybeSingle();
@@ -91,6 +91,21 @@ export async function POST(request: NextRequest) {
       content: text.trim(),
       sent_at: new Date().toISOString(),
     } as Record<string, unknown>);
+
+    // Primeira que responde assume: secretária envia em conversa em pool → atribui a ela
+    if (role === "secretaria" && existing?.assigned_secretary_id == null) {
+      await supabase
+        .from("whatsapp_conversations")
+        .update({
+          assigned_secretary_id: userId,
+          assigned_at: new Date().toISOString(),
+        })
+        .eq("id", conversationId);
+      await supabase
+        .from("conversation_eligible_secretaries")
+        .delete()
+        .eq("conversation_id", conversationId);
+    }
 
     return NextResponse.json({ success: true, messageId: result.messageId });
   } catch (e) {

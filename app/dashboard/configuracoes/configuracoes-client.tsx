@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { updateComplianceConfirmationDays, updateComplianceFormDays } from "./actions";
 import { LogoUpload } from "./logo-upload";
 import { IntegrationsSection } from "./integrations-section";
+import { WhatsAppRoutingSection } from "./whatsapp-routing-section";
 import { ClinicInfoTabs } from "@/components/clinic-info/clinic-info-tabs";
 
 export function ConfiguracoesClient({
@@ -76,6 +77,8 @@ export function ConfiguracoesClient({
       </div>
 
       <IntegrationsSection clinicId={clinicId} />
+
+      <WhatsAppRoutingSection clinicId={clinicId} />
 
       <ClinicInfoTabs
         clinicId={clinicId}

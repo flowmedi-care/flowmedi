@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, User, UserPlus, Pencil, FileText, Download } from "lucide-react";
+import { X, User, UserPlus, Pencil, FileText, Download, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Select } from "@/components/ui/select";
 import { formatPhoneBr, formatPhoneBrInput, parsePhoneBr } from "@/lib/format-phone";
 import { createPatient, type PatientInsert } from "@/app/dashboard/pacientes/actions";
 import { getPatientExams, getExamSignedUrl } from "@/app/dashboard/exames/actions";
@@ -35,6 +36,8 @@ export type CustomField = {
   display_order: number;
 };
 
+export type AssignedSecretary = { id: string; full_name: string | null } | null;
+
 interface WhatsAppContactSidebarProps {
   open: boolean;
   onClose: () => void;
@@ -43,6 +46,10 @@ interface WhatsAppContactSidebarProps {
   patient: Patient | null;
   onPatientLinked: (patient: Patient) => void;
   onContactNameChange?: (name: string | null) => void;
+  conversationId?: string | null;
+  assignedSecretary?: AssignedSecretary;
+  onAssignConversation?: (secretaryId: string) => Promise<void>;
+  secretaries?: { id: string; full_name: string }[];
 }
 
 function formatFileSize(bytes: number): string {
@@ -65,6 +72,10 @@ export function WhatsAppContactSidebar({
   contactName,
   patient: initialPatient,
   onPatientLinked,
+  conversationId,
+  assignedSecretary,
+  onAssignConversation,
+  secretaries = [],
 }: WhatsAppContactSidebarProps) {
   const [patient, setPatient] = useState<Patient | null>(initialPatient);
   const [loadingPatient, setLoadingPatient] = useState(false);
@@ -82,6 +93,8 @@ export function WhatsAppContactSidebar({
   });
   const [formError, setFormError] = useState<string | null>(null);
   const [formLoading, setFormLoading] = useState(false);
+  const [forwardSecretaryId, setForwardSecretaryId] = useState<string>("");
+  const [forwarding, setForwarding] = useState(false);
 
   useEffect(() => {
     setPatient(initialPatient);
@@ -185,6 +198,58 @@ export function WhatsAppContactSidebar({
             </Button>
           </div>
           <div className="flex-1 overflow-y-auto p-4">
+            {conversationId && (
+              <div className="mb-4 p-3 rounded-lg bg-muted/50 border border-border">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Atendente responsável</p>
+                {assignedSecretary ? (
+                  <p className="text-sm font-medium">{assignedSecretary.full_name ?? "Sem nome"}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Em pool (disponível para todas)</p>
+                )}
+                {onAssignConversation && secretaries.length > 0 && (
+                  <div className="mt-2 flex gap-2">
+                    <Select
+                      value={forwardSecretaryId}
+                      onChange={(e) => setForwardSecretaryId(e.target.value)}
+                      className="flex-1"
+                    >
+                      <option value="">Selecionar secretária...</option>
+                      {secretaries.map((s) => (
+                        <option
+                          key={s.id}
+                          value={s.id}
+                          disabled={assignedSecretary?.id === s.id}
+                        >
+                          {s.full_name}
+                          {assignedSecretary?.id === s.id ? " (atual)" : ""}
+                        </option>
+                      ))}
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!forwardSecretaryId || forwarding}
+                      onClick={async () => {
+                        if (!forwardSecretaryId) return;
+                        setForwarding(true);
+                        try {
+                          await onAssignConversation(forwardSecretaryId);
+                          setForwardSecretaryId("");
+                          toast("Conversa encaminhada com sucesso.", "success");
+                        } catch {
+                          toast("Erro ao encaminhar.", "error");
+                        } finally {
+                          setForwarding(false);
+                        }
+                      }}
+                    >
+                      <Send className="h-4 w-4 mr-1" />
+                      Encaminhar
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
             {patient ? (
               <div className="space-y-6">
                 <div className="flex justify-center">

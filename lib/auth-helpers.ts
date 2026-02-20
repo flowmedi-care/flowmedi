@@ -105,3 +105,37 @@ export async function requireClinicMember(): Promise<ClinicMember> {
     clinicId: profile.clinic_id,
   };
 }
+
+export interface ClinicMemberWithRole {
+  id: string;
+  clinicId: string;
+  role: string;
+}
+
+/**
+ * Requer que o usuário seja membro de uma clínica e retorna também o role.
+ */
+export async function requireClinicMemberWithRole(): Promise<ClinicMemberWithRole> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Não autenticado");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, clinic_id, role, active")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || !profile.clinic_id || profile.active === false) {
+    throw new Error("Usuário não pertence a uma clínica");
+  }
+
+  return {
+    id: profile.id,
+    clinicId: profile.clinic_id,
+    role: profile.role ?? "secretaria",
+  };
+}

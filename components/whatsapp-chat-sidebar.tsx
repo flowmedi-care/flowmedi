@@ -16,6 +16,9 @@ type Conversation = {
   status: "open" | "closed" | "completed";
   last_inbound_message_at: string | null;
   created_at: string;
+  assigned_secretary_id: string | null;
+  assigned_secretary: { id: string; full_name: string | null } | null;
+  assigned_at: string | null;
 };
 
 type Message = {
@@ -106,6 +109,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
   const [conversationStatusFilter, setConversationStatusFilter] = useState<"open" | "closed" | "completed" | null>("open");
   const [completingConversationId, setCompletingConversationId] = useState<string | null>(null);
+  const [secretaries, setSecretaries] = useState<{ id: string; full_name: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottomRef = useRef(false);
 
@@ -253,6 +257,13 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     loadConversations();
     loadUnreadCounts();
   }, [loadConversations]);
+
+  useEffect(() => {
+    fetch("/api/whatsapp/secretaries")
+      .then((r) => r.json())
+      .then((data) => setSecretaries(Array.isArray(data) ? data : []))
+      .catch(() => setSecretaries([]));
+  }, []);
 
   useEffect(() => {
     if (!selectedId) {
@@ -699,6 +710,38 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           patient={patientByPhone[selectedConversation.phone_number] ?? null}
           onPatientLinked={(patient) => {
             setPatientByPhone((prev) => ({ ...prev, [selectedConversation.phone_number]: patient }));
+          }}
+          conversationId={selectedConversation.id}
+          assignedSecretary={selectedConversation.assigned_secretary}
+          secretaries={secretaries}
+          onAssignConversation={async (secretaryId) => {
+            const res = await fetch("/api/whatsapp/assign-conversation", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                conversationId: selectedConversation.id,
+                secretaryId,
+              }),
+            });
+            if (!res.ok) {
+              const data = await res.json();
+              throw new Error(data.error ?? "Erro ao encaminhar");
+            }
+            await loadConversations(false);
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === selectedConversation.id
+                  ? {
+                      ...c,
+                      assigned_secretary_id: secretaryId,
+                      assigned_secretary: secretaries.find((s) => s.id === secretaryId)
+                        ? { id: secretaryId, full_name: secretaries.find((s) => s.id === secretaryId)!.full_name }
+                        : null,
+                      assigned_at: new Date().toISOString(),
+                    }
+                  : c
+              )
+            );
           }}
         />
       )}
