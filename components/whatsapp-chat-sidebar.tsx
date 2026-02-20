@@ -36,6 +36,46 @@ function formatTime(iso: string) {
   }
 }
 
+function formatDateLabel(iso: string): string {
+  try {
+    const messageDate = new Date(iso);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // Resetar horas para comparar apenas datas
+    const messageDateOnly = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+
+    if (messageDateOnly.getTime() === todayOnly.getTime()) {
+      return "Hoje";
+    } else if (messageDateOnly.getTime() === yesterdayOnly.getTime()) {
+      return "Ontem";
+    } else {
+      // Formato: "20 de fevereiro de 2026" ou "20 de fev de 2026" se o ano for o atual
+      const currentYear = today.getFullYear();
+      const messageYear = messageDate.getFullYear();
+      if (messageYear === currentYear) {
+        return messageDate.toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
+      } else {
+        return messageDate.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
+      }
+    }
+  } catch {
+    return "";
+  }
+}
+
+function getDateKey(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  } catch {
+    return "";
+  }
+}
+
 function formatPhone(phone: string) {
   const digits = phone.replace(/\D/g, "");
   if (digits.length === 12) return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
@@ -57,6 +97,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [sendingReply, setSendingReply] = useState(false);
   const [contactSidebarOpen, setContactSidebarOpen] = useState(false);
   const [patientByPhone, setPatientByPhone] = useState<Record<string, Patient>>({});
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottomRef = useRef(false);
 
@@ -68,6 +109,20 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       return data.patient ?? null;
     } catch {
       return null;
+    }
+  }, []);
+
+  const loadUnreadCounts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/whatsapp/unread-count");
+      if (res.ok) {
+        const data = await res.json();
+        setUnreadCounts(data.byConversation || {});
+        // Disparar evento customizado para atualizar sidebar de navegação
+        window.dispatchEvent(new CustomEvent("whatsapp-unread-update", { detail: data.total }));
+      }
+    } catch {
+      // Ignorar erro
     }
   }, []);
 
@@ -87,6 +142,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           })
         );
         setPatientByPhone((prev) => ({ ...prev, ...map }));
+        await loadUnreadCounts();
       } else {
         setConversations([]);
       }
@@ -123,10 +179,30 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       setReplyText("");
       return;
     }
+    // Marcar conversa como visualizada ao abrir
+    fetch("/api/whatsapp/mark-viewed", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId: selectedId }),
+    }).then(() => {
+      // Remover badge imediatamente da conversa atual
+      setUnreadCounts((prev) => {
+        const updated = { ...prev };
+        delete updated[selectedId];
+        // Atualizar total também
+        const newTotal = Object.values(updated).reduce((sum, count) => sum + count, 0);
+        window.dispatchEvent(new CustomEvent("whatsapp-unread-update", { detail: newTotal }));
+        return updated;
+      });
+      loadUnreadCounts(); // Atualizar contadores após marcar como visualizada
+    });
     loadMessages(true, true); // loading + scroll no primeiro carregamento
-    const interval = setInterval(() => loadMessages(false, false), 5000); // polling sem mexer no scroll
+    const interval = setInterval(() => {
+      loadMessages(false, false);
+      loadUnreadCounts(); // Atualizar contadores periodicamente
+    }, 5000); // polling sem mexer no scroll
     return () => clearInterval(interval);
-  }, [selectedId]);
+  }, [selectedId, loadUnreadCounts]);
 
   useEffect(() => {
     if (shouldScrollToBottomRef.current) {
@@ -152,6 +228,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         setNewTo("");
         setNewText("");
         loadConversations();
+        loadUnreadCounts();
       }
     } finally {
       setSending(false);
@@ -184,6 +261,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       });
       if (res.ok) {
         loadMessages();
+        loadUnreadCounts();
       } else {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
       }
@@ -242,9 +320,16 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                         <Phone className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <span className="block font-medium truncate">
-                          {patientByPhone[c.phone_number]?.full_name ?? formatPhone(c.phone_number)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="block font-medium truncate flex-1">
+                            {patientByPhone[c.phone_number]?.full_name ?? formatPhone(c.phone_number)}
+                          </span>
+                          {unreadCounts[c.id] > 0 && (
+                            <span className="flex-shrink-0 h-5 min-w-[20px] px-1.5 rounded-full bg-[#25D366] text-white text-xs font-semibold flex items-center justify-center">
+                              {unreadCounts[c.id] > 99 ? "99+" : unreadCounts[c.id]}
+                            </span>
+                          )}
+                        </div>
                         {patientByPhone[c.phone_number] && (
                           <span className="block text-xs text-muted-foreground truncate">
                             {formatPhone(c.phone_number)}
@@ -293,51 +378,87 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {messages.map((m) => (
-                      <div
-                        key={m.id}
-                        className={cn(
-                          "flex flex-col max-w-[75%]",
-                          m.direction === "outbound" ? "ml-auto items-end" : "items-start"
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "rounded-2xl px-4 py-2.5 text-[15px] shadow-sm max-w-full break-words overflow-hidden",
-                            m.direction === "outbound"
-                              ? "bg-[#25D366] text-white rounded-br-md"
-                              : "bg-white border border-border rounded-bl-md"
-                          )}
-                        >
-                          {m.media_url && m.message_type === "image" ? (
-                            <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="block">
-                              <img
-                                src={m.media_url}
-                                alt="Imagem recebida"
-                                className="max-w-full max-h-64 rounded-lg object-contain"
-                              />
-                            </a>
-                          ) : m.media_url && m.message_type === "audio" ? (
-                            <audio controls className="max-w-full" src={m.media_url}>
-                              Áudio não suportado.
-                            </audio>
-                          ) : m.media_url && m.message_type === "video" ? (
-                            <video controls className="max-w-full max-h-64 rounded-lg" src={m.media_url}>
-                              Vídeo não suportado.
-                            </video>
-                          ) : m.media_url && m.message_type === "document" ? (
-                            <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                              Ver documento
-                            </a>
-                          ) : (
-                            m.body ?? "(mídia)"
-                          )}
-                        </div>
-                        <span className="text-[10px] text-muted-foreground mt-0.5 px-1">
-                          {formatTime(m.sent_at)}
-                        </span>
-                      </div>
-                    ))}
+                    {(() => {
+                      // Agrupar mensagens por data
+                      const groupedMessages: Array<{ dateKey: string; dateLabel: string; messages: Message[] }> = [];
+                      let currentGroup: { dateKey: string; dateLabel: string; messages: Message[] } | null = null;
+
+                      messages.forEach((m) => {
+                        const dateKey = getDateKey(m.sent_at);
+                        if (!currentGroup || currentGroup.dateKey !== dateKey) {
+                          if (currentGroup) {
+                            groupedMessages.push(currentGroup);
+                          }
+                          currentGroup = {
+                            dateKey,
+                            dateLabel: formatDateLabel(m.sent_at),
+                            messages: [m],
+                          };
+                        } else {
+                          currentGroup.messages.push(m);
+                        }
+                      });
+                      if (currentGroup) {
+                        groupedMessages.push(currentGroup);
+                      }
+
+                      return groupedMessages.map((group) => (
+                        <React.Fragment key={group.dateKey}>
+                          {/* Separador de data */}
+                          <div className="flex items-center justify-center my-4">
+                            <div className="px-3 py-1 bg-muted/50 rounded-full">
+                              <span className="text-xs text-muted-foreground font-medium">{group.dateLabel}</span>
+                            </div>
+                          </div>
+                          {/* Mensagens do grupo */}
+                          {group.messages.map((m) => (
+                            <div
+                              key={m.id}
+                              className={cn(
+                                "flex flex-col max-w-[75%]",
+                                m.direction === "outbound" ? "ml-auto items-end" : "items-start"
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  "rounded-2xl px-4 py-2.5 text-[15px] shadow-sm max-w-full break-words overflow-hidden",
+                                  m.direction === "outbound"
+                                    ? "bg-[#25D366] text-white rounded-br-md"
+                                    : "bg-white border border-border rounded-bl-md"
+                                )}
+                              >
+                                {m.media_url && m.message_type === "image" ? (
+                                  <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="block">
+                                    <img
+                                      src={m.media_url}
+                                      alt="Imagem recebida"
+                                      className="max-w-full max-h-64 rounded-lg object-contain"
+                                    />
+                                  </a>
+                                ) : m.media_url && m.message_type === "audio" ? (
+                                  <audio controls className="max-w-full" src={m.media_url}>
+                                    Áudio não suportado.
+                                  </audio>
+                                ) : m.media_url && m.message_type === "video" ? (
+                                  <video controls className="max-w-full max-h-64 rounded-lg" src={m.media_url}>
+                                    Vídeo não suportado.
+                                  </video>
+                                ) : m.media_url && m.message_type === "document" ? (
+                                  <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                                    Ver documento
+                                  </a>
+                                ) : (
+                                  m.body ?? "(mídia)"
+                                )}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground mt-0.5 px-1">
+                                {formatTime(m.sent_at)}
+                              </span>
+                            </div>
+                          ))}
+                        </React.Fragment>
+                      ));
+                    })()}
                   </div>
                 )}
                 <div ref={messagesEndRef} />

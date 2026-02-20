@@ -57,13 +57,46 @@ export function DashboardNav({
     router.push("/");
   }
 
-  const navItems: { href: string; label: string; icon: React.ReactNode; roles?: string[] }[] = [
+  const [whatsappUnreadCount, setWhatsappUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!hasWhatsAppSimple) return;
+
+    const loadUnreadCount = async () => {
+      try {
+        const res = await fetch("/api/whatsapp/unread-count");
+        if (res.ok) {
+          const data = await res.json();
+          setWhatsappUnreadCount(data.total || 0);
+        }
+      } catch {
+        // Ignorar erro
+      }
+    };
+
+    loadUnreadCount();
+    const interval = setInterval(loadUnreadCount, 10000); // Atualizar a cada 10 segundos
+
+    // Escutar eventos de atualização do chat
+    const handleUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<number>;
+      setWhatsappUnreadCount(customEvent.detail || 0);
+    };
+    window.addEventListener("whatsapp-unread-update", handleUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("whatsapp-unread-update", handleUpdate);
+    };
+  }, [hasWhatsAppSimple]);
+
+  const navItems: { href: string; label: string; icon: React.ReactNode; roles?: string[]; badge?: number }[] = [
     { href: "/dashboard", label: "Início", icon: <LayoutDashboard className="h-4 w-4" /> },
     { href: "/dashboard/agenda", label: "Agenda", icon: <Calendar className="h-4 w-4" /> },
     { href: "/dashboard/pacientes", label: "Pacientes", icon: <Users className="h-4 w-4" /> },
     { href: "/dashboard/formularios", label: "Formulários", icon: <FileText className="h-4 w-4" /> },
     { href: "/dashboard/mensagens", label: "Mensagens", icon: <Mail className="h-4 w-4" />, roles: ["admin"] },
-    ...(hasWhatsAppSimple ? [{ href: "/dashboard/whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" /> }] : []),
+    ...(hasWhatsAppSimple ? [{ href: "/dashboard/whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" />, badge: whatsappUnreadCount }] : []),
   ];
 
   return (
@@ -97,19 +130,33 @@ export function DashboardNav({
         {navItems.map((item) => {
           const show = !item.roles || item.roles.includes(profile?.role ?? "");
           if (!show) return null;
+          const hasBadge = item.badge !== undefined && item.badge > 0;
           return (
             <Link key={item.href} href={item.href}>
               <Button
                 variant={pathname === item.href ? "secondary" : "ghost"}
                 className={cn(
-                  "w-full justify-start",
+                  "w-full justify-start relative",
                   pathname === item.href && "bg-primary/10 text-primary",
-                  isCollapsed && "justify-center px-0"
+                  isCollapsed && "justify-center px-0",
+                  isCollapsed && hasBadge && "text-destructive"
                 )}
                 title={isCollapsed ? item.label : undefined}
               >
                 {item.icon}
-                {!isCollapsed && <span className="ml-2">{item.label}</span>}
+                {!isCollapsed && (
+                  <>
+                    <span className="ml-2">{item.label}</span>
+                    {hasBadge && (
+                      <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-[#25D366] text-white text-xs font-semibold flex items-center justify-center">
+                        {item.badge! > 99 ? "99+" : item.badge}
+                      </span>
+                    )}
+                  </>
+                )}
+                {isCollapsed && hasBadge && (
+                  <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-destructive border-2 border-background" />
+                )}
               </Button>
             </Link>
           );
