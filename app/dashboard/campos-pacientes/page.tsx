@@ -17,7 +17,7 @@ export default async function CamposPacientesPage() {
     redirect("/dashboard");
   }
 
-  const [fieldsRes, typesRes, proceduresRes] = await Promise.all([
+  const [fieldsRes, typesRes, proceduresRes, doctorsRes, doctorProceduresRes] = await Promise.all([
     supabase
       .from("patient_custom_fields")
       .select("id, field_name, field_type, field_label, required, options, display_order, include_in_public_form")
@@ -33,6 +33,16 @@ export default async function CamposPacientesPage() {
       .select("id, name, recommendations, display_order")
       .eq("clinic_id", profile.clinic_id)
       .order("display_order", { ascending: true }),
+    supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("clinic_id", profile.clinic_id)
+      .eq("role", "medico")
+      .order("full_name"),
+    supabase
+      .from("doctor_procedures")
+      .select("procedure_id, doctor_id")
+      .eq("clinic_id", profile.clinic_id),
   ]);
 
   const fields = fieldsRes.data ?? [];
@@ -48,11 +58,24 @@ export default async function CamposPacientesPage() {
     display_order: p.display_order ?? 0,
   }));
 
+  const doctors = (doctorsRes.data ?? []).map((d) => ({
+    id: d.id,
+    full_name: d.full_name ?? "",
+  }));
+
+  const doctorIdsByProcedureId: Record<string, string[]> = {};
+  for (const row of doctorProceduresRes.data ?? []) {
+    if (!doctorIdsByProcedureId[row.procedure_id]) doctorIdsByProcedureId[row.procedure_id] = [];
+    doctorIdsByProcedureId[row.procedure_id].push(row.doctor_id);
+  }
+
   return (
     <CamposProcedimentosClient
       initialFields={fields}
       appointmentTypes={appointmentTypes}
       procedures={procedures}
+      doctors={doctors}
+      doctorIdsByProcedureId={doctorIdsByProcedureId}
     />
   );
 }

@@ -16,10 +16,11 @@ import {
   createProcedure,
   updateProcedure,
   deleteProcedure,
+  syncDoctorProcedures,
   type ProcedureRow,
 } from "./actions";
 import { CamposPacientesClient, type CustomFieldRow } from "./campos-pacientes-client";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Check, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type AppointmentTypeRow = {
@@ -30,14 +31,20 @@ type AppointmentTypeRow = {
 
 type Tab = "paciente" | "tipos" | "procedimentos";
 
+type DoctorOption = { id: string; full_name: string };
+
 export function CamposProcedimentosClient({
   initialFields,
   appointmentTypes,
   procedures,
+  doctors,
+  doctorIdsByProcedureId,
 }: {
   initialFields: CustomFieldRow[];
   appointmentTypes: AppointmentTypeRow[];
   procedures: ProcedureRow[];
+  doctors: DoctorOption[];
+  doctorIdsByProcedureId: Record<string, string[]>;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("paciente");
@@ -87,6 +94,8 @@ export function CamposProcedimentosClient({
         {activeTab === "procedimentos" && (
           <ProcedimentosSection
             initialProcedures={procedures}
+            doctors={doctors}
+            doctorIdsByProcedureId={doctorIdsByProcedureId}
             onMutate={() => router.refresh()}
           />
         )}
@@ -281,9 +290,13 @@ function TiposConsultaSection({
 
 function ProcedimentosSection({
   initialProcedures,
+  doctors,
+  doctorIdsByProcedureId,
   onMutate,
 }: {
   initialProcedures: ProcedureRow[];
+  doctors: DoctorOption[];
+  doctorIdsByProcedureId: Record<string, string[]>;
   onMutate: () => void;
 }) {
   const [procedures, setProcedures] = useState<ProcedureRow[]>(initialProcedures);
@@ -296,6 +309,7 @@ function ProcedimentosSection({
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [recommendations, setRecommendations] = useState("");
+  const [selectedDoctorIds, setSelectedDoctorIds] = useState<Set<string>>(new Set());
 
   const showForm = isNew || editingId !== null;
 
@@ -304,6 +318,7 @@ function ProcedimentosSection({
     setIsNew(true);
     setName("");
     setRecommendations("");
+    setSelectedDoctorIds(new Set());
     setError(null);
   }
 
@@ -312,6 +327,7 @@ function ProcedimentosSection({
     setEditingId(p.id);
     setName(p.name);
     setRecommendations(p.recommendations || "");
+    setSelectedDoctorIds(new Set(doctorIdsByProcedureId[p.id] ?? []));
     setError(null);
   }
 
@@ -320,6 +336,15 @@ function ProcedimentosSection({
     setIsNew(false);
     setError(null);
   }
+
+  const toggleDoctor = (doctorId: string) => {
+    setSelectedDoctorIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(doctorId)) next.delete(doctorId);
+      else next.add(doctorId);
+      return next;
+    });
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -331,6 +356,11 @@ function ProcedimentosSection({
         setError(res.error);
         setLoading(false);
         return;
+      }
+      const procedureId = (res as { procedureId?: string }).procedureId;
+      if (procedureId && selectedDoctorIds.size > 0) {
+        const syncRes = await syncDoctorProcedures(procedureId, [...selectedDoctorIds]);
+        if (syncRes.error) setError(syncRes.error);
       }
       cancelForm();
       onMutate();
@@ -344,6 +374,12 @@ function ProcedimentosSection({
       });
       if (res.error) {
         setError(res.error);
+        setLoading(false);
+        return;
+      }
+      const syncRes = await syncDoctorProcedures(editingId, [...selectedDoctorIds]);
+      if (syncRes.error) {
+        setError(syncRes.error);
         setLoading(false);
         return;
       }
@@ -411,6 +447,37 @@ function ProcedimentosSection({
                 Será usado em e-mails e mensagens; ao agendar com este procedimento, o campo de recomendações já virá preenchido.
               </p>
             </div>
+            {doctors.length > 0 && (
+              <div className="space-y-2">
+                <Label>Médicos que realizam este procedimento</Label>
+                <p className="text-xs text-muted-foreground">
+                  Usado no roteamento do chatbot WhatsApp: ao escolher "Agendar" e este procedimento, a conversa será encaminhada às secretárias desses médicos.
+                </p>
+                <ul className="flex flex-wrap gap-2 mt-2">
+                  {doctors.map((d) => (
+                    <li key={d.id}>
+                      <button
+                        type="button"
+                        onClick={() => toggleDoctor(d.id)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border transition-colors",
+                          selectedDoctorIds.has(d.id)
+                            ? "bg-primary/10 border-primary text-primary"
+                            : "bg-muted/30 border-border text-muted-foreground hover:border-primary/50"
+                        )}
+                      >
+                        {selectedDoctorIds.has(d.id) ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <UserCircle className="h-4 w-4" />
+                        )}
+                        {d.full_name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="flex items-center justify-end gap-2 pt-2 border-t">
               <Button type="button" variant="ghost" onClick={cancelForm}>
                 Cancelar
@@ -429,7 +496,10 @@ function ProcedimentosSection({
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {procedures.map((p) => (
+            {procedures.map((p) => {
+              const linkedDoctorIds = doctorIdsByProcedureId[p.id] ?? [];
+              const linkedDoctors = doctors.filter((d) => linkedDoctorIds.includes(d.id));
+              return (
               <li
                 key={p.id}
                 className={cn(
@@ -439,6 +509,11 @@ function ProcedimentosSection({
               >
                 <div>
                   <strong>{p.name}</strong>
+                  {linkedDoctors.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Médicos: {linkedDoctors.map((d) => d.full_name).join(", ")}
+                    </p>
+                  )}
                   {p.recommendations && (
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                       {p.recommendations}
@@ -454,7 +529,8 @@ function ProcedimentosSection({
                   <Pencil className="h-4 w-4" />
                 </Button>
               </li>
-            ))}
+            );
+            })}
           </ul>
         )}
       </CardContent>

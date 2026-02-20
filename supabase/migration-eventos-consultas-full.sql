@@ -34,6 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_clinic_event_config_clinic ON public.clinic_event
 CREATE INDEX IF NOT EXISTS idx_clinic_event_config_event ON public.clinic_event_config(event_code);
 
 ALTER TABLE public.clinic_event_config ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "clinic_event_config_clinic_access" ON public.clinic_event_config;
 CREATE POLICY "clinic_event_config_clinic_access"
   ON public.clinic_event_config FOR ALL
   USING (clinic_id IN (SELECT clinic_id FROM public.profiles WHERE id = auth.uid()));
@@ -98,6 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_secretary_doctors_clinic ON public.secretary_doct
 CREATE INDEX IF NOT EXISTS idx_secretary_doctors_secretary ON public.secretary_doctors(secretary_id);
 
 ALTER TABLE public.secretary_doctors ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "secretary_doctors_clinic_access" ON public.secretary_doctors;
 CREATE POLICY "secretary_doctors_clinic_access"
   ON public.secretary_doctors FOR ALL
   USING (clinic_id IN (SELECT clinic_id FROM public.profiles WHERE id = auth.uid()));
@@ -149,6 +151,10 @@ CREATE TRIGGER on_clinic_created_default_appointment_types
   EXECUTE FUNCTION public.ensure_default_appointment_types();
 
 -- ========== 7. FUNÇÕES: get_pending_events (com system_enabled), get_all_events, get_completed_events ==========
+
+DROP FUNCTION IF EXISTS public.get_pending_events(uuid, uuid, text, integer, integer);
+DROP FUNCTION IF EXISTS public.get_all_events(uuid, uuid, text, integer, integer);
+DROP FUNCTION IF EXISTS public.get_completed_events(uuid, uuid, text, integer, integer);
 
 -- Pendentes: status = pending E system_enabled = true para aquele evento
 CREATE OR REPLACE FUNCTION public.get_pending_events(

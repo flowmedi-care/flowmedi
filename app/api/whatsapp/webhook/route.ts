@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { setLastWebhookPayload } from "@/lib/whatsapp-webhook-debug";
+import {
+  applyRoutingOnNewConversation,
+  handleChatbotMessage,
+  sendChatbotReply,
+} from "@/lib/whatsapp-routing";
 
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
@@ -111,6 +116,7 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
 
           let conversationId: string;
+          let isNewConversation = false;
           if (conversationRes.data?.id) {
             conversationId = conversationRes.data.id;
           } else {
@@ -125,17 +131,34 @@ export async function POST(request: NextRequest) {
             }
             if (!insertConv.data?.id) continue;
             conversationId = insertConv.data.id;
+            isNewConversation = true;
+          }
+
+          if (isNewConversation) {
+            await applyRoutingOnNewConversation(supabase, clinicId, conversationId);
           }
 
           const insertMsg = await supabase.from("whatsapp_messages").insert({
             conversation_id: conversationId,
+            clinic_id: clinicId,
             direction: "inbound",
-            body: bodyText,
+            body: bodyText ?? "",
             sent_at: new Date().toISOString(),
-          });
+          } as Record<string, unknown>);
 
           if (insertMsg.error) {
             console.error("[WhatsApp Webhook] Erro ao inserir mensagem:", insertMsg.error);
+          }
+
+          const chatbotResult = await handleChatbotMessage(
+            supabase,
+            clinicId,
+            conversationId,
+            from,
+            bodyText ?? ""
+          );
+          if (chatbotResult.reply) {
+            await sendChatbotReply(supabase, clinicId, conversationId, from, chatbotResult.reply);
           }
         }
       }

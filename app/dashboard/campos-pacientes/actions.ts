@@ -174,15 +174,15 @@ export async function createProcedure(name: string, recommendations: string | nu
 
   const display_order = (maxOrder?.display_order ?? -1) + 1;
 
-  const { error } = await supabase.from("procedures").insert({
+  const { data: inserted, error } = await supabase.from("procedures").insert({
     clinic_id: profile.clinic_id,
     name: name.trim(),
     recommendations: recommendations?.trim() || null,
     display_order,
-  });
+  }).select("id").single();
   if (error) return { error: error.message };
   revalidatePath("/dashboard/campos-pacientes");
-  return { error: null };
+  return { error: null, procedureId: inserted?.id };
 }
 
 export async function updateProcedure(
@@ -211,6 +211,40 @@ export async function updateProcedure(
     .eq("id", id)
     .eq("clinic_id", profile.clinic_id);
   if (error) return { error: error.message };
+  revalidatePath("/dashboard/campos-pacientes");
+  return { error: null };
+}
+
+export async function syncDoctorProcedures(procedureId: string, doctorIds: string[]) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") return { error: "Apenas administradores podem editar procedimentos." };
+  if (!profile.clinic_id) return { error: "Clínica não encontrada." };
+
+  const { error: delErr } = await supabase
+    .from("doctor_procedures")
+    .delete()
+    .eq("clinic_id", profile.clinic_id)
+    .eq("procedure_id", procedureId);
+  if (delErr) return { error: delErr.message };
+
+  if (doctorIds.length > 0) {
+    const toInsert = doctorIds.map((doctor_id) => ({
+      clinic_id: profile.clinic_id,
+      procedure_id: procedureId,
+      doctor_id,
+    }));
+    const { error: insErr } = await supabase.from("doctor_procedures").insert(toInsert);
+    if (insErr) return { error: insErr.message };
+  }
   revalidatePath("/dashboard/campos-pacientes");
   return { error: null };
 }
