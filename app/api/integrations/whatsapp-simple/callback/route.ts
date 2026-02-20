@@ -19,6 +19,13 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get("state");
     const error = searchParams.get("error");
 
+    console.log("[WhatsApp OAuth] 4️⃣ Callback recebido:", {
+      hasCode: !!code,
+      codeLength: code?.length ?? 0,
+      hasState: !!state,
+      error: error ?? null,
+    });
+
     // Verificar se houve erro no OAuth
     if (error) {
       return NextResponse.redirect(
@@ -65,8 +72,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Trocar código por access token
-    const tokenUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
+    // Trocar código por access token (v19 conforme doc Meta)
+    const tokenUrl = new URL("https://graph.facebook.com/v19.0/oauth/access_token");
     tokenUrl.searchParams.set("client_id", appId);
     tokenUrl.searchParams.set("client_secret", appSecret);
     tokenUrl.searchParams.set("redirect_uri", redirectUri);
@@ -74,6 +81,13 @@ export async function GET(request: NextRequest) {
 
     const tokenResponse = await fetch(tokenUrl.toString());
     const tokenData = await tokenResponse.json();
+
+    console.log("[WhatsApp OAuth] 5️⃣ Token exchange:", {
+      status: tokenResponse.status,
+      hasAccessToken: !!tokenData.access_token,
+      expiresIn: tokenData.expires_in ?? null,
+      error: tokenData.error?.message ?? null,
+    });
 
     if (!tokenResponse.ok || !tokenData.access_token) {
       return NextResponse.redirect(
@@ -84,10 +98,15 @@ export async function GET(request: NextRequest) {
     const accessToken = tokenData.access_token;
     const expiresIn = tokenData.expires_in || null;
 
+    console.log("[WhatsApp OAuth] ✅ User Access Token obtido (truncado):", accessToken?.slice(0, 20) + "...");
+
     // Obter informações do usuário/perfil
-    const userInfoUrl = `https://graph.facebook.com/v21.0/me?access_token=${accessToken}&fields=id,name`;
-    const userInfoResponse = await fetch(userInfoUrl);
+    const userInfoResponse = await fetch(
+      "https://graph.facebook.com/v19.0/me?fields=id,name",
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
     const userInfo = await userInfoResponse.json();
+    console.log("[WhatsApp OAuth] User info:", { id: userInfo.id, name: userInfo.name, error: userInfo.error?.message });
 
     // Obter WABA e Phone Number ID — seguir doc Meta:
     // 1) GET me/whatsapp_business_accounts → waba_id
@@ -102,32 +121,61 @@ export async function GET(request: NextRequest) {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const wabaData = await wabaResponse.json();
+
+      console.log("[WhatsApp OAuth] 6️⃣ me/whatsapp_business_accounts:", {
+        status: wabaResponse.status,
+        hasData: !!wabaData.data,
+        dataLength: wabaData.data?.length ?? 0,
+        rawResponse: JSON.stringify(wabaData).slice(0, 500),
+        error: wabaData.error?.message ?? null,
+      });
       
       if (wabaData.data && wabaData.data.length > 0) {
         // Pegar o id do primeiro WABA
         wabaId = wabaData.data[0].id;
+        console.log("[WhatsApp OAuth] ✅ WABA encontrado:", wabaId, "nome:", wabaData.data[0].name);
+
         // 2️⃣ Pegar os números dessa WABA
         const phoneUrl = `https://graph.facebook.com/v19.0/${wabaId}/phone_numbers`;
         const phoneResponse = await fetch(phoneUrl, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         const phoneData = await phoneResponse.json();
+
+        console.log("[WhatsApp OAuth] 7️⃣ WABA/phone_numbers:", {
+          status: phoneResponse.status,
+          hasData: !!phoneData.data,
+          dataLength: phoneData.data?.length ?? 0,
+          rawResponse: JSON.stringify(phoneData).slice(0, 500),
+          error: phoneData.error?.message ?? null,
+        });
+
         if (phoneData.data && phoneData.data.length > 0) {
           // O id aqui é o Phone Number ID usado para enviar mensagens
           phoneNumberId = phoneData.data[0].id;
+          console.log("[WhatsApp OAuth] ✅ Phone Number ID encontrado:", phoneNumberId, "display:", phoneData.data[0].display_phone_number);
+        } else {
+          console.log("[WhatsApp OAuth] ⚠️ WABA sem números, tentando fallbacks...");
         }
+      } else {
+        console.log("[WhatsApp OAuth] ⚠️ me/whatsapp_business_accounts retornou vazio, tentando fallbacks...");
       }
 
       // Fallback: se não encontrou, tentar /me/owned_whatsapp_business_accounts
       if (!phoneNumberId) {
-        const ownedWabaUrl = `https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts?access_token=${accessToken}`;
-        const ownedWabaResponse = await fetch(ownedWabaUrl);
+        console.log("[WhatsApp OAuth] Fallback 2: tentando /me/owned_whatsapp_business_accounts");
+        const ownedWabaUrl = `https://graph.facebook.com/v19.0/me/owned_whatsapp_business_accounts`;
+        const ownedWabaResponse = await fetch(ownedWabaUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
         const ownedWabaData = await ownedWabaResponse.json();
         
         if (ownedWabaData.data && ownedWabaData.data.length > 0) {
           wabaId = ownedWabaData.data[0].id;
-          const phoneUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
-          const phoneResponse = await fetch(phoneUrl);
+          const phoneUrl = `https://graph.facebook.com/v19.0/${wabaId}/phone_numbers`;
+          const phoneResponse = await fetch(phoneUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
           const phoneData = await phoneResponse.json();
           
           if (phoneData.data && phoneData.data.length > 0) {
@@ -138,8 +186,11 @@ export async function GET(request: NextRequest) {
 
       // Método 3: Buscar via app_id (para números de teste)
       if (!phoneNumberId && appId) {
-        const testNumbersUrl = `https://graph.facebook.com/v21.0/${appId}/phone_numbers?access_token=${accessToken}`;
-        const testNumbersResponse = await fetch(testNumbersUrl);
+        console.log("[WhatsApp OAuth] Fallback 3: tentando app_id/phone_numbers");
+        const testNumbersUrl = `https://graph.facebook.com/v19.0/${appId}/phone_numbers`;
+        const testNumbersResponse = await fetch(testNumbersUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
         const testNumbersData = await testNumbersResponse.json();
         if (testNumbersData.data && testNumbersData.data.length > 0) {
           phoneNumberId = testNumbersData.data[0].id;
@@ -148,14 +199,19 @@ export async function GET(request: NextRequest) {
 
       // Método 4: Buscar via /me/accounts (pode retornar WABAs)
       if (!phoneNumberId) {
-        const accountsUrl = `https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`;
-        const accountsResponse = await fetch(accountsUrl);
+        console.log("[WhatsApp OAuth] Fallback 4: tentando /me/accounts");
+        const accountsUrl = `https://graph.facebook.com/v19.0/me/accounts`;
+        const accountsResponse = await fetch(accountsUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
         const accountsData = await accountsResponse.json();
         if (accountsData.data && accountsData.data.length > 0) {
           for (const account of accountsData.data) {
             try {
-              const accountPhoneUrl = `https://graph.facebook.com/v21.0/${account.id}/phone_numbers?access_token=${accessToken}`;
-              const accountPhoneResponse = await fetch(accountPhoneUrl);
+              const accountPhoneUrl = `https://graph.facebook.com/v19.0/${account.id}/phone_numbers`;
+              const accountPhoneResponse = await fetch(accountPhoneUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
               const accountPhoneData = await accountPhoneResponse.json();
               if (accountPhoneData.data && accountPhoneData.data.length > 0) {
                 phoneNumberId = accountPhoneData.data[0].id;
@@ -169,8 +225,14 @@ export async function GET(request: NextRequest) {
         }
       }
     } catch (error) {
-      console.warn("Erro ao obter informações do WABA:", error);
+      console.error("[WhatsApp OAuth] ❌ Erro ao obter WABA/phone_numbers:", error);
     }
+
+    console.log("[WhatsApp OAuth] 8️⃣ Resumo antes de salvar:", {
+      phoneNumberId: phoneNumberId ?? "null",
+      wabaId: wabaId ?? "null",
+      hasAccessToken: !!accessToken,
+    });
 
     // Inscrever o app no WABA para webhooks
     if (wabaId && accessToken) {
@@ -223,10 +285,18 @@ export async function GET(request: NextRequest) {
       );
 
     if (upsertError) {
+      console.error("[WhatsApp OAuth] ❌ Erro ao salvar no banco:", upsertError);
       return NextResponse.redirect(
         new URL(`/dashboard/configuracoes?error=save_failed`, request.url)
       );
     }
+
+    console.log("[WhatsApp OAuth] ✅ Integração salva:", {
+      clinicId: stateData.clinicId,
+      phoneNumberId: phoneNumberId ?? "null",
+      wabaId: wabaId ?? "null",
+      status: integrationStatus,
+    });
 
     // Redirecionar para página de configurações com sucesso
     const redirectUrl = new URL("/dashboard/configuracoes", request.url);

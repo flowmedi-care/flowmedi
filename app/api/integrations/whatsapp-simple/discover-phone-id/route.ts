@@ -29,6 +29,8 @@ export async function POST() {
     }
 
     const accessToken = (integration.credentials as { access_token?: string })?.access_token;
+    console.log("[WhatsApp OAuth] Discover: token obtido?", !!accessToken, "clinicId:", admin.clinicId);
+
     if (!accessToken) {
       return NextResponse.json(
         { error: "Token de acesso não encontrado. Reconecte o WhatsApp." },
@@ -42,17 +44,22 @@ export async function POST() {
 
     const bearer = { Authorization: `Bearer ${accessToken}` };
 
-    // 1️⃣ Método principal: /me/whatsapp_business_accounts (igual ao callback OAuth)
+    // 1️⃣ Método principal: /me/whatsapp_business_accounts (igual ao callback OAuth, v19 conforme doc Meta)
     try {
       const wabaRes = await fetch(
-        "https://graph.facebook.com/v21.0/me/whatsapp_business_accounts",
+        "https://graph.facebook.com/v19.0/me/whatsapp_business_accounts",
         { headers: bearer }
       );
       const wabaData = await wabaRes.json();
+      console.log("[WhatsApp OAuth] Discover: me/whatsapp_business_accounts", {
+        status: wabaRes.status,
+        hasData: !!wabaData.data?.length,
+        error: wabaData.error?.message ?? null,
+      });
       if (wabaData.data?.length) {
         wabaId = wabaData.data[0].id;
         const phoneRes = await fetch(
-          `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`,
+          `https://graph.facebook.com/v19.0/${wabaId}/phone_numbers`,
           { headers: bearer }
         );
         const phoneData = await phoneRes.json();
@@ -68,14 +75,14 @@ export async function POST() {
     if (!phoneNumberId) {
       try {
         const ownedRes = await fetch(
-          "https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts",
+          "https://graph.facebook.com/v19.0/me/owned_whatsapp_business_accounts",
           { headers: bearer }
         );
         const ownedData = await ownedRes.json();
         if (ownedData.data?.length) {
           wabaId = ownedData.data[0].id;
           const phoneRes = await fetch(
-            `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`,
+            `https://graph.facebook.com/v19.0/${wabaId}/phone_numbers`,
             { headers: bearer }
           );
           const phoneData = await phoneRes.json();
@@ -92,7 +99,7 @@ export async function POST() {
     if (!phoneNumberId && appId) {
       try {
         const testRes = await fetch(
-          `https://graph.facebook.com/v21.0/${appId}/phone_numbers`,
+          `https://graph.facebook.com/v19.0/${appId}/phone_numbers`,
           { headers: bearer }
         );
         const testData = await testRes.json();
@@ -108,14 +115,14 @@ export async function POST() {
     if (!phoneNumberId) {
       try {
         const accountsRes = await fetch(
-          "https://graph.facebook.com/v21.0/me/accounts",
+          "https://graph.facebook.com/v19.0/me/accounts",
           { headers: bearer }
         );
         const accountsData = await accountsRes.json();
         if (accountsData.data?.length) {
           for (const account of accountsData.data) {
             const phoneRes = await fetch(
-              `https://graph.facebook.com/v21.0/${account.id}/phone_numbers`,
+              `https://graph.facebook.com/v19.0/${account.id}/phone_numbers`,
               { headers: bearer }
             );
             const phoneData = await phoneRes.json();
@@ -132,11 +139,14 @@ export async function POST() {
     }
 
     if (!phoneNumberId) {
+      console.log("[WhatsApp OAuth] Discover: nenhum phone_number_id encontrado após todos os métodos");
       return NextResponse.json(
         { error: "Não foi possível encontrar o Phone Number ID automaticamente. Cole manualmente abaixo." },
         { status: 404 }
       );
     }
+
+    console.log("[WhatsApp OAuth] Discover: phone_number_id encontrado:", phoneNumberId);
 
     const currentMetadata = (integration.metadata as Record<string, unknown>) || {};
     const updatedMetadata = {
