@@ -74,7 +74,11 @@ export async function processMessageEvent(
       
       if (patient?.phone) {
         const { normalizeWhatsAppPhone } = await import("@/lib/whatsapp-utils");
-        const normalizedPhone = normalizeWhatsAppPhone(patient.phone.replace(/\D/g, ""));
+        // Normalizar telefone do paciente da mesma forma que no chat
+        const patientPhoneDigits = patient.phone.replace(/\D/g, "");
+        const normalizedPhone = normalizeWhatsAppPhone(patientPhoneDigits);
+        
+        // Buscar conversa com número normalizado
         const { data: conversation } = await supabase
           .from("whatsapp_conversations")
           .select("status")
@@ -84,9 +88,12 @@ export async function processMessageEvent(
         
         whatsappTicketStatus = (conversation?.status as "open" | "closed" | "completed") || null;
         
-        // Se send_only_when_ticket_open=true e ticket não está aberto, não enviar
+        // Lógica correta:
+        // - Se ticket está aberto: sempre permitir envio (texto livre)
+        // - Se ticket está fechado/completed + send_only_when_ticket_open=true: não enviar
+        // - Se ticket está fechado/completed + send_only_when_ticket_open=false: permitir (vai usar template)
         const sendOnlyWhenOpen = Boolean(setting.send_only_when_ticket_open);
-        if (sendOnlyWhenOpen && whatsappTicketStatus !== "open") {
+        if (whatsappTicketStatus && whatsappTicketStatus !== "open" && sendOnlyWhenOpen) {
           return {
             success: false,
             error: "Ticket não está aberto. Mensagem não será enviada.",
@@ -410,8 +417,12 @@ export async function sendMessage(
       }
 
       // Decidir entre texto livre ou template baseado no status do ticket
-      const useTextMessage = whatsappTicketStatus === "open";
-      const canUseTemplate = !useTextMessage && !sendOnlyWhenTicketOpen;
+      // Lógica:
+      // - Ticket aberto OU sem conversa (null): sempre usar texto livre
+      // - Ticket fechado/completed + checkbox desmarcada: tentar template Meta
+      // - Ticket fechado/completed + checkbox marcada: não deveria chegar aqui (já bloqueado acima)
+      const useTextMessage = !whatsappTicketStatus || whatsappTicketStatus === "open";
+      const canUseTemplate = whatsappTicketStatus && whatsappTicketStatus !== "open" && !sendOnlyWhenTicketOpen;
       
       // Se ticket fechado e pode usar template, tentar template Meta
       // Por enquanto, se não houver template Meta configurado, tentar texto mesmo

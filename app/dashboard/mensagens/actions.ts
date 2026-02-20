@@ -821,7 +821,11 @@ export async function approvePendingMessage(
     
     if (patient?.phone) {
       const { normalizeWhatsAppPhone } = await import("@/lib/whatsapp-utils");
-      const normalizedPhone = normalizeWhatsAppPhone(patient.phone.replace(/\D/g, ""));
+      // Normalizar telefone do paciente da mesma forma que no chat
+      const patientPhoneDigits = patient.phone.replace(/\D/g, "");
+      const normalizedPhone = normalizeWhatsAppPhone(patientPhoneDigits);
+      
+      // Buscar conversa com número normalizado
       const { data: conversation } = await supabase
         .from("whatsapp_conversations")
         .select("status")
@@ -830,6 +834,11 @@ export async function approvePendingMessage(
         .maybeSingle();
       
       whatsappTicketStatus = (conversation?.status as "open" | "closed" | "completed") || null;
+      
+      // Se ticket fechado/completed e checkbox marcada, não enviar
+      if (whatsappTicketStatus && whatsappTicketStatus !== "open" && sendOnlyWhenTicketOpen) {
+        return { error: "Ticket não está aberto. Mensagem não será enviada." };
+      }
     }
   }
 
