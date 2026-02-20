@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MessageSquare, Plus, Send, Phone, Info, Trash2 } from "lucide-react";
+import { MessageSquare, Plus, Send, Phone, Info, Trash2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppContactSidebar, type Patient } from "./whatsapp-contact-sidebar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -13,6 +13,8 @@ type Conversation = {
   id: string;
   phone_number: string;
   contact_name: string | null;
+  status: "open" | "closed" | "completed";
+  last_inbound_message_at: string | null;
   created_at: string;
 };
 
@@ -102,6 +104,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
+  const [conversationStatusFilter, setConversationStatusFilter] = useState<"open" | "closed" | null>(null);
+  const [completingConversationId, setCompletingConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottomRef = useRef(false);
 
@@ -156,7 +160,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const loadConversations = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/whatsapp/conversations");
+      const url = conversationStatusFilter 
+        ? `/api/whatsapp/conversations?status=${conversationStatusFilter}`
+        : "/api/whatsapp/conversations";
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setConversations(data);
@@ -180,6 +187,47 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     }
   };
 
+  const handleCompleteConversation = async (conversationId: string) => {
+    setCompletingConversationId(conversationId);
+    try {
+      const res = await fetch("/api/whatsapp/complete-conversation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      });
+      if (res.ok) {
+        await loadConversations();
+        if (selectedId === conversationId) {
+          setSelectedId(null);
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || "Erro ao concluir conversa");
+      }
+    } catch (error) {
+      alert("Erro ao concluir conversa");
+      console.error(error);
+    } finally {
+      setCompletingConversationId(null);
+    }
+  };
+
+  // Verificar e fechar conversas expiradas periodicamente
+  useEffect(() => {
+    const checkExpired = async () => {
+      try {
+        await fetch("/api/whatsapp/close-expired", { method: "POST" });
+        await loadConversations();
+      } catch {
+        // Ignorar erro
+      }
+    };
+    checkExpired();
+    const interval = setInterval(checkExpired, 60000); // Verificar a cada minuto
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const loadMessages = (showLoading = false, scrollToBottom = false) => {
     if (!selectedId) return;
     if (showLoading) setLoadingMessages(true);
@@ -198,7 +246,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
 
   useEffect(() => {
     loadConversations();
-  }, []);
+  }, [conversationStatusFilter]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -264,6 +312,13 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
 
   const handleSendInChat = async () => {
     if (!selectedConversation || !replyText.trim()) return;
+    
+    // Verificar se pode enviar texto livre
+    if (selectedConversation.status !== "open") {
+      alert(`Esta conversa está ${selectedConversation.status === "closed" ? "fechada" : "concluída"}. Apenas mensagens template são permitidas.`);
+      return;
+    }
+
     const text = replyText.trim();
     setReplyText("");
     setSendingReply(true);
@@ -289,8 +344,14 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       if (res.ok) {
         loadMessages();
         loadUnreadCounts();
+        await loadConversations(); // Recarregar para atualizar status se necessário
       } else {
+        const data = await res.json();
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        if (data.status && data.status !== "open") {
+          alert(data.error || "Não é possível enviar mensagem de texto livre nesta conversa.");
+          await loadConversations(); // Recarregar para atualizar status
+        }
       }
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -323,6 +384,45 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
             >
               <Plus className="h-5 w-5" />
             </Button>
+          </div>
+          {/* Abas de filtro */}
+          <div className="flex gap-0 border-b border-border px-2">
+            <button
+              type="button"
+              onClick={() => setConversationStatusFilter(null)}
+              className={cn(
+                "flex-1 px-3 py-2 text-xs font-medium border-b-2 transition-colors",
+                conversationStatusFilter === null
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Todas
+            </button>
+            <button
+              type="button"
+              onClick={() => setConversationStatusFilter("open")}
+              className={cn(
+                "flex-1 px-3 py-2 text-xs font-medium border-b-2 transition-colors",
+                conversationStatusFilter === "open"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Abertas
+            </button>
+            <button
+              type="button"
+              onClick={() => setConversationStatusFilter("closed")}
+              className={cn(
+                "flex-1 px-3 py-2 text-xs font-medium border-b-2 transition-colors",
+                conversationStatusFilter === "closed"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Fechadas
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
@@ -396,6 +496,18 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                 >
                   <Info className="h-5 w-5" />
                 </Button>
+                {selectedConversation && selectedConversation.status !== "completed" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 h-9 w-9 text-green-600 hover:text-green-700"
+                    onClick={() => handleCompleteConversation(selectedConversation.id)}
+                    disabled={completingConversationId === selectedId}
+                    title="Concluir conversa"
+                  >
+                    <Check className="h-5 w-5" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -503,27 +615,37 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                 )}
                 <div ref={messagesEndRef} />
               </div>
-              <div className="p-3 border-t border-border flex gap-2 items-center bg-card">
-                <Input
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendInChat();
-                    }
-                  }}
-                  placeholder="Digite uma mensagem..."
-                  className="min-h-11 flex-1"
-                />
-                <Button
-                  onClick={handleSendInChat}
-                  disabled={sendingReply || !replyText.trim()}
-                  size="icon"
-                  className="rounded-lg h-11 w-11 shrink-0 bg-[#25D366] hover:bg-[#20bd5a] text-white"
-                >
-                  <Send className="h-5 w-5" />
-                </Button>
+              <div className="p-3 border-t border-border flex flex-col gap-2 bg-card">
+                {selectedConversation && selectedConversation.status !== "open" && (
+                  <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 px-3 py-2 rounded-md">
+                    {selectedConversation.status === "closed" 
+                      ? "⚠️ Esta conversa está fechada. Apenas mensagens template são permitidas."
+                      : "✅ Esta conversa está concluída. Apenas mensagens template são permitidas."}
+                  </div>
+                )}
+                <div className="flex gap-2 items-center">
+                  <Input
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendInChat();
+                      }
+                    }}
+                    placeholder={selectedConversation?.status === "open" ? "Digite uma mensagem..." : "Apenas templates permitidos"}
+                    className="min-h-11 flex-1"
+                    disabled={selectedConversation?.status !== "open"}
+                  />
+                  <Button
+                    onClick={handleSendInChat}
+                    disabled={sendingReply || !replyText.trim() || selectedConversation?.status !== "open"}
+                    size="icon"
+                    className="rounded-lg h-11 w-11 shrink-0 bg-[#25D366] hover:bg-[#20bd5a] text-white disabled:opacity-50"
+                  >
+                    <Send className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
             </>
           ) : (

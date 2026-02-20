@@ -176,30 +176,40 @@ export async function POST(request: NextRequest) {
 
           const conversationRes = await supabase
             .from("whatsapp_conversations")
-            .select("id, contact_name")
+            .select("id, contact_name, status")
             .eq("clinic_id", clinicId)
             .eq("phone_number", from)
             .maybeSingle();
 
+          const now = new Date().toISOString();
           let conversationId: string;
           if (conversationRes.data?.id) {
             conversationId = conversationRes.data.id;
-            // Atualizar nome do contato se vier no webhook (atualiza mesmo se já tiver, para manter sincronizado)
+            // Quando recebe mensagem inbound: atualizar last_inbound_message_at e reabrir se estiver fechada
+            const updateData: Record<string, unknown> = {
+              last_inbound_message_at: now,
+              status: "open", // Reabre a conversa quando paciente envia mensagem
+            };
             if (contactName) {
-              const updateResult = await supabase
-                .from("whatsapp_conversations")
-                .update({ contact_name: contactName })
-                .eq("id", conversationId);
-              if (updateResult.error) {
-                console.error("[WhatsApp Webhook] Erro ao atualizar contact_name:", updateResult.error);
-              } else {
-                console.log(`[WhatsApp Webhook] contact_name atualizado para: ${contactName}`);
-              }
+              updateData.contact_name = contactName;
+            }
+            const updateResult = await supabase
+              .from("whatsapp_conversations")
+              .update(updateData)
+              .eq("id", conversationId);
+            if (updateResult.error) {
+              console.error("[WhatsApp Webhook] Erro ao atualizar conversa:", updateResult.error);
             }
           } else {
             const insertConv = await supabase
               .from("whatsapp_conversations")
-              .insert({ clinic_id: clinicId, phone_number: from, contact_name: contactName })
+              .insert({ 
+                clinic_id: clinicId, 
+                phone_number: from, 
+                contact_name: contactName,
+                status: "open",
+                last_inbound_message_at: now
+              })
               .select("id")
               .single();
             if (insertConv.error) {

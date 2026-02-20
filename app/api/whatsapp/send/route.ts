@@ -47,10 +47,21 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: existing } = await supabase
       .from("whatsapp_conversations")
-      .select("id")
+      .select("id, status")
       .eq("clinic_id", clinicId)
       .eq("phone_number", normalizedTo)
       .maybeSingle();
+
+    // Verificar se pode enviar texto livre (só se status for "open")
+    if (existing?.status && existing.status !== "open") {
+      return NextResponse.json(
+        { 
+          error: `Conversa está ${existing.status === "closed" ? "fechada" : "concluída"}. Apenas mensagens template são permitidas.`,
+          status: existing.status
+        },
+        { status: 403 }
+      );
+    }
 
     let conversationId: string;
     if (existing?.id) {
@@ -58,7 +69,11 @@ export async function POST(request: NextRequest) {
     } else {
       const { data: inserted, error: insertErr } = await supabase
         .from("whatsapp_conversations")
-        .insert({ clinic_id: clinicId, phone_number: normalizedTo })
+        .insert({ 
+          clinic_id: clinicId, 
+          phone_number: normalizedTo,
+          status: "open"
+        })
         .select("id")
         .single();
       if (insertErr || !inserted?.id) {
