@@ -446,6 +446,45 @@ export async function sendMessage(
       return sendResult;
     }
 
+    // Persistir mensagem WhatsApp no chat para aparecer em /dashboard/whatsapp
+    if (channel === "whatsapp" && patient.phone) {
+      const { normalizeWhatsAppPhone } = await import("@/lib/whatsapp-utils");
+      const normalizedPhone = normalizeWhatsAppPhone(patient.phone.replace(/\D/g, ""));
+      const textContent = extractTextFromHtml(body);
+
+      const { data: existing } = await supabase
+        .from("whatsapp_conversations")
+        .select("id")
+        .eq("clinic_id", clinicId)
+        .eq("phone_number", normalizedPhone)
+        .maybeSingle();
+
+      let conversationId: string | null = existing?.id ?? null;
+      if (!conversationId) {
+        const { data: inserted } = await supabase
+          .from("whatsapp_conversations")
+          .insert({
+            clinic_id: clinicId,
+            phone_number: normalizedPhone,
+            status: "open",
+          })
+          .select("id")
+          .single();
+        conversationId = inserted?.id ?? null;
+      }
+
+      if (conversationId && textContent) {
+        await supabase.from("whatsapp_messages").insert({
+          conversation_id: conversationId,
+          clinic_id: clinicId,
+          direction: "outbound",
+          message_type: "text",
+          content: textContent,
+          sent_at: new Date().toISOString(),
+        } as Record<string, unknown>);
+      }
+    }
+
     // Registrar no log
     await supabase.from("message_log").insert({
       clinic_id: clinicId,
