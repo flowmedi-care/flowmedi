@@ -108,6 +108,18 @@ export async function POST(request: NextRequest) {
           if (!fromRaw) continue;
           const from = normalizeWhatsAppPhone(fromRaw);
 
+          // Tentar capturar nome do contato (pode vir em profile.name ou contacts)
+          const profile = (msg as { profile?: { name?: string } }).profile;
+          const contacts = (msg as { contacts?: Array<{ profile?: { name?: string }; name?: { formatted_name?: string } }> }).contacts;
+          let contactName: string | null = null;
+          if (profile?.name) {
+            contactName = String(profile.name);
+          } else if (contacts && contacts.length > 0) {
+            const contact = contacts[0];
+            contactName = contact.profile?.name || contact.name?.formatted_name || null;
+            if (contactName) contactName = String(contactName);
+          }
+
           let bodyText: string | null = null;
           let mediaUrl: string | null = null;
           const text = (msg as { text?: { body?: string } }).text;
@@ -157,7 +169,7 @@ export async function POST(request: NextRequest) {
 
           const conversationRes = await supabase
             .from("whatsapp_conversations")
-            .select("id")
+            .select("id, contact_name")
             .eq("clinic_id", clinicId)
             .eq("phone_number", from)
             .maybeSingle();
@@ -165,10 +177,17 @@ export async function POST(request: NextRequest) {
           let conversationId: string;
           if (conversationRes.data?.id) {
             conversationId = conversationRes.data.id;
+            // Atualizar nome do contato se não tiver e vier no webhook
+            if (contactName && !conversationRes.data.contact_name) {
+              await supabase
+                .from("whatsapp_conversations")
+                .update({ contact_name: contactName })
+                .eq("id", conversationId);
+            }
           } else {
             const insertConv = await supabase
               .from("whatsapp_conversations")
-              .insert({ clinic_id: clinicId, phone_number: from })
+              .insert({ clinic_id: clinicId, phone_number: from, contact_name: contactName })
               .select("id")
               .single();
             if (insertConv.error) {

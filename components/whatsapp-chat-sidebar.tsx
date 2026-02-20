@@ -4,13 +4,15 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MessageSquare, Plus, Send, Phone, Info } from "lucide-react";
+import { MessageSquare, Plus, Send, Phone, Info, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppContactSidebar, type Patient } from "./whatsapp-contact-sidebar";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type Conversation = {
   id: string;
   phone_number: string;
+  contact_name: string | null;
   created_at: string;
 };
 
@@ -98,6 +100,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [contactSidebarOpen, setContactSidebarOpen] = useState(false);
   const [patientByPhone, setPatientByPhone] = useState<Record<string, Patient>>({});
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
+  const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottomRef = useRef(false);
 
@@ -125,6 +129,29 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       // Ignorar erro
     }
   }, []);
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    setDeletingConversationId(conversationId);
+    try {
+      const res = await fetch(`/api/whatsapp/delete-conversation?conversationId=${encodeURIComponent(conversationId)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setSelectedId(null);
+        setMessages([]);
+        await loadConversations();
+        await loadUnreadCounts();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Erro ao excluir conversa");
+      }
+    } catch (error) {
+      alert("Erro ao excluir conversa");
+      console.error(error);
+    } finally {
+      setDeletingConversationId(null);
+    }
+  };
 
   const loadConversations = async () => {
     setLoading(true);
@@ -322,7 +349,9 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="block font-medium truncate flex-1">
-                            {patientByPhone[c.phone_number]?.full_name ?? formatPhone(c.phone_number)}
+                            {patientByPhone[c.phone_number]?.full_name ?? 
+                             c.contact_name ?? 
+                             formatPhone(c.phone_number)}
                           </span>
                           {unreadCounts[c.id] > 0 && (
                             <span className="flex-shrink-0 h-5 min-w-[20px] px-1.5 rounded-full bg-[#25D366] text-white text-xs font-semibold flex items-center justify-center">
@@ -330,7 +359,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                             </span>
                           )}
                         </div>
-                        {patientByPhone[c.phone_number] && (
+                        {(patientByPhone[c.phone_number] || c.contact_name) && (
                           <span className="block text-xs text-muted-foreground truncate">
                             {formatPhone(c.phone_number)}
                           </span>
@@ -354,6 +383,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                 <span className="font-semibold truncate flex-1 min-w-0">
                   {selectedConversation
                     ? patientByPhone[selectedConversation.phone_number]?.full_name ??
+                      selectedConversation.contact_name ??
                       formatPhone(selectedConversation.phone_number)
                     : selectedId}
                 </span>
@@ -365,6 +395,16 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   title="Informações do contato"
                 >
                   <Info className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 h-9 w-9 text-destructive hover:text-destructive"
+                  onClick={() => selectedConversation && setConversationToDelete(selectedConversation.id)}
+                  disabled={deletingConversationId === selectedId}
+                  title="Excluir conversa"
+                >
+                  <Trash2 className="h-5 w-5" />
                 </Button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 bg-muted/10 min-h-0">
@@ -505,12 +545,30 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           open={contactSidebarOpen}
           onClose={() => setContactSidebarOpen(false)}
           phoneNumber={selectedConversation.phone_number}
+          contactName={selectedConversation.contact_name}
           patient={patientByPhone[selectedConversation.phone_number] ?? null}
           onPatientLinked={(patient) => {
             setPatientByPhone((prev) => ({ ...prev, [selectedConversation.phone_number]: patient }));
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!conversationToDelete}
+        title="Excluir conversa"
+        message="Tem certeza que deseja excluir esta conversa? Todas as mensagens, imagens e documentos serão permanentemente removidos."
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="destructive"
+        loading={deletingConversationId !== null}
+        onConfirm={() => {
+          if (conversationToDelete) {
+            handleDeleteConversation(conversationToDelete);
+            setConversationToDelete(null);
+          }
+        }}
+        onCancel={() => setConversationToDelete(null)}
+      />
 
       <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
         <DialogContent

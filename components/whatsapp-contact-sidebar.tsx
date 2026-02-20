@@ -39,8 +39,10 @@ interface WhatsAppContactSidebarProps {
   open: boolean;
   onClose: () => void;
   phoneNumber: string;
+  contactName: string | null;
   patient: Patient | null;
   onPatientLinked: (patient: Patient) => void;
+  onContactNameChange?: (name: string | null) => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -60,6 +62,7 @@ export function WhatsAppContactSidebar({
   open,
   onClose,
   phoneNumber,
+  contactName,
   patient: initialPatient,
   onPatientLinked,
 }: WhatsAppContactSidebarProps) {
@@ -121,7 +124,7 @@ export function WhatsAppContactSidebar({
       initialCustomFields[f.field_name] = "";
     });
     setForm({
-      full_name: "",
+      full_name: contactName || "",
       email: "",
       phone: phoneForForm,
       birth_date: "",
@@ -278,6 +281,12 @@ export function WhatsAppContactSidebar({
                     <User className="h-10 w-10 text-muted-foreground" />
                   </div>
                 </div>
+                {contactName && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Nome</p>
+                    <p className="text-base font-medium">{contactName}</p>
+                  </div>
+                )}
                 <p className="text-sm text-muted-foreground text-center">
                   Este número ainda não está vinculado a nenhum paciente cadastrado.
                 </p>

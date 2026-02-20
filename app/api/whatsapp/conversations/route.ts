@@ -13,7 +13,7 @@ export async function GET() {
 
     const { data: conversations, error } = await supabase
       .from("whatsapp_conversations")
-      .select("id, phone_number, created_at")
+      .select("id, phone_number, contact_name, created_at")
       .eq("clinic_id", clinicId)
       .order("created_at", { ascending: false });
 
