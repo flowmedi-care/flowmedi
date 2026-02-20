@@ -51,6 +51,7 @@ export async function createPatient(data: PatientInsert) {
       phone: data.phone || null,
       birth_date: data.birth_date || null,
       notes: data.notes || null,
+      custom_fields: data.custom_fields && Object.keys(data.custom_fields).length > 0 ? data.custom_fields : {},
     })
     .select("id")
     .single();

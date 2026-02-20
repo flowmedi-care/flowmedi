@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MessageSquare, Plus, Send, Phone } from "lucide-react";
+import { MessageSquare, Plus, Send, Phone, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WhatsAppContactSidebar, type Patient } from "./whatsapp-contact-sidebar";
 
 type Conversation = {
   id: string;
@@ -54,8 +55,21 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [sending, setSending] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [contactSidebarOpen, setContactSidebarOpen] = useState(false);
+  const [patientByPhone, setPatientByPhone] = useState<Record<string, Patient>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottomRef = useRef(false);
+
+  const fetchPatientByPhone = useCallback(async (phone: string): Promise<Patient | null> => {
+    try {
+      const res = await fetch(`/api/patients/by-phone?phone=${encodeURIComponent(phone)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.patient ?? null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const loadConversations = async () => {
     setLoading(true);
@@ -64,6 +78,15 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       if (res.ok) {
         const data = await res.json();
         setConversations(data);
+        const convos = data as Conversation[];
+        const map: Record<string, Patient> = {};
+        await Promise.all(
+          convos.map(async (c) => {
+            const patient = await fetchPatientByPhone(c.phone_number);
+            if (patient) map[c.phone_number] = patient;
+          })
+        );
+        setPatientByPhone((prev) => ({ ...prev, ...map }));
       } else {
         setConversations([]);
       }
@@ -219,7 +242,14 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                         <Phone className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <span className="block font-medium truncate">{formatPhone(c.phone_number)}</span>
+                        <span className="block font-medium truncate">
+                          {patientByPhone[c.phone_number]?.full_name ?? formatPhone(c.phone_number)}
+                        </span>
+                        {patientByPhone[c.phone_number] && (
+                          <span className="block text-xs text-muted-foreground truncate">
+                            {formatPhone(c.phone_number)}
+                          </span>
+                        )}
                       </div>
                     </button>
                   </li>
@@ -236,9 +266,21 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                 <div className="flex h-10 w-10 rounded-full bg-muted items-center justify-center shrink-0">
                   <Phone className="h-5 w-5 text-muted-foreground" />
                 </div>
-                <span className="font-semibold truncate">
-                  {selectedConversation ? formatPhone(selectedConversation.phone_number) : selectedId}
+                <span className="font-semibold truncate flex-1 min-w-0">
+                  {selectedConversation
+                    ? patientByPhone[selectedConversation.phone_number]?.full_name ??
+                      formatPhone(selectedConversation.phone_number)
+                    : selectedId}
                 </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 h-9 w-9"
+                  onClick={() => setContactSidebarOpen(true)}
+                  title="Informações do contato"
+                >
+                  <Info className="h-5 w-5" />
+                </Button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 bg-muted/10 min-h-0">
                 {loadingMessages ? (
@@ -336,6 +378,18 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           )}
         </div>
       </div>
+
+      {selectedConversation && (
+        <WhatsAppContactSidebar
+          open={contactSidebarOpen}
+          onClose={() => setContactSidebarOpen(false)}
+          phoneNumber={selectedConversation.phone_number}
+          patient={patientByPhone[selectedConversation.phone_number] ?? null}
+          onPatientLinked={(patient) => {
+            setPatientByPhone((prev) => ({ ...prev, [selectedConversation.phone_number]: patient }));
+          }}
+        />
+      )}
 
       <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
         <DialogContent
