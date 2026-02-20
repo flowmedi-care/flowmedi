@@ -137,8 +137,8 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
         planName: "Profissional",
         subscriptionStatus: clinic.subscription_status ?? "active",
         limits: {
-          max_doctors: (clinic as Record<string, unknown>).max_doctors_custom ?? null,
-          max_secretaries: (clinic as Record<string, unknown>).max_secretaries_custom ?? null,
+          max_doctors: null,
+          max_secretaries: null,
           max_appointments_per_month: null,
           max_patients: null,
           max_form_templates: null,
