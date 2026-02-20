@@ -40,40 +40,43 @@ export async function POST() {
     let phoneNumberId: string | null = null;
     let wabaId: string | null = null;
 
-    // Método 1: /me/businesses -> phone_numbers
+    const bearer = { Authorization: `Bearer ${accessToken}` };
+
+    // 1️⃣ Método principal: /me/whatsapp_business_accounts (igual ao callback OAuth)
     try {
       const wabaRes = await fetch(
-        `https://graph.facebook.com/v21.0/me/businesses?access_token=${accessToken}`
+        "https://graph.facebook.com/v21.0/me/whatsapp_business_accounts",
+        { headers: bearer }
       );
       const wabaData = await wabaRes.json();
       if (wabaData.data?.length) {
-        for (const business of wabaData.data) {
-          wabaId = business.id;
-          const phoneRes = await fetch(
-            `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?access_token=${accessToken}`
-          );
-          const phoneData = await phoneRes.json();
-          if (phoneData.data?.length) {
-            phoneNumberId = phoneData.data[0].id;
-            break;
-          }
+        wabaId = wabaData.data[0].id;
+        const phoneRes = await fetch(
+          `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`,
+          { headers: bearer }
+        );
+        const phoneData = await phoneRes.json();
+        if (phoneData.data?.length) {
+          phoneNumberId = phoneData.data[0].id;
         }
       }
     } catch {
       // continuar
     }
 
-    // Método 2: /me/owned_whatsapp_business_accounts
+    // 2️⃣ Fallback: /me/owned_whatsapp_business_accounts
     if (!phoneNumberId) {
       try {
         const ownedRes = await fetch(
-          `https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts?access_token=${accessToken}`
+          "https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts",
+          { headers: bearer }
         );
         const ownedData = await ownedRes.json();
         if (ownedData.data?.length) {
           wabaId = ownedData.data[0].id;
           const phoneRes = await fetch(
-            `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?access_token=${accessToken}`
+            `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`,
+            { headers: bearer }
           );
           const phoneData = await phoneRes.json();
           if (phoneData.data?.length) {
@@ -85,11 +88,12 @@ export async function POST() {
       }
     }
 
-    // Método 3: app_id/phone_numbers (números de teste)
+    // 3️⃣ Fallback: app_id/phone_numbers (números de teste)
     if (!phoneNumberId && appId) {
       try {
         const testRes = await fetch(
-          `https://graph.facebook.com/v21.0/${appId}/phone_numbers?access_token=${accessToken}`
+          `https://graph.facebook.com/v21.0/${appId}/phone_numbers`,
+          { headers: bearer }
         );
         const testData = await testRes.json();
         if (testData.data?.length) {
@@ -100,17 +104,19 @@ export async function POST() {
       }
     }
 
-    // Método 4: /me/accounts -> phone_numbers
+    // 4️⃣ Fallback: /me/accounts
     if (!phoneNumberId) {
       try {
         const accountsRes = await fetch(
-          `https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`
+          "https://graph.facebook.com/v21.0/me/accounts",
+          { headers: bearer }
         );
         const accountsData = await accountsRes.json();
         if (accountsData.data?.length) {
           for (const account of accountsData.data) {
             const phoneRes = await fetch(
-              `https://graph.facebook.com/v21.0/${account.id}/phone_numbers?access_token=${accessToken}`
+              `https://graph.facebook.com/v21.0/${account.id}/phone_numbers`,
+              { headers: bearer }
             );
             const phoneData = await phoneRes.json();
             if (phoneData.data?.length) {

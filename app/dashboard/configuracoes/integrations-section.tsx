@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,7 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
   const [savingSimplePhoneId, setSavingSimplePhoneId] = useState(false);
   const [simplePhoneIdError, setSimplePhoneIdError] = useState<string | null>(null);
   const [discoveringPhoneId, setDiscoveringPhoneId] = useState(false);
+  const autoDiscoverAttemptedRef = useRef(false);
 
   useEffect(() => {
     loadIntegrations();
@@ -64,6 +65,35 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
       setTimeout(() => setErrorMessage(null), 5000);
     }
   }, [clinicId, searchParams]);
+
+  // Auto-descobrir Phone Number ID ao carregar (após OAuth) se conectado mas sem número
+  const whatsappSimpleIntegration = integrations.find((i) => i.integration_type === "whatsapp_simple");
+  useEffect(() => {
+    if (
+      loading ||
+      autoDiscoverAttemptedRef.current ||
+      !whatsappSimpleIntegration ||
+      whatsappSimpleIntegration.status !== "connected" ||
+      whatsappSimpleIntegration.metadata?.phone_number_id
+    ) {
+      return;
+    }
+    autoDiscoverAttemptedRef.current = true;
+    setDiscoveringPhoneId(true);
+    fetch("/api/integrations/whatsapp-simple/discover-phone-id", { method: "POST" })
+      .then(async (res) => {
+        const data = await res.json();
+        if (res.ok) {
+          setSuccessMessage("Phone Number ID encontrado automaticamente!");
+          setTimeout(() => setSuccessMessage(null), 5000);
+          loadIntegrations();
+        } else {
+          setSimplePhoneIdError(data.error || null);
+        }
+      })
+      .catch(() => setSimplePhoneIdError("Não foi possível descobrir. Tente o botão abaixo."))
+      .finally(() => setDiscoveringPhoneId(false));
+  }, [loading, whatsappSimpleIntegration?.id, whatsappSimpleIntegration?.status, whatsappSimpleIntegration?.metadata?.phone_number_id]);
 
   async function loadIntegrations() {
     try {
@@ -327,7 +357,6 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
 
   const googleIntegration = integrations.find((i) => i.integration_type === "email_google");
   const whatsappIntegration = integrations.find((i) => i.integration_type === "whatsapp_meta");
-  const whatsappSimpleIntegration = integrations.find((i) => i.integration_type === "whatsapp_simple");
 
   if (loading) {
     return (
