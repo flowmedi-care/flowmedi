@@ -133,6 +133,8 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
     ctx.consulta?.instrucoes_especiais || "",
   "{{notas_preparo}}": (ctx) => ctx.consulta?.notas_preparo || "",
   "{{preparo_completo}}": (ctx) => generatePreparoCompleto(ctx),
+  "{{preparo_completo_html}}": (ctx) =>
+    generatePreparoCompleto(ctx).replace(/\n/g, "<br>"),
 
   // Variáveis de formulário
   "{{link_formulario}}": (ctx) => ctx.formulario?.link || "",
@@ -140,7 +142,7 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
   "{{prazo_formulario}}": (ctx) => ctx.formulario?.prazo || "",
   "{{instrucao_formulario}}": (ctx) =>
     ctx.formulario?.link
-      ? `Por favor, preencha o formulário antes da consulta através do link: ${ctx.formulario.link}`
+      ? `Para preencher antes da consulta, acesse: ${ctx.formulario.link}`
       : "",
 
   // Variáveis de clínica

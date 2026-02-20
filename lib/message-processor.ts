@@ -556,11 +556,15 @@ async function sendEmail(
 }
 
 /**
- * Extrai texto simples do HTML para usar como parâmetros de template
+ * Extrai texto simples do HTML para usar em WhatsApp (preserva quebras de linha)
  */
 function extractTextFromHtml(html: string): string {
-  // Remove tags HTML e decodifica entidades básicas
   return html
+    // Converter tags de quebra para \n (antes de remover tags)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<p[^>]*>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
     .replace(/<[^>]*>/g, "")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
@@ -568,6 +572,7 @@ function extractTextFromHtml(html: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n") // Máx 1 linha em branco
     .trim();
 }
 

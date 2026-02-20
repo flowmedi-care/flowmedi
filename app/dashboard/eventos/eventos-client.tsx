@@ -43,6 +43,30 @@ const CHANNEL_ICONS: Record<string, React.ReactNode> = {
   whatsapp: <MessageSquare className="h-4 w-4" />,
 };
 
+/** Simula visualmente como o paciente verá a mensagem no WhatsApp */
+function WhatsAppPreviewBubble({ body }: { body: string }) {
+  const plainText = body
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<p[^>]*>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <div className="rounded-xl border border-border bg-[#e5ddd5] dark:bg-[#0b141a] p-4 max-w-[320px] shadow-inner">
+      <div className="flex flex-col gap-1 items-end">
+        <div className="rounded-lg px-3 py-2 shadow-md max-w-[85%] bg-[#dcf8c6] dark:bg-[#005c4b]">
+          <p className="text-sm text-[#111b21] dark:text-[#e9edef] whitespace-pre-wrap break-words">{plainText}</p>
+          <p className="text-[10px] text-[#667781] dark:text-[#8696a0] text-right mt-1">{timeStr}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
   sent: "bg-green-100 text-green-800 border-green-300",
@@ -895,19 +919,25 @@ export function EventosClient({
                       <span className="text-muted-foreground font-normal">— {item.templateName}</span>
                     )}
                   </div>
-                  {item.channel === "email" && item.subject && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Assunto</p>
-                      <p className="text-sm rounded bg-muted/50 p-2">{item.subject}</p>
-                    </div>
+                  {item.channel === "email" ? (
+                    <>
+                      {item.subject && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Assunto</p>
+                          <p className="text-sm rounded bg-muted/50 p-2">{item.subject}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs text-muted-foreground">Corpo</p>
+                        <div
+                          className="text-sm rounded bg-muted/50 p-3 prose prose-sm max-w-none dark:prose-invert"
+                          dangerouslySetInnerHTML={{ __html: item.body }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <WhatsAppPreviewBubble body={item.body} />
                   )}
-                  <div>
-                    <p className="text-xs text-muted-foreground">Corpo</p>
-                    <div
-                      className="text-sm rounded bg-muted/50 p-3 prose prose-sm max-w-none dark:prose-invert"
-                      dangerouslySetInnerHTML={{ __html: item.body }}
-                    />
-                  </div>
                 </div>
               ))}
             </div>

@@ -110,11 +110,7 @@ export function DashboardNav({
       )}
     >
       <div className={cn("p-4 border-b border-border flex-shrink-0 flex items-center gap-2", isCollapsed ? "justify-center px-2" : "justify-between")}>
-        {!isCollapsed ? (
-          <FlowmediLogo href="/dashboard" showText={true} size="sm" />
-        ) : (
-          <FlowmediLogo href="/dashboard" showText={false} size="sm" />
-        )}
+        {!isCollapsed && <FlowmediLogo href="/dashboard" showText={true} size="sm" />}
         <Button
           variant="ghost"
           size="icon"
