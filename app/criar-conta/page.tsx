@@ -5,17 +5,18 @@ import { AuthLayout } from "@/components/auth-layout";
 export default async function CriarContaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ redirect?: string }>;
+  searchParams: Promise<{ redirect?: string; email?: string }>;
 }) {
   const params = await searchParams;
   const redirect = typeof params.redirect === "string" ? params.redirect : undefined;
+  const prefilledEmail = typeof params.email === "string" ? params.email : undefined;
 
   return (
     <AuthLayout
       title="Criar conta"
       subtitle="Comece a usar o FlowMedi na sua clínica"
     >
-      <SignUpForm redirectTo={redirect} />
+      <SignUpForm redirectTo={redirect} prefilledEmail={prefilledEmail} />
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Já tem conta?{" "}
         <Link

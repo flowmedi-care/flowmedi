@@ -54,11 +54,21 @@ export default async function ConvitePage({
     if (profile?.active !== false) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-muted/30">
-          <ConviteAcceptClient token={token} clinicName={clinicName} roleLabel={ROLE_LABEL[role] ?? role} />
+          <ConviteAcceptClient
+            token={token}
+            clinicName={clinicName}
+            roleLabel={ROLE_LABEL[role] ?? role}
+            inviteEmail={email}
+          />
         </div>
       );
     }
   }
+
+  const { data: hasAccountData } = await supabase.rpc("check_invite_email_has_account", {
+    p_token: token,
+  });
+  const hasAccount = hasAccountData === true || (Array.isArray(hasAccountData) && hasAccountData[0] === true) || false;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-muted/30">
@@ -68,24 +78,46 @@ export default async function ConvitePage({
           <strong>{clinicName}</strong> convidou você para entrar como <strong>{ROLE_LABEL[role] ?? role}</strong>
           {email ? <> para o e-mail <strong>{email}</strong></> : null}.
         </p>
-        <p className="text-sm text-muted-foreground">
-          Entre com sua conta ou crie uma para aceitar o convite.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link href={`/entrar?redirect=/convite/${token}`}>
-            <span className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground h-9 px-4 py-2 w-full sm:w-auto">
-              Entrar
-            </span>
+        {hasAccount ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Este e-mail já possui conta. Entre para aceitar o convite.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href={`/entrar?redirect=/convite/${token}`}>
+                <span className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground h-9 px-4 py-2 w-full sm:w-auto">
+                  Entrar
+                </span>
+              </Link>
+              <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
+                Voltar ao início
+              </Link>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Crie uma conta com este e-mail para aceitar o convite automaticamente.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href={`/criar-conta?redirect=/convite/${token}&email=${encodeURIComponent(email ?? "")}`}>
+                <span className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground h-9 px-4 py-2 w-full sm:w-auto">
+                  Criar conta
+                </span>
+              </Link>
+              <Link href={`/entrar?redirect=/convite/${token}`}>
+                <span className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background h-9 px-4 py-2 w-full sm:w-auto">
+                  Já tenho conta
+                </span>
+              </Link>
+            </div>
+          </>
+        )}
+        {!hasAccount && (
+          <Link href="/" className="block text-sm text-muted-foreground hover:text-foreground">
+            Voltar ao início
           </Link>
-          <Link href={`/criar-conta?redirect=/convite/${token}`}>
-            <span className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background h-9 px-4 py-2 w-full sm:w-auto">
-              Criar conta
-            </span>
-          </Link>
-        </div>
-        <Link href="/" className="inline-block text-muted-foreground hover:text-foreground text-sm">
-          Voltar ao início
-        </Link>
+        )}
       </div>
     </div>
   );
