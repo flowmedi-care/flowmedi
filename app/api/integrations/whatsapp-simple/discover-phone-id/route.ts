@@ -44,45 +44,57 @@ export async function POST() {
 
     const bearer = { Authorization: `Bearer ${accessToken}` };
 
-    // 1️⃣ Método principal: /me/whatsapp_business_accounts (igual ao callback OAuth, v19 conforme doc Meta)
+    // 1️⃣ Método principal: me/businesses → {business}/client_whatsapp_business_accounts → {waba}/phone_numbers
+    // (whatsapp_business_accounts não existe no User; precisa passar por Business)
     try {
-      const wabaRes = await fetch(
-        "https://graph.facebook.com/v19.0/me/whatsapp_business_accounts",
+      const businessesRes = await fetch(
+        "https://graph.facebook.com/v21.0/me/businesses",
         { headers: bearer }
       );
-      const wabaData = await wabaRes.json();
-      console.log("[WhatsApp OAuth] Discover: me/whatsapp_business_accounts", {
-        status: wabaRes.status,
-        hasData: !!wabaData.data?.length,
-        error: wabaData.error?.message ?? null,
+      const businessesData = await businessesRes.json();
+      console.log("[WhatsApp OAuth] Discover: me/businesses", {
+        status: businessesRes.status,
+        count: businessesData.data?.length ?? 0,
+        error: businessesData.error?.message ?? null,
       });
-      if (wabaData.data?.length) {
-        wabaId = wabaData.data[0].id;
-        const phoneRes = await fetch(
-          `https://graph.facebook.com/v19.0/${wabaId}/phone_numbers`,
-          { headers: bearer }
-        );
-        const phoneData = await phoneRes.json();
-        if (phoneData.data?.length) {
-          phoneNumberId = phoneData.data[0].id;
+      if (businessesData.data?.length) {
+        for (const business of businessesData.data) {
+          const wabaRes = await fetch(
+            `https://graph.facebook.com/v21.0/${business.id}/client_whatsapp_business_accounts`,
+            { headers: bearer }
+          );
+          const wabaData = await wabaRes.json();
+          if (wabaData.data?.length) {
+            wabaId = wabaData.data[0].id;
+            const phoneRes = await fetch(
+              `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`,
+              { headers: bearer }
+            );
+            const phoneData = await phoneRes.json();
+            if (phoneData.data?.length) {
+              phoneNumberId = phoneData.data[0].id;
+              console.log("[WhatsApp OAuth] Discover: encontrado via businesses → client_whatsapp_business_accounts");
+              break;
+            }
+          }
         }
       }
-    } catch {
-      // continuar
+    } catch (e) {
+      console.log("[WhatsApp OAuth] Discover: erro método 1:", e);
     }
 
     // 2️⃣ Fallback: /me/owned_whatsapp_business_accounts
     if (!phoneNumberId) {
       try {
         const ownedRes = await fetch(
-          "https://graph.facebook.com/v19.0/me/owned_whatsapp_business_accounts",
+          "https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts",
           { headers: bearer }
         );
         const ownedData = await ownedRes.json();
         if (ownedData.data?.length) {
           wabaId = ownedData.data[0].id;
           const phoneRes = await fetch(
-            `https://graph.facebook.com/v19.0/${wabaId}/phone_numbers`,
+            `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`,
             { headers: bearer }
           );
           const phoneData = await phoneRes.json();
@@ -99,7 +111,7 @@ export async function POST() {
     if (!phoneNumberId && appId) {
       try {
         const testRes = await fetch(
-          `https://graph.facebook.com/v19.0/${appId}/phone_numbers`,
+          `https://graph.facebook.com/v21.0/${appId}/phone_numbers`,
           { headers: bearer }
         );
         const testData = await testRes.json();
@@ -115,14 +127,14 @@ export async function POST() {
     if (!phoneNumberId) {
       try {
         const accountsRes = await fetch(
-          "https://graph.facebook.com/v19.0/me/accounts",
+          "https://graph.facebook.com/v21.0/me/accounts",
           { headers: bearer }
         );
         const accountsData = await accountsRes.json();
         if (accountsData.data?.length) {
           for (const account of accountsData.data) {
             const phoneRes = await fetch(
-              `https://graph.facebook.com/v19.0/${account.id}/phone_numbers`,
+              `https://graph.facebook.com/v21.0/${account.id}/phone_numbers`,
               { headers: bearer }
             );
             const phoneData = await phoneRes.json();
