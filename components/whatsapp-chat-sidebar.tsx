@@ -55,6 +55,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const shouldScrollToBottomRef = useRef(false);
 
   const loadConversations = async () => {
     setLoading(true);
@@ -73,7 +74,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     }
   };
 
-  const loadMessages = (showLoading = false) => {
+  const loadMessages = (showLoading = false, scrollToBottom = false) => {
     if (!selectedId) return;
     if (showLoading) setLoadingMessages(true);
     fetch(`/api/whatsapp/messages?conversationId=${encodeURIComponent(selectedId)}`)
@@ -81,7 +82,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         if (!res.ok) return [];
         return res.json();
       })
-      .then(setMessages)
+      .then((data) => {
+        if (scrollToBottom) shouldScrollToBottomRef.current = true;
+        setMessages(data);
+      })
       .catch(() => setMessages([]))
       .finally(() => setLoadingMessages(false));
   };
@@ -96,13 +100,16 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       setReplyText("");
       return;
     }
-    loadMessages(true); // loading só na primeira vez
-    const interval = setInterval(() => loadMessages(false), 5000); // 5s, sem piscar
+    loadMessages(true, true); // loading + scroll no primeiro carregamento
+    const interval = setInterval(() => loadMessages(false, false), 5000); // polling sem mexer no scroll
     return () => clearInterval(interval);
   }, [selectedId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (shouldScrollToBottomRef.current) {
+      shouldScrollToBottomRef.current = false;
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   const selectedConversation = conversations.find((c) => c.id === selectedId);
@@ -134,6 +141,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     setReplyText("");
     setSendingReply(true);
     const tempId = `temp-${Date.now()}`;
+    shouldScrollToBottomRef.current = true; // rolar ao enviar
     setMessages((prev) => [
       ...prev,
       {
