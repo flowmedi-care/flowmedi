@@ -160,7 +160,8 @@ export function EventosConfigModal({
       channel,
       enabled,
       current?.send_mode ?? "manual",
-      current?.template_id ?? null
+      current?.template_id ?? null,
+      current?.send_only_when_ticket_open ?? false
     );
     if (res.error) alert(`Erro: ${res.error}`);
     else if (res.data) onSettingsChange(mergeSetting(settings, res.data));
@@ -180,7 +181,8 @@ export function EventosConfigModal({
       channel,
       current?.enabled ?? false,
       sendMode,
-      current?.template_id ?? null
+      current?.template_id ?? null,
+      current?.send_only_when_ticket_open ?? false
     );
     if (res.error) alert(`Erro: ${res.error}`);
     else if (res.data) onSettingsChange(mergeSetting(settings, res.data));
@@ -201,7 +203,32 @@ export function EventosConfigModal({
       channel,
       current.enabled,
       current.send_mode,
-      templateId
+      templateId,
+      current.send_only_when_ticket_open ?? false
+    );
+    if (res.error) alert(`Erro: ${res.error}`);
+    else if (res.data) onSettingsChange(mergeSetting(settings, res.data));
+    setUpdating((p) => ({ ...p, [key]: false }));
+  }
+
+  async function handleTicketOpenOnlyChange(
+    eventCode: string,
+    sendOnlyWhenTicketOpen: boolean
+  ) {
+    const key = `${eventCode}-whatsapp-ticket-open`;
+    setUpdating((p) => ({ ...p, [key]: true }));
+    const current = getSetting(eventCode, "whatsapp");
+    if (!current) {
+      setUpdating((p) => ({ ...p, [key]: false }));
+      return;
+    }
+    const res = await updateClinicMessageSetting(
+      eventCode,
+      "whatsapp",
+      current.enabled,
+      current.send_mode,
+      current.template_id,
+      sendOnlyWhenTicketOpen
     );
     if (res.error) alert(`Erro: ${res.error}`);
     else if (res.data) onSettingsChange(mergeSetting(settings, res.data));
@@ -396,6 +423,24 @@ export function EventosConfigModal({
                                         </option>
                                       ))}
                                     </select>
+                                  </div>
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <input
+                                      type="checkbox"
+                                      id={`${code}-whatsapp-ticket-open`}
+                                      checked={wppSetting?.send_only_when_ticket_open ?? false}
+                                      onChange={(e) =>
+                                        handleTicketOpenOnlyChange(code, e.target.checked)
+                                      }
+                                      disabled={updating[`${code}-whatsapp-ticket-open`]}
+                                      className="h-4 w-4 rounded border-input"
+                                    />
+                                    <label
+                                      htmlFor={`${code}-whatsapp-ticket-open`}
+                                      className="text-xs text-muted-foreground cursor-pointer"
+                                    >
+                                      Enviar somente com ticket aberto
+                                    </label>
                                   </div>
                                 </div>
                               )}

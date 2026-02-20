@@ -63,6 +63,38 @@ export async function processMessageEvent(
       }
     }
 
+    // 1.2. Para WhatsApp: verificar status do ticket e regra send_only_when_ticket_open
+    let whatsappTicketStatus: "open" | "closed" | "completed" | null = null;
+    if (channel === "whatsapp") {
+      const { data: patient } = await supabase
+        .from("patients")
+        .select("phone")
+        .eq("id", patientId)
+        .single();
+      
+      if (patient?.phone) {
+        const { normalizeWhatsAppPhone } = await import("@/lib/whatsapp-utils");
+        const normalizedPhone = normalizeWhatsAppPhone(patient.phone.replace(/\D/g, ""));
+        const { data: conversation } = await supabase
+          .from("whatsapp_conversations")
+          .select("status")
+          .eq("clinic_id", clinicId)
+          .eq("phone_number", normalizedPhone)
+          .maybeSingle();
+        
+        whatsappTicketStatus = (conversation?.status as "open" | "closed" | "completed") || null;
+        
+        // Se send_only_when_ticket_open=true e ticket não está aberto, não enviar
+        const sendOnlyWhenOpen = Boolean(setting.send_only_when_ticket_open);
+        if (sendOnlyWhenOpen && whatsappTicketStatus !== "open") {
+          return {
+            success: false,
+            error: "Ticket não está aberto. Mensagem não será enviada.",
+          };
+        }
+      }
+    }
+
     // 2. Consentimento LGPD: não bloqueamos envio de mensagens transacionais (lembretes, confirmações, etc.).
     // A base legal é execução de contrato/legítimo interesse — paciente já se relaciona com a clínica ao agendar.
     // A tabela consents permanece disponível para clínicas que quiserem registrar consentimento explícito.
@@ -141,7 +173,9 @@ export async function processMessageEvent(
         processedSubject,
         processedBody,
         context,
-        supabase
+        supabase,
+        whatsappTicketStatus,
+        Boolean(setting.send_only_when_ticket_open)
       );
     }
 
@@ -325,7 +359,9 @@ export async function sendMessage(
   subject: string | null,
   body: string,
   variables: any,
-  supabaseClient?: SupabaseClientType
+  supabaseClient?: SupabaseClientType,
+  whatsappTicketStatus?: "open" | "closed" | "completed" | null,
+  sendOnlyWhenTicketOpen?: boolean
 ): Promise<ProcessMessageResult> {
   const supabase = supabaseClient ?? (await createClient());
 
@@ -373,7 +409,25 @@ export async function sendMessage(
         };
       }
 
-      sendResult = await sendWhatsApp(clinicId, patient.phone, body);
+      // Decidir entre texto livre ou template baseado no status do ticket
+      const useTextMessage = whatsappTicketStatus === "open";
+      const canUseTemplate = !useTextMessage && !sendOnlyWhenTicketOpen;
+      
+      // Se ticket fechado e pode usar template, tentar template Meta
+      // Por enquanto, se não houver template Meta configurado, tentar texto mesmo
+      // (pode falhar, mas é melhor que não enviar)
+      // TODO: Buscar template Meta aprovado configurado para este evento
+      const templateName = canUseTemplate ? eventCode : undefined;
+      const templateParams = canUseTemplate ? extractTemplateParams(body, variables) : undefined;
+      
+      sendResult = await sendWhatsApp(
+        clinicId, 
+        patient.phone, 
+        body, 
+        useTextMessage,
+        templateName,
+        templateParams
+      );
     }
 
     if (!sendResult.success) {
@@ -447,12 +501,44 @@ async function sendEmail(
 }
 
 /**
+ * Extrai texto simples do HTML para usar como parâmetros de template
+ */
+function extractTextFromHtml(html: string): string {
+  // Remove tags HTML e decodifica entidades básicas
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+/**
+ * Extrai parâmetros do template para usar em templates Meta
+ * Por enquanto, retorna o texto processado como único parâmetro
+ */
+function extractTemplateParams(body: string, variables: any): string[] {
+  const text = extractTextFromHtml(body);
+  // Limitar a 1024 caracteres (limite da Meta para parâmetros)
+  return [text.slice(0, 1024)];
+}
+
+/**
  * Envia WhatsApp via Meta Cloud API
+ * @param useTextMessage - Se true, envia como texto livre (ticket aberto). Se false, tenta template.
+ * @param templateName - Nome do template Meta aprovado (opcional, para quando ticket fechado)
+ * @param templateParams - Parâmetros do template (opcional)
  */
 async function sendWhatsApp(
   clinicId: string,
   phone: string,
-  message: string
+  message: string,
+  useTextMessage: boolean = true,
+  templateName?: string,
+  templateParams?: string[]
 ): Promise<ProcessMessageResult> {
   try {
     const { checkWhatsAppIntegration, sendWhatsAppMessage } = await import("@/lib/comunicacao/whatsapp");
@@ -477,10 +563,40 @@ async function sendWhatsApp(
       };
     }
 
-    const result = await sendWhatsAppMessage(clinicId, {
-      to: digitsOnly,
-      text: message,
-    });
+    let result;
+    if (useTextMessage) {
+      // Ticket aberto: enviar texto livre
+      const textMessage = extractTextFromHtml(message);
+      result = await sendWhatsAppMessage(clinicId, {
+        to: digitsOnly,
+        text: textMessage,
+      });
+    } else if (templateName && templateParams) {
+      // Ticket fechado: tentar usar template Meta
+      // Se falhar, tentar texto como fallback
+      result = await sendWhatsAppMessage(clinicId, {
+        to: digitsOnly,
+        template: templateName,
+        templateParams: templateParams,
+      });
+      
+      // Se template falhar (não existe ou não aprovado), tentar texto como fallback
+      if (!result.success && result.error?.includes("template")) {
+        const textMessage = extractTextFromHtml(message);
+        result = await sendWhatsAppMessage(clinicId, {
+          to: digitsOnly,
+          text: textMessage,
+        });
+      }
+    } else {
+      // Se não tem template configurado e ticket fechado, tentar texto mesmo
+      // (pode falhar se estiver fora da janela de 24h, mas é melhor que não tentar)
+      const textMessage = extractTextFromHtml(message);
+      result = await sendWhatsAppMessage(clinicId, {
+        to: digitsOnly,
+        text: textMessage,
+      });
+    }
 
     if (!result.success) {
       return {

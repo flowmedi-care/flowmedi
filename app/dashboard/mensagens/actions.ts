@@ -47,6 +47,7 @@ export type ClinicMessageSetting = {
   send_mode: SendMode;
   template_id: string | null;
   conditions: Record<string, unknown>;
+  send_only_when_ticket_open?: boolean;
 };
 
 /** Normaliza linha da DB para garantir shape estável e serialização segura (conditions nunca null). */
@@ -67,6 +68,7 @@ function normalizeClinicMessageSetting(
       row.conditions != null && typeof row.conditions === "object" && !Array.isArray(row.conditions)
         ? (row.conditions as Record<string, unknown>)
         : {},
+    send_only_when_ticket_open: Boolean(row.send_only_when_ticket_open ?? false),
   };
 }
 
@@ -569,7 +571,8 @@ export async function updateClinicMessageSetting(
   channel: MessageChannel,
   enabled: boolean,
   sendMode: SendMode,
-  templateId: string | null = null
+  templateId: string | null = null,
+  sendOnlyWhenTicketOpen: boolean = false
 ): Promise<{ data: ClinicMessageSetting | null; error: string | null }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -594,13 +597,18 @@ export async function updateClinicMessageSetting(
 
   if (existing) {
     // Atualizar existente
+    const updateData: Record<string, unknown> = {
+      enabled,
+      send_mode: sendMode,
+      template_id: templateId,
+    };
+    // Só atualizar send_only_when_ticket_open se for WhatsApp
+    if (channel === "whatsapp") {
+      updateData.send_only_when_ticket_open = sendOnlyWhenTicketOpen;
+    }
     const { data: updated, error } = await supabase
       .from("clinic_message_settings")
-      .update({
-        enabled,
-        send_mode: sendMode,
-        template_id: templateId,
-      })
+      .update(updateData)
       .eq("id", existing.id)
       .select()
       .single();
@@ -613,16 +621,21 @@ export async function updateClinicMessageSetting(
     };
   } else {
     // Criar nova configuração
+    const insertData: Record<string, unknown> = {
+      clinic_id: profile.clinic_id,
+      event_code: eventCode,
+      channel,
+      enabled,
+      send_mode: sendMode,
+      template_id: templateId,
+    };
+    // Só incluir send_only_when_ticket_open se for WhatsApp
+    if (channel === "whatsapp") {
+      insertData.send_only_when_ticket_open = sendOnlyWhenTicketOpen;
+    }
     const { data: inserted, error } = await supabase
       .from("clinic_message_settings")
-      .insert({
-        clinic_id: profile.clinic_id,
-        event_code: eventCode,
-        channel,
-        enabled,
-        send_mode: sendMode,
-        template_id: templateId,
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -783,6 +796,43 @@ export async function approvePendingMessage(
     }
   }
 
+  // Para WhatsApp: buscar status do ticket e configuração send_only_when_ticket_open
+  let whatsappTicketStatus: "open" | "closed" | "completed" | null = null;
+  let sendOnlyWhenTicketOpen = false;
+  
+  if (pendingMessage.channel === "whatsapp") {
+    // Buscar configuração do evento
+    const { data: setting } = await supabase
+      .from("clinic_message_settings")
+      .select("send_only_when_ticket_open")
+      .eq("clinic_id", pendingMessage.clinic_id)
+      .eq("event_code", pendingMessage.event_code)
+      .eq("channel", "whatsapp")
+      .single();
+    
+    sendOnlyWhenTicketOpen = Boolean(setting?.send_only_when_ticket_open);
+    
+    // Buscar status do ticket
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("phone")
+      .eq("id", pendingMessage.patient_id)
+      .single();
+    
+    if (patient?.phone) {
+      const { normalizeWhatsAppPhone } = await import("@/lib/whatsapp-utils");
+      const normalizedPhone = normalizeWhatsAppPhone(patient.phone.replace(/\D/g, ""));
+      const { data: conversation } = await supabase
+        .from("whatsapp_conversations")
+        .select("status")
+        .eq("clinic_id", pendingMessage.clinic_id)
+        .eq("phone_number", normalizedPhone)
+        .maybeSingle();
+      
+      whatsappTicketStatus = (conversation?.status as "open" | "closed" | "completed") || null;
+    }
+  }
+
   // Enviar mensagem
   const { sendMessage } = await import("@/lib/message-processor");
   const sendResult = await sendMessage(
@@ -794,7 +844,10 @@ export async function approvePendingMessage(
     pendingMessage.template_id,
     finalSubject,
     finalBody,
-    pendingMessage.variables
+    pendingMessage.variables,
+    undefined, // supabaseClient
+    whatsappTicketStatus,
+    sendOnlyWhenTicketOpen
   );
 
   if (!sendResult.success) {
