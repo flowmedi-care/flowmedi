@@ -117,22 +117,67 @@ export async function GET(request: NextRequest) {
     const bearer = { Authorization: `Bearer ${accessToken}` };
 
     try {
-      // 1️⃣ Método principal: me/businesses → {business}/client_whatsapp_business_accounts → {waba}/phone_numbers
-      // (whatsapp_business_accounts não existe no User; precisa passar por Business)
-      const businessesRes = await fetch(
-        "https://graph.facebook.com/v21.0/me/businesses",
-        { headers: bearer }
-      );
-      const businessesData = await businessesRes.json();
+      // 1️⃣ Fluxo SIMPLES: app_id/phone_numbers (números do app, sem Business Manager)
+      if (appId && !phoneNumberId) {
+        const appRes = await fetch(
+          `https://graph.facebook.com/v21.0/${appId}/phone_numbers`,
+          { headers: bearer }
+        );
+        const appData = await appRes.json();
+        console.log("[WhatsApp OAuth] 6️⃣ app_id/phone_numbers (fluxo simples):", {
+          status: appRes.status,
+          count: appData.data?.length ?? 0,
+          error: appData.error?.message ?? null,
+        });
+        if (appData.data?.length) {
+          phoneNumberId = appData.data[0].id;
+          wabaId = appData.data[0].waba_id ?? null;
+          console.log("[WhatsApp OAuth] ✅ Phone Number ID encontrado via fluxo simples");
+        }
+      }
 
-      console.log("[WhatsApp OAuth] 6️⃣ me/businesses:", {
-        status: businessesRes.status,
-        count: businessesData.data?.length ?? 0,
-        error: businessesData.error?.message ?? null,
-      });
+      // 2️⃣ Fluxo NORMAL: me/owned_whatsapp_business_accounts
+      if (!phoneNumberId) {
+        const ownedWabaRes = await fetch(
+          "https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts",
+          { headers: bearer }
+        );
+        const ownedWabaData = await ownedWabaRes.json();
+        console.log("[WhatsApp OAuth] 6b owned_whatsapp_business_accounts:", {
+          status: ownedWabaRes.status,
+          count: ownedWabaData.data?.length ?? 0,
+          error: ownedWabaData.error?.message ?? null,
+        });
+        if (ownedWabaData.data?.length) {
+          wabaId = ownedWabaData.data[0].id;
+          const phoneRes = await fetch(
+            `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`,
+            { headers: bearer }
+          );
+          const phoneData = await phoneRes.json();
+          if (phoneData.data?.length) {
+            phoneNumberId = phoneData.data[0].id;
+            console.log("[WhatsApp OAuth] ✅ Phone Number ID encontrado via owned_whatsapp_business_accounts");
+          }
+        }
+      }
 
-      if (businessesData.data?.length) {
-        for (const business of businessesData.data) {
+      // 3️⃣ Fluxo Business: me/businesses → client_whatsapp_business_accounts
+      if (!phoneNumberId) {
+        const businessesRes = await fetch(
+          "https://graph.facebook.com/v21.0/me/businesses",
+          { headers: bearer }
+        );
+        const businessesData = await businessesRes.json();
+
+        console.log("[WhatsApp OAuth] 6c me/businesses:", {
+          status: businessesRes.status,
+          count: businessesData.data?.length ?? 0,
+          error: businessesData.error?.message ?? null,
+        });
+
+        if (businessesData.data?.length) {
+          for (const business of businessesData.data) {
           const wabaRes = await fetch(
             `https://graph.facebook.com/v21.0/${business.id}/client_whatsapp_business_accounts`,
             { headers: bearer }
@@ -158,50 +203,12 @@ export async function GET(request: NextRequest) {
               console.log("[WhatsApp OAuth] ✅ Phone Number ID encontrado:", phoneNumberId, "display:", phoneData.data[0].display_phone_number);
               break;
             }
+            }
           }
         }
       }
 
-      if (!phoneNumberId) {
-        console.log("[WhatsApp OAuth] ⚠️ Método businesses não encontrou número, tentando fallbacks...");
-      }
-
-      // Fallback 2: /me/owned_whatsapp_business_accounts
-      if (!phoneNumberId) {
-        console.log("[WhatsApp OAuth] Fallback 2: tentando /me/owned_whatsapp_business_accounts");
-        const ownedWabaRes = await fetch(
-          "https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts",
-          { headers: bearer }
-        );
-        const ownedWabaData = await ownedWabaRes.json();
-        
-        if (ownedWabaData.data?.length) {
-          wabaId = ownedWabaData.data[0].id;
-          const phoneRes = await fetch(
-            `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`,
-            { headers: bearer }
-          );
-          const phoneData = await phoneRes.json();
-          if (phoneData.data?.length) {
-            phoneNumberId = phoneData.data[0].id;
-          }
-        }
-      }
-
-      // Fallback 3: Buscar via app_id (para números de teste)
-      if (!phoneNumberId && appId) {
-        console.log("[WhatsApp OAuth] Fallback 3: tentando app_id/phone_numbers");
-        const testRes = await fetch(
-          `https://graph.facebook.com/v21.0/${appId}/phone_numbers`,
-          { headers: bearer }
-        );
-        const testNumbersData = await testRes.json();
-        if (testNumbersData.data && testNumbersData.data.length > 0) {
-          phoneNumberId = testNumbersData.data[0].id;
-        }
-      }
-
-      // Fallback 4: Buscar via /me/accounts (pode retornar WABAs)
+      // Fallback 4: /me/accounts (Pages/contas)
       if (!phoneNumberId) {
         console.log("[WhatsApp OAuth] Fallback 4: tentando /me/accounts");
         const accountsRes = await fetch(

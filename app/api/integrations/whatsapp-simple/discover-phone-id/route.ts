@@ -44,46 +44,30 @@ export async function POST() {
 
     const bearer = { Authorization: `Bearer ${accessToken}` };
 
-    // 1️⃣ Método principal: me/businesses → {business}/client_whatsapp_business_accounts → {waba}/phone_numbers
-    // (whatsapp_business_accounts não existe no User; precisa passar por Business)
-    try {
-      const businessesRes = await fetch(
-        "https://graph.facebook.com/v21.0/me/businesses",
-        { headers: bearer }
-      );
-      const businessesData = await businessesRes.json();
-      console.log("[WhatsApp OAuth] Discover: me/businesses", {
-        status: businessesRes.status,
-        count: businessesData.data?.length ?? 0,
-        error: businessesData.error?.message ?? null,
-      });
-      if (businessesData.data?.length) {
-        for (const business of businessesData.data) {
-          const wabaRes = await fetch(
-            `https://graph.facebook.com/v21.0/${business.id}/client_whatsapp_business_accounts`,
-            { headers: bearer }
-          );
-          const wabaData = await wabaRes.json();
-          if (wabaData.data?.length) {
-            wabaId = wabaData.data[0].id;
-            const phoneRes = await fetch(
-              `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`,
-              { headers: bearer }
-            );
-            const phoneData = await phoneRes.json();
-            if (phoneData.data?.length) {
-              phoneNumberId = phoneData.data[0].id;
-              console.log("[WhatsApp OAuth] Discover: encontrado via businesses → client_whatsapp_business_accounts");
-              break;
-            }
-          }
+    // 1️⃣ Fluxo SIMPLES: app_id/phone_numbers (números do app, sem Business Manager)
+    if (appId && !phoneNumberId) {
+      try {
+        const appRes = await fetch(
+          `https://graph.facebook.com/v21.0/${appId}/phone_numbers`,
+          { headers: bearer }
+        );
+        const appData = await appRes.json();
+        console.log("[WhatsApp OAuth] Discover: app_id/phone_numbers (fluxo simples)", {
+          status: appRes.status,
+          count: appData.data?.length ?? 0,
+          error: appData.error?.message ?? null,
+        });
+        if (appData.data?.length) {
+          phoneNumberId = appData.data[0].id;
+          wabaId = appData.data[0].waba_id ?? null;
+          console.log("[WhatsApp OAuth] Discover: ✅ encontrado via app_id/phone_numbers (fluxo simples)");
         }
+      } catch (e) {
+        console.log("[WhatsApp OAuth] Discover: erro app_id/phone_numbers:", e);
       }
-    } catch (e) {
-      console.log("[WhatsApp OAuth] Discover: erro método 1:", e);
     }
 
-    // 2️⃣ Fallback: /me/owned_whatsapp_business_accounts
+    // 2️⃣ Fluxo NORMAL: /me/owned_whatsapp_business_accounts (WABAs do usuário)
     if (!phoneNumberId) {
       try {
         const ownedRes = await fetch(
@@ -91,6 +75,11 @@ export async function POST() {
           { headers: bearer }
         );
         const ownedData = await ownedRes.json();
+        console.log("[WhatsApp OAuth] Discover: me/owned_whatsapp_business_accounts", {
+          status: ownedRes.status,
+          count: ownedData.data?.length ?? 0,
+          error: ownedData.error?.message ?? null,
+        });
         if (ownedData.data?.length) {
           wabaId = ownedData.data[0].id;
           const phoneRes = await fetch(
@@ -100,30 +89,55 @@ export async function POST() {
           const phoneData = await phoneRes.json();
           if (phoneData.data?.length) {
             phoneNumberId = phoneData.data[0].id;
+            console.log("[WhatsApp OAuth] Discover: ✅ encontrado via owned_whatsapp_business_accounts");
           }
         }
-      } catch {
-        // continuar
+      } catch (e) {
+        console.log("[WhatsApp OAuth] Discover: erro owned_whatsapp_business_accounts:", e);
       }
     }
 
-    // 3️⃣ Fallback: app_id/phone_numbers (números de teste)
-    if (!phoneNumberId && appId) {
+    // 3️⃣ Fluxo Business: me/businesses → client_whatsapp_business_accounts
+    if (!phoneNumberId) {
       try {
-        const testRes = await fetch(
-          `https://graph.facebook.com/v21.0/${appId}/phone_numbers`,
+        const businessesRes = await fetch(
+          "https://graph.facebook.com/v21.0/me/businesses",
           { headers: bearer }
         );
-        const testData = await testRes.json();
-        if (testData.data?.length) {
-          phoneNumberId = testData.data[0].id;
+        const businessesData = await businessesRes.json();
+        console.log("[WhatsApp OAuth] Discover: me/businesses", {
+          status: businessesRes.status,
+          count: businessesData.data?.length ?? 0,
+          error: businessesData.error?.message ?? null,
+        });
+        if (businessesData.data?.length) {
+          for (const business of businessesData.data) {
+            const wabaRes = await fetch(
+              `https://graph.facebook.com/v21.0/${business.id}/client_whatsapp_business_accounts`,
+              { headers: bearer }
+            );
+            const wabaData = await wabaRes.json();
+            if (wabaData.data?.length) {
+              wabaId = wabaData.data[0].id;
+              const phoneRes = await fetch(
+                `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`,
+                { headers: bearer }
+              );
+              const phoneData = await phoneRes.json();
+              if (phoneData.data?.length) {
+                phoneNumberId = phoneData.data[0].id;
+                console.log("[WhatsApp OAuth] Discover: ✅ encontrado via businesses → client_whatsapp_business_accounts");
+                break;
+              }
+            }
+          }
         }
-      } catch {
-        // continuar
+      } catch (e) {
+        console.log("[WhatsApp OAuth] Discover: erro businesses:", e);
       }
     }
 
-    // 4️⃣ Fallback: /me/accounts
+    // 4️⃣ Fallback: /me/accounts (Pages/contas)
     if (!phoneNumberId) {
       try {
         const accountsRes = await fetch(
@@ -131,6 +145,11 @@ export async function POST() {
           { headers: bearer }
         );
         const accountsData = await accountsRes.json();
+        console.log("[WhatsApp OAuth] Discover: me/accounts", {
+          status: accountsRes.status,
+          count: accountsData.data?.length ?? 0,
+          error: accountsData.error?.message ?? null,
+        });
         if (accountsData.data?.length) {
           for (const account of accountsData.data) {
             const phoneRes = await fetch(
