@@ -60,27 +60,32 @@ export async function GET(request: Request) {
 
     const rows: ConversationRow[] = (rawConversations ?? []) as unknown[] as ConversationRow[];
 
+    const roleNorm = String(role ?? "").toLowerCase().trim();
+    const isAdmin = roleNorm === "admin";
+
     // Admin: vê todas. Secretária/outros: só vê atribuídas a ela ou em pool elegível
     let conversations = rows;
-    if (role !== "admin") {
+    if (!isAdmin) {
       const { data: allEligible } = await supabase
         .from("conversation_eligible_secretaries")
         .select("conversation_id, secretary_id")
         .in("conversation_id", rows.map((r) => r.id));
       const eligibleByConv = new Map<string, Set<string>>();
       for (const e of allEligible ?? []) {
-        if (!eligibleByConv.has(e.conversation_id)) {
-          eligibleByConv.set(e.conversation_id, new Set());
-        }
-        eligibleByConv.get(e.conversation_id)!.add(e.secretary_id);
+        const cid = String(e.conversation_id);
+        const sid = String(e.secretary_id);
+        if (!eligibleByConv.has(cid)) eligibleByConv.set(cid, new Set());
+        eligibleByConv.get(cid)!.add(sid);
       }
 
+      const uid = String(userId ?? "");
       conversations = rows.filter((c) => {
-        if (c.assigned_secretary_id === userId) return true;
-        if (c.assigned_secretary_id) return false;
+        const aid = c.assigned_secretary_id ? String(c.assigned_secretary_id) : null;
+        if (aid && aid === uid) return true; // atribuída a mim
+        if (aid) return false; // atribuída a outra pessoa
         const eligible = eligibleByConv.get(c.id);
         if (!eligible || eligible.size === 0) return true; // pool geral: todas secretárias
-        return eligible.has(userId);
+        return eligible.has(uid);
       });
     }
 

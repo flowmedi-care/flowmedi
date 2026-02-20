@@ -28,14 +28,35 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
 
   if (!profile?.clinic_id) return null;
 
-  // Buscar clínica com plano e limites customizados
-  const { data: clinic } = await supabase
+  // Buscar clínica (colunas opcionais: max_*_custom podem não existir em projetos antigos)
+  const { data: clinic, error: clinicError } = await supabase
     .from("clinics")
     .select("plan_id, subscription_status, max_doctors_custom, max_secretaries_custom")
     .eq("id", profile.clinic_id)
     .single();
 
-  if (!clinic) return null;
+  if (clinicError || !clinic) {
+    // Fallback: assumir Pro (recursos ilimitados) para não bloquear operações
+    return {
+      planId: null,
+      planSlug: "pro",
+      planName: "Profissional",
+      subscriptionStatus: "active",
+      limits: {
+        max_doctors: null,
+        max_secretaries: null,
+        max_appointments_per_month: null,
+        max_patients: null,
+        max_form_templates: null,
+        max_custom_fields: null,
+        storage_mb: null,
+        whatsapp_enabled: true,
+        email_enabled: true,
+        custom_logo_enabled: true,
+        priority_support: true,
+      },
+    };
+  }
 
   const planId = clinic.plan_id;
 
@@ -109,7 +130,26 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
       .single();
 
     if (!starterPlan) {
-      return null;
+      // Tabela plans vazia ou inacessível: assumir Pro para não bloquear
+      return {
+        planId: null,
+        planSlug: "pro",
+        planName: "Profissional",
+        subscriptionStatus: clinic.subscription_status ?? "active",
+        limits: {
+          max_doctors: (clinic as Record<string, unknown>).max_doctors_custom ?? null,
+          max_secretaries: (clinic as Record<string, unknown>).max_secretaries_custom ?? null,
+          max_appointments_per_month: null,
+          max_patients: null,
+          max_form_templates: null,
+          max_custom_fields: null,
+          storage_mb: null,
+          whatsapp_enabled: true,
+          email_enabled: true,
+          custom_logo_enabled: true,
+          priority_support: true,
+        },
+      };
     }
 
     return {
