@@ -89,35 +89,36 @@ export async function GET(request: NextRequest) {
     const userInfoResponse = await fetch(userInfoUrl);
     const userInfo = await userInfoResponse.json();
 
-    // Tentar obter informações do WhatsApp Business Account (WABA)
+    // Obter WABA e Phone Number ID — seguir doc Meta:
+    // 1) GET me/whatsapp_business_accounts → waba_id
+    // 2) GET {waba_id}/phone_numbers → phone_number_id (o "id" na resposta)
     let phoneNumberId: string | null = null;
     let wabaId: string | null = null;
 
     try {
-      // Buscar WABAs através de /me/businesses
-      const wabaUrl = `https://graph.facebook.com/v21.0/me/businesses?access_token=${accessToken}`;
-      const wabaResponse = await fetch(wabaUrl);
+      // 1️⃣ Pegar as WABAs do usuário — endpoint oficial da Meta
+      const wabaUrl = `https://graph.facebook.com/v19.0/me/whatsapp_business_accounts`;
+      const wabaResponse = await fetch(wabaUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       const wabaData = await wabaResponse.json();
       
       if (wabaData.data && wabaData.data.length > 0) {
-        for (const business of wabaData.data) {
-          wabaId = business.id;
-          try {
-            const phoneUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
-            const phoneResponse = await fetch(phoneUrl);
-            const phoneData = await phoneResponse.json();
-            
-            if (phoneData.data && phoneData.data.length > 0) {
-              phoneNumberId = phoneData.data[0].id;
-              break;
-            }
-          } catch {
-            continue;
-          }
+        // Pegar o id do primeiro WABA
+        wabaId = wabaData.data[0].id;
+        // 2️⃣ Pegar os números dessa WABA
+        const phoneUrl = `https://graph.facebook.com/v19.0/${wabaId}/phone_numbers`;
+        const phoneResponse = await fetch(phoneUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const phoneData = await phoneResponse.json();
+        if (phoneData.data && phoneData.data.length > 0) {
+          // O id aqui é o Phone Number ID usado para enviar mensagens
+          phoneNumberId = phoneData.data[0].id;
         }
       }
 
-      // Método 2: Se não encontrou, tentar /me/owned_whatsapp_business_accounts
+      // Fallback: se não encontrou, tentar /me/owned_whatsapp_business_accounts
       if (!phoneNumberId) {
         const ownedWabaUrl = `https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts?access_token=${accessToken}`;
         const ownedWabaResponse = await fetch(ownedWabaUrl);

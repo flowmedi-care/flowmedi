@@ -138,12 +138,14 @@ export async function GET(request: NextRequest) {
     };
 
     try {
-      // Método 1: Buscar WABAs através de /me/businesses
-      const wabaUrl = `https://graph.facebook.com/v21.0/me/businesses?access_token=${accessToken}`;
-      const wabaResponse = await fetch(wabaUrl);
+      // Método 1 (oficial Meta): GET me/whatsapp_business_accounts → waba_id
+      const wabaUrl = `https://graph.facebook.com/v19.0/me/whatsapp_business_accounts`;
+      const wabaResponse = await fetch(wabaUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       const wabaData = await wabaResponse.json();
       
-      console.log("📋 [WhatsApp Callback] WABA Method 1 (/me/businesses):", {
+      console.log("📋 [WhatsApp Callback] WABA Method 1 (/me/whatsapp_business_accounts):", {
         ok: wabaResponse.ok,
         status: wabaResponse.status,
         dataCount: wabaData.data?.length || 0,
@@ -164,9 +166,11 @@ export async function GET(request: NextRequest) {
         for (const business of wabaData.data) {
           wabaId = business.id;
           try {
-            // Buscar números de telefone do WABA
-            const phoneUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
-            const phoneResponse = await fetch(phoneUrl);
+            // 2️⃣ Pegar os números dessa WABA
+            const phoneUrl = `https://graph.facebook.com/v19.0/${wabaId}/phone_numbers`;
+            const phoneResponse = await fetch(phoneUrl, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
             const phoneData = await phoneResponse.json();
             
             console.log(`📞 [WhatsApp Callback] Phone Numbers para WABA ${wabaId}:`, {
