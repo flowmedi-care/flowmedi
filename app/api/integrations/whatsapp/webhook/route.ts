@@ -103,21 +103,28 @@ export async function POST(request: NextRequest) {
           .maybeSingle();
         accessToken = (credsData?.credentials as { access_token?: string })?.access_token ?? null;
 
+        // Buscar nome do contato do value.contacts (está no nível superior, não na mensagem)
+        const contacts = (value.contacts as Array<{ profile?: { name?: string }; name?: { formatted_name?: string }; wa_id?: string }>) || [];
+        const contactMap = new Map<string, string>();
+        for (const contact of contacts) {
+          const waId = contact.wa_id;
+          const name = contact.profile?.name || contact.name?.formatted_name;
+          if (waId && name) {
+            // Normalizar wa_id para fazer match correto
+            const normalizedWaId = normalizeWhatsAppPhone(waId.replace(/\D/g, ""));
+            contactMap.set(normalizedWaId, String(name));
+          }
+        }
+
         for (const msg of messages) {
           const fromRaw = String((msg as { from?: string }).from ?? "").replace(/\D/g, "");
           if (!fromRaw) continue;
           const from = normalizeWhatsAppPhone(fromRaw);
 
-          // Tentar capturar nome do contato (pode vir em profile.name ou contacts)
-          const profile = (msg as { profile?: { name?: string } }).profile;
-          const contacts = (msg as { contacts?: Array<{ profile?: { name?: string }; name?: { formatted_name?: string } }> }).contacts;
-          let contactName: string | null = null;
-          if (profile?.name) {
-            contactName = String(profile.name);
-          } else if (contacts && contacts.length > 0) {
-            const contact = contacts[0];
-            contactName = contact.profile?.name || contact.name?.formatted_name || null;
-            if (contactName) contactName = String(contactName);
+          // Buscar nome do contato usando o from normalizado (deve fazer match com wa_id normalizado)
+          let contactName: string | null = contactMap.get(from) || null;
+          if (contactName) {
+            console.log(`[WhatsApp Webhook] Nome do contato encontrado: ${contactName} para número ${from}`);
           }
 
           let bodyText: string | null = null;
@@ -177,12 +184,17 @@ export async function POST(request: NextRequest) {
           let conversationId: string;
           if (conversationRes.data?.id) {
             conversationId = conversationRes.data.id;
-            // Atualizar nome do contato se não tiver e vier no webhook
-            if (contactName && !conversationRes.data.contact_name) {
-              await supabase
+            // Atualizar nome do contato se vier no webhook (atualiza mesmo se já tiver, para manter sincronizado)
+            if (contactName) {
+              const updateResult = await supabase
                 .from("whatsapp_conversations")
                 .update({ contact_name: contactName })
                 .eq("id", conversationId);
+              if (updateResult.error) {
+                console.error("[WhatsApp Webhook] Erro ao atualizar contact_name:", updateResult.error);
+              } else {
+                console.log(`[WhatsApp Webhook] contact_name atualizado para: ${contactName}`);
+              }
             }
           } else {
             const insertConv = await supabase
