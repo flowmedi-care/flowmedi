@@ -60,9 +60,9 @@ export async function GET(request: Request) {
 
     const rows: ConversationRow[] = (rawConversations ?? []) as unknown[] as ConversationRow[];
 
-    // Secretária: filtrar — só vê atribuídas a ela ou em pool elegível
+    // Admin: vê todas. Secretária/outros: só vê atribuídas a ela ou em pool elegível
     let conversations = rows;
-    if (role === "secretaria") {
+    if (role !== "admin") {
       const { data: allEligible } = await supabase
         .from("conversation_eligible_secretaries")
         .select("conversation_id, secretary_id")
