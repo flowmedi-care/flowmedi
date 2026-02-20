@@ -437,7 +437,8 @@ export async function sendMessage(
         body, 
         useTextMessage,
         templateName,
-        templateParams
+        templateParams,
+        supabase
       );
     }
 
@@ -549,13 +550,14 @@ async function sendWhatsApp(
   message: string,
   useTextMessage: boolean = true,
   templateName?: string,
-  templateParams?: string[]
+  templateParams?: string[],
+  supabaseClient?: SupabaseClientType
 ): Promise<ProcessMessageResult> {
   try {
     const { checkWhatsAppIntegration, sendWhatsAppMessage } = await import("@/lib/comunicacao/whatsapp");
 
     // Verificar se a integração WhatsApp está conectada
-    const integrationCheck = await checkWhatsAppIntegration(clinicId);
+    const integrationCheck = await checkWhatsAppIntegration(clinicId, true, supabaseClient);
     if (!integrationCheck.connected) {
       return {
         success: false,
@@ -581,7 +583,7 @@ async function sendWhatsApp(
       result = await sendWhatsAppMessage(clinicId, {
         to: digitsOnly,
         text: textMessage,
-      });
+      }, true, supabaseClient);
     } else if (templateName && templateParams) {
       // Ticket fechado: tentar usar template Meta
       // Se falhar, tentar texto como fallback
@@ -589,7 +591,7 @@ async function sendWhatsApp(
         to: digitsOnly,
         template: templateName,
         templateParams: templateParams,
-      });
+      }, true, supabaseClient);
       
       // Se template falhar (não existe ou não aprovado), tentar texto como fallback
       if (!result.success && result.error?.includes("template")) {
@@ -597,7 +599,7 @@ async function sendWhatsApp(
         result = await sendWhatsAppMessage(clinicId, {
           to: digitsOnly,
           text: textMessage,
-        });
+        }, true, supabaseClient);
       }
     } else {
       // Se não tem template configurado e ticket fechado, tentar texto mesmo
@@ -606,7 +608,7 @@ async function sendWhatsApp(
       result = await sendWhatsAppMessage(clinicId, {
         to: digitsOnly,
         text: textMessage,
-      });
+      }, true, supabaseClient);
     }
 
     if (!result.success) {

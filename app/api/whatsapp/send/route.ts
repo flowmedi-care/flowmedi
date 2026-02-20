@@ -31,10 +31,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = await createClient();
     const result = await sendWhatsAppMessage(
       clinicId,
       { to: normalizedTo, text: text.trim() },
-      true
+      true,
+      supabase
     );
 
     if (!result.success) {
@@ -44,7 +46,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
     const { data: existing } = await supabase
       .from("whatsapp_conversations")
       .select("id, status")

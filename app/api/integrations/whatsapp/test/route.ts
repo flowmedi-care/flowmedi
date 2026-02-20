@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
 import { sendWhatsAppMessage } from "@/lib/comunicacao/whatsapp";
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * Envia uma mensagem de teste via WhatsApp (usa template hello_world para poder iniciar conversa)
@@ -30,11 +31,12 @@ export async function POST(request: NextRequest) {
 
     console.log("[WhatsApp Test] Enviando para:", digitsOnly, "clinicId:", admin.clinicId);
 
+    const supabase = await createClient();
     // Usar template hello_world (como no painel da Meta) — permite iniciar conversa sem 24h
     const result = await sendWhatsAppMessage(admin.clinicId, {
       to: digitsOnly,
       template: "hello_world",
-    });
+    }, true, supabase);
 
     console.log("[WhatsApp Test] Resultado:", { success: result.success, error: result.error, debug: result.debug });
 

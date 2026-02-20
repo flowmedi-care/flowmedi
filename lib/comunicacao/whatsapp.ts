@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface WhatsAppOptions {
   to: string; // Número no formato: 5511999999999 (código do país + DDD + número)
@@ -11,8 +12,8 @@ interface WhatsAppOptions {
  * Obtém as credenciais do WhatsApp/Meta para uma clínica
  * Tenta primeiro whatsapp_simple, depois whatsapp_meta (coexistência)
  */
-async function getWhatsAppCredentials(clinicId: string, preferSimple = true) {
-  const supabase = await createClient();
+async function getWhatsAppCredentials(clinicId: string, preferSimple = true, supabaseClient?: SupabaseClient) {
+  const supabase = supabaseClient ?? await createClient();
   
   const integrationType = preferSimple ? "whatsapp_simple" : "whatsapp_meta";
   
@@ -66,10 +67,11 @@ export type SendWhatsAppResult = {
 export async function sendWhatsAppMessage(
   clinicId: string,
   options: WhatsAppOptions,
-  preferSimple = true
+  preferSimple = true,
+  supabaseClient?: SupabaseClient
 ): Promise<SendWhatsAppResult> {
   try {
-    const { credentials, phoneNumberId } = await getWhatsAppCredentials(clinicId, preferSimple);
+    const { credentials, phoneNumberId } = await getWhatsAppCredentials(clinicId, preferSimple, supabaseClient);
 
     if (!phoneNumberId) {
       throw new Error("Phone Number ID não configurado. Configure um número no Meta Business Manager.");
@@ -172,13 +174,13 @@ export async function sendWhatsAppMessage(
 /**
  * Verifica se a integração de WhatsApp está conectada e funcionando
  */
-export async function checkWhatsAppIntegration(clinicId: string, preferSimple = true): Promise<{
+export async function checkWhatsAppIntegration(clinicId: string, preferSimple = true, supabaseClient?: SupabaseClient): Promise<{
   connected: boolean;
   phoneNumberId?: string;
   error?: string;
 }> {
   try {
-    const { phoneNumberId } = await getWhatsAppCredentials(clinicId, preferSimple);
+    const { phoneNumberId } = await getWhatsAppCredentials(clinicId, preferSimple, supabaseClient);
     return { connected: true, phoneNumberId: phoneNumberId || undefined };
   } catch (error) {
     return {
