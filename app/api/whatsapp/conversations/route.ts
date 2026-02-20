@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicMemberWithRole } from "@/lib/auth-helpers";
 
+type SecretaryRef = { id: string; full_name: string | null } | null;
+
 type ConversationRow = {
   id: string;
   phone_number: string;
@@ -12,8 +14,15 @@ type ConversationRow = {
   assigned_secretary_id: string | null;
   patient_id: string | null;
   assigned_at: string | null;
-  assigned_secretary: { id: string; full_name: string | null } | null;
+  assigned_secretary: SecretaryRef | SecretaryRef[] | null;
 };
+
+function normalizeSecretary(
+  v: SecretaryRef | SecretaryRef[] | null
+): SecretaryRef {
+  if (!v) return null;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
+}
 
 /**
  * GET /api/whatsapp/conversations?status=open|closed|completed
@@ -49,7 +58,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const rows = (rawConversations ?? []) as ConversationRow[];
+    const rows: ConversationRow[] = (rawConversations ?? []) as unknown[] as ConversationRow[];
 
     // Secretária: filtrar — só vê atribuídas a ela ou em pool elegível
     let conversations = rows;
@@ -83,9 +92,10 @@ export async function GET(request: Request) {
       last_inbound_message_at: c.last_inbound_message_at,
       created_at: c.created_at,
       assigned_secretary_id: c.assigned_secretary_id,
-      assigned_secretary: c.assigned_secretary
-        ? { id: c.assigned_secretary.id, full_name: c.assigned_secretary.full_name }
-        : null,
+      assigned_secretary: (() => {
+        const s = normalizeSecretary(c.assigned_secretary);
+        return s ? { id: s.id, full_name: s.full_name } : null;
+      })(),
       assigned_at: c.assigned_at,
     }));
 
