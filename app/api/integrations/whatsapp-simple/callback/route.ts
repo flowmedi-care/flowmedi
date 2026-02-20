@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Se não encontrou, tentar /me/owned_whatsapp_business_accounts
+      // Método 2: Se não encontrou, tentar /me/owned_whatsapp_business_accounts
       if (!phoneNumberId) {
         const ownedWabaUrl = `https://graph.facebook.com/v21.0/me/owned_whatsapp_business_accounts?access_token=${accessToken}`;
         const ownedWabaResponse = await fetch(ownedWabaUrl);
@@ -134,8 +134,53 @@ export async function GET(request: NextRequest) {
           }
         }
       }
+
+      // Método 3: Buscar via app_id (para números de teste)
+      if (!phoneNumberId && appId) {
+        const testNumbersUrl = `https://graph.facebook.com/v21.0/${appId}/phone_numbers?access_token=${accessToken}`;
+        const testNumbersResponse = await fetch(testNumbersUrl);
+        const testNumbersData = await testNumbersResponse.json();
+        if (testNumbersData.data && testNumbersData.data.length > 0) {
+          phoneNumberId = testNumbersData.data[0].id;
+        }
+      }
+
+      // Método 4: Buscar via /me/accounts (pode retornar WABAs)
+      if (!phoneNumberId) {
+        const accountsUrl = `https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`;
+        const accountsResponse = await fetch(accountsUrl);
+        const accountsData = await accountsResponse.json();
+        if (accountsData.data && accountsData.data.length > 0) {
+          for (const account of accountsData.data) {
+            try {
+              const accountPhoneUrl = `https://graph.facebook.com/v21.0/${account.id}/phone_numbers?access_token=${accessToken}`;
+              const accountPhoneResponse = await fetch(accountPhoneUrl);
+              const accountPhoneData = await accountPhoneResponse.json();
+              if (accountPhoneData.data && accountPhoneData.data.length > 0) {
+                phoneNumberId = accountPhoneData.data[0].id;
+                wabaId = account.id;
+                break;
+              }
+            } catch {
+              continue;
+            }
+          }
+        }
+      }
     } catch (error) {
       console.warn("Erro ao obter informações do WABA:", error);
+    }
+
+    // Inscrever o app no WABA para webhooks
+    if (wabaId && accessToken) {
+      try {
+        await fetch(`https://graph.facebook.com/v22.0/${wabaId}/subscribed_apps`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      } catch {
+        // Ignorar erro
+      }
     }
 
     // Salvar ou atualizar integração no banco

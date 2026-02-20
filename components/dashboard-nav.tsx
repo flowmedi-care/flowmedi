@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { FlowmediLogo } from "@/components/flowmedi-logo";
 import { useState, useEffect } from "react";
 
 type Profile = {
@@ -38,14 +39,12 @@ export function DashboardNav({
   isCollapsed,
   onToggleCollapse,
   hasWhatsAppSimple,
-  logoUrl,
 }: {
   user: User;
   profile: Profile;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   hasWhatsAppSimple?: boolean;
-  logoUrl?: string | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -111,19 +110,10 @@ export function DashboardNav({
       )}
     >
       <div className={cn("p-4 border-b border-border flex-shrink-0 flex items-center gap-2", isCollapsed ? "justify-center px-2" : "justify-between")}>
-        {!isCollapsed && (
-          <Link href="/dashboard" className="font-semibold text-foreground whitespace-nowrap flex items-center gap-2">
-            {logoUrl ? (
-              <img src={logoUrl} alt="Logo" className="h-8 w-auto object-contain max-w-[120px]" />
-            ) : (
-              <span>FlowMedi</span>
-            )}
-          </Link>
-        )}
-        {isCollapsed && logoUrl && (
-          <Link href="/dashboard" className="flex items-center justify-center">
-            <img src={logoUrl} alt="Logo" className="h-8 w-auto object-contain max-w-[32px]" />
-          </Link>
+        {!isCollapsed ? (
+          <FlowmediLogo href="/dashboard" showText={true} size="sm" />
+        ) : (
+          <FlowmediLogo href="/dashboard" showText={false} size="sm" />
         )}
         <Button
           variant="ghost"

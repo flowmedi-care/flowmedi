@@ -36,21 +36,10 @@ export default async function DashboardLayout({
     ? { ...profile, active: profile.active ?? true }
     : null;
 
-  // Buscar logo da clínica
-  let logoUrl: string | null = null;
-  if (profileSafe?.clinic_id) {
-    const { data: clinic } = await supabase
-      .from("clinics")
-      .select("logo_url")
-      .eq("id", profileSafe.clinic_id)
-      .single();
-    logoUrl = clinic?.logo_url ?? null;
-  }
-
   // Sempre renderizar o layout com sidebar quando há usuário autenticado
   // Mesmo sem profile, para garantir consistência visual
   return (
-    <DashboardLayoutClient user={user} profile={profileSafe} logoUrl={logoUrl}>
+    <DashboardLayoutClient user={user} profile={profileSafe}>
       {children}
     </DashboardLayoutClient>
   );
