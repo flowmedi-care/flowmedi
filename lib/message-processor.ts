@@ -449,17 +449,21 @@ export async function sendMessage(
     // Persistir mensagem WhatsApp no chat para aparecer em /dashboard/whatsapp
     if (channel === "whatsapp" && patient.phone) {
       const { normalizeWhatsAppPhone } = await import("@/lib/whatsapp-utils");
-      const normalizedPhone = normalizeWhatsAppPhone(patient.phone.replace(/\D/g, ""));
+      const digits = patient.phone.replace(/\D/g, "");
+      // Mesmo formato do webhook: paciente pode ter 62999150345 ou 5562999150345
+      const toNormalize = digits.startsWith("55") ? digits : `55${digits}`;
+      const normalizedPhone = normalizeWhatsAppPhone(toNormalize);
       const textContent = extractTextFromHtml(body);
 
+      // Buscar conversa existente (normalizedPhone = mesmo formato que o webhook usa)
       const { data: existing } = await supabase
         .from("whatsapp_conversations")
         .select("id")
         .eq("clinic_id", clinicId)
         .eq("phone_number", normalizedPhone)
         .maybeSingle();
-
       let conversationId: string | null = existing?.id ?? null;
+
       if (!conversationId) {
         const { data: inserted } = await supabase
           .from("whatsapp_conversations")
