@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MessageSquare, Plus, Send, Phone, Info, Trash2, Check } from "lucide-react";
+import { MessageSquare, Plus, Send, Phone, Info, Trash2, Check, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppContactSidebar, type Patient } from "./whatsapp-contact-sidebar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -104,7 +104,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
-  const [conversationStatusFilter, setConversationStatusFilter] = useState<"open" | "closed" | null>(null);
+  const [conversationStatusFilter, setConversationStatusFilter] = useState<"open" | "closed" | "completed" | null>("open");
   const [completingConversationId, setCompletingConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottomRef = useRef(false);
@@ -143,7 +143,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       if (res.ok) {
         setSelectedId(null);
         setMessages([]);
-        await loadConversations();
+        await loadConversations(false); // Não mostrar loading ao enviar
         await loadUnreadCounts();
       } else {
         const data = await res.json();
@@ -157,8 +157,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     }
   };
 
-  const loadConversations = async () => {
-    setLoading(true);
+  const loadConversations = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const url = conversationStatusFilter 
         ? `/api/whatsapp/conversations?status=${conversationStatusFilter}`
@@ -176,16 +176,15 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           })
         );
         setPatientByPhone((prev) => ({ ...prev, ...map }));
-        await loadUnreadCounts();
       } else {
         setConversations([]);
       }
     } catch {
       setConversations([]);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  };
+  }, [conversationStatusFilter, fetchPatientByPhone]);
 
   const handleCompleteConversation = async (conversationId: string) => {
     setCompletingConversationId(conversationId);
@@ -196,7 +195,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         body: JSON.stringify({ conversationId }),
       });
       if (res.ok) {
-        await loadConversations();
+        // Atualizar status localmente sem recarregar tudo
+        setConversations((prev) =>
+          prev.map((c) => (c.id === conversationId ? { ...c, status: "completed" as const } : c))
+        );
         if (selectedId === conversationId) {
           setSelectedId(null);
         }
@@ -212,21 +214,24 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     }
   };
 
-  // Verificar e fechar conversas expiradas periodicamente
+  // Verificar e fechar conversas expiradas periodicamente (sem recarregar lista imediatamente)
   useEffect(() => {
     const checkExpired = async () => {
       try {
         await fetch("/api/whatsapp/close-expired", { method: "POST" });
-        await loadConversations();
+        // Só recarregar se estiver na aba de "open" (pode ter fechado algumas)
+        if (conversationStatusFilter === "open") {
+          await loadConversations(false); // Não mostrar loading ao verificar expiradas
+        }
       } catch {
         // Ignorar erro
       }
     };
-    checkExpired();
-    const interval = setInterval(checkExpired, 60000); // Verificar a cada minuto
+    // Verificar apenas a cada 5 minutos (não precisa ser tão frequente)
+    const interval = setInterval(checkExpired, 5 * 60000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [conversationStatusFilter]);
 
   const loadMessages = (showLoading = false, scrollToBottom = false) => {
     if (!selectedId) return;
@@ -246,7 +251,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
 
   useEffect(() => {
     loadConversations();
-  }, [conversationStatusFilter]);
+    loadUnreadCounts();
+  }, [loadConversations]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -275,7 +281,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     const interval = setInterval(() => {
       loadMessages(false, false);
       loadUnreadCounts(); // Atualizar contadores periodicamente
-    }, 5000); // polling sem mexer no scroll
+    }, 10000); // polling a cada 10 segundos (reduzido de 5s para evitar refresh constante)
     return () => clearInterval(interval);
   }, [selectedId, loadUnreadCounts]);
 
@@ -302,7 +308,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         setNewChatOpen(false);
         setNewTo("");
         setNewText("");
-        loadConversations();
+        loadConversations(false);
         loadUnreadCounts();
       }
     } finally {
@@ -344,13 +350,15 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       if (res.ok) {
         loadMessages();
         loadUnreadCounts();
-        await loadConversations(); // Recarregar para atualizar status se necessário
+        // Não recarregar conversas aqui para evitar refresh constante
+        // O status será atualizado quando necessário
       } else {
         const data = await res.json();
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         if (data.status && data.status !== "open") {
           alert(data.error || "Não é possível enviar mensagem de texto livre nesta conversa.");
-          await loadConversations(); // Recarregar para atualizar status
+          // Recarregar apenas se houver erro de status
+          await loadConversations(false); // Não mostrar loading ao tratar erro
         }
       }
     } catch {
@@ -389,18 +397,6 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           <div className="flex gap-0 border-b border-border px-2">
             <button
               type="button"
-              onClick={() => setConversationStatusFilter(null)}
-              className={cn(
-                "flex-1 px-3 py-2 text-xs font-medium border-b-2 transition-colors",
-                conversationStatusFilter === null
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Todas
-            </button>
-            <button
-              type="button"
               onClick={() => setConversationStatusFilter("open")}
               className={cn(
                 "flex-1 px-3 py-2 text-xs font-medium border-b-2 transition-colors",
@@ -409,7 +405,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              Abertas
+              Ticket Aberto
             </button>
             <button
               type="button"
@@ -421,7 +417,19 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              Fechadas
+              Ticket Fechado
+            </button>
+            <button
+              type="button"
+              onClick={() => setConversationStatusFilter("completed")}
+              className={cn(
+                "flex-1 px-3 py-2 text-xs font-medium border-b-2 transition-colors",
+                conversationStatusFilter === "completed"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Concluídos
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -443,8 +451,18 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                         selectedId === c.id && "bg-muted"
                       )}
                     >
-                      <div className="flex h-10 w-10 rounded-full bg-muted items-center justify-center shrink-0">
-                        <Phone className="h-5 w-5 text-muted-foreground" />
+                      <div className={cn(
+                        "flex h-10 w-10 rounded-full items-center justify-center shrink-0",
+                        patientByPhone[c.phone_number]
+                          ? "bg-primary/10"
+                          : "bg-yellow-100 dark:bg-yellow-900/20"
+                      )}>
+                        <User className={cn(
+                          "h-5 w-5",
+                          patientByPhone[c.phone_number]
+                            ? "text-primary"
+                            : "text-yellow-600 dark:text-yellow-400"
+                        )} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -477,8 +495,18 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           {selectedId ? (
             <>
               <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card">
-                <div className="flex h-10 w-10 rounded-full bg-muted items-center justify-center shrink-0">
-                  <Phone className="h-5 w-5 text-muted-foreground" />
+                <div className={cn(
+                  "flex h-10 w-10 rounded-full items-center justify-center shrink-0",
+                  selectedConversation && patientByPhone[selectedConversation.phone_number]
+                    ? "bg-primary/10"
+                    : "bg-yellow-100 dark:bg-yellow-900/20"
+                )}>
+                  <User className={cn(
+                    "h-5 w-5",
+                    selectedConversation && patientByPhone[selectedConversation.phone_number]
+                      ? "text-primary"
+                      : "text-yellow-600 dark:text-yellow-400"
+                  )} />
                 </div>
                 <span className="font-semibold truncate flex-1 min-w-0">
                   {selectedConversation
