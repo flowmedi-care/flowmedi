@@ -18,9 +18,10 @@ interface DashboardLayoutClientProps {
   user: User;
   profile: Profile;
   children: React.ReactNode;
+  logoUrl?: string | null;
 }
 
-export function DashboardLayoutClient({ user, profile, children }: DashboardLayoutClientProps) {
+export function DashboardLayoutClient({ user, profile, children, logoUrl }: DashboardLayoutClientProps) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [hasWhatsAppSimple, setHasWhatsAppSimple] = useState(false);
@@ -57,6 +58,7 @@ export function DashboardLayoutClient({ user, profile, children }: DashboardLayo
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
         hasWhatsAppSimple={hasWhatsAppSimple}
+        logoUrl={logoUrl}
       />
       <main className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-background ${!isWhatsAppPage ? "overflow-y-auto" : ""}`}>
         {isWhatsAppPage ? (

@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   Mail,
   MessageSquare,
+  Bell,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -37,12 +38,14 @@ export function DashboardNav({
   isCollapsed,
   onToggleCollapse,
   hasWhatsAppSimple,
+  logoUrl,
 }: {
   user: User;
   profile: Profile;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   hasWhatsAppSimple?: boolean;
+  logoUrl?: string | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -95,6 +98,7 @@ export function DashboardNav({
     { href: "/dashboard/agenda", label: "Agenda", icon: <Calendar className="h-4 w-4" /> },
     { href: "/dashboard/pacientes", label: "Pacientes", icon: <Users className="h-4 w-4" /> },
     { href: "/dashboard/formularios", label: "Formulários", icon: <FileText className="h-4 w-4" /> },
+    { href: "/dashboard/eventos", label: "Eventos", icon: <Bell className="h-4 w-4" />, roles: ["admin", "secretaria"] },
     { href: "/dashboard/mensagens", label: "Mensagens", icon: <Mail className="h-4 w-4" />, roles: ["admin"] },
     ...(hasWhatsAppSimple ? [{ href: "/dashboard/whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" />, badge: whatsappUnreadCount }] : []),
   ];
@@ -108,8 +112,17 @@ export function DashboardNav({
     >
       <div className={cn("p-4 border-b border-border flex-shrink-0 flex items-center gap-2", isCollapsed ? "justify-center px-2" : "justify-between")}>
         {!isCollapsed && (
-          <Link href="/dashboard" className="font-semibold text-foreground whitespace-nowrap">
-            FlowMedi
+          <Link href="/dashboard" className="font-semibold text-foreground whitespace-nowrap flex items-center gap-2">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-8 w-auto object-contain max-w-[120px]" />
+            ) : (
+              <span>FlowMedi</span>
+            )}
+          </Link>
+        )}
+        {isCollapsed && logoUrl && (
+          <Link href="/dashboard" className="flex items-center justify-center">
+            <img src={logoUrl} alt="Logo" className="h-8 w-auto object-contain max-w-[32px]" />
           </Link>
         )}
         <Button
