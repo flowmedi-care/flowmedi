@@ -2,7 +2,6 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { revalidatePath } from "next/cache";
 
 const DEFAULT_MESSAGE = "Olá gostaria de obter mais informação sobre a consulta com o dr [seu nome]";
 
@@ -99,7 +98,8 @@ export async function saveReferralMessage(customMessage: string): Promise<{ erro
     return { error: "A mensagem deve ter pelo menos 15 caracteres. Inclua seu nome para garantir a vinculação correta." };
   }
 
-  const { error } = await supabase
+  const serviceSupabase = createServiceRoleClient();
+  const { error } = await serviceSupabase
     .from("doctor_referral_codes")
     .upsert(
       {
@@ -111,7 +111,6 @@ export async function saveReferralMessage(customMessage: string): Promise<{ erro
     );
 
   if (error) return { error: error.message };
-  revalidatePath("/dashboard/perfil");
   return { error: null };
 }
 

@@ -34,21 +34,26 @@ function ReferralLinkCard() {
   useEffect(() => {
     getReferralLinkData().then((res) => {
       setData(res);
-      setMessageInput(res.customMessage ?? DEFAULT_MESSAGE);
+      setMessageInput(res.customMessage?.trim() ?? "");
     }).finally(() => setLoading(false));
   }, []);
 
   async function handleSaveMessage() {
     setSaving(true);
     setData((prev) => prev ? { ...prev, error: null } : null);
-    const result = await saveReferralMessage(messageInput);
-    if (result.error) {
-      setData((prev) => prev ? { ...prev, error: result.error } : null);
-    } else {
-      const updated = await getReferralLinkData();
-      setData(updated);
+    try {
+      const result = await saveReferralMessage(messageInput);
+      if (result.error) {
+        setData((prev) => prev ? { ...prev, error: result.error } : prev);
+      } else {
+        const updated = await getReferralLinkData();
+        setData(updated);
+      }
+    } catch (err) {
+      setData((prev) => prev ? { ...prev, error: "Erro ao salvar. Tente novamente." } : prev);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   function handleCopy() {
