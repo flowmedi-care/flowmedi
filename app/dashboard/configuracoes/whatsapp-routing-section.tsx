@@ -84,7 +84,7 @@ export function WhatsAppRoutingSection({ clinicId }: WhatsAppRoutingSectionProps
           >
             <option value="first_responder">Primeira que responder assume</option>
             <option value="general_secretary">Secretária geral</option>
-            <option value="round_robin">Distribuir por carga (round-robin)</option>
+            <option value="round_robin">Revezamento</option>
             <option value="chatbot">Chatbot simples</option>
           </Select>
           <p className="text-xs text-muted-foreground">
@@ -93,7 +93,7 @@ export function WhatsAppRoutingSection({ clinicId }: WhatsAppRoutingSectionProps
             {routingStrategy === "general_secretary" &&
               "Todas as novas conversas vão para a secretária geral, que coleta informações e encaminha para a equipe."}
             {routingStrategy === "round_robin" &&
-              "Cada nova conversa é atribuída automaticamente à secretária com menos conversas abertas."}
+              "Cada nova conversa é atribuída automaticamente à secretária com menos conversas abertas (revezamento)."}
             {routingStrategy === "chatbot" &&
               "Menu inicial (Agendar, Remarcar, Cancelar, Falar com atendente) direciona o fluxo."}
           </p>

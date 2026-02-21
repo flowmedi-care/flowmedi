@@ -33,9 +33,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Conversa não encontrada" }, { status: 404 });
     }
 
+    const { data: routingSettings } = await supabase
+      .from("clinic_whatsapp_routing_settings")
+      .select("routing_strategy, general_secretary_id")
+      .eq("clinic_id", clinicId)
+      .single();
+    const strategy = (routingSettings as { routing_strategy?: string })?.routing_strategy ?? "first_responder";
+    const generalSecretaryId = (routingSettings as { general_secretary_id?: string | null })?.general_secretary_id
+      ? String((routingSettings as { general_secretary_id?: string | null }).general_secretary_id)
+      : null;
+
     const canForward =
       role === "admin" ||
-      conv.assigned_secretary_id === userId;
+      conv.assigned_secretary_id === userId ||
+      (strategy === "general_secretary" &&
+        generalSecretaryId === userId &&
+        conv.assigned_secretary_id == null);
 
     if (!canForward) {
       return NextResponse.json(
