@@ -102,6 +102,83 @@ async function pickSecretaryWithFewestConversations(
   return chosen;
 }
 
+async function pickFromSecretaryList(
+  supabase: SupabaseClient,
+  clinicId: string,
+  secretaryIds: string[]
+): Promise<string | null> {
+  if (secretaryIds.length === 0) return null;
+  const { data: counts } = await supabase
+    .from("whatsapp_conversations")
+    .select("assigned_secretary_id")
+    .eq("clinic_id", clinicId)
+    .eq("status", "open");
+  const bySecretary = new Map<string, number>();
+  for (const sid of secretaryIds) bySecretary.set(sid, 0);
+  for (const row of counts ?? []) {
+    const aid = (row as { assigned_secretary_id?: string | null }).assigned_secretary_id;
+    if (aid && secretaryIds.includes(aid)) {
+      bySecretary.set(aid, (bySecretary.get(aid) ?? 0) + 1);
+    }
+  }
+  let minCount = Infinity;
+  let chosen: string | null = null;
+  for (const [sid, c] of bySecretary) {
+    if (c < minCount) {
+      minCount = c;
+      chosen = sid;
+    }
+  }
+  return chosen;
+}
+
+async function applyChatbotFallback(
+  supabase: SupabaseClient,
+  clinicId: string,
+  conversationId: string,
+  fallback: string
+): Promise<void> {
+  await supabase
+    .from("whatsapp_conversations")
+    .update({ chatbot_step: "done" })
+    .eq("id", conversationId);
+  if (fallback === "round_robin") {
+    const sid = await pickSecretaryWithFewestConversations(supabase, clinicId);
+    if (sid) {
+      await supabase
+        .from("whatsapp_conversations")
+        .update({ assigned_secretary_id: sid, assigned_at: new Date().toISOString() })
+        .eq("id", conversationId);
+    }
+  }
+}
+
+async function applyChatbotFallbackFromSecretaries(
+  supabase: SupabaseClient,
+  clinicId: string,
+  conversationId: string,
+  secretaryIds: string[],
+  fallback: string
+): Promise<void> {
+  await supabase
+    .from("whatsapp_conversations")
+    .update({ chatbot_step: "done" })
+    .eq("id", conversationId);
+  if (fallback === "first_responder" && secretaryIds.length > 0) {
+    await supabase
+      .from("conversation_eligible_secretaries")
+      .insert(secretaryIds.map((sid) => ({ conversation_id: conversationId, secretary_id: sid })));
+  } else if (fallback === "round_robin" && secretaryIds.length > 0) {
+    const chosen = await pickFromSecretaryList(supabase, clinicId, secretaryIds);
+    if (chosen) {
+      await supabase
+        .from("whatsapp_conversations")
+        .update({ assigned_secretary_id: chosen, assigned_at: new Date().toISOString() })
+        .eq("id", conversationId);
+    }
+  }
+}
+
 export async function handleChatbotMessage(
   supabase: SupabaseClient,
   clinicId: string,
@@ -111,10 +188,11 @@ export async function handleChatbotMessage(
 ): Promise<{ reply: string | null; done: boolean }> {
   const { data: settings } = await supabase
     .from("clinic_whatsapp_routing_settings")
-    .select("routing_strategy")
+    .select("routing_strategy, chatbot_fallback_strategy")
     .eq("clinic_id", clinicId)
     .single();
   const strategy = (settings as { routing_strategy?: string })?.routing_strategy ?? "first_responder";
+  const chatbotFallback = (settings as { chatbot_fallback_strategy?: string })?.chatbot_fallback_strategy ?? "first_responder";
   if (strategy !== "chatbot") {
     return { reply: null, done: true };
   }
@@ -139,6 +217,7 @@ export async function handleChatbotMessage(
         .order("name");
       const list = (procedures ?? []) as { id: string; name: string }[];
       if (list.length === 0) {
+        await applyChatbotFallback(supabase, clinicId, conversationId, chatbotFallback);
         return {
           reply: "Não há procedimentos cadastrados. Um atendente entrará em contato em breve.",
           done: true,
@@ -171,10 +250,7 @@ export async function handleChatbotMessage(
           done: true,
         };
       }
-      await supabase
-        .from("whatsapp_conversations")
-        .update({ chatbot_step: "done" })
-        .eq("id", conversationId);
+      await applyChatbotFallback(supabase, clinicId, conversationId, chatbotFallback);
       return {
         reply: "Para remarcar ou cancelar, precisamos localizar seu agendamento. Um atendente entrará em contato em breve.",
         done: true,
@@ -182,10 +258,7 @@ export async function handleChatbotMessage(
     }
 
     if (choice === "4") {
-      await supabase
-        .from("whatsapp_conversations")
-        .update({ chatbot_step: "done" })
-        .eq("id", conversationId);
+      await applyChatbotFallback(supabase, clinicId, conversationId, chatbotFallback);
       return {
         reply: "Em breve um atendente responderá.",
         done: true,
@@ -219,13 +292,9 @@ export async function handleChatbotMessage(
           })
           .eq("id", conversationId);
       } else if (secretaryIds.length > 1) {
-        await supabase
-          .from("conversation_eligible_secretaries")
-          .insert(secretaryIds.map((sid) => ({ conversation_id: conversationId, secretary_id: sid })));
-        await supabase
-          .from("whatsapp_conversations")
-          .update({ chatbot_step: "done" })
-          .eq("id", conversationId);
+        await applyChatbotFallbackFromSecretaries(supabase, clinicId, conversationId, secretaryIds, chatbotFallback);
+      } else {
+        await applyChatbotFallback(supabase, clinicId, conversationId, chatbotFallback);
       }
 
       return {

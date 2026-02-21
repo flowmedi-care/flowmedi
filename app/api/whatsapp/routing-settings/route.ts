@@ -13,7 +13,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("clinic_whatsapp_routing_settings")
-      .select("routing_strategy, general_secretary_id")
+      .select("routing_strategy, general_secretary_id, chatbot_fallback_strategy")
       .eq("clinic_id", clinicId)
       .single();
 
@@ -24,6 +24,7 @@ export async function GET() {
     return NextResponse.json({
       routing_strategy: (data as { routing_strategy?: string })?.routing_strategy ?? "first_responder",
       general_secretary_id: (data as { general_secretary_id?: string | null })?.general_secretary_id ?? null,
+      chatbot_fallback_strategy: (data as { chatbot_fallback_strategy?: string })?.chatbot_fallback_strategy ?? "first_responder",
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao buscar";
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const routing_strategy = body.routing_strategy as string | undefined;
     const general_secretary_id = body.general_secretary_id as string | undefined;
+    const chatbot_fallback_strategy = body.chatbot_fallback_strategy as string | undefined;
 
     if (!routing_strategy || !["general_secretary", "first_responder", "chatbot", "round_robin"].includes(routing_strategy)) {
       return NextResponse.json(
@@ -67,6 +69,10 @@ export async function POST(request: Request) {
     const payload = {
       routing_strategy,
       general_secretary_id: routing_strategy === "general_secretary" ? general_secretary_id : null,
+      chatbot_fallback_strategy:
+        routing_strategy === "chatbot" && chatbot_fallback_strategy && ["first_responder", "round_robin"].includes(chatbot_fallback_strategy)
+          ? chatbot_fallback_strategy
+          : null,
       updated_at: new Date().toISOString(),
     };
 
