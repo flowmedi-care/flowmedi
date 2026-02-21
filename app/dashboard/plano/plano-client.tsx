@@ -502,7 +502,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     );
   }
 
-  return (
+  const content = (
     <div className="grid gap-6 lg:grid-cols-2">
       {/* Coluna principal: Plano atual + Upgrade */}
       <div className="space-y-6 min-w-0">
@@ -878,8 +878,8 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         onConfirm={handleCancelSubscription}
         onCancel={() => setCancelOpen(false)}
       />
-
-
     </div>
   );
+
+  return content;
 }
