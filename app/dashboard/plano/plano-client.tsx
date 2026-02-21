@@ -144,41 +144,21 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     loadSubscriptionInfo();
   }, [plan?.stripeSubscriptionId]);
 
-  // Montar Payment Element quando paymentMounted for true e o elemento estiver no DOM
   useEffect(() => {
     if (paymentMounted && stripeRef.current?.paymentElement && paymentElementRef.current) {
-      console.log("Tentando montar Payment Element...");
       const mountElement = () => {
         if (paymentElementRef.current && stripeRef.current?.paymentElement) {
-          console.log("Montando Payment Element no elemento:", paymentElementRef.current);
           paymentElementRef.current.innerHTML = "";
           try {
             stripeRef.current.paymentElement.mount(paymentElementRef.current);
-            console.log("Payment Element montado com sucesso!");
           } catch (error) {
             console.error("Erro ao montar Payment Element:", error);
           }
-        } else {
-          console.log("Elemento ou Payment Element não disponível:", {
-            hasElement: !!paymentElementRef.current,
-            hasPaymentElement: !!stripeRef.current?.paymentElement,
-          });
         }
       };
-      
-      // Tentar montar imediatamente
       mountElement();
-      
-      // Se não funcionou, tentar após um pequeno delay
       const timeout = setTimeout(mountElement, 100);
-      
       return () => clearTimeout(timeout);
-    } else {
-      console.log("Condições não atendidas para montar:", {
-        paymentMounted,
-        hasPaymentElement: !!stripeRef.current?.paymentElement,
-        hasElement: !!paymentElementRef.current,
-      });
     }
   }, [paymentMounted]);
 
@@ -225,7 +205,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       }
 
       const { clientSecret, paymentIntentId } = data;
-      console.log("Payment Intent criado:", { clientSecret: clientSecret?.substring(0, 20) + "...", paymentIntentId });
       if (!clientSecret || !paymentIntentId) {
         alert("Resposta inválida do servidor.");
         setLoadingCheckout(false);
@@ -524,47 +503,70 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Plano atual</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {plan.planName}
-            {isPro && " · Assinatura ativa"}
-            {isPro && isCancelScheduled && " · Cancelamento agendado"}
-            {isProPastDue && " · Pagamento atrasado — atualize o cartão para manter o acesso"}
-            {isCanceled && " · Assinatura cancelada"}
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {subscriptionInfo?.cancelAtPeriodEnd && subscriptionInfo.currentPeriodEnd && (
-            <p className="text-sm text-muted-foreground">
-              Cancelamento agendado — seu acesso continua por{" "}
-              {formatDaysLeft(subscriptionInfo.currentPeriodEnd)} dias (até{" "}
-              {formatDate(subscriptionInfo.currentPeriodEnd)}). Você pode manter a assinatura a
-              qualquer momento.
-            </p>
-          )}
-          {!isPro && upgradePlans.length > 0 && (
-            <>
-              {upgradePlans.length > 1 && !paymentMounted && (
-                <div className="space-y-2 mb-4">
-                  <Label className="text-sm">Escolha o plano</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {upgradePlans.map((p) => (
-                      <Button
-                        key={p.id}
-                        type="button"
-                        variant={effectiveCheckoutSlug === p.slug ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => router.push(`/dashboard/plano?plan=${p.slug}`)}
-                      >
-                        {p.name}
-                      </Button>
-                    ))}
-                  </div>
+    <div className="grid gap-6 lg:grid-cols-[1fr_minmax(280px,360px)]">
+      {/* Coluna principal: Plano atual + Upgrade */}
+      <div className="space-y-6">
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-medium">Plano atual</CardTitle>
+                <p className="mt-1 text-2xl font-semibold text-foreground">
+                  {plan.planName}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {isPro && !isCancelScheduled && "Assinatura ativa"}
+                  {isPro && isCancelScheduled && "Cancelamento agendado para o fim do período"}
+                  {isProPastDue && "Pagamento atrasado — atualize o cartão para manter o acesso"}
+                  {isCanceled && "Assinatura cancelada"}
+                </p>
+              </div>
+              {isPro && !paymentMounted && (
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={openPortal}>
+                    <ExternalLink className="h-4 w-4 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Faturas e cartão</span>
+                  </Button>
+                  {isCancelScheduled ? (
+                    <Button variant="outline" size="sm" onClick={handleResumeSubscription} disabled={resuming}>
+                      {resuming ? "Salvando…" : "Manter assinatura"}
+                    </Button>
+                  ) : null}
                 </div>
               )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {subscriptionInfo?.cancelAtPeriodEnd && subscriptionInfo.currentPeriodEnd && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                Seu acesso continua até {formatDate(subscriptionInfo.currentPeriodEnd)} ({formatDaysLeft(subscriptionInfo.currentPeriodEnd)} dias). Você pode manter a assinatura a qualquer momento.
+              </div>
+            )}
+            {!isPro && upgradePlans.length > 0 && (
+              <>
+                {upgradePlans.length > 1 && !paymentMounted && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Escolha o plano</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {upgradePlans.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => router.push(`/dashboard/plano?plan=${p.slug}`)}
+                          className={`
+                            rounded-lg px-3 py-1.5 text-sm font-medium transition-colors
+                            ${effectiveCheckoutSlug === p.slug
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                            }
+                          `}
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               {!paymentMounted ? (
                 <Button onClick={startCheckout} disabled={loadingCheckout} className="w-full">
                   {loadingCheckout ? (
@@ -789,7 +791,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
                     ) : (
                       <>
                         <CreditCard className="h-4 w-4 mr-2" />
-                        Assinar Pro
+                        Assinar {effectiveCheckoutPlan?.name ?? "Plano"}
                       </>
                     )}
                   </Button>
@@ -797,46 +799,39 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
               )}
               {!plan.proStripePriceId && (
                 <p className="text-sm text-muted-foreground">
-                  Se o checkout não abrir, configure o preço do plano Pro no Stripe e o campo{" "}
-                  <code className="text-xs">stripe_price_id</code> na tabela <code className="text-xs">plans</code> no Supabase.
+                  Configure o preço no Stripe e o campo stripe_price_id no admin.
                 </p>
               )}
             </>
           )}
-          {isPro && (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={openPortal}>
-                <ExternalLink className="h-4 w-4" />
-                Atualizar cartão / ver faturas na Stripe
-              </Button>
-              {isCancelScheduled ? (
-                <Button variant="outline" onClick={handleResumeSubscription} disabled={resuming}>
-                  {resuming ? "Mantendo…" : "Manter assinatura"}
-                </Button>
-              ) : (
-                <Button variant="destructive" onClick={() => setCancelOpen(true)}>
-                  Cancelar assinatura
-                </Button>
-              )}
+          {isPro && !isCancelScheduled && (
+            <div className="pt-4 mt-4 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setCancelOpen(true)}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
+              >
+                Cancelar assinatura
+              </button>
             </div>
           )}
         </CardContent>
       </Card>
 
-
-      <Card>
+      {/* Coluna lateral: Faturas */}
+      <Card className="h-fit lg:sticky lg:top-6">
         <CardHeader>
-          <CardTitle>Transações</CardTitle>
-          <p className="text-sm text-muted-foreground">Histórico de faturas da sua clínica.</p>
+          <CardTitle className="text-base font-medium">Faturas</CardTitle>
+          <p className="text-sm text-muted-foreground">Histórico de cobranças</p>
         </CardHeader>
         <CardContent>
           {loadingInvoices ? (
-            <p className="text-sm text-muted-foreground">Carregando…</p>
+            <p className="text-sm text-muted-foreground py-4">Carregando…</p>
           ) : invoices.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma fatura ainda.</p>
+            <p className="text-sm text-muted-foreground py-4">Nenhuma fatura.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[260px]">
                 <thead>
                   <tr className="border-b text-left">
                     <th className="pb-2 pr-4">Data</th>
