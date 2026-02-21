@@ -107,12 +107,12 @@ export async function processMessageEvent(
     // A tabela consents permanece disponível para clínicas que quiserem registrar consentimento explícito.
 
     // 3. Buscar template: primeiro customizado (message_templates), senão padrão do sistema (system_message_templates)
-    let template: { id?: string; subject?: string | null; body_html: string; email_header?: string | null; email_footer?: string | null; channel: string } | null = null;
+    let template: { id?: string; subject?: string | null; body_html: string; email_header?: string | null; email_footer?: string | null; whatsapp_meta_phrase?: string | null; channel: string } | null = null;
 
     if (setting.template_id) {
       const { data: customTemplate } = await supabase
         .from("message_templates")
-        .select("id, subject, body_html, email_header, email_footer")
+        .select("id, subject, body_html, email_header, email_footer, whatsapp_meta_phrase")
         .eq("id", setting.template_id)
         .eq("is_active", true)
         .single();
@@ -125,7 +125,7 @@ export async function processMessageEvent(
     if (!template) {
       const { data: systemTemplate } = await supabase
         .from("system_message_templates")
-        .select("subject, body_html, email_header, email_footer")
+        .select("subject, body_html, email_header, email_footer, whatsapp_meta_phrase")
         .eq("event_code", eventCode)
         .eq("channel", channel)
         .single();
@@ -182,7 +182,8 @@ export async function processMessageEvent(
         context,
         supabase,
         whatsappTicketStatus,
-        Boolean(setting.send_only_when_ticket_open)
+        Boolean(setting.send_only_when_ticket_open),
+        channel === "whatsapp" ? template.whatsapp_meta_phrase : undefined
       );
     }
 
@@ -368,7 +369,8 @@ export async function sendMessage(
   variables: any,
   supabaseClient?: SupabaseClientType,
   whatsappTicketStatus?: "open" | "closed" | "completed" | null,
-  sendOnlyWhenTicketOpen?: boolean
+  sendOnlyWhenTicketOpen?: boolean,
+  whatsappMetaPhrase?: string | null
 ): Promise<ProcessMessageResult> {
   const supabase = supabaseClient ?? (await createClient());
 
@@ -424,12 +426,13 @@ export async function sendMessage(
       const useTextMessage = !whatsappTicketStatus || whatsappTicketStatus === "open";
       const canUseTemplate = whatsappTicketStatus && whatsappTicketStatus !== "open" && !sendOnlyWhenTicketOpen;
       
-      // Se ticket fechado e pode usar template, tentar template Meta
-      // Por enquanto, se não houver template Meta configurado, tentar texto mesmo
-      // (pode falhar, mas é melhor que não enviar)
-      // TODO: Buscar template Meta aprovado configurado para este evento
-      const templateName = canUseTemplate ? eventCode : undefined;
-      const templateParams = canUseTemplate ? extractTemplateParams(body, variables) : undefined;
+      // Se ticket fechado e pode usar template, usar template Meta aprovado
+      // Mapeamento event_code → flowmedi_consulta | flowmedi_formulario | flowmedi_aviso
+      const metaTemplate = canUseTemplate
+        ? (await import("@/lib/whatsapp-meta-templates")).getMetaTemplateParams(eventCode, variables, whatsappMetaPhrase)
+        : undefined;
+      const templateName = metaTemplate?.template;
+      const templateParams = metaTemplate?.params;
       
       sendResult = await sendWhatsApp(
         clinicId, 
@@ -574,16 +577,6 @@ function extractTextFromHtml(html: string): string {
     .replace(/&#39;/g, "'")
     .replace(/\n{3,}/g, "\n\n") // Máx 1 linha em branco
     .trim();
-}
-
-/**
- * Extrai parâmetros do template para usar em templates Meta
- * Por enquanto, retorna o texto processado como único parâmetro
- */
-function extractTemplateParams(body: string, variables: any): string[] {
-  const text = extractTextFromHtml(body);
-  // Limitar a 1024 caracteres (limite da Meta para parâmetros)
-  return [text.slice(0, 1024)];
 }
 
 /**
@@ -911,12 +904,12 @@ export async function getMessagePreview(
       templateId = setting?.template_id;
     }
 
-    let template: { subject?: string | null; body_html: string; name?: string; email_header?: string | null; email_footer?: string | null } | null = null;
+    let template: { subject?: string | null; body_html: string; name?: string; email_header?: string | null; email_footer?: string | null; whatsapp_meta_phrase?: string | null } | null = null;
 
     if (templateId) {
       const { data: customTemplate } = await supabase
         .from("message_templates")
-        .select("subject, body_html, name, email_header, email_footer")
+        .select("subject, body_html, name, email_header, email_footer, whatsapp_meta_phrase")
         .eq("id", templateId)
         .eq("is_active", true)
         .single();
@@ -926,7 +919,7 @@ export async function getMessagePreview(
     if (!template) {
       const { data: systemTemplate } = await supabase
         .from("system_message_templates")
-        .select("subject, body_html, name, email_header, email_footer")
+        .select("subject, body_html, name, email_header, email_footer, whatsapp_meta_phrase")
         .eq("event_code", event.event_code)
         .eq("channel", channel)
         .single();
@@ -941,6 +934,7 @@ export async function getMessagePreview(
     const subject = template.subject ? replaceVariables(template.subject, context) : null;
     const rawBody = replaceVariables(template.body_html || "", context);
     let body = rawBody;
+
     if (channel === "email") {
       const { data: clinicRow } = await supabase
         .from("clinics")
@@ -950,7 +944,43 @@ export async function getMessagePreview(
       const header = (clinicRow?.email_header && replaceVariables(clinicRow.email_header, context)) || "";
       const footer = (clinicRow?.email_footer && replaceVariables(clinicRow.email_footer, context)) || "";
       body = header + rawBody + footer;
+    } else if (channel === "whatsapp" && event.patient_id) {
+      // WhatsApp: se ticket fechado, mostrar preview do template Meta; senão texto livre
+      const { data: patient } = await supabase
+        .from("patients")
+        .select("phone")
+        .eq("id", event.patient_id)
+        .single();
+      let ticketStatus: "open" | "closed" | "completed" | null = null;
+      if (patient?.phone) {
+        const { normalizeWhatsAppPhone } = await import("@/lib/whatsapp-utils");
+        const digits = patient.phone.replace(/\D/g, "");
+        const normalizedPhone = normalizeWhatsAppPhone(digits.startsWith("55") ? digits : `55${digits}`);
+        const { data: conv } = await supabase
+          .from("whatsapp_conversations")
+          .select("status")
+          .eq("clinic_id", clinicId)
+          .eq("phone_number", normalizedPhone)
+          .maybeSingle();
+        ticketStatus = (conv?.status as "open" | "closed" | "completed") ?? null;
+      }
+      const useMetaTemplate = ticketStatus && ticketStatus !== "open";
+      if (useMetaTemplate) {
+        const { getMetaTemplateParams } = await import("@/lib/whatsapp-meta-templates");
+        const meta = getMetaTemplateParams(event.event_code, context, template.whatsapp_meta_phrase);
+        if (meta) {
+          const [nome, msg, clinica] = meta.params;
+          if (meta.template === "flowmedi_formulario") {
+            body = `Olá ${nome}!\n\nPrecisamos que você preencha o formulário antes da sua consulta. Acesse o link abaixo para preencher:\n\n${msg}\n\nObrigado por nos ajudar a preparar seu atendimento. Atenciosamente, ${clinica}`;
+          } else if (meta.template === "flowmedi_aviso") {
+            body = `Olá ${nome}!\n\n${msg}\n\nEstamos à disposição para qualquer dúvida. Atenciosamente, ${clinica}`;
+          } else {
+            body = `Olá ${nome}!\n\nTemos uma mensagem importante sobre sua consulta médica:\n\n${msg}\n\nPara qualquer dúvida, entre em contato conosco. Atenciosamente, ${clinica}`;
+          }
+        }
+      }
     }
+
     result.push({ channel, subject, body, templateName: template.name });
   }
 

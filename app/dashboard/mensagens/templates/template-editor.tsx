@@ -35,6 +35,9 @@ export function TemplateEditor({
   initialSubject,
   initialBodyHtml,
   initialBodyText,
+  initialEmailHeader,
+  initialEmailFooter,
+  initialWhatsappMetaPhrase = "",
   events,
 }: {
   templateId: string | null;
@@ -46,6 +49,7 @@ export function TemplateEditor({
   initialBodyText: string;
   initialEmailHeader?: string;
   initialEmailFooter?: string;
+  initialWhatsappMetaPhrase?: string;
   events: MessageEvent[];
 }) {
   const router = useRouter();
@@ -55,6 +59,7 @@ export function TemplateEditor({
   const [subject, setSubject] = useState(initialSubject);
   const [bodyHtml, setBodyHtml] = useState(initialBodyHtml);
   const [bodyText, setBodyText] = useState(initialBodyText);
+  const [whatsappMetaPhrase, setWhatsappMetaPhrase] = useState(initialWhatsappMetaPhrase);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<"visual" | "html">("visual");
@@ -140,8 +145,9 @@ export function TemplateEditor({
         bodyHtml,
         bodyText || null,
         variablesUsed,
-        null,
-        null
+        initialEmailHeader ?? null,
+        initialEmailFooter ?? null,
+        channel === "whatsapp" ? whatsappMetaPhrase || null : undefined
       );
 
       if (result.error) {
@@ -158,8 +164,9 @@ export function TemplateEditor({
         bodyHtml,
         bodyText || null,
         variablesUsed,
-        null,
-        null
+        initialEmailHeader ?? null,
+        initialEmailFooter ?? null,
+        channel === "whatsapp" ? whatsappMetaPhrase || null : undefined
       );
 
       if (result.error) {
@@ -412,6 +419,23 @@ export function TemplateEditor({
                 />
                 <p className="text-xs text-muted-foreground">
                   Se não preenchido, será gerado automaticamente a partir do HTML.
+                </p>
+              </div>
+            )}
+
+            {channel === "whatsapp" && (
+              <div className="space-y-2 pt-4 border-t">
+                <Label htmlFor="whatsapp_meta_phrase">Template Meta (janela 24h fechada)</Label>
+                <Textarea
+                  id="whatsapp_meta_phrase"
+                  value={whatsappMetaPhrase}
+                  onChange={(e) => setWhatsappMetaPhrase(e.target.value)}
+                  placeholder="Ex.: Sua consulta foi agendada. (Data e médico serão adicionados automaticamente. Usado quando o paciente não respondeu nas últimas 24h)"
+                  rows={4}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Mensagem enviada via template aprovado na Meta quando a janela de 24h está fechada. Você pode personalizar apenas o texto da mensagem principal.
                 </p>
               </div>
             )}

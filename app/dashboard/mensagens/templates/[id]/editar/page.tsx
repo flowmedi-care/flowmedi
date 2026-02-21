@@ -46,6 +46,7 @@ export default async function EditarTemplatePage({
       initialBodyText={template.body_text || ""}
       initialEmailHeader={template.email_header || ""}
       initialEmailFooter={template.email_footer || ""}
+      initialWhatsappMetaPhrase={(template as { whatsapp_meta_phrase?: string | null }).whatsapp_meta_phrase || ""}
       events={events}
     />
   );

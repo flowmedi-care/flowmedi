@@ -379,7 +379,8 @@ export async function createMessageTemplate(
   bodyText: string | null,
   variablesUsed: string[] = [],
   emailHeader: string | null = null,
-  emailFooter: string | null = null
+  emailFooter: string | null = null,
+  whatsappMetaPhrase: string | null = null
 ): Promise<{ data: MessageTemplate | null; error: string | null }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -394,24 +395,28 @@ export async function createMessageTemplate(
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
 
   const bodyPlain = bodyText?.trim() || bodyHtml.replace(/<[^>]*>/g, "").trim() || "";
+  const insertData: Record<string, unknown> = {
+    clinic_id: profile.clinic_id,
+    event_code: eventCode,
+    name: name.trim(),
+    channel,
+    type: "custom", // legado: coluna pode existir como NOT NULL em DB antiga
+    subject: subject?.trim() || null,
+    body: bodyPlain || bodyHtml, // legado: coluna body NOT NULL em DB antiga
+    body_html: bodyHtml,
+    body_text: bodyText?.trim() || null,
+    email_header: emailHeader?.trim() || null,
+    email_footer: emailFooter?.trim() || null,
+    variables_used: variablesUsed,
+    is_active: true,
+    is_default: false,
+  };
+  if (channel === "whatsapp" && whatsappMetaPhrase !== undefined) {
+    insertData.whatsapp_meta_phrase = whatsappMetaPhrase?.trim() || null;
+  }
   const { data, error } = await supabase
     .from("message_templates")
-    .insert({
-      clinic_id: profile.clinic_id,
-      event_code: eventCode,
-      name: name.trim(),
-      channel,
-      type: "custom", // legado: coluna pode existir como NOT NULL em DB antiga
-      subject: subject?.trim() || null,
-      body: bodyPlain || bodyHtml, // legado: coluna body NOT NULL em DB antiga
-      body_html: bodyHtml,
-      body_text: bodyText?.trim() || null,
-      email_header: emailHeader?.trim() || null,
-      email_footer: emailFooter?.trim() || null,
-      variables_used: variablesUsed,
-      is_active: true,
-      is_default: false,
-    })
+    .insert(insertData)
     .select()
     .single();
 
@@ -455,7 +460,8 @@ export async function createMessageTemplateFromSystem(
     systemRow.body_text ?? null,
     Array.isArray(systemRow.variables_used) ? systemRow.variables_used : [],
     systemRow.email_header ?? null,
-    systemRow.email_footer ?? null
+    systemRow.email_footer ?? null,
+    (systemRow as { whatsapp_meta_phrase?: string | null }).whatsapp_meta_phrase ?? null
   );
 }
 
@@ -469,7 +475,8 @@ export async function updateMessageTemplate(
   bodyText: string | null,
   variablesUsed: string[] = [],
   emailHeader: string | null = null,
-  emailFooter: string | null = null
+  emailFooter: string | null = null,
+  whatsappMetaPhrase?: string | null
 ): Promise<{ data: MessageTemplate | null; error: string | null }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -483,17 +490,21 @@ export async function updateMessageTemplate(
 
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
 
+  const updateData: Record<string, unknown> = {
+    name: name.trim(),
+    subject: subject?.trim() || null,
+    body_html: bodyHtml,
+    body_text: bodyText?.trim() || null,
+    email_header: emailHeader?.trim() ?? null,
+    email_footer: emailFooter?.trim() ?? null,
+    variables_used: variablesUsed,
+  };
+  if (whatsappMetaPhrase !== undefined) {
+    updateData.whatsapp_meta_phrase = whatsappMetaPhrase?.trim() || null;
+  }
   const { data, error } = await supabase
     .from("message_templates")
-    .update({
-      name: name.trim(),
-      subject: subject?.trim() || null,
-      body_html: bodyHtml,
-      body_text: bodyText?.trim() || null,
-      email_header: emailHeader?.trim() ?? null,
-      email_footer: emailFooter?.trim() ?? null,
-      variables_used: variablesUsed,
-    })
+    .update(updateData)
     .eq("id", id)
     .eq("clinic_id", profile.clinic_id)
     .select()
@@ -775,11 +786,12 @@ export async function approvePendingMessage(
   // Assunto e corpo: quando template_id é null (template do sistema), usar processed_subject e processed_body
   let finalBody = pendingMessage.processed_body || "";
   let finalSubject = (pendingMessage as { processed_subject?: string | null }).processed_subject ?? null;
+  let whatsappMetaPhrase: string | null = null;
 
   if (pendingMessage.template_id) {
     const { data: template } = await supabase
       .from("message_templates")
-      .select("subject, body_html")
+      .select("subject, body_html, whatsapp_meta_phrase")
       .eq("id", pendingMessage.template_id)
       .single();
 
@@ -793,7 +805,17 @@ export async function approvePendingMessage(
         const { replaceVariables } = await import("@/lib/message-variables");
         finalSubject = replaceVariables(finalSubject, pendingMessage.variables as any);
       }
+      whatsappMetaPhrase = template.whatsapp_meta_phrase ?? null;
     }
+  } else if (pendingMessage.channel === "whatsapp") {
+    // Template do sistema: buscar whatsapp_meta_phrase
+    const { data: sysTemplate } = await supabase
+      .from("system_message_templates")
+      .select("whatsapp_meta_phrase")
+      .eq("event_code", pendingMessage.event_code)
+      .eq("channel", "whatsapp")
+      .single();
+    whatsappMetaPhrase = sysTemplate?.whatsapp_meta_phrase ?? null;
   }
 
   // Para WhatsApp: buscar status do ticket e configuração send_only_when_ticket_open
@@ -856,7 +878,8 @@ export async function approvePendingMessage(
     pendingMessage.variables,
     undefined, // supabaseClient
     whatsappTicketStatus,
-    sendOnlyWhenTicketOpen
+    sendOnlyWhenTicketOpen,
+    pendingMessage.channel === "whatsapp" ? whatsappMetaPhrase : undefined
   );
 
   if (!sendResult.success) {
