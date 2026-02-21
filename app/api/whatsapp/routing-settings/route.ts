@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const routing_strategy = body.routing_strategy as string | undefined;
     const general_secretary_id = body.general_secretary_id as string | undefined;
 
-    if (!routing_strategy || !["general_secretary", "first_responder", "chatbot"].includes(routing_strategy)) {
+    if (!routing_strategy || !["general_secretary", "first_responder", "chatbot", "round_robin"].includes(routing_strategy)) {
       return NextResponse.json(
         { error: "routing_strategy deve ser general_secretary, first_responder ou chatbot" },
         { status: 400 }

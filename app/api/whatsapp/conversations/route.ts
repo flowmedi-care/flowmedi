@@ -66,6 +66,16 @@ export async function GET(request: Request) {
     // Admin: vê todas. Secretária/outros: só vê atribuídas a ela ou em pool elegível
     let conversations = rows;
     if (!isAdmin) {
+      const { data: routingSettings } = await supabase
+        .from("clinic_whatsapp_routing_settings")
+        .select("routing_strategy, general_secretary_id")
+        .eq("clinic_id", clinicId)
+        .single();
+      const strategy = (routingSettings as { routing_strategy?: string })?.routing_strategy ?? "first_responder";
+      const generalSecretaryId = (routingSettings as { general_secretary_id?: string | null })?.general_secretary_id
+        ? String((routingSettings as { general_secretary_id?: string | null }).general_secretary_id)
+        : null;
+
       const { data: allEligible } = await supabase
         .from("conversation_eligible_secretaries")
         .select("conversation_id, secretary_id")
@@ -83,6 +93,10 @@ export async function GET(request: Request) {
         const aid = c.assigned_secretary_id ? String(c.assigned_secretary_id) : null;
         if (aid && aid === uid) return true; // atribuída a mim
         if (aid) return false; // atribuída a outra pessoa
+        // assigned = null
+        if (strategy === "general_secretary" && generalSecretaryId) {
+          return uid === generalSecretaryId; // só a secretária geral vê conversas não atribuídas
+        }
         const eligible = eligibleByConv.get(c.id);
         if (!eligible || eligible.size === 0) return true; // pool geral: todas secretárias
         return eligible.has(uid);

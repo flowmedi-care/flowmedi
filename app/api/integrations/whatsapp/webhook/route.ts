@@ -4,6 +4,11 @@ import { setLastWebhookPayload } from "@/lib/whatsapp-webhook-debug";
 import { fetchAndStoreWhatsAppMedia } from "@/lib/whatsapp-media";
 
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
+import {
+  applyRoutingOnNewConversation,
+  handleChatbotMessage,
+  sendChatbotReply,
+} from "@/lib/whatsapp-routing";
 
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
@@ -183,6 +188,7 @@ export async function POST(request: NextRequest) {
 
           const now = new Date().toISOString();
           let conversationId: string;
+          let isNewConversation = false;
           if (conversationRes.data?.id) {
             conversationId = conversationRes.data.id;
             // Quando recebe mensagem inbound: atualizar last_inbound_message_at e reabrir se estiver fechada
@@ -228,9 +234,14 @@ export async function POST(request: NextRequest) {
               }
             } else if (insertConv.data?.id) {
               conversationId = insertConv.data.id;
+              isNewConversation = true;
             } else {
               continue;
             }
+          }
+
+          if (isNewConversation) {
+            await applyRoutingOnNewConversation(supabase, clinicId, conversationId);
           }
 
           const insertMsg = await supabase.from("whatsapp_messages").insert({
@@ -245,6 +256,17 @@ export async function POST(request: NextRequest) {
 
           if (insertMsg.error) {
             console.error("[WhatsApp Webhook] Erro ao inserir mensagem:", insertMsg.error);
+          }
+
+          const chatbotResult = await handleChatbotMessage(
+            supabase,
+            clinicId,
+            conversationId,
+            from,
+            bodyText ?? ""
+          );
+          if (chatbotResult.reply) {
+            await sendChatbotReply(supabase, clinicId, conversationId, from, chatbotResult.reply);
           }
         }
       }

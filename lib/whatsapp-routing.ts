@@ -48,7 +48,58 @@ export async function applyRoutingOnNewConversation(
     return { assignedSecretaryId: null, eligibleSecretaryIds: [] };
   }
 
+  if (strategy === "round_robin") {
+    const secretaryId = await pickSecretaryWithFewestConversations(supabase, clinicId);
+    if (secretaryId) {
+      await supabase
+        .from("whatsapp_conversations")
+        .update({
+          assigned_secretary_id: secretaryId,
+          assigned_at: new Date().toISOString(),
+        })
+        .eq("id", conversationId);
+      return { assignedSecretaryId: secretaryId, eligibleSecretaryIds: [] };
+    }
+  }
+
   return { assignedSecretaryId: null, eligibleSecretaryIds: [] };
+}
+
+async function pickSecretaryWithFewestConversations(
+  supabase: SupabaseClient,
+  clinicId: string
+): Promise<string | null> {
+  const { data: secretaries } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("clinic_id", clinicId)
+    .eq("role", "secretaria")
+    .or("active.eq.true,active.is.null");
+  const secIds = (secretaries ?? []).map((s) => s.id);
+  if (secIds.length === 0) return null;
+
+  const { data: counts } = await supabase
+    .from("whatsapp_conversations")
+    .select("assigned_secretary_id")
+    .eq("clinic_id", clinicId)
+    .eq("status", "open");
+  const bySecretary = new Map<string, number>();
+  for (const sid of secIds) bySecretary.set(sid, 0);
+  for (const row of counts ?? []) {
+    const aid = (row as { assigned_secretary_id?: string | null }).assigned_secretary_id;
+    if (aid && secIds.includes(aid)) {
+      bySecretary.set(aid, (bySecretary.get(aid) ?? 0) + 1);
+    }
+  }
+  let minCount = Infinity;
+  let chosen: string | null = null;
+  for (const [sid, c] of bySecretary) {
+    if (c < minCount) {
+      minCount = c;
+      chosen = sid;
+    }
+  }
+  return chosen;
 }
 
 export async function handleChatbotMessage(
