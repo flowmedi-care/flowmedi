@@ -503,9 +503,9 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+    <div className="grid gap-6 lg:grid-cols-2">
       {/* Coluna principal: Plano atual + Upgrade */}
-      <div className="space-y-6">
+      <div className="space-y-6 min-w-0">
         <Card className="overflow-hidden">
           <CardHeader className="pb-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -819,7 +819,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       </Card>
 
       {/* Coluna lateral: Faturas */}
-      <Card className="h-fit lg:sticky lg:top-6">
+      <Card className="h-fit lg:sticky lg:top-6 lg:max-w-sm">
         <CardHeader>
           <CardTitle className="text-base font-medium">Faturas</CardTitle>
           <p className="text-sm text-muted-foreground">Histórico de cobranças</p>
