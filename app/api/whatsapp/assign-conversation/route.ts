@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       .delete()
       .eq("conversation_id", conversationId);
 
-    // Se a conversa tem paciente vinculado, associar em patient_secretary
+    // Se a conversa tem paciente vinculado, associar em patient_secretary (permite múltiplas secretárias)
     if (conv?.patient_id) {
       await serviceSupabase
         .from("patient_secretary")
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
             patient_id: conv.patient_id,
             secretary_id: secretaryId,
           },
-          { onConflict: "clinic_id,patient_id" }
+          { onConflict: "clinic_id,patient_id,secretary_id" }
         );
     }
 

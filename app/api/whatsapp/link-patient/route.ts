@@ -72,7 +72,7 @@ export async function POST(request: Request) {
             patient_id: patientId,
             secretary_id: secretaryId,
           },
-          { onConflict: "clinic_id,patient_id" }
+          { onConflict: "clinic_id,patient_id,secretary_id" }
         );
     }
 

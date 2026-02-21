@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { createAppointment, updateAppointment, updateUserPreferences, getPublicFormTemplatesForPatient } from "./actions";
 import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/toast";
 import { Plus, CalendarClock, GripVertical, ChevronDown } from "lucide-react";
 import { AgendaFilters } from "./agenda-filters";
 import { cn } from "@/lib/utils";
@@ -295,6 +296,7 @@ export function AgendaClient({
     );
     if (res.error) {
       setError(res.error);
+      toast(res.error, "error");
       setLoading(false);
       return;
     }
@@ -470,7 +472,7 @@ export function AgendaClient({
         // Usar router.refresh() para atualizar dados sem perder estado
         router.refresh();
       } else {
-        alert(`Erro ao reagendar: ${res.error}`);
+        toast(res.error, "error");
       }
     }
     setDraggedAppointment(null);
@@ -1700,7 +1702,7 @@ function StatusBadgeDropdown({
       onStatusChange(newStatus);
       router.refresh();
     } else {
-      alert(`Erro ao alterar status: ${res.error}`);
+      toast(res.error, "error");
     }
 
     setIsOpen(false);

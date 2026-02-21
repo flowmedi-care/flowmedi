@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { revalidatePath } from "next/cache";
 import { getClinicPlanData, countMonthAppointments } from "@/lib/plan-helpers";
 import { canCreateAppointment, getUpgradeMessage } from "@/lib/plan-gates";
@@ -48,6 +49,57 @@ export async function getPublicFormTemplatesForPatient(patientId: string) {
 }
 
 import { slugify } from "@/lib/form-slug";
+import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
+
+/** Vincula conversa(s) WhatsApp do paciente à secretária que agendou (para ela ver no pool). */
+async function linkWhatsAppConversationToSecretary(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  patientId: string,
+  secretaryId: string
+) {
+  try {
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("phone")
+      .eq("id", patientId)
+      .eq("clinic_id", clinicId)
+      .single();
+    if (!patient?.phone) return;
+
+    const digits = (patient.phone as string).replace(/\D/g, "");
+    if (digits.length < 10) return;
+
+    const normalized = normalizeWhatsAppPhone(digits.startsWith("55") ? digits : `55${digits}`);
+    const phoneVariants = [normalized, `55${digits}`, digits].filter((v, i, a) => v && a.indexOf(v) === i);
+
+    const service = createServiceRoleClient();
+    const { data: convs } = await service
+      .from("whatsapp_conversations")
+      .select("id, patient_id")
+      .eq("clinic_id", clinicId)
+      .in("phone_number", phoneVariants);
+
+    for (const conv of convs ?? []) {
+      const updates: Record<string, unknown> = {};
+      if (!conv.patient_id) updates.patient_id = patientId;
+      if (Object.keys(updates).length > 0) {
+        await service
+          .from("whatsapp_conversations")
+          .update(updates)
+          .eq("id", conv.id);
+      }
+      await service
+        .from("conversation_eligible_secretaries")
+        .upsert(
+          { conversation_id: conv.id, secretary_id: secretaryId },
+          { onConflict: "conversation_id,secretary_id" }
+        );
+    }
+  } catch {
+    // Não falhar o agendamento se o vínculo falhar
+  }
+}
 
 function generateLinkToken(): string {
   return crypto.randomUUID().replace(/-/g, "") + Date.now().toString(36);
@@ -123,7 +175,7 @@ export async function createAppointment(
   if (insertErr) return { error: insertErr.message };
   if (!appointment) return { error: "Erro ao criar consulta." };
 
-  // Secretária que agenda: associar paciente a ela em patient_secretary (primeira consulta ou não)
+  // Secretária que agenda: associar paciente a ela (permite múltiplas secretárias por paciente)
   if (profile?.role === "secretaria") {
     await supabase
       .from("patient_secretary")
@@ -133,8 +185,9 @@ export async function createAppointment(
           patient_id: patientId,
           secretary_id: user.id,
         },
-        { onConflict: "clinic_id,patient_id" }
+        { onConflict: "clinic_id,patient_id,secretary_id" }
       );
+    await linkWhatsAppConversationToSecretary(supabase, profile.clinic_id, patientId, user.id);
   }
 
   const formLinkedEventIds: string[] = [];
