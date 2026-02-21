@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { revalidatePath } from "next/cache";
 
 const DEFAULT_MESSAGE = "Olá gostaria de obter mais informação sobre a consulta com o dr [seu nome]";
@@ -30,7 +31,9 @@ export async function getReferralLinkData(): Promise<{
   if (!clinicId)
     return { referralLink: null, customMessage: null, whatsappUrl: null, error: "Clínica não vinculada." };
 
-  const { data: clinic } = await supabase
+  // Usar service role para garantir leitura do clinic (evita bloqueio por RLS)
+  const serviceSupabase = createServiceRoleClient();
+  const { data: clinic } = await serviceSupabase
     .from("clinics")
     .select("whatsapp_url, phone")
     .eq("id", clinicId)
