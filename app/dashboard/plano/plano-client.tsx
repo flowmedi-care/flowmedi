@@ -503,7 +503,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_minmax(280px,360px)]">
+    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       {/* Coluna principal: Plano atual + Upgrade */}
       <div className="space-y-6">
         <Card className="overflow-hidden">
