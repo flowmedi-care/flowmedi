@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
   Calendar,
+  CalendarDays,
   Users,
   UserPlus,
   FileText,
@@ -95,6 +96,7 @@ export function DashboardNav({
   const navItems: { href: string; label: string; icon: React.ReactNode; roles?: string[]; badge?: number }[] = [
     { href: "/dashboard", label: "Início", icon: <LayoutDashboard className="h-4 w-4" /> },
     { href: "/dashboard/agenda", label: "Agenda", icon: <Calendar className="h-4 w-4" /> },
+    { href: "/dashboard/consulta", label: "Consultas", icon: <CalendarDays className="h-4 w-4" />, roles: ["admin", "secretaria", "medico"] },
     { href: "/dashboard/pacientes", label: "Pacientes", icon: <Users className="h-4 w-4" /> },
     { href: "/dashboard/formularios", label: "Formulários", icon: <FileText className="h-4 w-4" /> },
     { href: "/dashboard/eventos", label: "Eventos", icon: <Bell className="h-4 w-4" />, roles: ["admin", "secretaria"] },

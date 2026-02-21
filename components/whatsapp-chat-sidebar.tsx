@@ -19,6 +19,7 @@ type Conversation = {
   assigned_secretary_id: string | null;
   assigned_secretary: { id: string; full_name: string | null } | null;
   assigned_at: string | null;
+  eligible_secretaries?: Array<{ id: string; full_name: string | null }>;
 };
 
 type Message = {
@@ -713,6 +714,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           }}
           conversationId={selectedConversation.id}
           assignedSecretary={selectedConversation.assigned_secretary}
+          eligibleSecretaries={selectedConversation.eligible_secretaries ?? []}
           secretaries={secretaries}
           onAssignConversation={async (secretaryId) => {
             const res = await fetch("/api/whatsapp/assign-conversation", {

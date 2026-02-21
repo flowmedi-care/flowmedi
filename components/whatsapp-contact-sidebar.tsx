@@ -48,6 +48,7 @@ interface WhatsAppContactSidebarProps {
   onContactNameChange?: (name: string | null) => void;
   conversationId?: string | null;
   assignedSecretary?: AssignedSecretary;
+  eligibleSecretaries?: Array<{ id: string; full_name: string | null }>;
   onAssignConversation?: (secretaryId: string) => Promise<void>;
   secretaries?: { id: string; full_name: string }[];
 }
@@ -74,6 +75,7 @@ export function WhatsAppContactSidebar({
   onPatientLinked,
   conversationId,
   assignedSecretary,
+  eligibleSecretaries = [],
   onAssignConversation,
   secretaries = [],
 }: WhatsAppContactSidebarProps) {
@@ -225,6 +227,10 @@ export function WhatsAppContactSidebar({
                 <p className="text-xs font-medium text-muted-foreground mb-1">Atendente responsável</p>
                 {assignedSecretary ? (
                   <p className="text-sm font-medium">{assignedSecretary.full_name ?? "Sem nome"}</p>
+                ) : eligibleSecretaries.length > 0 ? (
+                  <p className="text-sm font-medium">
+                    Responsáveis: {eligibleSecretaries.map((s) => s.full_name || "Sem nome").join(", ")}
+                  </p>
                 ) : (
                   <p className="text-sm text-muted-foreground italic">Em pool (disponível para todas)</p>
                 )}

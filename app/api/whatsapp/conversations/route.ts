@@ -63,6 +63,8 @@ export async function GET(request: Request) {
     const roleNorm = String(role ?? "").toLowerCase().trim();
     const isAdmin = roleNorm === "admin";
 
+    const eligibleDetailsByConv = new Map<string, Array<{ id: string; full_name: string | null }>>();
+
     // Admin: vê todas. Secretária/outros: só vê atribuídas a ela ou em pool elegível
     let conversations = rows;
     if (!isAdmin) {
@@ -78,7 +80,7 @@ export async function GET(request: Request) {
 
       const { data: allEligible } = await supabase
         .from("conversation_eligible_secretaries")
-        .select("conversation_id, secretary_id")
+        .select("conversation_id, secretary_id, profiles!secretary_id(id, full_name)")
         .in("conversation_id", rows.map((r) => r.id));
       const eligibleByConv = new Map<string, Set<string>>();
       for (const e of allEligible ?? []) {
@@ -86,6 +88,10 @@ export async function GET(request: Request) {
         const sid = String(e.secretary_id);
         if (!eligibleByConv.has(cid)) eligibleByConv.set(cid, new Set());
         eligibleByConv.get(cid)!.add(sid);
+        const prof = (e as { profiles?: { id: string; full_name: string | null } | { id: string; full_name: string | null }[] }).profiles;
+        const p = Array.isArray(prof) ? prof[0] : prof;
+        if (!eligibleDetailsByConv.has(cid)) eligibleDetailsByConv.set(cid, []);
+        eligibleDetailsByConv.get(cid)!.push({ id: sid, full_name: p?.full_name ?? null });
       }
 
       const uid = String(userId ?? "");
@@ -101,6 +107,19 @@ export async function GET(request: Request) {
         if (!eligible || eligible.size === 0) return true; // pool geral: todas secretárias
         return eligible.has(uid);
       });
+    } else {
+      const { data: allEligible } = await supabase
+        .from("conversation_eligible_secretaries")
+        .select("conversation_id, secretary_id, profiles!secretary_id(id, full_name)")
+        .in("conversation_id", rows.map((r) => r.id));
+      for (const e of allEligible ?? []) {
+        const cid = String(e.conversation_id);
+        const sid = String(e.secretary_id);
+        const prof = (e as { profiles?: { id: string; full_name: string | null } | { id: string; full_name: string | null }[] }).profiles;
+        const p = Array.isArray(prof) ? prof[0] : prof;
+        if (!eligibleDetailsByConv.has(cid)) eligibleDetailsByConv.set(cid, []);
+        eligibleDetailsByConv.get(cid)!.push({ id: sid, full_name: p?.full_name ?? null });
+      }
     }
 
     const result = conversations.map((c) => ({
@@ -116,6 +135,11 @@ export async function GET(request: Request) {
         return s ? { id: s.id, full_name: s.full_name } : null;
       })(),
       assigned_at: c.assigned_at,
+      eligible_secretaries: (() => {
+        if (c.assigned_secretary_id) return [];
+        const details = eligibleDetailsByConv?.get(c.id) ?? [];
+        return details;
+      })(),
     }));
 
     return NextResponse.json(result);
