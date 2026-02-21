@@ -113,5 +113,3 @@ export async function saveReferralMessage(customMessage: string): Promise<{ erro
   if (error) return { error: error.message };
   return { error: null };
 }
-
-export { DEFAULT_MESSAGE };

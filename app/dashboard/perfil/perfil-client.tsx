@@ -15,8 +15,9 @@ import {
 import {
   getReferralLinkData,
   saveReferralMessage,
-  DEFAULT_MESSAGE,
 } from "./referral-actions";
+
+const DEFAULT_MESSAGE = "Olá gostaria de obter mais informação sobre a consulta com o dr [seu nome]";
 import { Share2, Copy, Check } from "lucide-react";
 
 function ReferralLinkCard() {
