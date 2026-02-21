@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { requireClinicMemberWithRole } from "@/lib/auth-helpers";
 
 /**
@@ -74,7 +75,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { error: updateErr } = await supabase
+    const serviceSupabase = createServiceRoleClient();
+    const { error: updateErr } = await serviceSupabase
       .from("whatsapp_conversations")
       .update({
         assigned_secretary_id: secretaryId,
@@ -86,7 +88,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
-    await supabase
+    await serviceSupabase
       .from("conversation_eligible_secretaries")
       .delete()
       .eq("conversation_id", conversationId);

@@ -236,8 +236,8 @@ export function WhatsAppContactSidebar({
                           await onAssignConversation(forwardSecretaryId);
                           setForwardSecretaryId("");
                           toast("Conversa encaminhada com sucesso.", "success");
-                        } catch {
-                          toast("Erro ao encaminhar.", "error");
+                        } catch (e) {
+                          toast(e instanceof Error ? e.message : "Erro ao encaminhar.", "error");
                         } finally {
                           setForwarding(false);
                         }
