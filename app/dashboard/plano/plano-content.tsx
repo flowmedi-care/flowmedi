@@ -26,7 +26,7 @@ type PlanoContentProps = {
   isProPastDue: boolean;
   isCanceled: boolean;
   paymentMounted: boolean;
-  subscriptionInfo: { cancelAtPeriodEnd?: boolean; currentPeriodEnd: number } | null;
+  subscriptionInfo: { cancelAtPeriodEnd?: boolean; currentPeriodEnd: number | null } | null;
   upgradePlans: UpgradePlan[];
   effectiveCheckoutSlug: string;
   effectiveCheckoutPlan: UpgradePlan | undefined;
