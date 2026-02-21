@@ -2,33 +2,33 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { slugify } from "@/lib/form-slug";
+
+const DEFAULT_MESSAGE = "Olá gostaria de obter mais informação sobre a consulta com o dr [seu nome]";
 
 export async function getReferralLinkData(): Promise<{
   referralLink: string | null;
-  referralCode: string | null;
+  customMessage: string | null;
   whatsappUrl: string | null;
-  doctorName: string | null;
   error: string | null;
 }> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { referralLink: null, referralCode: null, whatsappUrl: null, doctorName: null, error: "Não autorizado." };
+  if (!user) return { referralLink: null, customMessage: null, whatsappUrl: null, error: "Não autorizado." };
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, clinic_id, role")
+    .select("id, clinic_id, role")
     .eq("id", user.id)
     .single();
 
   if (!profile || profile.role !== "medico")
-    return { referralLink: null, referralCode: null, whatsappUrl: null, doctorName: null, error: "Apenas médicos podem usar o link de divulgação." };
+    return { referralLink: null, customMessage: null, whatsappUrl: null, error: "Apenas médicos podem usar o link de divulgação." };
 
   const clinicId = profile.clinic_id as string | null;
   if (!clinicId)
-    return { referralLink: null, referralCode: null, whatsappUrl: null, doctorName: profile.full_name as string | null, error: "Clínica não vinculada." };
+    return { referralLink: null, customMessage: null, whatsappUrl: null, error: "Clínica não vinculada." };
 
   const { data: clinic } = await supabase
     .from("clinics")
@@ -40,99 +40,66 @@ export async function getReferralLinkData(): Promise<{
 
   const { data: referralRow } = await supabase
     .from("doctor_referral_codes")
-    .select("code")
+    .select("custom_message")
     .eq("clinic_id", clinicId)
     .eq("doctor_id", profile.id)
     .maybeSingle();
 
-  const referralCode = referralRow ? (referralRow.code as string) : null;
+  const customMessage = referralRow ? (referralRow.custom_message as string) : null;
 
   let referralLink: string | null = null;
-  if (whatsappUrl && referralCode) {
-    const doctorName = (profile.full_name as string) || "Médico";
-    const preFilledMessage = `Olá! O Dr(a). ${doctorName} me passou este contato. Gostaria de agendar. Código: ${referralCode}`;
+  if (whatsappUrl && customMessage && customMessage.trim().length >= 15) {
     const base = whatsappUrl.trim().replace(/\/$/, "");
     const sep = base.includes("?") ? "&" : "?";
-    referralLink = `${base}${sep}text=${encodeURIComponent(preFilledMessage)}`;
+    referralLink = `${base}${sep}text=${encodeURIComponent(customMessage.trim())}`;
   }
 
   return {
     referralLink,
-    referralCode,
+    customMessage,
     whatsappUrl,
-    doctorName: profile.full_name as string | null,
     error: null,
   };
 }
 
-export async function generateReferralCode(): Promise<{ code: string | null; error: string | null }> {
+export async function saveReferralMessage(customMessage: string): Promise<{ error: string | null }> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { code: null, error: "Não autorizado." };
+  if (!user) return { error: "Não autorizado." };
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, clinic_id, role")
+    .select("id, clinic_id, role")
     .eq("id", user.id)
     .single();
 
   if (!profile || profile.role !== "medico")
-    return { code: null, error: "Apenas médicos podem gerar link de divulgação." };
+    return { error: "Apenas médicos podem configurar o link de divulgação." };
 
   const clinicId = profile.clinic_id as string | null;
-  if (!clinicId) return { code: null, error: "Clínica não vinculada." };
+  if (!clinicId) return { error: "Clínica não vinculada." };
 
-  const { data: existing } = await supabase
+  const trimmed = customMessage.trim();
+  if (trimmed.length < 15) {
+    return { error: "A mensagem deve ter pelo menos 15 caracteres. Inclua seu nome para garantir a vinculação correta." };
+  }
+
+  const { error } = await supabase
     .from("doctor_referral_codes")
-    .select("code")
-    .eq("clinic_id", clinicId)
-    .eq("doctor_id", profile.id)
-    .maybeSingle();
+    .upsert(
+      {
+        clinic_id: clinicId,
+        doctor_id: profile.id,
+        custom_message: trimmed,
+      },
+      { onConflict: "clinic_id,doctor_id" }
+    );
 
-  if (existing) {
-    revalidatePath("/dashboard/perfil");
-    return { code: existing.code as string, error: null };
-  }
-
-  const fullName = (profile.full_name as string) || "medico";
-  let baseCode = slugify(fullName);
-  if (!baseCode) baseCode = "dr";
-  if (baseCode.length > 30) baseCode = baseCode.substring(0, 30);
-
-  let code = baseCode;
-  let attempts = 0;
-  const maxAttempts = 10;
-
-  while (attempts < maxAttempts) {
-    const { error } = await supabase.from("doctor_referral_codes").insert({
-      clinic_id: clinicId,
-      doctor_id: profile.id,
-      code,
-    });
-
-    if (!error) {
-      revalidatePath("/dashboard/perfil");
-      return { code, error: null };
-    }
-
-    if (error.code === "23505") {
-      code = `${baseCode}-${Math.random().toString(36).slice(2, 6)}`;
-      attempts++;
-    } else {
-      return { code: null, error: error.message };
-    }
-  }
-
-  code = `${baseCode}-${Date.now().toString(36).slice(-4)}`;
-  const { error } = await supabase.from("doctor_referral_codes").insert({
-    clinic_id: clinicId,
-    doctor_id: profile.id,
-    code,
-  });
-
-  if (error) return { code: null, error: error.message };
+  if (error) return { error: error.message };
   revalidatePath("/dashboard/perfil");
-  return { code, error: null };
+  return { error: null };
 }
+
+export { DEFAULT_MESSAGE };

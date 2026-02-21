@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { LogoUpload } from "../configuracoes/logo-upload";
 import {
   getDoctorPreferences,
@@ -13,36 +14,41 @@ import {
 } from "../medico-preferences-actions";
 import {
   getReferralLinkData,
-  generateReferralCode,
+  saveReferralMessage,
+  DEFAULT_MESSAGE,
 } from "./referral-actions";
 import { Share2, Copy, Check } from "lucide-react";
 
 function ReferralLinkCard() {
   const [data, setData] = useState<{
     referralLink: string | null;
-    referralCode: string | null;
+    customMessage: string | null;
     whatsappUrl: string | null;
-    doctorName: string | null;
     error: string | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [messageInput, setMessageInput] = useState("");
 
   useEffect(() => {
-    getReferralLinkData().then(setData).finally(() => setLoading(false));
+    getReferralLinkData().then((res) => {
+      setData(res);
+      setMessageInput(res.customMessage ?? DEFAULT_MESSAGE);
+    }).finally(() => setLoading(false));
   }, []);
 
-  async function handleGenerate() {
-    setGenerating(true);
-    const result = await generateReferralCode();
+  async function handleSaveMessage() {
+    setSaving(true);
+    setData((prev) => prev ? { ...prev, error: null } : null);
+    const result = await saveReferralMessage(messageInput);
     if (result.error) {
       setData((prev) => prev ? { ...prev, error: result.error } : null);
     } else {
       const updated = await getReferralLinkData();
       setData(updated);
     }
-    setGenerating(false);
+    setSaving(false);
   }
 
   function handleCopy() {
@@ -90,13 +96,26 @@ function ReferralLinkCard() {
             Configure o link do WhatsApp da clínica em Configurações → Links sociais para usar esta funcionalidade.
           </p>
         )}
-        {data?.whatsappUrl && !data?.referralCode && (
-          <div>
-            <p className="text-sm text-muted-foreground mb-3">
-              Gere seu link único para divulgar. Pacientes que entrarem por ele serão vinculados à sua secretária.
-            </p>
-            <Button onClick={handleGenerate} disabled={generating}>
-              {generating ? "Gerando..." : "Gerar meu link"}
+        {data?.whatsappUrl && (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="referral-message" className="text-sm font-medium">
+                Mensagem que o paciente verá ao clicar no link
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">
+                Inclua seu nome para garantir a vinculação correta com sua secretária.
+              </p>
+              <Textarea
+                id="referral-message"
+                placeholder={DEFAULT_MESSAGE}
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+            </div>
+            <Button onClick={handleSaveMessage} disabled={saving}>
+              {saving ? "Salvando..." : "Salvar e gerar link"}
             </Button>
           </div>
         )}

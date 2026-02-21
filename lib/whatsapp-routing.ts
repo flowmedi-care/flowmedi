@@ -15,9 +15,19 @@ export type RoutingResult = {
   eligibleSecretaryIds: string[];
 };
 
+function normalizeForMatch(s: string): string {
+  return String(s ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /**
- * Verifica se a primeira mensagem contém código de referência de médico.
- * Se sim, atribui a conversa à secretária do médico e retorna true.
+ * Verifica se a primeira mensagem corresponde à mensagem customizada de algum médico.
+ * Match: mensagem do paciente contém a mensagem do médico (normalizada).
+ * Em caso de múltiplos matches, escolhe o mais longo (mais específico).
  */
 export async function applyReferralRoutingIfMatch(
   supabase: SupabaseClient,
@@ -25,23 +35,27 @@ export async function applyReferralRoutingIfMatch(
   conversationId: string,
   firstMessageText: string
 ): Promise<boolean> {
-  const text = String(firstMessageText ?? "").trim().toLowerCase();
-  if (!text) return false;
+  const textNorm = normalizeForMatch(firstMessageText);
+  if (!textNorm || textNorm.length < 10) return false;
 
-  const { data: codes } = await supabase
+  const { data: rows } = await supabase
     .from("doctor_referral_codes")
-    .select("doctor_id, code")
-    .eq("clinic_id", clinicId);
+    .select("doctor_id, custom_message")
+    .eq("clinic_id", clinicId)
+    .not("custom_message", "is", null);
 
-  const list = (codes ?? []) as { doctor_id: string; code: string }[];
-  let matchedDoctorId: string | null = null;
+  const list = (rows ?? []) as { doctor_id: string; custom_message: string }[];
+  let bestMatch: { doctorId: string; len: number } | null = null;
   for (const row of list) {
-    const code = String(row.code ?? "").trim().toLowerCase();
-    if (code && text.includes(code)) {
-      matchedDoctorId = row.doctor_id;
-      break;
+    const msg = String(row.custom_message ?? "").trim();
+    if (msg.length < 15) continue; // evita mensagens genéricas
+    const msgNorm = normalizeForMatch(msg);
+    if (!msgNorm) continue;
+    if (textNorm.includes(msgNorm) && (!bestMatch || msgNorm.length > bestMatch.len)) {
+      bestMatch = { doctorId: row.doctor_id, len: msgNorm.length };
     }
   }
+  const matchedDoctorId = bestMatch?.doctorId ?? null;
   if (!matchedDoctorId) return false;
 
   const { data: sdRows } = await supabase
