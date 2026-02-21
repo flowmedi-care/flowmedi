@@ -91,34 +91,27 @@ function ReferralLinkCard() {
             {data.error}
           </div>
         )}
-        {!data?.whatsappUrl && !data?.error && (
-          <p className="text-sm text-muted-foreground">
-            O administrador precisa configurar o link do WhatsApp em Configurações → Informações da Clínica → aba Contato (campo WhatsApp ou Telefone).
-          </p>
-        )}
-        {data?.whatsappUrl && (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="referral-message" className="text-sm font-medium">
-                Mensagem que o paciente verá ao clicar no link
-              </Label>
-              <p className="text-xs text-muted-foreground mt-1 mb-2">
-                Inclua seu nome para garantir a vinculação correta com sua secretária.
-              </p>
-              <Textarea
-                id="referral-message"
-                placeholder={DEFAULT_MESSAGE}
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                rows={3}
-                className="resize-none"
-              />
-            </div>
-            <Button onClick={handleSaveMessage} disabled={saving}>
-              {saving ? "Salvando..." : "Salvar e gerar link"}
-            </Button>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="referral-message" className="text-sm font-medium">
+              Mensagem que o paciente verá ao clicar no link
+            </Label>
+            <p className="text-xs text-muted-foreground mt-1 mb-2">
+              Inclua seu nome para garantir a vinculação correta com sua secretária.
+            </p>
+            <Textarea
+              id="referral-message"
+              placeholder={DEFAULT_MESSAGE}
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
           </div>
-        )}
+          <Button onClick={handleSaveMessage} disabled={saving}>
+            {saving ? "Salvando..." : "Salvar e gerar link"}
+          </Button>
+        </div>
         {data?.referralLink && (
           <div className="space-y-4">
             <div className="flex gap-2">
