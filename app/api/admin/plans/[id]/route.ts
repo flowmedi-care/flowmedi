@@ -78,6 +78,13 @@ export async function PUT(
       priority_support: body.priority_support ?? false,
       stripe_price_id: body.stripe_price_id || null,
       is_active: body.is_active ?? true,
+      price_display: body.price_display || null,
+      features: Array.isArray(body.features) ? body.features : undefined,
+      sort_order: body.sort_order ?? 0,
+      show_on_pricing: body.show_on_pricing ?? false,
+      highlighted: body.highlighted ?? false,
+      cta_text: body.cta_text || null,
+      cta_href: body.cta_href || null,
     };
 
     // Adicionar updated_at apenas se a coluna existir (após migration)

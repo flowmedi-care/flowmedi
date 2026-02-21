@@ -28,6 +28,13 @@ interface Plan {
   priority_support: boolean;
   stripe_price_id: string | null;
   is_active: boolean;
+  price_display?: string | null;
+  features?: string[] | null;
+  sort_order?: number | null;
+  show_on_pricing?: boolean | null;
+  highlighted?: boolean | null;
+  cta_text?: string | null;
+  cta_href?: string | null;
 }
 
 interface PlanoFormProps {
@@ -55,6 +62,15 @@ export function PlanoForm({ plan }: PlanoFormProps) {
     priority_support: plan?.priority_support ?? false,
     stripe_price_id: plan?.stripe_price_id || "",
     is_active: plan?.is_active ?? true,
+    price_display: plan?.price_display || "",
+    features: Array.isArray(plan?.features)
+      ? plan.features.join("\n")
+      : "",
+    sort_order: plan?.sort_order?.toString() ?? "0",
+    show_on_pricing: plan?.show_on_pricing ?? false,
+    highlighted: plan?.highlighted ?? false,
+    cta_text: plan?.cta_text || "",
+    cta_href: plan?.cta_href || "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -117,6 +133,18 @@ export function PlanoForm({ plan }: PlanoFormProps) {
         priority_support: formData.priority_support,
         stripe_price_id: stripePriceId,
         is_active: formData.is_active,
+        price_display: formData.price_display?.trim() || null,
+        features: formData.features
+          ? formData.features
+              .split("\n")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [],
+        sort_order: parseInt(formData.sort_order, 10) || 0,
+        show_on_pricing: formData.show_on_pricing,
+        highlighted: formData.highlighted,
+        cta_text: formData.cta_text?.trim() || null,
+        cta_href: formData.cta_href?.trim() || null,
       };
 
       const url = plan ? `/api/admin/plans/${plan.id}` : "/api/admin/plans";
@@ -335,6 +363,96 @@ export function PlanoForm({ plan }: PlanoFormProps) {
               checked={formData.priority_support}
               onChange={(checked) => setFormData({ ...formData, priority_support: checked })}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Exibição na Página de Preços */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Exibição na Página de Preços</CardTitle>
+          <CardDescription>
+            O que aparece em /precos. Alterações aqui refletem automaticamente na página pública.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="show_on_pricing">Exibir na página de preços</Label>
+              <p className="text-xs text-muted-foreground">Se ativo, o plano aparece em /precos</p>
+            </div>
+            <Switch
+              id="show_on_pricing"
+              checked={formData.show_on_pricing}
+              onChange={(checked) => setFormData({ ...formData, show_on_pricing: checked })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="price_display">Preço exibido</Label>
+            <Input
+              id="price_display"
+              value={formData.price_display}
+              onChange={(e) => setFormData({ ...formData, price_display: e.target.value })}
+              placeholder="R$89/mês ou Sob consulta"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Texto mostrado como preço. Ex: R$89/mês, R$347/mês, Sob consulta.
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="features">Features (uma por linha)</Label>
+            <Textarea
+              id="features"
+              value={formData.features}
+              onChange={(e) => setFormData({ ...formData, features: e.target.value })}
+              rows={8}
+              placeholder={"Até 2 profissionais de saúde\nAté 2 secretárias\n500 consultas por mês"}
+              className="font-mono text-sm"
+            />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <Label htmlFor="sort_order">Ordem de exibição</Label>
+              <Input
+                id="sort_order"
+                type="number"
+                min="0"
+                value={formData.sort_order}
+                onChange={(e) => setFormData({ ...formData, sort_order: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Menor = aparece primeiro</p>
+            </div>
+            <div className="flex items-center justify-between pt-8">
+              <div>
+                <Label htmlFor="highlighted">Destacar (Popular)</Label>
+                <p className="text-xs text-muted-foreground">Mostra badge no card</p>
+              </div>
+              <Switch
+                id="highlighted"
+                checked={formData.highlighted}
+                onChange={(checked) => setFormData({ ...formData, highlighted: checked })}
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <Label htmlFor="cta_text">Texto do botão</Label>
+              <Input
+                id="cta_text"
+                value={formData.cta_text}
+                onChange={(e) => setFormData({ ...formData, cta_text: e.target.value })}
+                placeholder="Assinar Essencial"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cta_href">URL do botão</Label>
+              <Input
+                id="cta_href"
+                value={formData.cta_href}
+                onChange={(e) => setFormData({ ...formData, cta_href: e.target.value })}
+                placeholder="/dashboard/plano ou /criar-conta"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

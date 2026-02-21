@@ -48,22 +48,33 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: proPlan } = await supabase
+  // Aceitar plan slug no body (ex: essencial, profissional, estrategico)
+  let planSlug = "pro";
+  try {
+    const body = await request.json().catch(() => ({}));
+    if (body.plan && typeof body.plan === "string") {
+      planSlug = body.plan.trim().toLowerCase();
+    }
+  } catch {
+    // Body vazio, usar "pro" como fallback
+  }
+
+  const { data: targetPlan } = await supabase
     .from("plans")
     .select("id, stripe_price_id")
-    .eq("slug", "pro")
+    .eq("slug", planSlug)
     .single();
 
-  if (!proPlan?.stripe_price_id) {
+  if (!targetPlan?.stripe_price_id) {
     return NextResponse.json(
-      { error: "Plano Pro não configurado (stripe_price_id)." },
+      { error: `Plano "${planSlug}" não configurado (stripe_price_id). Configure no admin ou use outro plano.` },
       { status: 500 }
     );
   }
 
   // Buscar o preço para obter o valor
   try {
-    const price = await stripe.prices.retrieve(proPlan.stripe_price_id);
+    const price = await stripe.prices.retrieve(targetPlan.stripe_price_id);
     const amount = price.unit_amount ?? 0;
 
     let customerId = clinic.stripe_customer_id;
@@ -110,7 +121,7 @@ export async function POST(request: Request) {
       currency: "brl",
       customer: customerId,
       setup_future_usage: "off_session", // Para assinatura recorrente
-      metadata: { clinic_id: clinic.id },
+      metadata: { clinic_id: clinic.id, plan_slug: planSlug },
       automatic_payment_methods: {
         enabled: true,
         allow_redirects: "never", // Não permitir métodos que redirecionam (PIX, boleto, etc.)

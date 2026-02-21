@@ -1,17 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
-  
-  const { data: proPlan } = await supabase
+  const { searchParams } = new URL(request.url);
+  const planSlug = searchParams.get("plan")?.trim().toLowerCase() || "pro";
+
+  const { data: plan } = await supabase
     .from("plans")
     .select("stripe_price_id")
-    .eq("slug", "pro")
+    .eq("slug", planSlug)
     .single();
 
-  if (!proPlan?.stripe_price_id) {
+  if (!plan?.stripe_price_id) {
     return NextResponse.json({ price: null, formatted: null });
   }
 
@@ -21,7 +23,7 @@ export async function GET() {
   }
 
   try {
-    const price = await stripe.prices.retrieve(proPlan.stripe_price_id);
+    const price = await stripe.prices.retrieve(plan.stripe_price_id);
     const amount = price.unit_amount ?? 0;
     const currency = price.currency ?? "brl";
     

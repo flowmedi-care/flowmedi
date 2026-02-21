@@ -22,12 +22,14 @@ export interface PlanCheckResult {
   limit?: number;
 }
 
+const PAID_PLAN_SLUGS = ["pro", "profissional", "essencial", "estrategico"];
+
 /**
- * Considerar "acesso Pro" apenas quando a clínica está no plano Pro
- * e a assinatura está ativa (não past_due, canceled ou unpaid).
+ * Considerar "acesso Pro" quando a clínica está em um plano pago
+ * (Pro, Profissional, Essencial, Estratégico) e a assinatura está ativa.
  */
 export function hasProAccess(planSlug: string | null, subscriptionStatus: string | null): boolean {
-  return planSlug === "pro" && subscriptionStatus === "active";
+  return Boolean(planSlug && PAID_PLAN_SLUGS.includes(planSlug) && subscriptionStatus === "active");
 }
 
 /**

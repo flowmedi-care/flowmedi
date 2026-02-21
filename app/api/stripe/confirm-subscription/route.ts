@@ -84,14 +84,15 @@ export async function POST(request: Request) {
         const clinicId = paymentIntent.metadata.clinic_id;
         
         if (clinicId) {
-          const { data: proPlan } = await supabase
+          const planSlugExisting = (paymentIntent.metadata?.plan_slug as string) || "pro";
+          const { data: planForExisting } = await supabase
             .from("plans")
             .select("id")
-            .eq("slug", "pro")
+            .eq("slug", planSlugExisting)
             .single();
 
           const updateData: any = {
-            plan_id: proPlan?.id,
+            plan_id: planForExisting?.id,
             stripe_subscription_id: existingSubscription.id,
             subscription_status: "active",
           };
@@ -141,16 +142,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // Buscar o plano Pro
-    const { data: proPlan } = await supabase
+    // Usar plan_slug do metadata (enviado pelo create-payment-intent)
+    const planSlug = (paymentIntent.metadata?.plan_slug as string) || "pro";
+
+    const { data: targetPlan } = await supabase
       .from("plans")
       .select("id, stripe_price_id")
-      .eq("slug", "pro")
+      .eq("slug", planSlug)
       .single();
 
-    if (!proPlan?.stripe_price_id) {
+    if (!targetPlan?.stripe_price_id) {
       return NextResponse.json(
-        { error: "Plano Pro não configurado." },
+        { error: `Plano "${planSlug}" não configurado.` },
         { status: 500 }
       );
     }
@@ -186,7 +189,7 @@ export async function POST(request: Request) {
     // NÃO confirmar o Payment Intent separadamente para evitar cobrança dupla
     const subscription = await stripe.subscriptions.create({
       customer: paymentIntent.customer,
-      items: [{ price: proPlan.stripe_price_id }],
+      items: [{ price: targetPlan.stripe_price_id }],
       metadata: { clinic_id: paymentIntent.metadata.clinic_id },
       default_payment_method: paymentMethodId,
     });
@@ -195,7 +198,7 @@ export async function POST(request: Request) {
     const clinicId = paymentIntent.metadata.clinic_id;
     if (clinicId) {
       const updateData: any = {
-        plan_id: proPlan.id,
+        plan_id: targetPlan.id,
         stripe_subscription_id: subscription.id,
         subscription_status: "active",
       };

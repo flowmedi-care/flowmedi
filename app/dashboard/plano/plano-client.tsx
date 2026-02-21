@@ -11,12 +11,21 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { CreditCard, ExternalLink, Loader2 } from "lucide-react";
 
+type UpgradePlan = {
+  id: string;
+  name: string;
+  slug: string;
+  stripe_price_id: string;
+};
+
 type PlanInfo = {
   planName: string;
   planSlug: string;
   subscriptionStatus: string | null;
   stripeSubscriptionId: string | null;
   proStripePriceId: string | null;
+  selectedPlanSlug?: string | null;
+  upgradePlans?: UpgradePlan[];
 };
 
 type InvoiceItem = {
@@ -71,8 +80,17 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     zipCode: "",
   });
 
-  const isPro = plan?.planSlug === "pro" && plan?.subscriptionStatus === "active";
-  const isProPastDue = plan?.planSlug === "pro" && plan?.subscriptionStatus === "past_due";
+  const PAID_PLAN_SLUGS = ["pro", "profissional", "essencial", "estrategico"];
+  const isPaidPlan = plan?.planSlug && PAID_PLAN_SLUGS.includes(plan.planSlug);
+  const isPro = isPaidPlan && plan?.subscriptionStatus === "active";
+  const isProPastDue = isPaidPlan && plan?.subscriptionStatus === "past_due";
+
+  const upgradePlans = plan?.upgradePlans ?? [];
+  const effectiveCheckoutSlug =
+    plan?.selectedPlanSlug && upgradePlans.some((p) => p.slug === plan.selectedPlanSlug)
+      ? plan.selectedPlanSlug
+      : upgradePlans[0]?.slug ?? "pro";
+  const effectiveCheckoutPlan = upgradePlans.find((p) => p.slug === effectiveCheckoutSlug) ?? upgradePlans[0];
   const isCanceled = plan?.subscriptionStatus === "canceled";
   const isCancelScheduled = Boolean(subscriptionInfo?.cancelAtPeriodEnd);
 
@@ -85,11 +103,11 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       .finally(() => setLoadingInvoices(false));
   }, []);
 
-  // Carregar preço do plano Pro
+  // Carregar preço do plano selecionado para upgrade
   useEffect(() => {
-    if (!isPro) {
+    if (!isPro && effectiveCheckoutSlug) {
       setLoadingPrice(true);
-      fetch("/api/stripe/price")
+      fetch(`/api/stripe/price?plan=${encodeURIComponent(effectiveCheckoutSlug)}`)
         .then((r) => r.json())
         .then((data) => {
           if (data.price && data.formatted) {
@@ -102,7 +120,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         })
         .finally(() => setLoadingPrice(false));
     }
-  }, [isPro]);
+  }, [isPro, effectiveCheckoutSlug]);
 
   const loadSubscriptionInfo = async () => {
     try {
@@ -190,10 +208,10 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const startCheckout = async () => {
     setLoadingCheckout(true);
     try {
-      // Criar Payment Intent
       const res = await fetch("/api/stripe/create-payment-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: effectiveCheckoutSlug }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -527,8 +545,26 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
               qualquer momento.
             </p>
           )}
-          {!isPro && (
+          {!isPro && upgradePlans.length > 0 && (
             <>
+              {upgradePlans.length > 1 && !paymentMounted && (
+                <div className="space-y-2 mb-4">
+                  <Label className="text-sm">Escolha o plano</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {upgradePlans.map((p) => (
+                      <Button
+                        key={p.id}
+                        type="button"
+                        variant={effectiveCheckoutSlug === p.slug ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => router.push(`/dashboard/plano?plan=${p.slug}`)}
+                      >
+                        {p.name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {!paymentMounted ? (
                 <Button onClick={startCheckout} disabled={loadingCheckout} className="w-full">
                   {loadingCheckout ? (
@@ -539,7 +575,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
                   ) : (
                     <>
                       <CreditCard className="h-4 w-4 mr-2" />
-                      Assinar Pro
+                      Assinar {effectiveCheckoutPlan?.name ?? "Plano"}
                     </>
                   )}
                 </Button>
@@ -550,7 +586,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
                     <h3 className="font-semibold mb-3">Detalhes do pedido</h3>
                     <div className="space-y-2">
                       <div className="flex justify-between">
-                        <span className="text-sm">Plano Pro</span>
+                        <span className="text-sm">Plano {effectiveCheckoutPlan?.name ?? "Pro"}</span>
                         <span className="text-sm font-medium">
                           {loadingPrice ? (
                             <Loader2 className="h-4 w-4 animate-spin inline" />

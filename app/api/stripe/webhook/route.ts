@@ -38,9 +38,19 @@ export async function POST(request: Request) {
   }
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+  const findPlanByStripePriceId = async (priceId: string | null) => {
+    if (!priceId) return null;
+    const { data } = await supabase
+      .from("plans")
+      .select("id")
+      .eq("stripe_price_id", priceId)
+      .single();
+    return data;
+  };
+
   const updateClinicPlan = async (
     clinicId: string,
-    planSlug: "starter" | "pro",
+    planSlug: "starter" | "pro" | string,
     subscriptionStatus: string | null
   ) => {
     const { data: plan, error: planError } = await supabase
@@ -87,17 +97,23 @@ export async function POST(request: Request) {
           session.client_reference_id ??
           (await findClinicIdByCustomer(session.customer as string | null));
         if (!clinicId) break;
-        const { data: proPlan, error: proPlanError } = await supabase
-          .from("plans")
-          .select("id")
-          .eq("slug", "pro")
-          .single();
-        if (proPlanError) {
-          console.error("Webhook pro plan lookup error:", proPlanError);
-          break;
-        }
-        if (!proPlan) break;
         const subId = session.subscription as string | null;
+        let planId: string | null = null;
+        if (subId) {
+          const sub = await stripe.subscriptions.retrieve(subId);
+          const priceId = sub.items?.data?.[0]?.price?.id ?? null;
+          const plan = await findPlanByStripePriceId(priceId);
+          planId = plan?.id ?? null;
+        }
+        if (!planId) {
+          const { data: proPlan } = await supabase
+            .from("plans")
+            .select("id")
+            .eq("slug", "pro")
+            .single();
+          planId = proPlan?.id ?? null;
+        }
+        if (!planId) break;
         
         // Buscar tax_id (CPF/CNPJ) do customer se disponível
         let taxId: string | null = null;
@@ -122,7 +138,7 @@ export async function POST(request: Request) {
         }
         
         const updateData: Record<string, unknown> = {
-          plan_id: proPlan.id,
+          plan_id: planId,
           stripe_subscription_id: subId,
           subscription_status: "active",
         };
@@ -157,14 +173,15 @@ export async function POST(request: Request) {
         });
         if (!clinicId) break;
         if (sub.status === "active") {
-          const { data: plan, error: planError } = await supabase
-            .from("plans")
-            .select("id")
-            .eq("slug", "pro")
-            .single();
-          if (planError) {
-            console.error("Webhook pro plan lookup error:", planError);
-            break;
+          const priceId = sub.items?.data?.[0]?.price?.id ?? null;
+          let plan = await findPlanByStripePriceId(priceId);
+          if (!plan) {
+            const { data: proPlan } = await supabase
+              .from("plans")
+              .select("id")
+              .eq("slug", "pro")
+              .single();
+            plan = proPlan;
           }
           if (plan) {
             const { error: updateError } = await supabase

@@ -2,7 +2,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PlanoClient } from "./plano-client";
 
-export default async function PlanoPage() {
+export default async function PlanoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ plan?: string }>;
+}) {
+  const params = await searchParams;
+  const selectedPlanSlug = params.plan?.trim().toLowerCase() || null;
   const supabase = await createClient();
   const {
     data: { user },
@@ -40,12 +46,22 @@ export default async function PlanoPage() {
     .eq("slug", "pro")
     .single();
 
+  // Buscar planos disponíveis para upgrade (com stripe_price_id)
+  const { data: upgradePlans } = await supabase
+    .from("plans")
+    .select("id, name, slug, stripe_price_id")
+    .not("stripe_price_id", "is", null)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
   const planInfo = {
     planName: planRow?.name ?? "Starter",
     planSlug: planRow?.slug ?? "starter",
     subscriptionStatus: clinic?.subscription_status ?? null,
     stripeSubscriptionId: clinic?.stripe_subscription_id ?? null,
     proStripePriceId: proPlan?.stripe_price_id ?? null,
+    selectedPlanSlug,
+    upgradePlans: upgradePlans ?? [],
   };
 
   return (

@@ -11,15 +11,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
 
-  // Ler tax_id e tax_id_type do body se fornecido
   let taxId: string | null = null;
   let taxIdType: "cpf" | "cnpj" | null = null;
+  let planSlug = "pro";
   try {
     const body = await request.json().catch(() => ({}));
     taxId = body.tax_id || null;
     taxIdType = body.tax_id_type || null;
+    if (body.plan && typeof body.plan === "string") {
+      planSlug = body.plan.trim().toLowerCase();
+    }
   } catch {
-    // Body vazio ou inválido, continuar sem tax_id
+    // Body vazio ou inválido
   }
 
   const { data: profile } = await supabase
@@ -59,15 +62,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: proPlan } = await supabase
+  const { data: targetPlan } = await supabase
     .from("plans")
     .select("id, stripe_price_id")
-    .eq("slug", "pro")
+    .eq("slug", planSlug)
     .single();
 
-  if (!proPlan?.stripe_price_id) {
+  if (!targetPlan?.stripe_price_id) {
     return NextResponse.json(
-      { error: "Plano Pro não configurado (stripe_price_id)." },
+      { error: `Plano "${planSlug}" não configurado (stripe_price_id).` },
       { status: 500 }
     );
   }
@@ -182,7 +185,7 @@ export async function POST(request: Request) {
       mode: "subscription",
       ui_mode: "embedded",
       customer: customerId,
-      line_items: [{ price: proPlan.stripe_price_id, quantity: 1 }],
+      line_items: [{ price: targetPlan.stripe_price_id, quantity: 1 }],
       return_url: returnUrl,
       metadata: { clinic_id: clinic.id },
       subscription_data: {

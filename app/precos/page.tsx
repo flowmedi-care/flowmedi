@@ -15,7 +15,7 @@ export default function PrecosPage() {
                 Planos para sua clínica
               </h1>
               <p className="mt-4 text-lg text-muted-foreground">
-                Comece grátis. Assine o Profissional quando precisar de mais recursos.
+                Planos para clínicas de todos os portes. Configure sua conta e comece em minutos.
               </p>
             </div>
 
