@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Check, Sparkles } from "lucide-react";
+import { Check, Sparkles, Shield, Zap } from "lucide-react";
 
 interface PlanPricing {
   id: string;
@@ -44,22 +43,21 @@ export function PrecosClient() {
 
   if (loading) {
     return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4 max-w-7xl mx-auto">
         {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="animate-pulse">
-            <CardHeader>
-              <div className="h-4 bg-muted rounded w-1/2" />
-              <div className="h-8 bg-muted rounded w-3/4 mt-2" />
-              <div className="h-10 bg-muted rounded w-1/2 mt-2" />
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map((j) => (
-                  <div key={j} className="h-4 bg-muted rounded" />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <div
+            key={i}
+            className="rounded-2xl border border-border bg-card p-6 animate-pulse"
+          >
+            <div className="h-4 bg-muted rounded w-3/4 mb-4" />
+            <div className="h-10 bg-muted rounded w-1/2 mb-2" />
+            <div className="h-5 bg-muted rounded w-2/3 mb-6" />
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((j) => (
+                <div key={j} className="h-4 bg-muted rounded" />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     );
@@ -67,87 +65,130 @@ export function PrecosClient() {
 
   if (plans.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">
-          Nenhum plano configurado. Configure os planos em /admin/system/planos.
+      <div className="max-w-md mx-auto text-center py-16 px-6 rounded-2xl border border-border bg-card">
+        <p className="text-muted-foreground mb-4">
+          Nenhum plano configurado. Configure os planos no painel administrativo.
         </p>
-        <Link href="/criar-conta" className="mt-4 inline-block">
+        <Link href="/criar-conta">
           <Button>Criar conta</Button>
         </Link>
       </div>
     );
   }
 
+  const gridCols =
+    plans.length === 1
+      ? "md:grid-cols-1 max-w-sm mx-auto"
+      : plans.length === 2
+        ? "md:grid-cols-2 max-w-2xl mx-auto"
+        : plans.length === 3
+          ? "md:grid-cols-3 max-w-4xl mx-auto"
+          : "md:grid-cols-2 xl:grid-cols-4 max-w-7xl mx-auto";
+
   return (
-    <>
-      <div
-        className={`grid gap-6 max-w-6xl mx-auto ${
-          plans.length === 1 ? "md:grid-cols-1 max-w-md" : plans.length === 2 ? "md:grid-cols-2" : plans.length === 3 ? "md:grid-cols-3" : "md:grid-cols-2 lg:grid-cols-4"
-        }`}
-      >
+    <div className="space-y-12">
+      {/* Cards grid */}
+      <div className={`grid gap-5 sm:gap-6 ${gridCols}`}>
         {plans.map((plan) => (
-          <Card
+          <div
             key={plan.id}
-            className={`relative overflow-hidden transition-all ${
-              plan.highlighted
-                ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
-                : "border-border hover:border-primary/30"
-            }`}
+            className={`
+              relative flex flex-col rounded-2xl border bg-card transition-all duration-200
+              ${plan.highlighted
+                ? "border-primary shadow-xl shadow-primary/10 md:scale-[1.02] z-10 ring-2 ring-primary/20"
+                : "border-border hover:border-primary/40 hover:shadow-lg"
+              }
+            `}
           >
+            {/* Popular badge */}
             {plan.highlighted && (
-              <div className="absolute right-4 top-4">
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Popular
+                  Mais popular
                 </span>
               </div>
             )}
-            <CardHeader className="pb-4">
-              <p className="text-sm font-medium text-primary">
-                {plan.description || plan.name}
-              </p>
-              <h2 className="text-xl font-semibold text-foreground">{plan.name}</h2>
-              <p className="text-3xl font-bold text-foreground">
-                {plan.price_display || "—"}
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <ul className="space-y-3">
-                {(plan.features || []).map((f) => (
+
+            <div className={`flex flex-col flex-1 p-6 sm:p-7 ${plan.highlighted ? "pt-8 sm:pt-9" : ""}`}>
+              {/* Header */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-foreground tracking-tight">
+                  {plan.name}
+                </h3>
+                <div className="mt-3 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-foreground tracking-tight">
+                    {plan.price_display || "—"}
+                  </span>
+                </div>
+                {plan.description && (
+                  <p className="mt-3 text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                    {plan.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Features */}
+              <ul className="flex-1 space-y-3 min-h-0">
+                {(plan.features || []).slice(0, 10).map((f) => (
                   <li
                     key={f}
-                    className="flex items-center gap-3 text-sm text-muted-foreground"
+                    className="flex items-start gap-3 text-sm text-muted-foreground"
                   >
-                    <Check className="h-4 w-4 shrink-0 text-primary" />
-                    {f}
+                    <Check
+                      className="h-4 w-4 shrink-0 mt-0.5 text-primary"
+                      strokeWidth={2.5}
+                    />
+                    <span className="leading-snug">{f}</span>
                   </li>
                 ))}
               </ul>
-              <Link
-                href={
-                  plan.stripe_price_id
-                    ? `${plan.cta_href || "/dashboard/plano"}?plan=${encodeURIComponent(plan.slug)}`
-                    : plan.cta_href || "/criar-conta"
-                }
-                className="block"
-              >
-                <Button
-                  className="w-full h-11"
-                  variant={plan.highlighted ? "default" : "outline"}
-                  size="lg"
+              {(plan.features?.length ?? 0) > 10 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  + {(plan.features?.length ?? 0) - 10} itens
+                </p>
+              )}
+
+              {/* CTA */}
+              <div className="mt-6 pt-6 border-t border-border">
+                <Link
+                  href={
+                    plan.stripe_price_id
+                      ? `${plan.cta_href || "/dashboard/plano"}?plan=${encodeURIComponent(plan.slug)}`
+                      : plan.cta_href || "/criar-conta"
+                  }
+                  className="block"
                 >
-                  {plan.cta_text || "Ver plano"}
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+                  <Button
+                    className="w-full h-11 font-medium"
+                    variant={plan.highlighted ? "default" : "outline"}
+                    size="lg"
+                  >
+                    {plan.cta_text || "Começar"}
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
         ))}
       </div>
 
-      <p className="mt-8 text-center text-sm text-muted-foreground">
-        Sem fidelidade. Cancele quando quiser. Mensagens do WhatsApp são cobradas
-        diretamente pela Meta conforme o volume utilizado.
-      </p>
-    </>
+      {/* Trust & info footer */}
+      <div className="max-w-3xl mx-auto">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10 text-sm text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary/70" />
+            Sem fidelidade
+          </span>
+          <span className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary/70" />
+            Cancele quando quiser
+          </span>
+        </div>
+        <p className="mt-4 text-center text-xs text-muted-foreground max-w-xl mx-auto">
+          Mensagens oficiais do WhatsApp são cobradas diretamente pela Meta conforme o volume utilizado pela clínica.
+        </p>
+      </div>
+    </div>
   );
 }
