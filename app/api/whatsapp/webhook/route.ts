@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { setLastWebhookPayload } from "@/lib/whatsapp-webhook-debug";
 import {
+  applyReferralRoutingIfMatch,
   applyRoutingOnNewConversation,
   handleChatbotMessage,
   sendChatbotReply,
@@ -135,7 +136,15 @@ export async function POST(request: NextRequest) {
           }
 
           if (isNewConversation) {
-            await applyRoutingOnNewConversation(supabase, clinicId, conversationId);
+            const referred = await applyReferralRoutingIfMatch(
+              supabase,
+              clinicId,
+              conversationId,
+              bodyText ?? ""
+            );
+            if (!referred) {
+              await applyRoutingOnNewConversation(supabase, clinicId, conversationId);
+            }
           }
 
           const insertMsg = await supabase.from("whatsapp_messages").insert({

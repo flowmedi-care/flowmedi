@@ -11,6 +11,127 @@ import {
   updateDoctorPreferences,
   type DoctorPreferences,
 } from "../medico-preferences-actions";
+import {
+  getReferralLinkData,
+  generateReferralCode,
+} from "./referral-actions";
+import { Share2, Copy, Check } from "lucide-react";
+
+function ReferralLinkCard() {
+  const [data, setData] = useState<{
+    referralLink: string | null;
+    referralCode: string | null;
+    whatsappUrl: string | null;
+    doctorName: string | null;
+    error: string | null;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    getReferralLinkData().then(setData).finally(() => setLoading(false));
+  }, []);
+
+  async function handleGenerate() {
+    setGenerating(true);
+    const result = await generateReferralCode();
+    if (result.error) {
+      setData((prev) => prev ? { ...prev, error: result.error } : null);
+    } else {
+      const updated = await getReferralLinkData();
+      setData(updated);
+    }
+    setGenerating(false);
+  }
+
+  function handleCopy() {
+    if (!data?.referralLink) return;
+    navigator.clipboard.writeText(data.referralLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <h2 className="font-semibold flex items-center gap-2">
+            <Share2 className="h-5 w-5" />
+            Link de divulgação
+          </h2>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">Carregando...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <h2 className="font-semibold flex items-center gap-2">
+          <Share2 className="h-5 w-5" />
+          Link de divulgação
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Compartilhe este link com seus pacientes. Ao clicar, eles abrem o WhatsApp da clínica e são automaticamente vinculados à sua secretária.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {data?.error && (
+          <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+            {data.error}
+          </div>
+        )}
+        {!data?.whatsappUrl && !data?.error && (
+          <p className="text-sm text-muted-foreground">
+            Configure o link do WhatsApp da clínica em Configurações → Links sociais para usar esta funcionalidade.
+          </p>
+        )}
+        {data?.whatsappUrl && !data?.referralCode && (
+          <div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Gere seu link único para divulgar. Pacientes que entrarem por ele serão vinculados à sua secretária.
+            </p>
+            <Button onClick={handleGenerate} disabled={generating}>
+              {generating ? "Gerando..." : "Gerar meu link"}
+            </Button>
+          </div>
+        )}
+        {data?.referralLink && (
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={data.referralLink}
+                className="font-mono text-sm"
+              />
+              <Button variant="outline" size="icon" onClick={handleCopy} title="Copiar">
+                {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="border rounded-lg p-2 bg-white">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(data.referralLink)}`}
+                  alt="QR Code do link"
+                  width={120}
+                  height={120}
+                />
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <p>Escaneie o QR code ou copie o link para compartilhar.</p>
+                <p className="mt-1">O paciente envia a mensagem pré-preenchida e será atribuído à sua secretária.</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export function PerfilClient({
   doctorLogoUrl,
@@ -70,6 +191,7 @@ export function PerfilClient({
 
   return (
     <div className="space-y-6">
+      <ReferralLinkCard />
       <Card>
         <CardHeader>
           <h2 className="font-semibold">Minha Logo</h2>

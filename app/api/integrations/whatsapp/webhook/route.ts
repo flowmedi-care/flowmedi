@@ -5,6 +5,7 @@ import { fetchAndStoreWhatsAppMedia } from "@/lib/whatsapp-media";
 
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 import {
+  applyReferralRoutingIfMatch,
   applyRoutingOnNewConversation,
   handleChatbotMessage,
   sendChatbotReply,
@@ -241,7 +242,15 @@ export async function POST(request: NextRequest) {
           }
 
           if (isNewConversation) {
-            await applyRoutingOnNewConversation(supabase, clinicId, conversationId);
+            const referred = await applyReferralRoutingIfMatch(
+              supabase,
+              clinicId,
+              conversationId,
+              bodyText ?? ""
+            );
+            if (!referred) {
+              await applyRoutingOnNewConversation(supabase, clinicId, conversationId);
+            }
           }
 
           const insertMsg = await supabase.from("whatsapp_messages").insert({

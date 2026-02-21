@@ -15,6 +15,89 @@ export type RoutingResult = {
   eligibleSecretaryIds: string[];
 };
 
+/**
+ * Verifica se a primeira mensagem contém código de referência de médico.
+ * Se sim, atribui a conversa à secretária do médico e retorna true.
+ */
+export async function applyReferralRoutingIfMatch(
+  supabase: SupabaseClient,
+  clinicId: string,
+  conversationId: string,
+  firstMessageText: string
+): Promise<boolean> {
+  const text = String(firstMessageText ?? "").trim().toLowerCase();
+  if (!text) return false;
+
+  const { data: codes } = await supabase
+    .from("doctor_referral_codes")
+    .select("doctor_id, code")
+    .eq("clinic_id", clinicId);
+
+  const list = (codes ?? []) as { doctor_id: string; code: string }[];
+  let matchedDoctorId: string | null = null;
+  for (const row of list) {
+    const code = String(row.code ?? "").trim().toLowerCase();
+    if (code && text.includes(code)) {
+      matchedDoctorId = row.doctor_id;
+      break;
+    }
+  }
+  if (!matchedDoctorId) return false;
+
+  const { data: sdRows } = await supabase
+    .from("secretary_doctors")
+    .select("secretary_id")
+    .eq("clinic_id", clinicId)
+    .eq("doctor_id", matchedDoctorId);
+
+  const secretaryIds = [...new Set((sdRows ?? []).map((s) => (s as { secretary_id: string }).secretary_id))];
+  if (secretaryIds.length === 0) return false;
+
+  const { data: settings } = await supabase
+    .from("clinic_whatsapp_routing_settings")
+    .select("chatbot_fallback_strategy")
+    .eq("clinic_id", clinicId)
+    .single();
+
+  const fallback = (settings as { chatbot_fallback_strategy?: string })?.chatbot_fallback_strategy ?? "first_responder";
+
+  if (secretaryIds.length === 1) {
+    await supabase
+      .from("whatsapp_conversations")
+      .update({
+        assigned_secretary_id: secretaryIds[0],
+        assigned_at: new Date().toISOString(),
+        chatbot_step: "done",
+      })
+      .eq("id", conversationId);
+    return true;
+  }
+
+  if (fallback === "round_robin") {
+    const chosen = await pickFromSecretaryList(supabase, clinicId, secretaryIds);
+    if (chosen) {
+      await supabase
+        .from("whatsapp_conversations")
+        .update({
+          assigned_secretary_id: chosen,
+          assigned_at: new Date().toISOString(),
+          chatbot_step: "done",
+        })
+        .eq("id", conversationId);
+      return true;
+    }
+  }
+
+  await supabase
+    .from("conversation_eligible_secretaries")
+    .insert(secretaryIds.map((sid) => ({ conversation_id: conversationId, secretary_id: sid })));
+  await supabase
+    .from("whatsapp_conversations")
+    .update({ chatbot_step: "done" })
+    .eq("id", conversationId);
+  return true;
+}
+
 export async function applyRoutingOnNewConversation(
   supabase: SupabaseClient,
   clinicId: string,
