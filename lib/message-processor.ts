@@ -615,7 +615,8 @@ async function sendWhatsApp(
       };
     }
 
-    // Normalizar telefone para apenas dígitos (esperado no formato 55DDDNÚMERO)
+    // Normalizar telefone: Meta API exige formato internacional (55DDDNÚMERO)
+    const { normalizeWhatsAppPhone } = await import("@/lib/whatsapp-utils");
     const digitsOnly = phone.replace(/\D/g, "");
     if (!digitsOnly) {
       return {
@@ -623,20 +624,23 @@ async function sendWhatsApp(
         error: "Telefone do paciente inválido",
       };
     }
+    const toInternational = normalizeWhatsAppPhone(
+      digitsOnly.startsWith("55") ? digitsOnly : `55${digitsOnly}`
+    );
 
     let result;
     if (useTextMessage) {
       // Ticket aberto: enviar texto livre
       const textMessage = extractTextFromHtml(message);
       result = await sendWhatsAppMessage(clinicId, {
-        to: digitsOnly,
+        to: toInternational,
         text: textMessage,
       }, true, supabaseClient);
     } else if (templateName && templateParams) {
       // Ticket fechado: tentar usar template Meta
       // Se falhar, tentar texto como fallback
       result = await sendWhatsAppMessage(clinicId, {
-        to: digitsOnly,
+        to: toInternational,
         template: templateName,
         templateParams: templateParams,
       }, true, supabaseClient);
@@ -645,7 +649,7 @@ async function sendWhatsApp(
       if (!result.success && result.error?.includes("template")) {
         const textMessage = extractTextFromHtml(message);
         result = await sendWhatsAppMessage(clinicId, {
-          to: digitsOnly,
+          to: toInternational,
           text: textMessage,
         }, true, supabaseClient);
       }
@@ -654,7 +658,7 @@ async function sendWhatsApp(
       // (pode falhar se estiver fora da janela de 24h, mas é melhor que não tentar)
       const textMessage = extractTextFromHtml(message);
       result = await sendWhatsAppMessage(clinicId, {
-        to: digitsOnly,
+        to: toInternational,
         text: textMessage,
       }, true, supabaseClient);
     }
