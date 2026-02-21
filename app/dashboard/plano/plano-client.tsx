@@ -162,8 +162,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     }
   }, [paymentMounted]);
 
-  // Formatar CPF/CNPJ enquanto digita
-  const formatTaxId = (value: string, type: "cpf" | "cnpj"): string => {
+  const formatTaxId = (value: string, type: "cpf" | "cnpj") => {
     const cleaned = value.replace(/\D/g, "");
     if (type === "cpf") {
       if (cleaned.length <= 3) return cleaned;
@@ -179,7 +178,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     }
   };
 
-  const validateTaxId = (value: string, type: "cpf" | "cnpj"): boolean => {
+  const validateTaxId = (value: string, type: "cpf" | "cnpj") => {
     const cleaned = value.replace(/\D/g, "");
     const expectedLength = type === "cpf" ? 11 : 14;
     return cleaned.length === expectedLength;
@@ -357,7 +356,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     }
   };
 
-  const formatZipCode = (value: string): string => {
+  const formatZipCode = (value: string) => {
     const cleaned = value.replace(/\D/g, "");
     if (cleaned.length <= 5) return cleaned;
     return cleaned.replace(/(\d{5})(\d+)/, "$1-$2");
