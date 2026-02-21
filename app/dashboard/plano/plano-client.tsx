@@ -76,7 +76,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   });
 
   const PAID_PLAN_SLUGS = ["pro", "profissional", "essencial", "estrategico"];
-  const isPaidPlan = plan?.planSlug && PAID_PLAN_SLUGS.includes(plan.planSlug);
+  const isPaidPlan = Boolean(plan?.planSlug && PAID_PLAN_SLUGS.includes(plan.planSlug));
   const isPro = isPaidPlan && plan?.subscriptionStatus === "active";
   const isProPastDue = isPaidPlan && plan?.subscriptionStatus === "past_due";
 
