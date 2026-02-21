@@ -32,11 +32,21 @@ export async function getReferralLinkData(): Promise<{
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("whatsapp_url")
+    .select("whatsapp_url, phone")
     .eq("id", clinicId)
     .single();
 
-  const whatsappUrl = (clinic?.whatsapp_url as string | null) ?? null;
+  let whatsappUrl = (clinic?.whatsapp_url as string | null) ?? null;
+  if (!whatsappUrl?.trim()) {
+    const phone = (clinic?.phone as string | null) ?? null;
+    if (phone?.trim()) {
+      const digits = phone.replace(/\D/g, "");
+      const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
+      if (withCountry.length >= 12) {
+        whatsappUrl = `https://wa.me/${withCountry}`;
+      }
+    }
+  }
 
   const { data: referralRow } = await supabase
     .from("doctor_referral_codes")

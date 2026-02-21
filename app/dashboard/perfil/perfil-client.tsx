@@ -93,7 +93,7 @@ function ReferralLinkCard() {
         )}
         {!data?.whatsappUrl && !data?.error && (
           <p className="text-sm text-muted-foreground">
-            Configure o link do WhatsApp da clínica em Configurações → Links sociais para usar esta funcionalidade.
+            O administrador precisa configurar o link do WhatsApp em Configurações → Informações da Clínica → aba Contato (campo WhatsApp ou Telefone).
           </p>
         )}
         {data?.whatsappUrl && (
