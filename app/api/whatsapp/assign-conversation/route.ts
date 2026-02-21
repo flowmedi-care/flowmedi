@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
     const { data: conv } = await supabase
       .from("whatsapp_conversations")
-      .select("id, clinic_id, assigned_secretary_id")
+      .select("id, clinic_id, assigned_secretary_id, patient_id")
       .eq("id", conversationId)
       .single();
 
@@ -79,6 +79,20 @@ export async function POST(request: Request) {
       .from("conversation_eligible_secretaries")
       .delete()
       .eq("conversation_id", conversationId);
+
+    // Se a conversa tem paciente vinculado, associar em patient_secretary
+    if (conv?.patient_id) {
+      await serviceSupabase
+        .from("patient_secretary")
+        .upsert(
+          {
+            clinic_id: conv.clinic_id,
+            patient_id: conv.patient_id,
+            secretary_id: secretaryId,
+          },
+          { onConflict: "clinic_id,patient_id" }
+        );
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e) {

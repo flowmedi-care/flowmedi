@@ -639,7 +639,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                                     Ver documento
                                   </a>
                                 ) : (
-                                  m.body ?? "(mídia)"
+                                  <span className="whitespace-pre-wrap">{m.body ?? "(mídia)"}</span>
                                 )}
                               </div>
                               <span className="text-[10px] text-muted-foreground mt-0.5 px-1">

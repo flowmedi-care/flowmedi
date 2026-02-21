@@ -27,12 +27,23 @@ export default async function ConsultaPage() {
 
   const clinicId = profile.clinic_id;
 
+  // Secretária: médicos que ela administra. Médico: só suas consultas.
+  let allowedDoctorIds: string[] = [];
+  if (profile?.role === "secretaria") {
+    const { data: sd } = await supabase
+      .from("secretary_doctors")
+      .select("doctor_id")
+      .eq("clinic_id", clinicId)
+      .eq("secretary_id", user.id);
+    allowedDoctorIds = (sd ?? []).map((r) => r.doctor_id);
+  }
+
   // Amplo intervalo: 1 ano atrás até 2 anos à frente para listar todas as consultas
   const now = new Date();
   const startRange = new Date(now.getFullYear() - 1, now.getMonth(), 1);
   const endRange = new Date(now.getFullYear() + 2, now.getMonth(), 0, 23, 59, 59, 999);
 
-  const { data: appointments } = await supabase
+  let appointmentsQuery = supabase
     .from("appointments")
     .select(
       `
@@ -51,6 +62,14 @@ export default async function ConsultaPage() {
     .lte("scheduled_at", endRange.toISOString())
     .order("scheduled_at", { ascending: true });
 
+  if (profile?.role === "medico") {
+    appointmentsQuery = appointmentsQuery.eq("doctor_id", user.id);
+  } else if (profile?.role === "secretaria" && allowedDoctorIds.length > 0) {
+    appointmentsQuery = appointmentsQuery.in("doctor_id", allowedDoctorIds);
+  }
+
+  const { data: appointments } = await appointmentsQuery;
+
   const { data: doctorsRaw } = await supabase
     .from("profiles")
     .select("id, full_name")
@@ -59,16 +78,10 @@ export default async function ConsultaPage() {
     .order("full_name");
 
   let doctors = doctorsRaw ?? [];
-  if (profile?.role === "secretaria") {
-    const { data: sd } = await supabase
-      .from("secretary_doctors")
-      .select("doctor_id")
-      .eq("clinic_id", clinicId)
-      .eq("secretary_id", user.id);
-    const allowedDoctorIds = (sd ?? []).map((r) => r.doctor_id);
-    if (allowedDoctorIds.length > 0) {
-      doctors = doctors.filter((d) => allowedDoctorIds.includes(d.id));
-    }
+  if (profile?.role === "secretaria" && allowedDoctorIds.length > 0) {
+    doctors = doctors.filter((d) => allowedDoctorIds.includes(d.id));
+  } else if (profile?.role === "medico") {
+    doctors = doctors.filter((d) => d.id === user.id);
   }
 
   const { data: patients } = await supabase

@@ -72,7 +72,7 @@ export async function createAppointment(
   if (!user) return { error: "Não autorizado." };
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id")
+    .select("clinic_id, role")
     .eq("id", user.id)
     .single();
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
@@ -88,6 +88,17 @@ export async function createAppointment(
       return { error: `${check.reason}. ${upgradeMsg}` };
     }
   }
+
+  // Verificar conflito de horário (mesmo médico, considerando duração do tipo de consulta)
+  const durationMinutes = await getDurationMinutes(supabase, appointmentTypeId, profile.clinic_id);
+  const conflictError = await checkAppointmentConflict(supabase, {
+    clinicId: profile.clinic_id,
+    doctorId,
+    scheduledAt,
+    durationMinutes,
+    excludeAppointmentId: null,
+  });
+  if (conflictError) return { error: conflictError };
 
   const { data: appointment, error: insertErr } = await supabase
     .from("appointments")
@@ -111,6 +122,20 @@ export async function createAppointment(
 
   if (insertErr) return { error: insertErr.message };
   if (!appointment) return { error: "Erro ao criar consulta." };
+
+  // Secretária que agenda: associar paciente a ela em patient_secretary (primeira consulta ou não)
+  if (profile?.role === "secretaria") {
+    await supabase
+      .from("patient_secretary")
+      .upsert(
+        {
+          clinic_id: profile.clinic_id,
+          patient_id: patientId,
+          secretary_id: user.id,
+        },
+        { onConflict: "clinic_id,patient_id" }
+      );
+  }
 
   const formLinkedEventIds: string[] = [];
 
@@ -467,6 +492,60 @@ export async function createAppointment(
   return { data: { id: appointment.id }, error: null };
 }
 
+async function getDurationMinutes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  appointmentTypeId: string | null,
+  clinicId: string
+): Promise<number> {
+  if (!appointmentTypeId) return 30;
+  const { data: at } = await supabase
+    .from("appointment_types")
+    .select("duration_minutes")
+    .eq("id", appointmentTypeId)
+    .eq("clinic_id", clinicId)
+    .single();
+  return at?.duration_minutes ?? 30;
+}
+
+async function checkAppointmentConflict(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  opts: {
+    clinicId: string;
+    doctorId: string;
+    scheduledAt: string;
+    durationMinutes: number;
+    excludeAppointmentId: string | null;
+  }
+): Promise<string | null> {
+  const start = new Date(opts.scheduledAt).getTime();
+  const end = start + opts.durationMinutes * 60 * 1000;
+
+  let query = supabase
+    .from("appointments")
+    .select("id, scheduled_at, appointment_type_id")
+    .eq("clinic_id", opts.clinicId)
+    .eq("doctor_id", opts.doctorId)
+    .neq("status", "cancelada");
+
+  if (opts.excludeAppointmentId) {
+    query = query.neq("id", opts.excludeAppointmentId);
+  }
+
+  const { data: existing } = await query;
+
+  for (const appt of existing ?? []) {
+    const apptDuration = appt.appointment_type_id
+      ? await getDurationMinutes(supabase, appt.appointment_type_id, opts.clinicId)
+      : 30;
+    const apptStart = new Date(appt.scheduled_at).getTime();
+    const apptEnd = apptStart + apptDuration * 60 * 1000;
+    if (start < apptEnd && end > apptStart) {
+      return "Já existe uma consulta com esse médico neste horário. Escolha outro horário.";
+    }
+  }
+  return null;
+}
+
 export async function updateAppointment(
   id: string,
   data: {
@@ -485,6 +564,35 @@ export async function updateAppointment(
   }
 ) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  // Verificar conflito se alterar data/hora, médico ou tipo
+  const changesTimeOrDoctor =
+    data.scheduled_at != null || data.doctor_id != null || data.appointment_type_id != null;
+  if (changesTimeOrDoctor) {
+    const { data: current } = await supabase
+      .from("appointments")
+      .select("clinic_id, doctor_id, scheduled_at, appointment_type_id")
+      .eq("id", id)
+      .single();
+    if (current) {
+      const clinicId = current.clinic_id;
+      const doctorId = data.doctor_id ?? current.doctor_id;
+      const scheduledAt = data.scheduled_at ?? current.scheduled_at;
+      const appointmentTypeId = data.appointment_type_id ?? current.appointment_type_id;
+      const durationMinutes = await getDurationMinutes(supabase, appointmentTypeId, clinicId);
+      const conflictError = await checkAppointmentConflict(supabase, {
+        clinicId,
+        doctorId,
+        scheduledAt,
+        durationMinutes,
+        excludeAppointmentId: id,
+      });
+      if (conflictError) return { error: conflictError };
+    }
+  }
+
   const { error } = await supabase
     .from("appointments")
     .update({

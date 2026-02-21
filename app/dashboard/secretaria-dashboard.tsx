@@ -160,7 +160,7 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
     const todayEnd = new Date(now);
     todayEnd.setHours(23, 59, 59, 999);
 
-    const { data: appointments } = await supabase
+    let appointmentsQuery = supabase
       .from("appointments")
       .select(
         `
@@ -172,9 +172,22 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
       `
       )
       .eq("clinic_id", clinicId)
+      .neq("status", "cancelada")
       .gte("scheduled_at", todayStart.toISOString())
       .lte("scheduled_at", todayEnd.toISOString())
       .order("scheduled_at", { ascending: true });
+
+    const { data: sd } = await supabase
+      .from("secretary_doctors")
+      .select("doctor_id")
+      .eq("clinic_id", clinicId)
+      .eq("secretary_id", profile.id);
+    const allowedDoctorIds = (sd ?? []).map((r) => r.doctor_id);
+    if (allowedDoctorIds.length > 0) {
+      appointmentsQuery = appointmentsQuery.in("doctor_id", allowedDoctorIds);
+    }
+
+    const { data: appointments } = await appointmentsQuery;
 
     if (appointments) {
       upcomingAppointments = appointments.map((a: any) => {

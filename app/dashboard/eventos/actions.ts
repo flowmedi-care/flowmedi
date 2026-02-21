@@ -14,11 +14,13 @@ export async function getPendingEvents(filters?: {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id")
+    .select("clinic_id, role")
     .eq("id", user.id)
     .single();
 
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const secretaryId = profile?.role === "secretaria" ? user.id : null;
 
   const { data, error } = await supabase.rpc("get_pending_events", {
     p_clinic_id: profile.clinic_id,
@@ -26,6 +28,7 @@ export async function getPendingEvents(filters?: {
     p_event_code: filters?.eventCode || null,
     p_limit: 100,
     p_offset: 0,
+    p_secretary_id: secretaryId,
   });
 
   if (error) return { data: null, error: error.message };
@@ -72,11 +75,13 @@ export async function getAllEvents(filters?: {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id")
+    .select("clinic_id, role")
     .eq("id", user.id)
     .single();
 
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const secretaryId = profile?.role === "secretaria" ? user.id : null;
 
   const { data, error } = await supabase.rpc("get_all_events", {
     p_clinic_id: profile.clinic_id,
@@ -84,6 +89,7 @@ export async function getAllEvents(filters?: {
     p_event_code: filters?.eventCode || null,
     p_limit: 100,
     p_offset: 0,
+    p_secretary_id: secretaryId,
   });
 
   if (error) return { data: null, error: error.message };
@@ -101,11 +107,13 @@ export async function getCompletedEvents(filters?: {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id")
+    .select("clinic_id, role")
     .eq("id", user.id)
     .single();
 
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const secretaryId = profile?.role === "secretaria" ? user.id : null;
 
   const { data, error } = await supabase.rpc("get_completed_events", {
     p_clinic_id: profile.clinic_id,
@@ -113,6 +121,7 @@ export async function getCompletedEvents(filters?: {
     p_event_code: filters?.eventCode || null,
     p_limit: 100,
     p_offset: 0,
+    p_secretary_id: secretaryId,
   });
 
   if (error) return { data: null, error: error.message };

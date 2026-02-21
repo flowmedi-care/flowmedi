@@ -100,6 +100,16 @@ export function WhatsAppContactSidebar({
     setPatient(initialPatient);
   }, [initialPatient]);
 
+  // Vincular paciente à conversa ao abrir sidebar (quando paciente já existe, ex.: encontrado por telefone)
+  useEffect(() => {
+    if (!open || !conversationId || !initialPatient?.id) return;
+    fetch("/api/whatsapp/link-patient", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId, patientId: initialPatient.id }),
+    }).catch(() => {});
+  }, [open, conversationId, initialPatient?.id]);
+
   useEffect(() => {
     if (!open) return;
     setLoadingPatient(false);
@@ -178,6 +188,18 @@ export function WhatsAppContactSidebar({
     setPatient(newPatient);
     setNewPatientOpen(false);
     onPatientLinked(newPatient);
+    // Vincular paciente à conversa e associar em patient_secretary se houver secretária
+    if (conversationId && res.patientId) {
+      try {
+        await fetch("/api/whatsapp/link-patient", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversationId, patientId: res.patientId }),
+        });
+      } catch {
+        // Não falhar o fluxo; o vínculo pode ser feito depois
+      }
+    }
     toast("Paciente cadastrado com sucesso.", "success");
   }
 
