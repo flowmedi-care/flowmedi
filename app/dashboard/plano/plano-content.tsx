@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,8 @@ type InvoiceItem = {
 type PlanoContentProps = {
   planName: string;
   planSlug: string;
+  setupComplete?: boolean;
+  setupSessionId?: string | null;
   isPro: boolean;
   isCancelScheduled: boolean;
   isProPastDue: boolean;
@@ -82,18 +84,32 @@ export function PlanoContent(props: PlanoContentProps) {
   const [changingPlanSlug, setChangingPlanSlug] = useState<string | null>(null);
   const [changePlanError, setChangePlanError] = useState<string | null>(null);
 
-  const handleChangePlan = async (slug: string) => {
+  useEffect(() => {
+    if (setupComplete && setupSessionId && effectiveCheckoutSlug && isPro) {
+      router.replace("/dashboard/plano");
+      handleChangePlan(effectiveCheckoutSlug, setupSessionId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount when returning from setup
+  }, []);
+
+  const handleChangePlan = async (slug: string, sessionId?: string | null) => {
     setChangePlanError(null);
     setChangingPlanSlug(slug);
     try {
+      const body: { plan: string; session_id?: string } = { plan: slug };
+      if (sessionId) body.session_id = sessionId;
       const res = await fetch("/api/stripe/change-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: slug }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setChangePlanError(data.error || "Erro ao trocar de plano.");
+        return;
+      }
+      if (data.setup_required && data.url) {
+        window.location.href = data.url;
         return;
       }
       router.refresh();
@@ -107,6 +123,8 @@ export function PlanoContent(props: PlanoContentProps) {
   const {
     planName,
     planSlug,
+    setupComplete,
+    setupSessionId,
     isPro,
     isCancelScheduled,
     isProPastDue,

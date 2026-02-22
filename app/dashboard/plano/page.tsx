@@ -5,10 +5,12 @@ import { PlanoClient } from "./plano-client";
 export default async function PlanoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ plan?: string }>;
+  searchParams: Promise<{ plan?: string; setup_complete?: string; session_id?: string }>;
 }) {
   const params = await searchParams;
   const selectedPlanSlug = params.plan?.trim().toLowerCase() || null;
+  const setupComplete = params.setup_complete === "1" ? true : false;
+  const setupSessionId = params.session_id?.trim() || null;
   const supabase = await createClient();
   const {
     data: { user },
@@ -62,6 +64,8 @@ export default async function PlanoPage({
     proStripePriceId: proPlan?.stripe_price_id ?? null,
     selectedPlanSlug,
     upgradePlans: upgradePlans ?? [],
+    setupComplete,
+    setupSessionId,
   };
 
   return (
