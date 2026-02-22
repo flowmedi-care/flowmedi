@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { CreditCard, ExternalLink, Loader2, ArrowUpCircle } from "lucide-react";
 
-type UpgradePlan = { id: string; name: string; slug: string; stripe_price_id: string };
+type UpgradePlan = { id: string; name: string; slug: string; stripe_price_id: string | null; price_display?: string | null };
 type AddressState = {
   street: string;
   number: string;
@@ -195,28 +195,29 @@ export function PlanoContent(props: PlanoContentProps) {
             )}
             {!isPro && upgradePlans.length > 0 && (
               <>
-                {upgradePlans.length > 1 && !paymentMounted && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Escolha o plano</Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {upgradePlans.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => router.push(`/dashboard/plano?plan=${p.slug}`)}
-                          className={
-                            effectiveCheckoutSlug === p.slug
-                              ? "rounded-lg px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground"
-                              : "rounded-lg px-3 py-1.5 text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                          }
-                        >
-                          {p.name}
-                        </button>
-                      ))}
-                    </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Escolha o plano</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {upgradePlans.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => router.push(`/dashboard/plano?plan=${p.slug}`)}
+                        className={
+                          effectiveCheckoutSlug === p.slug
+                            ? "rounded-lg px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground"
+                            : "rounded-lg px-3 py-1.5 text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                        }
+                      >
+                        {p.name}
+                        {p.price_display && (
+                          <span className="ml-1 opacity-90">({p.price_display})</span>
+                        )}
+                      </button>
+                    ))}
                   </div>
-                )}
-                {!paymentMounted ? (
+                </div>
+                {effectiveCheckoutPlan?.stripe_price_id && !paymentMounted ? (
                   <Button onClick={onStartCheckout} disabled={loadingCheckout} className="w-full">
                     {loadingCheckout ? (
                       <>
@@ -229,8 +230,8 @@ export function PlanoContent(props: PlanoContentProps) {
                         Assinar {effectiveCheckoutPlan?.name ?? "Plano"}
                       </>
                     )}
-                  </Button>
-                ) : (
+                    </Button>
+                ) : effectiveCheckoutPlan?.stripe_price_id && paymentMounted ? (
                   <form onSubmit={onPaymentSubmit} className="space-y-6">
                     <div className="border rounded-lg p-4 bg-muted/50">
                       <h3 className="font-semibold mb-3">Detalhes do pedido</h3>
@@ -411,13 +412,17 @@ export function PlanoContent(props: PlanoContentProps) {
                         </>
                       )}
                     </Button>
-                  </form>
-                )}
-                {!planProStripePriceId && (
-                  <p className="text-sm text-muted-foreground">
-                    Configure o preço no Stripe e o campo stripe_price_id no admin.
-                  </p>
-                )}
+                    </form>
+                ) : !effectiveCheckoutPlan?.stripe_price_id ? (
+                  <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground mb-1">
+                      Plano {effectiveCheckoutPlan?.name ?? ""}
+                    </p>
+                    <p>
+                      Este plano requer contato comercial. Entre em contato conosco para mais informações.
+                    </p>
+                  </div>
+                ) : null}
               </>
             )}
             {isPro && !isCancelScheduled && otherPlans.length > 0 && (

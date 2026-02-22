@@ -46,11 +46,11 @@ export default async function PlanoPage({
     .eq("slug", "pro")
     .single();
 
-  // Buscar planos disponíveis para upgrade (com stripe_price_id)
+  // Buscar todos os planos exibidos na página de preços (para o usuário escolher)
   const { data: upgradePlans } = await supabase
     .from("plans")
-    .select("id, name, slug, stripe_price_id")
-    .not("stripe_price_id", "is", null)
+    .select("id, name, slug, stripe_price_id, price_display")
+    .eq("show_on_pricing", true)
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
