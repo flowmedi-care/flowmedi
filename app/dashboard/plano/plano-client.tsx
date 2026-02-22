@@ -499,6 +499,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   return (
     <PlanoContent
       planName={plan.planName}
+      planSlug={plan.planSlug}
       isPro={isPro}
       isCancelScheduled={isCancelScheduled}
       isProPastDue={isProPastDue}

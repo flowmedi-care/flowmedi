@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { CreditCard, ExternalLink, Loader2 } from "lucide-react";
+import { CreditCard, ExternalLink, Loader2, ArrowUpCircle } from "lucide-react";
 
 type UpgradePlan = { id: string; name: string; slug: string; stripe_price_id: string };
 type AddressState = {
@@ -30,6 +31,7 @@ type InvoiceItem = {
 
 type PlanoContentProps = {
   planName: string;
+  planSlug: string;
   isPro: boolean;
   isCancelScheduled: boolean;
   isProPastDue: boolean;
@@ -77,8 +79,34 @@ type PlanoContentProps = {
 
 export function PlanoContent(props: PlanoContentProps) {
   const router = useRouter();
+  const [changingPlanSlug, setChangingPlanSlug] = useState<string | null>(null);
+  const [changePlanError, setChangePlanError] = useState<string | null>(null);
+
+  const handleChangePlan = async (slug: string) => {
+    setChangePlanError(null);
+    setChangingPlanSlug(slug);
+    try {
+      const res = await fetch("/api/stripe/change-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: slug }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setChangePlanError(data.error || "Erro ao trocar de plano.");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setChangePlanError("Erro ao trocar de plano. Tente novamente.");
+    } finally {
+      setChangingPlanSlug(null);
+    }
+  };
+
   const {
     planName,
+    planSlug,
     isPro,
     isCancelScheduled,
     isProPastDue,
@@ -124,9 +152,11 @@ export function PlanoContent(props: PlanoContentProps) {
     handleCEPInputChange,
   } = props;
 
+  const otherPlans = upgradePlans.filter((p) => p.slug !== planSlug);
+
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <div className="space-y-6 min-w-0">
+    <div className="space-y-6">
+      <div className="min-w-0">
         <Card className="overflow-hidden">
           <CardHeader className="pb-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -390,7 +420,50 @@ export function PlanoContent(props: PlanoContentProps) {
                 )}
               </>
             )}
-            {isPro && !isCancelScheduled && (
+            {isPro && !isCancelScheduled && otherPlans.length > 0 && (
+              <div className="pt-4 mt-4 border-t border-border space-y-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-2">Quer um plano melhor?</p>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Troque de plano facilmente. O valor será ajustado de forma proporcional.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {otherPlans.map((p) => (
+                      <Button
+                        key={p.id}
+                        variant="outline"
+                        size="sm"
+                        disabled={changingPlanSlug !== null}
+                        onClick={() => handleChangePlan(p.slug)}
+                      >
+                        {changingPlanSlug === p.slug ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            Alterando…
+                          </>
+                        ) : (
+                          <>
+                            <ArrowUpCircle className="h-4 w-4 mr-2" />
+                            Trocar para {p.name}
+                          </>
+                        )}
+                      </Button>
+                    ))}
+                  </div>
+                  {changePlanError && (
+                    <p className="text-sm text-destructive mt-2">{changePlanError}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={onCancelClick}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
+                >
+                  Cancelar assinatura
+                </button>
+              </div>
+            )}
+            {isPro && !isCancelScheduled && otherPlans.length === 0 && (
               <div className="pt-4 mt-4 border-t border-border">
                 <button
                   type="button"
@@ -404,7 +477,7 @@ export function PlanoContent(props: PlanoContentProps) {
           </CardContent>
         </Card>
       </div>
-      <Card className="h-fit lg:sticky lg:top-6 lg:max-w-sm">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base font-medium">Faturas</CardTitle>
           <p className="text-sm text-muted-foreground">Histórico de cobranças</p>
