@@ -10,6 +10,15 @@ import { Select } from "@/components/ui/select";
 import { CreditCard, ExternalLink, Loader2 } from "lucide-react";
 
 type UpgradePlan = { id: string; name: string; slug: string; stripe_price_id: string };
+type AddressState = {
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zipCode: string;
+};
 type InvoiceItem = {
   id: string;
   created: number;
@@ -37,7 +46,7 @@ type PlanoContentProps = {
   taxIdType: "cpf" | "cnpj";
   taxIdValue: string;
   taxIdError: string;
-  address: Record<string, string>;
+  address: AddressState;
   consentAccepted: boolean;
   confirmingPayment: boolean;
   loadingInvoices: boolean;
@@ -61,7 +70,7 @@ type PlanoContentProps = {
   setTaxIdType: (v: "cpf" | "cnpj") => void;
   setTaxIdValue: (v: string) => void;
   setTaxIdError: (v: string) => void;
-  setAddress: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  setAddress: React.Dispatch<React.SetStateAction<AddressState>>;
   setConsentAccepted: (v: boolean) => void;
   handleCEPInputChange: (value: string) => void;
 };
