@@ -347,7 +347,7 @@ export function PlanoContent(props: PlanoContentProps) {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Dados do cartão</Label>
-                      <div ref={paymentElementRef} className="border rounded-lg p-4 min-h-[200px]" />
+                      <div ref={paymentElementRef as React.Ref<HTMLDivElement>} className="border rounded-lg p-4 min-h-[200px]" />
                     </div>
                     <div className="space-y-3">
                       <div className="flex items-start gap-2">
