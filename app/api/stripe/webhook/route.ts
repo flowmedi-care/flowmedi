@@ -158,6 +158,17 @@ export async function POST(request: Request) {
         } else {
           console.log("Webhook clinic updated to pro:", { clinicId, subId, taxId, taxIdType });
         }
+
+        // Troca de plano: cancelar a assinatura antiga para não cobrar em duplicidade
+        const previousSubId = session.metadata?.previous_subscription_id;
+        if (session.metadata?.plan_change === "1" && previousSubId && previousSubId !== subId) {
+          try {
+            await stripe.subscriptions.cancel(previousSubId);
+            console.log("Webhook plan change: old subscription canceled:", previousSubId);
+          } catch (cancelErr) {
+            console.error("Webhook error canceling old subscription:", cancelErr);
+          }
+        }
         break;
       }
 

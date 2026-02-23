@@ -21,8 +21,6 @@ type PlanInfo = {
   proStripePriceId: string | null;
   selectedPlanSlug?: string | null;
   upgradePlans?: UpgradePlan[];
-  setupComplete?: boolean;
-  setupSessionId?: string | null;
 };
 
 type InvoiceItem = {
@@ -502,8 +500,6 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     <PlanoContent
       planName={plan.planName}
       planSlug={plan.planSlug}
-      setupComplete={plan.setupComplete}
-      setupSessionId={plan.setupSessionId}
       isPro={isPro}
       isCancelScheduled={isCancelScheduled}
       isProPastDue={isProPastDue}
