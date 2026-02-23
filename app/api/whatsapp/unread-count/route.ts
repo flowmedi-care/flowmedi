@@ -78,7 +78,7 @@ export async function GET() {
         .select("viewed_at")
         .eq("conversation_id", convId)
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       // Contar mensagens inbound enviadas após a última visualização
       const { count } = await supabase
