@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { updateAppointment, deleteAppointment } from "../../actions";
-import { Copy, Check, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { updateAppointment, deleteAppointment, startAppointmentConsultation } from "../../actions";
+import { toast } from "@/components/ui/toast";
+import { Copy, Check, Trash2, ChevronDown, ChevronUp, Play, Clock } from "lucide-react";
 import type { FormFieldDefinition } from "@/lib/form-types";
 import { getStatusBackgroundColor, getStatusTextColor } from "../../status-utils";
 import { ConsultationNotesClient } from "./consultation-notes-client";
@@ -44,6 +45,11 @@ function formatResponseValue(
 export function ConsultaDetalheClient({
   appointmentId,
   appointmentStatus,
+  appointmentScheduledAt,
+  startedAt,
+  completedAt,
+  durationMinutes,
+  doctorId,
   formInstances,
   baseUrl,
   canEdit,
@@ -53,6 +59,10 @@ export function ConsultaDetalheClient({
   appointmentId: string;
   appointmentStatus: string;
   appointmentScheduledAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMinutes: number | null;
+  doctorId: string | null;
   formInstances: FormInstance[];
   baseUrl: string;
   canEdit: boolean;
@@ -61,10 +71,20 @@ export function ConsultaDetalheClient({
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(appointmentStatus);
+  const [startedAtState, setStartedAtState] = useState(startedAt);
+  const [durationMinutesState, setDurationMinutesState] = useState(durationMinutes);
   const [updating, setUpdating] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [expandedFormId, setExpandedFormId] = useState<string | null>(null);
   const [showExcluirConfirm, setShowExcluirConfirm] = useState(false);
+
+  const canStartOrComplete =
+    isDoctor || canEdit;
+  const isPendingStatus = status === "agendada" || status === "confirmada";
+  const isInProgress = !!startedAtState && isPendingStatus;
+  const showStartButton = canStartOrComplete && isPendingStatus && !startedAtState;
+  const showInProgress = canStartOrComplete && isInProgress;
 
   const origin = typeof window !== "undefined" ? window.location.origin : baseUrl || "";
   const linkBase = origin ? `${origin}/f/` : "/f/";
@@ -76,10 +96,32 @@ export function ConsultaDetalheClient({
     setTimeout(() => setCopiedToken(null), 2000);
   }
 
+  async function handleStartConsultation() {
+    setStarting(true);
+    const res = await startAppointmentConsultation(appointmentId);
+    if (!res.error) {
+      setStartedAtState(new Date().toISOString());
+      router.refresh();
+    } else {
+      toast(res.error, "error");
+    }
+    setStarting(false);
+  }
+
   async function handleStatusChange(newStatus: string) {
     setUpdating(true);
     const res = await updateAppointment(appointmentId, { status: newStatus });
-    if (!res.error) setStatus(newStatus);
+    if (!res.error) {
+      setStatus(newStatus);
+      if (newStatus === "realizada" && startedAtState) {
+        setDurationMinutesState(
+          Math.round(
+            (Date.now() - new Date(startedAtState).getTime()) / 60000
+          )
+        );
+      }
+      if (newStatus === "realizada") router.refresh();
+    }
     setUpdating(false);
   }
 
@@ -99,39 +141,90 @@ export function ConsultaDetalheClient({
 
   return (
     <div className="space-y-6">
-      {/* Toggle de status para médicos (apenas realizada/falta) */}
-      {isDoctor && (
+      {/* Controle de início e status (médico ou admin/secretária) */}
+      {(isDoctor || canEdit) && (
         <Card>
           <CardHeader>
             <h2 className="font-semibold">Status da consulta</h2>
           </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
-              <Button
-                variant={status === "realizada" ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleStatusChange("realizada")}
-                disabled={updating}
-                className={cn(
-                  status === "realizada" && "bg-green-600 hover:bg-green-700 text-white",
-                  status === "realizada" && "font-semibold"
+          <CardContent className="space-y-4">
+            {showStartButton && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleStartConsultation}
+                  disabled={starting}
+                  className="gap-2 bg-primary"
+                >
+                  <Play className="h-4 w-4" />
+                  Iniciar consulta
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Ao iniciar, a secretária será sinalizada e o tempo de atendimento será contado até marcar como realizada.
+                </span>
+              </div>
+            )}
+            {showInProgress && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 flex flex-wrap items-center gap-3">
+                <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                  Consulta em andamento desde{" "}
+                  {startedAtState
+                    ? new Date(startedAtState).toLocaleTimeString("pt-BR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : ""}
+                </span>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => handleStatusChange("realizada")}
+                  disabled={updating}
+                  className="ml-auto gap-2 bg-green-600 hover:bg-green-700"
+                >
+                  ✓ Marcar como realizada
+                </Button>
+              </div>
+            )}
+            {status === "realizada" && (durationMinutesState ?? durationMinutes) != null && (
+              <p className="text-sm text-muted-foreground">
+                Duração do atendimento: <strong>{(durationMinutesState ?? durationMinutes)} min</strong>
+              </p>
+            )}
+            {(isDoctor || canEdit) && (
+              <div className="flex gap-2 pt-2 border-t border-border">
+                {!showInProgress && (
+                  <>
+                    <Button
+                      variant={status === "realizada" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleStatusChange("realizada")}
+                      disabled={updating}
+                      className={cn(
+                        status === "realizada" && "bg-green-600 hover:bg-green-700 text-white",
+                        status === "realizada" && "font-semibold"
+                      )}
+                    >
+                      ✓ Realizada
+                    </Button>
+                    <Button
+                      variant={status === "falta" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleStatusChange("falta")}
+                      disabled={updating}
+                      className={cn(
+                        status === "falta" && "bg-red-600 hover:bg-red-700 text-white",
+                        status === "falta" && "font-semibold"
+                      )}
+                    >
+                      ✗ Falta
+                    </Button>
+                  </>
                 )}
-              >
-                ✓ Realizada
-              </Button>
-              <Button
-                variant={status === "falta" ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleStatusChange("falta")}
-                disabled={updating}
-                className={cn(
-                  status === "falta" && "bg-red-600 hover:bg-red-700 text-white",
-                  status === "falta" && "font-semibold"
-                )}
-              >
-                ✗ Falta
-              </Button>
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

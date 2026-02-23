@@ -11,6 +11,7 @@ import {
   Plus,
   Clock,
   Settings,
+  Stethoscope,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ export function SecretariaDashboardClient({
   upcomingAppointments,
   pipelineItems,
   preferences,
+  ongoingConsultations,
 }: {
   complianceAppointments: Array<{
     id: string;
@@ -51,6 +53,13 @@ export function SecretariaDashboardClient({
   }>;
   pipelineItems: PipelineItem[];
   preferences: DashboardPreferences;
+  ongoingConsultations: Array<{
+    id: string;
+    scheduled_at: string;
+    started_at: string;
+    patient: { full_name: string };
+    doctor: { full_name: string | null };
+  }>;
 }) {
   const [showPreferences, setShowPreferences] = useState(false);
   const [appointmentsState, setAppointmentsState] = useState(upcomingAppointments);
@@ -189,6 +198,74 @@ export function SecretariaDashboardClient({
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Consultas em andamento (médico iniciou a consulta) */}
+      {ongoingConsultations.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
+          <CardHeader className="flex flex-row items-center gap-2 pb-3">
+            <Stethoscope className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <span className="font-semibold text-amber-900 dark:text-amber-100">
+              Consultas em andamento
+            </span>
+            <Badge
+              variant="outline"
+              className="ml-auto bg-amber-100 dark:bg-amber-900/50"
+            >
+              {ongoingConsultations.length}
+            </Badge>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-amber-800 dark:text-amber-200 mb-4">
+              O médico chamou o paciente. Consulta iniciada — aguardando ser marcada como realizada.
+            </p>
+            <div className="space-y-2">
+              {ongoingConsultations.map((appointment) => {
+                const startedAt = new Date(appointment.started_at);
+                const scheduledAt = new Date(appointment.scheduled_at);
+                const timeStr = startedAt.toLocaleTimeString("pt-BR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+                const dateStr = scheduledAt.toLocaleDateString("pt-BR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                });
+                const schedTimeStr = scheduledAt.toLocaleTimeString("pt-BR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+                return (
+                  <Link
+                    key={appointment.id}
+                    href={`/dashboard/agenda/consulta/${appointment.id}`}
+                    className="block p-3 rounded-md bg-white dark:bg-gray-900 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-sm text-foreground">
+                          {appointment.patient.full_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Iniciada às {timeStr} • Agendada: {dateStr} às {schedTimeStr}
+                          {appointment.doctor.full_name &&
+                            ` • Dr(a). ${appointment.doctor.full_name}`}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200"
+                      >
+                        Em andamento
+                      </Badge>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Compliance */}

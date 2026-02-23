@@ -217,6 +217,53 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
     pipelineItems = pipelineRes.data || [];
   }
 
+  // Consultas em andamento (médico chamou o paciente — started_at preenchido)
+  let ongoingConsultations: Array<{
+    id: string;
+    scheduled_at: string;
+    started_at: string;
+    patient: { full_name: string };
+    doctor: { full_name: string | null };
+  }> = [];
+  const { data: sdOngoing } = await supabase
+    .from("secretary_doctors")
+    .select("doctor_id")
+    .eq("clinic_id", clinicId)
+    .eq("secretary_id", profile.id);
+  const allowedDoctorIdsOngoing = (sdOngoing ?? []).map((r) => r.doctor_id);
+  let ongoingQuery = supabase
+    .from("appointments")
+    .select(
+      `
+      id,
+      scheduled_at,
+      started_at,
+      patient:patients ( full_name ),
+      doctor:profiles ( full_name )
+    `
+    )
+    .eq("clinic_id", clinicId)
+    .in("status", ["agendada", "confirmada"])
+    .not("started_at", "is", null)
+    .order("started_at", { ascending: false });
+  if (allowedDoctorIdsOngoing.length > 0) {
+    ongoingQuery = ongoingQuery.in("doctor_id", allowedDoctorIdsOngoing);
+  }
+  const { data: ongoing } = await ongoingQuery;
+  if (ongoing) {
+    ongoingConsultations = ongoing.map((a: any) => {
+      const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
+      const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
+      return {
+        id: String(a.id),
+        scheduled_at: String(a.scheduled_at),
+        started_at: String(a.started_at),
+        patient: { full_name: String(patient?.full_name ?? "") },
+        doctor: { full_name: doctor?.full_name ?? null },
+      };
+    });
+  }
+
   return (
     <SecretariaDashboardClient
       complianceAppointments={complianceAppointments}
@@ -225,6 +272,7 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
       upcomingAppointments={upcomingAppointments}
       pipelineItems={pipelineItems}
       preferences={preferences}
+      ongoingConsultations={ongoingConsultations}
     />
   );
 }

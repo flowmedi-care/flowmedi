@@ -646,12 +646,28 @@ export async function updateAppointment(
     }
   }
 
+  const updatePayload: Record<string, unknown> = {
+    ...data,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (data.status === "realizada") {
+    const { data: current } = await supabase
+      .from("appointments")
+      .select("started_at")
+      .eq("id", id)
+      .single();
+    if (current?.started_at) {
+      const startedAt = new Date(current.started_at as string).getTime();
+      const now = Date.now();
+      updatePayload.completed_at = new Date(now).toISOString();
+      updatePayload.duration_minutes = Math.round((now - startedAt) / 60000);
+    }
+  }
+
   const { error } = await supabase
     .from("appointments")
-    .update({
-      ...data,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", id);
   if (error) return { error: error.message };
 
@@ -710,6 +726,51 @@ export async function updateAppointment(
   revalidatePath("/dashboard/eventos");
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/agenda/consulta/${id}`);
+  return { error: null };
+}
+
+/** Iniciar consulta: médico chama o paciente. Grava started_at para duração e para a secretária ver. */
+export async function startAppointmentConsultation(appointmentId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, role, clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Perfil não encontrado." };
+
+  const { data: appointment } = await supabase
+    .from("appointments")
+    .select("id, clinic_id, doctor_id, status, started_at")
+    .eq("id", appointmentId)
+    .eq("clinic_id", profile.clinic_id)
+    .single();
+
+  if (!appointment) return { error: "Consulta não encontrada." };
+  if (appointment.started_at) return { error: "Consulta já foi iniciada." };
+  if (appointment.status !== "agendada" && appointment.status !== "confirmada") {
+    return { error: "Só é possível iniciar consultas agendadas ou confirmadas." };
+  }
+
+  const isDoctor = profile.role === "medico" && appointment.doctor_id === profile.id;
+  const canStart = isDoctor || profile.role === "admin" || profile.role === "secretaria";
+  if (!canStart) return { error: "Sem permissão para iniciar esta consulta." };
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({
+      started_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", appointmentId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard");
+  revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
   return { error: null };
 }
 

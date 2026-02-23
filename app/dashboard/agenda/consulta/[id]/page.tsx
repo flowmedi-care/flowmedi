@@ -46,6 +46,10 @@ export default async function ConsultaDetalhePage({
       scheduled_at,
       status,
       notes,
+      started_at,
+      completed_at,
+      duration_minutes,
+      doctor_id,
       patient:patients ( id, full_name, email, phone, birth_date ),
       doctor:profiles ( id, full_name ),
       appointment_type:appointment_types ( id, name )
@@ -198,6 +202,10 @@ export default async function ConsultaDetalhePage({
         appointmentId={id}
         appointmentStatus={appointment.status}
         appointmentScheduledAt={appointment.scheduled_at}
+        startedAt={appointment.started_at ?? null}
+        completedAt={appointment.completed_at ?? null}
+        durationMinutes={appointment.duration_minutes ?? null}
+        doctorId={appointment.doctor_id ?? null}
         patientId={patient?.id ?? ""}
         patientData={{
           full_name: patient?.full_name ?? "",

@@ -17,6 +17,10 @@ export function ConsultaTabsClient({
   appointmentId,
   appointmentStatus,
   appointmentScheduledAt,
+  startedAt,
+  completedAt,
+  durationMinutes,
+  doctorId,
   patientId,
   patientData,
   formInstances,
@@ -28,6 +32,10 @@ export function ConsultaTabsClient({
   appointmentId: string;
   appointmentStatus: string;
   appointmentScheduledAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMinutes: number | null;
+  doctorId: string | null;
   patientId: string;
   patientData: {
     full_name: string;
@@ -85,6 +93,10 @@ export function ConsultaTabsClient({
             appointmentId={appointmentId}
             appointmentStatus={appointmentStatus}
             appointmentScheduledAt={appointmentScheduledAt}
+            startedAt={startedAt}
+            completedAt={completedAt}
+            durationMinutes={durationMinutes}
+            doctorId={doctorId}
             formInstances={formInstances}
             baseUrl={baseUrl}
             canEdit={canEdit}
