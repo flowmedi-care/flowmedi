@@ -43,11 +43,15 @@ export async function GET() {
       expand: ["data.lines.data.price.product"],
     });
 
+    type LineWithPrice = { price?: { product?: string | { name?: string } }; description?: string };
     const invoices = list.data.map((inv) => {
-      const firstLine = inv.lines?.data?.[0];
-      const product = firstLine?.price && "product" in firstLine.price ? firstLine.price.product : null;
-      const productName = product && typeof product === "object" && "name" in product ? (product.name as string) : null;
-      const description = productName || (firstLine?.description as string) || "Assinatura";
+      const firstLine = inv.lines?.data?.[0] as LineWithPrice | undefined;
+      const rawProduct = firstLine?.price?.product;
+      const productName =
+        typeof rawProduct === "object" && rawProduct && "name" in rawProduct
+          ? (rawProduct.name as string)
+          : null;
+      const description = productName || firstLine?.description || "Assinatura";
 
       return {
         id: inv.id,
