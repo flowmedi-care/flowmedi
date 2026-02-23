@@ -88,6 +88,16 @@ export async function POST(request: Request) {
     return clinic?.id ?? null;
   };
 
+  /** Só rebaixa para starter se a assinatura que foi cancelada/deletada for a que está salva na clínica (evita sobrescrever após troca de plano). */
+  const shouldDowngradeClinicToStarter = async (clinicId: string, subscriptionId: string) => {
+    const { data: clinic } = await supabase
+      .from("clinics")
+      .select("stripe_subscription_id")
+      .eq("id", clinicId)
+      .single();
+    return clinic?.stripe_subscription_id === subscriptionId;
+  };
+
   try {
     switch (event.type) {
       case "checkout.session.completed": {
@@ -216,7 +226,10 @@ export async function POST(request: Request) {
             console.error("Webhook clinic update error:", updateError);
           }
         } else if (sub.status === "canceled") {
-          await updateClinicPlan(clinicId, "starter", "canceled");
+          const isCurrentSubscription = await shouldDowngradeClinicToStarter(clinicId, sub.id);
+          if (isCurrentSubscription) {
+            await updateClinicPlan(clinicId, "starter", "canceled");
+          }
         }
         break;
       }
@@ -227,7 +240,10 @@ export async function POST(request: Request) {
           sub.metadata?.clinic_id ??
           (await findClinicIdByCustomer(sub.customer as string | null));
         if (!clinicId) break;
-        await updateClinicPlan(clinicId, "starter", "canceled");
+        const isCurrentSubscription = await shouldDowngradeClinicToStarter(clinicId, sub.id);
+        if (isCurrentSubscription) {
+          await updateClinicPlan(clinicId, "starter", "canceled");
+        }
         break;
       }
 

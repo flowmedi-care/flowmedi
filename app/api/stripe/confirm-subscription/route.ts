@@ -68,8 +68,10 @@ export async function POST(request: Request) {
       }
     }
 
-    // Verificar status do Payment Intent antes de processar
-    if (paymentIntent.status === "succeeded") {
+    const previousSubscriptionIdFromMeta = paymentIntent.metadata?.previous_subscription_id as string | undefined;
+
+    // Verificar status do Payment Intent antes de processar (não usar atalho em troca de plano)
+    if (paymentIntent.status === "succeeded" && !previousSubscriptionIdFromMeta) {
       // Payment Intent já foi confirmado e pago
       // Verificar se já existe assinatura para evitar duplicação
       const existingSubscriptions = await stripe.subscriptions.list({
@@ -128,7 +130,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const previousSubscriptionId = paymentIntent.metadata?.previous_subscription_id as string | undefined;
+    const previousSubscriptionId = previousSubscriptionIdFromMeta;
 
     // Verificar se já existe assinatura ativa (evitar duplicação), exceto em troca de plano
     if (!previousSubscriptionId) {
