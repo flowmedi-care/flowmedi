@@ -101,6 +101,26 @@ export default async function AgendaPage() {
     .eq("clinic_id", clinicId)
     .order("name");
 
+  const { data: services } = await supabase
+    .from("services")
+    .select("id, nome")
+    .eq("clinic_id", clinicId)
+    .order("nome");
+
+  const { data: pricingDimensions } = await supabase
+    .from("price_dimensions")
+    .select("id, nome")
+    .eq("clinic_id", clinicId)
+    .eq("ativo", true)
+    .order("nome");
+
+  const { data: pricingDimensionValues } = await supabase
+    .from("dimension_values")
+    .select("id, dimension_id, nome")
+    .eq("clinic_id", clinicId)
+    .eq("ativo", true)
+    .order("nome");
+
   const rows: AppointmentRow[] = (appointments ?? []).map((a: Record<string, unknown>) => {
     const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
     const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
@@ -163,6 +183,9 @@ export default async function AgendaPage() {
           recommendations: p.recommendations ?? null,
         }))}
         formTemplates={(formTemplates ?? []).map((f) => ({ id: f.id, name: f.name }))}
+        services={(services ?? []).map((s) => ({ id: s.id, nome: s.nome }))}
+        pricingDimensions={(pricingDimensions ?? []).map((d) => ({ id: d.id, nome: d.nome }))}
+        pricingDimensionValues={(pricingDimensionValues ?? []).map((v) => ({ id: v.id, dimension_id: v.dimension_id, nome: v.nome }))}
         initialPreferences={{
           viewMode: (preferences.agenda_view_mode as "timeline" | "calendar") || "timeline",
           timelineGranularity: (preferences.agenda_timeline_granularity as "day" | "week" | "month") || "day",

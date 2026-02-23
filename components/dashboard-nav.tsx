@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Bell,
   ShieldCheck,
+  CircleDollarSign,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -163,9 +164,23 @@ export function DashboardNav({
             </Link>
           );
         })}
-        {isMedico && (
+        {(isMedico || isAdmin) && (
           <>
             <div className="my-2 border-t border-border" />
+            <Link href="/dashboard/servicos-valores">
+              <Button
+                variant={pathname === "/dashboard/servicos-valores" ? "secondary" : "ghost"}
+                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                title={isCollapsed ? "Serviços e Valores" : undefined}
+              >
+                <CircleDollarSign className="h-4 w-4" />
+                {!isCollapsed && <span className="ml-2">Serviços e Valores</span>}
+              </Button>
+            </Link>
+          </>
+        )}
+        {isMedico && (
+          <>
             <Link href="/dashboard/perfil">
               <Button
                 variant={pathname === "/dashboard/perfil" ? "secondary" : "ghost"}

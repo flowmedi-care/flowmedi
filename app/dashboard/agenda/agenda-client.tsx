@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { createAppointment, updateAppointment, updateUserPreferences, getPublicFormTemplatesForPatient } from "./actions";
+import { createAppointment, updateAppointment, updateUserPreferences, getPublicFormTemplatesForPatient, resolveAppointmentPrice } from "./actions";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
 import { Plus, CalendarClock, GripVertical, ChevronDown } from "lucide-react";
@@ -98,6 +98,10 @@ function todayYMD() {
   return toYMD(new Date());
 }
 
+export type ServiceOption = { id: string; nome: string };
+export type PricingDimensionOption = { id: string; nome: string };
+export type PricingDimensionValueOption = { id: string; dimension_id: string; nome: string };
+
 export function AgendaClient({
   appointments,
   patients,
@@ -105,6 +109,9 @@ export function AgendaClient({
   appointmentTypes,
   procedures,
   formTemplates,
+  services = [],
+  pricingDimensions = [],
+  pricingDimensionValues = [],
   initialPreferences,
 }: {
   appointments: AppointmentRow[];
@@ -113,6 +120,9 @@ export function AgendaClient({
   appointmentTypes: AppointmentTypeOption[];
   procedures: ProcedureOption[];
   formTemplates: FormTemplateOption[];
+  services?: ServiceOption[];
+  pricingDimensions?: PricingDimensionOption[];
+  pricingDimensionValues?: PricingDimensionValueOption[];
   initialPreferences?: {
     viewMode: ViewMode;
     timelineGranularity: TimelineGranularity;
@@ -241,6 +251,8 @@ export function AgendaClient({
     doctorId: "",
     appointmentTypeId: "",
     procedureId: "",
+    serviceId: "",
+    dimensionSelections: {} as Record<string, string>,
     linkedFormTemplateIds: [] as string[],
     date: todayYMD(),
     time: "09:00",
@@ -251,6 +263,7 @@ export function AgendaClient({
     specialInstructions: "",
     preparationNotes: "",
   });
+  const [resolvedValor, setResolvedValor] = useState<number | null>(null);
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState("");
   const [publicFormTemplates, setPublicFormTemplates] = useState<{ id: string; name: string }[]>([]);
 
@@ -263,6 +276,19 @@ export function AgendaClient({
       setPublicFormTemplates(res.data ?? []);
     });
   }, [form.patientId]);
+
+  useEffect(() => {
+    if (!form.serviceId || !form.doctorId) {
+      setResolvedValor(null);
+      return;
+    }
+    const dimensionValueIds = Object.entries(form.dimensionSelections)
+      .map(([, valueId]) => valueId)
+      .filter(Boolean);
+    resolveAppointmentPrice(form.serviceId, form.doctorId, dimensionValueIds).then((res) => {
+      setResolvedValor(res.valor ?? null);
+    });
+  }, [form.serviceId, form.doctorId, form.dimensionSelections]);
 
 
   const today = useMemo(() => new Date(), []);
@@ -280,6 +306,7 @@ export function AgendaClient({
     setLoading(true);
     const localDate = new Date(`${form.date}T${form.time}:00`);
     const scheduledAt = localDate.toISOString();
+    const dimensionValueIds = Object.values(form.dimensionSelections).filter(Boolean);
     const res = await createAppointment(
       form.patientId,
       form.doctorId,
@@ -292,7 +319,10 @@ export function AgendaClient({
       form.requiresMedicationStop,
       form.specialInstructions || null,
       form.preparationNotes || null,
-      form.linkedFormTemplateIds.length ? form.linkedFormTemplateIds : undefined
+      form.linkedFormTemplateIds.length ? form.linkedFormTemplateIds : undefined,
+      form.serviceId || null,
+      resolvedValor ?? null,
+      dimensionValueIds.length ? dimensionValueIds : undefined
     );
     if (res.error) {
       setError(res.error);
@@ -307,6 +337,8 @@ export function AgendaClient({
       doctorId: "",
       appointmentTypeId: "",
       procedureId: "",
+      serviceId: "",
+      dimensionSelections: {},
       linkedFormTemplateIds: [],
       date: todayYMD(),
       time: "09:00",
@@ -317,6 +349,7 @@ export function AgendaClient({
       specialInstructions: "",
       preparationNotes: "",
     });
+    setResolvedValor(null);
     router.refresh();
     setLoading(false);
   }
@@ -777,6 +810,64 @@ export function AgendaClient({
                     Opcional. Pré-preenche recomendações e associa formulários do procedimento.
                   </p>
                 </div>
+                {services.length > 0 && (
+                  <>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Serviço e valor</Label>
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Serviço e dimensões (convênio, cidade, etc.) definem o valor da consulta para relatórios.
+                      </p>
+                      <div className="flex flex-wrap gap-4 items-end">
+                        <div className="space-y-1">
+                          <span className="text-xs text-muted-foreground block">Serviço</span>
+                          <select
+                            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-[180px]"
+                            value={form.serviceId}
+                            onChange={(e) =>
+                              setForm((f) => ({ ...f, serviceId: e.target.value, dimensionSelections: {} }))
+                            }
+                          >
+                            <option value="">Nenhum</option>
+                            {services.map((s) => (
+                              <option key={s.id} value={s.id}>{s.nome}</option>
+                            ))}
+                          </select>
+                        </div>
+                        {pricingDimensions.map((dim) => {
+                          const options = pricingDimensionValues.filter((v) => v.dimension_id === dim.id);
+                          return (
+                            <div key={dim.id} className="space-y-1">
+                              <span className="text-xs text-muted-foreground block">{dim.nome}</span>
+                              <select
+                                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-[140px]"
+                                value={form.dimensionSelections[dim.id] ?? ""}
+                                onChange={(e) =>
+                                  setForm((f) => ({
+                                    ...f,
+                                    dimensionSelections: {
+                                      ...f.dimensionSelections,
+                                      [dim.id]: e.target.value,
+                                    },
+                                  }))
+                                }
+                              >
+                                <option value="">—</option>
+                                {options.map((v) => (
+                                  <option key={v.id} value={v.id}>{v.nome}</option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })}
+                        {resolvedValor != null && (
+                          <div className="text-sm font-medium">
+                            Valor: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(resolvedValor)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
                 {/* Vincular formulário — mesmo layout da tela da consulta */}
                 <div className="space-y-4 sm:col-span-2">
                   <Card>

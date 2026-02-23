@@ -105,6 +105,64 @@ function generateLinkToken(): string {
   return crypto.randomUUID().replace(/-/g, "") + Date.now().toString(36);
 }
 
+/** Resolve o valor da consulta a partir do serviço, médico e dimensões selecionadas (regra mais específica). */
+export async function resolveAppointmentPrice(
+  serviceId: string,
+  professionalId: string,
+  dimensionValueIds: string[]
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { valor: null, error: "Não autorizado." };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { valor: null, error: "Clínica não encontrada." };
+
+  const { data: rules } = await supabase
+    .from("service_prices")
+    .select("id, valor, professional_id")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("service_id", serviceId)
+    .eq("ativo", true)
+    .or(`professional_id.is.null,professional_id.eq.${professionalId}`);
+
+  if (!rules?.length) return { valor: null, error: null };
+
+  const ruleIds = rules.map((r) => r.id);
+  const { data: prdv } = await supabase
+    .from("price_rule_dimension_values")
+    .select("service_price_id, dimension_value_id")
+    .in("service_price_id", ruleIds);
+
+  const ruleDimensionSets: Record<string, Set<string>> = {};
+  for (const r of rules) ruleDimensionSets[r.id] = new Set();
+  for (const row of prdv ?? []) {
+    if (ruleDimensionSets[row.service_price_id]) ruleDimensionSets[row.service_price_id].add(row.dimension_value_id);
+  }
+
+  const selectedSet = new Set(dimensionValueIds);
+  let best: { id: string; valor: number; size: number; isProfessionalSpecific: boolean } | null = null;
+  for (const r of rules) {
+    const ruleSet = ruleDimensionSets[r.id];
+    if (!ruleSet) continue;
+    const isSubset = [...ruleSet].every((id) => selectedSet.has(id));
+    if (!isSubset) continue;
+    const isProfessionalSpecific = r.professional_id != null && r.professional_id === professionalId;
+    const candidate = { id: r.id, valor: Number(r.valor), size: ruleSet.size, isProfessionalSpecific };
+    if (!best) {
+      best = candidate;
+      continue;
+    }
+    if (ruleSet.size > best.size) best = candidate;
+    else if (ruleSet.size === best.size && isProfessionalSpecific && !best.isProfessionalSpecific) best = candidate;
+  }
+  if (!best) return { valor: null, error: null };
+  return { valor: best.valor, error: null };
+}
+
 export async function createAppointment(
   patientId: string,
   doctorId: string,
@@ -117,7 +175,10 @@ export async function createAppointment(
   requiresMedicationStop?: boolean,
   specialInstructions?: string | null,
   preparationNotes?: string | null,
-  linkedFormTemplateIds?: string[]
+  linkedFormTemplateIds?: string[],
+  serviceId?: string | null,
+  valor?: number | null,
+  dimensionValueIds?: string[]
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -160,6 +221,8 @@ export async function createAppointment(
       doctor_id: doctorId,
       appointment_type_id: appointmentTypeId || null,
       procedure_id: procedureId || null,
+      service_id: serviceId || null,
+      valor: valor ?? null,
       scheduled_at: scheduledAt,
       status: "agendada",
       notes: notes || null,
@@ -175,6 +238,15 @@ export async function createAppointment(
 
   if (insertErr) return { error: insertErr.message };
   if (!appointment) return { error: "Erro ao criar consulta." };
+
+  if (dimensionValueIds?.length && appointment.id) {
+    await supabase.from("appointment_dimension_values").insert(
+      dimensionValueIds.map((dimension_value_id) => ({
+        appointment_id: appointment.id,
+        dimension_value_id,
+      }))
+    );
+  }
 
   try {
     const { insertAuditLog } = await import("@/lib/audit-log");
