@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { SecretariaDashboard } from "./secretaria-dashboard";
 import { MedicoDashboard } from "./medico-dashboard";
-import { AdminDashboard } from "./admin-dashboard";
+import AdminDashboard from "./admin-dashboard";
 
 export default async function DashboardPage({
   searchParams,
