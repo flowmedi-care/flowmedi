@@ -61,7 +61,7 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
           id,
           scheduled_at,
           patient:patients ( full_name ),
-          doctor:profiles ( full_name )
+          doctor:profiles!doctor_id ( full_name )
         `
         )
         .eq("clinic_id", clinicId)
@@ -168,7 +168,7 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
         scheduled_at,
         status,
         patient:patients ( full_name ),
-        doctor:profiles ( full_name )
+        doctor:profiles!doctor_id ( full_name )
       `
       )
       .eq("clinic_id", clinicId)
@@ -239,7 +239,7 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
       scheduled_at,
       started_at,
       patient:patients ( full_name ),
-      doctor:profiles ( full_name )
+      doctor:profiles!doctor_id ( full_name )
     `
     )
     .eq("clinic_id", clinicId)

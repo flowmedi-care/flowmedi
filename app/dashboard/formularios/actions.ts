@@ -132,7 +132,7 @@ export async function getAppointmentsByPatient(patientId: string) {
       id,
       scheduled_at,
       status,
-      doctor:profiles ( full_name )
+      doctor:profiles!doctor_id ( full_name )
     `)
     .eq("clinic_id", profile.clinic_id)
     .eq("patient_id", patientId)

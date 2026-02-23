@@ -49,7 +49,7 @@ export default async function ConsultaDetalhePage({
       notes,
       doctor_id,
       patient:patients ( id, full_name, email, phone, birth_date ),
-      doctor:profiles ( id, full_name ),
+      doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( id, name )
     `
     )

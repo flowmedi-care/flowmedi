@@ -52,7 +52,7 @@ export default async function ConsultaPage() {
       status,
       notes,
       patient:patients ( id, full_name, phone ),
-      doctor:profiles ( id, full_name ),
+      doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( id, name )
     `
     )
