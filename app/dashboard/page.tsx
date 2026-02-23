@@ -7,7 +7,7 @@ import AdminDashboard from "./admin-dashboard";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; doctorId?: string }>;
+  searchParams: Promise<{ tab?: string; period?: string; [key: string]: string | string[] | undefined }>;
 }) {
   const supabase = await createClient();
   const {

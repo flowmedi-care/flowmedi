@@ -16,7 +16,7 @@ export type ReportTab = "visao-geral" | "profissional" | "atendente" | "financei
 export default async function AdminDashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; period?: string }>;
+  searchParams: Promise<{ tab?: string; period?: string; [key: string]: string | string[] | undefined }>;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -32,10 +32,13 @@ export default async function AdminDashboard({
   const clinicId = profile.clinic_id;
 
   const params = await searchParams;
-  const tab = (params.tab ?? "visao-geral") as ReportTab;
-  const period = (params.period ?? "30d") as Period;
+  const tabRaw = params.tab;
+  const periodRaw = params.period;
+  const tab = (Array.isArray(tabRaw) ? tabRaw[0] : tabRaw) ?? "visao-geral";
+  const period = (Array.isArray(periodRaw) ? periodRaw[0] : periodRaw) ?? "30d";
   const validTabs: ReportTab[] = ["visao-geral", "profissional", "atendente", "financeiro", "operacional"];
-  const activeTab = validTabs.includes(tab) ? tab : "visao-geral";
+  const activeTab: ReportTab = validTabs.includes(tab as ReportTab) ? (tab as ReportTab) : "visao-geral";
+  const periodTyped: Period = period === "7d" || period === "90d" ? period : "30d";
 
   let visaoGeral = null;
   let porProfissional = null;
@@ -44,19 +47,19 @@ export default async function AdminDashboard({
   let operacional = null;
 
   if (activeTab === "visao-geral") {
-    const res = await getVisaoGeralData(clinicId, period);
+    const res = await getVisaoGeralData(clinicId, periodTyped);
     visaoGeral = res.data;
   } else if (activeTab === "profissional") {
-    const res = await getPorProfissionalData(clinicId, period);
+    const res = await getPorProfissionalData(clinicId, periodTyped);
     porProfissional = res.data;
   } else if (activeTab === "atendente") {
-    const res = await getPorAtendenteData(clinicId, period);
+    const res = await getPorAtendenteData(clinicId, periodTyped);
     porAtendente = res.data;
   } else if (activeTab === "financeiro") {
-    const res = await getFinanceiroData(clinicId, period);
+    const res = await getFinanceiroData(clinicId, periodTyped);
     financeiro = res.data;
   } else if (activeTab === "operacional") {
-    const res = await getOperacionalData(clinicId, period);
+    const res = await getOperacionalData(clinicId, periodTyped);
     operacional = res.data;
   }
 
@@ -77,7 +80,7 @@ export default async function AdminDashboard({
 
       <AdminReportsClient
         activeTab={activeTab}
-        period={period}
+        period={periodTyped}
         visaoGeral={visaoGeral}
         porProfissional={porProfissional ?? []}
         porAtendente={porAtendente ?? []}
