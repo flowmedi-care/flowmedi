@@ -211,6 +211,43 @@ async function fetchSecretariaData(profile: { clinic_id: string }) {
     pipelineItems = pipelineRes.data || [];
   }
 
+  // Consultas em andamento (todas da clínica para o admin)
+  let ongoingConsultations: Array<{
+    id: string;
+    scheduled_at: string;
+    started_at: string;
+    patient: { full_name: string };
+    doctor: { full_name: string | null };
+  }> = [];
+  const { data: ongoing } = await supabase
+    .from("appointments")
+    .select(
+      `
+      id,
+      scheduled_at,
+      started_at,
+      patient:patients ( full_name ),
+      doctor:profiles ( full_name )
+    `
+    )
+    .eq("clinic_id", clinicId)
+    .in("status", ["agendada", "confirmada"])
+    .not("started_at", "is", null)
+    .order("started_at", { ascending: false });
+  if (ongoing) {
+    ongoingConsultations = ongoing.map((a: any) => {
+      const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
+      const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
+      return {
+        id: String(a.id),
+        scheduled_at: String(a.scheduled_at),
+        started_at: String(a.started_at),
+        patient: { full_name: String(patient?.full_name ?? "") },
+        doctor: { full_name: doctor?.full_name ?? null },
+      };
+    });
+  }
+
   return {
     complianceAppointments,
     complianceDays,
@@ -218,5 +255,6 @@ async function fetchSecretariaData(profile: { clinic_id: string }) {
     upcomingAppointments,
     pipelineItems,
     preferences,
+    ongoingConsultations,
   };
 }

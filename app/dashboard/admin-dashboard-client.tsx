@@ -34,6 +34,13 @@ type SecretariaData = {
   }>;
   pipelineItems: PipelineItem[];
   preferences: DashboardPreferences;
+  ongoingConsultations: Array<{
+    id: string;
+    scheduled_at: string;
+    started_at: string;
+    patient: { full_name: string };
+    doctor: { full_name: string | null };
+  }>;
 };
 
 export function AdminDashboardClient({
@@ -126,6 +133,7 @@ export function AdminDashboardClient({
           upcomingAppointments={secretariaData.upcomingAppointments}
           pipelineItems={secretariaData.pipelineItems}
           preferences={secretariaData.preferences}
+          ongoingConsultations={secretariaData.ongoingConsultations}
         />
       )}
 
