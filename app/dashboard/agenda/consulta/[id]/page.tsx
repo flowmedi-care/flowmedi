@@ -38,7 +38,8 @@ export default async function ConsultaDetalhePage({
     .single();
   if (!profile?.clinic_id) redirect("/dashboard");
 
-  const { data: appointment } = await supabase
+  // Primeiro busca só colunas base (funciona mesmo sem migrations de started_at/duration_minutes)
+  const { data: appointment, error: appointmentError } = await supabase
     .from("appointments")
     .select(
       `
@@ -46,9 +47,6 @@ export default async function ConsultaDetalhePage({
       scheduled_at,
       status,
       notes,
-      started_at,
-      completed_at,
-      duration_minutes,
       doctor_id,
       patient:patients ( id, full_name, email, phone, birth_date ),
       doctor:profiles ( id, full_name ),
@@ -59,7 +57,23 @@ export default async function ConsultaDetalhePage({
     .eq("clinic_id", profile.clinic_id)
     .single();
 
-  if (!appointment) notFound();
+  if (appointmentError || !appointment) notFound();
+
+  // Colunas de tempo de atendimento (podem não existir se as migrations não foram rodadas)
+  let started_at: string | null = null;
+  let completed_at: string | null = null;
+  let duration_minutes: number | null = null;
+  const { data: timingRow } = await supabase
+    .from("appointments")
+    .select("started_at, completed_at, duration_minutes")
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id)
+    .maybeSingle();
+  if (timingRow) {
+    started_at = timingRow.started_at ?? null;
+    completed_at = timingRow.completed_at ?? null;
+    duration_minutes = timingRow.duration_minutes ?? null;
+  }
 
   const { data: appointmentTypes } = await supabase
     .from("appointment_types")
@@ -202,9 +216,9 @@ export default async function ConsultaDetalhePage({
         appointmentId={id}
         appointmentStatus={appointment.status}
         appointmentScheduledAt={appointment.scheduled_at}
-        startedAt={appointment.started_at ?? null}
-        completedAt={appointment.completed_at ?? null}
-        durationMinutes={appointment.duration_minutes ?? null}
+        startedAt={started_at}
+        completedAt={completed_at}
+        durationMinutes={duration_minutes}
         doctorId={appointment.doctor_id ?? null}
         patientId={patient?.id ?? ""}
         patientData={{

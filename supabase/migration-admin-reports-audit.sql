@@ -28,6 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON public.audit_log(entity_type,
 
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "audit_log_clinic" ON public.audit_log;
 CREATE POLICY "audit_log_clinic"
   ON public.audit_log
   FOR ALL
