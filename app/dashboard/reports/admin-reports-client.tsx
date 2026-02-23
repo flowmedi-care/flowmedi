@@ -43,11 +43,47 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: "90d", label: "90 dias" },
 ];
 
-type VisaoGeral = NonNullable<Awaited<ReturnType<typeof import("./actions").getVisaoGeralData>>["data"]>;
-type PorProfissional = NonNullable<Awaited<ReturnType<typeof import("./actions").getPorProfissionalData>>["data"];
-type PorAtendente = NonNullable<Awaited<ReturnType<typeof import("./actions").getPorAtendenteData>>["data"];
-type Financeiro = NonNullable<Awaited<ReturnType<typeof import("./actions").getFinanceiroData>>["data"]>;
-type Operacional = NonNullable<Awaited<ReturnType<typeof import("./actions").getOperacionalData>>["data"]>;
+type VisaoGeral = {
+  total: number;
+  realizadas: number;
+  canceladas: number;
+  faltas: number;
+  agendadaOuConfirmada: number;
+  taxaComparecimento: number;
+  crescimento: number;
+  chartData: { date: string; total: number; realizadas: number; canceladas: number; faltas: number }[];
+};
+type PorProfissionalRow = {
+  doctorId: string;
+  full_name: string;
+  total: number;
+  realizadas: number;
+  canceladas: number;
+  faltas: number;
+  taxaComparecimento: number;
+  tempoMedioMin: number | null;
+};
+type PorAtendenteRow = {
+  userId: string;
+  full_name: string;
+  agendamentosCriados: number;
+  cancelamentos: number;
+};
+type Financeiro = {
+  receitaTotal: number;
+  receitaPorProfissional: { doctorId: string; valor: number }[];
+  ticketMedio: number;
+  mensagem: string;
+  consultasRealizadas: number;
+};
+type Operacional = {
+  totalConsultas: number;
+  realizadas: number;
+  taxaCancelamento: number;
+  taxaNoShow: number;
+  crescimentoPacientes: number;
+  picoHorario: string | null;
+};
 
 export function AdminReportsClient({
   activeTab,
@@ -61,8 +97,8 @@ export function AdminReportsClient({
   activeTab: ReportTab;
   period: Period;
   visaoGeral: VisaoGeral | null;
-  porProfissional: PorProfissional;
-  porAtendente: PorAtendente;
+  porProfissional: PorProfissionalRow[];
+  porAtendente: PorAtendenteRow[];
   financeiro: Financeiro | null;
   operacional: Operacional | null;
 }) {
