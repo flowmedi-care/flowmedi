@@ -53,11 +53,40 @@ import {
 } from "./agenda-date-utils";
 import { getStatusBackgroundColor, getStatusTextColor } from "./status-utils";
 
+/** Retorna className (status) ou style (dimensão) para o evento na agenda */
+function getAppointmentEventStyle(
+  appointment: AppointmentRow,
+  colorBy: "status" | "dimension",
+  colorByDimensionId: string | null,
+  dimensionValues: PricingDimensionValueOption[]
+): { className?: string; style?: React.CSSProperties } {
+  if (colorBy === "dimension" && colorByDimensionId && dimensionValues.length > 0) {
+    const ids = appointment.dimension_value_ids ?? [];
+    const value = dimensionValues.find(
+      (dv) => dv.dimension_id === colorByDimensionId && ids.includes(dv.id)
+    );
+    if (value?.cor) {
+      const hex = value.cor;
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      const textColor = luminance > 0.5 ? "#1f2937" : "#f9fafb";
+      return { style: { backgroundColor: hex, color: textColor } };
+    }
+  }
+  return {
+    className: `${getStatusBackgroundColor(appointment.status)} ${getStatusTextColor(appointment.status)}`,
+  };
+}
+
 export type AppointmentRow = {
   id: string;
   scheduled_at: string;
   status: string;
   notes: string | null;
+  service_id?: string | null;
+  dimension_value_ids?: string[];
   patient: { id: string; full_name: string };
   doctor: { id: string; full_name: string | null };
   appointment_type: { id: string; name: string } | null;
@@ -100,7 +129,7 @@ function todayYMD() {
 
 export type ServiceOption = { id: string; nome: string };
 export type PricingDimensionOption = { id: string; nome: string };
-export type PricingDimensionValueOption = { id: string; dimension_id: string; nome: string };
+export type PricingDimensionValueOption = { id: string; dimension_id: string; nome: string; cor?: string | null };
 
 export function AgendaClient({
   appointments,
@@ -188,6 +217,9 @@ export function AgendaClient({
   const [formFilter, setFormFilter] = useState<"confirmados_sem_formulario" | "confirmados_com_formulario" | null>(
     initialPreferences?.formFilter || null
   );
+  const [filterByServiceId, setFilterByServiceId] = useState<string>("");
+  const [colorBy, setColorBy] = useState<"status" | "dimension">("status");
+  const [colorByDimensionId, setColorByDimensionId] = useState<string>("");
   const [dateInicio, setDateInicio] = useState(() => todayYMD());
   const [dateFim, setDateFim] = useState(() => todayYMD());
   const [draggedAppointment, setDraggedAppointment] =
@@ -374,6 +406,11 @@ export function AgendaClient({
         return false;
       }
 
+      // Filtro por serviço
+      if (filterByServiceId && a.service_id !== filterByServiceId) {
+        return false;
+      }
+
       // Filtro por status (se nenhum selecionado, mostra todos)
       if (statusFilter.length > 0 && !statusFilter.includes(a.status)) {
         return false;
@@ -408,7 +445,13 @@ export function AgendaClient({
     });
     
     return filtered;
-  }, [appointments, rangeStart, rangeEnd, statusFilter, formFilter]);
+  }, [appointments, rangeStart, rangeEnd, statusFilter, formFilter, filterByServiceId]);
+
+  const getEventStyle = useCallback(
+    (appointment: AppointmentRow) =>
+      getAppointmentEventStyle(appointment, colorBy, colorByDimensionId || null, pricingDimensionValues),
+    [colorBy, colorByDimensionId, pricingDimensionValues]
+  );
 
   // Para drag and drop, usar todos os appointments (não apenas do período)
   const allAppointmentsForDrag = appointments;
@@ -700,15 +743,52 @@ export function AgendaClient({
               formFilter={formFilter}
               onStatusChange={(statuses) => {
                 setStatusFilter(statuses);
-                // Salvar preferências de forma assíncrona sem bloquear
                 updateUserPreferences({ agenda_status_filter: statuses }).catch(console.error);
               }}
               onFormChange={(filter) => {
                 setFormFilter(filter);
-                // Salvar preferências de forma assíncrona sem bloquear
                 updateUserPreferences({ agenda_form_filter: filter }).catch(console.error);
               }}
             />
+            {services.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground hidden sm:inline">Serviço:</span>
+                <select
+                  value={filterByServiceId}
+                  onChange={(e) => setFilterByServiceId(e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs min-w-[120px]"
+                >
+                  <option value="">Todos</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nome}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {(services.length > 0 || pricingDimensions.length > 0) && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground hidden sm:inline">Colorir por:</span>
+                <select
+                  value={colorBy === "dimension" ? colorByDimensionId : "status"}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "status") {
+                      setColorBy("status");
+                      setColorByDimensionId("");
+                    } else {
+                      setColorBy("dimension");
+                      setColorByDimensionId(v);
+                    }
+                  }}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs min-w-[120px]"
+                >
+                  <option value="status">Status</option>
+                  {pricingDimensions.map((d) => (
+                    <option key={d.id} value={d.id}>{d.nome}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1059,6 +1139,7 @@ export function AgendaClient({
           dateFim={rangeEnd}
           today={today}
           granularity={timelineGranularity}
+          getEventStyle={getEventStyle}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "week" && (
@@ -1100,6 +1181,7 @@ function TimelineListView({
   dateFim,
   today,
   granularity,
+  getEventStyle,
 }: {
   appointments: AppointmentRow[];
   allAppointmentsForDrag: AppointmentRow[];
@@ -1107,6 +1189,7 @@ function TimelineListView({
   dateFim: Date;
   today: Date;
   granularity: TimelineGranularity;
+  getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
 }) {
   // Usar appointments filtrados para exibir, mas todos para drag and drop
   const byDay = useMemo(() => {
@@ -1182,6 +1265,7 @@ function TimelineListView({
                       key={a.id}
                       appointment={a}
                       dayId={dayId}
+                      getEventStyle={getEventStyle}
                     />
                   ))}
                 </ul>
@@ -1252,6 +1336,7 @@ function TimelineListView({
                               key={a.id}
                               appointment={a}
                               dayId={dayId}
+                              getEventStyle={getEventStyle}
                             />
                           ))}
                         </ul>
@@ -1338,6 +1423,7 @@ function TimelineListView({
                                     key={a.id}
                                     appointment={a}
                                     dayId={dayId}
+                                    getEventStyle={getEventStyle}
                                   />
                                 ))}
                               </ul>
@@ -1469,6 +1555,7 @@ function CalendarWeekView({
                                 appointment={a}
                                 dayId={dayId}
                                 compact
+                                getEventStyle={getEventStyle}
                               />
                             ))}
                           </div>
@@ -1574,6 +1661,7 @@ function CalendarMonthView({
                                   appointment={a}
                                   dayId={dayId}
                                   compact
+                                  getEventStyle={getEventStyle}
                                 />
                               </div>
                             );
@@ -1635,10 +1723,12 @@ function DraggableAppointmentItem({
   appointment,
   dayId,
   compact,
+  getEventStyle,
 }: {
   appointment: AppointmentRow;
   dayId: string;
   compact?: boolean;
+  getEventStyle?: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
 }) {
   const {
     attributes,
@@ -1656,23 +1746,23 @@ function DraggableAppointmentItem({
     },
   });
 
-  const style = {
+  const baseStyle = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
 
   if (compact) {
-    const bgColor = getStatusBackgroundColor(appointment.status);
-    const textColor = getStatusTextColor(appointment.status);
+    const eventStyle = getEventStyle?.(appointment) ?? {
+      className: `${getStatusBackgroundColor(appointment.status)} ${getStatusTextColor(appointment.status)}`,
+    };
     return (
       <div
         ref={setNodeRef}
-        style={style}
+        style={eventStyle.style ? { ...baseStyle, ...eventStyle.style } : baseStyle}
         className={cn(
           "flex items-center gap-1 rounded px-1.5 py-0.5",
-          bgColor,
-          textColor,
+          eventStyle.className,
           "hover:opacity-80 transition-opacity"
         )}
       >
@@ -1705,7 +1795,7 @@ function DraggableAppointmentItem({
   return (
     <li
       ref={setNodeRef}
-      style={style}
+      style={baseStyle}
       className="py-3 first:pt-0"
     >
       <div className="flex items-center gap-2 hover:bg-muted/50 -mx-2 px-2 py-1 rounded group">

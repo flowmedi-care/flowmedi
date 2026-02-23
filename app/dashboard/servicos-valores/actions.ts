@@ -91,26 +91,29 @@ export async function deleteDimension(id: string) {
 }
 
 // ——— Valores das dimensões ———
-export async function createDimensionValue(dimensionId: string, nome: string) {
+export async function createDimensionValue(dimensionId: string, nome: string, cor?: string | null) {
   const ctx = await getClinicAndRole();
   if ("error" in ctx) return { error: ctx.error };
+  const hex = cor?.trim() && /^#[0-9A-Fa-f]{6}$/.test(cor.trim()) ? cor.trim() : null;
   const { error } = await ctx.supabase.from("dimension_values").insert({
     clinic_id: ctx.clinicId,
     dimension_id: dimensionId,
     nome: nome.trim(),
     ativo: true,
+    cor: hex,
   });
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
   return { ok: true };
 }
 
-export async function updateDimensionValue(id: string, nome: string, ativo: boolean) {
+export async function updateDimensionValue(id: string, nome: string, ativo: boolean, cor?: string | null) {
   const ctx = await getClinicAndRole();
   if ("error" in ctx) return { error: ctx.error };
+  const hex = cor?.trim() && /^#[0-9A-Fa-f]{6}$/.test(cor.trim()) ? cor.trim() : null;
   const { error } = await ctx.supabase
     .from("dimension_values")
-    .update({ nome: nome.trim(), ativo, updated_at: new Date().toISOString() })
+    .update({ nome: nome.trim(), ativo, cor: hex, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("clinic_id", ctx.clinicId);
   if (error) return { error: error.message };

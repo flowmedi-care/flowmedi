@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 
 type ServiceRow = { id: string; nome: string; categoria: string | null };
 type DimensionRow = { id: string; nome: string; ativo: boolean };
-type DimensionValueRow = { id: string; dimension_id: string; nome: string; ativo: boolean };
+type DimensionValueRow = { id: string; dimension_id: string; nome: string; ativo: boolean; cor?: string | null };
 type ServicePriceRow = { id: string; service_id: string; professional_id: string | null; valor: number; ativo: boolean };
 type DoctorRow = { id: string; full_name: string | null };
 
@@ -543,6 +543,7 @@ function ValoresSection({
   const [isNew, setIsNew] = useState(false);
   const [dimensionId, setDimensionId] = useState("");
   const [nome, setNome] = useState("");
+  const [cor, setCor] = useState("#3B82F6");
   const [ativo, setAtivo] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -561,22 +562,24 @@ function ValoresSection({
     setError(null);
     setLoading(true);
     if (isNew && dimensionId) {
-      const res = await createDimensionValue(dimensionId, nome);
+      const res = await createDimensionValue(dimensionId, nome, cor || null);
       if (res.error) setError(res.error);
       else {
         setIsNew(false);
         setDimensionId("");
         setNome("");
+        setCor("#3B82F6");
         toast("Valor adicionado.", "success");
         onMutate();
       }
     } else if (editingId) {
-      const res = await updateDimensionValue(editingId, nome, ativo);
+      const res = await updateDimensionValue(editingId, nome, ativo, cor || null);
       if (res.error) setError(res.error);
       else {
         setEditingId(null);
         setNome("");
         setAtivo(true);
+        setCor("#3B82F6");
         toast("Valor atualizado.", "success");
         onMutate();
       }
@@ -629,12 +632,29 @@ function ValoresSection({
               <Label className="text-sm font-medium">Nome do valor</Label>
               <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Unimed" />
             </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Cor (agenda)</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={cor}
+                  onChange={(e) => setCor(e.target.value)}
+                  className="h-10 w-14 cursor-pointer rounded border border-input bg-background"
+                />
+                <Input
+                  value={cor}
+                  onChange={(e) => setCor(e.target.value)}
+                  placeholder="#3B82F6"
+                  className="h-10 w-24 font-mono text-sm"
+                />
+              </div>
+            </div>
             <div className="flex gap-2">
               <Button onClick={handleSave} disabled={loading || !nome.trim()}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Salvar
               </Button>
-              <Button variant="ghost" onClick={() => { setIsNew(false); setDimensionId(""); setNome(""); }}>Cancelar</Button>
+              <Button variant="ghost" onClick={() => { setIsNew(false); setDimensionId(""); setNome(""); setCor("#3B82F6"); }}>Cancelar</Button>
             </div>
           </div>
         )}
@@ -652,8 +672,17 @@ function ValoresSection({
                 <div className="flex flex-wrap gap-2">
                   {dim.values.map((v) =>
                     editingId === v.id ? (
-                      <div key={v.id} className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+                      <div key={v.id} className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 flex-wrap">
                         <Input value={nome} onChange={(e) => setNome(e.target.value)} className="h-8 w-32" />
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs text-muted-foreground">Cor</Label>
+                          <input
+                            type="color"
+                            value={cor}
+                            onChange={(e) => setCor(e.target.value)}
+                            className="h-8 w-10 cursor-pointer rounded border border-input bg-background"
+                          />
+                        </div>
                         <Switch checked={ativo} onChange={setAtivo} label="Ativo" />
                         <Button size="sm" onClick={handleSave} disabled={loading}>
                           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
@@ -663,13 +692,20 @@ function ValoresSection({
                       <div
                         key={v.id}
                         className={cn(
-                          "inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm",
+                          "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm",
                           v.ativo ? "bg-background border-border" : "bg-muted/30 border-muted text-muted-foreground"
                         )}
                       >
+                        {v.cor && (
+                          <span
+                            className="h-4 w-4 shrink-0 rounded border border-border"
+                            style={{ backgroundColor: v.cor }}
+                            title={v.cor}
+                          />
+                        )}
                         <span>{v.nome}</span>
                         {!v.ativo && <span className="text-xs">(inativo)</span>}
-                        <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => { setEditingId(v.id); setNome(v.nome); setAtivo(v.ativo); }} title="Editar">
+                        <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => { setEditingId(v.id); setNome(v.nome); setAtivo(v.ativo); setCor(v.cor || "#3B82F6"); }} title="Editar">
                           <Pencil className="h-3 w-3" />
                         </Button>
                         <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0 text-destructive hover:bg-destructive/10" onClick={() => setDeleteTarget({ id: v.id, nome: v.nome })} title="Excluir">

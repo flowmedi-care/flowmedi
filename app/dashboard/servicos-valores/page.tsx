@@ -28,7 +28,7 @@ export default async function ServicosValoresPage() {
   ] = await Promise.all([
     supabase.from("services").select("id, nome, categoria").eq("clinic_id", clinicId).order("nome"),
     supabase.from("price_dimensions").select("id, nome, ativo").eq("clinic_id", clinicId).order("nome"),
-    supabase.from("dimension_values").select("id, dimension_id, nome, ativo").eq("clinic_id", clinicId).order("nome"),
+    supabase.from("dimension_values").select("id, dimension_id, nome, ativo, cor").eq("clinic_id", clinicId).order("nome"),
     supabase
       .from("service_prices")
       .select("id, service_id, professional_id, valor, ativo")

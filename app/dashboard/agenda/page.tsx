@@ -42,9 +42,12 @@ export default async function AgendaPage() {
       scheduled_at,
       status,
       notes,
+      service_id,
       patient:patients ( id, full_name ),
       doctor:profiles!doctor_id ( id, full_name ),
-      appointment_type:appointment_types ( id, name )
+      appointment_type:appointment_types ( id, name ),
+      procedure:procedures ( id, name ),
+      form_instances:form_instances ( id, status )
     `
     )
     .eq("clinic_id", clinicId)
@@ -60,6 +63,21 @@ export default async function AgendaPage() {
   }
 
   const { data: appointments } = await appointmentsQuery;
+  const appointmentIds = (appointments ?? []).map((a: { id: string }) => a.id);
+
+  let appointmentDimensionValues: { appointment_id: string; dimension_value_id: string }[] = [];
+  if (appointmentIds.length > 0) {
+    const { data: adv } = await supabase
+      .from("appointment_dimension_values")
+      .select("appointment_id, dimension_value_id")
+      .in("appointment_id", appointmentIds);
+    appointmentDimensionValues = adv ?? [];
+  }
+  const dimensionValueIdsByAppointment: Record<string, string[]> = {};
+  for (const row of appointmentDimensionValues) {
+    if (!dimensionValueIdsByAppointment[row.appointment_id]) dimensionValueIdsByAppointment[row.appointment_id] = [];
+    dimensionValueIdsByAppointment[row.appointment_id].push(row.dimension_value_id);
+  }
 
   const { data: patients } = await supabase
     .from("patients")
@@ -116,7 +134,7 @@ export default async function AgendaPage() {
 
   const { data: pricingDimensionValues } = await supabase
     .from("dimension_values")
-    .select("id, dimension_id, nome")
+    .select("id, dimension_id, nome, cor")
     .eq("clinic_id", clinicId)
     .eq("ativo", true)
     .order("nome");
@@ -129,11 +147,14 @@ export default async function AgendaPage() {
       : a.appointment_type;
     const procedure = Array.isArray(a.procedure) ? a.procedure[0] : a.procedure;
     const formInstances = Array.isArray(a.form_instances) ? a.form_instances : [];
+    const appointmentId = String(a.id ?? "");
     return {
-      id: String(a.id ?? ""),
+      id: appointmentId,
       scheduled_at: String(a.scheduled_at ?? ""),
       status: String(a.status ?? ""),
       notes: a.notes != null ? String(a.notes) : null,
+      service_id: a.service_id != null ? String(a.service_id) : null,
+      dimension_value_ids: dimensionValueIdsByAppointment[appointmentId] ?? [],
       patient: {
         id: String((patient as { id?: unknown })?.id ?? ""),
         full_name: String((patient as { full_name?: unknown })?.full_name ?? ""),
@@ -185,7 +206,7 @@ export default async function AgendaPage() {
         formTemplates={(formTemplates ?? []).map((f) => ({ id: f.id, name: f.name }))}
         services={(services ?? []).map((s) => ({ id: s.id, nome: s.nome }))}
         pricingDimensions={(pricingDimensions ?? []).map((d) => ({ id: d.id, nome: d.nome }))}
-        pricingDimensionValues={(pricingDimensionValues ?? []).map((v) => ({ id: v.id, dimension_id: v.dimension_id, nome: v.nome }))}
+        pricingDimensionValues={(pricingDimensionValues ?? []).map((v) => ({ id: v.id, dimension_id: v.dimension_id, nome: v.nome, cor: v.cor ?? null }))}
         initialPreferences={{
           viewMode: (preferences.agenda_view_mode as "timeline" | "calendar") || "timeline",
           timelineGranularity: (preferences.agenda_timeline_granularity as "day" | "week" | "month") || "day",
