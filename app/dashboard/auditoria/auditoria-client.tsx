@@ -24,6 +24,16 @@ const ACTION_LABEL: Record<string, string> = {
   appointment_created: "Consulta criada",
   appointment_updated: "Consulta atualizada",
   appointment_deleted: "Consulta excluída",
+  patient_created: "Paciente cadastrado",
+  patient_deleted: "Paciente excluído",
+  form_template_created: "Formulário criado",
+  form_template_deleted: "Formulário excluído",
+};
+
+const ENTITY_LABEL: Record<string, string> = {
+  appointment: "Consulta",
+  patient: "Paciente",
+  form_template: "Formulário",
 };
 
 export function AuditoriaClient({
@@ -53,6 +63,7 @@ export function AuditoriaClient({
       ...log,
       userName: profile?.full_name ?? "Sistema",
       actionLabel: ACTION_LABEL[log.action] ?? log.action,
+      entityLabel: ENTITY_LABEL[log.entity_type] ?? log.entity_type,
     };
   });
 
@@ -119,7 +130,7 @@ export function AuditoriaClient({
                 >
                   <span className="font-medium">{log.actionLabel}</span>
                   <span className="text-muted-foreground">•</span>
-                  <span className="text-muted-foreground">{log.entity_type}</span>
+                  <span className="text-muted-foreground">{log.entityLabel}</span>
                   {log.entity_id && (
                     <>
                       <span className="text-muted-foreground">#</span>

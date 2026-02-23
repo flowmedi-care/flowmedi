@@ -59,6 +59,18 @@ export async function createPatient(data: PatientInsert) {
   if (error) return { error: error.message, patientId: null };
   if (!newPatient?.id) return { error: "Erro ao criar paciente.", patientId: null };
 
+  try {
+    const { insertAuditLog } = await import("@/lib/audit-log");
+    await insertAuditLog(supabase, {
+      clinic_id: profile.clinic_id,
+      user_id: user.id,
+      action: "patient_created",
+      entity_type: "patient",
+      entity_id: newPatient.id,
+      new_values: { full_name: data.full_name, email: data.email, phone: data.phone },
+    });
+  } catch (_) {}
+
   // Criar evento "usuário cadastrado" (mesma lógica da Central de Eventos: ação recomendada Nova consulta)
   const { error: eventError } = await supabase.rpc("create_event_timeline", {
     p_clinic_id: profile.clinic_id,
@@ -106,11 +118,25 @@ export async function deletePatient(id: string) {
   const supabase = await createClient();
   const { data: patient } = await supabase
     .from("patients")
-    .select("clinic_id, email")
+    .select("clinic_id, email, full_name")
     .eq("id", id)
     .single();
   const { error } = await supabase.from("patients").delete().eq("id", id);
   if (error) return { error: error.message };
+  try {
+    if (patient?.clinic_id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { insertAuditLog } = await import("@/lib/audit-log");
+      await insertAuditLog(supabase, {
+        clinic_id: patient.clinic_id,
+        user_id: user?.id ?? null,
+        action: "patient_deleted",
+        entity_type: "patient",
+        entity_id: id,
+        old_values: patient as unknown as Record<string, unknown>,
+      });
+    }
+  } catch (_) {}
   // Se o paciente tinha email (ex.: veio de não cadastrado), não mostrar de novo em "Não cadastrados"
   if (patient?.clinic_id && patient?.email?.trim()) {
     await supabase.from("excluded_submitter_emails").upsert(

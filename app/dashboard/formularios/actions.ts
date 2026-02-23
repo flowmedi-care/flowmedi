@@ -49,13 +49,26 @@ export async function createFormTemplate(
     .select("id")
     .single();
   if (error) return { error: error.message };
-  if (inserted?.id && procedureIds.length > 0) {
-    await supabase.from("form_template_procedures").insert(
-      procedureIds.map((procedure_id) => ({
-        form_template_id: inserted.id,
-        procedure_id,
-      }))
-    );
+  if (inserted?.id) {
+    try {
+      const { insertAuditLog } = await import("@/lib/audit-log");
+      await insertAuditLog(supabase, {
+        clinic_id: profile.clinic_id,
+        user_id: user.id,
+        action: "form_template_created",
+        entity_type: "form_template",
+        entity_id: inserted.id,
+        new_values: { name: name.trim(), is_public: isPublic },
+      });
+    } catch (_) {}
+    if (procedureIds.length > 0) {
+      await supabase.from("form_template_procedures").insert(
+        procedureIds.map((procedure_id) => ({
+          form_template_id: inserted.id,
+          procedure_id,
+        }))
+      );
+    }
   }
   revalidatePath("/dashboard/formularios");
   return { error: null };
@@ -99,8 +112,27 @@ export async function updateFormTemplate(
 
 export async function deleteFormTemplate(id: string) {
   const supabase = await createClient();
+  const { data: row } = await supabase
+    .from("form_templates")
+    .select("clinic_id, name")
+    .eq("id", id)
+    .single();
   const { error } = await supabase.from("form_templates").delete().eq("id", id);
   if (error) return { error: error.message };
+  try {
+    if (row?.clinic_id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { insertAuditLog } = await import("@/lib/audit-log");
+      await insertAuditLog(supabase, {
+        clinic_id: row.clinic_id,
+        user_id: user?.id ?? null,
+        action: "form_template_deleted",
+        entity_type: "form_template",
+        entity_id: id,
+        old_values: row as unknown as Record<string, unknown>,
+      });
+    }
+  } catch (_) {}
   revalidatePath("/dashboard/formularios");
   return { error: null };
 }
