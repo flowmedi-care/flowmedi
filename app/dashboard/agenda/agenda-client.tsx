@@ -811,17 +811,19 @@ export function AgendaClient({
                   </p>
                 </div>
                 {services.length > 0 && (
-                  <>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label>Serviço e valor</Label>
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Serviço e dimensões (convênio, cidade, etc.) definem o valor da consulta para relatórios.
+                  <Card className="sm:col-span-2">
+                    <CardHeader className="pb-2">
+                      <h3 className="font-semibold text-sm">Serviço e valor</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Escolha o serviço e as dimensões (convênio, cidade, etc.) para definir o valor da consulta nos relatórios.
                       </p>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
                       <div className="flex flex-wrap gap-4 items-end">
-                        <div className="space-y-1">
-                          <span className="text-xs text-muted-foreground block">Serviço</span>
+                        <div className="space-y-2 min-w-[180px]">
+                          <Label className="text-xs font-medium text-muted-foreground">Serviço</Label>
                           <select
-                            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-[180px]"
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                             value={form.serviceId}
                             onChange={(e) =>
                               setForm((f) => ({ ...f, serviceId: e.target.value, dimensionSelections: {} }))
@@ -836,10 +838,10 @@ export function AgendaClient({
                         {pricingDimensions.map((dim) => {
                           const options = pricingDimensionValues.filter((v) => v.dimension_id === dim.id);
                           return (
-                            <div key={dim.id} className="space-y-1">
-                              <span className="text-xs text-muted-foreground block">{dim.nome}</span>
+                            <div key={dim.id} className="space-y-2 min-w-[140px]">
+                              <Label className="text-xs font-medium text-muted-foreground">{dim.nome}</Label>
                               <select
-                                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-[140px]"
+                                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                                 value={form.dimensionSelections[dim.id] ?? ""}
                                 onChange={(e) =>
                                   setForm((f) => ({
@@ -860,13 +862,16 @@ export function AgendaClient({
                           );
                         })}
                         {resolvedValor != null && (
-                          <div className="text-sm font-medium">
-                            Valor: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(resolvedValor)}
+                          <div className="ml-auto flex items-center rounded-lg border border-border bg-muted/30 px-4 py-2">
+                            <span className="text-xs font-medium text-muted-foreground mr-2">Valor da consulta</span>
+                            <span className="text-lg font-semibold tabular-nums">
+                              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(resolvedValor)}
+                            </span>
                           </div>
                         )}
                       </div>
-                    </div>
-                  </>
+                    </CardContent>
+                  </Card>
                 )}
                 {/* Vincular formulário — mesmo layout da tela da consulta */}
                 <div className="space-y-4 sm:col-span-2">

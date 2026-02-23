@@ -15,7 +15,7 @@ async function getClinicAndRole() {
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
   if (profile.role !== "admin" && profile.role !== "medico")
     return { error: "Acesso negado. Apenas admin e médico." };
-  return { supabase, clinicId: profile.clinic_id, userId: user.id };
+  return { supabase, clinicId: profile.clinic_id, userId: user.id, role: profile.role };
 }
 
 // ——— Serviços ———
@@ -136,12 +136,13 @@ export async function createServicePrice(
 ) {
   const ctx = await getClinicAndRole();
   if ("error" in ctx) return { error: ctx.error };
+  const effectiveProfessionalId = ctx.role === "medico" ? ctx.userId : (professionalId || null);
   const { data: row, error: insertErr } = await ctx.supabase
     .from("service_prices")
     .insert({
       clinic_id: ctx.clinicId,
       service_id: serviceId,
-      professional_id: professionalId || null,
+      professional_id: effectiveProfessionalId,
       valor,
       ativo: true,
     })
@@ -169,11 +170,22 @@ export async function updateServicePrice(
 ) {
   const ctx = await getClinicAndRole();
   if ("error" in ctx) return { error: ctx.error };
+  if (ctx.role === "medico") {
+    const { data: existing } = await ctx.supabase
+      .from("service_prices")
+      .select("professional_id")
+      .eq("id", id)
+      .eq("clinic_id", ctx.clinicId)
+      .single();
+    if (!existing || existing.professional_id !== ctx.userId)
+      return { error: "Você só pode editar suas próprias regras de preço." };
+  }
+  const effectiveProfessionalId = ctx.role === "medico" ? ctx.userId : (professionalId || null);
   const { error: updateErr } = await ctx.supabase
     .from("service_prices")
     .update({
       service_id: serviceId,
-      professional_id: professionalId || null,
+      professional_id: effectiveProfessionalId,
       valor,
       ativo,
       updated_at: new Date().toISOString(),
@@ -194,6 +206,16 @@ export async function updateServicePrice(
 export async function deleteServicePrice(id: string) {
   const ctx = await getClinicAndRole();
   if ("error" in ctx) return { error: ctx.error };
+  if (ctx.role === "medico") {
+    const { data: existing } = await ctx.supabase
+      .from("service_prices")
+      .select("professional_id")
+      .eq("id", id)
+      .eq("clinic_id", ctx.clinicId)
+      .single();
+    if (!existing || existing.professional_id !== ctx.userId)
+      return { error: "Você só pode excluir suas próprias regras de preço." };
+  }
   const { error } = await ctx.supabase.from("service_prices").delete().eq("id", id).eq("clinic_id", ctx.clinicId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");

@@ -39,8 +39,13 @@ export default async function ServicosValoresPage() {
   const services = servicesRes.data ?? [];
   const dimensions = dimensionsRes.data ?? [];
   const dimensionValues = dimensionValuesRes.data ?? [];
-  const servicePrices = servicePricesRes.data ?? [];
+  const allServicePrices = servicePricesRes.data ?? [];
   const doctors = doctorsRes.data ?? [];
+
+  const servicePrices =
+    profile.role === "medico"
+      ? allServicePrices.filter((p) => p.professional_id === user.id)
+      : allServicePrices;
 
   const priceIds = servicePrices.map((p) => p.id);
   let priceRuleDimensionValues: { service_price_id: string; dimension_value_id: string }[] = [];
@@ -59,11 +64,13 @@ export default async function ServicosValoresPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-foreground">Serviços e Valores</h1>
-      <p className="text-sm text-muted-foreground">
-        Cadastre os serviços, dimensões de preço (convênio, cidade, turno, etc.) e as regras de valor. Na agenda, a secretária escolhe serviço e dimensões para definir o preço da consulta.
-      </p>
+    <div className="space-y-8">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Serviços e Valores</h1>
+        <p className="text-muted-foreground max-w-2xl">
+          Configure serviços, dimensões de preço (convênio, cidade, turno, campanha) e regras de valor. Na agenda, a secretária escolhe serviço e dimensões para definir o preço da consulta de forma padronizada.
+        </p>
+      </header>
       <ServicosValoresClient
         services={services}
         dimensions={dimensions}
@@ -71,6 +78,8 @@ export default async function ServicosValoresPage() {
         servicePrices={servicePrices}
         dimensionValueIdsByPriceId={dimensionValuesByPrice}
         doctors={doctors}
+        currentUserId={user.id}
+        currentUserRole={profile.role}
       />
     </div>
   );
