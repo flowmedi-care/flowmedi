@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,7 +40,9 @@ type PlanoContentProps = {
   upgradePlans: UpgradePlan[];
   effectiveCheckoutSlug: string;
   effectiveCheckoutPlan: UpgradePlan | undefined;
+  showCheckoutForm: boolean;
   loadingCheckout: boolean;
+  onStartPlanChange: (slug: string) => void;
   planPrice: { formatted: string } | null;
   loadingPrice: boolean;
   planProStripePriceId: string | null;
@@ -79,35 +80,6 @@ type PlanoContentProps = {
 
 export function PlanoContent(props: PlanoContentProps) {
   const router = useRouter();
-  const [changingPlanSlug, setChangingPlanSlug] = useState<string | null>(null);
-  const [changePlanError, setChangePlanError] = useState<string | null>(null);
-
-  const handleChangePlan = async (slug: string) => {
-    setChangePlanError(null);
-    setChangingPlanSlug(slug);
-    try {
-      const res = await fetch("/api/stripe/checkout-change-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: slug }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setChangePlanError(data.error || "Erro ao abrir checkout.");
-        return;
-      }
-      if (data.url) {
-        window.location.href = data.url;
-        return;
-      }
-      setChangePlanError("Resposta inválida do servidor.");
-    } catch {
-      setChangePlanError("Erro ao abrir checkout. Tente novamente.");
-    } finally {
-      setChangingPlanSlug(null);
-    }
-  };
-
   const {
     planName,
     planSlug,
@@ -120,7 +92,9 @@ export function PlanoContent(props: PlanoContentProps) {
     upgradePlans,
     effectiveCheckoutSlug,
     effectiveCheckoutPlan,
+    showCheckoutForm,
     loadingCheckout,
+    onStartPlanChange,
     planPrice,
     loadingPrice,
     planProStripePriceId,
@@ -197,45 +171,7 @@ export function PlanoContent(props: PlanoContentProps) {
                 a qualquer momento.
               </div>
             )}
-            {!isPro && upgradePlans.length > 0 && (
-              <>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Escolha o plano</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {upgradePlans.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => router.push(`/dashboard/plano?plan=${p.slug}`)}
-                        className={
-                          effectiveCheckoutSlug === p.slug
-                            ? "rounded-lg px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground"
-                            : "rounded-lg px-3 py-1.5 text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                        }
-                      >
-                        {p.name}
-                        {p.price_display && (
-                          <span className="ml-1 opacity-90">({p.price_display})</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {effectiveCheckoutPlan?.stripe_price_id && !paymentMounted ? (
-                  <Button onClick={onStartCheckout} disabled={loadingCheckout} className="w-full">
-                    {loadingCheckout ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Preparando checkout…
-                      </>
-                    ) : (
-                      <>
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Assinar {effectiveCheckoutPlan?.name ?? "Plano"}
-                      </>
-                    )}
-                    </Button>
-                ) : effectiveCheckoutPlan?.stripe_price_id && paymentMounted ? (
+            {showCheckoutForm && effectiveCheckoutPlan?.stripe_price_id ? (
                   <form onSubmit={onPaymentSubmit} className="space-y-6">
                     <div className="border rounded-lg p-4 bg-muted/50">
                       <h3 className="font-semibold mb-3">Detalhes do pedido</h3>
@@ -416,8 +352,46 @@ export function PlanoContent(props: PlanoContentProps) {
                         </>
                       )}
                     </Button>
-                    </form>
-                ) : !effectiveCheckoutPlan?.stripe_price_id ? (
+                  </form>
+            ) : !isPro && upgradePlans.length > 0 ? (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Escolha o plano</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {upgradePlans.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => router.push(`/dashboard/plano?plan=${p.slug}`)}
+                        className={
+                          effectiveCheckoutSlug === p.slug
+                            ? "rounded-lg px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground"
+                            : "rounded-lg px-3 py-1.5 text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                        }
+                      >
+                        {p.name}
+                        {p.price_display && (
+                          <span className="ml-1 opacity-90">({p.price_display})</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {effectiveCheckoutPlan?.stripe_price_id ? (
+                  <Button onClick={onStartCheckout} disabled={loadingCheckout} className="w-full">
+                    {loadingCheckout ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Preparando checkout…
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Assinar {effectiveCheckoutPlan?.name ?? "Plano"}
+                      </>
+                    )}
+                  </Button>
+                ) : (
                   <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
                     <p className="font-medium text-foreground mb-1">
                       Plano {effectiveCheckoutPlan?.name ?? ""}
@@ -426,10 +400,10 @@ export function PlanoContent(props: PlanoContentProps) {
                       Este plano requer contato comercial. Entre em contato conosco para mais informações.
                     </p>
                   </div>
-                ) : null}
+                )}
               </>
-            )}
-            {isPro && !isCancelScheduled && otherPlans.length > 0 && (
+            ) : null}
+            {isPro && !isCancelScheduled && otherPlans.length > 0 && !showCheckoutForm && (
               <div className="pt-4 mt-4 border-t border-border space-y-4">
                 <div>
                   <p className="text-sm font-medium text-foreground mb-2">Quer um plano melhor?</p>
@@ -437,40 +411,32 @@ export function PlanoContent(props: PlanoContentProps) {
                     Troque de plano facilmente. O valor será ajustado de forma proporcional.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {otherPlans.map((p) => {
-                      const isLoading = changingPlanSlug === p.slug;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          disabled={changingPlanSlug !== null}
-                          data-plan-slug={p.slug}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const slug = (e.currentTarget as HTMLButtonElement).dataset.planSlug;
-                            if (slug) handleChangePlan(slug);
-                          }}
-                          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-xs font-medium h-8 px-3 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-                        >
-                          {isLoading ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                              Alterando…
-                            </>
-                          ) : (
-                            <>
-                              <ArrowUpCircle className="h-4 w-4 shrink-0" />
-                              Trocar para {p.name}
-                            </>
-                          )}
-                        </button>
-                      );
-                    })}
+                    {otherPlans.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        disabled={loadingCheckout}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onStartPlanChange(p.slug);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-xs font-medium h-8 px-3 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        {loadingCheckout ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                            Preparando…
+                          </>
+                        ) : (
+                          <>
+                            <ArrowUpCircle className="h-4 w-4 shrink-0" />
+                            Trocar para {p.name}
+                          </>
+                        )}
+                      </button>
+                    ))}
                   </div>
-                  {changePlanError && (
-                    <p className="text-sm text-destructive mt-2">{changePlanError}</p>
-                  )}
                 </div>
                 <button
                   type="button"

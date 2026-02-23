@@ -62,7 +62,8 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const [planPrice, setPlanPrice] = useState<{ amount: number; currency: string; formatted: string } | null>(null);
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
-  
+  const [changePlanSlug, setChangePlanSlug] = useState<string | null>(null);
+
   // Campos de endereço
   const [loadingCEP, setLoadingCEP] = useState(false);
   const [address, setAddress] = useState({
@@ -82,10 +83,12 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
 
   const upgradePlans = plan?.upgradePlans ?? [];
   const effectiveCheckoutSlug =
-    plan?.selectedPlanSlug && upgradePlans.some((p) => p.slug === plan.selectedPlanSlug)
+    changePlanSlug ??
+    (plan?.selectedPlanSlug && upgradePlans.some((p) => p.slug === plan.selectedPlanSlug)
       ? plan.selectedPlanSlug
-      : upgradePlans[0]?.slug ?? "pro";
+      : upgradePlans[0]?.slug ?? "pro");
   const effectiveCheckoutPlan = upgradePlans.find((p) => p.slug === effectiveCheckoutSlug) ?? upgradePlans[0];
+  const showCheckoutForm = paymentMounted && (!isPro || !!changePlanSlug);
   const isCanceled = plan?.subscriptionStatus === "canceled";
   const isCancelScheduled = Boolean(subscriptionInfo?.cancelAtPeriodEnd);
 
@@ -98,9 +101,9 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       .finally(() => setLoadingInvoices(false));
   }, []);
 
-  // Carregar preço do plano selecionado para upgrade
+  // Carregar preço do plano selecionado (nova assinatura ou troca de plano)
   useEffect(() => {
-    if (!isPro && effectiveCheckoutSlug) {
+    if ((!isPro || changePlanSlug) && effectiveCheckoutSlug) {
       setLoadingPrice(true);
       fetch(`/api/stripe/price?plan=${encodeURIComponent(effectiveCheckoutSlug)}`)
         .then((r) => r.json())
@@ -115,7 +118,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         })
         .finally(() => setLoadingPrice(false));
     }
-  }, [isPro, effectiveCheckoutSlug]);
+  }, [isPro, changePlanSlug, effectiveCheckoutSlug]);
 
   const loadSubscriptionInfo = async () => {
     try {
@@ -179,13 +182,16 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     return cleaned.length === expectedLength;
   };
 
-  const startCheckout = async () => {
+  const startCheckout = async (planSlugOverride?: string, previousSubscriptionId?: string | null) => {
+    const slug = planSlugOverride ?? effectiveCheckoutSlug;
     setLoadingCheckout(true);
     try {
+      const body: { plan: string; previous_subscription_id?: string } = { plan: slug };
+      if (previousSubscriptionId) body.previous_subscription_id = previousSubscriptionId;
       const res = await fetch("/api/stripe/create-payment-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: effectiveCheckoutSlug }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -339,7 +345,8 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
         throw new Error(subData.error ?? "Erro ao processar pagamento.");
       }
 
-      // Sucesso - atualizar página
+      // Sucesso - limpar estado de troca e atualizar página
+      setChangePlanSlug(null);
       router.refresh();
       window.location.reload();
     } catch (e) {
@@ -509,6 +516,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       upgradePlans={upgradePlans}
       effectiveCheckoutSlug={effectiveCheckoutSlug}
       effectiveCheckoutPlan={effectiveCheckoutPlan}
+      showCheckoutForm={showCheckoutForm}
       loadingCheckout={loadingCheckout}
       planPrice={planPrice}
       loadingPrice={loadingPrice}
@@ -525,7 +533,11 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       canceling={canceling}
       resuming={resuming}
       paymentElementRef={paymentElementRef}
-      onStartCheckout={startCheckout}
+      onStartCheckout={() => startCheckout()}
+      onStartPlanChange={(slug) => {
+        setChangePlanSlug(slug);
+        startCheckout(slug, plan?.stripeSubscriptionId ?? null);
+      }}
       onPaymentSubmit={handlePaymentSubmit}
       onOpenPortal={openPortal}
       onResumeSubscription={handleResumeSubscription}

@@ -128,18 +128,22 @@ export async function POST(request: Request) {
       }
     }
 
-    // Verificar se já existe assinatura ativa para evitar duplicação
-    const existingSubscriptions = await stripe.subscriptions.list({
-      customer: paymentIntent.customer,
-      status: "active",
-      limit: 1,
-    });
+    const previousSubscriptionId = paymentIntent.metadata?.previous_subscription_id as string | undefined;
 
-    if (existingSubscriptions.data.length > 0) {
-      return NextResponse.json(
-        { error: "Já existe uma assinatura ativa para este cliente." },
-        { status: 400 }
-      );
+    // Verificar se já existe assinatura ativa (evitar duplicação), exceto em troca de plano
+    if (!previousSubscriptionId) {
+      const existingSubscriptions = await stripe.subscriptions.list({
+        customer: paymentIntent.customer,
+        status: "active",
+        limit: 1,
+      });
+
+      if (existingSubscriptions.data.length > 0) {
+        return NextResponse.json(
+          { error: "Já existe uma assinatura ativa para este cliente." },
+          { status: 400 }
+        );
+      }
     }
 
     // Usar plan_slug do metadata (enviado pelo create-payment-intent)
@@ -227,6 +231,16 @@ export async function POST(request: Request) {
         .from("clinics")
         .update(updateData)
         .eq("id", clinicId);
+
+      // Troca de plano: cancelar a assinatura antiga para não cobrar em duplicidade
+      if (previousSubscriptionId && previousSubscriptionId !== subscription.id) {
+        try {
+          await stripe.subscriptions.cancel(previousSubscriptionId);
+          console.log("Confirm subscription: old subscription canceled (plan change):", previousSubscriptionId);
+        } catch (cancelErr) {
+          console.error("Error canceling old subscription:", cancelErr);
+        }
+      }
     }
 
     return NextResponse.json({ 

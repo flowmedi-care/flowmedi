@@ -48,12 +48,16 @@ export async function POST(request: Request) {
     );
   }
 
-  // Aceitar plan slug no body (ex: essencial, profissional, estrategico)
+  // Aceitar plan slug e opcional previous_subscription_id (troca de plano)
   let planSlug = "pro";
+  let previousSubscriptionId: string | null = null;
   try {
     const body = await request.json().catch(() => ({}));
     if (body.plan && typeof body.plan === "string") {
       planSlug = body.plan.trim().toLowerCase();
+    }
+    if (body.previous_subscription_id && typeof body.previous_subscription_id === "string") {
+      previousSubscriptionId = body.previous_subscription_id.trim() || null;
     }
   } catch {
     // Body vazio, usar "pro" como fallback
@@ -116,12 +120,15 @@ export async function POST(request: Request) {
     }
 
     // Criar Payment Intent sem confirmar (será confirmado após CPF/CNPJ)
+    const metadata: Record<string, string> = { clinic_id: clinic.id, plan_slug: planSlug };
+    if (previousSubscriptionId) metadata.previous_subscription_id = previousSubscriptionId;
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency: "brl",
       customer: customerId,
       setup_future_usage: "off_session", // Para assinatura recorrente
-      metadata: { clinic_id: clinic.id, plan_slug: planSlug },
+      metadata,
       automatic_payment_methods: {
         enabled: true,
         allow_redirects: "never", // Não permitir métodos que redirecionam (PIX, boleto, etc.)
