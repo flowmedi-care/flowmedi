@@ -1,260 +1,89 @@
 import { createClient } from "@/lib/supabase/server";
-import { AdminDashboardClient } from "./admin-dashboard-client";
-import { getMedicoDashboardData } from "./medico-dashboard-actions";
-import { getDashboardPreferences } from "./preferences/actions";
-import { getPipeline, syncNonRegisteredToPipeline } from "./pipeline/actions";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { AdminReportsClient } from "./reports/admin-reports-client";
+import {
+  getVisaoGeralData,
+  getPorProfissionalData,
+  getPorAtendenteData,
+  getFinanceiroData,
+  getOperacionalData,
+  type Period,
+} from "./reports/actions";
 
-export type DoctorOption = { id: string; full_name: string | null };
+export type ReportTab = "visao-geral" | "profissional" | "atendente" | "financeiro" | "operacional";
 
-export async function AdminDashboard({
-  profile,
+export default async function AdminDashboard({
   searchParams,
 }: {
-  profile: { id: string; full_name: string | null; role: string; clinic_id: string };
-  searchParams: Promise<{ view?: string; doctorId?: string }>;
+  searchParams: Promise<{ tab?: string; period?: string }>;
 }) {
-  const params = await searchParams;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/entrar");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") redirect("/dashboard");
   const clinicId = profile.clinic_id;
 
-  // Buscar médicos da clínica
-  const supabase = await createClient();
-  const { data: doctors } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("clinic_id", clinicId)
-    .eq("role", "medico")
-    .order("full_name");
+  const params = await searchParams;
+  const tab = (params.tab ?? "visao-geral") as ReportTab;
+  const period = (params.period ?? "30d") as Period;
+  const validTabs: ReportTab[] = ["visao-geral", "profissional", "atendente", "financeiro", "operacional"];
+  const activeTab = validTabs.includes(tab) ? tab : "visao-geral";
 
-  const doctorOptions: DoctorOption[] = (doctors ?? []).map((d) => ({
-    id: d.id,
-    full_name: d.full_name ?? null,
-  }));
+  let visaoGeral = null;
+  let porProfissional = null;
+  let porAtendente = null;
+  let financeiro = null;
+  let operacional = null;
 
-  const selectedDoctorId = params.doctorId || doctorOptions[0]?.id || null;
-  const activeView = params.view === "medico" ? "medico" : "secretaria";
-
-  // Dados da visão secretaria (sempre carregados)
-  const secretariaData = await fetchSecretariaData(profile);
-
-  // Dados da visão médico (apenas se houver médico selecionado)
-  let medicoData = null;
-  if (selectedDoctorId) {
-    const res = await getMedicoDashboardData(selectedDoctorId, clinicId);
-    medicoData = res.data;
+  if (activeTab === "visao-geral") {
+    const res = await getVisaoGeralData(clinicId, period);
+    visaoGeral = res.data;
+  } else if (activeTab === "profissional") {
+    const res = await getPorProfissionalData(clinicId, period);
+    porProfissional = res.data;
+  } else if (activeTab === "atendente") {
+    const res = await getPorAtendenteData(clinicId, period);
+    porAtendente = res.data;
+  } else if (activeTab === "financeiro") {
+    const res = await getFinanceiroData(clinicId, period);
+    financeiro = res.data;
+  } else if (activeTab === "operacional") {
+    const res = await getOperacionalData(clinicId, period);
+    operacional = res.data;
   }
 
   return (
-    <AdminDashboardClient
-      activeView={activeView}
-      doctors={doctorOptions}
-      selectedDoctorId={selectedDoctorId}
-      secretariaData={secretariaData}
-      medicoData={medicoData}
-      clinicId={clinicId}
-    />
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold sm:text-2xl">Relatórios</h1>
+          <p className="text-sm text-muted-foreground">Métricas e indicadores da clínica</p>
+        </div>
+        <Link
+          href="/dashboard/auditoria"
+          className="inline-flex items-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted"
+        >
+          🛡 Auditoria
+        </Link>
+      </div>
+
+      <AdminReportsClient
+        activeTab={activeTab}
+        period={period}
+        visaoGeral={visaoGeral}
+        porProfissional={porProfissional ?? []}
+        porAtendente={porAtendente ?? []}
+        financeiro={financeiro}
+        operacional={operacional}
+      />
+    </div>
   );
-}
-
-async function fetchSecretariaData(profile: { clinic_id: string }) {
-  const supabase = await createClient();
-  const clinicId = profile.clinic_id;
-
-  const prefsRes = await getDashboardPreferences();
-  const preferences = prefsRes.data || {
-    show_compliance: true,
-    show_metrics: true,
-    show_pipeline: true,
-    show_upcoming_appointments: true,
-    show_recent_activity: false,
-  };
-
-  let complianceAppointments: Array<{
-    id: string;
-    scheduled_at: string;
-    patient: { full_name: string };
-    doctor: { full_name: string | null };
-  }> = [];
-  let complianceDays: number | null = null;
-
-  if (preferences.show_compliance) {
-    const { data: clinic } = await supabase
-      .from("clinics")
-      .select("compliance_confirmation_days")
-      .eq("id", clinicId)
-      .single();
-    complianceDays = clinic?.compliance_confirmation_days ?? null;
-
-    if (complianceDays !== null && complianceDays >= 0) {
-      const now = new Date();
-      const deadlineDate = new Date(now);
-      deadlineDate.setDate(deadlineDate.getDate() + complianceDays);
-      deadlineDate.setHours(23, 59, 59, 999);
-
-      const { data: appointments } = await supabase
-        .from("appointments")
-        .select(
-          `id, scheduled_at, patient:patients ( full_name ), doctor:profiles ( full_name )`
-        )
-        .eq("clinic_id", clinicId)
-        .eq("status", "agendada")
-        .gte("scheduled_at", now.toISOString())
-        .lte("scheduled_at", deadlineDate.toISOString())
-        .order("scheduled_at", { ascending: true });
-
-      if (appointments) {
-        complianceAppointments = appointments.map((a: any) => {
-          const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
-          const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
-          return {
-            id: String(a.id),
-            scheduled_at: String(a.scheduled_at),
-            patient: { full_name: String(patient?.full_name ?? "") },
-            doctor: { full_name: doctor?.full_name ?? null },
-          };
-        });
-      }
-    }
-  }
-
-  let metrics = null;
-  if (preferences.show_metrics) {
-    const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(now);
-    todayEnd.setHours(23, 59, 59, 999);
-    const nextWeek = new Date(now);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-
-    const { count: appointmentsToday } = await supabase
-      .from("appointments")
-      .select("*", { count: "exact", head: true })
-      .eq("clinic_id", clinicId)
-      .gte("scheduled_at", todayStart.toISOString())
-      .lte("scheduled_at", todayEnd.toISOString());
-
-    const { count: pipelineCount } = await supabase
-      .from("non_registered_pipeline")
-      .select("*", { count: "exact", head: true })
-      .eq("clinic_id", clinicId)
-      .neq("stage", "registrado")
-      .neq("stage", "arquivado");
-
-    const { data: upcomingAppointmentsData } = await supabase
-      .from("appointments")
-      .select("id")
-      .eq("clinic_id", clinicId)
-      .gte("scheduled_at", now.toISOString())
-      .lte("scheduled_at", nextWeek.toISOString());
-    const appointmentIds = (upcomingAppointmentsData || []).map((a) => a.id);
-    const { count: pendingForms } =
-      appointmentIds.length > 0
-        ? await supabase
-            .from("form_instances")
-            .select("*", { count: "exact", head: true })
-            .eq("status", "pendente")
-            .in("appointment_id", appointmentIds)
-        : { count: 0 };
-
-    metrics = {
-      appointmentsToday: appointmentsToday || 0,
-      pipelineCount: pipelineCount || 0,
-      pendingForms: pendingForms || 0,
-      complianceCount: complianceAppointments.length,
-    };
-  }
-
-  let upcomingAppointments: Array<{
-    id: string;
-    scheduled_at: string;
-    patient: { full_name: string };
-    doctor: { full_name: string | null };
-    status: string;
-  }> = [];
-
-  if (preferences.show_upcoming_appointments) {
-    const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(now);
-    todayEnd.setHours(23, 59, 59, 999);
-
-    const { data: appointments } = await supabase
-      .from("appointments")
-      .select(
-        `id, scheduled_at, status, patient:patients ( full_name ), doctor:profiles ( full_name )`
-      )
-      .eq("clinic_id", clinicId)
-      .gte("scheduled_at", todayStart.toISOString())
-      .lte("scheduled_at", todayEnd.toISOString())
-      .order("scheduled_at", { ascending: true });
-
-    if (appointments) {
-      upcomingAppointments = appointments.map((a: any) => {
-        const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
-        const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
-        return {
-          id: String(a.id),
-          scheduled_at: String(a.scheduled_at),
-          status: String(a.status),
-          patient: { full_name: String(patient?.full_name ?? "") },
-          doctor: { full_name: doctor?.full_name ?? null },
-        };
-      });
-    }
-  }
-
-  let pipelineItems: any[] = [];
-  if (preferences.show_pipeline) {
-    await syncNonRegisteredToPipeline();
-    const pipelineRes = await getPipeline();
-    pipelineItems = pipelineRes.data || [];
-  }
-
-  // Consultas em andamento (todas da clínica para o admin)
-  let ongoingConsultations: Array<{
-    id: string;
-    scheduled_at: string;
-    started_at: string;
-    patient: { full_name: string };
-    doctor: { full_name: string | null };
-  }> = [];
-  const { data: ongoing } = await supabase
-    .from("appointments")
-    .select(
-      `
-      id,
-      scheduled_at,
-      started_at,
-      patient:patients ( full_name ),
-      doctor:profiles ( full_name )
-    `
-    )
-    .eq("clinic_id", clinicId)
-    .in("status", ["agendada", "confirmada"])
-    .not("started_at", "is", null)
-    .order("started_at", { ascending: false });
-  if (ongoing) {
-    ongoingConsultations = ongoing.map((a: any) => {
-      const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
-      const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
-      return {
-        id: String(a.id),
-        scheduled_at: String(a.scheduled_at),
-        started_at: String(a.started_at),
-        patient: { full_name: String(patient?.full_name ?? "") },
-        doctor: { full_name: doctor?.full_name ?? null },
-      };
-    });
-  }
-
-  return {
-    complianceAppointments,
-    complianceDays,
-    metrics,
-    upcomingAppointments,
-    pipelineItems,
-    preferences,
-    ongoingConsultations,
-  };
 }

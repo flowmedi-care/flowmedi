@@ -52,6 +52,6 @@ export default async function DashboardPage({
     return <MedicoDashboard profile={profile} />;
   }
 
-  // Dashboard do admin: visão secretaria + visão médico
-  return <AdminDashboard profile={profile} searchParams={searchParams} />;
+  // Dashboard do admin: relatórios e métricas
+  return <AdminDashboard searchParams={searchParams} />;
 }

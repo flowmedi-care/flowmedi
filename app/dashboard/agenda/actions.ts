@@ -168,12 +168,25 @@ export async function createAppointment(
       requires_medication_stop: requiresMedicationStop || false,
       special_instructions: specialInstructions || null,
       preparation_notes: preparationNotes || null,
+      created_by: user.id,
     })
     .select("id")
     .single();
 
   if (insertErr) return { error: insertErr.message };
   if (!appointment) return { error: "Erro ao criar consulta." };
+
+  try {
+    const { insertAuditLog } = await import("@/lib/audit-log");
+    await insertAuditLog(supabase, {
+      clinic_id: profile.clinic_id,
+      user_id: user.id,
+      action: "appointment_created",
+      entity_type: "appointment",
+      entity_id: appointment.id,
+      new_values: { patient_id: patientId, doctor_id: doctorId, scheduled_at: scheduledAt, status: "agendada" },
+    });
+  } catch (_) {}
 
   // Secretária que agenda: associar paciente a ela (permite múltiplas secretárias por paciente)
   if (profile?.role === "secretaria") {
@@ -646,23 +659,22 @@ export async function updateAppointment(
     }
   }
 
+  const { data: currentRow } = await supabase
+    .from("appointments")
+    .select("clinic_id, status, scheduled_at, doctor_id, patient_id, started_at")
+    .eq("id", id)
+    .single();
+
   const updatePayload: Record<string, unknown> = {
     ...data,
     updated_at: new Date().toISOString(),
   };
 
-  if (data.status === "realizada") {
-    const { data: current } = await supabase
-      .from("appointments")
-      .select("started_at")
-      .eq("id", id)
-      .single();
-    if (current?.started_at) {
-      const startedAt = new Date(current.started_at as string).getTime();
-      const now = Date.now();
-      updatePayload.completed_at = new Date(now).toISOString();
-      updatePayload.duration_minutes = Math.round((now - startedAt) / 60000);
-    }
+  if (data.status === "realizada" && currentRow?.started_at) {
+    const startedAt = new Date(currentRow.started_at as string).getTime();
+    const now = Date.now();
+    updatePayload.completed_at = new Date(now).toISOString();
+    updatePayload.duration_minutes = Math.round((now - startedAt) / 60000);
   }
 
   const { error } = await supabase
@@ -670,6 +682,22 @@ export async function updateAppointment(
     .update(updatePayload)
     .eq("id", id);
   if (error) return { error: error.message };
+
+  try {
+    if (currentRow?.clinic_id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { insertAuditLog } = await import("@/lib/audit-log");
+      await insertAuditLog(supabase, {
+        clinic_id: currentRow.clinic_id,
+        user_id: user?.id ?? null,
+        action: "appointment_updated",
+        entity_type: "appointment",
+        entity_id: id,
+        old_values: currentRow as unknown as Record<string, unknown>,
+        new_values: updatePayload,
+      });
+    }
+  } catch (_) {}
 
   // Processar eventos relacionados a mudanças na consulta
   try {
@@ -776,8 +804,27 @@ export async function startAppointmentConsultation(appointmentId: string) {
 
 export async function deleteAppointment(id: string) {
   const supabase = await createClient();
+  const { data: row } = await supabase
+    .from("appointments")
+    .select("clinic_id, patient_id, doctor_id, scheduled_at, status")
+    .eq("id", id)
+    .single();
   const { error } = await supabase.from("appointments").delete().eq("id", id);
   if (error) return { error: error.message };
+  try {
+    if (row?.clinic_id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { insertAuditLog } = await import("@/lib/audit-log");
+      await insertAuditLog(supabase, {
+        clinic_id: row.clinic_id,
+        user_id: user?.id ?? null,
+        action: "appointment_deleted",
+        entity_type: "appointment",
+        entity_id: id,
+        old_values: row as unknown as Record<string, unknown>,
+      });
+    }
+  } catch (_) {}
   revalidatePath("/dashboard/agenda");
   return { error: null };
 }
