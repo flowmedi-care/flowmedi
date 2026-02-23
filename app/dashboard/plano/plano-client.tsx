@@ -33,6 +33,7 @@ type InvoiceItem = {
   hosted_invoice_url?: string;
   period_start: number;
   period_end: number;
+  description?: string;
 };
 
 type SubscriptionInfo = {

@@ -40,19 +40,28 @@ export async function GET() {
     const list = await stripe.invoices.list({
       customer: clinic.stripe_customer_id,
       limit: 24,
+      expand: ["data.lines.data.price.product"],
     });
 
-    const invoices = list.data.map((inv) => ({
-      id: inv.id,
-      number: inv.number ?? undefined,
-      created: inv.created,
-      amount_paid: inv.amount_paid,
-      currency: inv.currency,
-      status: inv.status,
-      hosted_invoice_url: inv.hosted_invoice_url ?? undefined,
-      period_start: inv.period_start,
-      period_end: inv.period_end,
-    }));
+    const invoices = list.data.map((inv) => {
+      const firstLine = inv.lines?.data?.[0];
+      const product = firstLine?.price && "product" in firstLine.price ? firstLine.price.product : null;
+      const productName = product && typeof product === "object" && "name" in product ? (product.name as string) : null;
+      const description = productName || (firstLine?.description as string) || "Assinatura";
+
+      return {
+        id: inv.id,
+        number: inv.number ?? undefined,
+        created: inv.created,
+        amount_paid: inv.amount_paid,
+        currency: inv.currency,
+        status: inv.status,
+        hosted_invoice_url: inv.hosted_invoice_url ?? undefined,
+        period_start: inv.period_start,
+        period_end: inv.period_end,
+        description,
+      };
+    });
 
     return NextResponse.json({ invoices });
   } catch (err) {

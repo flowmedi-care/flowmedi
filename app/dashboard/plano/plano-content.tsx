@@ -26,6 +26,7 @@ type InvoiceItem = {
   currency: string;
   status: string;
   hosted_invoice_url?: string;
+  description?: string;
 };
 
 type PlanoContentProps = {
@@ -77,6 +78,17 @@ type PlanoContentProps = {
   setConsentAccepted: (v: boolean) => void;
   handleCEPInputChange: (value: string) => void;
 };
+
+const invoiceStatusPt: Record<string, string> = {
+  paid: "Pago",
+  draft: "Rascunho",
+  open: "Aberto",
+  uncollectible: "Inadimplente",
+  void: "Anulado",
+};
+function invoiceStatusLabel(status: string): string {
+  return invoiceStatusPt[status] ?? status;
+}
 
 export function PlanoContent(props: PlanoContentProps) {
   const router = useRouter();
@@ -473,11 +485,11 @@ export function PlanoContent(props: PlanoContentProps) {
             <p className="text-sm text-muted-foreground py-4">Nenhuma fatura.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[260px]">
+              <table className="w-full text-sm min-w-[320px]">
                 <thead>
                   <tr className="border-b text-left">
                     <th className="pb-2 pr-4">Data</th>
-                    <th className="pb-2 pr-4">Valor</th>
+                    <th className="pb-2 pr-4">Descrição</th>
                     <th className="pb-2 pr-4">Status</th>
                     <th className="pb-2" />
                   </tr>
@@ -486,18 +498,21 @@ export function PlanoContent(props: PlanoContentProps) {
                   {invoices.map((inv) => (
                     <tr key={inv.id} className="border-b">
                       <td className="py-2 pr-4">{formatDate(inv.created)}</td>
-                      <td className="py-2 pr-4">{formatMoney(inv.amount_paid, inv.currency)}</td>
-                      <td className="py-2 pr-4 capitalize">{inv.status}</td>
+                      <td className="py-2 pr-4">{inv.description ?? "—"}</td>
+                      <td className="py-2 pr-4">{invoiceStatusLabel(inv.status)}</td>
                       <td className="py-2">
-                        {inv.hosted_invoice_url && (
+                        {inv.hosted_invoice_url ? (
                           <a
                             href={inv.hosted_invoice_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-primary hover:underline"
+                            className="text-primary hover:underline inline-flex items-center gap-1"
                           >
                             Ver fatura
+                            <ExternalLink className="h-3.5 w-3.5" />
                           </a>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </td>
                     </tr>
