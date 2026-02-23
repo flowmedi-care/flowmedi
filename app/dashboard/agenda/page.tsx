@@ -44,9 +44,7 @@ export default async function AgendaPage() {
       notes,
       patient:patients ( id, full_name ),
       doctor:profiles ( id, full_name ),
-      appointment_type:appointment_types ( id, name ),
-      procedure:procedures ( id, name ),
-      form_instances ( id, status )
+      appointment_type:appointment_types ( id, name )
     `
     )
     .eq("clinic_id", clinicId)
