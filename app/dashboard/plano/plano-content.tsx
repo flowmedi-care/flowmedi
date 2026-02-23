@@ -451,27 +451,36 @@ export function PlanoContent(props: PlanoContentProps) {
                     Troque de plano facilmente. O valor será ajustado de forma proporcional.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {otherPlans.map((p) => (
-                      <Button
-                        key={p.id}
-                        variant="outline"
-                        size="sm"
-                        disabled={changingPlanSlug !== null}
-                        onClick={() => handleChangePlan(p.slug)}
-                      >
-                        {changingPlanSlug === p.slug ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            Alterando…
-                          </>
-                        ) : (
-                          <>
-                            <ArrowUpCircle className="h-4 w-4 mr-2" />
-                            Trocar para {p.name}
-                          </>
-                        )}
-                      </Button>
-                    ))}
+                    {otherPlans.map((p) => {
+                      const isLoading = changingPlanSlug === p.slug;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          disabled={changingPlanSlug !== null}
+                          data-plan-slug={p.slug}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const slug = (e.currentTarget as HTMLButtonElement).dataset.planSlug;
+                            if (slug) handleChangePlan(slug);
+                          }}
+                          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-xs font-medium h-8 px-3 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                        >
+                          {isLoading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                              Alterando…
+                            </>
+                          ) : (
+                            <>
+                              <ArrowUpCircle className="h-4 w-4 shrink-0" />
+                              Trocar para {p.name}
+                            </>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                   {changePlanError && (
                     <p className="text-sm text-destructive mt-2">{changePlanError}</p>
