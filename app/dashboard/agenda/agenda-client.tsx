@@ -1147,6 +1147,7 @@ export function AgendaClient({
           appointments={appointmentsInPeriod}
           currentDate={calendarDate}
           today={today}
+          getEventStyle={getEventStyle}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "month" && (
@@ -1154,6 +1155,7 @@ export function AgendaClient({
           appointments={appointmentsInPeriod}
           currentDate={calendarDate}
           today={today}
+          getEventStyle={getEventStyle}
           onSelectDay={(day) => {
             setDateInicio(toYMD(day));
             setDateFim(toYMD(day));
@@ -1453,10 +1455,12 @@ function CalendarWeekView({
   appointments,
   currentDate,
   today,
+  getEventStyle,
 }: {
   appointments: AppointmentRow[];
   currentDate: Date;
   today: Date;
+  getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
 }) {
   const weekDays = useMemo(() => getWeekDates(currentDate), [currentDate]);
   // Usar appointments filtrados para exibição
@@ -1580,11 +1584,13 @@ function CalendarMonthView({
   appointments,
   currentDate,
   today,
+  getEventStyle,
   onSelectDay,
 }: {
   appointments: AppointmentRow[];
   currentDate: Date;
   today: Date;
+  getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
   onSelectDay: (d: Date) => void;
 }) {
   const grid = getMonthCalendarGrid(currentDate);
