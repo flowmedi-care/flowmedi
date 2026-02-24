@@ -7,9 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { updateComplianceConfirmationDays, updateComplianceFormDays } from "./actions";
-import { LogoUpload } from "./logo-upload";
 import { IntegrationsSection } from "./integrations-section";
-import { WhatsAppRoutingSection } from "./whatsapp-routing-section";
 import { ClinicInfoTabs } from "@/components/clinic-info/clinic-info-tabs";
 
 export function ConfiguracoesClient({
@@ -49,6 +47,7 @@ export function ConfiguracoesClient({
   const [complianceFormLoading, setComplianceFormLoading] = useState(false);
   const [complianceError, setComplianceError] = useState<string | null>(null);
   const [complianceFormError, setComplianceFormError] = useState<string | null>(null);
+  const [activeComplianceTab, setActiveComplianceTab] = useState<"confirmation" | "form">("confirmation");
   const searchParams = useSearchParams();
 
   // Limpar parâmetros de URL após carregar
@@ -76,10 +75,6 @@ export function ConfiguracoesClient({
         </p>
       </div>
 
-      <IntegrationsSection clinicId={clinicId} />
-
-      <WhatsAppRoutingSection clinicId={clinicId} />
-
       <ClinicInfoTabs
         clinicId={clinicId}
         initialData={{
@@ -95,141 +90,173 @@ export function ConfiguracoesClient({
         }}
       />
 
+      <IntegrationsSection clinicId={clinicId} />
+
       <Card className="overflow-visible">
-        <CardHeader className="space-y-1">
-          <h2 className="text-lg font-semibold">Compliance de Confirmação</h2>
-          <p className="text-sm text-muted-foreground break-words">
-            Defina quantos dias antes da consulta ela deve estar confirmada. 
-            Consultas não confirmadas dentro do prazo aparecerão como alerta no dashboard da secretária.
-            Exemplo: se definir 2 dias, uma consulta agendada para dia 17 deve estar confirmada até dia 15.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {complianceError && (
-            <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
-              {complianceError}
-            </p>
-          )}
-          <div className="flex items-center gap-4">
-            <div className="space-y-2 flex-1 max-w-xs">
-              <Label htmlFor="compliance_days">Dias antes da consulta</Label>
-              <Input
-                id="compliance_days"
-                type="number"
-                min={0}
-                max={30}
-                value={complianceDays}
-                onChange={(e) => setComplianceDays(e.target.value)}
-                placeholder="Ex.: 2 (deixe vazio para desabilitar)"
-              />
-              <p className="text-xs text-muted-foreground">
-                Deixe vazio para desabilitar a regra de compliance
-              </p>
+        <CardHeader className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">
+                {activeComplianceTab === "confirmation"
+                  ? "Compliance de Confirmação"
+                  : "Compliance de Formulário"}
+              </h2>
+              {activeComplianceTab === "confirmation" ? (
+                <p className="text-sm text-muted-foreground break-words">
+                  Defina quantos dias antes da consulta ela deve estar confirmada. 
+                  Consultas não confirmadas dentro do prazo aparecerão como alerta no dashboard da secretária.
+                  Exemplo: se definir 2 dias, uma consulta agendada para dia 17 deve estar confirmada até dia 15.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Defina quantos dias antes da consulta o formulário vinculado deve estar respondido.
+                  Quando o prazo passar sem resposta, o sistema cria um evento &quot;Lembrete para Preencher Formulário&quot;
+                  na Central de Eventos (e pode enviar email/WhatsApp se estiver automático).
+                  Exemplo: se definir 2 dias, um formulário de consulta no dia 17 deve estar preenchido até o dia 15.
+                </p>
+              )}
             </div>
-            <div className="pt-6">
+            <div className="flex gap-2 border-b sm:border border-border rounded-md p-1 bg-muted/50">
               <Button
-                onClick={async () => {
-                  setComplianceError(null);
-                  setComplianceLoading(true);
-                  const daysValue = complianceDays.trim() === "" 
-                    ? null 
-                    : parseInt(complianceDays, 10);
-                  
-                  if (daysValue !== null && (isNaN(daysValue) || daysValue < 0 || daysValue > 30)) {
-                    setComplianceError("O número de dias deve estar entre 0 e 30.");
-                    setComplianceLoading(false);
-                    return;
-                  }
-
-                  const res = await updateComplianceConfirmationDays(daysValue);
-                  if (res.error) {
-                    setComplianceError(res.error);
-                  } else {
-                    setComplianceError(null);
-                  }
-                  setComplianceLoading(false);
-                }}
-                disabled={complianceLoading}
+                variant={activeComplianceTab === "confirmation" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-b-none sm:rounded-md"
+                onClick={() => setActiveComplianceTab("confirmation")}
               >
-                {complianceLoading ? "Salvando…" : "Salvar"}
+                Confirmação
+              </Button>
+              <Button
+                variant={activeComplianceTab === "form" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-b-none sm:rounded-md"
+                onClick={() => setActiveComplianceTab("form")}
+              >
+                Formulário
               </Button>
             </div>
           </div>
-          {complianceConfirmationDays !== null && (
-            <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-              <strong>Configuração atual:</strong> Consultas devem estar confirmadas até{" "}
-              <strong>{complianceConfirmationDays} dia{complianceConfirmationDays !== 1 ? "s" : ""}</strong> antes da data agendada.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-semibold">Compliance de Formulário</h2>
-          <p className="text-sm text-muted-foreground">
-            Defina quantos dias antes da consulta o formulário vinculado deve estar respondido.
-            Quando o prazo passar sem resposta, o sistema cria um evento &quot;Lembrete para Preencher Formulário&quot;
-            na Central de Eventos (e pode enviar email/WhatsApp se estiver automático).
-            Exemplo: se definir 2 dias, um formulário de consulta no dia 17 deve estar preenchido até o dia 15.
-          </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {complianceFormError && (
-            <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
-              {complianceFormError}
-            </p>
+          {activeComplianceTab === "confirmation" && (
+            <>
+              {complianceError && (
+                <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
+                  {complianceError}
+                </p>
+              )}
+              <div className="flex items-center gap-4">
+                <div className="space-y-2 flex-1 max-w-xs">
+                  <Label htmlFor="compliance_days">Dias antes da consulta</Label>
+                  <Input
+                    id="compliance_days"
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={complianceDays}
+                    onChange={(e) => setComplianceDays(e.target.value)}
+                    placeholder="Ex.: 2 (deixe vazio para desabilitar)"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Deixe vazio para desabilitar a regra de compliance
+                  </p>
+                </div>
+                <div className="pt-6">
+                  <Button
+                    onClick={async () => {
+                      setComplianceError(null);
+                      setComplianceLoading(true);
+                      const daysValue = complianceDays.trim() === "" 
+                        ? null 
+                        : parseInt(complianceDays, 10);
+                      
+                      if (daysValue !== null && (isNaN(daysValue) || daysValue < 0 || daysValue > 30)) {
+                        setComplianceError("O número de dias deve estar entre 0 e 30.");
+                        setComplianceLoading(false);
+                        return;
+                      }
+
+                      const res = await updateComplianceConfirmationDays(daysValue);
+                      if (res.error) {
+                        setComplianceError(res.error);
+                      } else {
+                        setComplianceError(null);
+                      }
+                      setComplianceLoading(false);
+                    }}
+                    disabled={complianceLoading}
+                  >
+                    {complianceLoading ? "Salvando…" : "Salvar"}
+                  </Button>
+                </div>
+              </div>
+              {complianceConfirmationDays !== null && (
+                <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+                  <strong>Configuração atual:</strong> Consultas devem estar confirmadas até{" "}
+                  <strong>{complianceConfirmationDays} dia{complianceConfirmationDays !== 1 ? "s" : ""}</strong> antes da data agendada.
+                </div>
+              )}
+            </>
           )}
-          <div className="flex items-center gap-4">
-            <div className="space-y-2 flex-1 max-w-xs">
-              <Label htmlFor="compliance_form_days">Dias antes da consulta</Label>
-              <Input
-                id="compliance_form_days"
-                type="number"
-                min={0}
-                max={30}
-                value={complianceFormDaysInput}
-                onChange={(e) => setComplianceFormDaysInput(e.target.value)}
-                placeholder="Ex.: 2 (deixe vazio para desabilitar)"
-              />
-              <p className="text-xs text-muted-foreground">
-                Deixe vazio para desabilitar a regra de compliance do formulário
-              </p>
-            </div>
-            <div className="pt-6">
-              <Button
-                onClick={async () => {
-                  setComplianceFormError(null);
-                  setComplianceFormLoading(true);
-                  const daysValue = complianceFormDaysInput.trim() === ""
-                    ? null
-                    : parseInt(complianceFormDaysInput, 10);
 
-                  if (daysValue !== null && (isNaN(daysValue) || daysValue < 0 || daysValue > 30)) {
-                    setComplianceFormError("O número de dias deve estar entre 0 e 30.");
-                    setComplianceFormLoading(false);
-                    return;
-                  }
+          {activeComplianceTab === "form" && (
+            <>
+              {complianceFormError && (
+                <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
+                  {complianceFormError}
+                </p>
+              )}
+              <div className="flex items-center gap-4">
+                <div className="space-y-2 flex-1 max-w-xs">
+                  <Label htmlFor="compliance_form_days">Dias antes da consulta</Label>
+                  <Input
+                    id="compliance_form_days"
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={complianceFormDaysInput}
+                    onChange={(e) => setComplianceFormDaysInput(e.target.value)}
+                    placeholder="Ex.: 2 (deixe vazio para desabilitar)"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Deixe vazio para desabilitar a regra de compliance do formulário
+                  </p>
+                </div>
+                <div className="pt-6">
+                  <Button
+                    onClick={async () => {
+                      setComplianceFormError(null);
+                      setComplianceFormLoading(true);
+                      const daysValue = complianceFormDaysInput.trim() === ""
+                        ? null
+                        : parseInt(complianceFormDaysInput, 10);
 
-                  const res = await updateComplianceFormDays(daysValue);
-                  if (res.error) {
-                    setComplianceFormError(res.error);
-                  } else {
-                    setComplianceFormError(null);
-                  }
-                  setComplianceFormLoading(false);
-                }}
-                disabled={complianceFormLoading}
-              >
-                {complianceFormLoading ? "Salvando…" : "Salvar"}
-              </Button>
-            </div>
-          </div>
-          {complianceFormDays !== null && (
-            <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-              <strong>Configuração atual:</strong> Formulários vinculados devem estar respondidos até{" "}
-              <strong>{complianceFormDays} dia{complianceFormDays !== 1 ? "s" : ""}</strong> antes da data da consulta.
-            </div>
+                      if (daysValue !== null && (isNaN(daysValue) || daysValue < 0 || daysValue > 30)) {
+                        setComplianceFormError("O número de dias deve estar entre 0 e 30.");
+                        setComplianceFormLoading(false);
+                        return;
+                      }
+
+                      const res = await updateComplianceFormDays(daysValue);
+                      if (res.error) {
+                        setComplianceFormError(res.error);
+                      } else {
+                        setComplianceFormError(null);
+                      }
+                      setComplianceFormLoading(false);
+                    }}
+                    disabled={complianceFormLoading}
+                  >
+                    {complianceFormLoading ? "Salvando…" : "Salvar"}
+                  </Button>
+                </div>
+              </div>
+              {complianceFormDays !== null && (
+                <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+                  <strong>Configuração atual:</strong> Formulários vinculados devem estar respondidos até{" "}
+                  <strong>{complianceFormDays} dia{complianceFormDays !== 1 ? "s" : ""}</strong> antes da data da consulta.
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

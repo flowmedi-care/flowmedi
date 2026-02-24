@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { EquipeClient } from "./equipe-client";
+import { WhatsAppRoutingSection } from "../configuracoes/whatsapp-routing-section";
 
 export default async function EquipePage() {
   const supabase = await createClient();
@@ -85,6 +86,7 @@ export default async function EquipePage() {
           initialAssignments: bySecretary,
         }}
       />
+      <WhatsAppRoutingSection clinicId={clinicId} />
     </div>
   );
 }
