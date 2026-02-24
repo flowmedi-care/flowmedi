@@ -1,6 +1,6 @@
 # FlowMedi
 
-SaaS para clínicas: agenda central, formulários clínicos e comunicação com o paciente.
+SaaS para clínicas: agenda centrals, formulários clínicos e comunicação com o paciente.
 
 ## Estrutura do repositório
 

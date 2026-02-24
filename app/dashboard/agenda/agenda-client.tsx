@@ -53,7 +53,7 @@ import {
 } from "./agenda-date-utils";
 import { getStatusBackgroundColor, getStatusTextColor } from "./status-utils";
 
-/** Retorna className (status) ou style (dimensão) para o evento na agenda */
+/** Retorna className (statuss) ou style (dimensão) para o evento na agenda */
 function getAppointmentEventStyle(
   appointment: AppointmentRow,
   colorBy: "status" | "dimension",
