@@ -99,6 +99,8 @@ export type DoctorOption = { id: string; full_name: string | null };
 export type AppointmentTypeOption = { id: string; name: string };
 export type ProcedureOption = { id: string; name: string; recommendations: string | null };
 export type FormTemplateOption = { id: string; name: string };
+export type ServicePriceRuleOption = { serviceId: string; professionalId: string | null };
+export type DoctorProcedureLink = { doctorId: string; procedureId: string };
 
 const STATUS_LABEL: Record<string, string> = {
   agendada: "Agendada",
@@ -141,6 +143,8 @@ export function AgendaClient({
   services = [],
   pricingDimensions = [],
   pricingDimensionValues = [],
+  servicePriceRules = [],
+  doctorProcedures = [],
   initialPreferences,
 }: {
   appointments: AppointmentRow[];
@@ -152,6 +156,8 @@ export function AgendaClient({
   services?: ServiceOption[];
   pricingDimensions?: PricingDimensionOption[];
   pricingDimensionValues?: PricingDimensionValueOption[];
+  servicePriceRules?: ServicePriceRuleOption[];
+  doctorProcedures?: DoctorProcedureLink[];
   initialPreferences?: {
     viewMode: ViewMode;
     timelineGranularity: TimelineGranularity;
@@ -307,6 +313,54 @@ export function AgendaClient({
   const [resolvedValor, setResolvedValor] = useState<number | null>(null);
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState("");
   const [publicFormTemplates, setPublicFormTemplates] = useState<{ id: string; name: string }[]>([]);
+
+  const doctorProceduresByDoctor = useMemo(() => {
+    const map: Record<string, Set<string>> = {};
+    for (const link of doctorProcedures) {
+      if (!map[link.doctorId]) {
+        map[link.doctorId] = new Set();
+      }
+      map[link.doctorId].add(link.procedureId);
+    }
+    return map;
+  }, [doctorProcedures]);
+
+  const availableProcedures = useMemo(() => {
+    if (!form.doctorId) return procedures;
+    if (!doctorProcedures.length) return procedures;
+    const allowed = doctorProceduresByDoctor[form.doctorId];
+    if (!allowed || allowed.size === 0) return [];
+    return procedures.filter((p) => allowed.has(p.id));
+  }, [form.doctorId, procedures, doctorProcedures, doctorProceduresByDoctor]);
+
+  const servicesByDoctor = useMemo(() => {
+    const global = new Set<string>();
+    const byDoctor: Record<string, Set<string>> = {};
+    for (const rule of servicePriceRules) {
+      if (!rule.serviceId) continue;
+      if (rule.professionalId) {
+        if (!byDoctor[rule.professionalId]) {
+          byDoctor[rule.professionalId] = new Set();
+        }
+        byDoctor[rule.professionalId].add(rule.serviceId);
+      } else {
+        global.add(rule.serviceId);
+      }
+    }
+    return { global, byDoctor };
+  }, [servicePriceRules]);
+
+  const availableServices = useMemo(() => {
+    if (services.length === 0) return [];
+    if (!form.doctorId) return services;
+    if (!servicePriceRules.length) return services;
+    const { global, byDoctor } = servicesByDoctor;
+    const specific = byDoctor[form.doctorId];
+    if (!specific && global.size === 0) {
+      return [];
+    }
+    return services.filter((s) => global.has(s.id) || specific?.has(s.id));
+  }, [services, form.doctorId, servicePriceRules, servicesByDoctor]);
 
   useEffect(() => {
     if (!form.patientId) {
@@ -812,9 +866,33 @@ export function AgendaClient({
                   <select
                     className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                     value={form.doctorId}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, doctorId: e.target.value }))
-                    }
+            onChange={(e) => {
+              const newDoctorId = e.target.value;
+              setForm((f) => {
+                let next = { ...f, doctorId: newDoctorId };
+
+                if (doctorProcedures.length && f.procedureId) {
+                  const allowed = doctorProceduresByDoctor[newDoctorId];
+                  if (!allowed || !allowed.has(f.procedureId)) {
+                    next = { ...next, procedureId: "" };
+                  }
+                }
+
+                if (servicePriceRules.length && f.serviceId) {
+                  const { global, byDoctor } = servicesByDoctor;
+                  const specific = byDoctor[newDoctorId];
+                  const isAllowed =
+                    (specific && specific.has(f.serviceId)) ||
+                    global.has(f.serviceId);
+                  if (!isAllowed) {
+                    next = { ...next, serviceId: "", dimensionSelections: {} };
+                  }
+                }
+
+                return next;
+              });
+              setResolvedValor(null);
+            }}
                     required
                   >
                     <option value="">Selecione</option>
@@ -854,7 +932,7 @@ export function AgendaClient({
                     value={form.procedureId}
                     onChange={(e) => {
                       const id = e.target.value;
-                      const proc = procedures.find((p) => p.id === id);
+              const proc = procedures.find((p) => p.id === id);
                       setForm((f) => ({
                         ...f,
                         procedureId: id,
@@ -863,7 +941,7 @@ export function AgendaClient({
                     }}
                   >
                     <option value="">Nenhum</option>
-                    {procedures.map((p) => (
+            {availableProcedures.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
                       </option>
@@ -873,71 +951,107 @@ export function AgendaClient({
                     Opcional. Pré-preenche recomendações e associa formulários do procedimento.
                   </p>
                 </div>
-                {services.length > 0 && (
-                  <Card className="sm:col-span-2">
-                    <CardHeader className="pb-2">
-                      <h3 className="font-semibold text-sm">Serviço e valor</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Escolha o serviço e as dimensões (convênio, cidade, etc.) para definir o valor da consulta nos relatórios.
-                      </p>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex flex-wrap gap-4 items-end">
-                        <div className="space-y-2 min-w-[180px]">
-                          <Label className="text-xs font-medium text-muted-foreground">Serviço</Label>
-                          <select
-                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                            value={form.serviceId}
-                            onChange={(e) =>
-                              setForm((f) => ({ ...f, serviceId: e.target.value, dimensionSelections: {} }))
-                            }
-                          >
-                            <option value="">Nenhum</option>
-                            {services.map((s) => (
-                              <option key={s.id} value={s.id}>{s.nome}</option>
-                            ))}
-                          </select>
-                        </div>
-                        {pricingDimensions.map((dim) => {
-                          const options = pricingDimensionValues.filter((v) => v.dimension_id === dim.id);
-                          return (
-                            <div key={dim.id} className="space-y-2 min-w-[140px]">
-                              <Label className="text-xs font-medium text-muted-foreground">{dim.nome}</Label>
-                              <select
-                                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                value={form.dimensionSelections[dim.id] ?? ""}
-                                onChange={(e) =>
-                                  setForm((f) => ({
-                                    ...f,
-                                    dimensionSelections: {
-                                      ...f.dimensionSelections,
-                                      [dim.id]: e.target.value,
-                                    },
-                                  }))
-                                }
-                              >
-                                <option value="">—</option>
-                                {options.map((v) => (
-                                  <option key={v.id} value={v.id}>{v.nome}</option>
-                                ))}
-                              </select>
-                            </div>
-                          );
-                        })}
-                        {resolvedValor != null && (
-                          <div className="ml-auto flex items-center rounded-lg border border-border bg-muted/30 px-4 py-2">
-                            <span className="text-xs font-medium text-muted-foreground mr-2">Valor da consulta</span>
-                            <span className="text-lg font-semibold tabular-nums">
-                              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(resolvedValor)}
-                            </span>
-                          </div>
-                        )}
+              </div>
+              <div className="space-y-2">
+                <Label>Data e hora *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={form.date}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, date: e.target.value }))
+                    }
+                    required
+                  />
+                  <Input
+                    type="time"
+                    value={form.time}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, time: e.target.value }))
+                    }
+                    required
+                  />
+                </div>
+              </div>
+              {services.length > 0 && (
+                <Card className="sm:col-span-2">
+                  <CardHeader className="pb-2">
+                    <h3 className="font-semibold text-sm">Serviço e valor</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Escolha o serviço e as dimensões (convênio, cidade, etc.) para definir o valor da consulta nos relatórios.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex flex-wrap gap-4 items-end">
+                      <div className="space-y-2 min-w-[180px]">
+                        <Label className="text-xs font-medium text-muted-foreground">Serviço</Label>
+                        <select
+                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          value={form.serviceId}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, serviceId: e.target.value, dimensionSelections: {} }))
+                          }
+                        >
+                          <option value="">Nenhum</option>
+                          {availableServices.map((s) => (
+                            <option key={s.id} value={s.id}>{s.nome}</option>
+                          ))}
+                        </select>
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
-                {/* Vincular formulário — mesmo layout da tela da consulta */}
-                <div className="space-y-4 sm:col-span-2">
+                      {pricingDimensions.map((dim) => {
+                        const options = pricingDimensionValues.filter((v) => v.dimension_id === dim.id);
+                        return (
+                          <div key={dim.id} className="space-y-2 min-w-[140px]">
+                            <Label className="text-xs font-medium text-muted-foreground">{dim.nome}</Label>
+                            <select
+                              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                              value={form.dimensionSelections[dim.id] ?? ""}
+                              onChange={(e) =>
+                                setForm((f) => ({
+                                  ...f,
+                                  dimensionSelections: {
+                                    ...f.dimensionSelections,
+                                    [dim.id]: e.target.value,
+                                  },
+                                }))
+                              }
+                            >
+                              <option value="">—</option>
+                              {options.map((v) => (
+                                <option key={v.id} value={v.id}>{v.nome}</option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                      {resolvedValor != null && (
+                        <div className="ml-auto flex items-center rounded-lg border border-border bg-muted/30 px-4 py-2">
+                          <span className="text-xs font-medium text-muted-foreground mr-2">Valor da consulta</span>
+                          <span className="text-lg font-semibold tabular-nums">
+                            {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(resolvedValor)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              <div className="space-y-2">
+                <Label>Recomendações</Label>
+                <Textarea
+                  value={form.recommendations}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, recommendations: e.target.value }))
+                  }
+                  placeholder="Ex.: Comparecer em jejum de 8 horas. Trazer exames anteriores..."
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ao escolher um procedimento acima, o campo é pré-preenchido. Usado em e-mails e mensagens.
+                </p>
+              </div>
+              {/* Vincular formulário — mesmo layout da tela da consulta */}
+              <div className="space-y-4 sm:col-span-2">
                   <Card>
                     <CardHeader>
                       <h3 className="font-semibold">Vincular formulário</h3>
@@ -1042,41 +1156,6 @@ export function AgendaClient({
                     </CardContent>
                   </Card>
                 </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Data e hora *</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="date"
-                      value={form.date}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, date: e.target.value }))
-                      }
-                      required
-                    />
-                    <Input
-                      type="time"
-                      value={form.time}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, time: e.target.value }))
-                      }
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Recomendações</Label>
-                <Textarea
-                  value={form.recommendations}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, recommendations: e.target.value }))
-                  }
-                  placeholder="Ex.: Comparecer em jejum de 8 horas. Trazer exames anteriores..."
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Ao escolher um procedimento acima, o campo é pré-preenchido. Usado em e-mails e mensagens.
-                </p>
               </div>
               <div className="space-y-2">
                 <Label>Observações</Label>

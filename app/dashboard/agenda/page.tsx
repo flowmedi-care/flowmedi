@@ -125,6 +125,12 @@ export default async function AgendaPage() {
     .eq("clinic_id", clinicId)
     .order("nome");
 
+  const { data: servicePrices } = await supabase
+    .from("service_prices")
+    .select("service_id, professional_id")
+    .eq("clinic_id", clinicId)
+    .eq("ativo", true);
+
   const { data: pricingDimensions } = await supabase
     .from("price_dimensions")
     .select("id, nome")
@@ -154,6 +160,11 @@ export default async function AgendaPage() {
     nome: v.nome,
     cor: overrideMap[v.id] ?? v.cor ?? null,
   }));
+
+  const { data: doctorProcedures } = await supabase
+    .from("doctor_procedures")
+    .select("doctor_id, procedure_id")
+    .eq("clinic_id", clinicId);
 
   const rows: AppointmentRow[] = (appointments ?? []).map((a: Record<string, unknown>) => {
     const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
@@ -223,6 +234,17 @@ export default async function AgendaPage() {
         services={(services ?? []).map((s) => ({ id: s.id, nome: s.nome }))}
         pricingDimensions={(pricingDimensions ?? []).map((d) => ({ id: d.id, nome: d.nome }))}
         pricingDimensionValues={(pricingDimensionValues ?? []).map((v) => ({ id: v.id, dimension_id: v.dimension_id, nome: v.nome, cor: v.cor ?? null }))}
+        servicePriceRules={(servicePrices ?? []).map((sp) => ({
+          serviceId: String((sp as { service_id?: unknown }).service_id ?? ""),
+          professionalId:
+            (sp as { professional_id?: unknown }).professional_id != null
+              ? String((sp as { professional_id?: unknown }).professional_id)
+              : null,
+        }))}
+        doctorProcedures={(doctorProcedures ?? []).map((dp) => ({
+          doctorId: String((dp as { doctor_id?: unknown }).doctor_id ?? ""),
+          procedureId: String((dp as { procedure_id?: unknown }).procedure_id ?? ""),
+        }))}
         initialPreferences={{
           viewMode: (preferences.agenda_view_mode as "timeline" | "calendar") || "timeline",
           timelineGranularity: (preferences.agenda_timeline_granularity as "day" | "week" | "month") || "day",
