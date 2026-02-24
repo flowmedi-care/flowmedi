@@ -132,12 +132,28 @@ export default async function AgendaPage() {
     .eq("ativo", true)
     .order("nome");
 
-  const { data: pricingDimensionValues } = await supabase
+  const { data: pricingDimensionValuesRaw } = await supabase
     .from("dimension_values")
     .select("id, dimension_id, nome, cor")
     .eq("clinic_id", clinicId)
     .eq("ativo", true)
     .order("nome");
+
+  const { data: profileColorOverridesData } = await supabase
+    .from("profile_dimension_value_colors")
+    .select("dimension_value_id, cor")
+    .eq("profile_id", user.id);
+  const profileColorOverrides = profileColorOverridesData ?? [];
+  const overrideMap: Record<string, string> = {};
+  for (const row of profileColorOverrides) {
+    overrideMap[row.dimension_value_id] = row.cor;
+  }
+  const pricingDimensionValues = (pricingDimensionValuesRaw ?? []).map((v: { id: string; dimension_id: string; nome: string; cor: string | null }) => ({
+    id: v.id,
+    dimension_id: v.dimension_id,
+    nome: v.nome,
+    cor: overrideMap[v.id] ?? v.cor ?? null,
+  }));
 
   const rows: AppointmentRow[] = (appointments ?? []).map((a: Record<string, unknown>) => {
     const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
@@ -213,6 +229,9 @@ export default async function AgendaPage() {
           calendarGranularity: (preferences.agenda_calendar_granularity as "week" | "month") || "week",
           statusFilter: (preferences.agenda_status_filter as string[]) || [],
           formFilter: (preferences.agenda_form_filter as "confirmados_sem_formulario" | "confirmados_com_formulario" | null) || null,
+          filterByServiceId: (preferences.agenda_filter_by_service_id as string) || "",
+          colorBy: (preferences.agenda_color_by as "status" | "dimension") || "status",
+          colorByDimensionId: (preferences.agenda_color_by_dimension_id as string) || "",
         }}
       />
     </div>

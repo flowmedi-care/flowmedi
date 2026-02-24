@@ -907,6 +907,9 @@ export async function updateUserPreferences(preferences: {
   agenda_calendar_granularity?: "week" | "month";
   agenda_status_filter?: string[];
   agenda_form_filter?: "confirmados_sem_formulario" | "confirmados_com_formulario" | null;
+  agenda_filter_by_service_id?: string;
+  agenda_color_by?: "status" | "dimension";
+  agenda_color_by_dimension_id?: string;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

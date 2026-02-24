@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,11 @@ import {
   getReferralLinkData,
   saveReferralMessage,
 } from "./referral-actions";
+import { setProfileDimensionValueColors } from "./profile-dimension-colors-actions";
 
 const DEFAULT_MESSAGE = "Olá gostaria de obter mais informação sobre a consulta com o dr. [digite seu nome]";
-import { Share2, Copy, Check } from "lucide-react";
+const DEFAULT_AGENDA_COLOR = "#3B82F6";
+import { Share2, Copy, Check, Palette } from "lucide-react";
 
 function ReferralLinkCard() {
   const [data, setData] = useState<{
@@ -151,12 +153,21 @@ function ReferralLinkCard() {
   );
 }
 
+type AgendaDimension = { id: string; nome: string };
+type AgendaDimensionValue = { id: string; dimension_id: string; nome: string; cor: string | null };
+
 export function PerfilClient({
   doctorLogoUrl,
   doctorLogoScale,
+  agendaDimensions = [],
+  agendaDimensionValues = [],
+  agendaColorOverrides = {},
 }: {
   doctorLogoUrl: string | null;
   doctorLogoScale: number;
+  agendaDimensions?: AgendaDimension[];
+  agendaDimensionValues?: AgendaDimensionValue[];
+  agendaColorOverrides?: Record<string, string>;
 }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -164,6 +175,12 @@ export function PerfilClient({
     late_threshold_minutes: 15,
   });
   const [error, setError] = useState<string | null>(null);
+  const [agendaColorOverridesLocal, setAgendaColorOverridesLocal] = useState<Record<string, string>>(agendaColorOverrides);
+  const [savingColors, setSavingColors] = useState(false);
+
+  useEffect(() => {
+    setAgendaColorOverridesLocal(agendaColorOverrides);
+  }, [agendaColorOverrides]);
 
   useEffect(() => {
     loadPreferences();
@@ -206,6 +223,30 @@ export function PerfilClient({
   }
 
   const { hours, minutes } = convertFromMinutes(preferences.late_threshold_minutes);
+
+  const valuesByDimension = useMemo(() => {
+    return agendaDimensions.map((dim) => ({
+      ...dim,
+      values: agendaDimensionValues.filter((v) => v.dimension_id === dim.id),
+    }));
+  }, [agendaDimensions, agendaDimensionValues]);
+
+  function getEffectiveColor(value: AgendaDimensionValue): string {
+    return agendaColorOverridesLocal[value.id] ?? value.cor ?? DEFAULT_AGENDA_COLOR;
+  }
+
+  async function handleSaveAgendaColors() {
+    const overrides = Object.entries(agendaColorOverridesLocal).filter(
+      ([id, cor]) => {
+        const v = agendaDimensionValues.find((x) => x.id === id);
+        const defaultCor = v?.cor ?? DEFAULT_AGENDA_COLOR;
+        return cor && cor !== defaultCor && /^#[0-9A-Fa-f]{6}$/.test(cor);
+      }
+    ).map(([dimension_value_id, cor]) => ({ dimension_value_id, cor }));
+    setSavingColors(true);
+    await setProfileDimensionValueColors(overrides);
+    setSavingColors(false);
+  }
 
   return (
     <div className="space-y-6">
@@ -312,6 +353,70 @@ export function PerfilClient({
           )}
         </CardContent>
       </Card>
+
+      {/* Cores na agenda (dimensões/valores) */}
+      {valuesByDimension.some((d) => d.values.length > 0) && (
+        <Card>
+          <CardHeader>
+            <h2 className="font-semibold flex items-center gap-2">
+              <Palette className="h-5 w-5" />
+              Cores na agenda
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Defina a cor de cada valor de dimensão para quando você escolher &quot;Colorir por&quot; essa dimensão na agenda.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {valuesByDimension.map((dim) => (
+              <div key={dim.id} className="space-y-3">
+                <h3 className="text-sm font-medium text-foreground">{dim.nome}</h3>
+                <div className="flex flex-wrap gap-3">
+                  {dim.values.map((v) => {
+                    const effective = getEffectiveColor(v);
+                    return (
+                      <div
+                        key={v.id}
+                        className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2"
+                      >
+                        <span className="text-sm">{v.nome}</span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="color"
+                            value={effective}
+                            onChange={(e) =>
+                              setAgendaColorOverridesLocal((prev) => ({
+                                ...prev,
+                                [v.id]: e.target.value,
+                              }))
+                            }
+                            className="h-8 w-10 cursor-pointer rounded border border-input bg-background"
+                          />
+                          <Input
+                            value={effective}
+                            onChange={(e) =>
+                              setAgendaColorOverridesLocal((prev) => ({
+                                ...prev,
+                                [v.id]: e.target.value,
+                              }))
+                            }
+                            placeholder="#3B82F6"
+                            className="h-8 w-24 font-mono text-sm"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <div className="pt-2">
+              <Button onClick={handleSaveAgendaColors} disabled={savingColors}>
+                {savingColors ? "Salvando..." : "Salvar cores da agenda"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

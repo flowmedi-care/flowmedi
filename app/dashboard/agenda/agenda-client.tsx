@@ -158,6 +158,9 @@ export function AgendaClient({
     calendarGranularity: CalendarGranularity;
     statusFilter?: string[];
     formFilter?: "confirmados_sem_formulario" | "confirmados_com_formulario" | null;
+    filterByServiceId?: string;
+    colorBy?: "status" | "dimension";
+    colorByDimensionId?: string;
   };
 }) {
   const router = useRouter();
@@ -217,9 +220,15 @@ export function AgendaClient({
   const [formFilter, setFormFilter] = useState<"confirmados_sem_formulario" | "confirmados_com_formulario" | null>(
     initialPreferences?.formFilter || null
   );
-  const [filterByServiceId, setFilterByServiceId] = useState<string>("");
-  const [colorBy, setColorBy] = useState<"status" | "dimension">("status");
-  const [colorByDimensionId, setColorByDimensionId] = useState<string>("");
+  const [filterByServiceId, setFilterByServiceId] = useState<string>(
+    initialPreferences?.filterByServiceId ?? ""
+  );
+  const [colorBy, setColorBy] = useState<"status" | "dimension">(
+    initialPreferences?.colorBy ?? "status"
+  );
+  const [colorByDimensionId, setColorByDimensionId] = useState<string>(
+    initialPreferences?.colorByDimensionId ?? ""
+  );
   const [dateInicio, setDateInicio] = useState(() => todayYMD());
   const [dateFim, setDateFim] = useState(() => todayYMD());
   const [draggedAppointment, setDraggedAppointment] =
@@ -563,11 +572,11 @@ export function AgendaClient({
 
   return (
     <div className="space-y-4 sm:space-y-6 min-w-0">
-      {/* Header com título e botão Nova consulta */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Header: título + ação principal */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between gap-x-4">
         <h1 className="text-xl font-semibold text-foreground sm:text-2xl truncate">Agenda</h1>
         <Button
-          className="w-full sm:w-auto min-h-[44px] touch-manipulation shrink-0"
+          className="w-full sm:w-auto min-h-[44px] touch-manipulation shrink-0 order-first sm:order-none"
           onClick={() => {
             setShowForm(true);
             if (doctors.length === 1) {
@@ -580,215 +589,189 @@ export function AgendaClient({
         </Button>
       </div>
 
-      {/* Toolbar: modo, granularidade (calendário), período, filtros */}
-      <div className="flex flex-col gap-4 min-w-0">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={viewMode}
-              onChange={async (e) => {
-                const newMode = e.target.value as ViewMode;
-                setViewMode(newMode);
-                await updateUserPreferences({ agenda_view_mode: newMode });
-              }}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="timeline">Timeline</option>
-              <option value="calendar">Calendário</option>
-            </select>
-            {viewMode === "timeline" && (
-              <select
-                value={timelineGranularity}
-                onChange={async (e) => {
-                  const newGran = e.target.value as TimelineGranularity;
-                  setTimelineGranularity(newGran);
-                  await updateUserPreferences({
-                    agenda_timeline_granularity: newGran,
-                  });
-                  // O useEffect vai recalcular o dateFim automaticamente
-                }}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="day">Dia</option>
-                <option value="week">Semana</option>
-                <option value="month">Mês</option>
-              </select>
-            )}
-            {viewMode === "calendar" && (
-              <select
-                value={calendarGranularity}
-                onChange={async (e) => {
-                  const newGran = e.target.value as CalendarGranularity;
-                  setCalendarGranularity(newGran);
-                  await updateUserPreferences({
-                    agenda_calendar_granularity: newGran,
-                  });
-                  // O useEffect vai recalcular o dateFim automaticamente
-                }}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="week">Semana</option>
-                <option value="month">Mês</option>
-              </select>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            {viewMode === "timeline" && timelineGranularity === "day" ? (
-              // Timeline Dia: apenas um campo
-              <>
-                <Label htmlFor="date_inicio" className="text-muted-foreground text-xs sm:text-sm shrink-0">
-                  Data
-                </Label>
-                <Input
-                  id="date_inicio"
-                  type="date"
-                  value={dateInicio}
-                  onChange={(e) => setDateInicio(e.target.value)}
-                  className="w-[7.5rem] min-w-0 max-w-full text-sm sm:w-40"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => {
-                    const today = todayYMD();
-                    setDateInicio(today);
+      {/* Toolbar único: visualização, período e filtros em blocos claros */}
+      <div className="rounded-lg border border-border bg-card p-4 min-w-0">
+        <div className="flex flex-col gap-4">
+          {/* Linha 1: Visualização + Período */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide w-full sm:w-auto sm:min-w-0">Visualização</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={viewMode}
+                  onChange={async (e) => {
+                    const newMode = e.target.value as ViewMode;
+                    setViewMode(newMode);
+                    await updateUserPreferences({ agenda_view_mode: newMode });
                   }}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm font-medium"
                 >
-                  Hoje
-                </Button>
-              </>
-            ) : (
-              // Timeline Semana/Mês ou Calendário: campos De/Até (compactos no mobile)
-              <>
-                <Label htmlFor="date_inicio" className="text-muted-foreground text-xs sm:text-sm shrink-0">
-                  De
-                </Label>
-                <Input
-                  id="date_inicio"
-                  type="date"
-                  value={dateInicio}
-                  onChange={(e) => {
-                    const novoInicio = e.target.value;
-                    setDateInicio(novoInicio);
-                    if (viewMode === "calendar") {
-                      const inicioDate = new Date(novoInicio + "T12:00:00");
-                      let novoFim: Date;
-                      if (calendarGranularity === "week") {
-                        novoFim = getEndOfWeek(inicioDate);
-                      } else if (calendarGranularity === "month") {
-                        novoFim = getEndOfMonth(inicioDate);
-                      } else {
-                        novoFim = inicioDate;
+                  <option value="timeline">Timeline</option>
+                  <option value="calendar">Calendário</option>
+                </select>
+                {viewMode === "timeline" && (
+                  <select
+                    value={timelineGranularity}
+                    onChange={async (e) => {
+                      const newGran = e.target.value as TimelineGranularity;
+                      setTimelineGranularity(newGran);
+                      await updateUserPreferences({ agenda_timeline_granularity: newGran });
+                    }}
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="day">Dia</option>
+                    <option value="week">Semana</option>
+                    <option value="month">Mês</option>
+                  </select>
+                )}
+                {viewMode === "calendar" && (
+                  <select
+                    value={calendarGranularity}
+                    onChange={async (e) => {
+                      const newGran = e.target.value as CalendarGranularity;
+                      setCalendarGranularity(newGran);
+                      await updateUserPreferences({ agenda_calendar_granularity: newGran });
+                    }}
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="week">Semana</option>
+                    <option value="month">Mês</option>
+                  </select>
+                )}
+              </div>
+            </div>
+
+            <div className="h-px bg-border sm:hidden" aria-hidden />
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide w-full sm:w-auto">Período</span>
+              {viewMode === "timeline" && timelineGranularity === "day" ? (
+                <>
+                  <Input
+                    id="date_inicio"
+                    type="date"
+                    value={dateInicio}
+                    onChange={(e) => setDateInicio(e.target.value)}
+                    className="h-9 w-[8.5rem] text-sm"
+                  />
+                  <Button variant="outline" size="sm" className="h-9" onClick={() => setDateInicio(todayYMD())}>
+                    Hoje
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Label htmlFor="date_inicio" className="text-muted-foreground text-sm shrink-0">De</Label>
+                  <Input
+                    id="date_inicio"
+                    type="date"
+                    value={dateInicio}
+                    onChange={(e) => {
+                      const novoInicio = e.target.value;
+                      setDateInicio(novoInicio);
+                      if (viewMode === "calendar") {
+                        const inicioDate = new Date(novoInicio + "T12:00:00");
+                        const novoFim = calendarGranularity === "week" ? getEndOfWeek(inicioDate) : getEndOfMonth(inicioDate);
+                        setDateFim(toYMD(novoFim));
                       }
-                      setDateFim(toYMD(novoFim));
-                    }
-                  }}
-                  className="w-[7.5rem] min-w-0 max-w-full text-sm sm:w-40"
-                />
-                {viewMode === "timeline" ? (
-                  <>
-                    <Label htmlFor="date_fim" className="text-muted-foreground text-xs sm:text-sm shrink-0">
-                      até
-                    </Label>
+                    }}
+                    className="h-9 w-[8.5rem] text-sm"
+                  />
+                  <Label htmlFor="date_fim" className="text-muted-foreground text-sm shrink-0">até</Label>
+                  {viewMode === "timeline" ? (
                     <Input
                       id="date_fim"
                       type="date"
                       value={dateFim}
                       min={dateInicio}
                       onChange={(e) => {
-                        const novoFim = e.target.value;
-                        if (novoFim >= dateInicio) {
+                        const v = e.target.value;
+                        if (v >= dateInicio) {
                           dateFimManuallySet.current = true;
-                          setDateFim(novoFim);
+                          setDateFim(v);
                         }
                       }}
-                      className="w-[7.5rem] min-w-0 max-w-full text-sm sm:w-40"
+                      className="h-9 w-[8.5rem] text-sm"
                     />
-                  </>
-                ) : (
-                  <>
-                    <Label htmlFor="date_fim" className="text-muted-foreground text-xs sm:text-sm shrink-0">
-                      até
-                    </Label>
+                  ) : (
                     <Input
                       id="date_fim"
                       type="date"
                       value={dateFim}
                       readOnly
-                      className="w-[7.5rem] min-w-0 max-w-full text-sm sm:w-40 bg-muted cursor-not-allowed"
+                      className="h-9 w-[8.5rem] text-sm bg-muted cursor-not-allowed"
                     />
-                  </>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => {
-                    const today = todayYMD();
-                    setDateInicio(today);
-                  }}
-                >
-                  Hoje
-                </Button>
-              </>
-            )}
+                  )}
+                  <Button variant="outline" size="sm" className="h-9" onClick={() => setDateInicio(todayYMD())}>
+                    Hoje
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Filtros */}
-          <div className="flex flex-wrap items-center gap-2 sm:border-l sm:pl-4 sm:border-border">
-            <AgendaFilters
-              statusFilter={statusFilter}
-              formFilter={formFilter}
-              onStatusChange={(statuses) => {
-                setStatusFilter(statuses);
-                updateUserPreferences({ agenda_status_filter: statuses }).catch(console.error);
-              }}
-              onFormChange={(filter) => {
-                setFormFilter(filter);
-                updateUserPreferences({ agenda_form_filter: filter }).catch(console.error);
-              }}
-            />
-            {services.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground hidden sm:inline">Serviço:</span>
-                <select
-                  value={filterByServiceId}
-                  onChange={(e) => setFilterByServiceId(e.target.value)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-xs min-w-[120px]"
-                >
-                  <option value="">Todos</option>
-                  {services.map((s) => (
-                    <option key={s.id} value={s.id}>{s.nome}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {(services.length > 0 || pricingDimensions.length > 0) && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground hidden sm:inline">Colorir por:</span>
-                <select
-                  value={colorBy === "dimension" ? colorByDimensionId : "status"}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "status") {
-                      setColorBy("status");
-                      setColorByDimensionId("");
-                    } else {
-                      setColorBy("dimension");
-                      setColorByDimensionId(v);
-                    }
-                  }}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-xs min-w-[120px]"
-                >
-                  <option value="status">Status</option>
-                  {pricingDimensions.map((d) => (
-                    <option key={d.id} value={d.id}>{d.nome}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+          {/* Linha 2: Filtros */}
+          <div className="h-px bg-border" aria-hidden />
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">Filtros</span>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <AgendaFilters
+                statusFilter={statusFilter}
+                formFilter={formFilter}
+                onStatusChange={(statuses) => {
+                  setStatusFilter(statuses);
+                  updateUserPreferences({ agenda_status_filter: statuses }).catch(console.error);
+                }}
+                onFormChange={(filter) => {
+                  setFormFilter(filter);
+                  updateUserPreferences({ agenda_form_filter: filter }).catch(console.error);
+                }}
+              />
+              {services.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-muted-foreground text-sm shrink-0">Serviço</Label>
+                  <select
+                    value={filterByServiceId}
+                    onChange={async (e) => {
+                      const v = e.target.value;
+                      setFilterByServiceId(v);
+                      await updateUserPreferences({ agenda_filter_by_service_id: v || undefined });
+                    }}
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[120px]"
+                  >
+                    <option value="">Todos</option>
+                    {services.map((s) => (
+                      <option key={s.id} value={s.id}>{s.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {(services.length > 0 || pricingDimensions.length > 0) && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-muted-foreground text-sm shrink-0">Colorir por</Label>
+                  <select
+                    value={colorBy === "dimension" ? colorByDimensionId : "status"}
+                    onChange={async (e) => {
+                      const v = e.target.value;
+                      if (v === "status") {
+                        setColorBy("status");
+                        setColorByDimensionId("");
+                        await updateUserPreferences({ agenda_color_by: "status", agenda_color_by_dimension_id: "" });
+                      } else {
+                        setColorBy("dimension");
+                        setColorByDimensionId(v);
+                        await updateUserPreferences({ agenda_color_by: "dimension", agenda_color_by_dimension_id: v });
+                      }
+                    }}
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[120px]"
+                  >
+                    <option value="status">Status</option>
+                    {pricingDimensions.map((d) => (
+                      <option key={d.id} value={d.id}>{d.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
