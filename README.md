@@ -15,7 +15,7 @@ npm run dev
 
 ## Deploy no Vercel
 
-Para não dar **404 NOT_FOUND**, configure o **Root Directory** do projeto no Vercel:
+Para não dar **404 NOT_FOUND**, confisgure o **Root Directory** do projeto no Vercel:
 
 1. Vercel Dashboard → seu projeto → **Settings** → **General**
 2. Em **Root Directory**, clique em **Edit**
