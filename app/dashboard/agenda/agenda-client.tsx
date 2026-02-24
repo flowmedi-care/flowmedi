@@ -866,33 +866,33 @@ export function AgendaClient({
                   <select
                     className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                     value={form.doctorId}
-            onChange={(e) => {
-              const newDoctorId = e.target.value;
-              setForm((f) => {
-                let next = { ...f, doctorId: newDoctorId };
+                    onChange={(e) => {
+                      const newDoctorId = e.target.value;
+                      setForm((f) => {
+                        let next = { ...f, doctorId: newDoctorId };
 
-                if (doctorProcedures.length && f.procedureId) {
-                  const allowed = doctorProceduresByDoctor[newDoctorId];
-                  if (!allowed || !allowed.has(f.procedureId)) {
-                    next = { ...next, procedureId: "" };
-                  }
-                }
+                        if (doctorProcedures.length && f.procedureId) {
+                          const allowed = doctorProceduresByDoctor[newDoctorId];
+                          if (!allowed || !allowed.has(f.procedureId)) {
+                            next = { ...next, procedureId: "" };
+                          }
+                        }
 
-                if (servicePriceRules.length && f.serviceId) {
-                  const { global, byDoctor } = servicesByDoctor;
-                  const specific = byDoctor[newDoctorId];
-                  const isAllowed =
-                    (specific && specific.has(f.serviceId)) ||
-                    global.has(f.serviceId);
-                  if (!isAllowed) {
-                    next = { ...next, serviceId: "", dimensionSelections: {} };
-                  }
-                }
+                        if (servicePriceRules.length && f.serviceId) {
+                          const { global, byDoctor } = servicesByDoctor;
+                          const specific = byDoctor[newDoctorId];
+                          const isAllowed =
+                            (specific && specific.has(f.serviceId)) ||
+                            global.has(f.serviceId);
+                          if (!isAllowed) {
+                            next = { ...next, serviceId: "", dimensionSelections: {} };
+                          }
+                        }
 
-                return next;
-              });
-              setResolvedValor(null);
-            }}
+                        return next;
+                      });
+                      setResolvedValor(null);
+                    }}
                     required
                   >
                     <option value="">Selecione</option>
@@ -932,7 +932,7 @@ export function AgendaClient({
                     value={form.procedureId}
                     onChange={(e) => {
                       const id = e.target.value;
-              const proc = procedures.find((p) => p.id === id);
+                      const proc = procedures.find((p) => p.id === id);
                       setForm((f) => ({
                         ...f,
                         procedureId: id,
@@ -941,7 +941,7 @@ export function AgendaClient({
                     }}
                   >
                     <option value="">Nenhum</option>
-            {availableProcedures.map((p) => (
+                    {availableProcedures.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
                       </option>
