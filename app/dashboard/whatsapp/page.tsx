@@ -20,13 +20,18 @@ export default async function WhatsAppPage() {
     redirect("/dashboard");
   }
 
-  const { data: integration } = await supabase
+  const { data: integrations } = await supabase
     .from("clinic_integrations")
-    .select("id, metadata")
+    .select("id, integration_type, metadata")
     .eq("clinic_id", profile.clinic_id)
-    .eq("integration_type", "whatsapp_simple")
+    .in("integration_type", ["whatsapp_meta", "whatsapp_simple"])
     .eq("status", "connected")
-    .single();
+    .limit(2);
+
+  const integration =
+    integrations?.find((row) => row.integration_type === "whatsapp_meta") ??
+    integrations?.find((row) => row.integration_type === "whatsapp_simple") ??
+    null;
 
   if (!integration) {
     return (
@@ -34,8 +39,8 @@ export default async function WhatsAppPage() {
         <MessageSquare className="h-12 w-12 text-muted-foreground" />
         <h2 className="text-xl font-semibold">WhatsApp não conectado</h2>
         <p className="text-muted-foreground max-w-md">
-          Conecte a integração WhatsApp Simples em Configurações para ver e enviar conversas aqui.
-          O token e o número são salvos automaticamente ao conectar.
+          Conecte o WhatsApp em Configurações para ver e enviar conversas aqui.
+          O token e o número são salvos automaticamente ao conectar via Meta.
         </p>
         <Button asChild>
           <Link href="/dashboard/configuracoes">

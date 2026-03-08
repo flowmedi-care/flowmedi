@@ -41,13 +41,13 @@ export function DashboardNav({
   profile,
   isCollapsed,
   onToggleCollapse,
-  hasWhatsAppSimple,
+  hasWhatsAppConnected,
 }: {
   user: User;
   profile: Profile;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-  hasWhatsAppSimple?: boolean;
+  hasWhatsAppConnected?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -65,7 +65,7 @@ export function DashboardNav({
   const [whatsappUnreadCount, setWhatsappUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (!hasWhatsAppSimple) return;
+    if (!hasWhatsAppConnected) return;
 
     const loadUnreadCount = async () => {
       try {
@@ -93,7 +93,7 @@ export function DashboardNav({
       clearInterval(interval);
       window.removeEventListener("whatsapp-unread-update", handleUpdate);
     };
-  }, [hasWhatsAppSimple]);
+  }, [hasWhatsAppConnected]);
 
   const navItems: { href: string; label: string; icon: React.ReactNode; roles?: string[]; badge?: number }[] = [
     { href: "/dashboard", label: "Início", icon: <LayoutDashboard className="h-4 w-4" /> },
@@ -103,7 +103,7 @@ export function DashboardNav({
     { href: "/dashboard/formularios", label: "Formulários", icon: <FileText className="h-4 w-4" /> },
     { href: "/dashboard/eventos", label: "Eventos", icon: <Bell className="h-4 w-4" />, roles: ["admin", "secretaria"] },
     { href: "/dashboard/mensagens", label: "Mensagens", icon: <Mail className="h-4 w-4" />, roles: ["admin"] },
-    ...(hasWhatsAppSimple ? [{ href: "/dashboard/whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" />, badge: whatsappUnreadCount }] : []),
+    ...(hasWhatsAppConnected ? [{ href: "/dashboard/whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" />, badge: whatsappUnreadCount }] : []),
   ];
 
   return (

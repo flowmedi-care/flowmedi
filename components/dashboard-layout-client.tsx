@@ -23,7 +23,7 @@ interface DashboardLayoutClientProps {
 export function DashboardLayoutClient({ user, profile, children }: DashboardLayoutClientProps) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [hasWhatsAppSimple, setHasWhatsAppSimple] = useState(false);
+  const [hasWhatsAppConnected, setHasWhatsAppConnected] = useState(false);
   const isWhatsAppPage = pathname === "/dashboard/whatsapp";
 
   useEffect(() => {
@@ -36,11 +36,11 @@ export function DashboardLayoutClient({ user, profile, children }: DashboardLayo
           .from("clinic_integrations")
           .select("id")
           .eq("clinic_id", profile.clinic_id)
-          .eq("integration_type", "whatsapp_simple")
+          .in("integration_type", ["whatsapp_meta", "whatsapp_simple"])
           .eq("status", "connected")
-          .maybeSingle();
+          .limit(1);
         
-        setHasWhatsAppSimple(!!data);
+        setHasWhatsAppConnected((data?.length ?? 0) > 0);
       } catch (error) {
         // Ignorar erro
       }
@@ -56,7 +56,7 @@ export function DashboardLayoutClient({ user, profile, children }: DashboardLayo
         profile={profile}
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
-        hasWhatsAppSimple={hasWhatsAppSimple}
+        hasWhatsAppConnected={hasWhatsAppConnected}
       />
       <main className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-background ${!isWhatsAppPage ? "overflow-y-auto" : ""}`}>
         {isWhatsAppPage ? (

@@ -915,8 +915,8 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
           )}
         </div>
 
-        {/* WhatsApp Simples */}
-        <div className="p-4 border rounded-lg space-y-3 min-w-0">
+        {/* WhatsApp Simples (legado) oculto */}
+        {false && <div className="p-4 border rounded-lg space-y-3 min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div className="p-2 bg-green-50 rounded-lg shrink-0">
@@ -1092,7 +1092,7 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
               )}
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Prova de uso da permissão business_management: ativos da Meta */}
         {isAnyWhatsAppConnected && (
