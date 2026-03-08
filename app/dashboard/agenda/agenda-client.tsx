@@ -23,7 +23,6 @@ import {
   useSensor,
   useSensors,
   PointerSensor,
-  closestCenter,
   pointerWithin,
   useDroppable,
 } from "@dnd-kit/core";
