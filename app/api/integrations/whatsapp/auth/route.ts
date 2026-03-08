@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
 
     const appId = process.env.META_APP_ID;
     const appSecret = process.env.META_APP_SECRET;
-    const configId = process.env.META_EMBEDDED_SIGNUP_CONFIG_ID;
+    const rawConfigId = process.env.META_EMBEDDED_SIGNUP_CONFIG_ID;
+    const configId = rawConfigId
+      ? rawConfigId.trim().replace(/^['"]+|['"]+$/g, "")
+      : "";
     const graphVersion = process.env.META_GRAPH_VERSION || "v25.0";
 
     if (!appId || !appSecret) {
