@@ -1086,8 +1086,8 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
                 </Button>
               </div>
               {registerResult && (
-                <p className={`text-sm ${registerResult.ok ? "text-green-600" : "text-destructive"}`}>
-                  {registerResult.ok ? "✓ " : ""}{registerResult.message}
+                <p className={`text-sm ${registerResult?.ok ? "text-green-600" : "text-destructive"}`}>
+                  {registerResult?.ok ? "✓ " : ""}{registerResult?.message}
                 </p>
               )}
             </div>
