@@ -942,7 +942,7 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
                 </div>
                 {whatsappSimpleIntegration?.error_message && (
                   <div className="text-xs text-destructive mt-1">
-                    {whatsappSimpleIntegration.error_message}
+                    {whatsappSimpleIntegration?.error_message}
                   </div>
                 )}
               </div>
