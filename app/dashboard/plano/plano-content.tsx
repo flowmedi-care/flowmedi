@@ -55,6 +55,16 @@ type PlanoContentProps = {
   confirmingPayment: boolean;
   loadingInvoices: boolean;
   invoices: InvoiceItem[];
+  messageStats: {
+    sentLast30Days: number;
+    post24hStartsThisMonth: number | null;
+    recentMessages: Array<{
+      id: string;
+      channel: string;
+      type: string;
+      sent_at: string;
+    }>;
+  } | null;
   cancelOpen: boolean;
   canceling: boolean;
   resuming: boolean;
@@ -118,6 +128,7 @@ export function PlanoContent(props: PlanoContentProps) {
     confirmingPayment,
     loadingInvoices,
     invoices,
+    messageStats,
     cancelOpen,
     canceling,
     resuming,
@@ -490,6 +501,7 @@ export function PlanoContent(props: PlanoContentProps) {
                   <tr className="border-b text-left">
                     <th className="pb-2 pr-4">Data</th>
                     <th className="pb-2 pr-4">Descrição</th>
+                    <th className="pb-2 pr-4">Valor</th>
                     <th className="pb-2 pr-4">Status</th>
                     <th className="pb-2" />
                   </tr>
@@ -499,6 +511,7 @@ export function PlanoContent(props: PlanoContentProps) {
                     <tr key={inv.id} className="border-b">
                       <td className="py-2 pr-4">{formatDate(inv.created)}</td>
                       <td className="py-2 pr-4">{inv.description ?? "—"}</td>
+                      <td className="py-2 pr-4">{formatMoney(inv.amount_paid, inv.currency)}</td>
                       <td className="py-2 pr-4">{invoiceStatusLabel(inv.status)}</td>
                       <td className="py-2">
                         {inv.hosted_invoice_url ? (
@@ -520,6 +533,61 @@ export function PlanoContent(props: PlanoContentProps) {
                 </tbody>
               </table>
             </div>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-medium">Histórico de mensagens enviadas</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Visão rápida de envios e custo potencial do WhatsApp fora da janela de 24h.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!messageStats ? (
+            <p className="text-sm text-muted-foreground">Sem dados disponíveis.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Mensagens enviadas (30 dias)</p>
+                  <p className="text-xl font-semibold">{messageStats.sentLast30Days}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Inícios pós-24h no mês (WhatsApp)</p>
+                  <p className="text-xl font-semibold">
+                    {messageStats.post24hStartsThisMonth === null ? "N/D" : messageStats.post24hStartsThisMonth}
+                  </p>
+                </div>
+              </div>
+
+              {messageStats.recentMessages.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma mensagem registrada ainda.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[320px]">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 pr-4">Data</th>
+                        <th className="pb-2 pr-4">Canal</th>
+                        <th className="pb-2 pr-4">Evento</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {messageStats.recentMessages.map((msg) => (
+                        <tr key={msg.id} className="border-b">
+                          <td className="py-2 pr-4">
+                            {new Date(msg.sent_at).toLocaleString("pt-BR")}
+                          </td>
+                          <td className="py-2 pr-4 capitalize">{msg.channel}</td>
+                          <td className="py-2 pr-4">{msg.type}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

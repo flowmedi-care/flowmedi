@@ -14,6 +14,14 @@ import {
 import { IntegrationsSection } from "./integrations-section";
 import { ClinicInfoTabs } from "@/components/clinic-info/clinic-info-tabs";
 
+const BRAZIL_TIMEZONE_OPTIONS = [
+  { value: "America/Sao_Paulo", label: "Brasilia: GMT+3" },
+  { value: "America/Noronha", label: "Fernando de Noronha: GMT+2" },
+  { value: "America/Manaus", label: "Manaus: GMT+4" },
+  { value: "America/Cuiaba", label: "Cuiaba: GMT+4" },
+  { value: "America/Rio_Branco", label: "Rio Branco: GMT+5" },
+];
+
 export function ConfiguracoesClient({
   clinicName,
   clinicLogoUrl,
@@ -174,12 +182,21 @@ export function ConfiguracoesClient({
             </div>
             <div className="space-y-2">
               <Label htmlFor="send_tz">Fuso horário</Label>
-              <Input
+              <select
                 id="send_tz"
                 value={timezoneInput}
                 onChange={(e) => setTimezoneInput(e.target.value)}
-                placeholder="America/Sao_Paulo"
-              />
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {!BRAZIL_TIMEZONE_OPTIONS.some((opt) => opt.value === timezoneInput) && (
+                  <option value={timezoneInput}>{`Atual: ${timezoneInput}`}</option>
+                )}
+                {BRAZIL_TIMEZONE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

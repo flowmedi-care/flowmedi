@@ -21,6 +21,16 @@ type PlanInfo = {
   proStripePriceId: string | null;
   selectedPlanSlug?: string | null;
   upgradePlans?: UpgradePlan[];
+  messageStats?: {
+    sentLast30Days: number;
+    post24hStartsThisMonth: number | null;
+    recentMessages: Array<{
+      id: string;
+      channel: string;
+      type: string;
+      sent_at: string;
+    }>;
+  };
 };
 
 type InvoiceItem = {
@@ -530,6 +540,7 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       confirmingPayment={confirmingPayment}
       loadingInvoices={loadingInvoices}
       invoices={invoices}
+      messageStats={plan.messageStats ?? null}
       cancelOpen={cancelOpen}
       canceling={canceling}
       resuming={resuming}

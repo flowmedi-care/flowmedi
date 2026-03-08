@@ -134,6 +134,13 @@ export async function POST(request: NextRequest) {
           waba_id: wabaId,
           phone_number_id: phoneNumberId,
           embedded_signup_event: pickString(body.sessionInfo?.event),
+          whatsapp_billing_status: "pending",
+          whatsapp_billing_has_payment_method: null,
+          whatsapp_billing_last_checked_at: null,
+          whatsapp_billing_manage_url: wabaId
+            ? `https://business.facebook.com/latest/whatsapp_manager/waba/?waba_id=${encodeURIComponent(wabaId)}`
+            : "https://business.facebook.com/settings/whatsapp-business-accounts",
+          whatsapp_billing_last_error: null,
         },
         connected_at: new Date().toISOString(),
         last_sync_at: new Date().toISOString(),

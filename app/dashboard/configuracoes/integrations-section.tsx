@@ -31,7 +31,17 @@ interface Integration {
   id: string;
   integration_type: "email_google" | "whatsapp_meta" | "whatsapp_simple";
   status: "pending" | "connected" | "error" | "disconnected";
-  metadata: { email?: string; phone?: string; phone_number_id?: string };
+  metadata: {
+    email?: string;
+    phone?: string;
+    phone_number_id?: string;
+    waba_id?: string;
+    whatsapp_billing_status?: "configured" | "pending" | "unknown";
+    whatsapp_billing_has_payment_method?: boolean | null;
+    whatsapp_billing_last_checked_at?: string;
+    whatsapp_billing_manage_url?: string;
+    whatsapp_billing_last_error?: string | null;
+  };
   connected_at: string | null;
   last_sync_at: string | null;
   error_message: string | null;
@@ -107,6 +117,8 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
   const [metaAssetsError, setMetaAssetsError] = useState<string | null>(null);
   const [metaSdkReady, setMetaSdkReady] = useState(false);
   const metaSessionInfoRef = useRef<Record<string, unknown> | null>(null);
+  const [billingCheckLoading, setBillingCheckLoading] = useState(false);
+  const [billingCheckMessage, setBillingCheckMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadIntegrations();
@@ -419,6 +431,26 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
     }
   }
 
+  async function checkWhatsAppBillingStatus() {
+    setBillingCheckLoading(true);
+    setBillingCheckMessage(null);
+    setErrorMessage(null);
+    try {
+      const res = await fetch("/api/integrations/whatsapp/billing-status");
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMessage(data.error || "Erro ao verificar cobrança no Meta.");
+        return;
+      }
+      setBillingCheckMessage(data.message || "Status de cobrança atualizado.");
+      await loadIntegrations();
+    } catch {
+      setErrorMessage("Erro de conexão ao verificar cobrança no Meta.");
+    } finally {
+      setBillingCheckLoading(false);
+    }
+  }
+
   async function disconnectWhatsApp() {
     if (!confirm("Tem certeza que deseja desconectar a conta do WhatsApp? Você não poderá mais enviar mensagens até reconectar.")) {
       return;
@@ -661,6 +693,11 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
             {errorMessage}
           </div>
         )}
+        {billingCheckMessage && (
+          <div className="p-3 rounded-md bg-blue-50 text-blue-700 text-sm">
+            {billingCheckMessage}
+          </div>
+        )}
 
         {/* Google Email */}
         <div className="p-4 border rounded-lg space-y-3 min-w-0">
@@ -817,6 +854,78 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
               )}
             </div>
           </div>
+
+          {(whatsappIntegration?.status === "connected" || whatsappIntegration?.status === "pending") && (
+            <div className="pt-3 border-t border-border space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Label className="text-sm font-medium">Cobrança da conta Meta</Label>
+                {whatsappIntegration.metadata?.whatsapp_billing_status === "configured" && (
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    Pagamento configurado
+                  </Badge>
+                )}
+                {whatsappIntegration.metadata?.whatsapp_billing_status === "pending" && (
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                    Pendência de pagamento
+                  </Badge>
+                )}
+                {(!whatsappIntegration.metadata?.whatsapp_billing_status ||
+                  whatsappIntegration.metadata?.whatsapp_billing_status === "unknown") && (
+                  <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                    Status não confirmado
+                  </Badge>
+                )}
+              </div>
+
+              {whatsappIntegration.metadata?.whatsapp_billing_status === "pending" && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  O WhatsApp foi conectado, mas ainda não identificamos forma de pagamento ativa na Meta.
+                </div>
+              )}
+
+              {whatsappIntegration.metadata?.whatsapp_billing_last_error && (
+                <p className="text-xs text-destructive">
+                  {whatsappIntegration.metadata.whatsapp_billing_last_error}
+                </p>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={checkWhatsAppBillingStatus}
+                  disabled={billingCheckLoading}
+                >
+                  {billingCheckLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Verificando...
+                    </>
+                  ) : (
+                    "Verificar pagamento"
+                  )}
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  asChild
+                >
+                  <a
+                    href={
+                      whatsappIntegration.metadata?.whatsapp_billing_manage_url ||
+                      "https://business.facebook.com/settings/whatsapp-business-accounts"
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Abrir cobrança no Meta
+                  </a>
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Campo para informar Phone Number ID quando conectado mas sem número */}
           {(whatsappIntegration?.status === "connected" || whatsappIntegration?.status === "pending") && !whatsappIntegration?.metadata?.phone_number_id && (

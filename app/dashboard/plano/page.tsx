@@ -54,6 +54,37 @@ export default async function PlanoPage({
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+
+  const [messageCountRes, recentMessagesRes, post24hUsageRes] = await Promise.all([
+    supabase
+      .from("message_log")
+      .select("id", { count: "exact", head: true })
+      .eq("clinic_id", profile.clinic_id)
+      .gte("sent_at", thirtyDaysAgo),
+    supabase
+      .from("message_log")
+      .select("id, channel, type, sent_at")
+      .eq("clinic_id", profile.clinic_id)
+      .order("sent_at", { ascending: false })
+      .limit(20),
+    supabase
+      .from("whatsapp_post24h_usage")
+      .select("id", { count: "exact", head: true })
+      .eq("clinic_id", profile.clinic_id)
+      .gte("created_at", monthStart.toISOString()),
+  ]);
+
+  const recentMessages = (recentMessagesRes.data ?? []).map((row) => ({
+    id: row.id as string,
+    channel: String(row.channel ?? ""),
+    type: String(row.type ?? ""),
+    sent_at: String(row.sent_at ?? ""),
+  }));
+
   const planInfo = {
     planName: planRow?.name ?? "Starter",
     planSlug: planRow?.slug ?? "starter",
@@ -62,6 +93,14 @@ export default async function PlanoPage({
     proStripePriceId: proPlan?.stripe_price_id ?? null,
     selectedPlanSlug,
     upgradePlans: upgradePlans ?? [],
+    messageStats: {
+      sentLast30Days: messageCountRes.count ?? 0,
+      post24hStartsThisMonth:
+        post24hUsageRes.error?.message?.includes("does not exist")
+          ? null
+          : (post24hUsageRes.count ?? 0),
+      recentMessages,
+    },
   };
 
   return (
