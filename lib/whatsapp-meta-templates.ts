@@ -169,18 +169,18 @@ export function getMetaTemplateParams(
             : phrase;
       return {
         template: "flowmedi_consulta",
-        params: [nome, mensagemCompleta, clinica],
+        params: [nome, mensagemCompleta],
       };
     }
     case "flowmedi_formulario":
       return {
         template: "flowmedi_formulario",
-        params: [nome, instrucao || phrase || "Acesse o link enviado anteriormente.", clinica],
+        params: [nome, instrucao || phrase || "Acesse o link enviado anteriormente."],
       };
     case "flowmedi_aviso":
       return {
         template: "flowmedi_aviso",
-        params: [nome, phrase, clinica],
+        params: [nome, phrase],
       };
     default:
       return undefined;

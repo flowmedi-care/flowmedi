@@ -1015,13 +1015,13 @@ export async function getMessagePreview(
         const { getMetaTemplateParams } = await import("@/lib/whatsapp-meta-templates");
         const meta = getMetaTemplateParams(event.event_code, context, template.whatsapp_meta_phrase);
         if (meta) {
-          const [nome, msg, clinica] = meta.params;
+          const [nome, msg] = meta.params;
           if (meta.template === "flowmedi_formulario") {
-            body = `Olá ${nome}!\n\nPrecisamos que você preencha o formulário antes da sua consulta. Acesse o link abaixo para preencher:\n\n${msg}\n\nObrigado por nos ajudar a preparar seu atendimento. Atenciosamente, ${clinica}`;
+            body = `Olá ${nome}!\n\nPrecisamos que você preencha um formulário da clínica:\n\n${msg}\n\nObrigado pelo apoio.`;
           } else if (meta.template === "flowmedi_aviso") {
-            body = `Olá ${nome}!\n\n${msg}\n\nEstamos à disposição para qualquer dúvida. Atenciosamente, ${clinica}`;
+            body = `Olá ${nome}!\n\n${msg}\n\nEstamos à disposição para qualquer dúvida.`;
           } else {
-            body = `Olá ${nome}!\n\nTemos uma mensagem importante sobre sua consulta médica:\n\n${msg}\n\nPara qualquer dúvida, entre em contato conosco. Atenciosamente, ${clinica}`;
+            body = `Olá ${nome}!\n\nTemos uma mensagem importante sobre sua consulta:\n\n${msg}\n\nSe precisar, responda esta mensagem.`;
           }
         }
       }

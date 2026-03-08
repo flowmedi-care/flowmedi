@@ -104,6 +104,24 @@ function toMetaTemplateStatus(status: string | undefined): WhatsAppTemplateRevie
   }
 }
 
+function buildBodyTextExample(bodyText: string): string[][] {
+  const matches = bodyText.match(/\{\{\d+\}\}/g) ?? [];
+  const count = Math.min(Math.max(matches.length, 1), 10);
+  const sampleValues = [
+    "Paciente",
+    "Mensagem da clínica",
+    "Equipe da clínica",
+    "Informação adicional",
+    "Detalhe",
+    "Complemento",
+    "Contexto",
+    "Aviso",
+    "Instrução",
+    "Final",
+  ];
+  return [sampleValues.slice(0, count)];
+}
+
 export async function submitTemplateForApproval(
   clinicId: string,
   options: SubmitTemplateOptions,
@@ -146,7 +164,7 @@ export async function submitTemplateForApproval(
             type: "BODY",
             text: templateBody,
             example: {
-              body_text: [["Paciente", "Mensagem da clínica", "Equipe Flowmedi"]],
+              body_text: buildBodyTextExample(templateBody),
             },
           },
         ],
@@ -259,7 +277,7 @@ export async function createMetaTemplate(
             type: "BODY",
             text: options.bodyText,
             example: {
-              body_text: [["Paciente", "Mensagem da clínica", "Equipe Flowmedi"]],
+              body_text: buildBodyTextExample(options.bodyText),
             },
           },
         ],
