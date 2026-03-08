@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { fetchTemplateStatus, submitTemplateForApproval, type WhatsAppTemplateReviewStatus } from "@/lib/comunicacao/whatsapp";
 
 // ========== TIPOS ==========
 
@@ -34,9 +35,32 @@ export type MessageTemplate = {
   variables_used: string[];
   is_active: boolean;
   is_default: boolean;
+  whatsapp_meta_phrase?: string | null;
+  whatsapp_meta_template_name?: string | null;
+  whatsapp_meta_template_id?: string | null;
+  whatsapp_meta_status?: WhatsAppTemplateReviewStatus | null;
+  whatsapp_meta_last_error?: string | null;
+  whatsapp_meta_submitted_at?: string | null;
+  whatsapp_meta_synced_at?: string | null;
   created_at: string;
   updated_at: string;
 };
+
+function stripHtmlToText(input: string): string {
+  return input
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<p[^>]*>/gi, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function buildMetaTemplateBody(templateText: string): string {
+  // Mantém formato simples e estável para aprovação no Meta
+  return `Olá {{1}}!\n\n${templateText || "{{2}}"}\n\n{{3}}`;
+}
 
 export type ClinicMessageSetting = {
   id: string;
@@ -368,6 +392,58 @@ export async function getMessageTemplate(
   return { data: data as MessageTemplate, error: null };
 }
 
+async function submitWhatsAppTemplateAndPersistStatus(
+  clinicId: string,
+  templateId: string,
+  bodyHtml: string,
+  whatsappMetaPhrase: string | null,
+  supabaseClient: Awaited<ReturnType<typeof createClient>>
+): Promise<{ error: string | null }> {
+  const templateText = (whatsappMetaPhrase?.trim() || stripHtmlToText(bodyHtml) || "{{2}}").slice(0, 900);
+  const templateBodyText = buildMetaTemplateBody(templateText);
+  const submit = await submitTemplateForApproval(
+    clinicId,
+    {
+      templateRecordId: templateId,
+      templateBodyText,
+    },
+    supabaseClient
+  );
+
+  if (!submit.success) {
+    await supabaseClient
+      .from("message_templates")
+      .update({
+        whatsapp_meta_status: "REJECTED",
+        whatsapp_meta_last_error: submit.error || "Falha ao submeter template para Meta.",
+        whatsapp_meta_synced_at: new Date().toISOString(),
+      })
+      .eq("id", templateId)
+      .eq("clinic_id", clinicId);
+    return { error: submit.error || "Falha ao submeter template para Meta." };
+  }
+
+  const nowIso = new Date().toISOString();
+  const { error: updateError } = await supabaseClient
+    .from("message_templates")
+    .update({
+      whatsapp_meta_template_name: submit.templateName ?? null,
+      whatsapp_meta_template_id: submit.templateId ?? null,
+      whatsapp_meta_status: submit.status ?? "PENDING",
+      whatsapp_meta_last_error: null,
+      whatsapp_meta_submitted_at: nowIso,
+      whatsapp_meta_synced_at: nowIso,
+    })
+    .eq("id", templateId)
+    .eq("clinic_id", clinicId);
+
+  if (updateError) {
+    return { error: updateError.message };
+  }
+
+  return { error: null };
+}
+
 // ========== CRIAR TEMPLATE ==========
 
 export async function createMessageTemplate(
@@ -421,6 +497,23 @@ export async function createMessageTemplate(
     .single();
 
   if (error) return { data: null, error: error.message };
+
+  if (channel === "whatsapp") {
+    const approval = await submitWhatsAppTemplateAndPersistStatus(
+      profile.clinic_id,
+      data.id,
+      bodyHtml,
+      whatsappMetaPhrase,
+      supabase
+    );
+    if (approval.error) {
+      return {
+        data: data as MessageTemplate,
+        error: `Template salvo, mas falhou ao solicitar aprovação na Meta: ${approval.error}`,
+      };
+    }
+  }
+
   revalidatePath("/dashboard/mensagens");
   return { data: data as MessageTemplate, error: null };
 }
@@ -511,8 +604,26 @@ export async function updateMessageTemplate(
     .single();
 
   if (error) return { data: null, error: error.message };
+
+  const updatedTemplate = data as MessageTemplate;
+  if (updatedTemplate.channel === "whatsapp") {
+    const approval = await submitWhatsAppTemplateAndPersistStatus(
+      profile.clinic_id,
+      id,
+      bodyHtml,
+      whatsappMetaPhrase ?? null,
+      supabase
+    );
+    if (approval.error) {
+      return {
+        data: updatedTemplate,
+        error: `Template atualizado, mas falhou ao solicitar aprovação na Meta: ${approval.error}`,
+      };
+    }
+  }
+
   revalidatePath("/dashboard/mensagens");
-  return { data: data as MessageTemplate, error: null };
+  return { data: updatedTemplate, error: null };
 }
 
 // ========== DESATIVAR TEMPLATE ==========
@@ -541,6 +652,59 @@ export async function deactivateMessageTemplate(
   if (error) return { error: error.message };
   revalidatePath("/dashboard/mensagens");
   return { error: null };
+}
+
+export async function refreshWhatsAppTemplateStatus(
+  id: string
+): Promise<{ status: WhatsAppTemplateReviewStatus | null; error: string | null }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { status: null, error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { status: null, error: "Clínica não encontrada." };
+
+  const { data: tpl, error: fetchError } = await supabase
+    .from("message_templates")
+    .select("id, whatsapp_meta_template_id, whatsapp_meta_status")
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id)
+    .single();
+  if (fetchError || !tpl) return { status: null, error: "Template não encontrado." };
+
+  if (!tpl.whatsapp_meta_template_id) {
+    return { status: null, error: "Template ainda não foi submetido ao Meta." };
+  }
+
+  const remote = await fetchTemplateStatus(profile.clinic_id, tpl.whatsapp_meta_template_id, supabase);
+  if (!remote.success || !remote.status) {
+    await supabase
+      .from("message_templates")
+      .update({
+        whatsapp_meta_last_error: remote.error || "Falha ao sincronizar status no Meta.",
+        whatsapp_meta_synced_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("clinic_id", profile.clinic_id);
+    return { status: (tpl.whatsapp_meta_status as WhatsAppTemplateReviewStatus | null) ?? null, error: remote.error || "Falha ao sincronizar status no Meta." };
+  }
+
+  await supabase
+    .from("message_templates")
+    .update({
+      whatsapp_meta_status: remote.status,
+      whatsapp_meta_last_error: null,
+      whatsapp_meta_synced_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id);
+
+  revalidatePath("/dashboard/mensagens/templates");
+  return { status: remote.status, error: null };
 }
 
 // ========== BUSCAR CONFIGURAÇÕES DA CLÍNICA ==========

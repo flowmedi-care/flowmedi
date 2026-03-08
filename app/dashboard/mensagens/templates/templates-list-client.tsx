@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Mail, MessageSquare, Edit, Trash2, Copy } from "lucide-react";
-import { deactivateMessageTemplate, createMessageTemplateFromSystem, type EffectiveTemplateItem, type MessageTemplate } from "../actions";
+import { Badge } from "@/components/ui/badge";
+import { Mail, MessageSquare, Edit, Trash2, Copy, RefreshCcw } from "lucide-react";
+import { deactivateMessageTemplate, createMessageTemplateFromSystem, refreshWhatsAppTemplateStatus, type EffectiveTemplateItem, type MessageTemplate } from "../actions";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -28,6 +29,7 @@ export function TemplatesListClient({
   const router = useRouter();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [usingSystemId, setUsingSystemId] = useState<string | null>(null);
+  const [syncingStatusId, setSyncingStatusId] = useState<string | null>(null);
 
   async function handleDelete(id: string) {
     if (!confirm("Tem certeza que deseja desativar este template?")) return;
@@ -49,6 +51,22 @@ export function TemplatesListClient({
     }
     if (res.data?.id) router.push(`/dashboard/mensagens/templates/${res.data.id}/editar`);
     else router.refresh();
+  }
+
+  async function handleRefreshWhatsAppStatus(id: string) {
+    setSyncingStatusId(id);
+    const result = await refreshWhatsAppTemplateStatus(id);
+    setSyncingStatusId(null);
+    if (result.error) alert(`Erro ao sincronizar status: ${result.error}`);
+    router.refresh();
+  }
+
+  function renderMetaStatusBadge(status: string | null | undefined) {
+    const normalized = (status || "PENDING").toUpperCase();
+    if (normalized === "APPROVED") return <Badge className="bg-emerald-600 hover:bg-emerald-600">Meta: Approved</Badge>;
+    if (normalized === "REJECTED") return <Badge variant="destructive">Meta: Rejected</Badge>;
+    if (normalized === "DISABLED" || normalized === "PAUSED") return <Badge variant="secondary">Meta: {normalized}</Badge>;
+    return <Badge variant="outline">Meta: {normalized}</Badge>;
   }
 
   return (
@@ -75,6 +93,27 @@ export function TemplatesListClient({
                   {CHANNEL_ICONS[t.channel]}
                   {CHANNEL_LABELS[t.channel]} · {t.event_code}
                 </div>
+                {t.channel === "whatsapp" && (
+                  <div className="mt-2 flex items-center gap-2">
+                    {renderMetaStatusBadge((t as MessageTemplate).whatsapp_meta_status)}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => handleRefreshWhatsAppStatus(t.id)}
+                      disabled={syncingStatusId === t.id}
+                    >
+                      <RefreshCcw className="h-3 w-3 mr-1" />
+                      {syncingStatusId === t.id ? "Sincronizando" : "Atualizar status"}
+                    </Button>
+                  </div>
+                )}
+                {t.channel === "whatsapp" && (t as MessageTemplate).whatsapp_meta_last_error && (
+                  <p className="text-xs text-destructive mt-2 line-clamp-2">
+                    {(t as MessageTemplate).whatsapp_meta_last_error}
+                  </p>
+                )}
                 {t.subject && (
                   <p className="text-sm text-muted-foreground mt-2">
                     <strong>Assunto:</strong> {t.subject}

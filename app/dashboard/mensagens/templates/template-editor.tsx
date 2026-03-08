@@ -435,7 +435,7 @@ export function TemplateEditor({
                   className="font-mono text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Mensagem enviada via template aprovado na Meta quando a janela de 24h está fechada. Você pode personalizar apenas o texto da mensagem principal.
+                  Ao salvar, este template WhatsApp é enviado automaticamente para aprovação na Meta (por clínica). Fora da janela de 24h, o envio só ocorre com status APPROVED.
                 </p>
               </div>
             )}

@@ -425,14 +425,67 @@ export async function sendMessage(
       // - Ticket fechado/completed + checkbox marcada: não deveria chegar aqui (já bloqueado acima)
       const useTextMessage = !whatsappTicketStatus || whatsappTicketStatus === "open";
       const canUseTemplate = whatsappTicketStatus && whatsappTicketStatus !== "open" && !sendOnlyWhenTicketOpen;
-      
-      // Se ticket fechado e pode usar template, usar template Meta aprovado
-      // Mapeamento event_code → flowmedi_consulta | flowmedi_formulario | flowmedi_aviso
-      const metaTemplate = canUseTemplate
-        ? (await import("@/lib/whatsapp-meta-templates")).getMetaTemplateParams(eventCode, variables, whatsappMetaPhrase)
-        : undefined;
-      const templateName = metaTemplate?.template;
-      const templateParams = metaTemplate?.params;
+
+      let templateName: string | undefined;
+      let templateParams: string[] | undefined;
+
+      if (canUseTemplate) {
+        if (!templateId) {
+          return {
+            success: false,
+            error:
+              "Envio fora da janela de 24h exige template WhatsApp da clínica aprovado na Meta. Selecione e salve um template customizado.",
+          };
+        }
+
+        const { data: templateMeta } = await supabase
+          .from("message_templates")
+          .select("whatsapp_meta_template_name, whatsapp_meta_template_id, whatsapp_meta_status, whatsapp_meta_last_error")
+          .eq("id", templateId)
+          .eq("clinic_id", clinicId)
+          .single();
+
+        if (!templateMeta?.whatsapp_meta_template_id || !templateMeta?.whatsapp_meta_template_name) {
+          return {
+            success: false,
+            error:
+              "Template WhatsApp ainda não foi submetido na Meta. Salve novamente o template para solicitar aprovação.",
+          };
+        }
+
+        let currentStatus = (templateMeta.whatsapp_meta_status || "PENDING").toUpperCase();
+        if (currentStatus !== "APPROVED") {
+          const { fetchTemplateStatus } = await import("@/lib/comunicacao/whatsapp");
+          const statusResult = await fetchTemplateStatus(clinicId, templateMeta.whatsapp_meta_template_id, supabase);
+          if (statusResult.success && statusResult.status) {
+            currentStatus = statusResult.status;
+            await supabase
+              .from("message_templates")
+              .update({
+                whatsapp_meta_status: statusResult.status,
+                whatsapp_meta_last_error: null,
+                whatsapp_meta_synced_at: new Date().toISOString(),
+              })
+              .eq("id", templateId)
+              .eq("clinic_id", clinicId);
+          }
+        }
+
+        if (currentStatus !== "APPROVED") {
+          return {
+            success: false,
+            error: `Template WhatsApp sem aprovação na Meta (status: ${currentStatus}).`,
+          };
+        }
+
+        const patientName = String((variables as { nome_paciente?: string }).nome_paciente || "Paciente").slice(0, 256);
+        const clinicName = String((variables as { nome_clinica?: string }).nome_clinica || "Equipe Flowmedi").slice(0, 256);
+        const mainMessage = (extractTextFromHtml(body) || whatsappMetaPhrase || "Mensagem da clínica")
+          .slice(0, 900);
+
+        templateName = templateMeta.whatsapp_meta_template_name;
+        templateParams = [patientName, mainMessage, clinicName];
+      }
       
       sendResult = await sendWhatsApp(
         clinicId, 
@@ -630,30 +683,17 @@ async function sendWhatsApp(
         text: textMessage,
       }, true, supabaseClient);
     } else if (templateName && templateParams) {
-      // Ticket fechado: tentar usar template Meta
-      // Se falhar, tentar texto como fallback
+      // Ticket fechado: usar somente template Meta aprovado
       result = await sendWhatsAppMessage(clinicId, {
         to: toInternational,
         template: templateName,
         templateParams: templateParams,
       }, true, supabaseClient);
-      
-      // Se template falhar (não existe ou não aprovado), tentar texto como fallback
-      if (!result.success && result.error?.includes("template")) {
-        const textMessage = extractTextFromHtml(message);
-        result = await sendWhatsAppMessage(clinicId, {
-          to: toInternational,
-          text: textMessage,
-        }, true, supabaseClient);
-      }
     } else {
-      // Se não tem template configurado e ticket fechado, tentar texto mesmo
-      // (pode falhar se estiver fora da janela de 24h, mas é melhor que não tentar)
-      const textMessage = extractTextFromHtml(message);
-      result = await sendWhatsAppMessage(clinicId, {
-        to: toInternational,
-        text: textMessage,
-      }, true, supabaseClient);
+      return {
+        success: false,
+        error: "Template Meta obrigatório para envio fora da janela de 24h.",
+      };
     }
 
     if (!result.success) {

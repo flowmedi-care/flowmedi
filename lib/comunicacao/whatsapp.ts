@@ -8,6 +8,19 @@ interface WhatsAppOptions {
   text?: string; // Mensagem de texto simples (para mensagens iniciadas pelo usuário)
 }
 
+export type WhatsAppTemplateReviewStatus =
+  | "APPROVED"
+  | "IN_REVIEW"
+  | "REJECTED"
+  | "PAUSED"
+  | "DISABLED"
+  | "PENDING";
+
+interface SubmitTemplateOptions {
+  templateRecordId: string;
+  templateBodyText: string;
+}
+
 /**
  * Obtém as credenciais do WhatsApp/Meta para uma clínica
  * Tenta primeiro whatsapp_simple, depois whatsapp_meta (coexistência)
@@ -51,6 +64,145 @@ async function getWhatsAppCredentials(clinicId: string, preferSimple = true, sup
     phoneNumberId: (integration.metadata as { phone_number_id?: string })?.phone_number_id,
     wabaId: (integration.metadata as { waba_id?: string })?.waba_id,
   };
+}
+
+function sanitizeMetaTemplateName(rawName: string): string {
+  return rawName
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 180);
+}
+
+function toMetaTemplateStatus(status: string | undefined): WhatsAppTemplateReviewStatus {
+  switch ((status || "").toUpperCase()) {
+    case "APPROVED":
+      return "APPROVED";
+    case "REJECTED":
+      return "REJECTED";
+    case "PAUSED":
+      return "PAUSED";
+    case "DISABLED":
+      return "DISABLED";
+    case "IN_REVIEW":
+      return "IN_REVIEW";
+    default:
+      return "PENDING";
+  }
+}
+
+export async function submitTemplateForApproval(
+  clinicId: string,
+  options: SubmitTemplateOptions,
+  supabaseClient?: SupabaseClient
+): Promise<{
+  success: boolean;
+  templateName?: string;
+  templateId?: string;
+  status?: WhatsAppTemplateReviewStatus;
+  error?: string;
+}> {
+  try {
+    const { credentials, wabaId } = await getWhatsAppCredentials(clinicId, true, supabaseClient);
+    if (!wabaId) {
+      return { success: false, error: "WABA ID não encontrado na integração WhatsApp." };
+    }
+
+    const clinicSuffix = clinicId.replace(/-/g, "").slice(0, 10);
+    const templateSuffix = options.templateRecordId.replace(/-/g, "").slice(0, 10);
+    const versionSuffix = Date.now().toString(36);
+    const templateName = sanitizeMetaTemplateName(
+      `flowmedi_${clinicSuffix}_${templateSuffix}_${versionSuffix}`
+    );
+
+    const templateBody = options.templateBodyText?.trim() || "Olá {{1}}! {{2}} {{3}}";
+    const createUrl = `https://graph.facebook.com/v23.0/${wabaId}/message_templates`;
+    const response = await fetch(createUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${credentials.access_token}`,
+      },
+      body: JSON.stringify({
+        name: templateName,
+        category: "UTILITY",
+        language: "pt_BR",
+        parameter_format: "POSITIONAL",
+        components: [
+          {
+            type: "BODY",
+            text: templateBody,
+            example: {
+              body_text: [["Paciente", "Mensagem da clínica", "Equipe Flowmedi"]],
+            },
+          },
+        ],
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data?.error?.message || "Erro ao submeter template para aprovação na Meta.",
+      };
+    }
+
+    return {
+      success: true,
+      templateName,
+      templateId: data?.id ? String(data.id) : undefined,
+      status: toMetaTemplateStatus(data?.status),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Erro desconhecido ao submeter template para aprovação.",
+    };
+  }
+}
+
+export async function fetchTemplateStatus(
+  clinicId: string,
+  templateId: string,
+  supabaseClient?: SupabaseClient
+): Promise<{
+  success: boolean;
+  status?: WhatsAppTemplateReviewStatus;
+  error?: string;
+}> {
+  try {
+    const { credentials } = await getWhatsAppCredentials(clinicId, true, supabaseClient);
+    const url = `https://graph.facebook.com/v23.0/${templateId}?fields=status`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${credentials.access_token}`,
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data?.error?.message || "Erro ao consultar status do template na Meta.",
+      };
+    }
+    return {
+      success: true,
+      status: toMetaTemplateStatus(data?.status),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Erro desconhecido ao consultar status do template.",
+    };
+  }
 }
 
 /**
