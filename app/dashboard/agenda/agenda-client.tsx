@@ -635,7 +635,7 @@ export function AgendaClient({
             if (doctors.length === 1) {
               setForm((f) => ({ ...f, doctorId: doctors[0].id }));
             }
-          }}
+          }
         >
           <Plus className="h-4 w-4 mr-2" />
           Nova consulta
@@ -2134,3 +2134,4 @@ function AppointmentListItem({
     </li>
   );
 }
+
