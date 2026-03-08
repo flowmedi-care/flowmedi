@@ -377,6 +377,33 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
           override_default_response_type: true,
           extras:
             extras || {
+              setup: {
+                business: {
+                  id: null,
+                  name: null,
+                  email: null,
+                  phone: { code: null, number: null },
+                  website: null,
+                  address: {
+                    streetAddress1: null,
+                    streetAddress2: null,
+                    city: null,
+                    state: null,
+                    zipPostal: null,
+                    country: null,
+                  },
+                  timezone: null,
+                },
+                phone: {
+                  displayName: null,
+                  category: null,
+                  description: null,
+                },
+                preVerifiedPhone: { ids: null },
+                solutionID: null,
+                whatsAppBusinessAccount: { ids: null },
+              },
+              sessionInfoVersion: "3",
               version: "v3",
               featureType: "whatsapp_business_app_onboarding",
               features: [{ name: "marketing_messages_lite" }, { name: "app_only_install" }],

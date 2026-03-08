@@ -45,6 +45,39 @@ export async function GET(request: NextRequest) {
       "business_management",
     ];
 
+    const embeddedExtras = {
+      setup: {
+        business: {
+          id: null,
+          name: null,
+          email: null,
+          phone: { code: null, number: null },
+          website: null,
+          address: {
+            streetAddress1: null,
+            streetAddress2: null,
+            city: null,
+            state: null,
+            zipPostal: null,
+            country: null,
+          },
+          timezone: null,
+        },
+        phone: {
+          displayName: null,
+          category: null,
+          description: null,
+        },
+        preVerifiedPhone: { ids: null },
+        solutionID: null,
+        whatsAppBusinessAccount: { ids: null },
+      },
+      featureType: "whatsapp_business_app_onboarding",
+      sessionInfoVersion: "3",
+      version: "v3",
+      features: [{ name: "marketing_messages_lite" }, { name: "app_only_install" }],
+    };
+
     // URL fallback (sem SDK) para depuração, mantendo o fluxo oficial de code exchange.
     const authUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
     authUrl.searchParams.set("client_id", appId);
@@ -54,14 +87,7 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("override_default_response_type", "true");
     authUrl.searchParams.set("config_id", configId);
-    authUrl.searchParams.set(
-      "extras",
-      JSON.stringify({
-        version: "v3",
-        featureType: "whatsapp_business_app_onboarding",
-        features: [{ name: "marketing_messages_lite" }, { name: "app_only_install" }],
-      })
-    );
+    authUrl.searchParams.set("extras", JSON.stringify(embeddedExtras));
 
     return NextResponse.json({
       authUrl: authUrl.toString(),
@@ -69,11 +95,7 @@ export async function GET(request: NextRequest) {
         appId,
         configId,
         graphVersion,
-        extras: {
-          version: "v3",
-          featureType: "whatsapp_business_app_onboarding",
-          features: [{ name: "marketing_messages_lite" }, { name: "app_only_install" }],
-        },
+        extras: embeddedExtras,
       },
     });
   } catch (error) {
