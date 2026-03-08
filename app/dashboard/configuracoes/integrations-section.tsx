@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Mail, Loader2, ExternalLink, AlertCircle, HelpCircle } from "lucide-react";
+import { CheckCircle2, Mail, Loader2, ExternalLink, AlertCircle, HelpCircle, Building2, RefreshCcw } from "lucide-react";
 
 interface Integration {
   id: string;
@@ -17,6 +17,35 @@ interface Integration {
   connected_at: string | null;
   last_sync_at: string | null;
   error_message: string | null;
+}
+
+interface MetaPhoneNumberAsset {
+  id: string;
+  display_phone_number?: string;
+  verified_name?: string;
+  quality_rating?: string;
+  code_verification_status?: string;
+  status?: string;
+}
+
+interface MetaWabaAsset {
+  id: string;
+  name: string;
+  phone_numbers: MetaPhoneNumberAsset[];
+}
+
+interface MetaBusinessAsset {
+  id: string;
+  name: string;
+  verification_status?: string;
+  wabas: MetaWabaAsset[];
+}
+
+interface MetaAssetsResponse {
+  integration_type: "whatsapp_simple" | "whatsapp_meta";
+  selected_waba_id: string | null;
+  selected_phone_number_id: string | null;
+  businesses: MetaBusinessAsset[];
 }
 
 interface IntegrationsSectionProps {
@@ -45,6 +74,9 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
   const [simplePhoneIdError, setSimplePhoneIdError] = useState<string | null>(null);
   const [discoveringPhoneId, setDiscoveringPhoneId] = useState(false);
   const autoDiscoverAttemptedRef = useRef(false);
+  const [metaAssets, setMetaAssets] = useState<MetaAssetsResponse | null>(null);
+  const [metaAssetsLoading, setMetaAssetsLoading] = useState(false);
+  const [metaAssetsError, setMetaAssetsError] = useState<string | null>(null);
 
   useEffect(() => {
     loadIntegrations();
@@ -105,6 +137,26 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
       console.error("Erro ao carregar integrações:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadMetaAssets() {
+    setMetaAssetsLoading(true);
+    setMetaAssetsError(null);
+    try {
+      const res = await fetch("/api/integrations/whatsapp/meta-assets");
+      const data = await res.json();
+      if (!res.ok) {
+        setMetaAssets(null);
+        setMetaAssetsError(data.error || "Não foi possível carregar ativos da Meta.");
+        return;
+      }
+      setMetaAssets(data as MetaAssetsResponse);
+    } catch {
+      setMetaAssetsError("Erro de conexão ao carregar ativos da Meta.");
+      setMetaAssets(null);
+    } finally {
+      setMetaAssetsLoading(false);
     }
   }
 
@@ -357,6 +409,22 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
 
   const googleIntegration = integrations.find((i) => i.integration_type === "email_google");
   const whatsappIntegration = integrations.find((i) => i.integration_type === "whatsapp_meta");
+  const isAnyWhatsAppConnected = integrations.some(
+    (i) =>
+      (i.integration_type === "whatsapp_meta" || i.integration_type === "whatsapp_simple") &&
+      i.status === "connected"
+  );
+
+  useEffect(() => {
+    if (!loading && isAnyWhatsAppConnected) {
+      loadMetaAssets();
+    }
+    if (!loading && !isAnyWhatsAppConnected) {
+      setMetaAssets(null);
+      setMetaAssetsError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, isAnyWhatsAppConnected]);
 
   if (loading) {
     return (
@@ -814,6 +882,94 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
             </div>
           )}
         </div>
+
+        {/* Prova de uso da permissão business_management: ativos da Meta */}
+        {isAnyWhatsAppConnected && (
+          <div className="p-4 border rounded-lg space-y-3 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-medium flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-blue-600" />
+                  Ativos Meta (business_management)
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Lista de businesses, WABAs e números da conta conectada.
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={loadMetaAssets} disabled={metaAssetsLoading}>
+                {metaAssetsLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Atualizando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCcw className="h-4 w-4 mr-2" />
+                    Atualizar ativos
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {metaAssetsError && (
+              <p className="text-xs text-destructive">{metaAssetsError}</p>
+            )}
+
+            {metaAssets && (
+              <div className="space-y-3">
+                {metaAssets.businesses.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum business encontrado para esta conta Meta.
+                  </p>
+                ) : (
+                  metaAssets.businesses.map((business) => (
+                    <div key={business.id} className="rounded border p-3 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium">{business.name || business.id}</p>
+                        {business.verification_status && (
+                          <Badge variant="outline">Business: {business.verification_status}</Badge>
+                        )}
+                      </div>
+                      {business.wabas.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Sem WABA vinculada.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {business.wabas.map((waba) => (
+                            <div key={waba.id} className="rounded border p-2 space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-xs font-medium">WABA: {waba.name || waba.id}</p>
+                                {metaAssets.selected_waba_id === waba.id && (
+                                  <Badge className="bg-emerald-600 hover:bg-emerald-600">Selecionada no FlowMedi</Badge>
+                                )}
+                              </div>
+                              {waba.phone_numbers.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">Sem números nesta WABA.</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {waba.phone_numbers.map((phone) => (
+                                    <div key={phone.id} className="flex flex-wrap items-center gap-2 text-xs">
+                                      <span className="font-mono">{phone.display_phone_number || phone.id}</span>
+                                      {phone.verified_name && <Badge variant="outline">{phone.verified_name}</Badge>}
+                                      {phone.quality_rating && <Badge variant="outline">Qualidade: {phone.quality_rating}</Badge>}
+                                      {phone.status && <Badge variant="outline">Status: {phone.status}</Badge>}
+                                      {metaAssets.selected_phone_number_id === phone.id && (
+                                        <Badge className="bg-emerald-600 hover:bg-emerald-600">Usado no FlowMedi</Badge>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
