@@ -3,7 +3,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { getClinicSystemMetaTemplatesStatus, getMessageTemplates, getSystemTemplatesForDisplay } from "../actions";
+import {
+  getClinicSystemMetaTemplatesStatus,
+  getMessageTemplates,
+  getRemoteMetaTemplates,
+  getSystemTemplatesForDisplay,
+} from "../actions";
 import { TemplatesListClient } from "./templates-list-client";
 import { EmailBrandingCard } from "./email-branding-card";
 
@@ -22,14 +27,16 @@ export default async function TemplatesPage() {
     redirect("/dashboard");
   }
 
-  const [savedResult, systemResult, clinicMetaTemplatesResult] = await Promise.all([
+  const [savedResult, systemResult, clinicMetaTemplatesResult, remoteMetaTemplatesResult] = await Promise.all([
     getMessageTemplates(),
     getSystemTemplatesForDisplay(),
     getClinicSystemMetaTemplatesStatus(),
+    getRemoteMetaTemplates(),
   ]);
   const savedTemplates = savedResult.data || [];
   const systemTemplates = systemResult.data || [];
   const clinicMetaTemplates = clinicMetaTemplatesResult.data || [];
+  const remoteMetaTemplates = remoteMetaTemplatesResult.data || [];
 
   return (
     <div className="space-y-6">
@@ -54,6 +61,7 @@ export default async function TemplatesPage() {
         savedTemplates={savedTemplates}
         systemTemplates={systemTemplates}
         clinicMetaTemplates={clinicMetaTemplates}
+        remoteMetaTemplates={remoteMetaTemplates}
       />
     </div>
   );

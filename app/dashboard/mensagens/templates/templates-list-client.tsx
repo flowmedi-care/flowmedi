@@ -13,6 +13,7 @@ import {
   type ClinicMetaTemplateStatus,
   type EffectiveTemplateItem,
   type MessageTemplate,
+  type RemoteMetaTemplateItem,
 } from "../actions";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -31,10 +32,12 @@ export function TemplatesListClient({
   savedTemplates,
   systemTemplates,
   clinicMetaTemplates,
+  remoteMetaTemplates,
 }: {
   savedTemplates: MessageTemplate[];
   systemTemplates: EffectiveTemplateItem[];
   clinicMetaTemplates: ClinicMetaTemplateStatus[];
+  remoteMetaTemplates: RemoteMetaTemplateItem[];
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -228,6 +231,30 @@ export function TemplatesListClient({
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="mt-5 pt-4 border-t">
+            <p className="text-sm font-medium mb-2">Templates existentes na Meta (tempo real)</p>
+            {remoteMetaTemplates.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Nenhum template retornado pela Meta no momento.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-auto pr-1">
+                {remoteMetaTemplates.map((tpl) => (
+                  <div key={tpl.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
+                    <div className="text-xs">
+                      <p className="font-medium">{tpl.name}</p>
+                      <p className="text-muted-foreground font-mono">{tpl.id}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {tpl.language && <Badge variant="outline">{tpl.language}</Badge>}
+                      {renderMetaStatusBadge(tpl.status)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Card>
       </section>

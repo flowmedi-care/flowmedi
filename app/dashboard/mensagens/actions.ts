@@ -6,6 +6,7 @@ import {
   createMetaTemplate,
   fetchTemplateStatus,
   listMetaTemplates,
+  type MetaTemplateSummary,
   type WhatsAppTemplateReviewStatus,
 } from "@/lib/comunicacao/whatsapp";
 
@@ -63,6 +64,13 @@ export type ClinicMetaTemplateStatus = {
   synced_at: string | null;
 };
 
+export type RemoteMetaTemplateItem = {
+  id: string;
+  name: string;
+  status: WhatsAppTemplateReviewStatus;
+  language?: string;
+};
+
 const SYSTEM_META_TEMPLATE_DEFS: Array<{
   key: SystemMetaTemplateKey;
   name: string;
@@ -70,17 +78,17 @@ const SYSTEM_META_TEMPLATE_DEFS: Array<{
 }> = [
   {
     key: "flowmedi_consulta",
-    name: "flowmedi_consulta_v2",
+    name: "flowmedi_consulta_v3",
     body: "Olá {{1}}! Temos uma mensagem importante sobre sua consulta.\n\n{{2}}\n\nSe precisar, responda esta mensagem.",
   },
   {
     key: "flowmedi_formulario",
-    name: "flowmedi_formulario_v2",
+    name: "flowmedi_formulario_v3",
     body: "Olá {{1}}! Precisamos da sua ajuda com um formulário da clínica.\n\n{{2}}\n\nObrigado pelo apoio.",
   },
   {
     key: "flowmedi_aviso",
-    name: "flowmedi_aviso_v2",
+    name: "flowmedi_aviso_v3",
     body: "Olá {{1}}! Temos um aviso importante.\n\n{{2}}\n\nEstamos à disposição para dúvidas.",
   },
 ];
@@ -654,6 +662,27 @@ export async function getClinicSystemMetaTemplatesStatus(): Promise<{
   return { data: normalizeClinicMetaRows((data ?? []) as Array<Record<string, unknown>>), error: null };
 }
 
+export async function getRemoteMetaTemplates(): Promise<{
+  data: RemoteMetaTemplateItem[] | null;
+  error: string | null;
+}> {
+  const ctx = await getClinicAdminContext();
+  if (ctx.error || !ctx.clinicId) return { data: null, error: ctx.error };
+
+  const listed = await listMetaTemplates(ctx.clinicId, ctx.supabase);
+  if (!listed.success) {
+    return { data: null, error: listed.error || "Falha ao listar templates da Meta." };
+  }
+
+  const data: RemoteMetaTemplateItem[] = (listed.templates ?? []).map((tpl: MetaTemplateSummary) => ({
+    id: tpl.id,
+    name: tpl.name,
+    status: tpl.status,
+    language: tpl.language,
+  }));
+  return { data, error: null };
+}
+
 export async function requestSystemMetaTemplates(): Promise<{ error: string | null }> {
   const ctx = await getClinicAdminContext();
   if (ctx.error || !ctx.clinicId) return { error: ctx.error };
@@ -668,42 +697,44 @@ export async function requestSystemMetaTemplates(): Promise<{ error: string | nu
     }
   }
 
-  for (const def of SYSTEM_META_TEMPLATE_DEFS) {
-    const existingRemote = remoteByName.get(def.name);
-    let metaTemplateId = existingRemote?.id ?? null;
-    let status: WhatsAppTemplateReviewStatus = existingRemote?.status ?? "PENDING";
-    let lastError: string | null = null;
+  await Promise.all(
+    SYSTEM_META_TEMPLATE_DEFS.map(async (def) => {
+      const existingRemote = remoteByName.get(def.name);
+      let metaTemplateId = existingRemote?.id ?? null;
+      let status: WhatsAppTemplateReviewStatus = existingRemote?.status ?? "PENDING";
+      let lastError: string | null = null;
 
-    if (!existingRemote) {
-      const created = await createMetaTemplate(
-        clinicId,
-        {
-          name: def.name,
-          bodyText: def.body,
-        },
-        supabase
-      );
-      if (created.success) {
-        metaTemplateId = created.templateId ?? null;
-        status = created.status ?? "PENDING";
-      } else {
-        lastError = created.error || "Falha ao criar template na Meta.";
+      if (!existingRemote) {
+        const created = await createMetaTemplate(
+          clinicId,
+          {
+            name: def.name,
+            bodyText: def.body,
+          },
+          supabase
+        );
+        if (created.success) {
+          metaTemplateId = created.templateId ?? null;
+          status = created.status ?? "PENDING";
+        } else {
+          lastError = created.error || "Falha ao criar template na Meta.";
+        }
       }
-    }
 
-    await supabase
-      .from("clinic_whatsapp_meta_templates")
-      .upsert({
-        clinic_id: clinicId,
-        template_key: def.key,
-        template_name: def.name,
-        meta_template_id: metaTemplateId,
-        status,
-        last_error: lastError,
-        requested_at: nowIso,
-        synced_at: nowIso,
-      }, { onConflict: "clinic_id,template_key" });
-  }
+      await supabase
+        .from("clinic_whatsapp_meta_templates")
+        .upsert({
+          clinic_id: clinicId,
+          template_key: def.key,
+          template_name: def.name,
+          meta_template_id: metaTemplateId,
+          status,
+          last_error: lastError,
+          requested_at: nowIso,
+          synced_at: nowIso,
+        }, { onConflict: "clinic_id,template_key" });
+    })
+  );
 
   revalidatePath("/dashboard/mensagens/templates");
   return { error: null };
