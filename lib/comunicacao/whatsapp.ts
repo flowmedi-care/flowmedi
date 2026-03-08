@@ -140,7 +140,7 @@ export async function submitTemplateForApproval(
         name: templateName,
         category: "UTILITY",
         language: "pt_BR",
-        parameter_format: "POSITIONAL",
+        parameter_format: "positional",
         components: [
           {
             type: "BODY",
@@ -155,9 +155,13 @@ export async function submitTemplateForApproval(
 
     const data = await response.json();
     if (!response.ok) {
+      const msg =
+        data?.error?.error_user_msg ||
+        data?.error?.message ||
+        "Erro ao submeter template para aprovação na Meta.";
       return {
         success: false,
-        error: data?.error?.message || "Erro ao submeter template para aprovação na Meta.",
+        error: msg,
       };
     }
 
@@ -249,7 +253,7 @@ export async function createMetaTemplate(
         name: templateName,
         category: "UTILITY",
         language: "pt_BR",
-        parameter_format: "POSITIONAL",
+        parameter_format: "positional",
         components: [
           {
             type: "BODY",
@@ -264,9 +268,13 @@ export async function createMetaTemplate(
 
     const data = await response.json();
     if (!response.ok) {
+      const msg =
+        data?.error?.error_user_msg ||
+        data?.error?.message ||
+        "Erro ao criar template na Meta.";
       return {
         success: false,
-        error: data?.error?.message || "Erro ao criar template na Meta.",
+        error: msg,
       };
     }
 
