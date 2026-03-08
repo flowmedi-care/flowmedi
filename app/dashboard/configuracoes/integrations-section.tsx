@@ -9,6 +9,24 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Mail, Loader2, ExternalLink, AlertCircle, HelpCircle, Building2, RefreshCcw } from "lucide-react";
 
+declare global {
+  interface Window {
+    FB?: {
+      init: (params: {
+        appId: string;
+        autoLogAppEvents?: boolean;
+        xfbml?: boolean;
+        version: string;
+      }) => void;
+      login: (
+        callback: (response: { authResponse?: { code?: string } }) => void,
+        params: Record<string, unknown>
+      ) => void;
+    };
+    fbAsyncInit?: () => void;
+  }
+}
+
 interface Integration {
   id: string;
   integration_type: "email_google" | "whatsapp_meta" | "whatsapp_simple";
@@ -52,6 +70,16 @@ interface IntegrationsSectionProps {
   clinicId: string;
 }
 
+type EmbeddedAuthResponse = {
+  authUrl?: string;
+  embeddedSignup?: {
+    appId: string;
+    configId: string;
+    graphVersion: string;
+    extras?: Record<string, unknown>;
+  };
+};
+
 export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
   const searchParams = useSearchParams();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -77,6 +105,8 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
   const [metaAssets, setMetaAssets] = useState<MetaAssetsResponse | null>(null);
   const [metaAssetsLoading, setMetaAssetsLoading] = useState(false);
   const [metaAssetsError, setMetaAssetsError] = useState<string | null>(null);
+  const [metaSdkReady, setMetaSdkReady] = useState(false);
+  const metaSessionInfoRef = useRef<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     loadIntegrations();
@@ -97,6 +127,59 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
       setTimeout(() => setErrorMessage(null), 5000);
     }
   }, [clinicId, searchParams]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.FB) {
+      setMetaSdkReady(true);
+      return;
+    }
+
+    const scriptId = "facebook-jssdk";
+    const existing = document.getElementById(scriptId);
+
+    window.fbAsyncInit = function () {
+      setMetaSdkReady(true);
+    };
+
+    if (!existing) {
+      const script = document.createElement("script");
+      script.id = scriptId;
+      script.async = true;
+      script.defer = true;
+      script.crossOrigin = "anonymous";
+      script.src = "https://connect.facebook.net/en_US/sdk.js";
+      document.body.appendChild(script);
+    }
+  }, []);
+
+  useEffect(() => {
+    function handleMetaMessage(event: MessageEvent) {
+      if (event.origin !== "https://www.facebook.com") return;
+
+      if (typeof event.data !== "string") return;
+      try {
+        const data = JSON.parse(event.data) as {
+          type?: string;
+          event?: string;
+          data?: Record<string, unknown>;
+        };
+
+        if (data.type === "WA_EMBEDDED_SIGNUP") {
+          const sessionPayload = {
+            event: data.event || null,
+            data: data.data || {},
+          };
+          metaSessionInfoRef.current = sessionPayload;
+        }
+      } catch {
+        // Alguns eventos podem não estar em JSON.
+      }
+    }
+
+    window.addEventListener("message", handleMetaMessage);
+    return () => window.removeEventListener("message", handleMetaMessage);
+  }, []);
 
   // Auto-descobrir Phone Number ID ao carregar (após OAuth) se conectado mas sem número
   const whatsappSimpleIntegration = integrations.find((i) => i.integration_type === "whatsapp_simple");
@@ -200,15 +283,83 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
     setErrorMessage(null);
     try {
       const res = await fetch("/api/integrations/whatsapp/auth");
-      const data = await res.json();
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      } else {
-        setErrorMessage(data.error || "Erro ao conectar");
-        setConnecting(null);
+      const data = (await res.json()) as EmbeddedAuthResponse & { error?: string };
+      if (!res.ok) {
+        setErrorMessage(data.error || "Erro ao carregar configuração da Meta");
+        return;
       }
-    } catch (error) {
+
+      if (!data.embeddedSignup) {
+        if (data.authUrl) {
+          window.location.href = data.authUrl;
+          return;
+        }
+        setErrorMessage("Configuração do Embedded Signup não encontrada.");
+        return;
+      }
+
+      const { appId, configId, graphVersion, extras } = data.embeddedSignup;
+
+      if (!window.FB) {
+        if (data.authUrl) {
+          window.location.href = data.authUrl;
+          return;
+        }
+        setErrorMessage("SDK do Facebook ainda não carregou. Tente novamente em alguns segundos.");
+        return;
+      }
+
+      window.FB.init({
+        appId,
+        autoLogAppEvents: true,
+        xfbml: true,
+        version: graphVersion,
+      });
+
+      window.FB.login(
+        async (response) => {
+          const code = response.authResponse?.code;
+          if (!code) {
+            setErrorMessage("Não foi possível obter o código do cadastro incorporado.");
+            setConnecting(null);
+            return;
+          }
+
+          const completeRes = await fetch("/api/integrations/whatsapp/complete-embedded", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              code,
+              sessionInfo: metaSessionInfoRef.current,
+            }),
+          });
+          const completeData = (await completeRes.json()) as { error?: string };
+          if (!completeRes.ok) {
+            setErrorMessage(completeData.error || "Falha ao finalizar conexão WhatsApp.");
+            setConnecting(null);
+            return;
+          }
+
+          setSuccessMessage("WhatsApp (Meta) conectado com sucesso via Cadastro Incorporado.");
+          setTimeout(() => setSuccessMessage(null), 5000);
+          await loadIntegrations();
+          setConnecting(null);
+        },
+        {
+          config_id: configId,
+          response_type: "code",
+          override_default_response_type: true,
+          extras:
+            extras || {
+              version: "v3",
+              featureType: "whatsapp_business_app_onboarding",
+              features: [{ name: "marketing_messages_lite" }, { name: "app_only_install" }],
+            },
+        }
+      );
+    } catch {
       setErrorMessage("Erro de conexão");
+    } finally {
       setConnecting(null);
     }
   }
@@ -555,6 +706,11 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
                     "Conecte sua conta Meta Business para enviar mensagens"
                   )}
                 </div>
+                {!metaSdkReady && (
+                  <div className="text-xs text-amber-700 mt-1">
+                    Carregando SDK do Facebook para iniciar o Cadastro Incorporado...
+                  </div>
+                )}
                 {whatsappIntegration?.error_message && (
                   <div className="text-xs text-destructive mt-1">
                     {whatsappIntegration.error_message}

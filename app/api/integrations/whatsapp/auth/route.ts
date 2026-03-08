@@ -11,7 +11,7 @@ import { requireClinicAdmin } from "@/lib/auth-helpers";
  */
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireClinicAdmin();
+    await requireClinicAdmin();
 
     const origin = request.nextUrl.origin;
     const redirectUri = `${origin}/api/integrations/whatsapp/callback`;
@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const appId = process.env.META_APP_ID;
     const appSecret = process.env.META_APP_SECRET;
     const configId = process.env.META_EMBEDDED_SIGNUP_CONFIG_ID;
+    const graphVersion = process.env.META_GRAPH_VERSION || "v25.0";
 
     if (!appId || !appSecret) {
       return NextResponse.json(
@@ -44,21 +45,37 @@ export async function GET(request: NextRequest) {
       "business_management",
     ];
 
-    const state = JSON.stringify({
-      clinicId: admin.clinicId,
-      userId: admin.id,
-    });
-
-    // URL de autorização com config_id = Cadastro Incorporado (coexistência)
-    const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
+    // URL fallback (sem SDK) para depuração, mantendo o fluxo oficial de code exchange.
+    const authUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
     authUrl.searchParams.set("client_id", appId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("scope", scopes.join(","));
-    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("display", "popup");
     authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("override_default_response_type", "true");
     authUrl.searchParams.set("config_id", configId);
+    authUrl.searchParams.set(
+      "extras",
+      JSON.stringify({
+        version: "v3",
+        featureType: "whatsapp_business_app_onboarding",
+        features: [{ name: "marketing_messages_lite" }, { name: "app_only_install" }],
+      })
+    );
 
-    return NextResponse.json({ authUrl: authUrl.toString() });
+    return NextResponse.json({
+      authUrl: authUrl.toString(),
+      embeddedSignup: {
+        appId,
+        configId,
+        graphVersion,
+        extras: {
+          version: "v3",
+          featureType: "whatsapp_business_app_onboarding",
+          features: [{ name: "marketing_messages_lite" }, { name: "app_only_install" }],
+        },
+      },
+    });
   } catch (error) {
     console.error("Erro ao iniciar OAuth Meta (Embedded Signup):", error);
     return NextResponse.json(
