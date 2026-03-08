@@ -322,52 +322,54 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
       });
 
       window.FB.login(
-        async (response) => {
-          try {
-            const code = response.authResponse?.code;
-            if (!code) {
-              setErrorMessage("Não foi possível obter o código do cadastro incorporado.");
-              setConnecting(null);
-              return;
-            }
-
-            const completeRes = await fetch("/api/integrations/whatsapp/complete-embedded", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                code,
-                sessionInfo: metaSessionInfoRef.current,
-              }),
-            });
-
-            let completeData: { error?: string } | null = null;
+        (response) => {
+          void (async () => {
             try {
-              completeData = (await completeRes.json()) as { error?: string };
-            } catch {
-              completeData = null;
-            }
+              const code = response.authResponse?.code;
+              if (!code) {
+                setErrorMessage("Não foi possível obter o código do cadastro incorporado.");
+                setConnecting(null);
+                return;
+              }
 
-            if (!completeRes.ok) {
+              const completeRes = await fetch("/api/integrations/whatsapp/complete-embedded", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  code,
+                  sessionInfo: metaSessionInfoRef.current,
+                }),
+              });
+
+              let completeData: { error?: string } | null = null;
+              try {
+                completeData = (await completeRes.json()) as { error?: string };
+              } catch {
+                completeData = null;
+              }
+
+              if (!completeRes.ok) {
+                setErrorMessage(
+                  completeData?.error ||
+                    "Falha ao finalizar conexão WhatsApp. Verifique domínio/callback no app da Meta."
+                );
+                setConnecting(null);
+                return;
+              }
+
+              setSuccessMessage("WhatsApp (Meta) conectado com sucesso via Cadastro Incorporado.");
+              setTimeout(() => setSuccessMessage(null), 5000);
+              await loadIntegrations();
+              setConnecting(null);
+            } catch (err) {
               setErrorMessage(
-                completeData?.error ||
-                  "Falha ao finalizar conexão WhatsApp. Verifique domínio/callback no app da Meta."
+                err instanceof Error
+                  ? `Falha ao finalizar embedded signup: ${err.message}`
+                  : "Falha inesperada ao finalizar embedded signup."
               );
               setConnecting(null);
-              return;
             }
-
-            setSuccessMessage("WhatsApp (Meta) conectado com sucesso via Cadastro Incorporado.");
-            setTimeout(() => setSuccessMessage(null), 5000);
-            await loadIntegrations();
-            setConnecting(null);
-          } catch (err) {
-            setErrorMessage(
-              err instanceof Error
-                ? `Falha ao finalizar embedded signup: ${err.message}`
-                : "Falha inesperada ao finalizar embedded signup."
-            );
-            setConnecting(null);
-          }
+          })();
         },
         {
           config_id: configId,
