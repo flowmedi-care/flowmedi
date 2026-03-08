@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { runAutoSendForEvent } from "@/lib/event-send-logic-server";
+import { isInsideAutoMessageWindow } from "@/lib/whatsapp-ops-controls";
 
 /**
  * Cron: verifica compliance de confirmação e de formulário vinculado.
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
 
     const confirmEventIds = (confirmData?.event_ids as string[] | null) || [];
     let sentCount = 0;
+    const clinicWindowCache = new Map<string, boolean>();
     for (const eventId of confirmEventIds) {
       const { data: ev } = await supabase
         .from("event_timeline")
@@ -53,6 +55,13 @@ export async function GET(request: NextRequest) {
         .eq("id", eventId)
         .single();
       if (ev) {
+        let canSendNow = clinicWindowCache.get(ev.clinic_id);
+        if (canSendNow === undefined) {
+          canSendNow = await isInsideAutoMessageWindow(ev.clinic_id, supabase);
+          clinicWindowCache.set(ev.clinic_id, canSendNow);
+        }
+        if (!canSendNow) continue;
+
         const { sent } = await runAutoSendForEvent(
           eventId,
           ev.clinic_id,
@@ -85,6 +94,13 @@ export async function GET(request: NextRequest) {
         .eq("id", eventId)
         .single();
       if (ev) {
+        let canSendNow = clinicWindowCache.get(ev.clinic_id);
+        if (canSendNow === undefined) {
+          canSendNow = await isInsideAutoMessageWindow(ev.clinic_id, supabase);
+          clinicWindowCache.set(ev.clinic_id, canSendNow);
+        }
+        if (!canSendNow) continue;
+
         const { sent } = await runAutoSendForEvent(
           eventId,
           ev.clinic_id,

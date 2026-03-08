@@ -32,6 +32,38 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient();
+    const { data: existing } = await supabase
+      .from("whatsapp_conversations")
+      .select("id, status, assigned_secretary_id, last_inbound_message_at")
+      .eq("clinic_id", clinicId)
+      .eq("phone_number", normalizedTo)
+      .maybeSingle();
+
+    let conversationStatus = existing?.status ?? null;
+    if (
+      conversationStatus === "open" &&
+      existing?.last_inbound_message_at &&
+      new Date(existing.last_inbound_message_at).getTime() <
+        Date.now() - 24 * 60 * 60 * 1000
+    ) {
+      await supabase
+        .from("whatsapp_conversations")
+        .update({ status: "closed" })
+        .eq("id", existing.id);
+      conversationStatus = "closed";
+    }
+
+    // Verificar se pode enviar texto livre (só se status for "open")
+    if (conversationStatus && conversationStatus !== "open") {
+      return NextResponse.json(
+        { 
+          error: `Conversa está ${conversationStatus === "closed" ? "fechada" : "concluída"}. Apenas mensagens template são permitidas.`,
+          status: conversationStatus
+        },
+        { status: 403 }
+      );
+    }
+
     const result = await sendWhatsAppMessage(
       clinicId,
       { to: normalizedTo, text: text.trim() },
@@ -43,24 +75,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: result.error || "Falha ao enviar" },
         { status: 500 }
-      );
-    }
-
-    const { data: existing } = await supabase
-      .from("whatsapp_conversations")
-      .select("id, status, assigned_secretary_id")
-      .eq("clinic_id", clinicId)
-      .eq("phone_number", normalizedTo)
-      .maybeSingle();
-
-    // Verificar se pode enviar texto livre (só se status for "open")
-    if (existing?.status && existing.status !== "open") {
-      return NextResponse.json(
-        { 
-          error: `Conversa está ${existing.status === "closed" ? "fechada" : "concluída"}. Apenas mensagens template são permitidas.`,
-          status: existing.status
-        },
-        { status: 403 }
       );
     }
 

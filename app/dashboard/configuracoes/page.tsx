@@ -20,7 +20,7 @@ export default async function ConfiguracoesPage() {
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("name, logo_url, logo_scale, phone, email, address, whatsapp_url, facebook_url, instagram_url, compliance_confirmation_days, compliance_form_days")
+    .select("name, logo_url, logo_scale, phone, email, address, whatsapp_url, facebook_url, instagram_url, compliance_confirmation_days, compliance_form_days, whatsapp_monthly_post24h_limit, auto_message_send_start, auto_message_send_end, auto_message_timezone")
     .eq("id", profile.clinic_id)
     .single();
 
@@ -38,6 +38,10 @@ export default async function ConfiguracoesPage() {
         clinicInstagramUrl={clinic?.instagram_url ?? null}
         complianceConfirmationDays={clinic?.compliance_confirmation_days ?? null}
         complianceFormDays={clinic?.compliance_form_days ?? null}
+        whatsappMonthlyPost24hLimit={clinic?.whatsapp_monthly_post24h_limit ?? null}
+        autoMessageSendStart={clinic?.auto_message_send_start ?? "08:00:00"}
+        autoMessageSendEnd={clinic?.auto_message_send_end ?? "20:00:00"}
+        autoMessageTimezone={clinic?.auto_message_timezone ?? "America/Sao_Paulo"}
         clinicId={profile.clinic_id}
       />
     </Suspense>

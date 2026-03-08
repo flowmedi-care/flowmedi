@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { updateComplianceConfirmationDays, updateComplianceFormDays } from "./actions";
+import {
+  updateComplianceConfirmationDays,
+  updateComplianceFormDays,
+  updateWhatsAppOperationalControls,
+} from "./actions";
 import { IntegrationsSection } from "./integrations-section";
 import { ClinicInfoTabs } from "@/components/clinic-info/clinic-info-tabs";
 
@@ -22,6 +26,10 @@ export function ConfiguracoesClient({
   clinicInstagramUrl,
   complianceConfirmationDays,
   complianceFormDays,
+  whatsappMonthlyPost24hLimit,
+  autoMessageSendStart,
+  autoMessageSendEnd,
+  autoMessageTimezone,
   clinicId,
 }: {
   clinicName: string | null;
@@ -35,6 +43,10 @@ export function ConfiguracoesClient({
   clinicInstagramUrl: string | null;
   complianceConfirmationDays: number | null;
   complianceFormDays: number | null;
+  whatsappMonthlyPost24hLimit: number | null;
+  autoMessageSendStart: string;
+  autoMessageSendEnd: string;
+  autoMessageTimezone: string;
   clinicId: string;
 }) {
   const [complianceDays, setComplianceDays] = useState<string>(
@@ -47,6 +59,21 @@ export function ConfiguracoesClient({
   const [complianceFormLoading, setComplianceFormLoading] = useState(false);
   const [complianceError, setComplianceError] = useState<string | null>(null);
   const [complianceFormError, setComplianceFormError] = useState<string | null>(null);
+  const [wppLimitInput, setWppLimitInput] = useState<string>(
+    whatsappMonthlyPost24hLimit !== null ? String(whatsappMonthlyPost24hLimit) : ""
+  );
+  const [sendStartInput, setSendStartInput] = useState<string>(
+    String(autoMessageSendStart || "08:00:00").slice(0, 5)
+  );
+  const [sendEndInput, setSendEndInput] = useState<string>(
+    String(autoMessageSendEnd || "20:00:00").slice(0, 5)
+  );
+  const [timezoneInput, setTimezoneInput] = useState<string>(
+    autoMessageTimezone || "America/Sao_Paulo"
+  );
+  const [opsLoading, setOpsLoading] = useState(false);
+  const [opsError, setOpsError] = useState<string | null>(null);
+  const [opsSuccess, setOpsSuccess] = useState(false);
   const [activeComplianceTab, setActiveComplianceTab] = useState<"confirmation" | "form">("confirmation");
   const searchParams = useSearchParams();
 
@@ -91,6 +118,110 @@ export function ConfiguracoesClient({
       />
 
       <IntegrationsSection clinicId={clinicId} />
+
+      <Card>
+        <CardHeader className="space-y-1">
+          <h2 className="text-lg font-semibold">WhatsApp: custo e janela de envio</h2>
+          <p className="text-sm text-muted-foreground">
+            Controle limite mensal de conversas iniciadas fora da janela de 24h e horário permitido para envios automáticos.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {opsError && (
+            <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
+              {opsError}
+            </p>
+          )}
+          {opsSuccess && (
+            <p className="text-sm text-green-700 dark:text-green-400 bg-green-500/10 p-2 rounded-md">
+              Configurações salvas com sucesso.
+            </p>
+          )}
+
+          <div className="space-y-2 max-w-sm">
+            <Label htmlFor="wpp_limit">Limite mensal (conversas iniciadas após 24h)</Label>
+            <Input
+              id="wpp_limit"
+              type="number"
+              min={0}
+              value={wppLimitInput}
+              onChange={(e) => setWppLimitInput(e.target.value)}
+              placeholder="Ex.: 300 (vazio = sem limite)"
+            />
+            <p className="text-xs text-muted-foreground">
+              Quando atingir o limite, novos envios por template fora da janela serão bloqueados.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="send_start">Início envio automático</Label>
+              <Input
+                id="send_start"
+                type="time"
+                value={sendStartInput}
+                onChange={(e) => setSendStartInput(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="send_end">Fim envio automático</Label>
+              <Input
+                id="send_end"
+                type="time"
+                value={sendEndInput}
+                onChange={(e) => setSendEndInput(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="send_tz">Fuso horário</Label>
+              <Input
+                id="send_tz"
+                value={timezoneInput}
+                onChange={(e) => setTimezoneInput(e.target.value)}
+                placeholder="America/Sao_Paulo"
+              />
+            </div>
+          </div>
+
+          <Button
+            disabled={opsLoading}
+            onClick={async () => {
+              setOpsError(null);
+              setOpsSuccess(false);
+              setOpsLoading(true);
+
+              const parsedLimit =
+                wppLimitInput.trim() === ""
+                  ? null
+                  : Number.parseInt(wppLimitInput, 10);
+
+              if (
+                parsedLimit !== null &&
+                (Number.isNaN(parsedLimit) || parsedLimit < 0)
+              ) {
+                setOpsError("Limite mensal inválido.");
+                setOpsLoading(false);
+                return;
+              }
+
+              const res = await updateWhatsAppOperationalControls({
+                monthlyPost24hLimit: parsedLimit,
+                autoMessageSendStart: sendStartInput,
+                autoMessageSendEnd: sendEndInput,
+                autoMessageTimezone: timezoneInput,
+              });
+              if (res.error) {
+                setOpsError(res.error);
+              } else {
+                setOpsSuccess(true);
+              }
+              setOpsLoading(false);
+            }}
+          >
+            {opsLoading ? "Salvando..." : "Salvar configurações WhatsApp"}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card className="overflow-visible">
         <CardHeader className="space-y-4">

@@ -36,6 +36,16 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
 
+    // Garantir consistência da janela de 24h: toda conversa aberta expirada vira "closed".
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    await supabase
+      .from("whatsapp_conversations")
+      .update({ status: "closed" })
+      .eq("clinic_id", clinicId)
+      .eq("status", "open")
+      .not("last_inbound_message_at", "is", null)
+      .lt("last_inbound_message_at", twentyFourHoursAgo);
+
     const selectFields =
       "id, phone_number, contact_name, status, last_inbound_message_at, created_at, assigned_secretary_id, patient_id, assigned_at";
 

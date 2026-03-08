@@ -5,6 +5,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { buildVariableContext, replaceVariables } from "./message-variables";
 import type { MessageChannel } from "@/app/dashboard/mensagens/actions";
+import {
+  getCurrentPost24hLimitStatus,
+  hasRecentPost24hUsageForPhone,
+  recordPost24hUsage,
+} from "@/lib/whatsapp-ops-controls";
 
 export type ProcessMessageResult = {
   success: boolean;
@@ -65,6 +70,9 @@ export async function processMessageEvent(
 
     // 1.2. Para WhatsApp: verificar status do ticket e regra send_only_when_ticket_open
     let whatsappTicketStatus: "open" | "closed" | "completed" | null = null;
+    let whatsappConversationId: string | null = null;
+    let whatsappNormalizedPhone: string | null = null;
+    let shouldCountPost24hStart = false;
     if (channel === "whatsapp") {
       const { data: patient } = await supabase
         .from("patients")
@@ -77,15 +85,17 @@ export async function processMessageEvent(
         // Normalizar telefone do paciente da mesma forma que no chat
         const patientPhoneDigits = patient.phone.replace(/\D/g, "");
         const normalizedPhone = normalizeWhatsAppPhone(patientPhoneDigits);
+        whatsappNormalizedPhone = normalizedPhone;
         
         // Buscar conversa com número normalizado
         const { data: conversation } = await supabase
           .from("whatsapp_conversations")
-          .select("status")
+          .select("id, status")
           .eq("clinic_id", clinicId)
           .eq("phone_number", normalizedPhone)
           .maybeSingle();
         
+        whatsappConversationId = conversation?.id ?? null;
         whatsappTicketStatus = (conversation?.status as "open" | "closed" | "completed") || null;
         
         // Lógica correta:
@@ -98,6 +108,32 @@ export async function processMessageEvent(
             success: false,
             error: "Ticket não está aberto. Mensagem não será enviada.",
           };
+        }
+
+        // Fora da janela de 24h: conversa fechada/concluída exige template Meta e pode consumir custo.
+        const isPost24hTemplateSend =
+          whatsappTicketStatus !== null &&
+          whatsappTicketStatus !== "open" &&
+          !sendOnlyWhenOpen;
+        if (isPost24hTemplateSend && whatsappNormalizedPhone) {
+          const hasRecentUsage = await hasRecentPost24hUsageForPhone(
+            clinicId,
+            whatsappNormalizedPhone,
+            supabase
+          );
+          shouldCountPost24hStart = !hasRecentUsage;
+
+          if (shouldCountPost24hStart) {
+            const limitStatus = await getCurrentPost24hLimitStatus(clinicId, supabase);
+            if (limitStatus.blocked) {
+              return {
+                success: false,
+                error:
+                  `Limite mensal de conversas iniciadas via template atingido (${limitStatus.used}/${limitStatus.limit}). ` +
+                  "Ajuste o limite em Configurações para continuar.",
+              };
+            }
+          }
         }
       }
     }
@@ -183,7 +219,17 @@ export async function processMessageEvent(
         supabase,
         whatsappTicketStatus,
         Boolean(setting.send_only_when_ticket_open),
-        channel === "whatsapp" ? template.whatsapp_meta_phrase : undefined
+        channel === "whatsapp" ? template.whatsapp_meta_phrase : undefined,
+        {
+          shouldCount: shouldCountPost24hStart,
+          conversationId: whatsappConversationId,
+          normalizedPhone: whatsappNormalizedPhone,
+          source:
+            setting.send_mode === "automatic" && !forceImmediateSend
+              ? "event_auto"
+              : "event_manual",
+          eventCode,
+        }
       );
     }
 
@@ -370,7 +416,14 @@ export async function sendMessage(
   supabaseClient?: SupabaseClientType,
   whatsappTicketStatus?: "open" | "closed" | "completed" | null,
   sendOnlyWhenTicketOpen?: boolean,
-  whatsappMetaPhrase?: string | null
+  whatsappMetaPhrase?: string | null,
+  post24hUsage?: {
+    shouldCount: boolean;
+    conversationId: string | null;
+    normalizedPhone: string | null;
+    source: "event_auto" | "event_manual";
+    eventCode: string;
+  }
 ): Promise<ProcessMessageResult> {
   const supabase = supabaseClient ?? (await createClient());
 
@@ -387,6 +440,9 @@ export async function sendMessage(
     }
 
     let sendResult: ProcessMessageResult;
+    let usagePhoneToTrack: string | null = null;
+    let usageConversationIdToTrack: string | null = post24hUsage?.conversationId ?? null;
+    let shouldTrackPost24hUsage = Boolean(post24hUsage?.shouldCount);
 
     if (channel === "email") {
       if (!patient.email) {
@@ -430,6 +486,32 @@ export async function sendMessage(
       let templateParams: string[] | undefined;
 
       if (canUseTemplate) {
+        const { normalizeWhatsAppPhone } = await import("@/lib/whatsapp-utils");
+        const patientDigits = patient.phone.replace(/\D/g, "");
+        const normalizedPhoneForUsage = normalizeWhatsAppPhone(patientDigits);
+        usagePhoneToTrack = normalizedPhoneForUsage;
+
+        if (!post24hUsage || post24hUsage.shouldCount) {
+          const hasRecentUsage = await hasRecentPost24hUsageForPhone(
+            clinicId,
+            normalizedPhoneForUsage,
+            supabase
+          );
+          shouldTrackPost24hUsage = !hasRecentUsage;
+
+          if (shouldTrackPost24hUsage) {
+            const limitStatus = await getCurrentPost24hLimitStatus(clinicId, supabase);
+            if (limitStatus.blocked) {
+              return {
+                success: false,
+                error:
+                  `Limite mensal de conversas iniciadas via template atingido (${limitStatus.used}/${limitStatus.limit}). ` +
+                  "Ajuste o limite em Configurações para continuar.",
+              };
+            }
+          }
+        }
+
         const { getMetaTemplateParams } = await import("@/lib/whatsapp-meta-templates");
         const metaTemplate = getMetaTemplateParams(eventCode, variables, whatsappMetaPhrase);
         if (!metaTemplate) {
@@ -506,6 +588,23 @@ export async function sendMessage(
 
     if (!sendResult.success) {
       return sendResult;
+    }
+
+    if (
+      channel === "whatsapp" &&
+      shouldTrackPost24hUsage &&
+      (post24hUsage?.normalizedPhone || usagePhoneToTrack)
+    ) {
+      await recordPost24hUsage(
+        {
+          clinicId,
+          conversationId: usageConversationIdToTrack,
+          phoneNumber: post24hUsage?.normalizedPhone || usagePhoneToTrack || "",
+          source: post24hUsage?.source ?? "event_manual",
+          eventCode: post24hUsage?.eventCode ?? eventCode,
+        },
+        supabase
+      );
     }
 
     // Persistir mensagem WhatsApp no chat para aparecer em /dashboard/whatsapp

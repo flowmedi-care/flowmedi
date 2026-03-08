@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { setLastWebhookPayload } from "@/lib/whatsapp-webhook-debug";
+import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 import {
   applyReferralRoutingIfMatch,
   applyRoutingOnNewConversation,
@@ -100,7 +101,8 @@ export async function POST(request: NextRequest) {
         }
 
         for (const msg of messages) {
-          const from = String((msg as { from?: string }).from ?? "").replace(/\D/g, "");
+          const fromRaw = String((msg as { from?: string }).from ?? "").replace(/\D/g, "");
+          const from = normalizeWhatsAppPhone(fromRaw);
           if (!from) continue;
 
           let bodyText: string | null = null;
@@ -118,12 +120,25 @@ export async function POST(request: NextRequest) {
 
           let conversationId: string;
           let isNewConversation = false;
+          const now = new Date().toISOString();
           if (conversationRes.data?.id) {
             conversationId = conversationRes.data.id;
+            await supabase
+              .from("whatsapp_conversations")
+              .update({
+                status: "open",
+                last_inbound_message_at: now,
+              })
+              .eq("id", conversationId);
           } else {
             const insertConv = await supabase
               .from("whatsapp_conversations")
-              .insert({ clinic_id: clinicId, phone_number: from })
+              .insert({
+                clinic_id: clinicId,
+                phone_number: from,
+                status: "open",
+                last_inbound_message_at: now,
+              })
               .select("id")
               .single();
             if (insertConv.error) {

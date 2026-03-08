@@ -344,6 +344,76 @@ export async function updateComplianceFormDays(days: number | null) {
   return { error: null };
 }
 
+export async function updateWhatsAppOperationalControls(input: {
+  monthlyPost24hLimit: number | null;
+  autoMessageSendStart: string;
+  autoMessageSendEnd: string;
+  autoMessageTimezone: string;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") {
+    return { error: "Apenas administradores podem atualizar configurações operacionais do WhatsApp." };
+  }
+
+  const normalizeTime = (value: string): string | null => {
+    const cleaned = String(value || "").trim();
+    const match = cleaned.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const h = Number(match[1]);
+    const m = Number(match[2]);
+    if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+  };
+
+  const start = normalizeTime(input.autoMessageSendStart);
+  const end = normalizeTime(input.autoMessageSendEnd);
+  if (!start || !end) {
+    return { error: "Horários inválidos. Use o formato HH:mm." };
+  }
+
+  const timezone = (input.autoMessageTimezone || "").trim() || "America/Sao_Paulo";
+  try {
+    Intl.DateTimeFormat("pt-BR", { timeZone: timezone }).format(new Date());
+  } catch {
+    return { error: "Fuso horário inválido. Ex.: America/Sao_Paulo" };
+  }
+
+  const monthlyLimit =
+    input.monthlyPost24hLimit === null
+      ? null
+      : Number.isFinite(input.monthlyPost24hLimit) && input.monthlyPost24hLimit >= 0
+        ? Math.trunc(input.monthlyPost24hLimit)
+        : NaN;
+
+  if (Number.isNaN(monthlyLimit)) {
+    return { error: "Limite mensal inválido. Use número maior ou igual a 0, ou deixe vazio." };
+  }
+
+  const { error } = await supabase
+    .from("clinics")
+    .update({
+      whatsapp_monthly_post24h_limit: monthlyLimit,
+      auto_message_send_start: start,
+      auto_message_send_end: end,
+      auto_message_timezone: timezone,
+    })
+    .eq("id", profile.clinic_id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/configuracoes");
+  revalidatePath("/dashboard/whatsapp");
+  return { error: null };
+}
+
 export async function updateClinicInfo(data: {
   name?: string | null;
   phone?: string | null;

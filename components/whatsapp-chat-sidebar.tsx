@@ -8,6 +8,7 @@ import { MessageSquare, Plus, Send, Phone, Info, Trash2, Check, User } from "luc
 import { cn } from "@/lib/utils";
 import { WhatsAppContactSidebar, type Patient } from "./whatsapp-contact-sidebar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Conversation = {
   id: string;
@@ -29,6 +30,13 @@ type Message = {
   media_url: string | null;
   message_type: string;
   sent_at: string;
+};
+
+type WhatsAppUsageLimit = {
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  blocked: boolean;
 };
 
 interface WhatsAppChatSidebarProps {
@@ -111,6 +119,9 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [conversationStatusFilter, setConversationStatusFilter] = useState<"open" | "closed" | "completed" | null>("open");
   const [completingConversationId, setCompletingConversationId] = useState<string | null>(null);
   const [secretaries, setSecretaries] = useState<{ id: string; full_name: string }[]>([]);
+  const [usageLimit, setUsageLimit] = useState<WhatsAppUsageLimit | null>(null);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const supabaseRef = useRef(createSupabaseBrowserClient());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottomRef = useRef(false);
 
@@ -134,6 +145,22 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         // Disparar evento customizado para atualizar sidebar de navegação
         window.dispatchEvent(new CustomEvent("whatsapp-unread-update", { detail: data.total }));
       }
+    } catch {
+      // Ignorar erro
+    }
+  }, []);
+
+  const loadUsageLimit = useCallback(async () => {
+    try {
+      const res = await fetch("/api/whatsapp/usage-limit");
+      if (!res.ok) return;
+      const data = await res.json();
+      setUsageLimit({
+        limit: typeof data.limit === "number" ? data.limit : null,
+        used: typeof data.used === "number" ? data.used : 0,
+        remaining: typeof data.remaining === "number" ? data.remaining : null,
+        blocked: Boolean(data.blocked),
+      });
     } catch {
       // Ignorar erro
     }
@@ -238,7 +265,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationStatusFilter]);
 
-  const loadMessages = (showLoading = false, scrollToBottom = false) => {
+  const loadMessages = useCallback((showLoading = false, scrollToBottom = false) => {
     if (!selectedId) return;
     if (showLoading) setLoadingMessages(true);
     fetch(`/api/whatsapp/messages?conversationId=${encodeURIComponent(selectedId)}`)
@@ -252,12 +279,66 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       })
       .catch(() => setMessages([]))
       .finally(() => setLoadingMessages(false));
-  };
+  }, [selectedId]);
 
   useEffect(() => {
     loadConversations();
     loadUnreadCounts();
-  }, [loadConversations]);
+    loadUsageLimit();
+  }, [loadConversations, loadUnreadCounts, loadUsageLimit]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadUsageLimit();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [loadUsageLimit]);
+
+  useEffect(() => {
+    const supabase = supabaseRef.current;
+    const channel = supabase
+      .channel("whatsapp-chat-live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "whatsapp_messages" },
+        (payload) => {
+          const conversationId = String(
+            (payload.new as { conversation_id?: string } | null)?.conversation_id ?? ""
+          );
+          if (selectedId && conversationId === selectedId) {
+            loadMessages(false, false);
+          }
+          loadConversations(false);
+          loadUnreadCounts();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "whatsapp_conversations" },
+        () => {
+          loadConversations(false);
+        }
+      )
+      .subscribe((status) => {
+        setRealtimeConnected(status === "SUBSCRIBED");
+      });
+
+    return () => {
+      setRealtimeConnected(false);
+      supabase.removeChannel(channel);
+    };
+  }, [selectedId, loadConversations, loadUnreadCounts, loadMessages]);
+
+  // Fallback de polling curto quando socket estiver indisponível
+  useEffect(() => {
+    if (realtimeConnected) return;
+    const interval = setInterval(() => {
+      loadConversations(false);
+      loadUnreadCounts();
+      if (selectedId) loadMessages(false, false);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [realtimeConnected, selectedId, loadConversations, loadUnreadCounts, loadMessages]);
 
   useEffect(() => {
     fetch("/api/whatsapp/secretaries")
@@ -295,7 +376,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       loadUnreadCounts(); // Atualizar contadores periodicamente
     }, 10000); // polling a cada 10 segundos (reduzido de 5s para evitar refresh constante)
     return () => clearInterval(interval);
-  }, [selectedId, loadUnreadCounts]);
+  }, [selectedId, loadUnreadCounts, loadMessages]);
 
   useEffect(() => {
     if (shouldScrollToBottomRef.current) {
@@ -322,6 +403,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         setNewText("");
         loadConversations(false);
         loadUnreadCounts();
+        loadUsageLimit();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Erro ao enviar mensagem");
       }
     } finally {
       setSending(false);
@@ -362,6 +447,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       if (res.ok) {
         loadMessages();
         loadUnreadCounts();
+        loadUsageLimit();
         // Não recarregar conversas aqui para evitar refresh constante
         // O status será atualizado quando necessário
       } else {
@@ -405,6 +491,20 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
               <Plus className="h-5 w-5" />
             </Button>
           </div>
+          {usageLimit?.limit !== null && (
+            <div
+              className={cn(
+                "mx-2 mt-2 mb-1 rounded-md px-3 py-2 text-xs border",
+                usageLimit.blocked
+                  ? "bg-destructive/10 text-destructive border-destructive/30"
+                  : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800"
+              )}
+            >
+              {usageLimit.blocked
+                ? `Limite mensal atingido (${usageLimit.used}/${usageLimit.limit}).`
+                : `Limite mensal pós-24h: ${usageLimit.used}/${usageLimit.limit} (${usageLimit.remaining} restante${usageLimit.remaining === 1 ? "" : "s"}).`}
+            </div>
+          )}
           {/* Abas de filtro */}
           <div className="flex gap-0 border-b border-border px-2">
             <button
