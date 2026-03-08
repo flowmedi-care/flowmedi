@@ -283,14 +283,19 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
     setErrorMessage(null);
     try {
       const res = await fetch("/api/integrations/whatsapp/auth");
-      const data = (await res.json()) as EmbeddedAuthResponse & { error?: string };
+      let data: (EmbeddedAuthResponse & { error?: string }) | null = null;
+      try {
+        data = (await res.json()) as EmbeddedAuthResponse & { error?: string };
+      } catch {
+        data = null;
+      }
       if (!res.ok) {
-        setErrorMessage(data.error || "Erro ao carregar configuração da Meta");
+        setErrorMessage(data?.error || "Erro ao carregar configuração da Meta.");
         return;
       }
 
-      if (!data.embeddedSignup) {
-        if (data.authUrl) {
+      if (!data?.embeddedSignup) {
+        if (data?.authUrl) {
           window.location.href = data.authUrl;
           return;
         }
@@ -318,32 +323,51 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
 
       window.FB.login(
         async (response) => {
-          const code = response.authResponse?.code;
-          if (!code) {
-            setErrorMessage("Não foi possível obter o código do cadastro incorporado.");
-            setConnecting(null);
-            return;
-          }
+          try {
+            const code = response.authResponse?.code;
+            if (!code) {
+              setErrorMessage("Não foi possível obter o código do cadastro incorporado.");
+              setConnecting(null);
+              return;
+            }
 
-          const completeRes = await fetch("/api/integrations/whatsapp/complete-embedded", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              code,
-              sessionInfo: metaSessionInfoRef.current,
-            }),
-          });
-          const completeData = (await completeRes.json()) as { error?: string };
-          if (!completeRes.ok) {
-            setErrorMessage(completeData.error || "Falha ao finalizar conexão WhatsApp.");
-            setConnecting(null);
-            return;
-          }
+            const completeRes = await fetch("/api/integrations/whatsapp/complete-embedded", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                code,
+                sessionInfo: metaSessionInfoRef.current,
+              }),
+            });
 
-          setSuccessMessage("WhatsApp (Meta) conectado com sucesso via Cadastro Incorporado.");
-          setTimeout(() => setSuccessMessage(null), 5000);
-          await loadIntegrations();
-          setConnecting(null);
+            let completeData: { error?: string } | null = null;
+            try {
+              completeData = (await completeRes.json()) as { error?: string };
+            } catch {
+              completeData = null;
+            }
+
+            if (!completeRes.ok) {
+              setErrorMessage(
+                completeData?.error ||
+                  "Falha ao finalizar conexão WhatsApp. Verifique domínio/callback no app da Meta."
+              );
+              setConnecting(null);
+              return;
+            }
+
+            setSuccessMessage("WhatsApp (Meta) conectado com sucesso via Cadastro Incorporado.");
+            setTimeout(() => setSuccessMessage(null), 5000);
+            await loadIntegrations();
+            setConnecting(null);
+          } catch (err) {
+            setErrorMessage(
+              err instanceof Error
+                ? `Falha ao finalizar embedded signup: ${err.message}`
+                : "Falha inesperada ao finalizar embedded signup."
+            );
+            setConnecting(null);
+          }
         },
         {
           config_id: configId,
@@ -357,8 +381,10 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
             },
         }
       );
-    } catch {
-      setErrorMessage("Erro de conexão");
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? `Erro de conexão: ${err.message}` : "Erro de conexão."
+      );
     } finally {
       setConnecting(null);
     }
