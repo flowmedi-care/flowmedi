@@ -930,7 +930,7 @@ export function IntegrationsSection({ clinicId }: IntegrationsSectionProps) {
                   {whatsappSimpleIntegration?.status === "connected" ? (
                     <>
                       Conectado
-                      {whatsappSimpleIntegration.metadata?.phone_number_id ? (
+                      {whatsappSimpleIntegration?.metadata?.phone_number_id ? (
                         <> — Pronto para usar. Token e número salvos automaticamente.</>
                       ) : (
                         <> — Configure o número</>
