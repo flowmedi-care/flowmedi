@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import {
-  getClinicSystemMetaTemplatesStatus,
   getMessageTemplates,
   getRemoteMetaTemplates,
   getSystemTemplatesForDisplay,
@@ -27,16 +26,22 @@ export default async function TemplatesPage() {
     redirect("/dashboard");
   }
 
-  const [savedResult, systemResult, clinicMetaTemplatesResult, remoteMetaTemplatesResult] = await Promise.all([
+  const [savedResult, systemResult, remoteMetaTemplatesResult, whatsappIntegrationResult] = await Promise.all([
     getMessageTemplates(),
     getSystemTemplatesForDisplay(),
-    getClinicSystemMetaTemplatesStatus(),
     getRemoteMetaTemplates(),
+    supabase
+      .from("clinic_integrations")
+      .select("id")
+      .eq("clinic_id", profile.clinic_id)
+      .in("integration_type", ["whatsapp_simple", "whatsapp_meta"])
+      .eq("status", "connected")
+      .limit(1),
   ]);
   const savedTemplates = savedResult.data || [];
   const systemTemplates = systemResult.data || [];
-  const clinicMetaTemplates = clinicMetaTemplatesResult.data || [];
   const remoteMetaTemplates = remoteMetaTemplatesResult.data || [];
+  const hasWhatsAppIntegration = (whatsappIntegrationResult.data?.length ?? 0) > 0;
 
   return (
     <div className="space-y-6">
@@ -60,8 +65,8 @@ export default async function TemplatesPage() {
       <TemplatesListClient
         savedTemplates={savedTemplates}
         systemTemplates={systemTemplates}
-        clinicMetaTemplates={clinicMetaTemplates}
         remoteMetaTemplates={remoteMetaTemplates}
+        hasWhatsAppIntegration={hasWhatsAppIntegration}
       />
     </div>
   );

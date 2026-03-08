@@ -10,7 +10,6 @@ import {
   deactivateMessageTemplate,
   refreshSystemMetaTemplatesStatus,
   requestSystemMetaTemplates,
-  type ClinicMetaTemplateStatus,
   type EffectiveTemplateItem,
   type MessageTemplate,
   type RemoteMetaTemplateItem,
@@ -31,13 +30,13 @@ const CHANNEL_ICONS: Record<string, React.ReactNode> = {
 export function TemplatesListClient({
   savedTemplates,
   systemTemplates,
-  clinicMetaTemplates,
   remoteMetaTemplates,
+  hasWhatsAppIntegration,
 }: {
   savedTemplates: MessageTemplate[];
   systemTemplates: EffectiveTemplateItem[];
-  clinicMetaTemplates: ClinicMetaTemplateStatus[];
   remoteMetaTemplates: RemoteMetaTemplateItem[];
+  hasWhatsAppIntegration: boolean;
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -216,28 +215,13 @@ export function TemplatesListClient({
               {syncingSystemStatuses ? "Sincronizando..." : "Atualizar status"}
             </Button>
           </div>
-          <div className="space-y-2">
-            {clinicMetaTemplates.map((item) => (
-              <div
-                key={item.template_key}
-                className="flex flex-wrap items-center justify-between gap-2 rounded border p-2"
-              >
-                <div className="text-sm">
-                  <p className="font-medium">{item.template_name}</p>
-                  {item.last_error && <p className="text-xs text-destructive">{item.last_error}</p>}
-                </div>
-                <div className="flex items-center gap-2">
-                  {renderMetaStatusBadge(item.status)}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 pt-4 border-t">
+          <div className="pt-1">
             <p className="text-sm font-medium mb-2">Templates existentes na Meta (tempo real)</p>
             {remoteMetaTemplates.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                Nenhum template retornado pela Meta no momento.
+                {hasWhatsAppIntegration
+                  ? "Nenhum template retornado pela Meta no momento."
+                  : "Faça a integração para ver os templates de mensagens."}
               </p>
             ) : (
               <div className="space-y-2 max-h-72 overflow-auto pr-1">
