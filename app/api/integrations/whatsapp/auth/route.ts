@@ -38,6 +38,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!/^\d+$/.test(configId)) {
+      return NextResponse.json(
+        {
+          error:
+            "META_EMBEDDED_SIGNUP_CONFIG_ID inválido. Use o ID numérico real da configuração do Cadastro Incorporado (ex.: 786102290758591).",
+        },
+        { status: 500 }
+      );
+    }
+
     // Scopes para coexistência (Embedded Signup): inclui business_management
     const scopes = [
       "whatsapp_business_management",
