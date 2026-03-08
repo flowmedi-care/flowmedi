@@ -2,7 +2,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { fetchTemplateStatus, submitTemplateForApproval, type WhatsAppTemplateReviewStatus } from "@/lib/comunicacao/whatsapp";
+import {
+  createMetaTemplate,
+  fetchTemplateStatus,
+  listMetaTemplates,
+  type WhatsAppTemplateReviewStatus,
+} from "@/lib/comunicacao/whatsapp";
 
 // ========== TIPOS ==========
 
@@ -46,21 +51,39 @@ export type MessageTemplate = {
   updated_at: string;
 };
 
-function stripHtmlToText(input: string): string {
-  return input
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n")
-    .replace(/<p[^>]*>/gi, "")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
+export type SystemMetaTemplateKey = "flowmedi_consulta" | "flowmedi_formulario" | "flowmedi_aviso";
 
-function buildMetaTemplateBody(templateText: string): string {
-  // Mantém formato simples e estável para aprovação no Meta
-  return `Olá {{1}}!\n\n${templateText || "{{2}}"}\n\n{{3}}`;
-}
+export type ClinicMetaTemplateStatus = {
+  template_key: SystemMetaTemplateKey;
+  template_name: string;
+  meta_template_id: string | null;
+  status: WhatsAppTemplateReviewStatus;
+  last_error: string | null;
+  requested_at: string | null;
+  synced_at: string | null;
+};
+
+const SYSTEM_META_TEMPLATE_DEFS: Array<{
+  key: SystemMetaTemplateKey;
+  name: string;
+  body: string;
+}> = [
+  {
+    key: "flowmedi_consulta",
+    name: "flowmedi_consulta",
+    body: "Olá {{1}}!\n\n{{2}}\n\n{{3}}",
+  },
+  {
+    key: "flowmedi_formulario",
+    name: "flowmedi_formulario",
+    body: "Olá {{1}}!\n\n{{2}}\n\n{{3}}",
+  },
+  {
+    key: "flowmedi_aviso",
+    name: "flowmedi_aviso",
+    body: "Olá {{1}}!\n\n{{2}}\n\n{{3}}",
+  },
+];
 
 export type ClinicMessageSetting = {
   id: string;
@@ -392,58 +415,6 @@ export async function getMessageTemplate(
   return { data: data as MessageTemplate, error: null };
 }
 
-async function submitWhatsAppTemplateAndPersistStatus(
-  clinicId: string,
-  templateId: string,
-  bodyHtml: string,
-  whatsappMetaPhrase: string | null,
-  supabaseClient: Awaited<ReturnType<typeof createClient>>
-): Promise<{ error: string | null }> {
-  const templateText = (whatsappMetaPhrase?.trim() || stripHtmlToText(bodyHtml) || "{{2}}").slice(0, 900);
-  const templateBodyText = buildMetaTemplateBody(templateText);
-  const submit = await submitTemplateForApproval(
-    clinicId,
-    {
-      templateRecordId: templateId,
-      templateBodyText,
-    },
-    supabaseClient
-  );
-
-  if (!submit.success) {
-    await supabaseClient
-      .from("message_templates")
-      .update({
-        whatsapp_meta_status: "REJECTED",
-        whatsapp_meta_last_error: submit.error || "Falha ao submeter template para Meta.",
-        whatsapp_meta_synced_at: new Date().toISOString(),
-      })
-      .eq("id", templateId)
-      .eq("clinic_id", clinicId);
-    return { error: submit.error || "Falha ao submeter template para Meta." };
-  }
-
-  const nowIso = new Date().toISOString();
-  const { error: updateError } = await supabaseClient
-    .from("message_templates")
-    .update({
-      whatsapp_meta_template_name: submit.templateName ?? null,
-      whatsapp_meta_template_id: submit.templateId ?? null,
-      whatsapp_meta_status: submit.status ?? "PENDING",
-      whatsapp_meta_last_error: null,
-      whatsapp_meta_submitted_at: nowIso,
-      whatsapp_meta_synced_at: nowIso,
-    })
-    .eq("id", templateId)
-    .eq("clinic_id", clinicId);
-
-  if (updateError) {
-    return { error: updateError.message };
-  }
-
-  return { error: null };
-}
-
 // ========== CRIAR TEMPLATE ==========
 
 export async function createMessageTemplate(
@@ -497,22 +468,6 @@ export async function createMessageTemplate(
     .single();
 
   if (error) return { data: null, error: error.message };
-
-  if (channel === "whatsapp") {
-    const approval = await submitWhatsAppTemplateAndPersistStatus(
-      profile.clinic_id,
-      data.id,
-      bodyHtml,
-      whatsappMetaPhrase,
-      supabase
-    );
-    if (approval.error) {
-      return {
-        data: data as MessageTemplate,
-        error: `Template salvo, mas falhou ao solicitar aprovação na Meta: ${approval.error}`,
-      };
-    }
-  }
 
   revalidatePath("/dashboard/mensagens");
   return { data: data as MessageTemplate, error: null };
@@ -605,25 +560,8 @@ export async function updateMessageTemplate(
 
   if (error) return { data: null, error: error.message };
 
-  const updatedTemplate = data as MessageTemplate;
-  if (updatedTemplate.channel === "whatsapp") {
-    const approval = await submitWhatsAppTemplateAndPersistStatus(
-      profile.clinic_id,
-      id,
-      bodyHtml,
-      whatsappMetaPhrase ?? null,
-      supabase
-    );
-    if (approval.error) {
-      return {
-        data: updatedTemplate,
-        error: `Template atualizado, mas falhou ao solicitar aprovação na Meta: ${approval.error}`,
-      };
-    }
-  }
-
   revalidatePath("/dashboard/mensagens");
-  return { data: updatedTemplate, error: null };
+  return { data: data as MessageTemplate, error: null };
 }
 
 // ========== DESATIVAR TEMPLATE ==========
@@ -654,57 +592,153 @@ export async function deactivateMessageTemplate(
   return { error: null };
 }
 
-export async function refreshWhatsAppTemplateStatus(
-  id: string
-): Promise<{ status: WhatsAppTemplateReviewStatus | null; error: string | null }> {
+async function getClinicAdminContext() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { status: null, error: "Não autorizado." };
+  if (!user) return { supabase, clinicId: null as string | null, error: "Não autorizado." };
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id")
+    .select("clinic_id, role")
     .eq("id", user.id)
     .single();
-  if (!profile?.clinic_id) return { status: null, error: "Clínica não encontrada." };
+  if (!profile?.clinic_id || profile.role !== "admin") {
+    return { supabase, clinicId: null as string | null, error: "Apenas administradores podem gerenciar templates Meta." };
+  }
+  return { supabase, clinicId: profile.clinic_id as string, error: null };
+}
 
-  const { data: tpl, error: fetchError } = await supabase
-    .from("message_templates")
-    .select("id, whatsapp_meta_template_id, whatsapp_meta_status")
-    .eq("id", id)
-    .eq("clinic_id", profile.clinic_id)
-    .single();
-  if (fetchError || !tpl) return { status: null, error: "Template não encontrado." };
-
-  if (!tpl.whatsapp_meta_template_id) {
-    return { status: null, error: "Template ainda não foi submetido ao Meta." };
+function normalizeClinicMetaRows(rows: Array<Record<string, unknown>>): ClinicMetaTemplateStatus[] {
+  const byKey = new Map<SystemMetaTemplateKey, ClinicMetaTemplateStatus>();
+  for (const row of rows) {
+    const key = String(row.template_key || "") as SystemMetaTemplateKey;
+    if (!SYSTEM_META_TEMPLATE_DEFS.some((d) => d.key === key)) continue;
+    byKey.set(key, {
+      template_key: key,
+      template_name: String(row.template_name || key),
+      meta_template_id: row.meta_template_id ? String(row.meta_template_id) : null,
+      status: (row.status as WhatsAppTemplateReviewStatus) || "PENDING",
+      last_error: row.last_error ? String(row.last_error) : null,
+      requested_at: row.requested_at ? String(row.requested_at) : null,
+      synced_at: row.synced_at ? String(row.synced_at) : null,
+    });
   }
 
-  const remote = await fetchTemplateStatus(profile.clinic_id, tpl.whatsapp_meta_template_id, supabase);
-  if (!remote.success || !remote.status) {
+  return SYSTEM_META_TEMPLATE_DEFS.map((def) => (
+    byKey.get(def.key) ?? {
+      template_key: def.key,
+      template_name: def.name,
+      meta_template_id: null,
+      status: "PENDING",
+      last_error: null,
+      requested_at: null,
+      synced_at: null,
+    }
+  ));
+}
+
+export async function getClinicSystemMetaTemplatesStatus(): Promise<{
+  data: ClinicMetaTemplateStatus[] | null;
+  error: string | null;
+}> {
+  const ctx = await getClinicAdminContext();
+  if (ctx.error || !ctx.clinicId) return { data: null, error: ctx.error };
+
+  const { data, error } = await ctx.supabase
+    .from("clinic_whatsapp_meta_templates")
+    .select("template_key, template_name, meta_template_id, status, last_error, requested_at, synced_at")
+    .eq("clinic_id", ctx.clinicId)
+    .order("template_key", { ascending: true });
+
+  if (error) return { data: null, error: error.message };
+  return { data: normalizeClinicMetaRows((data ?? []) as Array<Record<string, unknown>>), error: null };
+}
+
+export async function requestSystemMetaTemplates(): Promise<{ error: string | null }> {
+  const ctx = await getClinicAdminContext();
+  if (ctx.error || !ctx.clinicId) return { error: ctx.error };
+  const { supabase, clinicId } = ctx;
+
+  const nowIso = new Date().toISOString();
+  const listed = await listMetaTemplates(clinicId, supabase);
+  const remoteByName = new Map<string, { id: string; status: WhatsAppTemplateReviewStatus }>();
+  if (listed.success && listed.templates) {
+    for (const tpl of listed.templates) {
+      remoteByName.set(tpl.name, { id: tpl.id, status: tpl.status });
+    }
+  }
+
+  for (const def of SYSTEM_META_TEMPLATE_DEFS) {
+    const existingRemote = remoteByName.get(def.name);
+    let metaTemplateId = existingRemote?.id ?? null;
+    let status: WhatsAppTemplateReviewStatus = existingRemote?.status ?? "PENDING";
+    let lastError: string | null = null;
+
+    if (!existingRemote) {
+      const created = await createMetaTemplate(
+        clinicId,
+        {
+          name: def.name,
+          bodyText: def.body,
+        },
+        supabase
+      );
+      if (created.success) {
+        metaTemplateId = created.templateId ?? null;
+        status = created.status ?? "PENDING";
+      } else {
+        lastError = created.error || "Falha ao criar template na Meta.";
+      }
+    }
+
     await supabase
-      .from("message_templates")
-      .update({
-        whatsapp_meta_last_error: remote.error || "Falha ao sincronizar status no Meta.",
-        whatsapp_meta_synced_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq("clinic_id", profile.clinic_id);
-    return { status: (tpl.whatsapp_meta_status as WhatsAppTemplateReviewStatus | null) ?? null, error: remote.error || "Falha ao sincronizar status no Meta." };
+      .from("clinic_whatsapp_meta_templates")
+      .upsert({
+        clinic_id: clinicId,
+        template_key: def.key,
+        template_name: def.name,
+        meta_template_id: metaTemplateId,
+        status,
+        last_error: lastError,
+        requested_at: nowIso,
+        synced_at: nowIso,
+      }, { onConflict: "clinic_id,template_key" });
   }
-
-  await supabase
-    .from("message_templates")
-    .update({
-      whatsapp_meta_status: remote.status,
-      whatsapp_meta_last_error: null,
-      whatsapp_meta_synced_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .eq("clinic_id", profile.clinic_id);
 
   revalidatePath("/dashboard/mensagens/templates");
-  return { status: remote.status, error: null };
+  return { error: null };
+}
+
+export async function refreshSystemMetaTemplatesStatus(): Promise<{ error: string | null }> {
+  const ctx = await getClinicAdminContext();
+  if (ctx.error || !ctx.clinicId) return { error: ctx.error };
+  const { supabase, clinicId } = ctx;
+
+  const { data: rows, error } = await supabase
+    .from("clinic_whatsapp_meta_templates")
+    .select("template_key, meta_template_id, status")
+    .eq("clinic_id", clinicId);
+  if (error) return { error: error.message };
+
+  const nowIso = new Date().toISOString();
+  for (const row of rows ?? []) {
+    const templateId = row.meta_template_id as string | null;
+    if (!templateId) continue;
+
+    const remote = await fetchTemplateStatus(clinicId, templateId, supabase);
+    await supabase
+      .from("clinic_whatsapp_meta_templates")
+      .update({
+        status: remote.success && remote.status ? remote.status : (row.status as string) || "PENDING",
+        last_error: remote.success ? null : (remote.error || "Falha ao sincronizar status."),
+        synced_at: nowIso,
+      })
+      .eq("clinic_id", clinicId)
+      .eq("template_key", row.template_key);
+  }
+
+  revalidatePath("/dashboard/mensagens/templates");
+  return { error: null };
 }
 
 // ========== BUSCAR CONFIGURAÇÕES DA CLÍNICA ==========

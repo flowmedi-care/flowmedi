@@ -430,61 +430,67 @@ export async function sendMessage(
       let templateParams: string[] | undefined;
 
       if (canUseTemplate) {
-        if (!templateId) {
+        const { getMetaTemplateParams } = await import("@/lib/whatsapp-meta-templates");
+        const metaTemplate = getMetaTemplateParams(eventCode, variables, whatsappMetaPhrase);
+        if (!metaTemplate) {
           return {
             success: false,
             error:
-              "Envio fora da janela de 24h exige template WhatsApp da clínica aprovado na Meta. Selecione e salve um template customizado.",
+              "Evento não possui mapeamento para template Meta. Ajuste o evento/template no sistema.",
           };
         }
 
-        const { data: templateMeta } = await supabase
-          .from("message_templates")
-          .select("whatsapp_meta_template_name, whatsapp_meta_template_id, whatsapp_meta_status, whatsapp_meta_last_error")
-          .eq("id", templateId)
+        const { data: clinicMeta } = await supabase
+          .from("clinic_whatsapp_meta_templates")
+          .select("template_name, meta_template_id, status, last_error")
+          .eq("template_key", metaTemplate.template)
           .eq("clinic_id", clinicId)
-          .single();
+          .maybeSingle();
 
-        if (!templateMeta?.whatsapp_meta_template_id || !templateMeta?.whatsapp_meta_template_name) {
+        if (!clinicMeta?.meta_template_id) {
           return {
             success: false,
             error:
-              "Template WhatsApp ainda não foi submetido na Meta. Salve novamente o template para solicitar aprovação.",
+              "Templates Meta do sistema ainda não foram solicitados para esta clínica.",
           };
         }
 
-        let currentStatus = (templateMeta.whatsapp_meta_status || "PENDING").toUpperCase();
+        let currentStatus = String(clinicMeta.status || "PENDING").toUpperCase();
         if (currentStatus !== "APPROVED") {
           const { fetchTemplateStatus } = await import("@/lib/comunicacao/whatsapp");
-          const statusResult = await fetchTemplateStatus(clinicId, templateMeta.whatsapp_meta_template_id, supabase);
+          const statusResult = await fetchTemplateStatus(clinicId, clinicMeta.meta_template_id, supabase);
           if (statusResult.success && statusResult.status) {
             currentStatus = statusResult.status;
             await supabase
-              .from("message_templates")
+              .from("clinic_whatsapp_meta_templates")
               .update({
-                whatsapp_meta_status: statusResult.status,
-                whatsapp_meta_last_error: null,
-                whatsapp_meta_synced_at: new Date().toISOString(),
+                status: statusResult.status,
+                last_error: null,
+                synced_at: new Date().toISOString(),
               })
-              .eq("id", templateId)
-              .eq("clinic_id", clinicId);
+              .eq("clinic_id", clinicId)
+              .eq("template_key", metaTemplate.template);
+          } else {
+            await supabase
+              .from("clinic_whatsapp_meta_templates")
+              .update({
+                last_error: statusResult.error || "Falha ao sincronizar status do template na Meta.",
+                synced_at: new Date().toISOString(),
+              })
+              .eq("clinic_id", clinicId)
+              .eq("template_key", metaTemplate.template);
           }
         }
 
         if (currentStatus !== "APPROVED") {
           return {
             success: false,
-            error: `Template WhatsApp sem aprovação na Meta (status: ${currentStatus}).`,
+            error: `Template WhatsApp do sistema sem aprovação na Meta (status: ${currentStatus}).`,
           };
         }
 
-        const patientName = String((variables as { nome_paciente?: string }).nome_paciente || "Paciente").slice(0, 256);
-        const clinicName = String((variables as { nome_clinica?: string }).nome_clinica || "Equipe Flowmedi").slice(0, 256);
-        const mainMessage = (extractTextFromHtml(body) || whatsappMetaPhrase || "Mensagem da clínica")
-          .slice(0, 900);
-
-        templateName = templateMeta.whatsapp_meta_template_name;
-        templateParams = [patientName, mainMessage, clinicName];
+        templateName = clinicMeta.template_name || metaTemplate.template;
+        templateParams = metaTemplate.params;
       }
       
       sendResult = await sendWhatsApp(

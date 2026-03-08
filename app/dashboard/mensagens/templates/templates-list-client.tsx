@@ -5,7 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Mail, MessageSquare, Edit, Trash2, Copy, RefreshCcw } from "lucide-react";
-import { deactivateMessageTemplate, createMessageTemplateFromSystem, refreshWhatsAppTemplateStatus, type EffectiveTemplateItem, type MessageTemplate } from "../actions";
+import {
+  createMessageTemplateFromSystem,
+  deactivateMessageTemplate,
+  refreshSystemMetaTemplatesStatus,
+  requestSystemMetaTemplates,
+  type ClinicMetaTemplateStatus,
+  type EffectiveTemplateItem,
+  type MessageTemplate,
+} from "../actions";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -22,14 +30,17 @@ const CHANNEL_ICONS: Record<string, React.ReactNode> = {
 export function TemplatesListClient({
   savedTemplates,
   systemTemplates,
+  clinicMetaTemplates,
 }: {
   savedTemplates: MessageTemplate[];
   systemTemplates: EffectiveTemplateItem[];
+  clinicMetaTemplates: ClinicMetaTemplateStatus[];
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [usingSystemId, setUsingSystemId] = useState<string | null>(null);
-  const [syncingStatusId, setSyncingStatusId] = useState<string | null>(null);
+  const [requestingSystemTemplates, setRequestingSystemTemplates] = useState(false);
+  const [syncingSystemStatuses, setSyncingSystemStatuses] = useState(false);
 
   async function handleDelete(id: string) {
     if (!confirm("Tem certeza que deseja desativar este template?")) return;
@@ -53,10 +64,18 @@ export function TemplatesListClient({
     else router.refresh();
   }
 
-  async function handleRefreshWhatsAppStatus(id: string) {
-    setSyncingStatusId(id);
-    const result = await refreshWhatsAppTemplateStatus(id);
-    setSyncingStatusId(null);
+  async function handleRequestSystemTemplates() {
+    setRequestingSystemTemplates(true);
+    const result = await requestSystemMetaTemplates();
+    setRequestingSystemTemplates(false);
+    if (result.error) alert(`Erro ao solicitar templates: ${result.error}`);
+    router.refresh();
+  }
+
+  async function handleRefreshSystemStatuses() {
+    setSyncingSystemStatuses(true);
+    const result = await refreshSystemMetaTemplatesStatus();
+    setSyncingSystemStatuses(false);
     if (result.error) alert(`Erro ao sincronizar status: ${result.error}`);
     router.refresh();
   }
@@ -93,27 +112,6 @@ export function TemplatesListClient({
                   {CHANNEL_ICONS[t.channel]}
                   {CHANNEL_LABELS[t.channel]} · {t.event_code}
                 </div>
-                {t.channel === "whatsapp" && (
-                  <div className="mt-2 flex items-center gap-2">
-                    {renderMetaStatusBadge((t as MessageTemplate).whatsapp_meta_status)}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2"
-                      onClick={() => handleRefreshWhatsAppStatus(t.id)}
-                      disabled={syncingStatusId === t.id}
-                    >
-                      <RefreshCcw className="h-3 w-3 mr-1" />
-                      {syncingStatusId === t.id ? "Sincronizando" : "Atualizar status"}
-                    </Button>
-                  </div>
-                )}
-                {t.channel === "whatsapp" && (t as MessageTemplate).whatsapp_meta_last_error && (
-                  <p className="text-xs text-destructive mt-2 line-clamp-2">
-                    {(t as MessageTemplate).whatsapp_meta_last_error}
-                  </p>
-                )}
                 {t.subject && (
                   <p className="text-sm text-muted-foreground mt-2">
                     <strong>Assunto:</strong> {t.subject}
@@ -188,6 +186,50 @@ export function TemplatesListClient({
             ))}
           </div>
         )}
+      </section>
+
+      {/* 3. Templates Meta canônicos (por clínica) */}
+      <section>
+        <h2 className="text-lg font-semibold text-foreground mb-2">Templates Meta da clínica</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Solicite os 3 templates padrão uma única vez para permitir envios fora da janela de 24h.
+        </p>
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <Button
+              type="button"
+              onClick={handleRequestSystemTemplates}
+              disabled={requestingSystemTemplates}
+            >
+              {requestingSystemTemplates ? "Solicitando..." : "Solicitar templates do sistema"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleRefreshSystemStatuses}
+              disabled={syncingSystemStatuses}
+            >
+              <RefreshCcw className="h-3 w-3 mr-1" />
+              {syncingSystemStatuses ? "Sincronizando..." : "Atualizar status"}
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {clinicMetaTemplates.map((item) => (
+              <div
+                key={item.template_key}
+                className="flex flex-wrap items-center justify-between gap-2 rounded border p-2"
+              >
+                <div className="text-sm">
+                  <p className="font-medium">{item.template_name}</p>
+                  {item.last_error && <p className="text-xs text-destructive">{item.last_error}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {renderMetaStatusBadge(item.status)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       </section>
     </div>
   );

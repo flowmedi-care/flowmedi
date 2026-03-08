@@ -21,6 +21,18 @@ interface SubmitTemplateOptions {
   templateBodyText: string;
 }
 
+export interface CreateMetaTemplateOptions {
+  name: string;
+  bodyText: string;
+}
+
+export interface MetaTemplateSummary {
+  id: string;
+  name: string;
+  status: WhatsAppTemplateReviewStatus;
+  language?: string;
+}
+
 /**
  * Obtém as credenciais do WhatsApp/Meta para uma clínica
  * Tenta primeiro whatsapp_simple, depois whatsapp_meta (coexistência)
@@ -162,6 +174,112 @@ export async function submitTemplateForApproval(
         error instanceof Error
           ? error.message
           : "Erro desconhecido ao submeter template para aprovação.",
+    };
+  }
+}
+
+export async function listMetaTemplates(
+  clinicId: string,
+  supabaseClient?: SupabaseClient
+): Promise<{ success: boolean; templates?: MetaTemplateSummary[]; error?: string }> {
+  try {
+    const { credentials, wabaId } = await getWhatsAppCredentials(clinicId, true, supabaseClient);
+    if (!wabaId) {
+      return { success: false, error: "WABA ID não encontrado na integração WhatsApp." };
+    }
+
+    const url = `https://graph.facebook.com/v23.0/${wabaId}/message_templates?fields=id,name,status,language&limit=100`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${credentials.access_token}`,
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data?.error?.message || "Erro ao listar templates da Meta.",
+      };
+    }
+
+    const templates = Array.isArray(data?.data)
+      ? data.data.map((row: Record<string, unknown>) => ({
+          id: String(row.id ?? ""),
+          name: String(row.name ?? ""),
+          status: toMetaTemplateStatus(typeof row.status === "string" ? row.status : undefined),
+          language: typeof row.language === "string" ? row.language : undefined,
+        }))
+      : [];
+
+    return { success: true, templates };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Erro desconhecido ao listar templates.",
+    };
+  }
+}
+
+export async function createMetaTemplate(
+  clinicId: string,
+  options: CreateMetaTemplateOptions,
+  supabaseClient?: SupabaseClient
+): Promise<{
+  success: boolean;
+  templateName?: string;
+  templateId?: string;
+  status?: WhatsAppTemplateReviewStatus;
+  error?: string;
+}> {
+  try {
+    const { credentials, wabaId } = await getWhatsAppCredentials(clinicId, true, supabaseClient);
+    if (!wabaId) {
+      return { success: false, error: "WABA ID não encontrado na integração WhatsApp." };
+    }
+
+    const templateName = sanitizeMetaTemplateName(options.name);
+    const createUrl = `https://graph.facebook.com/v23.0/${wabaId}/message_templates`;
+    const response = await fetch(createUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${credentials.access_token}`,
+      },
+      body: JSON.stringify({
+        name: templateName,
+        category: "UTILITY",
+        language: "pt_BR",
+        parameter_format: "POSITIONAL",
+        components: [
+          {
+            type: "BODY",
+            text: options.bodyText,
+            example: {
+              body_text: [["Paciente", "Mensagem da clínica", "Equipe Flowmedi"]],
+            },
+          },
+        ],
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data?.error?.message || "Erro ao criar template na Meta.",
+      };
+    }
+
+    return {
+      success: true,
+      templateName,
+      templateId: data?.id ? String(data.id) : undefined,
+      status: toMetaTemplateStatus(data?.status),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Erro desconhecido ao criar template na Meta.",
     };
   }
 }
