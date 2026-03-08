@@ -70,17 +70,17 @@ const SYSTEM_META_TEMPLATE_DEFS: Array<{
 }> = [
   {
     key: "flowmedi_consulta",
-    name: "flowmedi_consulta",
+    name: "flowmedi_consulta_v2",
     body: "Olá {{1}}! Temos uma mensagem importante sobre sua consulta.\n\n{{2}}\n\nSe precisar, responda esta mensagem.",
   },
   {
     key: "flowmedi_formulario",
-    name: "flowmedi_formulario",
+    name: "flowmedi_formulario_v2",
     body: "Olá {{1}}! Precisamos da sua ajuda com um formulário da clínica.\n\n{{2}}\n\nObrigado pelo apoio.",
   },
   {
     key: "flowmedi_aviso",
-    name: "flowmedi_aviso",
+    name: "flowmedi_aviso_v2",
     body: "Olá {{1}}! Temos um aviso importante.\n\n{{2}}\n\nEstamos à disposição para dúvidas.",
   },
 ];
