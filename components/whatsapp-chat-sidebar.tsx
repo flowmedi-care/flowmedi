@@ -491,7 +491,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
               <Plus className="h-5 w-5" />
             </Button>
           </div>
-          {usageLimit?.limit !== null && (
+          {usageLimit && usageLimit.limit !== null && (
             <div
               className={cn(
                 "mx-2 mt-2 mb-1 rounded-md px-3 py-2 text-xs border",
