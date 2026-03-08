@@ -635,7 +635,7 @@ export function AgendaClient({
             if (doctors.length === 1) {
               setForm((f) => ({ ...f, doctorId: doctors[0].id }));
             }
-          }
+          }}
         >
           <Plus className="h-4 w-4 mr-2" />
           Nova consulta
@@ -949,7 +949,6 @@ export function AgendaClient({
                   <p className="text-xs text-muted-foreground">
                     Opcional. Pré-preenche recomendações e associa formulários do procedimento.
                   </p>
-                </div>
               </div>
               <div className="space-y-2">
                 <Label>Data e hora *</Label>
