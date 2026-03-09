@@ -9,6 +9,7 @@ import {
   type MetaTemplateSummary,
   type WhatsAppTemplateReviewStatus,
 } from "@/lib/comunicacao/whatsapp";
+import { getAndSyncEffectiveTicketStatus } from "@/lib/whatsapp-ticket-status";
 
 // ========== TIPOS ==========
 
@@ -1079,15 +1080,25 @@ export async function approvePendingMessage(
       // Buscar conversa com número normalizado
       const { data: conversation } = await supabase
         .from("whatsapp_conversations")
-        .select("status")
+        .select("id, status, last_inbound_message_at")
         .eq("clinic_id", pendingMessage.clinic_id)
         .eq("phone_number", normalizedPhone)
         .maybeSingle();
       
-      whatsappTicketStatus = (conversation?.status as "open" | "closed" | "completed") || null;
+      whatsappTicketStatus = (await getAndSyncEffectiveTicketStatus(
+        pendingMessage.clinic_id,
+        conversation
+          ? {
+              id: conversation.id,
+              status: conversation.status ?? null,
+              last_inbound_message_at: conversation.last_inbound_message_at ?? null,
+            }
+          : null,
+        supabase
+      )) as "open" | "closed" | "completed" | null;
       
       // Se ticket fechado/completed e checkbox marcada, não enviar
-      if (whatsappTicketStatus && whatsappTicketStatus !== "open" && sendOnlyWhenTicketOpen) {
+      if (sendOnlyWhenTicketOpen && whatsappTicketStatus !== "open") {
         return { error: "Ticket não está aberto. Mensagem não será enviada." };
       }
     }

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireClinicMemberWithRole } from "@/lib/auth-helpers";
 import { sendWhatsAppMessage } from "@/lib/comunicacao/whatsapp";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
+import { getAndSyncEffectiveTicketStatus } from "@/lib/whatsapp-ticket-status";
 
 /**
  * POST /api/whatsapp/send
@@ -39,26 +40,27 @@ export async function POST(request: NextRequest) {
       .eq("phone_number", normalizedTo)
       .maybeSingle();
 
-    let conversationStatus = existing?.status ?? null;
-    if (
-      conversationStatus === "open" &&
-      existing?.last_inbound_message_at &&
-      new Date(existing.last_inbound_message_at).getTime() <
-        Date.now() - 24 * 60 * 60 * 1000
-    ) {
-      await supabase
-        .from("whatsapp_conversations")
-        .update({ status: "closed" })
-        .eq("id", existing.id);
-      conversationStatus = "closed";
-    }
+    const conversationStatus = await getAndSyncEffectiveTicketStatus(
+      clinicId,
+      existing
+        ? {
+            id: existing.id,
+            status: existing.status ?? null,
+            last_inbound_message_at: existing.last_inbound_message_at ?? null,
+          }
+        : null,
+      supabase
+    );
 
     // Verificar se pode enviar texto livre (só se status for "open")
-    if (conversationStatus && conversationStatus !== "open") {
+    if (conversationStatus !== "open") {
       return NextResponse.json(
         { 
-          error: `Conversa está ${conversationStatus === "closed" ? "fechada" : "concluída"}. Apenas mensagens template são permitidas.`,
-          status: conversationStatus
+          error:
+            conversationStatus === "completed"
+              ? "Conversa está concluída. Apenas mensagens template são permitidas."
+              : "Janela de 24h fechada para texto livre. Aguarde mensagem do paciente ou envie template.",
+          status: conversationStatus ?? "closed"
         },
         { status: 403 }
       );

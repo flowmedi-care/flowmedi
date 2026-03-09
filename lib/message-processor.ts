@@ -6,6 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import { buildVariableContext, replaceVariables } from "./message-variables";
 import type { MessageChannel } from "@/app/dashboard/mensagens/actions";
 import {
+  getAndSyncEffectiveTicketStatus,
+  getEffectiveTicketStatus,
+} from "@/lib/whatsapp-ticket-status";
+import {
   getCurrentPost24hLimitStatus,
   hasRecentPost24hUsageForPhone,
   recordPost24hUsage,
@@ -90,20 +94,30 @@ export async function processMessageEvent(
         // Buscar conversa com número normalizado
         const { data: conversation } = await supabase
           .from("whatsapp_conversations")
-          .select("id, status")
+          .select("id, status, last_inbound_message_at")
           .eq("clinic_id", clinicId)
           .eq("phone_number", normalizedPhone)
           .maybeSingle();
         
         whatsappConversationId = conversation?.id ?? null;
-        whatsappTicketStatus = (conversation?.status as "open" | "closed" | "completed") || null;
+        whatsappTicketStatus = (await getAndSyncEffectiveTicketStatus(
+          clinicId,
+          conversation
+            ? {
+                id: conversation.id,
+                status: conversation.status ?? null,
+                last_inbound_message_at: conversation.last_inbound_message_at ?? null,
+              }
+            : null,
+          supabase
+        )) as "open" | "closed" | "completed" | null;
         
         // Lógica correta:
         // - Se ticket está aberto: sempre permitir envio (texto livre)
         // - Se ticket está fechado/completed + send_only_when_ticket_open=true: não enviar
         // - Se ticket está fechado/completed + send_only_when_ticket_open=false: permitir (vai usar template)
         const sendOnlyWhenOpen = Boolean(setting.send_only_when_ticket_open);
-        if (whatsappTicketStatus && whatsappTicketStatus !== "open" && sendOnlyWhenOpen) {
+        if (sendOnlyWhenOpen && whatsappTicketStatus !== "open") {
           return {
             success: false,
             error: "Ticket não está aberto. Mensagem não será enviada.",
@@ -112,7 +126,6 @@ export async function processMessageEvent(
 
         // Fora da janela de 24h: conversa fechada/concluída exige template Meta e pode consumir custo.
         const isPost24hTemplateSend =
-          whatsappTicketStatus !== null &&
           whatsappTicketStatus !== "open" &&
           !sendOnlyWhenOpen;
         if (isPost24hTemplateSend && whatsappNormalizedPhone) {
@@ -476,11 +489,11 @@ export async function sendMessage(
 
       // Decidir entre texto livre ou template baseado no status do ticket
       // Lógica:
-      // - Ticket aberto OU sem conversa (null): sempre usar texto livre
+      // - Ticket aberto: texto livre
       // - Ticket fechado/completed + checkbox desmarcada: tentar template Meta
       // - Ticket fechado/completed + checkbox marcada: não deveria chegar aqui (já bloqueado acima)
-      const useTextMessage = !whatsappTicketStatus || whatsappTicketStatus === "open";
-      const canUseTemplate = whatsappTicketStatus && whatsappTicketStatus !== "open" && !sendOnlyWhenTicketOpen;
+      const useTextMessage = whatsappTicketStatus === "open";
+      const canUseTemplate = whatsappTicketStatus !== "open" && !sendOnlyWhenTicketOpen;
 
       let templateName: string | undefined;
       let templateParams: string[] | undefined;
@@ -631,7 +644,8 @@ export async function sendMessage(
           .insert({
             clinic_id: clinicId,
             phone_number: normalizedPhone,
-            status: "open",
+            // Ticket só abre quando existe inbound recente do paciente.
+            status: "closed",
           })
           .select("id")
           .single();
@@ -1103,11 +1117,14 @@ export async function getMessagePreview(
         const normalizedPhone = normalizeWhatsAppPhone(digits.startsWith("55") ? digits : `55${digits}`);
         const { data: conv } = await supabase
           .from("whatsapp_conversations")
-          .select("status")
+          .select("status, last_inbound_message_at")
           .eq("clinic_id", clinicId)
           .eq("phone_number", normalizedPhone)
           .maybeSingle();
-        ticketStatus = (conv?.status as "open" | "closed" | "completed") ?? null;
+        ticketStatus = getEffectiveTicketStatus(
+          conv?.status ?? null,
+          conv?.last_inbound_message_at ?? null
+        ) as "open" | "closed" | "completed";
       }
       const useMetaTemplate = ticketStatus && ticketStatus !== "open";
       if (useMetaTemplate) {
