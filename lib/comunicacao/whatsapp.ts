@@ -349,6 +349,47 @@ export async function fetchTemplateStatus(
   }
 }
 
+export async function fetchTemplateDetails(
+  clinicId: string,
+  templateId: string,
+  supabaseClient?: SupabaseClient
+): Promise<{
+  success: boolean;
+  name?: string;
+  status?: WhatsAppTemplateReviewStatus;
+  error?: string;
+}> {
+  try {
+    const { credentials } = await getWhatsAppCredentials(clinicId, true, supabaseClient);
+    const url = `https://graph.facebook.com/v23.0/${templateId}?fields=id,name,status`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${credentials.access_token}`,
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data?.error?.message || "Erro ao consultar dados do template na Meta.",
+      };
+    }
+    return {
+      success: true,
+      name: typeof data?.name === "string" ? data.name : undefined,
+      status: toMetaTemplateStatus(data?.status),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Erro desconhecido ao consultar dados do template.",
+    };
+  }
+}
+
 /**
  * Envia uma mensagem WhatsApp via Meta Cloud API
  */

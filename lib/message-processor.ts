@@ -542,39 +542,74 @@ export async function sendMessage(
           .eq("clinic_id", clinicId)
           .maybeSingle();
 
-        if (!clinicMeta?.meta_template_id) {
+        let resolvedTemplateId = clinicMeta?.meta_template_id ?? null;
+        let resolvedTemplateName = clinicMeta?.template_name || metaTemplate.template;
+        let currentStatus = String(clinicMeta?.status || "PENDING").toUpperCase();
+
+        if (!resolvedTemplateId) {
+          const { listMetaTemplates } = await import("@/lib/comunicacao/whatsapp");
+          const listed = await listMetaTemplates(clinicId, supabase);
+          if (listed.success && listed.templates?.length) {
+            const preferred = listed.templates.find(
+              (tpl) =>
+                (clinicMeta?.template_name && tpl.name === clinicMeta.template_name) ||
+                tpl.name === metaTemplate.template ||
+                tpl.name.startsWith(`${metaTemplate.template}_`)
+            );
+            if (preferred) {
+              resolvedTemplateId = preferred.id;
+              resolvedTemplateName = preferred.name;
+              currentStatus = preferred.status;
+              await supabase
+                .from("clinic_whatsapp_meta_templates")
+                .upsert(
+                  {
+                    clinic_id: clinicId,
+                    template_key: metaTemplate.template,
+                    template_name: preferred.name,
+                    meta_template_id: preferred.id,
+                    status: preferred.status,
+                    last_error: null,
+                    synced_at: new Date().toISOString(),
+                  },
+                  { onConflict: "clinic_id,template_key" }
+                );
+            }
+          }
+        }
+
+        if (!resolvedTemplateId) {
           return {
             success: false,
             error:
-              "Templates Meta do sistema ainda não foram solicitados para esta clínica.",
+              "Template Meta não pareado para este evento. Vá em Mensagens > Templates e sincronize os templates Meta.",
           };
         }
 
-        let currentStatus = String(clinicMeta.status || "PENDING").toUpperCase();
-        if (currentStatus !== "APPROVED") {
-          const { fetchTemplateStatus } = await import("@/lib/comunicacao/whatsapp");
-          const statusResult = await fetchTemplateStatus(clinicId, clinicMeta.meta_template_id, supabase);
-          if (statusResult.success && statusResult.status) {
-            currentStatus = statusResult.status;
-            await supabase
-              .from("clinic_whatsapp_meta_templates")
-              .update({
-                status: statusResult.status,
-                last_error: null,
-                synced_at: new Date().toISOString(),
-              })
-              .eq("clinic_id", clinicId)
-              .eq("template_key", metaTemplate.template);
-          } else {
-            await supabase
-              .from("clinic_whatsapp_meta_templates")
-              .update({
-                last_error: statusResult.error || "Falha ao sincronizar status do template na Meta.",
-                synced_at: new Date().toISOString(),
-              })
-              .eq("clinic_id", clinicId)
-              .eq("template_key", metaTemplate.template);
-          }
+        const { fetchTemplateDetails } = await import("@/lib/comunicacao/whatsapp");
+        const details = await fetchTemplateDetails(clinicId, resolvedTemplateId, supabase);
+        if (details.success) {
+          if (details.name) resolvedTemplateName = details.name;
+          if (details.status) currentStatus = details.status;
+          await supabase
+            .from("clinic_whatsapp_meta_templates")
+            .update({
+              template_name: resolvedTemplateName,
+              status: currentStatus,
+              last_error: null,
+              synced_at: new Date().toISOString(),
+            })
+            .eq("clinic_id", clinicId)
+            .eq("template_key", metaTemplate.template);
+        } else {
+          await supabase
+            .from("clinic_whatsapp_meta_templates")
+            .update({
+              last_error: details.error || "Falha ao sincronizar template na Meta.",
+              synced_at: new Date().toISOString(),
+            })
+            .eq("clinic_id", clinicId)
+            .eq("template_key", metaTemplate.template);
         }
 
         if (currentStatus !== "APPROVED") {
@@ -584,7 +619,7 @@ export async function sendMessage(
           };
         }
 
-        templateName = clinicMeta.template_name || metaTemplate.template;
+        templateName = resolvedTemplateName;
         templateParams = metaTemplate.params;
       }
       
