@@ -64,6 +64,83 @@ type VisaoGeral = {
   }[];
   horariosOciosos: { hour: string; appointments: number; recommendation: string }[];
   resumoExecutivo: { titulo: string; impacto: string; acao: string; tone: "positive" | "warning" | "neutral" }[];
+  funilGeral: {
+    agendadas: number;
+    confirmadas: number;
+    compareceram: number;
+    noShow: number;
+    retornoAgendado: number;
+    taxaConfirmacao: number;
+    taxaComparecimento: number;
+    taxaRetorno: number;
+  };
+  metas: {
+    key: "confirmacao" | "comparecimento" | "noShow" | "ocupacao" | "retorno";
+    label: string;
+    current: number;
+    target: number;
+    status: "ok" | "warning" | "critical";
+    trendVs30d: number;
+  }[];
+  alertas: { title: string; context: string; action: string; severity: "ok" | "warning" | "critical" }[];
+  benchmark: {
+    noShow7d: number;
+    noShow30d: number;
+    confirmacao7d: number;
+    confirmacao30d: number;
+    comparecimento7d: number;
+    comparecimento30d: number;
+    ocupacao7d: number;
+    ocupacao30d: number;
+  };
+  funilPorProfissional: {
+    id: string;
+    label: string;
+    agendadas: number;
+    confirmadas: number;
+    compareceram: number;
+    noShow: number;
+    retornoAgendado: number;
+    taxaConfirmacao: number;
+    taxaComparecimento: number;
+    taxaRetorno: number;
+  }[];
+  funilPorAtendente: {
+    id: string;
+    label: string;
+    agendadas: number;
+    confirmadas: number;
+    compareceram: number;
+    noShow: number;
+    retornoAgendado: number;
+    taxaConfirmacao: number;
+    taxaComparecimento: number;
+    taxaRetorno: number;
+  }[];
+  funilPorTipoConsulta: {
+    id: string;
+    label: string;
+    agendadas: number;
+    confirmadas: number;
+    compareceram: number;
+    noShow: number;
+    retornoAgendado: number;
+    taxaConfirmacao: number;
+    taxaComparecimento: number;
+    taxaRetorno: number;
+  }[];
+  funilPorOrigem: {
+    id: string;
+    label: string;
+    agendadas: number;
+    confirmadas: number;
+    compareceram: number;
+    noShow: number;
+    retornoAgendado: number;
+    taxaConfirmacao: number;
+    taxaComparecimento: number;
+    taxaRetorno: number;
+  }[];
   chartData: { date: string; total: number; realizadas: number; canceladas: number; faltas: number }[];
 };
 type PorProfissionalRow = {
@@ -121,6 +198,12 @@ export function AdminReportsClient({
   const searchParams = useSearchParams();
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
+  const statusClass = (s: "ok" | "warning" | "critical") =>
+    s === "ok"
+      ? "bg-green-100 text-green-700"
+      : s === "warning"
+        ? "bg-amber-100 text-amber-700"
+        : "bg-red-100 text-red-700";
 
   function setTab(tab: ReportTab) {
     const p = new URLSearchParams(searchParams.toString());
@@ -249,6 +332,115 @@ export function AdminReportsClient({
           </Card>
           <Card>
             <CardHeader>
+              <span className="font-semibold">Funil operacional</span>
+              <p className="text-sm text-muted-foreground">Agendada → Confirmada → Compareceu → Retorno agendado</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Agendadas</p>
+                  <p className="text-xl font-bold">{visaoGeral.funilGeral.agendadas}</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Confirmadas</p>
+                  <p className="text-xl font-bold">{visaoGeral.funilGeral.confirmadas}</p>
+                  <p className="text-xs text-muted-foreground">{visaoGeral.funilGeral.taxaConfirmacao}% taxa</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Compareceram</p>
+                  <p className="text-xl font-bold">{visaoGeral.funilGeral.compareceram}</p>
+                  <p className="text-xs text-muted-foreground">{visaoGeral.funilGeral.taxaComparecimento}% taxa</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Retorno agendado</p>
+                  <p className="text-xl font-bold">{visaoGeral.funilGeral.retornoAgendado}</p>
+                  <p className="text-xs text-muted-foreground">{visaoGeral.funilGeral.taxaRetorno}% taxa</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Metas da clínica</span>
+                <p className="text-sm text-muted-foreground">Status atual e tendência vs últimos 30 dias.</p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {visaoGeral.metas.map((m) => (
+                    <div key={m.key} className="flex items-center justify-between rounded-md border border-border p-2 text-sm">
+                      <div>
+                        <p className="font-medium">{m.label}</p>
+                        <p className="text-muted-foreground">
+                          {m.current}% (meta {m.target}%)
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className={cn("rounded px-2 py-1 text-xs font-medium", statusClass(m.status))}>{m.status}</span>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {m.trendVs30d >= 0 ? "+" : ""}
+                          {m.trendVs30d} pp vs 30d
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Alertas automáticos</span>
+                <p className="text-sm text-muted-foreground">Priorize os itens críticos primeiro.</p>
+              </CardHeader>
+              <CardContent>
+                {visaoGeral.alertas.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sem alertas ativos no período.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {visaoGeral.alertas.map((a, idx) => (
+                      <div key={`${a.title}-${idx}`} className="rounded-md border border-border p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium">{a.title}</p>
+                          <span className={cn("rounded px-2 py-1 text-xs font-medium", statusClass(a.severity))}>
+                            {a.severity}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{a.context}</p>
+                        <p className="text-sm">{a.action}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          <Card>
+            <CardHeader>
+              <span className="font-semibold">Benchmark interno (7d vs 30d)</span>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-muted-foreground">Confirmação</p>
+                  <p className="font-medium">{visaoGeral.benchmark.confirmacao7d}% / {visaoGeral.benchmark.confirmacao30d}%</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-muted-foreground">Comparecimento</p>
+                  <p className="font-medium">{visaoGeral.benchmark.comparecimento7d}% / {visaoGeral.benchmark.comparecimento30d}%</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-muted-foreground">No-show</p>
+                  <p className="font-medium">{visaoGeral.benchmark.noShow7d}% / {visaoGeral.benchmark.noShow30d}%</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-muted-foreground">Ocupação</p>
+                  <p className="font-medium">{visaoGeral.benchmark.ocupacao7d}% / {visaoGeral.benchmark.ocupacao30d}%</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
               <span className="font-semibold">Resumo executivo da semana</span>
               <p className="text-sm text-muted-foreground">
                 O que mudou, por que importa e qual ação tomar hoje.
@@ -327,6 +519,102 @@ export function AdminReportsClient({
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Funil por profissional</span>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 text-left">Profissional</th>
+                        <th className="py-2 text-right">Confirmação</th>
+                        <th className="py-2 text-right">Comparecimento</th>
+                        <th className="py-2 text-right">Retorno</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visaoGeral.funilPorProfissional.slice(0, 8).map((row) => (
+                        <tr key={row.id} className="border-b border-border/50">
+                          <td className="py-2">{row.label}</td>
+                          <td className="py-2 text-right">{row.taxaConfirmacao}%</td>
+                          <td className="py-2 text-right">{row.taxaComparecimento}%</td>
+                          <td className="py-2 text-right">{row.taxaRetorno}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Funil por atendente</span>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="py-2 text-left">Atendente</th>
+                        <th className="py-2 text-right">Confirmação</th>
+                        <th className="py-2 text-right">Comparecimento</th>
+                        <th className="py-2 text-right">Retorno</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visaoGeral.funilPorAtendente.slice(0, 8).map((row) => (
+                        <tr key={row.id} className="border-b border-border/50">
+                          <td className="py-2">{row.label}</td>
+                          <td className="py-2 text-right">{row.taxaConfirmacao}%</td>
+                          <td className="py-2 text-right">{row.taxaComparecimento}%</td>
+                          <td className="py-2 text-right">{row.taxaRetorno}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Funil por origem</span>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  {visaoGeral.funilPorOrigem.map((row) => (
+                    <div key={row.id} className="rounded-md border border-border p-2 flex items-center justify-between">
+                      <span>{row.label}</span>
+                      <span className="text-muted-foreground">
+                        Conf {row.taxaConfirmacao}% · Comp {row.taxaComparecimento}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Funil por tipo de consulta</span>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  {visaoGeral.funilPorTipoConsulta.slice(0, 8).map((row) => (
+                    <div key={row.id} className="rounded-md border border-border p-2 flex items-center justify-between">
+                      <span>{row.label}</span>
+                      <span className="text-muted-foreground">
+                        Conf {row.taxaConfirmacao}% · Comp {row.taxaComparecimento}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </div>

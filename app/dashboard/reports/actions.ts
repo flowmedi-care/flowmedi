@@ -28,11 +28,80 @@ type ResumoExecutivoItem = {
   tone: "positive" | "warning" | "neutral";
 };
 
+type GoalStatusLevel = "ok" | "warning" | "critical";
+
+type GoalCard = {
+  key: "confirmacao" | "comparecimento" | "noShow" | "ocupacao" | "retorno";
+  label: string;
+  current: number;
+  target: number;
+  status: GoalStatusLevel;
+  trendVs30d: number;
+};
+
+type AlertItem = {
+  title: string;
+  context: string;
+  action: string;
+  severity: GoalStatusLevel;
+};
+
+type FunnelBreakdownRow = {
+  id: string;
+  label: string;
+  agendadas: number;
+  confirmadas: number;
+  compareceram: number;
+  noShow: number;
+  retornoAgendado: number;
+  taxaConfirmacao: number;
+  taxaComparecimento: number;
+  taxaRetorno: number;
+};
+
+type FunnelData = {
+  agendadas: number;
+  confirmadas: number;
+  compareceram: number;
+  noShow: number;
+  retornoAgendado: number;
+  taxaConfirmacao: number;
+  taxaComparecimento: number;
+  taxaRetorno: number;
+};
+
+type FunnelBenchmark = {
+  noShow7d: number;
+  noShow30d: number;
+  confirmacao7d: number;
+  confirmacao30d: number;
+  comparecimento7d: number;
+  comparecimento30d: number;
+  ocupacao7d: number;
+  ocupacao30d: number;
+};
+
 function getSinglePatientRelation(
   patient: { full_name: string | null; phone: string | null } | { full_name: string | null; phone: string | null }[] | null | undefined
 ) {
   if (!patient) return null;
   return Array.isArray(patient) ? patient[0] ?? null : patient;
+}
+
+function pct(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 100);
+}
+
+function calcGoalStatus(current: number, target: number, higherIsBetter: boolean): GoalStatusLevel {
+  if (higherIsBetter) {
+    if (current >= target) return "ok";
+    if (current >= target - 10) return "warning";
+    return "critical";
+  }
+  if (current <= target) return "ok";
+  if (current <= target + 3) return "warning";
+  return "critical";
 }
 
 function getPeriodDates(period: Period): { start: Date; end: Date } {
@@ -58,7 +127,7 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
 
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, status, scheduled_at, doctor_id, patient_id, valor")
+    .select("id, status, scheduled_at, doctor_id, patient_id, valor, created_by, appointment_type_id")
     .eq("clinic_id", clinicId)
     .gte("scheduled_at", startStr)
     .lte("scheduled_at", endStr);
@@ -86,6 +155,8 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
     const estimada = perdaComValor + semValor * ticketMedioRealizadas;
     return Number(estimada.toFixed(2));
   })();
+  const noShow = faltas;
+  const confirmadas = (appointments ?? []).filter((a) => a.status === "confirmada" || a.status === "realizada" || a.status === "falta").length;
 
   // Mês anterior para comparação
   const prevEnd = new Date(start);
@@ -138,10 +209,261 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
     .sort((a, b) => a.appointments - b.appointments)
     .slice(0, 3);
 
+  // Funil: retorno agendado em até 30 dias após consulta realizada.
+  const realizedAppointments = (appointments ?? []).filter((a) => a.status === "realizada" && a.patient_id);
+  const retornoWindowEnd = new Date(end);
+  retornoWindowEnd.setDate(retornoWindowEnd.getDate() + 30);
+  const patientIds = Array.from(new Set(realizedAppointments.map((a) => a.patient_id).filter(Boolean))) as string[];
+
+  const { data: returnAppointments } =
+    patientIds.length > 0
+      ? await supabase
+          .from("appointments")
+          .select("id, patient_id, scheduled_at")
+          .eq("clinic_id", clinicId)
+          .in("patient_id", patientIds)
+          .gte("scheduled_at", startStr)
+          .lte("scheduled_at", retornoWindowEnd.toISOString())
+      : { data: [] as Array<{ id: string; patient_id: string; scheduled_at: string }> };
+
+  const returnsByPatient = new Map<string, string[]>();
+  for (const item of returnAppointments ?? []) {
+    const list = returnsByPatient.get(item.patient_id) ?? [];
+    list.push(item.scheduled_at);
+    returnsByPatient.set(item.patient_id, list);
+  }
+
+  let retornoAgendado = 0;
+  const returnedRealizedAppointmentIds = new Set<string>();
+  for (const appt of realizedAppointments) {
+    const future = returnsByPatient.get(appt.patient_id as string) ?? [];
+    const baseTime = new Date(appt.scheduled_at).getTime();
+    const hasReturn = future.some((dt) => {
+      const t = new Date(dt).getTime();
+      const diffDays = (t - baseTime) / (1000 * 60 * 60 * 24);
+      return diffDays > 0 && diffDays <= 30;
+    });
+    if (hasReturn) {
+      retornoAgendado++;
+      returnedRealizedAppointmentIds.add(appt.id);
+    }
+  }
+
+  const funilGeral: FunnelData = {
+    agendadas: total,
+    confirmadas,
+    compareceram: realizadas,
+    noShow,
+    retornoAgendado,
+    taxaConfirmacao: pct(confirmadas, total),
+    taxaComparecimento: pct(realizadas, confirmadas || total),
+    taxaRetorno: pct(retornoAgendado, realizadas),
+  };
+
+  // Benchmark interno: 7 dias vs 30 dias.
   const now = new Date();
-  const historyStart = new Date(now);
+  const start7 = new Date(now);
+  start7.setDate(start7.getDate() - 7);
+  const start30 = new Date(now);
+  start30.setDate(start30.getDate() - 30);
+  const { data: benchmarkAppointments } = await supabase
+    .from("appointments")
+    .select("id, status, scheduled_at")
+    .eq("clinic_id", clinicId)
+    .gte("scheduled_at", start30.toISOString())
+    .lte("scheduled_at", now.toISOString());
+
+  const last7 = (benchmarkAppointments ?? []).filter((a) => new Date(a.scheduled_at) >= start7);
+  const last30 = benchmarkAppointments ?? [];
+  const noShow7d = pct(last7.filter((a) => a.status === "falta").length, last7.length);
+  const noShow30d = pct(last30.filter((a) => a.status === "falta").length, last30.length);
+  const conf7d = pct(
+    last7.filter((a) => a.status === "confirmada" || a.status === "realizada" || a.status === "falta").length,
+    last7.length
+  );
+  const conf30d = pct(
+    last30.filter((a) => a.status === "confirmada" || a.status === "realizada" || a.status === "falta").length,
+    last30.length
+  );
+  const comp7d = pct(last7.filter((a) => a.status === "realizada").length, Math.max(1, last7.length));
+  const comp30d = pct(last30.filter((a) => a.status === "realizada").length, Math.max(1, last30.length));
+  const benchmark: FunnelBenchmark = {
+    noShow7d,
+    noShow30d,
+    confirmacao7d: conf7d,
+    confirmacao30d: conf30d,
+    comparecimento7d: comp7d,
+    comparecimento30d: comp30d,
+    ocupacao7d: comp7d,
+    ocupacao30d: comp30d,
+  };
+
+  const goals = {
+    confirmacao: 85,
+    comparecimento: 80,
+    noShow: 8,
+    ocupacao: 75,
+    retorno: 60,
+  };
+  const metas: GoalCard[] = [
+    {
+      key: "confirmacao",
+      label: "Confirmação",
+      current: funilGeral.taxaConfirmacao,
+      target: goals.confirmacao,
+      status: calcGoalStatus(funilGeral.taxaConfirmacao, goals.confirmacao, true),
+      trendVs30d: funilGeral.taxaConfirmacao - benchmark.confirmacao30d,
+    },
+    {
+      key: "comparecimento",
+      label: "Comparecimento",
+      current: funilGeral.taxaComparecimento,
+      target: goals.comparecimento,
+      status: calcGoalStatus(funilGeral.taxaComparecimento, goals.comparecimento, true),
+      trendVs30d: funilGeral.taxaComparecimento - benchmark.comparecimento30d,
+    },
+    {
+      key: "noShow",
+      label: "No-show",
+      current: taxaNoShow,
+      target: goals.noShow,
+      status: calcGoalStatus(taxaNoShow, goals.noShow, false),
+      trendVs30d: taxaNoShow - benchmark.noShow30d,
+    },
+    {
+      key: "ocupacao",
+      label: "Ocupação",
+      current: funilGeral.taxaComparecimento,
+      target: goals.ocupacao,
+      status: calcGoalStatus(funilGeral.taxaComparecimento, goals.ocupacao, true),
+      trendVs30d: funilGeral.taxaComparecimento - benchmark.ocupacao30d,
+    },
+    {
+      key: "retorno",
+      label: "Retorno",
+      current: funilGeral.taxaRetorno,
+      target: goals.retorno,
+      status: calcGoalStatus(funilGeral.taxaRetorno, goals.retorno, true),
+      trendVs30d: 0,
+    },
+  ];
+
+  const alertas: AlertItem[] = metas
+    .filter((m) => m.status !== "ok")
+    .map((m) => ({
+      title: `${m.label} fora da meta`,
+      context: `${m.current}% no período (meta ${m.target}%).`,
+      action:
+        m.key === "confirmacao"
+          ? "Reforçar lembrete + confirmação ativa nas próximas 24h."
+          : m.key === "noShow"
+            ? "Priorizar contato manual nos pacientes de maior risco hoje."
+            : m.key === "retorno"
+              ? "Criar rotina de oferta de retorno ao finalizar atendimento."
+              : "Revisar distribuição da agenda e abrir encaixes direcionados.",
+      severity: m.status,
+    }))
+    .slice(0, 6);
+
+  // Quebras por profissional, atendente e tipo de consulta.
+  const doctorIds = Array.from(new Set((appointments ?? []).map((a) => a.doctor_id).filter(Boolean))) as string[];
+  const secretaryIds = Array.from(new Set((appointments ?? []).map((a) => a.created_by).filter(Boolean))) as string[];
+  const typeIds = Array.from(new Set((appointments ?? []).map((a) => a.appointment_type_id).filter(Boolean))) as string[];
+
+  const { data: doctorProfiles } =
+    doctorIds.length > 0
+      ? await supabase.from("profiles").select("id, full_name").in("id", doctorIds)
+      : { data: [] as Array<{ id: string; full_name: string | null }> };
+  const { data: secretaryProfiles } =
+    secretaryIds.length > 0
+      ? await supabase.from("profiles").select("id, full_name, role").in("id", secretaryIds)
+      : { data: [] as Array<{ id: string; full_name: string | null; role: string }> };
+  const { data: appointmentTypes } =
+    typeIds.length > 0
+      ? await supabase.from("appointment_types").select("id, name").in("id", typeIds)
+      : { data: [] as Array<{ id: string; name: string | null }> };
+
+  const doctorNameById = new Map((doctorProfiles ?? []).map((p) => [p.id, p.full_name ?? "Profissional"]));
+  const secretaryById = new Map((secretaryProfiles ?? []).map((p) => [p.id, { name: p.full_name ?? "Atendente", role: p.role }]));
+  const typeNameById = new Map((appointmentTypes ?? []).map((t) => [t.id, t.name ?? "Tipo não informado"]));
+
+  function buildBreakdown(rows: Array<{ key: string; label: string; status: string; appointmentId: string }>): FunnelBreakdownRow[] {
+    const grouped: Record<string, FunnelBreakdownRow> = {};
+    for (const row of rows) {
+      if (!grouped[row.key]) {
+        grouped[row.key] = {
+          id: row.key,
+          label: row.label,
+          agendadas: 0,
+          confirmadas: 0,
+          compareceram: 0,
+          noShow: 0,
+          retornoAgendado: 0,
+          taxaConfirmacao: 0,
+          taxaComparecimento: 0,
+          taxaRetorno: 0,
+        };
+      }
+      const g = grouped[row.key];
+      g.agendadas++;
+      if (row.status === "confirmada" || row.status === "realizada" || row.status === "falta") g.confirmadas++;
+      if (row.status === "realizada") {
+        g.compareceram++;
+        if (returnedRealizedAppointmentIds.has(row.appointmentId)) g.retornoAgendado++;
+      }
+      if (row.status === "falta") g.noShow++;
+    }
+    return Object.values(grouped).map((g) => ({
+      ...g,
+      taxaConfirmacao: pct(g.confirmadas, g.agendadas),
+      taxaComparecimento: pct(g.compareceram, g.confirmadas || g.agendadas),
+      taxaRetorno: pct(g.retornoAgendado, g.compareceram),
+    }));
+  }
+
+  const porProfissional = buildBreakdown(
+    (appointments ?? []).map((a) => ({
+      key: a.doctor_id ?? "sem-profissional",
+      label: doctorNameById.get(a.doctor_id ?? "") ?? "Sem profissional",
+      status: a.status,
+      appointmentId: a.id,
+    }))
+  );
+  const porAtendente = buildBreakdown(
+    (appointments ?? []).map((a) => {
+      const sec = secretaryById.get(a.created_by ?? "");
+      return {
+        key: a.created_by ?? "nao-informado",
+        label: sec?.name ?? "Não informado",
+        status: a.status,
+        appointmentId: a.id,
+      };
+    })
+  );
+  const porTipoConsulta = buildBreakdown(
+    (appointments ?? []).map((a) => ({
+      key: a.appointment_type_id ?? "sem-tipo",
+      label: typeNameById.get(a.appointment_type_id ?? "") ?? "Tipo não informado",
+      status: a.status,
+      appointmentId: a.id,
+    }))
+  );
+  const porOrigem = buildBreakdown(
+    (appointments ?? []).map((a) => {
+      const sec = secretaryById.get(a.created_by ?? "");
+      const origem = sec?.role === "secretaria" ? "Secretaria" : sec?.role === "admin" ? "Admin" : "Não informado";
+      return {
+        key: origem.toLowerCase(),
+        label: origem,
+        status: a.status,
+        appointmentId: a.id,
+      };
+    })
+  );
+  const nowRisk = new Date();
+  const historyStart = new Date(nowRisk);
   historyStart.setDate(historyStart.getDate() - 180);
-  const upcomingEnd = new Date(now);
+  const upcomingEnd = new Date(nowRisk);
   upcomingEnd.setDate(upcomingEnd.getDate() + 7);
 
   const { data: patientAppointments } = await supabase
@@ -170,7 +492,7 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
         realizadas: 0,
       };
     }
-    if (new Date(a.scheduled_at) <= now) {
+    if (new Date(a.scheduled_at) <= nowRisk) {
       patientStats[a.patient_id].total += 1;
       if (a.status === "falta") patientStats[a.patient_id].faltas += 1;
       if (a.status === "cancelada") patientStats[a.patient_id].canceladas += 1;
@@ -181,7 +503,7 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
   (patientAppointments ?? [])
     .filter(
       (a) =>
-        new Date(a.scheduled_at) > now &&
+        new Date(a.scheduled_at) > nowRisk &&
         new Date(a.scheduled_at) <= upcomingEnd &&
         (a.status === "agendada" || a.status === "confirmada")
     )
@@ -236,6 +558,14 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
       tone: "positive",
     });
   }
+  if (alertas.length > 0) {
+    resumoExecutivo.push({
+      titulo: "Metas fora do alvo",
+      impacto: `${alertas.length} alertas ativos na operação.`,
+      acao: "Executar as ações recomendadas de maior impacto ainda hoje.",
+      tone: "warning",
+    });
+  }
 
   return {
     data: {
@@ -252,6 +582,14 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
       pacientesRiscoNoShow: topPacientesRisco,
       horariosOciosos,
       resumoExecutivo,
+      funilGeral,
+      metas,
+      alertas,
+      benchmark,
+      funilPorProfissional: porProfissional,
+      funilPorAtendente: porAtendente,
+      funilPorTipoConsulta: porTipoConsulta,
+      funilPorOrigem: porOrigem,
       chartData,
     },
     error: null,
