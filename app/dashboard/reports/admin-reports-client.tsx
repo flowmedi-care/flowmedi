@@ -161,8 +161,31 @@ type PorAtendenteRow = {
 };
 type Financeiro = {
   receitaTotal: number;
+  receitaPerdidaTotal: number;
+  receitaPerdidaFaltas: number;
+  receitaPerdidaCancelamentos: number;
   receitaPorProfissional: { doctorId: string; doctorName: string; valor: number }[];
+  receitaPorServico: { servico: string; valor: number }[];
   ticketMedio: number;
+  ltvAproximado: number;
+  previsaoReceita7d: number;
+  previsaoReceita30d: number;
+  mensagensResumo: {
+    totalMensagens: number;
+    mensagensWhatsApp: number;
+    mensagensEmail: number;
+    whatsappPost24hStartsMesAtual: number;
+  };
+  conversaoPorTemplate: {
+    type: string;
+    enviados: number;
+    vinculadosConsulta: number;
+    taxaConfirmacao: number;
+    taxaComparecimento: number;
+    noShow: number;
+    impactoReceitaEstimada: number;
+    roiIndice: number;
+  }[];
   mensagem: string;
   consultasRealizadas: number;
 };
@@ -733,45 +756,156 @@ export function AdminReportsClient({
               <p className="text-sm text-muted-foreground">{financeiro.mensagem}</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Receita total</p>
-                  <p className="text-2xl font-bold">R$ {financeiro.receitaTotal.toFixed(2)}</p>
+                  <p className="text-2xl font-bold">{formatCurrency(financeiro.receitaTotal)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Ticket médio</p>
-                  <p className="text-2xl font-bold">R$ {financeiro.ticketMedio.toFixed(2)}</p>
+                  <p className="text-2xl font-bold">{formatCurrency(financeiro.ticketMedio)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Consultas realizadas (período)</p>
                   <p className="text-2xl font-bold">{financeiro.consultasRealizadas}</p>
                 </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">LTV aproximado (12m)</p>
+                  <p className="text-2xl font-bold">{formatCurrency(financeiro.ltvAproximado)}</p>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Perda estimada total</p>
+                  <p className="text-xl font-bold text-red-600">{formatCurrency(financeiro.receitaPerdidaTotal)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Faltas: {formatCurrency(financeiro.receitaPerdidaFaltas)} · Cancelamentos: {formatCurrency(financeiro.receitaPerdidaCancelamentos)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Previsão de faturamento (7 dias)</p>
+                  <p className="text-xl font-bold">{formatCurrency(financeiro.previsaoReceita7d)}</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Previsão de faturamento (30 dias)</p>
+                  <p className="text-xl font-bold">{formatCurrency(financeiro.previsaoReceita30d)}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Receita por profissional</span>
+              </CardHeader>
+              <CardContent>
+                {financeiro.receitaPorProfissional.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Sem dados de receita por profissional no período.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left py-3 font-medium">Profissional</th>
+                          <th className="text-right py-3 font-medium">Receita</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {financeiro.receitaPorProfissional.map((row) => (
+                          <tr key={row.doctorId} className="border-b border-border/50">
+                            <td className="py-3 font-medium">{row.doctorName}</td>
+                            <td className="text-right py-3">{formatCurrency(row.valor)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Receita por serviço/tipo</span>
+              </CardHeader>
+              <CardContent>
+                {financeiro.receitaPorServico.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Sem dados de receita por serviço no período.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left py-3 font-medium">Serviço / Tipo</th>
+                          <th className="text-right py-3 font-medium">Receita</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {financeiro.receitaPorServico.map((row) => (
+                          <tr key={row.servico} className="border-b border-border/50">
+                            <td className="py-3 font-medium">{row.servico}</td>
+                            <td className="text-right py-3">{formatCurrency(row.valor)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
           <Card>
             <CardHeader>
-              <span className="font-semibold">Receita por profissional</span>
+              <span className="font-semibold">Comunicação: volume e ROI por template/evento</span>
             </CardHeader>
-            <CardContent>
-              {financeiro.receitaPorProfissional.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Sem dados de receita por profissional no período.
-                </p>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Mensagens totais</p>
+                  <p className="text-xl font-bold">{financeiro.mensagensResumo.totalMensagens}</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">WhatsApp / E-mail</p>
+                  <p className="text-xl font-bold">
+                    {financeiro.mensagensResumo.mensagensWhatsApp} / {financeiro.mensagensResumo.mensagensEmail}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Inícios pós-24h (mês)</p>
+                  <p className="text-xl font-bold">{financeiro.mensagensResumo.whatsappPost24hStartsMesAtual}</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Receita prevista 30d</p>
+                  <p className="text-xl font-bold">{formatCurrency(financeiro.previsaoReceita30d)}</p>
+                </div>
+              </div>
+              {financeiro.conversaoPorTemplate.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sem dados de conversão por template/evento no período.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border">
-                        <th className="text-left py-3 font-medium">Profissional</th>
-                        <th className="text-right py-3 font-medium">Receita</th>
+                        <th className="text-left py-3 font-medium">Template / Evento</th>
+                        <th className="text-right py-3 font-medium">Enviados</th>
+                        <th className="text-right py-3 font-medium">Confirmação</th>
+                        <th className="text-right py-3 font-medium">Comparecimento</th>
+                        <th className="text-right py-3 font-medium">Impacto receita</th>
+                        <th className="text-right py-3 font-medium">ROI índice</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {financeiro.receitaPorProfissional.map((row) => (
-                        <tr key={row.doctorId} className="border-b border-border/50">
-                          <td className="py-3 font-medium">{row.doctorName}</td>
-                          <td className="text-right py-3">R$ {row.valor.toFixed(2)}</td>
+                      {financeiro.conversaoPorTemplate.map((row) => (
+                        <tr key={row.type} className="border-b border-border/50">
+                          <td className="py-3 font-medium">{row.type}</td>
+                          <td className="text-right py-3">{row.enviados}</td>
+                          <td className="text-right py-3">{row.taxaConfirmacao}%</td>
+                          <td className="text-right py-3">{row.taxaComparecimento}%</td>
+                          <td className="text-right py-3">{formatCurrency(row.impactoReceitaEstimada)}</td>
+                          <td className="text-right py-3">{row.roiIndice.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -854,46 +854,74 @@ export async function getOperacionalData(clinicId: string, period: Period = "30d
   };
 }
 
-/** Financeiro: placeholder até ter modelo de receita */
+/** Financeiro + comunicação: visão gerencial acionável */
 export async function getFinanceiroData(clinicId: string, period: Period = "30d") {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { data: null, error: "Não autorizado." };
 
   const { start, end } = getPeriodDates(period);
+  const startIso = start.toISOString();
+  const endIso = end.toISOString();
+
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, status, doctor_id, valor")
+    .select("id, status, doctor_id, valor, patient_id, service_id, appointment_type_id, scheduled_at")
     .eq("clinic_id", clinicId)
-    .eq("status", "realizada")
-    .gte("scheduled_at", start.toISOString())
-    .lte("scheduled_at", end.toISOString());
+    .gte("scheduled_at", startIso)
+    .lte("scheduled_at", endIso);
 
-  const realizadas = appointments?.length ?? 0;
-  const doctorsIds = Array.from(new Set((appointments ?? []).map((a) => a.doctor_id).filter(Boolean)));
-  const { data: doctors } =
+  const allAppointments = appointments ?? [];
+  const realizadasAppointments = allAppointments.filter((a) => a.status === "realizada");
+  const realizadas = realizadasAppointments.length;
+  const faltas = allAppointments.filter((a) => a.status === "falta");
+  const canceladas = allAppointments.filter((a) => a.status === "cancelada");
+
+  const doctorsIds = Array.from(new Set(allAppointments.map((a) => a.doctor_id).filter(Boolean)));
+  const serviceIds = Array.from(new Set(allAppointments.map((a) => a.service_id).filter(Boolean)));
+  const typeIds = Array.from(new Set(allAppointments.map((a) => a.appointment_type_id).filter(Boolean)));
+
+  const [{ data: doctors }, { data: services }, { data: appointmentTypes }] = await Promise.all([
     doctorsIds.length > 0
-      ? await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", doctorsIds)
-      : { data: [] as Array<{ id: string; full_name: string | null }> };
+      ? supabase.from("profiles").select("id, full_name").in("id", doctorsIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; full_name: string | null }> }),
+    serviceIds.length > 0
+      ? supabase.from("services").select("id, nome").in("id", serviceIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; nome: string | null }> }),
+    typeIds.length > 0
+      ? supabase.from("appointment_types").select("id, name").in("id", typeIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; name: string | null }> }),
+  ]);
 
   const doctorNameById = new Map((doctors ?? []).map((d) => [d.id, d.full_name ?? "Profissional"]));
-  const receitaPorProfissionalMap = new Map<string, number>();
-  let receitaTotal = 0;
+  const serviceNameById = new Map((services ?? []).map((s) => [s.id, s.nome ?? "Serviço"]));
+  const typeNameById = new Map((appointmentTypes ?? []).map((t) => [t.id, t.name ?? "Tipo de consulta"]));
 
-  for (const appt of appointments ?? []) {
+  let receitaTotal = 0;
+  const receitaPorProfissionalMap = new Map<string, number>();
+  const receitaPorServicoMap = new Map<string, number>();
+
+  for (const appt of realizadasAppointments) {
     const valor = Number(appt.valor ?? 0);
     if (!Number.isFinite(valor) || valor <= 0) continue;
     receitaTotal += valor;
     if (appt.doctor_id) {
-      receitaPorProfissionalMap.set(
-        appt.doctor_id,
-        (receitaPorProfissionalMap.get(appt.doctor_id) ?? 0) + valor
-      );
+      receitaPorProfissionalMap.set(appt.doctor_id, (receitaPorProfissionalMap.get(appt.doctor_id) ?? 0) + valor);
     }
+    const serviceLabel =
+      (appt.service_id ? serviceNameById.get(appt.service_id) : null) ??
+      (appt.appointment_type_id ? typeNameById.get(appt.appointment_type_id) : null) ??
+      "Não informado";
+    receitaPorServicoMap.set(serviceLabel, (receitaPorServicoMap.get(serviceLabel) ?? 0) + valor);
   }
+
+  const ticketMedio = receitaTotal > 0 && realizadas > 0 ? receitaTotal / realizadas : 0;
+  const receitaPerdidaFaltas = faltas.reduce((acc, a) => acc + Math.max(0, Number(a.valor ?? 0)), 0);
+  const receitaPerdidaCancelamentos = canceladas.reduce((acc, a) => acc + Math.max(0, Number(a.valor ?? 0)), 0);
+  const faltasSemValor = faltas.filter((a) => Number(a.valor ?? 0) <= 0).length;
+  const canceladasSemValor = canceladas.filter((a) => Number(a.valor ?? 0) <= 0).length;
+  const receitaPerdidaTotal =
+    receitaPerdidaFaltas + receitaPerdidaCancelamentos + (faltasSemValor + canceladasSemValor) * ticketMedio;
 
   const receitaPorProfissional = Array.from(receitaPorProfissionalMap.entries())
     .map(([doctorId, valor]) => ({
@@ -903,18 +931,148 @@ export async function getFinanceiroData(clinicId: string, period: Period = "30d"
     }))
     .sort((a, b) => b.valor - a.valor);
 
-  const ticketMedio = receitaTotal > 0 && realizadas > 0 ? receitaTotal / realizadas : 0;
+  const receitaPorServico = Array.from(receitaPorServicoMap.entries())
+    .map(([servico, valor]) => ({ servico, valor: Number(valor.toFixed(2)) }))
+    .sort((a, b) => b.valor - a.valor);
+
+  // Forecast (7 e 30 dias futuros)
+  const now = new Date();
+  const next7 = new Date(now);
+  next7.setDate(next7.getDate() + 7);
+  const next30 = new Date(now);
+  next30.setDate(next30.getDate() + 30);
+  const { data: futureAppointments } = await supabase
+    .from("appointments")
+    .select("id, status, valor, scheduled_at")
+    .eq("clinic_id", clinicId)
+    .in("status", ["agendada", "confirmada"])
+    .gte("scheduled_at", now.toISOString())
+    .lte("scheduled_at", next30.toISOString());
+
+  let previsao7d = 0;
+  let previsao30d = 0;
+  for (const a of futureAppointments ?? []) {
+    const baseValor = Number(a.valor ?? 0) > 0 ? Number(a.valor ?? 0) : ticketMedio;
+    if (new Date(a.scheduled_at) <= next7) previsao7d += baseValor;
+    previsao30d += baseValor;
+  }
+
+  // LTV aproximado: últimos 12 meses
+  const ltvStart = new Date(now);
+  ltvStart.setDate(ltvStart.getDate() - 365);
+  const { data: historicalRevenueRows } = await supabase
+    .from("appointments")
+    .select("patient_id, valor")
+    .eq("clinic_id", clinicId)
+    .eq("status", "realizada")
+    .gte("scheduled_at", ltvStart.toISOString())
+    .lte("scheduled_at", now.toISOString());
+
+  let receitaHistorica = 0;
+  const patientsWithRevenue = new Set<string>();
+  for (const row of historicalRevenueRows ?? []) {
+    const valor = Number(row.valor ?? 0);
+    if (valor > 0) {
+      receitaHistorica += valor;
+      if (row.patient_id) patientsWithRevenue.add(row.patient_id);
+    }
+  }
+  const ltvAproximado = patientsWithRevenue.size > 0 ? receitaHistorica / patientsWithRevenue.size : 0;
+
+  // Comunicação e conversão por mensagem/template
+  const { data: messageLogs } = await supabase
+    .from("message_log")
+    .select("id, channel, type, appointment_id, sent_at")
+    .eq("clinic_id", clinicId)
+    .gte("sent_at", startIso)
+    .lte("sent_at", endIso);
+
+  const mensagens = messageLogs ?? [];
+  const totalMensagens = mensagens.length;
+  const mensagensWhatsApp = mensagens.filter((m) => m.channel === "whatsapp").length;
+  const mensagensEmail = mensagens.filter((m) => m.channel === "email").length;
+
+  const appointmentStatusById = new Map(allAppointments.map((a) => [a.id, a.status]));
+  const typeMetrics = new Map<
+    string,
+    { sent: number; withAppointment: number; confirmadas: number; compareceram: number; noShow: number }
+  >();
+  const dedupByTypeAndAppointment = new Set<string>();
+
+  for (const log of mensagens) {
+    const key = String(log.type ?? "outro");
+    if (!typeMetrics.has(key)) {
+      typeMetrics.set(key, { sent: 0, withAppointment: 0, confirmadas: 0, compareceram: 0, noShow: 0 });
+    }
+    const metric = typeMetrics.get(key)!;
+    metric.sent++;
+
+    if (log.appointment_id) {
+      const dedupKey = `${key}:${log.appointment_id}`;
+      if (dedupByTypeAndAppointment.has(dedupKey)) continue;
+      dedupByTypeAndAppointment.add(dedupKey);
+      metric.withAppointment++;
+      const status = appointmentStatusById.get(log.appointment_id);
+      if (status === "confirmada" || status === "realizada" || status === "falta") metric.confirmadas++;
+      if (status === "realizada") metric.compareceram++;
+      if (status === "falta") metric.noShow++;
+    }
+  }
+
+  const conversaoPorTemplate = Array.from(typeMetrics.entries())
+    .map(([type, m]) => {
+      const taxaConfirmacao = pct(m.confirmadas, m.withAppointment);
+      const taxaComparecimento = pct(m.compareceram, m.withAppointment);
+      const impactoReceitaEstimada = Number((m.compareceram * ticketMedio).toFixed(2));
+      const roiIndice = m.sent > 0 ? Number((impactoReceitaEstimada / m.sent).toFixed(2)) : 0;
+      return {
+        type,
+        enviados: m.sent,
+        vinculadosConsulta: m.withAppointment,
+        taxaConfirmacao,
+        taxaComparecimento,
+        noShow: m.noShow,
+        impactoReceitaEstimada,
+        roiIndice,
+      };
+    })
+    .sort((a, b) => b.impactoReceitaEstimada - a.impactoReceitaEstimada)
+    .slice(0, 12);
+
+  const post24hMonthStart = new Date(now);
+  post24hMonthStart.setUTCDate(1);
+  post24hMonthStart.setUTCHours(0, 0, 0, 0);
+  const { count: whatsappPost24hStarts } = await supabase
+    .from("whatsapp_post24h_usage")
+    .select("id", { count: "exact", head: true })
+    .eq("clinic_id", clinicId)
+    .gte("created_at", post24hMonthStart.toISOString())
+    .lte("created_at", now.toISOString());
 
   return {
     data: {
       receitaTotal: Number(receitaTotal.toFixed(2)),
+      receitaPerdidaTotal: Number(receitaPerdidaTotal.toFixed(2)),
+      receitaPerdidaFaltas: Number((receitaPerdidaFaltas + faltasSemValor * ticketMedio).toFixed(2)),
+      receitaPerdidaCancelamentos: Number((receitaPerdidaCancelamentos + canceladasSemValor * ticketMedio).toFixed(2)),
       receitaPorProfissional,
+      receitaPorServico,
       ticketMedio: Number(ticketMedio.toFixed(2)),
+      ltvAproximado: Number(ltvAproximado.toFixed(2)),
+      previsaoReceita7d: Number(previsao7d.toFixed(2)),
+      previsaoReceita30d: Number(previsao30d.toFixed(2)),
+      consultasRealizadas: realizadas,
+      mensagensResumo: {
+        totalMensagens,
+        mensagensWhatsApp,
+        mensagensEmail,
+        whatsappPost24hStartsMesAtual: whatsappPost24hStarts ?? 0,
+      },
+      conversaoPorTemplate,
       mensagem:
         receitaTotal > 0
-          ? "Receita calculada a partir do campo de valor das consultas realizadas no período."
-          : "Ainda não há valores registrados em consultas realizadas neste período.",
-      consultasRealizadas: realizadas,
+          ? "Financeiro consolidado com receita, perdas, previsão e impacto de comunicação."
+          : "Ainda não há receitas registradas no período, mas os blocos de previsão e comunicação já estão ativos.",
     },
     error: null,
   };
