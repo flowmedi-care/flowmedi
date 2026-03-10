@@ -45,13 +45,24 @@ export async function PUT(
       return isNaN(parsed as number) ? null : (parsed as number);
     };
 
-    // Atualizar clínica
-    const updateData: Record<string, unknown> = {
-      plan_id: body.plan_id || null,
-      subscription_status: body.subscription_status || null,
-      max_doctors_custom: parseNumberOrNull(body.max_doctors_custom),
-      max_secretaries_custom: parseNumberOrNull(body.max_secretaries_custom),
-    };
+    // Atualizar clínica somente com campos enviados
+    const updateData: Record<string, unknown> = {};
+
+    if (Object.prototype.hasOwnProperty.call(body, "plan_id")) {
+      updateData.plan_id = body.plan_id || null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "subscription_status")) {
+      updateData.subscription_status = body.subscription_status || null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "max_doctors_custom")) {
+      updateData.max_doctors_custom = parseNumberOrNull(body.max_doctors_custom);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "max_secretaries_custom")) {
+      updateData.max_secretaries_custom = parseNumberOrNull(body.max_secretaries_custom);
+    }
 
     // Se estiver removendo o plano Pro ou desativando, limpar IDs do Stripe também
     // (opcional: você pode querer manter para histórico)
