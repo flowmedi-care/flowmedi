@@ -10,6 +10,8 @@ import {
   getOperacionalData,
   type Period,
 } from "./reports/actions";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canAccessReportTab } from "@/lib/plan-gates";
 
 export type ReportTab = "visao-geral" | "profissional" | "atendente" | "financeiro" | "operacional";
 
@@ -37,7 +39,34 @@ export default async function AdminDashboard({
   const tab = (Array.isArray(tabRaw) ? tabRaw[0] : tabRaw) ?? "visao-geral";
   const period = (Array.isArray(periodRaw) ? periodRaw[0] : periodRaw) ?? "30d";
   const validTabs: ReportTab[] = ["visao-geral", "profissional", "atendente", "financeiro", "operacional"];
-  const activeTab: ReportTab = validTabs.includes(tab as ReportTab) ? (tab as ReportTab) : "visao-geral";
+  const planData = await getClinicPlanData();
+  const allowedTabs = validTabs.filter((t) =>
+    canAccessReportTab(
+      planData?.limits ?? {
+        max_doctors: null,
+        max_secretaries: null,
+        max_appointments_per_month: null,
+        max_patients: null,
+        max_form_templates: null,
+        max_custom_fields: null,
+        storage_mb: null,
+        whatsapp_enabled: true,
+        email_enabled: true,
+        custom_logo_enabled: true,
+        priority_support: true,
+        reports_basic_enabled: true,
+        reports_advanced_enabled: true,
+        reports_managerial_enabled: true,
+        productivity_team_enabled: true,
+        operational_indicators_enabled: true,
+        audit_log_enabled: true,
+      },
+      t
+    )
+  );
+  const fallbackTab = (allowedTabs[0] ?? "visao-geral") as ReportTab;
+  const requestedTab = validTabs.includes(tab as ReportTab) ? (tab as ReportTab) : fallbackTab;
+  const activeTab: ReportTab = allowedTabs.includes(requestedTab) ? requestedTab : fallbackTab;
   const periodTyped: Period = period === "7d" || period === "90d" ? period : "30d";
 
   let visaoGeral = null;
@@ -80,6 +109,7 @@ export default async function AdminDashboard({
 
       <AdminReportsClient
         activeTab={activeTab}
+        allowedTabs={allowedTabs as ReportTab[]}
         period={periodTyped}
         visaoGeral={visaoGeral}
         porProfissional={porProfissional ?? []}

@@ -13,6 +13,12 @@ export interface PlanLimits {
   email_enabled: boolean;
   custom_logo_enabled: boolean;
   priority_support: boolean;
+  reports_basic_enabled?: boolean;
+  reports_advanced_enabled?: boolean;
+  reports_managerial_enabled?: boolean;
+  productivity_team_enabled?: boolean;
+  operational_indicators_enabled?: boolean;
+  audit_log_enabled?: boolean;
 }
 
 export interface PlanCheckResult {
@@ -210,4 +216,21 @@ export function getUpgradeMessage(resourceName: string): string {
   };
 
   return messages[resourceName] || "Upgrade para Pro para desbloquear este recurso";
+}
+
+export function canAccessAudit(planLimits: PlanLimits): boolean {
+  return Boolean(planLimits.audit_log_enabled);
+}
+
+export function canAccessReportTab(
+  planLimits: PlanLimits,
+  tab: "visao-geral" | "profissional" | "atendente" | "financeiro" | "operacional"
+): boolean {
+  if (tab === "visao-geral") return Boolean(planLimits.reports_basic_enabled);
+  if (tab === "profissional" || tab === "atendente") {
+    return Boolean(planLimits.reports_advanced_enabled);
+  }
+  if (tab === "financeiro") return Boolean(planLimits.reports_managerial_enabled);
+  if (tab === "operacional") return Boolean(planLimits.operational_indicators_enabled);
+  return false;
 }

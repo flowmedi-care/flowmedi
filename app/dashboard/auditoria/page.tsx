@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AuditoriaClient } from "./auditoria-client";
 import { getAuditLog } from "../reports/actions";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canAccessAudit } from "@/lib/plan-gates";
 
 export default async function AuditoriaPage({
   searchParams,
@@ -19,6 +21,11 @@ export default async function AuditoriaPage({
     .single();
 
   if (!profile || profile.role !== "admin") redirect("/dashboard");
+
+  const planData = await getClinicPlanData();
+  if (!planData || !canAccessAudit(planData.limits)) {
+    redirect("/dashboard");
+  }
 
   const params = await searchParams;
   const res = await getAuditLog(profile.clinic_id, {

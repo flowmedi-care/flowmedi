@@ -87,6 +87,7 @@ type Operacional = {
 
 export function AdminReportsClient({
   activeTab,
+  allowedTabs,
   period,
   visaoGeral,
   porProfissional,
@@ -95,6 +96,7 @@ export function AdminReportsClient({
   operacional,
 }: {
   activeTab: ReportTab;
+  allowedTabs: ReportTab[];
   period: Period;
   visaoGeral: VisaoGeral | null;
   porProfissional: PorProfissionalRow[];
@@ -119,8 +121,18 @@ export function AdminReportsClient({
 
   return (
     <div className="space-y-6">
+      {allowedTabs.length === 0 && (
+        <Card>
+          <CardHeader>
+            <span className="font-semibold">Relatórios indisponíveis no plano atual</span>
+            <p className="text-sm text-muted-foreground">
+              Faça upgrade do plano para liberar os módulos de relatório.
+            </p>
+          </CardHeader>
+        </Card>
+      )}
       <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
-        {TABS.map((t) => (
+        {TABS.filter((t) => allowedTabs.includes(t.id)).map((t) => (
           <Button
             key={t.id}
             variant={activeTab === t.id ? "secondary" : "ghost"}

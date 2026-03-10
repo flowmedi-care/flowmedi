@@ -54,6 +54,12 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
         email_enabled: true,
         custom_logo_enabled: true,
         priority_support: true,
+        reports_basic_enabled: true,
+        reports_advanced_enabled: true,
+        reports_managerial_enabled: true,
+        productivity_team_enabled: true,
+        operational_indicators_enabled: true,
+        audit_log_enabled: true,
       },
     };
   }
@@ -88,6 +94,12 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
           email_enabled: false,
           custom_logo_enabled: false,
           priority_support: false,
+          reports_basic_enabled: false,
+          reports_advanced_enabled: false,
+          reports_managerial_enabled: false,
+          productivity_team_enabled: false,
+          operational_indicators_enabled: false,
+          audit_log_enabled: false,
         },
       };
     }
@@ -110,6 +122,12 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
         email_enabled: starterPlan.email_enabled ?? false,
         custom_logo_enabled: starterPlan.custom_logo_enabled ?? false,
         priority_support: starterPlan.priority_support ?? false,
+        reports_basic_enabled: starterPlan.reports_basic_enabled ?? false,
+        reports_advanced_enabled: starterPlan.reports_advanced_enabled ?? false,
+        reports_managerial_enabled: starterPlan.reports_managerial_enabled ?? false,
+        productivity_team_enabled: starterPlan.productivity_team_enabled ?? false,
+        operational_indicators_enabled: starterPlan.operational_indicators_enabled ?? false,
+        audit_log_enabled: starterPlan.audit_log_enabled ?? false,
       },
     };
   }
@@ -148,6 +166,12 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
           email_enabled: true,
           custom_logo_enabled: true,
           priority_support: true,
+          reports_basic_enabled: true,
+          reports_advanced_enabled: true,
+          reports_managerial_enabled: true,
+          productivity_team_enabled: true,
+          operational_indicators_enabled: true,
+          audit_log_enabled: true,
         },
       };
     }
@@ -170,6 +194,12 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
         email_enabled: starterPlan.email_enabled ?? false,
         custom_logo_enabled: starterPlan.custom_logo_enabled ?? false,
         priority_support: starterPlan.priority_support ?? false,
+        reports_basic_enabled: starterPlan.reports_basic_enabled ?? false,
+        reports_advanced_enabled: starterPlan.reports_advanced_enabled ?? false,
+        reports_managerial_enabled: starterPlan.reports_managerial_enabled ?? false,
+        productivity_team_enabled: starterPlan.productivity_team_enabled ?? false,
+        operational_indicators_enabled: starterPlan.operational_indicators_enabled ?? false,
+        audit_log_enabled: starterPlan.audit_log_enabled ?? false,
       },
     };
   }
@@ -192,6 +222,12 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
       email_enabled: plan.email_enabled ?? false,
       custom_logo_enabled: plan.custom_logo_enabled ?? false,
       priority_support: plan.priority_support ?? false,
+      reports_basic_enabled: plan.reports_basic_enabled ?? false,
+      reports_advanced_enabled: plan.reports_advanced_enabled ?? false,
+      reports_managerial_enabled: plan.reports_managerial_enabled ?? false,
+      productivity_team_enabled: plan.productivity_team_enabled ?? false,
+      operational_indicators_enabled: plan.operational_indicators_enabled ?? false,
+      audit_log_enabled: plan.audit_log_enabled ?? false,
     },
   };
 }

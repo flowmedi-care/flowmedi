@@ -26,6 +26,12 @@ interface Plan {
   email_enabled: boolean;
   custom_logo_enabled: boolean;
   priority_support: boolean;
+  reports_basic_enabled?: boolean;
+  reports_advanced_enabled?: boolean;
+  reports_managerial_enabled?: boolean;
+  productivity_team_enabled?: boolean;
+  operational_indicators_enabled?: boolean;
+  audit_log_enabled?: boolean;
   stripe_price_id: string | null;
   is_active: boolean;
   price_display?: string | null;
@@ -60,6 +66,12 @@ export function PlanoForm({ plan }: PlanoFormProps) {
     email_enabled: plan?.email_enabled ?? false,
     custom_logo_enabled: plan?.custom_logo_enabled ?? false,
     priority_support: plan?.priority_support ?? false,
+    reports_basic_enabled: plan?.reports_basic_enabled ?? false,
+    reports_advanced_enabled: plan?.reports_advanced_enabled ?? false,
+    reports_managerial_enabled: plan?.reports_managerial_enabled ?? false,
+    productivity_team_enabled: plan?.productivity_team_enabled ?? false,
+    operational_indicators_enabled: plan?.operational_indicators_enabled ?? false,
+    audit_log_enabled: plan?.audit_log_enabled ?? false,
     stripe_price_id: plan?.stripe_price_id || "",
     is_active: plan?.is_active ?? true,
     price_display: plan?.price_display || "",
@@ -131,6 +143,12 @@ export function PlanoForm({ plan }: PlanoFormProps) {
         email_enabled: formData.email_enabled,
         custom_logo_enabled: formData.custom_logo_enabled,
         priority_support: formData.priority_support,
+        reports_basic_enabled: formData.reports_basic_enabled,
+        reports_advanced_enabled: formData.reports_advanced_enabled,
+        reports_managerial_enabled: formData.reports_managerial_enabled,
+        productivity_team_enabled: formData.productivity_team_enabled,
+        operational_indicators_enabled: formData.operational_indicators_enabled,
+        audit_log_enabled: formData.audit_log_enabled,
         stripe_price_id: stripePriceId,
         is_active: formData.is_active,
         price_display: formData.price_display?.trim() || null,
@@ -362,6 +380,73 @@ export function PlanoForm({ plan }: PlanoFormProps) {
               id="priority_support"
               checked={formData.priority_support}
               onChange={(checked) => setFormData({ ...formData, priority_support: checked })}
+            />
+          </div>
+          <div className="my-3 border-t border-border" />
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="reports_basic_enabled">Relatórios básicos</Label>
+              <p className="text-xs text-muted-foreground">Visão geral de consultas e indicadores principais</p>
+            </div>
+            <Switch
+              id="reports_basic_enabled"
+              checked={formData.reports_basic_enabled}
+              onChange={(checked) => setFormData({ ...formData, reports_basic_enabled: checked })}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="reports_advanced_enabled">Relatórios avançados</Label>
+              <p className="text-xs text-muted-foreground">Métricas por profissional e por atendente</p>
+            </div>
+            <Switch
+              id="reports_advanced_enabled"
+              checked={formData.reports_advanced_enabled}
+              onChange={(checked) => setFormData({ ...formData, reports_advanced_enabled: checked })}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="reports_managerial_enabled">Relatórios gerenciais</Label>
+              <p className="text-xs text-muted-foreground">Visões gerenciais (inclui aba financeira)</p>
+            </div>
+            <Switch
+              id="reports_managerial_enabled"
+              checked={formData.reports_managerial_enabled}
+              onChange={(checked) => setFormData({ ...formData, reports_managerial_enabled: checked })}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="productivity_team_enabled">Produtividade da equipe</Label>
+              <p className="text-xs text-muted-foreground">Indicadores de produtividade por equipe/atendente</p>
+            </div>
+            <Switch
+              id="productivity_team_enabled"
+              checked={formData.productivity_team_enabled}
+              onChange={(checked) => setFormData({ ...formData, productivity_team_enabled: checked })}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="operational_indicators_enabled">Indicadores operacionais</Label>
+              <p className="text-xs text-muted-foreground">Taxas operacionais e pico de atendimento</p>
+            </div>
+            <Switch
+              id="operational_indicators_enabled"
+              checked={formData.operational_indicators_enabled}
+              onChange={(checked) => setFormData({ ...formData, operational_indicators_enabled: checked })}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="audit_log_enabled">Auditoria</Label>
+              <p className="text-xs text-muted-foreground">Acesso à trilha de auditoria da clínica</p>
+            </div>
+            <Switch
+              id="audit_log_enabled"
+              checked={formData.audit_log_enabled}
+              onChange={(checked) => setFormData({ ...formData, audit_log_enabled: checked })}
             />
           </div>
         </CardContent>
