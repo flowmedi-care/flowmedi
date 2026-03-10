@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 import {
   getMessageTemplates,
   getRemoteMetaTemplates,
@@ -42,6 +44,14 @@ export default async function TemplatesPage() {
   const systemTemplates = systemResult.data || [];
   const remoteMetaTemplates = remoteMetaTemplatesResult.data || [];
   const hasWhatsAppIntegration = (whatsappIntegrationResult.data?.length ?? 0) > 0;
+  const planData = await getClinicPlanData();
+  const canUseEmailTemplates = Boolean(
+    planData && canUseEmail(planData.limits, planData.planSlug, planData.subscriptionStatus)
+  );
+  const canUseWhatsAppTemplates = Boolean(
+    planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
+  );
+  const canCreateTemplates = canUseEmailTemplates || canUseWhatsAppTemplates;
 
   return (
     <div className="space-y-6">
@@ -52,13 +62,26 @@ export default async function TemplatesPage() {
             Templates salvos (seus) e templates do sistema (padrão por evento/canal)
           </p>
         </div>
-        <Link href="/dashboard/mensagens/templates/novo">
-          <Button>
+        {canCreateTemplates ? (
+          <Link href="/dashboard/mensagens/templates/novo">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Template
+            </Button>
+          </Link>
+        ) : (
+          <Button variant="outline" disabled>
             <Plus className="h-4 w-4 mr-2" />
             Novo Template
           </Button>
-        </Link>
+        )}
       </div>
+
+      {!canCreateTemplates && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Os templates já estão visíveis para sua equipe. Ao evoluir de plano, você poderá criar, editar e ativar envios automáticos.
+        </div>
+      )}
 
       <EmailBrandingCard />
 
@@ -67,6 +90,9 @@ export default async function TemplatesPage() {
         systemTemplates={systemTemplates}
         remoteMetaTemplates={remoteMetaTemplates}
         hasWhatsAppIntegration={hasWhatsAppIntegration}
+        canCreateTemplates={canCreateTemplates}
+        canUseEmailTemplates={canUseEmailTemplates}
+        canUseWhatsAppTemplates={canUseWhatsAppTemplates}
       />
     </div>
   );

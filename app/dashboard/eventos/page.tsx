@@ -18,7 +18,7 @@ import {
 } from "@/app/dashboard/mensagens/actions";
 import { EventosClient } from "./eventos-client";
 import { getClinicPlanData } from "@/lib/plan-helpers";
-import { canUseWhatsApp } from "@/lib/plan-gates";
+import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 
 export default async function EventosPage() {
   const supabase = await createClient();
@@ -66,7 +66,10 @@ export default async function EventosPage() {
   ]);
 
   const planData = await getClinicPlanData();
-  const canUseMessagingChannels = Boolean(
+  const canUseEmailChannels = Boolean(
+    planData && canUseEmail(planData.limits, planData.planSlug, planData.subscriptionStatus)
+  );
+  const canUseWhatsAppChannels = Boolean(
     planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
   );
 
@@ -97,7 +100,8 @@ export default async function EventosPage() {
       msgSettings={msgSettings}
       templates={templates}
       systemTemplates={systemTemplates}
-      canUseMessagingChannels={canUseMessagingChannels}
+      canUseEmailChannels={canUseEmailChannels}
+      canUseWhatsAppChannels={canUseWhatsAppChannels}
     />
   );
 }

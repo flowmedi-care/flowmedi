@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canUseCustomLogo, canUseWhatsApp } from "@/lib/plan-gates";
 
 async function uploadLogoToStorage(file: File, path: string): Promise<{ url: string } | { error: string }> {
   const supabase = await createClient();
@@ -40,6 +42,15 @@ export async function uploadClinicLogo(formData: FormData) {
     return { error: "Apenas administradores podem fazer upload da logo da clínica." };
   }
 
+  const planData = await getClinicPlanData();
+  const logoAllowed = Boolean(
+    planData &&
+      canUseCustomLogo(planData.limits, planData.planSlug, planData.subscriptionStatus)
+  );
+  if (!logoAllowed) {
+    return { error: "Logo personalizada disponível nos planos que incluem identidade visual." };
+  }
+
   const file = formData.get("file") as File;
   if (!file) return { error: "Nenhum arquivo selecionado." };
 
@@ -73,6 +84,15 @@ export async function deleteClinicLogo() {
 
   if (!profile || profile.role !== "admin") {
     return { error: "Apenas administradores podem remover a logo da clínica." };
+  }
+
+  const planData = await getClinicPlanData();
+  const logoAllowed = Boolean(
+    planData &&
+      canUseCustomLogo(planData.limits, planData.planSlug, planData.subscriptionStatus)
+  );
+  if (!logoAllowed) {
+    return { error: "Logo personalizada disponível nos planos que incluem identidade visual." };
   }
 
   const { data: clinic } = await supabase
@@ -176,6 +196,15 @@ export async function updateClinicLogoScale(scale: number) {
 
   if (!profile || profile.role !== "admin") {
     return { error: "Apenas administradores podem ajustar a escala da logo da clínica." };
+  }
+
+  const planData = await getClinicPlanData();
+  const logoAllowed = Boolean(
+    planData &&
+      canUseCustomLogo(planData.limits, planData.planSlug, planData.subscriptionStatus)
+  );
+  if (!logoAllowed) {
+    return { error: "Logo personalizada disponível nos planos que incluem identidade visual." };
   }
 
   // Validar escala
@@ -362,6 +391,14 @@ export async function updateWhatsAppOperationalControls(input: {
 
   if (!profile || profile.role !== "admin") {
     return { error: "Apenas administradores podem atualizar configurações operacionais do WhatsApp." };
+  }
+
+  const planData = await getClinicPlanData();
+  const whatsappAllowed = Boolean(
+    planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
+  );
+  if (!whatsappAllowed) {
+    return { error: "Esse recurso é liberado nos planos com WhatsApp." };
   }
 
   const normalizeTime = (value: string): string | null => {

@@ -287,19 +287,57 @@ export async function getFinanceiroData(clinicId: string, period: Period = "30d"
   const { start, end } = getPeriodDates(period);
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, status, doctor_id")
+    .select("id, status, doctor_id, valor")
     .eq("clinic_id", clinicId)
     .eq("status", "realizada")
     .gte("scheduled_at", start.toISOString())
     .lte("scheduled_at", end.toISOString());
 
   const realizadas = appointments?.length ?? 0;
+  const doctorsIds = Array.from(new Set((appointments ?? []).map((a) => a.doctor_id).filter(Boolean)));
+  const { data: doctors } =
+    doctorsIds.length > 0
+      ? await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", doctorsIds)
+      : { data: [] as Array<{ id: string; full_name: string | null }> };
+
+  const doctorNameById = new Map((doctors ?? []).map((d) => [d.id, d.full_name ?? "Profissional"]));
+  const receitaPorProfissionalMap = new Map<string, number>();
+  let receitaTotal = 0;
+
+  for (const appt of appointments ?? []) {
+    const valor = Number(appt.valor ?? 0);
+    if (!Number.isFinite(valor) || valor <= 0) continue;
+    receitaTotal += valor;
+    if (appt.doctor_id) {
+      receitaPorProfissionalMap.set(
+        appt.doctor_id,
+        (receitaPorProfissionalMap.get(appt.doctor_id) ?? 0) + valor
+      );
+    }
+  }
+
+  const receitaPorProfissional = Array.from(receitaPorProfissionalMap.entries())
+    .map(([doctorId, valor]) => ({
+      doctorId,
+      doctorName: doctorNameById.get(doctorId) ?? "Profissional",
+      valor: Number(valor.toFixed(2)),
+    }))
+    .sort((a, b) => b.valor - a.valor);
+
+  const ticketMedio = receitaTotal > 0 && realizadas > 0 ? receitaTotal / realizadas : 0;
+
   return {
     data: {
-      receitaTotal: 0,
-      receitaPorProfissional: [] as { doctorId: string; valor: number }[],
-      ticketMedio: 0,
-      mensagem: "Configure valores nas consultas para ver receita e ticket médio.",
+      receitaTotal: Number(receitaTotal.toFixed(2)),
+      receitaPorProfissional,
+      ticketMedio: Number(ticketMedio.toFixed(2)),
+      mensagem:
+        receitaTotal > 0
+          ? "Receita calculada a partir do campo de valor das consultas realizadas no período."
+          : "Ainda não há valores registrados em consultas realizadas neste período.",
       consultasRealizadas: realizadas,
     },
     error: null,

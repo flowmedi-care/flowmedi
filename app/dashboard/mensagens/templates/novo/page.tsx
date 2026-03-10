@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { TemplateEditor } from "../template-editor";
 import { getMessageEvents } from "../../actions";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 
 export default async function NovoTemplatePage() {
   const supabase = await createClient();
@@ -20,6 +22,13 @@ export default async function NovoTemplatePage() {
 
   const eventsResult = await getMessageEvents();
   const events = eventsResult.data || [];
+  const planData = await getClinicPlanData();
+  const canUseEmailTemplates = Boolean(
+    planData && canUseEmail(planData.limits, planData.planSlug, planData.subscriptionStatus)
+  );
+  const canUseWhatsAppTemplates = Boolean(
+    planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
+  );
 
   return (
     <TemplateEditor
@@ -31,6 +40,8 @@ export default async function NovoTemplatePage() {
       initialBodyHtml=""
       initialBodyText=""
       events={events}
+      canUseEmailTemplates={canUseEmailTemplates}
+      canUseWhatsAppTemplates={canUseWhatsAppTemplates}
     />
   );
 }

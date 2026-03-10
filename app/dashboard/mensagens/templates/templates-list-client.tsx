@@ -32,11 +32,17 @@ export function TemplatesListClient({
   systemTemplates,
   remoteMetaTemplates,
   hasWhatsAppIntegration,
+  canCreateTemplates,
+  canUseEmailTemplates,
+  canUseWhatsAppTemplates,
 }: {
   savedTemplates: MessageTemplate[];
   systemTemplates: EffectiveTemplateItem[];
   remoteMetaTemplates: RemoteMetaTemplateItem[];
   hasWhatsAppIntegration: boolean;
+  canCreateTemplates: boolean;
+  canUseEmailTemplates: boolean;
+  canUseWhatsAppTemplates: boolean;
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -101,9 +107,15 @@ export function TemplatesListClient({
         {savedTemplates.length === 0 ? (
           <Card className="p-6">
             <p className="text-muted-foreground mb-4">Nenhum template criado ainda.</p>
-            <Link href="/dashboard/mensagens/templates/novo">
-              <Button>Criar template</Button>
-            </Link>
+            {canCreateTemplates ? (
+              <Link href="/dashboard/mensagens/templates/novo">
+                <Button>Criar template</Button>
+              </Link>
+            ) : (
+              <Button variant="outline" disabled>
+                Criar template
+              </Button>
+            )}
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -123,21 +135,29 @@ export function TemplatesListClient({
                   {(t.body_html || "").replace(/<[^>]*>/g, "").slice(0, 100)}…
                 </div>
                 <div className="flex gap-2 mt-4">
-                  <Link href={`/dashboard/mensagens/templates/${t.id}/editar`}>
-                    <Button variant="outline" size="sm">
-                      <Edit className="h-3 w-3 mr-1" />
-                      Editar
+                  {canCreateTemplates ? (
+                    <>
+                      <Link href={`/dashboard/mensagens/templates/${t.id}/editar`}>
+                        <Button variant="outline" size="sm">
+                          <Edit className="h-3 w-3 mr-1" />
+                          Editar
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(t.id)}
+                        disabled={deleting === t.id}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Desativar
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="outline" size="sm" disabled>
+                      Visualização
                     </Button>
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(t.id)}
-                    disabled={deleting === t.id}
-                  >
-                    <Trash2 className="h-3 w-3 mr-1" />
-                    Desativar
-                  </Button>
+                  )}
                 </div>
               </Card>
             ))}
@@ -178,7 +198,10 @@ export function TemplatesListClient({
                   variant="outline"
                   size="sm"
                   className="mt-4"
-                  disabled={usingSystemId === `${t.event_code}:${t.channel}`}
+                  disabled={
+                    usingSystemId === `${t.event_code}:${t.channel}` ||
+                    (t.channel === "email" ? !canUseEmailTemplates : !canUseWhatsAppTemplates)
+                  }
                   onClick={() => handleUseSystem(t)}
                 >
                   {usingSystemId === `${t.event_code}:${t.channel}` ? "..." : <Copy className="h-3 w-3 mr-1" />}
@@ -201,7 +224,7 @@ export function TemplatesListClient({
             <Button
               type="button"
               onClick={handleRequestSystemTemplates}
-              disabled={requestingSystemTemplates}
+              disabled={requestingSystemTemplates || !canUseWhatsAppTemplates}
             >
               {requestingSystemTemplates ? "Solicitando..." : "Solicitar templates do sistema"}
             </Button>
@@ -209,7 +232,7 @@ export function TemplatesListClient({
               type="button"
               variant="outline"
               onClick={handleRefreshSystemStatuses}
-              disabled={syncingSystemStatuses}
+              disabled={syncingSystemStatuses || !canUseWhatsAppTemplates}
             >
               <RefreshCcw className="h-3 w-3 mr-1" />
               {syncingSystemStatuses ? "Sincronizando..." : "Atualizar status"}

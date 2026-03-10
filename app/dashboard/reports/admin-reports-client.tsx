@@ -32,7 +32,7 @@ import type { Period } from "./actions";
 const TABS: { id: ReportTab; label: string; icon: React.ReactNode }[] = [
   { id: "visao-geral", label: "Visão Geral", icon: <LayoutDashboard className="h-4 w-4" /> },
   { id: "profissional", label: "Por Profissional", icon: <Stethoscope className="h-4 w-4" /> },
-  { id: "atendente", label: "Por Atendente", icon: <UserCheck className="h-4 w-4" /> },
+  { id: "atendente", label: "Produtividade da Equipe", icon: <UserCheck className="h-4 w-4" /> },
   { id: "financeiro", label: "Financeiro", icon: <DollarSign className="h-4 w-4" /> },
   { id: "operacional", label: "Operacional", icon: <Activity className="h-4 w-4" /> },
 ];
@@ -71,7 +71,7 @@ type PorAtendenteRow = {
 };
 type Financeiro = {
   receitaTotal: number;
-  receitaPorProfissional: { doctorId: string; valor: number }[];
+  receitaPorProfissional: { doctorId: string; doctorName: string; valor: number }[];
   ticketMedio: number;
   mensagem: string;
   consultasRealizadas: number;
@@ -335,6 +335,37 @@ export function AdminReportsClient({
                   <p className="text-2xl font-bold">{financeiro.consultasRealizadas}</p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <span className="font-semibold">Receita por profissional</span>
+            </CardHeader>
+            <CardContent>
+              {financeiro.receitaPorProfissional.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Sem dados de receita por profissional no período.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 font-medium">Profissional</th>
+                        <th className="text-right py-3 font-medium">Receita</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {financeiro.receitaPorProfissional.map((row) => (
+                        <tr key={row.doctorId} className="border-b border-border/50">
+                          <td className="py-3 font-medium">{row.doctorName}</td>
+                          <td className="text-right py-3">R$ {row.valor.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

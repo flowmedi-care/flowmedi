@@ -40,6 +40,7 @@ export function ConfiguracoesClient({
   autoMessageTimezone,
   clinicId,
   canUseWhatsApp,
+  canUseCustomLogo,
 }: {
   clinicName: string | null;
   clinicLogoUrl: string | null;
@@ -58,6 +59,7 @@ export function ConfiguracoesClient({
   autoMessageTimezone: string;
   clinicId: string;
   canUseWhatsApp: boolean;
+  canUseCustomLogo: boolean;
 }) {
   const [complianceDays, setComplianceDays] = useState<string>(
     complianceConfirmationDays !== null ? String(complianceConfirmationDays) : ""
@@ -114,6 +116,7 @@ export function ConfiguracoesClient({
 
       <ClinicInfoTabs
         clinicId={clinicId}
+        canUseCustomLogo={canUseCustomLogo}
         initialData={{
           name: clinicName,
           logoUrl: clinicLogoUrl,

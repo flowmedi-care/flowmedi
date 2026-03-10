@@ -11,7 +11,7 @@ import {
 } from "@/lib/comunicacao/whatsapp";
 import { getAndSyncEffectiveTicketStatus } from "@/lib/whatsapp-ticket-status";
 import { getClinicPlanData } from "@/lib/plan-helpers";
-import { canUseWhatsApp } from "@/lib/plan-gates";
+import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 
 // ========== TIPOS ==========
 
@@ -128,6 +128,17 @@ function normalizeClinicMessageSetting(
         : {},
     send_only_when_ticket_open: Boolean(row.send_only_when_ticket_open ?? false),
   };
+}
+
+async function getMessagingPlanAccess() {
+  const planData = await getClinicPlanData();
+  const emailAllowed = Boolean(
+    planData && canUseEmail(planData.limits, planData.planSlug, planData.subscriptionStatus)
+  );
+  const whatsappAllowed = Boolean(
+    planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
+  );
+  return { emailAllowed, whatsappAllowed };
 }
 
 // ========== BUSCAR EVENTOS DISPONÍVEIS ==========
@@ -452,6 +463,14 @@ export async function createMessageTemplate(
 
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
 
+  const access = await getMessagingPlanAccess();
+  if (channel === "email" && !access.emailAllowed) {
+    return { data: null, error: "Edição de templates de e-mail disponível nos planos com mensageria." };
+  }
+  if (channel === "whatsapp" && !access.whatsappAllowed) {
+    return { data: null, error: "Edição de templates de WhatsApp disponível nos planos com mensageria." };
+  }
+
   const bodyPlain = bodyText?.trim() || bodyHtml.replace(/<[^>]*>/g, "").trim() || "";
   const insertData: Record<string, unknown> = {
     clinic_id: profile.clinic_id,
@@ -501,6 +520,14 @@ export async function createMessageTemplateFromSystem(
 
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
 
+  const access = await getMessagingPlanAccess();
+  if (channel === "email" && !access.emailAllowed) {
+    return { data: null, error: "Edição de templates de e-mail disponível nos planos com mensageria." };
+  }
+  if (channel === "whatsapp" && !access.whatsappAllowed) {
+    return { data: null, error: "Edição de templates de WhatsApp disponível nos planos com mensageria." };
+  }
+
   const { data: systemRow, error: fetchErr } = await supabase
     .from("system_message_templates")
     .select("*")
@@ -549,6 +576,22 @@ export async function updateMessageTemplate(
 
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
 
+  const { data: templateRow } = await supabase
+    .from("message_templates")
+    .select("channel")
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id)
+    .maybeSingle();
+  if (!templateRow?.channel) return { data: null, error: "Template não encontrado." };
+
+  const access = await getMessagingPlanAccess();
+  if (templateRow.channel === "email" && !access.emailAllowed) {
+    return { data: null, error: "Edição de templates de e-mail disponível nos planos com mensageria." };
+  }
+  if (templateRow.channel === "whatsapp" && !access.whatsappAllowed) {
+    return { data: null, error: "Edição de templates de WhatsApp disponível nos planos com mensageria." };
+  }
+
   const updateData: Record<string, unknown> = {
     name: name.trim(),
     subject: subject?.trim() || null,
@@ -591,6 +634,22 @@ export async function deactivateMessageTemplate(
     .single();
 
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+
+  const { data: templateRow } = await supabase
+    .from("message_templates")
+    .select("channel")
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id)
+    .maybeSingle();
+  if (!templateRow?.channel) return { error: "Template não encontrado." };
+
+  const access = await getMessagingPlanAccess();
+  if (templateRow.channel === "email" && !access.emailAllowed) {
+    return { error: "Edição de templates de e-mail disponível nos planos com mensageria." };
+  }
+  if (templateRow.channel === "whatsapp" && !access.whatsappAllowed) {
+    return { error: "Edição de templates de WhatsApp disponível nos planos com mensageria." };
+  }
 
   const { error } = await supabase
     .from("message_templates")
@@ -691,6 +750,11 @@ export async function requestSystemMetaTemplates(): Promise<{ error: string | nu
   if (ctx.error || !ctx.clinicId) return { error: ctx.error };
   const { supabase, clinicId } = ctx;
 
+  const access = await getMessagingPlanAccess();
+  if (!access.whatsappAllowed) {
+    return { error: "Este recurso está disponível nos planos com WhatsApp." };
+  }
+
   const nowIso = new Date().toISOString();
   const listed = await listMetaTemplates(clinicId, supabase);
   const remoteByName = new Map<string, { id: string; status: WhatsAppTemplateReviewStatus }>();
@@ -747,6 +811,11 @@ export async function refreshSystemMetaTemplatesStatus(): Promise<{ error: strin
   const ctx = await getClinicAdminContext();
   if (ctx.error || !ctx.clinicId) return { error: ctx.error };
   const { supabase, clinicId } = ctx;
+
+  const access = await getMessagingPlanAccess();
+  if (!access.whatsappAllowed) {
+    return { error: "Este recurso está disponível nos planos com WhatsApp." };
+  }
 
   const { data: rows, error } = await supabase
     .from("clinic_whatsapp_meta_templates")
@@ -829,12 +898,12 @@ export async function updateClinicMessageSetting(
 
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
 
-  const planData = await getClinicPlanData();
-  const canManageChannels = Boolean(
-    planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
-  );
-  if (!canManageChannels) {
-    return { data: null, error: "Configuracao de Email/WhatsApp disponivel apenas no plano pago." };
+  const access = await getMessagingPlanAccess();
+  if (channel === "email" && !access.emailAllowed) {
+    return { data: null, error: "Configuração de e-mail disponível nos planos com mensageria." };
+  }
+  if (channel === "whatsapp" && !access.whatsappAllowed) {
+    return { data: null, error: "Configuração de WhatsApp disponível nos planos com mensageria." };
   }
 
   // Verificar se já existe configuração

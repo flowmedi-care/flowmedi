@@ -227,9 +227,8 @@ export function canAccessReportTab(
   tab: "visao-geral" | "profissional" | "atendente" | "financeiro" | "operacional"
 ): boolean {
   if (tab === "visao-geral") return Boolean(planLimits.reports_basic_enabled);
-  if (tab === "profissional" || tab === "atendente") {
-    return Boolean(planLimits.reports_advanced_enabled);
-  }
+  if (tab === "profissional") return Boolean(planLimits.reports_advanced_enabled);
+  if (tab === "atendente") return Boolean(planLimits.productivity_team_enabled);
   if (tab === "financeiro") return Boolean(planLimits.reports_managerial_enabled);
   if (tab === "operacional") return Boolean(planLimits.operational_indicators_enabled);
   return false;

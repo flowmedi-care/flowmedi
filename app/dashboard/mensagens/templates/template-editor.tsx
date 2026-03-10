@@ -39,6 +39,8 @@ export function TemplateEditor({
   initialEmailFooter,
   initialWhatsappMetaPhrase = "",
   events,
+  canUseEmailTemplates,
+  canUseWhatsAppTemplates,
 }: {
   templateId: string | null;
   initialEventCode: string;
@@ -51,6 +53,8 @@ export function TemplateEditor({
   initialEmailFooter?: string;
   initialWhatsappMetaPhrase?: string;
   events: MessageEvent[];
+  canUseEmailTemplates: boolean;
+  canUseWhatsAppTemplates: boolean;
 }) {
   const router = useRouter();
   const [eventCode, setEventCode] = useState(initialEventCode);
@@ -132,6 +136,16 @@ export function TemplateEditor({
 
     if (channel === "email" && !subject.trim()) {
       setError("Assunto é obrigatório para emails");
+      return;
+    }
+
+    if (channel === "email" && !canUseEmailTemplates) {
+      setError("Seu plano atual permite visualizar templates, mas a edição de e-mail está disponível em planos com mensageria.");
+      return;
+    }
+
+    if (channel === "whatsapp" && !canUseWhatsAppTemplates) {
+      setError("Seu plano atual permite visualizar templates, mas a edição de WhatsApp está disponível em planos com mensageria.");
       return;
     }
 
@@ -257,7 +271,7 @@ export function TemplateEditor({
                     value="email"
                     checked={channel === "email"}
                     onChange={(e) => setChannel(e.target.value as "email" | "whatsapp")}
-                    disabled={isEdit}
+                    disabled={isEdit || !canUseEmailTemplates}
                     className="h-4 w-4"
                   />
                   <Mail className="h-4 w-4" />
@@ -270,13 +284,18 @@ export function TemplateEditor({
                     value="whatsapp"
                     checked={channel === "whatsapp"}
                     onChange={(e) => setChannel(e.target.value as "email" | "whatsapp")}
-                    disabled={isEdit}
+                    disabled={isEdit || !canUseWhatsAppTemplates}
                     className="h-4 w-4"
                   />
                   <MessageSquare className="h-4 w-4" />
                   <span>WhatsApp</span>
                 </label>
               </div>
+              {(!canUseEmailTemplates || !canUseWhatsAppTemplates) && (
+                <p className="text-xs text-muted-foreground">
+                  Alguns canais estão em modo visualização no seu plano atual.
+                </p>
+              )}
             </div>
 
             {channel === "email" && (
@@ -472,7 +491,14 @@ export function TemplateEditor({
               Cancelar
             </Button>
           </Link>
-          <Button type="submit" disabled={loading}>
+          <Button
+            type="submit"
+            disabled={
+              loading ||
+              (channel === "email" && !canUseEmailTemplates) ||
+              (channel === "whatsapp" && !canUseWhatsAppTemplates)
+            }
+          >
             {loading ? "Salvando..." : isEdit ? "Salvar Alterações" : "Criar Template"}
           </Button>
         </div>

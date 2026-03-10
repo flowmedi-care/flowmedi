@@ -148,7 +148,8 @@ export function EventosClient({
   msgSettings,
   templates,
   systemTemplates = [],
-  canUseMessagingChannels,
+  canUseEmailChannels,
+  canUseWhatsAppChannels,
 }: {
   initialPendingEvents: Event[];
   initialAllEvents: Event[];
@@ -162,8 +163,10 @@ export function EventosClient({
   msgSettings: ClinicMessageSetting[];
   templates: MessageTemplate[];
   systemTemplates?: EffectiveTemplateItem[];
-  canUseMessagingChannels: boolean;
+  canUseEmailChannels: boolean;
+  canUseWhatsAppChannels: boolean;
 }) {
+  const canUseMessagingChannels = canUseEmailChannels || canUseWhatsAppChannels;
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "completed">("pending");
   const [configOpen, setConfigOpen] = useState(false);
@@ -776,7 +779,8 @@ export function EventosClient({
         eventConfig={eventConfigState}
         templates={templates}
         systemTemplates={systemTemplates}
-        canManageChannels={canUseMessagingChannels}
+        canManageEmail={canUseEmailChannels}
+        canManageWhatsApp={canUseWhatsAppChannels}
         onSettingsChange={(next) => { setSettings(next); router.refresh(); }}
         onEventConfigChange={(next) => { setEventConfigState(next); router.refresh(); }}
       />
@@ -799,8 +803,8 @@ export function EventosClient({
         >
           {sendModalEvent && (() => {
             const ch = getChannelStatus(sendModalEvent);
-            const canSendEmail = canUseMessagingChannels && ch.emailEnabled && !ch.emailSent;
-            const canSendWhatsApp = canUseMessagingChannels && ch.whatsappEnabled && !ch.whatsappSent;
+            const canSendEmail = canUseEmailChannels && ch.emailEnabled && !ch.emailSent;
+            const canSendWhatsApp = canUseWhatsAppChannels && ch.whatsappEnabled && !ch.whatsappSent;
             const hasChoice = canSendEmail || canSendWhatsApp;
             const toggle = (c: "email" | "whatsapp") => {
               setSendModalChannels((prev) =>

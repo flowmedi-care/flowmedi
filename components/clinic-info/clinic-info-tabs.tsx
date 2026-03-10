@@ -11,6 +11,7 @@ import { updateClinicInfo } from "@/app/dashboard/configuracoes/actions";
 
 interface ClinicInfoTabsProps {
   clinicId: string;
+  canUseCustomLogo: boolean;
   initialData: {
     name: string | null;
     logoUrl: string | null;
@@ -24,7 +25,7 @@ interface ClinicInfoTabsProps {
   };
 }
 
-export function ClinicInfoTabs({ clinicId, initialData }: ClinicInfoTabsProps) {
+export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: ClinicInfoTabsProps) {
   const [activeTab, setActiveTab] = useState<"info" | "logo" | "contact">("info");
   const [name, setName] = useState(initialData.name || "");
   const [phone, setPhone] = useState(initialData.phone || "");
@@ -132,16 +133,27 @@ export function ClinicInfoTabs({ clinicId, initialData }: ClinicInfoTabsProps) {
 
         {activeTab === "logo" && (
           <div className="space-y-4">
+            {!canUseCustomLogo && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Sua clínica já pode visualizar este recurso. Ao evoluir de plano, você libera a logo personalizada em toda a comunicação.
+              </div>
+            )}
             <div>
               <Label>Logo da Clínica</Label>
               <p className="text-sm text-muted-foreground mb-4">
                 A logo aparecerá no topo dos formulários e emails enviados aos pacientes
               </p>
-              <LogoUpload
-                currentLogoUrl={initialData.logoUrl}
-                currentScale={initialData.logoScale}
-                type="clinic"
-              />
+              {canUseCustomLogo ? (
+                <LogoUpload
+                  currentLogoUrl={initialData.logoUrl}
+                  currentScale={initialData.logoScale}
+                  type="clinic"
+                />
+              ) : (
+                <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+                  A prévia da funcionalidade está disponível. Ative um plano com logo personalizada para enviar e ajustar a marca da clínica.
+                </div>
+              )}
             </div>
           </div>
         )}

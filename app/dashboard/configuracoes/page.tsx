@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ConfiguracoesClient } from "./configuracoes-client";
 import { getClinicPlanData } from "@/lib/plan-helpers";
-import { canUseWhatsApp } from "@/lib/plan-gates";
+import { canUseCustomLogo, canUseWhatsApp } from "@/lib/plan-gates";
 
 export default async function ConfiguracoesPage() {
   const supabase = await createClient();
@@ -30,6 +30,10 @@ export default async function ConfiguracoesPage() {
   const canUseWhatsAppByPlan = Boolean(
     planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
   );
+  const canUseCustomLogoByPlan = Boolean(
+    planData &&
+      canUseCustomLogo(planData.limits, planData.planSlug, planData.subscriptionStatus)
+  );
 
   return (
     <Suspense fallback={<div>Carregando...</div>}>
@@ -51,6 +55,7 @@ export default async function ConfiguracoesPage() {
         autoMessageTimezone={clinic?.auto_message_timezone ?? "America/Sao_Paulo"}
         clinicId={profile.clinic_id}
         canUseWhatsApp={canUseWhatsAppByPlan}
+        canUseCustomLogo={canUseCustomLogoByPlan}
       />
     </Suspense>
   );

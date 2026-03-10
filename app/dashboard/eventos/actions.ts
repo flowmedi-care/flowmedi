@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { getClinicPlanData } from "@/lib/plan-helpers";
-import { canUseWhatsApp } from "@/lib/plan-gates";
+import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 
 // ========== BUSCAR EVENTOS PENDENTES ==========
 export async function getPendingEvents(filters?: {
@@ -219,12 +219,12 @@ export async function processEvent(
   // Se ação for "send", processar envio (lógica centralizada em event-send-logic-server)
   if (action === "send") {
     const planData = await getClinicPlanData();
-    const canSendByPlan = Boolean(
+    const emailAllowed = Boolean(
+      planData && canUseEmail(planData.limits, planData.planSlug, planData.subscriptionStatus)
+    );
+    const whatsappAllowed = Boolean(
       planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
     );
-    if (!canSendByPlan) {
-      return { error: "Envio de mensagens disponivel apenas no plano pago." };
-    }
 
     const { executeSendForEvent } = await import("@/lib/event-send-logic-server");
 
@@ -239,6 +239,13 @@ export async function processEvent(
           : ((eventData.channels as string[] | null) ?? []).filter(
               (c): c is "email" | "whatsapp" => c === "email" || c === "whatsapp"
             );
+
+    if (channels.includes("email") && !emailAllowed) {
+      return { error: "Envio por e-mail não está disponível no plano atual." };
+    }
+    if (channels.includes("whatsapp") && !whatsappAllowed) {
+      return { error: "Envio por WhatsApp não está disponível no plano atual." };
+    }
 
     if (channels.length === 0) {
       return {

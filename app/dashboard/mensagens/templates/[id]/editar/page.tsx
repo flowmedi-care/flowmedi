@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { TemplateEditor } from "../../template-editor";
 import { getMessageTemplate, getMessageEvents } from "../../../actions";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 
 export default async function EditarTemplatePage({
   params,
@@ -27,6 +29,13 @@ export default async function EditarTemplatePage({
     getMessageTemplate(id),
     getMessageEvents(),
   ]);
+  const planData = await getClinicPlanData();
+  const canUseEmailTemplates = Boolean(
+    planData && canUseEmail(planData.limits, planData.planSlug, planData.subscriptionStatus)
+  );
+  const canUseWhatsAppTemplates = Boolean(
+    planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
+  );
 
   const template = templateResult.data;
   const events = eventsResult.data || [];
@@ -48,6 +57,8 @@ export default async function EditarTemplatePage({
       initialEmailFooter={template.email_footer || ""}
       initialWhatsappMetaPhrase={(template as { whatsapp_meta_phrase?: string | null }).whatsapp_meta_phrase || ""}
       events={events}
+      canUseEmailTemplates={canUseEmailTemplates}
+      canUseWhatsAppTemplates={canUseWhatsAppTemplates}
     />
   );
 }
