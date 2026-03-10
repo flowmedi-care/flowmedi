@@ -28,6 +28,13 @@ type ResumoExecutivoItem = {
   tone: "positive" | "warning" | "neutral";
 };
 
+function getSinglePatientRelation(
+  patient: { full_name: string | null; phone: string | null } | { full_name: string | null; phone: string | null }[] | null | undefined
+) {
+  if (!patient) return null;
+  return Array.isArray(patient) ? patient[0] ?? null : patient;
+}
+
 function getPeriodDates(period: Period): { start: Date; end: Date } {
   const end = new Date();
   const start = new Date();
@@ -152,10 +159,11 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
 
   (patientAppointments ?? []).forEach((a) => {
     if (!a.patient_id) return;
+    const patient = getSinglePatientRelation(a.patient);
     if (!patientStats[a.patient_id]) {
       patientStats[a.patient_id] = {
-        full_name: a.patient?.full_name ?? "Paciente",
-        phone: a.patient?.phone ?? null,
+        full_name: patient?.full_name ?? "Paciente",
+        phone: patient?.phone ?? null,
         total: 0,
         faltas: 0,
         canceladas: 0,
