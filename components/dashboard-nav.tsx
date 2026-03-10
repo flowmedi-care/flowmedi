@@ -42,12 +42,14 @@ export function DashboardNav({
   isCollapsed,
   onToggleCollapse,
   hasWhatsAppConnected,
+  canAccessAudit,
 }: {
   user: User;
   profile: Profile;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   hasWhatsAppConnected?: boolean;
+  canAccessAudit?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -196,16 +198,18 @@ export function DashboardNav({
         {isAdmin && (
           <>
             <div className="my-2 border-t border-border" />
-            <Link href="/dashboard/auditoria">
-              <Button
-                variant={pathname === "/dashboard/auditoria" ? "secondary" : "ghost"}
-                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
-                title={isCollapsed ? "Auditoria" : undefined}
-              >
-                <ShieldCheck className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Auditoria</span>}
-              </Button>
-            </Link>
+            {canAccessAudit && (
+              <Link href="/dashboard/auditoria">
+                <Button
+                  variant={pathname === "/dashboard/auditoria" ? "secondary" : "ghost"}
+                  className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                  title={isCollapsed ? "Auditoria" : undefined}
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  {!isCollapsed && <span className="ml-2">Auditoria</span>}
+                </Button>
+              </Link>
+            )}
             <Link href="/dashboard/equipe">
               <Button
                 variant={pathname === "/dashboard/equipe" ? "secondary" : "ghost"}

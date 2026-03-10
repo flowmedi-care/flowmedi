@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardLayoutClient } from "@/components/dashboard-layout-client";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canAccessAudit } from "@/lib/plan-gates";
 
 export default async function DashboardLayout({
   children,
@@ -36,10 +38,13 @@ export default async function DashboardLayout({
     ? { ...profile, active: profile.active ?? true }
     : null;
 
+  const planData = await getClinicPlanData();
+  const auditEnabled = Boolean(planData && canAccessAudit(planData.limits));
+
   // Sempre renderizar o layout com sidebar quando há usuário autenticado
   // Mesmo sem profile, para garantir consistência visual
   return (
-    <DashboardLayoutClient user={user} profile={profileSafe}>
+    <DashboardLayoutClient user={user} profile={profileSafe} canAccessAudit={auditEnabled}>
       {children}
     </DashboardLayoutClient>
   );

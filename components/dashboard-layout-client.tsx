@@ -18,9 +18,15 @@ interface DashboardLayoutClientProps {
   user: User;
   profile: Profile;
   children: React.ReactNode;
+  canAccessAudit: boolean;
 }
 
-export function DashboardLayoutClient({ user, profile, children }: DashboardLayoutClientProps) {
+export function DashboardLayoutClient({
+  user,
+  profile,
+  children,
+  canAccessAudit,
+}: DashboardLayoutClientProps) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [hasWhatsAppConnected, setHasWhatsAppConnected] = useState(false);
@@ -57,6 +63,7 @@ export function DashboardLayoutClient({ user, profile, children }: DashboardLayo
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
         hasWhatsAppConnected={hasWhatsAppConnected}
+        canAccessAudit={canAccessAudit}
       />
       <main className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-background ${!isWhatsAppPage ? "overflow-y-auto" : ""}`}>
         {isWhatsAppPage ? (

@@ -50,16 +50,16 @@ export default async function AdminDashboard({
         max_form_templates: null,
         max_custom_fields: null,
         storage_mb: null,
-        whatsapp_enabled: true,
-        email_enabled: true,
-        custom_logo_enabled: true,
-        priority_support: true,
-        reports_basic_enabled: true,
-        reports_advanced_enabled: true,
-        reports_managerial_enabled: true,
-        productivity_team_enabled: true,
-        operational_indicators_enabled: true,
-        audit_log_enabled: true,
+        whatsapp_enabled: false,
+        email_enabled: false,
+        custom_logo_enabled: false,
+        priority_support: false,
+        reports_basic_enabled: false,
+        reports_advanced_enabled: false,
+        reports_managerial_enabled: false,
+        productivity_team_enabled: false,
+        operational_indicators_enabled: false,
+        audit_log_enabled: false,
       },
       t
     )
@@ -99,12 +99,14 @@ export default async function AdminDashboard({
           <h1 className="text-xl font-semibold sm:text-2xl">Relatórios</h1>
           <p className="text-sm text-muted-foreground">Métricas e indicadores da clínica</p>
         </div>
-        <Link
-          href="/dashboard/auditoria"
-          className="inline-flex items-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted"
-        >
-          🛡 Auditoria
-        </Link>
+        {planData && planData.limits.audit_log_enabled && (
+          <Link
+            href="/dashboard/auditoria"
+            className="inline-flex items-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted"
+          >
+            🛡 Auditoria
+          </Link>
+        )}
       </div>
 
       <AdminReportsClient
