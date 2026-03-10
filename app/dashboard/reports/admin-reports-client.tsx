@@ -93,6 +93,11 @@ type VisaoGeral = {
     ocupacao7d: number;
     ocupacao30d: number;
   };
+  briefingExecutivo: {
+    vitorias: string[];
+    riscos: string[];
+    acoes: string[];
+  };
   funilPorProfissional: {
     id: string;
     label: string;
@@ -483,6 +488,40 @@ export function AdminReportsClient({
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <span className="font-semibold">Briefing executivo automático</span>
+              <p className="text-sm text-muted-foreground">3 vitórias, 3 riscos e 3 ações recomendadas.</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 lg:grid-cols-3">
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm font-semibold text-green-700">Vitórias</p>
+                  <div className="mt-2 space-y-2 text-sm">
+                    {visaoGeral.briefingExecutivo.vitorias.map((item, idx) => (
+                      <p key={`vitoria-${idx}`}>- {item}</p>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm font-semibold text-amber-700">Riscos</p>
+                  <div className="mt-2 space-y-2 text-sm">
+                    {visaoGeral.briefingExecutivo.riscos.map((item, idx) => (
+                      <p key={`risco-${idx}`}>- {item}</p>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm font-semibold text-primary">Ações para hoje</p>
+                  <div className="mt-2 space-y-2 text-sm">
+                    {visaoGeral.briefingExecutivo.acoes.map((item, idx) => (
+                      <p key={`acao-${idx}`}>- {item}</p>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
           <div className="grid gap-4 lg:grid-cols-2">

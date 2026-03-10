@@ -92,6 +92,12 @@ type ReportGoalsConfig = {
   workingHoursEnd: number;
 };
 
+type BriefingExecutivo = {
+  vitorias: string[];
+  riscos: string[];
+  acoes: string[];
+};
+
 function getSinglePatientRelation(
   patient: { full_name: string | null; phone: string | null } | { full_name: string | null; phone: string | null }[] | null | undefined
 ) {
@@ -619,6 +625,52 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
     });
   }
 
+  const vitorias: string[] = [];
+  const riscos: string[] = [];
+  const acoes: string[] = [];
+
+  if (metas.filter((m) => m.status === "ok").length >= 3) {
+    vitorias.push(`${metas.filter((m) => m.status === "ok").length} metas dentro do alvo no período.`);
+  }
+  if (benchmark.confirmacao7d >= benchmark.confirmacao30d) {
+    vitorias.push(`Confirmação melhorou para ${benchmark.confirmacao7d}% (30d: ${benchmark.confirmacao30d}%).`);
+  }
+  if (benchmark.noShow7d <= benchmark.noShow30d) {
+    vitorias.push(`No-show caiu para ${benchmark.noShow7d}% (30d: ${benchmark.noShow30d}%).`);
+  }
+  if (funilGeral.taxaRetorno >= goals.retorno) {
+    vitorias.push(`Taxa de retorno em ${funilGeral.taxaRetorno}% acima da meta (${goals.retorno}%).`);
+  }
+  if (topPacientesRisco.length === 0) {
+    vitorias.push("Sem pacientes críticos de no-show para os próximos 7 dias.");
+  }
+
+  if (alertas.length > 0) {
+    riscos.push(...alertas.slice(0, 3).map((a) => `${a.title}: ${a.context}`));
+  }
+  if (receitaPerdidaEstimada > 0) {
+    riscos.push(`Perda estimada de R$ ${receitaPerdidaEstimada.toFixed(2)} por faltas/cancelamentos.`);
+  }
+  if (topPacientesRisco.length > 0) {
+    riscos.push(`${topPacientesRisco.length} pacientes com risco médio/alto de no-show na próxima semana.`);
+  }
+
+  acoes.push(
+    ...alertas.slice(0, 3).map((a) => a.action),
+    ...(topPacientesRisco.length > 0
+      ? ["Acionar hoje os 10 pacientes de maior risco com confirmação manual."]
+      : []),
+    ...(horariosOciosos.length > 0
+      ? [`Abrir encaixes e ofertas para os horários ${horariosOciosos.map((h) => h.hour).join(", ")}.`]
+      : [])
+  );
+
+  const briefingExecutivo: BriefingExecutivo = {
+    vitorias: vitorias.slice(0, 3).concat(vitorias.length >= 3 ? [] : ["Operação estável no período analisado."]).slice(0, 3),
+    riscos: riscos.slice(0, 3).concat(riscos.length >= 3 ? [] : ["Sem riscos críticos adicionais além dos monitorados."]).slice(0, 3),
+    acoes: acoes.slice(0, 3).concat(acoes.length >= 3 ? [] : ["Manter rotina diária de confirmação e acompanhamento de faltas."]).slice(0, 3),
+  };
+
   return {
     data: {
       total,
@@ -639,6 +691,7 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
       alertas,
       benchmark,
       goalsConfig,
+      briefingExecutivo,
       funilPorProfissional: porProfissional,
       funilPorAtendente: porAtendente,
       funilPorTipoConsulta: porTipoConsulta,
