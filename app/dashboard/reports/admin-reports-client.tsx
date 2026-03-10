@@ -50,7 +50,20 @@ type VisaoGeral = {
   faltas: number;
   agendadaOuConfirmada: number;
   taxaComparecimento: number;
+  taxaNoShow: number;
   crescimento: number;
+  ticketMedioRealizadas: number;
+  receitaPerdidaEstimada: number;
+  pacientesRiscoNoShow: {
+    patientId: string;
+    full_name: string;
+    phone: string | null;
+    scheduled_at: string;
+    riskScore: number;
+    riskLabel: "alto" | "medio";
+  }[];
+  horariosOciosos: { hour: string; appointments: number; recommendation: string }[];
+  resumoExecutivo: { titulo: string; impacto: string; acao: string; tone: "positive" | "warning" | "neutral" }[];
   chartData: { date: string; total: number; realizadas: number; canceladas: number; faltas: number }[];
 };
 type PorProfissionalRow = {
@@ -106,6 +119,8 @@ export function AdminReportsClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 
   function setTab(tab: ReportTab) {
     const p = new URLSearchParams(searchParams.toString());
@@ -200,12 +215,121 @@ export function AdminReportsClient({
               </CardContent>
             </Card>
           </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <span className="text-sm font-medium text-muted-foreground">Perda estimada (faltas/cancelamentos)</span>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{formatCurrency(visaoGeral.receitaPerdidaEstimada)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <span className="text-sm font-medium text-muted-foreground">Ticket médio (realizadas)</span>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(visaoGeral.ticketMedioRealizadas)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <span className="text-sm font-medium text-muted-foreground">Taxa de no-show</span>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{visaoGeral.taxaNoShow}%</div>
+              </CardContent>
+            </Card>
+          </div>
           <Card>
             <CardHeader>
               <span className="font-semibold">Crescimento vs período anterior</span>
               <p className="text-sm text-muted-foreground">{visaoGeral.crescimento}%</p>
             </CardHeader>
           </Card>
+          <Card>
+            <CardHeader>
+              <span className="font-semibold">Resumo executivo da semana</span>
+              <p className="text-sm text-muted-foreground">
+                O que mudou, por que importa e qual ação tomar hoje.
+              </p>
+            </CardHeader>
+            <CardContent>
+              {visaoGeral.resumoExecutivo.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sem alertas acionáveis no período.</p>
+              ) : (
+                <div className="space-y-3">
+                  {visaoGeral.resumoExecutivo.map((item, idx) => (
+                    <div key={`${item.titulo}-${idx}`} className="rounded-md border border-border p-3">
+                      <p className="font-medium">{item.titulo}</p>
+                      <p className="text-sm text-muted-foreground">{item.impacto}</p>
+                      <p className="text-sm">{item.acao}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Top pacientes com risco de no-show</span>
+                <p className="text-sm text-muted-foreground">
+                  Priorize contato hoje para reduzir faltas da próxima semana.
+                </p>
+              </CardHeader>
+              <CardContent>
+                {visaoGeral.pacientesRiscoNoShow.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sem pacientes críticos para os próximos 7 dias.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {visaoGeral.pacientesRiscoNoShow.slice(0, 10).map((p) => (
+                      <div key={`${p.patientId}-${p.scheduled_at}`} className="flex items-center justify-between rounded-md border border-border p-2 text-sm">
+                        <div>
+                          <p className="font-medium">{p.full_name}</p>
+                          <p className="text-muted-foreground">
+                            {new Date(p.scheduled_at).toLocaleString("pt-BR")} {p.phone ? `· ${p.phone}` : ""}
+                          </p>
+                        </div>
+                        <span
+                          className={cn(
+                            "rounded px-2 py-1 text-xs font-medium",
+                            p.riskLabel === "alto" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
+                          )}
+                        >
+                          Risco {p.riskLabel} ({p.riskScore})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Horários com maior ociosidade</span>
+                <p className="text-sm text-muted-foreground">
+                  Sugestões de encaixe para aumentar ocupação.
+                </p>
+              </CardHeader>
+              <CardContent>
+                {visaoGeral.horariosOciosos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sem dados suficientes no período.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {visaoGeral.horariosOciosos.map((slot) => (
+                      <div key={slot.hour} className="rounded-md border border-border p-3">
+                        <p className="font-medium">
+                          {slot.hour} - {slot.appointments} agendamentos
+                        </p>
+                        <p className="text-sm text-muted-foreground">{slot.recommendation}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
           {visaoGeral.chartData.length > 0 && (
             <Card>
               <CardHeader>
