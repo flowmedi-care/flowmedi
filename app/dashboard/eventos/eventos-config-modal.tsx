@@ -250,7 +250,7 @@ export function EventosConfigModal({
         </p>
         {!canManageChannels && (
           <p className="text-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800 mb-4">
-            Aqui voce ja visualiza todo o potencial da automacao. Neste momento, somente o controle do Sistema esta liberado; ao evoluir de plano, voce desbloqueia Email e WhatsApp.
+            Aqui você já visualiza todo o potencial da automação. Neste momento, apenas o controle do Sistema está liberado; ao evoluir de plano, você desbloqueia e-mail e WhatsApp.
           </p>
         )}
         <div className="overflow-y-auto flex-1 min-h-0 space-y-4 pr-2">

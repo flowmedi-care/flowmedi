@@ -139,7 +139,7 @@ export function ConfiguracoesClient({
         <CardContent className="space-y-4">
           {!canUseWhatsApp && (
             <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Esta funcionalidade ja esta preparada para sua clinica. Ao evoluir de plano, voce libera essa configuracao com controle completo.
+              Esta funcionalidade já está disponível para visualização. Ao evoluir de plano, você libera toda a configuração com controle completo.
             </div>
           )}
           {opsError && (

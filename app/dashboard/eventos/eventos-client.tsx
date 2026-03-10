@@ -639,7 +639,7 @@ export function EventosClient({
                 if (!canUseMessagingChannels)
                   return (
                     <span className="text-sm text-muted-foreground">
-                      Envio liberado no plano com mensageria
+                      Envio disponível nos planos com mensageria
                     </span>
                   );
                 if (ch.allDisabled)
@@ -762,7 +762,7 @@ export function EventosClient({
         <Card className="border-amber-300 bg-amber-50">
           <CardContent className="pt-6">
             <p className="text-sm text-amber-800">
-              Voce ja pode organizar os eventos do sistema por aqui. Ao evoluir de plano, libera tambem os envios por Email/WhatsApp e a configuracao dos canais.
+              Você já pode organizar os eventos do sistema por aqui. Ao evoluir de plano, libera também os envios por e-mail/WhatsApp e a configuração dos canais.
             </p>
           </CardContent>
         </Card>
@@ -829,7 +829,7 @@ export function EventosClient({
                 </p>
                 {!canUseMessagingChannels && (
                   <p className="text-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800">
-                    Assim que sua clinica evoluir de plano, voce podera enviar por Email e WhatsApp diretamente por este modal.
+                    Ao evoluir de plano, você poderá enviar por e-mail e WhatsApp diretamente por este modal.
                   </p>
                 )}
                 <div className="space-y-2">

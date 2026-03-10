@@ -31,10 +31,10 @@ export default async function WhatsAppPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
         <MessageSquare className="h-12 w-12 text-muted-foreground" />
-        <h2 className="text-xl font-semibold">Ative o WhatsApp no seu plano</h2>
+        <h2 className="text-xl font-semibold">Desbloqueie o WhatsApp da clínica</h2>
         <p className="text-muted-foreground max-w-md">
-          Esta area ja esta pronta para sua clinica. Ao evoluir de plano, voce libera a central
-          de conversas e os envios pelo WhatsApp com poucos cliques.
+          Esta área já está pronta para a sua operação. Ao evoluir de plano, você libera a central
+          de conversas e os envios pelo WhatsApp com uma experiência completa.
         </p>
         <div className="flex gap-2">
           <Button asChild variant="outline">
@@ -44,7 +44,7 @@ export default async function WhatsAppPage() {
             </Link>
           </Button>
           <Button asChild>
-            <Link href="/dashboard/plano">Conhecer planos com WhatsApp</Link>
+            <Link href="/dashboard/plano">Ver planos com WhatsApp</Link>
           </Button>
         </div>
       </div>

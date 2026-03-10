@@ -1043,11 +1043,11 @@ export function IntegrationsSection({ clinicId, canUseWhatsApp }: IntegrationsSe
               </div>
               <Button disabled size="sm" variant="outline">
                 <ExternalLink className="h-4 w-4 mr-2" />
-                Ativar no plano com WhatsApp
+                Ativar em um plano com WhatsApp
               </Button>
             </div>
             <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Quando sua clinica evoluir de plano, voce podera conectar e gerenciar a integracao WhatsApp aqui.
+              Quando sua clínica evoluir de plano, você poderá conectar e gerenciar a integração com WhatsApp diretamente por aqui.
             </div>
           </div>
         )}
