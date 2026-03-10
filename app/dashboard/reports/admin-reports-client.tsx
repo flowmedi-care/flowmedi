@@ -148,21 +148,69 @@ type VisaoGeral = {
   }[];
   chartData: { date: string; total: number; realizadas: number; canceladas: number; faltas: number }[];
 };
-type PorProfissionalRow = {
-  doctorId: string;
-  full_name: string;
-  total: number;
-  realizadas: number;
-  canceladas: number;
-  faltas: number;
-  taxaComparecimento: number;
-  tempoMedioMin: number | null;
+type PorProfissional = {
+  rows: {
+    doctorId: string;
+    full_name: string;
+    total: number;
+    realizadas: number;
+    canceladas: number;
+    faltas: number;
+    taxaConfirmacao: number;
+    taxaComparecimento: number;
+    taxaNoShow: number;
+    taxaRetorno: number;
+    tempoMedioMin: number | null;
+    status: "ok" | "warning" | "critical";
+    acaoRecomendada: string;
+  }[];
+  topPerformance: {
+    doctorId: string;
+    full_name: string;
+    taxaComparecimento: number;
+  }[];
+  pontosAtencao: {
+    doctorId: string;
+    full_name: string;
+    taxaNoShow: number;
+    acaoRecomendada: string;
+  }[];
+  metas: {
+    comparecimento: number;
+    noShow: number;
+    retorno: number;
+  };
 };
-type PorAtendenteRow = {
-  userId: string;
-  full_name: string;
-  agendamentosCriados: number;
-  cancelamentos: number;
+type PorAtendente = {
+  rows: {
+    userId: string;
+    full_name: string;
+    agendamentosCriados: number;
+    cancelamentos: number;
+    confirmadas: number;
+    compareceram: number;
+    faltas: number;
+    taxaConfirmacao: number;
+    taxaComparecimento: number;
+    taxaNoShow: number;
+    status: "ok" | "warning" | "critical";
+    acaoRecomendada: string;
+  }[];
+  ranking: {
+    userId: string;
+    full_name: string;
+    taxaComparecimento: number;
+  }[];
+  alertas: {
+    userId: string;
+    full_name: string;
+    taxaNoShow: number;
+    acaoRecomendada: string;
+  }[];
+  metas: {
+    confirmacao: number;
+    noShow: number;
+  };
 };
 type Financeiro = {
   receitaTotal: number;
@@ -199,8 +247,17 @@ type Operacional = {
   realizadas: number;
   taxaCancelamento: number;
   taxaNoShow: number;
+  taxaOcupacao: number;
   crescimentoPacientes: number;
   picoHorario: string | null;
+  metas: {
+    ocupacao: number;
+    noShow: number;
+    cancelamento: number;
+  };
+  gargalos: { titulo: string; impacto: string; acao: string; status: "ok" | "warning" | "critical" }[];
+  distribuicaoPorHora: { hour: string; total: number; status: "ok" | "warning" | "critical" }[];
+  distribuicaoPorDiaSemana: { day: string; total: number }[];
 };
 
 export function AdminReportsClient({
@@ -217,8 +274,8 @@ export function AdminReportsClient({
   allowedTabs: ReportTab[];
   period: Period;
   visaoGeral: VisaoGeral | null;
-  porProfissional: PorProfissionalRow[];
-  porAtendente: PorAtendenteRow[];
+  porProfissional: PorProfissional | null;
+  porAtendente: PorAtendente | null;
   financeiro: Financeiro | null;
   operacional: Operacional | null;
 }) {
@@ -707,12 +764,38 @@ export function AdminReportsClient({
         </div>
       )}
 
-      {activeTab === "profissional" && (
+      {activeTab === "profissional" && porProfissional && (
         <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <span className="text-sm font-medium text-muted-foreground">Meta comparecimento</span>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{porProfissional.metas.comparecimento}%</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <span className="text-sm font-medium text-muted-foreground">Meta no-show</span>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{porProfissional.metas.noShow}%</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <span className="text-sm font-medium text-muted-foreground">Meta retorno</span>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{porProfissional.metas.retorno}%</p>
+              </CardContent>
+            </Card>
+          </div>
           <Card>
             <CardHeader>
               <span className="font-semibold">Métricas por profissional</span>
-              <p className="text-sm text-muted-foreground">Total, realizadas, canceladas, faltas, taxa de comparecimento e tempo médio de atendimento</p>
+              <p className="text-sm text-muted-foreground">Funil, no-show, retorno e ação recomendada por médico</p>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -721,42 +804,96 @@ export function AdminReportsClient({
                     <tr className="border-b border-border">
                       <th className="text-left py-3 font-medium">Profissional</th>
                       <th className="text-right py-3 font-medium">Total</th>
-                      <th className="text-right py-3 font-medium">Realizadas</th>
-                      <th className="text-right py-3 font-medium">Canceladas</th>
-                      <th className="text-right py-3 font-medium">Faltas</th>
+                      <th className="text-right py-3 font-medium">Conf.</th>
                       <th className="text-right py-3 font-medium">Comparecimento</th>
-                      <th className="text-right py-3 font-medium">Tempo médio</th>
+                      <th className="text-right py-3 font-medium">No-show</th>
+                      <th className="text-right py-3 font-medium">Retorno</th>
+                      <th className="text-right py-3 font-medium">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {porProfissional.map((row) => (
+                    {porProfissional.rows.map((row) => (
                       <tr key={row.doctorId} className="border-b border-border/50">
                         <td className="py-3 font-medium">{row.full_name}</td>
                         <td className="text-right py-3">{row.total}</td>
-                        <td className="text-right py-3 text-green-600">{row.realizadas}</td>
-                        <td className="text-right py-3 text-red-600">{row.canceladas}</td>
-                        <td className="text-right py-3 text-amber-600">{row.faltas}</td>
+                        <td className="text-right py-3">{row.taxaConfirmacao}%</td>
                         <td className="text-right py-3">{row.taxaComparecimento}%</td>
-                        <td className="text-right py-3">{row.tempoMedioMin != null ? `${row.tempoMedioMin} min` : "—"}</td>
+                        <td className="text-right py-3">{row.taxaNoShow}%</td>
+                        <td className="text-right py-3">{row.taxaRetorno}%</td>
+                        <td className="text-right py-3">
+                          <span className={cn("rounded px-2 py-1 text-xs font-medium", statusClass(row.status))}>
+                            {row.status}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {porProfissional.length === 0 && (
+                {porProfissional.rows.length === 0 && (
                   <p className="py-8 text-center text-muted-foreground">Nenhum dado no período.</p>
                 )}
               </div>
             </CardContent>
           </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Top performance</span>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {porProfissional.topPerformance.map((row) => (
+                  <div key={row.doctorId} className="rounded-md border border-border p-2 text-sm flex items-center justify-between">
+                    <span>{row.full_name}</span>
+                    <span className="text-muted-foreground">{row.taxaComparecimento}% comparecimento</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Pontos de atenção</span>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {porProfissional.pontosAtencao.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sem alertas críticos por profissional.</p>
+                ) : (
+                  porProfissional.pontosAtencao.map((row) => (
+                    <div key={row.doctorId} className="rounded-md border border-border p-2 text-sm">
+                      <p className="font-medium">{row.full_name} · no-show {row.taxaNoShow}%</p>
+                      <p className="text-muted-foreground">{row.acaoRecomendada}</p>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
-      {activeTab === "atendente" && (
+      {activeTab === "atendente" && porAtendente && (
         <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-2">
+                <span className="text-sm font-medium text-muted-foreground">Meta confirmação</span>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{porAtendente.metas.confirmacao}%</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <span className="text-sm font-medium text-muted-foreground">Meta no-show</span>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{porAtendente.metas.noShow}%</p>
+              </CardContent>
+            </Card>
+          </div>
           <Card>
             <CardHeader>
               <span className="font-semibold">Produtividade por atendente</span>
-              <p className="text-sm text-muted-foreground">Agendamentos criados e cancelamentos (quem criou o agendamento)</p>
+              <p className="text-sm text-muted-foreground">Funil por atendente com status e ação recomendada</p>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -764,26 +901,68 @@ export function AdminReportsClient({
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-3 font-medium">Atendente</th>
-                      <th className="text-right py-3 font-medium">Agendamentos criados</th>
-                      <th className="text-right py-3 font-medium">Cancelamentos</th>
+                      <th className="text-right py-3 font-medium">Criados</th>
+                      <th className="text-right py-3 font-medium">Conf.</th>
+                      <th className="text-right py-3 font-medium">Comparecimento</th>
+                      <th className="text-right py-3 font-medium">No-show</th>
+                      <th className="text-right py-3 font-medium">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {porAtendente.map((row) => (
+                    {porAtendente.rows.map((row) => (
                       <tr key={row.userId} className="border-b border-border/50">
                         <td className="py-3 font-medium">{row.full_name}</td>
                         <td className="text-right py-3">{row.agendamentosCriados}</td>
-                        <td className="text-right py-3 text-red-600">{row.cancelamentos}</td>
+                        <td className="text-right py-3">{row.taxaConfirmacao}%</td>
+                        <td className="text-right py-3">{row.taxaComparecimento}%</td>
+                        <td className="text-right py-3">{row.taxaNoShow}%</td>
+                        <td className="text-right py-3">
+                          <span className={cn("rounded px-2 py-1 text-xs font-medium", statusClass(row.status))}>
+                            {row.status}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {porAtendente.length === 0 && (
+                {porAtendente.rows.length === 0 && (
                   <p className="py-8 text-center text-muted-foreground">Nenhum dado no período.</p>
                 )}
               </div>
             </CardContent>
           </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Ranking da equipe</span>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {porAtendente.ranking.slice(0, 5).map((row) => (
+                  <div key={row.userId} className="rounded-md border border-border p-2 text-sm flex items-center justify-between">
+                    <span>{row.full_name}</span>
+                    <span className="text-muted-foreground">{row.taxaComparecimento}% comparecimento</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Ação prioritária hoje</span>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {porAtendente.alertas.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sem alertas críticos da equipe no período.</p>
+                ) : (
+                  porAtendente.alertas.map((row) => (
+                    <div key={row.userId} className="rounded-md border border-border p-2 text-sm">
+                      <p className="font-medium">{row.full_name} · no-show {row.taxaNoShow}%</p>
+                      <p className="text-muted-foreground">{row.acaoRecomendada}</p>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -958,7 +1137,7 @@ export function AdminReportsClient({
 
       {activeTab === "operacional" && operacional && (
         <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <span className="text-sm font-medium text-muted-foreground">Total consultas</span>
@@ -987,6 +1166,14 @@ export function AdminReportsClient({
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <span className="text-sm font-medium text-muted-foreground">Taxa ocupação</span>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{operacional.taxaOcupacao}%</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <span className="text-sm font-medium text-muted-foreground">Novos pacientes</span>
                 <Users className="h-4 w-4" />
               </CardHeader>
@@ -1002,6 +1189,64 @@ export function AdminReportsClient({
                 Horário com mais consultas no período: {operacional.picoHorario ?? "—"}
               </p>
             </CardHeader>
+          </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Gargalos operacionais</span>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {operacional.gargalos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sem gargalos críticos no período.</p>
+                ) : (
+                  operacional.gargalos.map((g, idx) => (
+                    <div key={`${g.titulo}-${idx}`} className="rounded-md border border-border p-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium">{g.titulo}</p>
+                        <span className={cn("rounded px-2 py-1 text-xs font-medium", statusClass(g.status))}>
+                          {g.status}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{g.impacto}</p>
+                      <p className="text-sm">{g.acao}</p>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <span className="font-semibold">Distribuição por hora</span>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {operacional.distribuicaoPorHora.map((h) => (
+                  <div key={h.hour} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+                    <span>{h.hour}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">{h.total} consultas</span>
+                      <span className={cn("rounded px-2 py-0.5 text-xs font-medium", statusClass(h.status))}>
+                        {h.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+          <Card>
+            <CardHeader>
+              <span className="font-semibold">Distribuição por dia da semana</span>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {operacional.distribuicaoPorDiaSemana.map((d) => (
+                  <div key={d.day} className="rounded-md border border-border p-2 text-sm flex items-center justify-between">
+                    <span>{d.day}</span>
+                    <span className="font-medium">{d.total}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
           </Card>
         </div>
       )}

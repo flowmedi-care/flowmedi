@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/check-compliance",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-executive-briefing",
+      "schedule": "0 9 * * 1"
     }
   ]
 }

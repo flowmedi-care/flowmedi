@@ -114,8 +114,8 @@ export default async function AdminDashboard({
         allowedTabs={allowedTabs as ReportTab[]}
         period={periodTyped}
         visaoGeral={visaoGeral}
-        porProfissional={porProfissional ?? []}
-        porAtendente={porAtendente ?? []}
+        porProfissional={porProfissional}
+        porAtendente={porAtendente}
         financeiro={financeiro}
         operacional={operacional}
       />

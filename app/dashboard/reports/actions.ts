@@ -98,6 +98,37 @@ type BriefingExecutivo = {
   acoes: string[];
 };
 
+type ProfissionalRow = {
+  doctorId: string;
+  full_name: string;
+  total: number;
+  realizadas: number;
+  canceladas: number;
+  faltas: number;
+  taxaConfirmacao: number;
+  taxaComparecimento: number;
+  taxaNoShow: number;
+  taxaRetorno: number;
+  tempoMedioMin: number | null;
+  status: GoalStatusLevel;
+  acaoRecomendada: string;
+};
+
+type AtendenteRow = {
+  userId: string;
+  full_name: string;
+  agendamentosCriados: number;
+  cancelamentos: number;
+  confirmadas: number;
+  compareceram: number;
+  faltas: number;
+  taxaConfirmacao: number;
+  taxaComparecimento: number;
+  taxaNoShow: number;
+  status: GoalStatusLevel;
+  acaoRecomendada: string;
+};
+
 function getSinglePatientRelation(
   patient: { full_name: string | null; phone: string | null } | { full_name: string | null; phone: string | null }[] | null | undefined
 ) {
@@ -134,6 +165,36 @@ function getDefaultReportGoals(): ReportGoalsConfig {
   };
 }
 
+async function getClinicGoalsConfig(supabase: Awaited<ReturnType<typeof createClient>>, clinicId: string): Promise<ReportGoalsConfig> {
+  const defaults = getDefaultReportGoals();
+  const { data: goalsRow } = await supabase
+    .from("clinic_report_goals")
+    .select(
+      `
+      target_confirmation_pct,
+      target_attendance_pct,
+      target_no_show_pct,
+      target_occupancy_pct,
+      target_return_pct,
+      return_window_days,
+      working_hours_start,
+      working_hours_end
+    `
+    )
+    .eq("clinic_id", clinicId)
+    .maybeSingle();
+  return {
+    targetConfirmationPct: Number(goalsRow?.target_confirmation_pct ?? defaults.targetConfirmationPct),
+    targetAttendancePct: Number(goalsRow?.target_attendance_pct ?? defaults.targetAttendancePct),
+    targetNoShowPct: Number(goalsRow?.target_no_show_pct ?? defaults.targetNoShowPct),
+    targetOccupancyPct: Number(goalsRow?.target_occupancy_pct ?? defaults.targetOccupancyPct),
+    targetReturnPct: Number(goalsRow?.target_return_pct ?? defaults.targetReturnPct),
+    returnWindowDays: Number(goalsRow?.return_window_days ?? defaults.returnWindowDays),
+    workingHoursStart: Number(goalsRow?.working_hours_start ?? defaults.workingHoursStart),
+    workingHoursEnd: Number(goalsRow?.working_hours_end ?? defaults.workingHoursEnd),
+  };
+}
+
 function getPeriodDates(period: Period): { start: Date; end: Date } {
   const end = new Date();
   const start = new Date();
@@ -154,33 +215,7 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
   const { start, end } = getPeriodDates(period);
   const startStr = start.toISOString();
   const endStr = end.toISOString();
-  const defaultGoals = getDefaultReportGoals();
-  const { data: goalsRow } = await supabase
-    .from("clinic_report_goals")
-    .select(
-      `
-      target_confirmation_pct,
-      target_attendance_pct,
-      target_no_show_pct,
-      target_occupancy_pct,
-      target_return_pct,
-      return_window_days,
-      working_hours_start,
-      working_hours_end
-    `
-    )
-    .eq("clinic_id", clinicId)
-    .maybeSingle();
-  const goalsConfig: ReportGoalsConfig = {
-    targetConfirmationPct: Number(goalsRow?.target_confirmation_pct ?? defaultGoals.targetConfirmationPct),
-    targetAttendancePct: Number(goalsRow?.target_attendance_pct ?? defaultGoals.targetAttendancePct),
-    targetNoShowPct: Number(goalsRow?.target_no_show_pct ?? defaultGoals.targetNoShowPct),
-    targetOccupancyPct: Number(goalsRow?.target_occupancy_pct ?? defaultGoals.targetOccupancyPct),
-    targetReturnPct: Number(goalsRow?.target_return_pct ?? defaultGoals.targetReturnPct),
-    returnWindowDays: Number(goalsRow?.return_window_days ?? defaultGoals.returnWindowDays),
-    workingHoursStart: Number(goalsRow?.working_hours_start ?? defaultGoals.workingHoursStart),
-    workingHoursEnd: Number(goalsRow?.working_hours_end ?? defaultGoals.workingHoursEnd),
-  };
+  const goalsConfig = await getClinicGoalsConfig(supabase, clinicId);
 
   const { data: appointments } = await supabase
     .from("appointments")
@@ -709,6 +744,10 @@ export async function getPorProfissionalData(clinicId: string, period: Period = 
   if (!user) return { data: null, error: "Não autorizado." };
 
   const { start, end } = getPeriodDates(period);
+  const goalsConfig = await getClinicGoalsConfig(supabase, clinicId);
+  const windowDays = goalsConfig.returnWindowDays;
+  const retornoWindowEnd = new Date(end);
+  retornoWindowEnd.setDate(retornoWindowEnd.getDate() + windowDays);
 
   const { data: doctors } = await supabase
     .from("profiles")
@@ -719,60 +758,106 @@ export async function getPorProfissionalData(clinicId: string, period: Period = 
 
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, status, doctor_id, duration_minutes, started_at, completed_at")
+    .select("id, status, doctor_id, duration_minutes, started_at, completed_at, patient_id, scheduled_at")
     .eq("clinic_id", clinicId)
     .gte("scheduled_at", start.toISOString())
     .lte("scheduled_at", end.toISOString());
 
-  const byDoctor: Record<
-    string,
-    {
-      full_name: string;
-      total: number;
-      realizadas: number;
-      canceladas: number;
-      faltas: number;
-      taxaComparecimento: number;
-      tempoMedioMin: number | null;
-      totalDurationMin: number;
-      countWithDuration: number;
-    }
-  > = {};
+  const byDoctor: Record<string, {
+    full_name: string;
+    total: number;
+    confirmadas: number;
+    realizadas: number;
+    canceladas: number;
+    faltas: number;
+    tempoMedioMin: number | null;
+    totalDurationMin: number;
+    countWithDuration: number;
+    retornoAgendado: number;
+    realizadasAppointments: Array<{ id: string; patient_id: string; scheduled_at: string }>;
+  }> = {};
 
   doctors?.forEach((d) => {
     byDoctor[d.id] = {
       full_name: d.full_name ?? "—",
       total: 0,
+      confirmadas: 0,
       realizadas: 0,
       canceladas: 0,
       faltas: 0,
-      taxaComparecimento: 0,
       tempoMedioMin: null,
       totalDurationMin: 0,
       countWithDuration: 0,
+      retornoAgendado: 0,
+      realizadasAppointments: [],
     };
   });
 
+  const patientIdsForReturns = new Set<string>();
   appointments?.forEach((a) => {
     const doc = byDoctor[a.doctor_id];
     if (!doc) return;
     doc.total++;
+    if (a.status === "confirmada" || a.status === "realizada" || a.status === "falta") doc.confirmadas++;
     if (a.status === "realizada") {
       doc.realizadas++;
       if (a.duration_minutes != null) {
         doc.totalDurationMin += a.duration_minutes;
         doc.countWithDuration++;
       }
+      if (a.patient_id) {
+        doc.realizadasAppointments.push({ id: a.id, patient_id: a.patient_id, scheduled_at: a.scheduled_at });
+        patientIdsForReturns.add(a.patient_id);
+      }
     }
     if (a.status === "cancelada") doc.canceladas++;
     if (a.status === "falta") doc.faltas++;
   });
 
-  const list = Object.entries(byDoctor).map(([id, d]) => {
-    const totalMenosCancel = d.total - d.canceladas;
-    const taxa = totalMenosCancel > 0 ? Math.round(((d.realizadas + d.faltas) / totalMenosCancel) * 100) : 0;
-    const tempoMedio =
-      d.countWithDuration > 0 ? Math.round(d.totalDurationMin / d.countWithDuration) : null;
+  const { data: returnAppointments } =
+    patientIdsForReturns.size > 0
+      ? await supabase
+          .from("appointments")
+          .select("patient_id, scheduled_at")
+          .eq("clinic_id", clinicId)
+          .in("patient_id", Array.from(patientIdsForReturns))
+          .gte("scheduled_at", start.toISOString())
+          .lte("scheduled_at", retornoWindowEnd.toISOString())
+      : { data: [] as Array<{ patient_id: string; scheduled_at: string }> };
+
+  const returnsByPatient = new Map<string, string[]>();
+  (returnAppointments ?? []).forEach((r) => {
+    const list = returnsByPatient.get(r.patient_id) ?? [];
+    list.push(r.scheduled_at);
+    returnsByPatient.set(r.patient_id, list);
+  });
+
+  Object.values(byDoctor).forEach((d) => {
+    d.realizadasAppointments.forEach((appt) => {
+      const future = returnsByPatient.get(appt.patient_id) ?? [];
+      const base = new Date(appt.scheduled_at).getTime();
+      const hasReturn = future.some((dt) => {
+        const diffDays = (new Date(dt).getTime() - base) / (1000 * 60 * 60 * 24);
+        return diffDays > 0 && diffDays <= windowDays;
+      });
+      if (hasReturn) d.retornoAgendado++;
+    });
+  });
+
+  const rows: ProfissionalRow[] = Object.entries(byDoctor).map(([id, d]) => {
+    const taxaConfirmacao = pct(d.confirmadas, d.total);
+    const taxaComparecimento = pct(d.realizadas, d.confirmadas || d.total);
+    const taxaNoShow = pct(d.faltas, d.total);
+    const taxaRetorno = pct(d.retornoAgendado, d.realizadas);
+    const tempoMedio = d.countWithDuration > 0 ? Math.round(d.totalDurationMin / d.countWithDuration) : null;
+    const statusNoShow = calcGoalStatus(taxaNoShow, goalsConfig.targetNoShowPct, false);
+    const statusComparecimento = calcGoalStatus(taxaComparecimento, goalsConfig.targetAttendancePct, true);
+    const status: GoalStatusLevel =
+      statusNoShow === "critical" || statusComparecimento === "critical"
+        ? "critical"
+        : statusNoShow === "warning" || statusComparecimento === "warning"
+          ? "warning"
+          : "ok";
     return {
       doctorId: id,
       full_name: d.full_name,
@@ -780,12 +865,40 @@ export async function getPorProfissionalData(clinicId: string, period: Period = 
       realizadas: d.realizadas,
       canceladas: d.canceladas,
       faltas: d.faltas,
-      taxaComparecimento: taxa,
+      taxaConfirmacao,
+      taxaComparecimento,
+      taxaNoShow,
+      taxaRetorno,
       tempoMedioMin: tempoMedio,
+      status,
+      acaoRecomendada:
+        status === "critical"
+          ? "Revisar carteira de pacientes de alto risco e reforçar confirmação manual."
+          : status === "warning"
+            ? "Ajustar lembretes e monitorar faltas desta agenda."
+            : "Manter rotina atual e replicar práticas de melhor desempenho.",
     };
   });
 
-  return { data: list, error: null };
+  const topPerformance = [...rows].sort((a, b) => b.taxaComparecimento - a.taxaComparecimento).slice(0, 3);
+  const pontosAtencao = [...rows]
+    .filter((r) => r.status !== "ok")
+    .sort((a, b) => b.taxaNoShow - a.taxaNoShow)
+    .slice(0, 5);
+
+  return {
+    data: {
+      rows,
+      topPerformance,
+      pontosAtencao,
+      metas: {
+        comparecimento: goalsConfig.targetAttendancePct,
+        noShow: goalsConfig.targetNoShowPct,
+        retorno: goalsConfig.targetReturnPct,
+      },
+    },
+    error: null,
+  };
 }
 
 /** Por Atendente: agendamentos criados, reagendamentos, cancelamentos (created_by) */
@@ -795,6 +908,7 @@ export async function getPorAtendenteData(clinicId: string, period: Period = "30
   if (!user) return { data: null, error: "Não autorizado." };
 
   const { start, end } = getPeriodDates(period);
+  const goalsConfig = await getClinicGoalsConfig(supabase, clinicId);
 
   const { data: operators } = await supabase
     .from("profiles")
@@ -805,30 +919,42 @@ export async function getPorAtendenteData(clinicId: string, period: Period = "30
 
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, status, created_by, created_at, updated_at, scheduled_at")
+    .select("id, status, created_by, created_at, updated_at, scheduled_at, patient_id")
     .eq("clinic_id", clinicId)
     .gte("scheduled_at", start.toISOString())
     .lte("scheduled_at", end.toISOString());
 
   const byOperator: Record<
     string,
-    { full_name: string; role: string; criados: number; alterados: number; cancelamentos: number }
+    {
+      full_name: string;
+      role: string;
+      criados: number;
+      cancelamentos: number;
+      confirmadas: number;
+      compareceram: number;
+      faltas: number;
+    }
   > = {};
   operators?.forEach((s) => {
     byOperator[s.id] = {
       full_name: s.full_name ?? "—",
       role: s.role ?? "nao-informado",
       criados: 0,
-      alterados: 0,
       cancelamentos: 0,
+      confirmadas: 0,
+      compareceram: 0,
+      faltas: 0,
     };
   });
   byOperator["nao-informado"] = {
     full_name: "Não informado",
     role: "nao-informado",
     criados: 0,
-    alterados: 0,
     cancelamentos: 0,
+    confirmadas: 0,
+    compareceram: 0,
+    faltas: 0,
   };
 
   appointments?.forEach((a) => {
@@ -839,18 +965,64 @@ export async function getPorAtendenteData(clinicId: string, period: Period = "30
         : "nao-informado";
     byOperator[key].criados++;
     if (a.status === "cancelada") byOperator[key].cancelamentos++;
+    if (a.status === "confirmada" || a.status === "realizada" || a.status === "falta") byOperator[key].confirmadas++;
+    if (a.status === "realizada") byOperator[key].compareceram++;
+    if (a.status === "falta") byOperator[key].faltas++;
   });
 
-  const list = Object.entries(byOperator)
+  const rows: AtendenteRow[] = Object.entries(byOperator)
     .filter(([k]) => k !== "nao-informado" || byOperator[k].criados > 0)
-    .map(([id, d]) => ({
-      userId: id,
-      full_name: d.full_name,
-      agendamentosCriados: d.criados,
-      cancelamentos: d.cancelamentos,
-    }));
+    .map(([id, d]) => {
+      const taxaConfirmacao = pct(d.confirmadas, d.criados);
+      const taxaComparecimento = pct(d.compareceram, d.confirmadas || d.criados);
+      const taxaNoShow = pct(d.faltas, d.criados);
+      const statusNoShow = calcGoalStatus(taxaNoShow, goalsConfig.targetNoShowPct, false);
+      const statusConfirmacao = calcGoalStatus(taxaConfirmacao, goalsConfig.targetConfirmationPct, true);
+      const status: GoalStatusLevel =
+        statusNoShow === "critical" || statusConfirmacao === "critical"
+          ? "critical"
+          : statusNoShow === "warning" || statusConfirmacao === "warning"
+            ? "warning"
+            : "ok";
+      return {
+        userId: id,
+        full_name: d.full_name,
+        agendamentosCriados: d.criados,
+        cancelamentos: d.cancelamentos,
+        confirmadas: d.confirmadas,
+        compareceram: d.compareceram,
+        faltas: d.faltas,
+        taxaConfirmacao,
+        taxaComparecimento,
+        taxaNoShow,
+        status,
+        acaoRecomendada:
+          status === "critical"
+            ? "Fazer mutirão de confirmação das consultas mais próximas."
+            : status === "warning"
+              ? "Ajustar rotina diária de lembretes e reconfirmação."
+              : "Manter padrão e apoiar equipe em horários de pico.",
+      };
+    });
 
-  return { data: list, error: null };
+  const ranking = [...rows].sort((a, b) => b.taxaComparecimento - a.taxaComparecimento);
+  const alertas = rows
+    .filter((r) => r.status !== "ok")
+    .sort((a, b) => b.taxaNoShow - a.taxaNoShow)
+    .slice(0, 5);
+
+  return {
+    data: {
+      rows,
+      ranking,
+      alertas,
+      metas: {
+        confirmacao: goalsConfig.targetConfirmationPct,
+        noShow: goalsConfig.targetNoShowPct,
+      },
+    },
+    error: null,
+  };
 }
 
 /** Indicadores operacionais */
@@ -860,6 +1032,7 @@ export async function getOperacionalData(clinicId: string, period: Period = "30d
   if (!user) return { data: null, error: "Não autorizado." };
 
   const { start, end } = getPeriodDates(period);
+  const goalsConfig = await getClinicGoalsConfig(supabase, clinicId);
   const startStr = start.toISOString();
   const endStr = end.toISOString();
 
@@ -885,14 +1058,81 @@ export async function getOperacionalData(clinicId: string, period: Period = "30d
     .lte("created_at", endStr);
 
   const byHour: Record<number, number> = {};
+  const byWeekday: Record<number, number> = {};
+  for (let h = goalsConfig.workingHoursStart; h <= goalsConfig.workingHoursEnd; h++) byHour[h] = 0;
+  for (let d = 0; d < 7; d++) byWeekday[d] = 0;
   appointments?.forEach((a) => {
-    const h = new Date(a.scheduled_at).getHours();
+    const date = new Date(a.scheduled_at);
+    const h = date.getHours();
     byHour[h] = (byHour[h] ?? 0) + 1;
+    const wd = date.getDay();
+    byWeekday[wd] = (byWeekday[wd] ?? 0) + 1;
   });
   const picoHorario =
     Object.entries(byHour).length > 0
       ? Object.entries(byHour).sort(([, a], [, b]) => b - a)[0]
       : null;
+
+  const hourRows = Object.entries(byHour)
+    .map(([hour, totalH]) => ({
+      hour: `${String(hour).padStart(2, "0")}h`,
+      total: totalH,
+      status:
+        totalH <= 1
+          ? ("critical" as GoalStatusLevel)
+          : totalH <= 3
+            ? ("warning" as GoalStatusLevel)
+            : ("ok" as GoalStatusLevel),
+    }))
+    .sort((a, b) => a.hour.localeCompare(b.hour));
+
+  const weekdayLabel = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+  const weekdayRows = Object.entries(byWeekday).map(([d, totalD]) => ({
+    day: weekdayLabel[Number(d)] ?? String(d),
+    total: totalD,
+  }));
+
+  const ocupacao = pct(realizadas, total);
+  const metas = {
+    ocupacao: goalsConfig.targetOccupancyPct,
+    noShow: goalsConfig.targetNoShowPct,
+    cancelamento: 15,
+  };
+
+  const gargalos: Array<{ titulo: string; impacto: string; acao: string; status: GoalStatusLevel }> = [];
+  if (taxaNoShow > metas.noShow) {
+    gargalos.push({
+      titulo: "No-show acima da meta",
+      impacto: `${taxaNoShow}% no período (meta <= ${metas.noShow}%).`,
+      acao: "Priorizar reconfirmação D-1 e D-0 para agenda dos próximos dias.",
+      status: "critical",
+    });
+  }
+  if (taxaCancelamento > metas.cancelamento) {
+    gargalos.push({
+      titulo: "Cancelamentos elevados",
+      impacto: `${taxaCancelamento}% de cancelamento no período.`,
+      acao: "Ativar lista de espera e ofertas de encaixe imediato.",
+      status: "warning",
+    });
+  }
+  if (ocupacao < metas.ocupacao) {
+    gargalos.push({
+      titulo: "Ocupação abaixo da meta",
+      impacto: `${ocupacao}% de ocupação (meta ${metas.ocupacao}%).`,
+      acao: "Direcionar reativação para horários com baixa densidade.",
+      status: "warning",
+    });
+  }
+  const horariosCriticos = hourRows.filter((h) => h.status !== "ok").slice(0, 3);
+  if (horariosCriticos.length > 0) {
+    gargalos.push({
+      titulo: "Janelas de ociosidade",
+      impacto: `Horários críticos: ${horariosCriticos.map((h) => h.hour).join(", ")}.`,
+      acao: "Abrir encaixes e antecipar retornos para esses horários.",
+      status: "warning",
+    });
+  }
 
   return {
     data: {
@@ -900,8 +1140,13 @@ export async function getOperacionalData(clinicId: string, period: Period = "30d
       realizadas,
       taxaCancelamento,
       taxaNoShow,
+      taxaOcupacao: ocupacao,
       crescimentoPacientes: pacientesNovos ?? 0,
       picoHorario: picoHorario ? `${String(picoHorario[0]).padStart(2, "0")}h` : null,
+      metas,
+      gargalos: gargalos.slice(0, 5),
+      distribuicaoPorHora: hourRows,
+      distribuicaoPorDiaSemana: weekdayRows,
     },
     error: null,
   };
