@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Settings, Users, TrendingUp, CreditCard } from "lucide-react";
+import { SystemClinicsManager } from "./system-clinics-manager";
 
 export default async function SystemAdminPage() {
   await requireSystemAdmin();
@@ -53,6 +54,11 @@ export default async function SystemAdminPage() {
   const totalClinics = clinicsResult.count ?? 0;
   const starterCount = starterClinicsResult.count ?? 0;
   const proCount = proClinicsResult.count ?? 0;
+
+  const { data: clinicsForQuickEdit } = await supabase
+    .from("clinics")
+    .select("id, name, plan_id, subscription_status, created_at")
+    .order("created_at", { ascending: false });
 
   return (
     <div className="container mx-auto py-8 space-y-8">
@@ -185,6 +191,17 @@ export default async function SystemAdminPage() {
           </div>
         </CardContent>
       </Card>
+
+      <SystemClinicsManager
+        plans={plans.map((p) => ({ id: p.id, name: p.name, slug: p.slug }))}
+        clinics={(clinicsForQuickEdit ?? []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          plan_id: c.plan_id,
+          subscription_status: c.subscription_status,
+          created_at: c.created_at,
+        }))}
+      />
     </div>
   );
 }
