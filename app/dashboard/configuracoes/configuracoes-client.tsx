@@ -10,6 +10,7 @@ import {
   updateComplianceConfirmationDays,
   updateComplianceFormDays,
   updateWhatsAppOperationalControls,
+  upsertClinicReportGoals,
 } from "./actions";
 import { IntegrationsSection } from "./integrations-section";
 import { ClinicInfoTabs } from "@/components/clinic-info/clinic-info-tabs";
@@ -38,6 +39,7 @@ export function ConfiguracoesClient({
   autoMessageSendStart,
   autoMessageSendEnd,
   autoMessageTimezone,
+  reportGoals,
   clinicId,
   canUseWhatsApp,
   canUseCustomLogo,
@@ -57,6 +59,16 @@ export function ConfiguracoesClient({
   autoMessageSendStart: string;
   autoMessageSendEnd: string;
   autoMessageTimezone: string;
+  reportGoals: {
+    targetConfirmationPct: number;
+    targetAttendancePct: number;
+    targetNoShowPct: number;
+    targetOccupancyPct: number;
+    targetReturnPct: number;
+    returnWindowDays: number;
+    workingHoursStart: number;
+    workingHoursEnd: number;
+  };
   clinicId: string;
   canUseWhatsApp: boolean;
   canUseCustomLogo: boolean;
@@ -87,6 +99,19 @@ export function ConfiguracoesClient({
   const [opsError, setOpsError] = useState<string | null>(null);
   const [opsSuccess, setOpsSuccess] = useState(false);
   const [activeComplianceTab, setActiveComplianceTab] = useState<"confirmation" | "form">("confirmation");
+  const [reportGoalsInput, setReportGoalsInput] = useState({
+    targetConfirmationPct: String(reportGoals.targetConfirmationPct),
+    targetAttendancePct: String(reportGoals.targetAttendancePct),
+    targetNoShowPct: String(reportGoals.targetNoShowPct),
+    targetOccupancyPct: String(reportGoals.targetOccupancyPct),
+    targetReturnPct: String(reportGoals.targetReturnPct),
+    returnWindowDays: String(reportGoals.returnWindowDays),
+    workingHoursStart: String(reportGoals.workingHoursStart),
+    workingHoursEnd: String(reportGoals.workingHoursEnd),
+  });
+  const [reportGoalsLoading, setReportGoalsLoading] = useState(false);
+  const [reportGoalsError, setReportGoalsError] = useState<string | null>(null);
+  const [reportGoalsSuccess, setReportGoalsSuccess] = useState(false);
   const searchParams = useSearchParams();
 
   // Limpar parâmetros de URL após carregar
@@ -131,6 +156,163 @@ export function ConfiguracoesClient({
       />
 
       <IntegrationsSection clinicId={clinicId} canUseWhatsApp={canUseWhatsApp} />
+
+      <Card>
+        <CardHeader className="space-y-1">
+          <h2 className="text-lg font-semibold">Relatórios: metas e parâmetros</h2>
+          <p className="text-sm text-muted-foreground">
+            Configure metas da clínica para alertas automáticos e análises da Visão Geral.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {reportGoalsError && (
+            <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">{reportGoalsError}</p>
+          )}
+          {reportGoalsSuccess && (
+            <p className="text-sm text-green-700 dark:text-green-400 bg-green-500/10 p-2 rounded-md">
+              Metas de relatórios salvas com sucesso.
+            </p>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="goal_confirmation">Meta confirmação (%)</Label>
+              <Input
+                id="goal_confirmation"
+                type="number"
+                min={0}
+                max={100}
+                value={reportGoalsInput.targetConfirmationPct}
+                onChange={(e) =>
+                  setReportGoalsInput((prev) => ({ ...prev, targetConfirmationPct: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal_attendance">Meta comparecimento (%)</Label>
+              <Input
+                id="goal_attendance"
+                type="number"
+                min={0}
+                max={100}
+                value={reportGoalsInput.targetAttendancePct}
+                onChange={(e) =>
+                  setReportGoalsInput((prev) => ({ ...prev, targetAttendancePct: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal_noshow">Meta no-show (%)</Label>
+              <Input
+                id="goal_noshow"
+                type="number"
+                min={0}
+                max={100}
+                value={reportGoalsInput.targetNoShowPct}
+                onChange={(e) =>
+                  setReportGoalsInput((prev) => ({ ...prev, targetNoShowPct: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal_occupancy">Meta ocupação (%)</Label>
+              <Input
+                id="goal_occupancy"
+                type="number"
+                min={0}
+                max={100}
+                value={reportGoalsInput.targetOccupancyPct}
+                onChange={(e) =>
+                  setReportGoalsInput((prev) => ({ ...prev, targetOccupancyPct: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal_return">Meta retorno (%)</Label>
+              <Input
+                id="goal_return"
+                type="number"
+                min={0}
+                max={100}
+                value={reportGoalsInput.targetReturnPct}
+                onChange={(e) =>
+                  setReportGoalsInput((prev) => ({ ...prev, targetReturnPct: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal_return_window">Janela de retorno (dias)</Label>
+              <Input
+                id="goal_return_window"
+                type="number"
+                min={1}
+                max={180}
+                value={reportGoalsInput.returnWindowDays}
+                onChange={(e) =>
+                  setReportGoalsInput((prev) => ({ ...prev, returnWindowDays: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal_work_start">Início horário útil</Label>
+              <Input
+                id="goal_work_start"
+                type="number"
+                min={0}
+                max={23}
+                value={reportGoalsInput.workingHoursStart}
+                onChange={(e) =>
+                  setReportGoalsInput((prev) => ({ ...prev, workingHoursStart: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal_work_end">Fim horário útil</Label>
+              <Input
+                id="goal_work_end"
+                type="number"
+                min={0}
+                max={23}
+                value={reportGoalsInput.workingHoursEnd}
+                onChange={(e) =>
+                  setReportGoalsInput((prev) => ({ ...prev, workingHoursEnd: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <Button
+            disabled={reportGoalsLoading}
+            onClick={async () => {
+              setReportGoalsError(null);
+              setReportGoalsSuccess(false);
+              setReportGoalsLoading(true);
+
+              const parsed = {
+                targetConfirmationPct: Number.parseInt(reportGoalsInput.targetConfirmationPct, 10),
+                targetAttendancePct: Number.parseInt(reportGoalsInput.targetAttendancePct, 10),
+                targetNoShowPct: Number.parseInt(reportGoalsInput.targetNoShowPct, 10),
+                targetOccupancyPct: Number.parseInt(reportGoalsInput.targetOccupancyPct, 10),
+                targetReturnPct: Number.parseInt(reportGoalsInput.targetReturnPct, 10),
+                returnWindowDays: Number.parseInt(reportGoalsInput.returnWindowDays, 10),
+                workingHoursStart: Number.parseInt(reportGoalsInput.workingHoursStart, 10),
+                workingHoursEnd: Number.parseInt(reportGoalsInput.workingHoursEnd, 10),
+              };
+
+              if (Object.values(parsed).some((v) => Number.isNaN(v))) {
+                setReportGoalsError("Preencha todos os campos com números válidos.");
+                setReportGoalsLoading(false);
+                return;
+              }
+
+              const res = await upsertClinicReportGoals(parsed);
+              if (res.error) setReportGoalsError(res.error);
+              else setReportGoalsSuccess(true);
+              setReportGoalsLoading(false);
+            }}
+          >
+            {reportGoalsLoading ? "Salvando..." : "Salvar metas de relatórios"}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="space-y-1">

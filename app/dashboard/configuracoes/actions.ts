@@ -493,3 +493,65 @@ export async function updateClinicInfo(data: {
   revalidatePath("/dashboard/mensagens/templates");
   return { error: null };
 }
+
+export async function upsertClinicReportGoals(input: {
+  targetConfirmationPct: number;
+  targetAttendancePct: number;
+  targetNoShowPct: number;
+  targetOccupancyPct: number;
+  targetReturnPct: number;
+  returnWindowDays: number;
+  workingHoursStart: number;
+  workingHoursEnd: number;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") {
+    return { error: "Apenas administradores podem atualizar metas de relatórios." };
+  }
+
+  const inRange = (v: number, min: number, max: number) => Number.isInteger(v) && v >= min && v <= max;
+  if (!inRange(input.targetConfirmationPct, 0, 100)) return { error: "Meta de confirmação inválida (0-100)." };
+  if (!inRange(input.targetAttendancePct, 0, 100)) return { error: "Meta de comparecimento inválida (0-100)." };
+  if (!inRange(input.targetNoShowPct, 0, 100)) return { error: "Meta de no-show inválida (0-100)." };
+  if (!inRange(input.targetOccupancyPct, 0, 100)) return { error: "Meta de ocupação inválida (0-100)." };
+  if (!inRange(input.targetReturnPct, 0, 100)) return { error: "Meta de retorno inválida (0-100)." };
+  if (!inRange(input.returnWindowDays, 1, 180)) return { error: "Janela de retorno inválida (1-180)." };
+  if (!inRange(input.workingHoursStart, 0, 23) || !inRange(input.workingHoursEnd, 0, 23)) {
+    return { error: "Horário de trabalho inválido (0-23)." };
+  }
+  if (input.workingHoursStart > input.workingHoursEnd) {
+    return { error: "O horário inicial não pode ser maior que o horário final." };
+  }
+
+  const { error } = await supabase
+    .from("clinic_report_goals")
+    .upsert(
+      {
+        clinic_id: profile.clinic_id,
+        target_confirmation_pct: input.targetConfirmationPct,
+        target_attendance_pct: input.targetAttendancePct,
+        target_no_show_pct: input.targetNoShowPct,
+        target_occupancy_pct: input.targetOccupancyPct,
+        target_return_pct: input.targetReturnPct,
+        return_window_days: input.returnWindowDays,
+        working_hours_start: input.workingHoursStart,
+        working_hours_end: input.workingHoursEnd,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "clinic_id" }
+    );
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/configuracoes");
+  revalidatePath("/dashboard");
+  return { error: null };
+}

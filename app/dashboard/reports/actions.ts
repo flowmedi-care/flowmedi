@@ -81,6 +81,17 @@ type FunnelBenchmark = {
   ocupacao30d: number;
 };
 
+type ReportGoalsConfig = {
+  targetConfirmationPct: number;
+  targetAttendancePct: number;
+  targetNoShowPct: number;
+  targetOccupancyPct: number;
+  targetReturnPct: number;
+  returnWindowDays: number;
+  workingHoursStart: number;
+  workingHoursEnd: number;
+};
+
 function getSinglePatientRelation(
   patient: { full_name: string | null; phone: string | null } | { full_name: string | null; phone: string | null }[] | null | undefined
 ) {
@@ -104,6 +115,19 @@ function calcGoalStatus(current: number, target: number, higherIsBetter: boolean
   return "critical";
 }
 
+function getDefaultReportGoals(): ReportGoalsConfig {
+  return {
+    targetConfirmationPct: 85,
+    targetAttendancePct: 80,
+    targetNoShowPct: 8,
+    targetOccupancyPct: 75,
+    targetReturnPct: 60,
+    returnWindowDays: 30,
+    workingHoursStart: 8,
+    workingHoursEnd: 18,
+  };
+}
+
 function getPeriodDates(period: Period): { start: Date; end: Date } {
   const end = new Date();
   const start = new Date();
@@ -124,6 +148,33 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
   const { start, end } = getPeriodDates(period);
   const startStr = start.toISOString();
   const endStr = end.toISOString();
+  const defaultGoals = getDefaultReportGoals();
+  const { data: goalsRow } = await supabase
+    .from("clinic_report_goals")
+    .select(
+      `
+      target_confirmation_pct,
+      target_attendance_pct,
+      target_no_show_pct,
+      target_occupancy_pct,
+      target_return_pct,
+      return_window_days,
+      working_hours_start,
+      working_hours_end
+    `
+    )
+    .eq("clinic_id", clinicId)
+    .maybeSingle();
+  const goalsConfig: ReportGoalsConfig = {
+    targetConfirmationPct: Number(goalsRow?.target_confirmation_pct ?? defaultGoals.targetConfirmationPct),
+    targetAttendancePct: Number(goalsRow?.target_attendance_pct ?? defaultGoals.targetAttendancePct),
+    targetNoShowPct: Number(goalsRow?.target_no_show_pct ?? defaultGoals.targetNoShowPct),
+    targetOccupancyPct: Number(goalsRow?.target_occupancy_pct ?? defaultGoals.targetOccupancyPct),
+    targetReturnPct: Number(goalsRow?.target_return_pct ?? defaultGoals.targetReturnPct),
+    returnWindowDays: Number(goalsRow?.return_window_days ?? defaultGoals.returnWindowDays),
+    workingHoursStart: Number(goalsRow?.working_hours_start ?? defaultGoals.workingHoursStart),
+    workingHoursEnd: Number(goalsRow?.working_hours_end ?? defaultGoals.workingHoursEnd),
+  };
 
   const { data: appointments } = await supabase
     .from("appointments")
@@ -192,7 +243,7 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
     }));
 
   const hourBuckets: Record<number, number> = {};
-  for (let h = 8; h <= 18; h++) hourBuckets[h] = 0;
+  for (let h = goalsConfig.workingHoursStart; h <= goalsConfig.workingHoursEnd; h++) hourBuckets[h] = 0;
   appointments?.forEach((a) => {
     const hour = new Date(a.scheduled_at).getHours();
     if (hour in hourBuckets) hourBuckets[hour] += 1;
@@ -209,10 +260,10 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
     .sort((a, b) => a.appointments - b.appointments)
     .slice(0, 3);
 
-  // Funil: retorno agendado em até 30 dias após consulta realizada.
+  // Funil: retorno agendado em até N dias (configurável) após consulta realizada.
   const realizedAppointments = (appointments ?? []).filter((a) => a.status === "realizada" && a.patient_id);
   const retornoWindowEnd = new Date(end);
-  retornoWindowEnd.setDate(retornoWindowEnd.getDate() + 30);
+  retornoWindowEnd.setDate(retornoWindowEnd.getDate() + goalsConfig.returnWindowDays);
   const patientIds = Array.from(new Set(realizedAppointments.map((a) => a.patient_id).filter(Boolean))) as string[];
 
   const { data: returnAppointments } =
@@ -241,7 +292,7 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
     const hasReturn = future.some((dt) => {
       const t = new Date(dt).getTime();
       const diffDays = (t - baseTime) / (1000 * 60 * 60 * 24);
-      return diffDays > 0 && diffDays <= 30;
+      return diffDays > 0 && diffDays <= goalsConfig.returnWindowDays;
     });
     if (hasReturn) {
       retornoAgendado++;
@@ -299,11 +350,11 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
   };
 
   const goals = {
-    confirmacao: 85,
-    comparecimento: 80,
-    noShow: 8,
-    ocupacao: 75,
-    retorno: 60,
+    confirmacao: goalsConfig.targetConfirmationPct,
+    comparecimento: goalsConfig.targetAttendancePct,
+    noShow: goalsConfig.targetNoShowPct,
+    ocupacao: goalsConfig.targetOccupancyPct,
+    retorno: goalsConfig.targetReturnPct,
   };
   const metas: GoalCard[] = [
     {
@@ -432,9 +483,10 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
   const porAtendente = buildBreakdown(
     (appointments ?? []).map((a) => {
       const sec = secretaryById.get(a.created_by ?? "");
+      const isAtendenteValido = sec?.role === "secretaria" || sec?.role === "admin";
       return {
-        key: a.created_by ?? "nao-informado",
-        label: sec?.name ?? "Não informado",
+        key: a.created_by && isAtendenteValido ? a.created_by : "nao-informado",
+        label: isAtendenteValido ? (sec?.name ?? "Não informado") : "Não informado",
         status: a.status,
         appointmentId: a.id,
       };
@@ -586,6 +638,7 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
       metas,
       alertas,
       benchmark,
+      goalsConfig,
       funilPorProfissional: porProfissional,
       funilPorAtendente: porAtendente,
       funilPorTipoConsulta: porTipoConsulta,
@@ -690,11 +743,11 @@ export async function getPorAtendenteData(clinicId: string, period: Period = "30
 
   const { start, end } = getPeriodDates(period);
 
-  const { data: secretaries } = await supabase
+  const { data: operators } = await supabase
     .from("profiles")
-    .select("id, full_name")
+    .select("id, full_name, role")
     .eq("clinic_id", clinicId)
-    .eq("role", "secretaria")
+    .in("role", ["secretaria", "admin"])
     .order("full_name");
 
   const { data: appointments } = await supabase
@@ -704,24 +757,39 @@ export async function getPorAtendenteData(clinicId: string, period: Period = "30
     .gte("scheduled_at", start.toISOString())
     .lte("scheduled_at", end.toISOString());
 
-  const bySecretary: Record<
+  const byOperator: Record<
     string,
-    { full_name: string; criados: number; alterados: number; cancelamentos: number }
+    { full_name: string; role: string; criados: number; alterados: number; cancelamentos: number }
   > = {};
-  secretaries?.forEach((s) => {
-    bySecretary[s.id] = { full_name: s.full_name ?? "—", criados: 0, alterados: 0, cancelamentos: 0 };
+  operators?.forEach((s) => {
+    byOperator[s.id] = {
+      full_name: s.full_name ?? "—",
+      role: s.role ?? "nao-informado",
+      criados: 0,
+      alterados: 0,
+      cancelamentos: 0,
+    };
   });
-  bySecretary["_admin"] = { full_name: "Admin", criados: 0, alterados: 0, cancelamentos: 0 };
+  byOperator["nao-informado"] = {
+    full_name: "Não informado",
+    role: "nao-informado",
+    criados: 0,
+    alterados: 0,
+    cancelamentos: 0,
+  };
 
   appointments?.forEach((a) => {
-    const key = a.created_by ?? "_admin";
-    if (!bySecretary[key]) bySecretary[key] = { full_name: "Outro", criados: 0, alterados: 0, cancelamentos: 0 };
-    bySecretary[key].criados++;
-    if (a.status === "cancelada") bySecretary[key].cancelamentos++;
+    const operator = a.created_by ? byOperator[a.created_by] : null;
+    const key =
+      operator && (operator.role === "secretaria" || operator.role === "admin")
+        ? a.created_by!
+        : "nao-informado";
+    byOperator[key].criados++;
+    if (a.status === "cancelada") byOperator[key].cancelamentos++;
   });
 
-  const list = Object.entries(bySecretary)
-    .filter(([k]) => k !== "_admin" || bySecretary[k].criados > 0)
+  const list = Object.entries(byOperator)
+    .filter(([k]) => k !== "nao-informado" || byOperator[k].criados > 0)
     .map(([id, d]) => ({
       userId: id,
       full_name: d.full_name,
