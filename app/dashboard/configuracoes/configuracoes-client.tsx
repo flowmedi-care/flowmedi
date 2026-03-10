@@ -39,6 +39,7 @@ export function ConfiguracoesClient({
   autoMessageSendEnd,
   autoMessageTimezone,
   clinicId,
+  canUseWhatsApp,
 }: {
   clinicName: string | null;
   clinicLogoUrl: string | null;
@@ -56,6 +57,7 @@ export function ConfiguracoesClient({
   autoMessageSendEnd: string;
   autoMessageTimezone: string;
   clinicId: string;
+  canUseWhatsApp: boolean;
 }) {
   const [complianceDays, setComplianceDays] = useState<string>(
     complianceConfirmationDays !== null ? String(complianceConfirmationDays) : ""
@@ -125,7 +127,7 @@ export function ConfiguracoesClient({
         }}
       />
 
-      <IntegrationsSection clinicId={clinicId} />
+      <IntegrationsSection clinicId={clinicId} canUseWhatsApp={canUseWhatsApp} />
 
       <Card>
         <CardHeader className="space-y-1">
@@ -135,6 +137,11 @@ export function ConfiguracoesClient({
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
+          {!canUseWhatsApp && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Disponivel no plano pago. Voce pode visualizar esta funcionalidade, mas a edicao esta bloqueada no plano atual.
+            </div>
+          )}
           {opsError && (
             <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
               {opsError}
@@ -155,6 +162,7 @@ export function ConfiguracoesClient({
               value={wppLimitInput}
               onChange={(e) => setWppLimitInput(e.target.value)}
               placeholder="Ex.: 300 (vazio = sem limite)"
+              disabled={!canUseWhatsApp}
             />
             <p className="text-xs text-muted-foreground">
               Quando atingir o limite, novos envios por template fora da janela serão bloqueados.
@@ -169,6 +177,7 @@ export function ConfiguracoesClient({
                 type="time"
                 value={sendStartInput}
                 onChange={(e) => setSendStartInput(e.target.value)}
+                disabled={!canUseWhatsApp}
               />
             </div>
             <div className="space-y-2">
@@ -178,6 +187,7 @@ export function ConfiguracoesClient({
                 type="time"
                 value={sendEndInput}
                 onChange={(e) => setSendEndInput(e.target.value)}
+                disabled={!canUseWhatsApp}
               />
             </div>
             <div className="space-y-2">
@@ -187,6 +197,7 @@ export function ConfiguracoesClient({
                 value={timezoneInput}
                 onChange={(e) => setTimezoneInput(e.target.value)}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                disabled={!canUseWhatsApp}
               >
                 {!BRAZIL_TIMEZONE_OPTIONS.some((opt) => opt.value === timezoneInput) && (
                   <option value={timezoneInput}>{`Atual: ${timezoneInput}`}</option>
@@ -201,7 +212,7 @@ export function ConfiguracoesClient({
           </div>
 
           <Button
-            disabled={opsLoading}
+            disabled={opsLoading || !canUseWhatsApp}
             onClick={async () => {
               setOpsError(null);
               setOpsSuccess(false);

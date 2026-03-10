@@ -51,6 +51,7 @@ type Props = {
   eventConfig: ClinicEventConfigItem[];
   templates: MessageTemplate[];
   systemTemplates?: EffectiveTemplateItem[];
+  canManageChannels: boolean;
   onSettingsChange: (next: ClinicMessageSetting[]) => void;
   onEventConfigChange: (next: ClinicEventConfigItem[]) => void;
 };
@@ -63,6 +64,7 @@ export function EventosConfigModal({
   eventConfig,
   templates,
   systemTemplates = [],
+  canManageChannels,
   onSettingsChange,
   onEventConfigChange,
 }: Props) {
@@ -246,6 +248,11 @@ export function EventosConfigModal({
           Sistema (on/off) define se o evento aparece em Pendentes. Email e WhatsApp: ative e escolha
           automático ou manual. Tudo em uma única tela.
         </p>
+        {!canManageChannels && (
+          <p className="text-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800 mb-4">
+            No seu plano atual, apenas o controle do Sistema pode ser alterado. Configuracoes de Email e WhatsApp ficam visiveis para demonstracao.
+          </p>
+        )}
         <div className="overflow-y-auto flex-1 min-h-0 space-y-4 pr-2">
           {orderedCategories.map((category) => {
             const categoryEvents = eventsByCategory[category] ?? [];
@@ -314,7 +321,7 @@ export function EventosConfigModal({
                                 <Switch
                                   checked={emailSetting?.enabled ?? false}
                                   onChange={(v) => handleChannelToggle(code, "email", v)}
-                                  disabled={updating[`${code}-email`]}
+                                  disabled={updating[`${code}-email`] || !canManageChannels}
                                 />
                               </div>
                               {(emailSetting?.enabled ?? false) && (
@@ -329,6 +336,7 @@ export function EventosConfigModal({
                                         handleSendModeChange(code, "email", e.target.value as SendMode)
                                       }
                                       className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm"
+                                      disabled={!canManageChannels}
                                     >
                                       <option value="automatic">Automático</option>
                                       <option value="manual">Manual</option>
@@ -349,6 +357,7 @@ export function EventosConfigModal({
                                       }
                                       title={emailTemplateLabel}
                                       className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm truncate block"
+                                      disabled={!canManageChannels}
                                     >
                                       <option value="">
                                         {systemTemplateNameMap[`${code}:email`] ?? "Padrão do sistema"}
@@ -374,7 +383,7 @@ export function EventosConfigModal({
                                 <Switch
                                   checked={wppSetting?.enabled ?? false}
                                   onChange={(v) => handleChannelToggle(code, "whatsapp", v)}
-                                  disabled={updating[`${code}-whatsapp`]}
+                                  disabled={updating[`${code}-whatsapp`] || !canManageChannels}
                                 />
                               </div>
                               {(wppSetting?.enabled ?? false) && (
@@ -393,6 +402,7 @@ export function EventosConfigModal({
                                         )
                                       }
                                       className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm"
+                                      disabled={!canManageChannels}
                                     >
                                       <option value="automatic">Automático</option>
                                       <option value="manual">Manual</option>
@@ -413,6 +423,7 @@ export function EventosConfigModal({
                                       }
                                       title={wppTemplateLabel}
                                       className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm truncate block"
+                                      disabled={!canManageChannels}
                                     >
                                       <option value="">
                                         {systemTemplateNameMap[`${code}:whatsapp`] ?? "Padrão do sistema"}
@@ -432,7 +443,7 @@ export function EventosConfigModal({
                                       onChange={(e) =>
                                         handleTicketOpenOnlyChange(code, e.target.checked)
                                       }
-                                      disabled={updating[`${code}-whatsapp-ticket-open`]}
+                                      disabled={updating[`${code}-whatsapp-ticket-open`] || !canManageChannels}
                                       className="h-4 w-4 rounded border-input"
                                     />
                                     <label

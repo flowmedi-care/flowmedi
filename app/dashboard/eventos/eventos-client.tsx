@@ -148,6 +148,7 @@ export function EventosClient({
   msgSettings,
   templates,
   systemTemplates = [],
+  canUseMessagingChannels,
 }: {
   initialPendingEvents: Event[];
   initialAllEvents: Event[];
@@ -161,6 +162,7 @@ export function EventosClient({
   msgSettings: ClinicMessageSetting[];
   templates: MessageTemplate[];
   systemTemplates?: EffectiveTemplateItem[];
+  canUseMessagingChannels: boolean;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "completed">("pending");
@@ -634,6 +636,12 @@ export function EventosClient({
             <div className="flex gap-2 flex-wrap items-center">
               {isPending && (() => {
                 const ch = getChannelStatus(event);
+                if (!canUseMessagingChannels)
+                  return (
+                    <span className="text-sm text-muted-foreground">
+                      Envio disponivel no plano pago
+                    </span>
+                  );
                 if (ch.allDisabled)
                   return (
                     <span className="text-sm text-muted-foreground">
@@ -750,6 +758,16 @@ export function EventosClient({
         </Button>
       </div>
 
+      {!canUseMessagingChannels && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="pt-6">
+            <p className="text-sm text-amber-800">
+              Voce pode gerenciar eventos do sistema normalmente, mas envio por Email/WhatsApp e configuracao de canais estao disponiveis apenas no plano pago.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <EventosConfigModal
         open={configOpen}
         onOpenChange={setConfigOpen}
@@ -758,6 +776,7 @@ export function EventosClient({
         eventConfig={eventConfigState}
         templates={templates}
         systemTemplates={systemTemplates}
+        canManageChannels={canUseMessagingChannels}
         onSettingsChange={(next) => { setSettings(next); router.refresh(); }}
         onEventConfigChange={(next) => { setEventConfigState(next); router.refresh(); }}
       />
@@ -780,8 +799,8 @@ export function EventosClient({
         >
           {sendModalEvent && (() => {
             const ch = getChannelStatus(sendModalEvent);
-            const canSendEmail = ch.emailEnabled && !ch.emailSent;
-            const canSendWhatsApp = ch.whatsappEnabled && !ch.whatsappSent;
+            const canSendEmail = canUseMessagingChannels && ch.emailEnabled && !ch.emailSent;
+            const canSendWhatsApp = canUseMessagingChannels && ch.whatsappEnabled && !ch.whatsappSent;
             const hasChoice = canSendEmail || canSendWhatsApp;
             const toggle = (c: "email" | "whatsapp") => {
               setSendModalChannels((prev) =>
@@ -808,6 +827,11 @@ export function EventosClient({
                     Ver preview
                   </Button>
                 </p>
+                {!canUseMessagingChannels && (
+                  <p className="text-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800">
+                    Envio de mensagens disponivel apenas no plano pago.
+                  </p>
+                )}
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={ch.emailSent ? "text-green-600" : ""}>

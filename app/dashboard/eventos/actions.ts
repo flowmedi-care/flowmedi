@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canUseWhatsApp } from "@/lib/plan-gates";
 
 // ========== BUSCAR EVENTOS PENDENTES ==========
 export async function getPendingEvents(filters?: {
@@ -216,6 +218,14 @@ export async function processEvent(
 
   // Se ação for "send", processar envio (lógica centralizada em event-send-logic-server)
   if (action === "send") {
+    const planData = await getClinicPlanData();
+    const canSendByPlan = Boolean(
+      planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
+    );
+    if (!canSendByPlan) {
+      return { error: "Envio de mensagens disponivel apenas no plano pago." };
+    }
+
     const { executeSendForEvent } = await import("@/lib/event-send-logic-server");
 
     // Priorizar sempre os canais escolhidos no modal; fallback só se não vier nada (ex.: chamada sem UI)

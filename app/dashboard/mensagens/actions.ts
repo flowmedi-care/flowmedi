@@ -10,6 +10,8 @@ import {
   type WhatsAppTemplateReviewStatus,
 } from "@/lib/comunicacao/whatsapp";
 import { getAndSyncEffectiveTicketStatus } from "@/lib/whatsapp-ticket-status";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canUseWhatsApp } from "@/lib/plan-gates";
 
 // ========== TIPOS ==========
 
@@ -826,6 +828,14 @@ export async function updateClinicMessageSetting(
     .single();
 
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const planData = await getClinicPlanData();
+  const canManageChannels = Boolean(
+    planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
+  );
+  if (!canManageChannels) {
+    return { data: null, error: "Configuracao de Email/WhatsApp disponivel apenas no plano pago." };
+  }
 
   // Verificar se já existe configuração
   const { data: existing } = await supabase

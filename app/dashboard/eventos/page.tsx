@@ -17,6 +17,8 @@ import {
   getSystemTemplatesForDisplay,
 } from "@/app/dashboard/mensagens/actions";
 import { EventosClient } from "./eventos-client";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canUseWhatsApp } from "@/lib/plan-gates";
 
 export default async function EventosPage() {
   const supabase = await createClient();
@@ -63,6 +65,11 @@ export default async function EventosPage() {
     getSystemTemplatesForDisplay(),
   ]);
 
+  const planData = await getClinicPlanData();
+  const canUseMessagingChannels = Boolean(
+    planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
+  );
+
   const pendingEvents = pendingResult.data || [];
   const allEvents = allResult.data || [];
   const completedEvents = completedResult.data || [];
@@ -90,6 +97,7 @@ export default async function EventosPage() {
       msgSettings={msgSettings}
       templates={templates}
       systemTemplates={systemTemplates}
+      canUseMessagingChannels={canUseMessagingChannels}
     />
   );
 }

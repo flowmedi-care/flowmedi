@@ -43,6 +43,7 @@ export function DashboardNav({
   onToggleCollapse,
   hasWhatsAppConnected,
   canAccessAudit,
+  canUseWhatsApp,
 }: {
   user: User;
   profile: Profile;
@@ -50,6 +51,7 @@ export function DashboardNav({
   onToggleCollapse: () => void;
   hasWhatsAppConnected?: boolean;
   canAccessAudit?: boolean;
+  canUseWhatsApp?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -105,7 +107,12 @@ export function DashboardNav({
     { href: "/dashboard/formularios", label: "Formulários", icon: <FileText className="h-4 w-4" /> },
     { href: "/dashboard/eventos", label: "Eventos", icon: <Bell className="h-4 w-4" />, roles: ["admin", "secretaria"] },
     { href: "/dashboard/mensagens", label: "Mensagens", icon: <Mail className="h-4 w-4" />, roles: ["admin"] },
-    ...(hasWhatsAppConnected ? [{ href: "/dashboard/whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" />, badge: whatsappUnreadCount }] : []),
+    ...((canUseWhatsApp && hasWhatsAppConnected)
+      ? [{ href: "/dashboard/whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" />, badge: whatsappUnreadCount }]
+      : []),
+    ...(!canUseWhatsApp
+      ? [{ href: "/dashboard/whatsapp", label: "WhatsApp (Pro)", icon: <MessageSquare className="h-4 w-4" /> }]
+      : []),
   ];
 
   return (

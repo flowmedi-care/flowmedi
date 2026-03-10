@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardLayoutClient } from "@/components/dashboard-layout-client";
 import { getClinicPlanData } from "@/lib/plan-helpers";
-import { canAccessAudit } from "@/lib/plan-gates";
+import { canAccessAudit, canUseWhatsApp } from "@/lib/plan-gates";
 
 export default async function DashboardLayout({
   children,
@@ -40,11 +40,19 @@ export default async function DashboardLayout({
 
   const planData = await getClinicPlanData();
   const auditEnabled = Boolean(planData && canAccessAudit(planData.limits));
+  const whatsappEnabledByPlan = Boolean(
+    planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
+  );
 
   // Sempre renderizar o layout com sidebar quando há usuário autenticado
   // Mesmo sem profile, para garantir consistência visual
   return (
-    <DashboardLayoutClient user={user} profile={profileSafe} canAccessAudit={auditEnabled}>
+    <DashboardLayoutClient
+      user={user}
+      profile={profileSafe}
+      canAccessAudit={auditEnabled}
+      canUseWhatsApp={whatsappEnabledByPlan}
+    >
       {children}
     </DashboardLayoutClient>
   );
