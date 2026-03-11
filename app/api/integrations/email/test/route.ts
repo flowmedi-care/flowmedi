@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
 import { sendEmail } from "@/lib/comunicacao/email";
+import { assertEmailFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
  * Testa o envio de email
@@ -10,6 +10,10 @@ import { sendEmail } from "@/lib/comunicacao/email";
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireClinicAdmin();
+    const emailAccess = await assertEmailFeatureAccessForCurrentClinic();
+    if (!emailAccess.allowed) {
+      return NextResponse.json({ error: emailAccess.error }, { status: 403 });
+    }
     const body = await request.json();
     const { to, subject, body: emailBody } = body;
 

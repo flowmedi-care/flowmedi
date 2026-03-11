@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { google } from "googleapis";
-import { redirect } from "next/navigation";
+import { assertEmailFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
  * Callback do OAuth do Google
@@ -46,6 +46,12 @@ export async function GET(request: NextRequest) {
     if (!profile || profile.role !== "admin" || profile.clinic_id !== stateData.clinicId) {
       return NextResponse.redirect(
         new URL("/dashboard/configuracoes?error=unauthorized", request.url)
+      );
+    }
+    const emailAccess = await assertEmailFeatureAccessForCurrentClinic();
+    if (!emailAccess.allowed) {
+      return NextResponse.redirect(
+        new URL("/dashboard/configuracoes?error=plan_email_blocked", request.url)
       );
     }
 

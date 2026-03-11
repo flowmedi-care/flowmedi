@@ -450,10 +450,13 @@ export async function updateClinicEventConfig(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id")
+    .select("clinic_id, role")
     .eq("id", user.id)
     .single();
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+  if (profile.role !== "admin") {
+    return { error: "Apenas administradores podem alterar configurações de eventos." };
+  }
 
   const { error } = await supabase
     .from("clinic_event_config")

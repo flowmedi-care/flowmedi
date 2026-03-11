@@ -457,11 +457,14 @@ export async function createMessageTemplate(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id")
+    .select("clinic_id, role")
     .eq("id", user.id)
     .single();
 
   if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+  if (profile.role !== "admin") {
+    return { data: null, error: "Apenas administradores podem alterar configurações de envio." };
+  }
 
   const access = await getMessagingPlanAccess();
   if (channel === "email" && !access.emailAllowed) {

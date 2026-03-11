@@ -150,6 +150,7 @@ export function EventosClient({
   systemTemplates = [],
   canUseEmailChannels,
   canUseWhatsAppChannels,
+  canManageEventConfig,
 }: {
   initialPendingEvents: Event[];
   initialAllEvents: Event[];
@@ -165,6 +166,7 @@ export function EventosClient({
   systemTemplates?: EffectiveTemplateItem[];
   canUseEmailChannels: boolean;
   canUseWhatsAppChannels: boolean;
+  canManageEventConfig: boolean;
 }) {
   const canUseMessagingChannels = canUseEmailChannels || canUseWhatsAppChannels;
   const router = useRouter();
@@ -750,15 +752,17 @@ export function EventosClient({
             Gerencie todos os eventos: todos, pendentes e concluídos
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full sm:w-auto min-h-[44px] sm:min-h-9 touch-manipulation shrink-0"
-          onClick={() => setConfigOpen(true)}
-        >
-          <Settings2 className="h-4 w-4 mr-2 shrink-0" />
-          Configurar eventos
-        </Button>
+        {canManageEventConfig && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full sm:w-auto min-h-[44px] sm:min-h-9 touch-manipulation shrink-0"
+            onClick={() => setConfigOpen(true)}
+          >
+            <Settings2 className="h-4 w-4 mr-2 shrink-0" />
+            Configurar eventos
+          </Button>
+        )}
       </div>
 
       {!canUseMessagingChannels && (
@@ -771,19 +775,21 @@ export function EventosClient({
         </Card>
       )}
 
-      <EventosConfigModal
-        open={configOpen}
-        onOpenChange={setConfigOpen}
-        events={msgEvents}
-        settings={settings}
-        eventConfig={eventConfigState}
-        templates={templates}
-        systemTemplates={systemTemplates}
-        canManageEmail={canUseEmailChannels}
-        canManageWhatsApp={canUseWhatsAppChannels}
-        onSettingsChange={(next) => { setSettings(next); router.refresh(); }}
-        onEventConfigChange={(next) => { setEventConfigState(next); router.refresh(); }}
-      />
+      {canManageEventConfig && (
+        <EventosConfigModal
+          open={configOpen}
+          onOpenChange={setConfigOpen}
+          events={msgEvents}
+          settings={settings}
+          eventConfig={eventConfigState}
+          templates={templates}
+          systemTemplates={systemTemplates}
+          canManageEmail={canUseEmailChannels}
+          canManageWhatsApp={canUseWhatsAppChannels}
+          onSettingsChange={(next) => { setSettings(next); router.refresh(); }}
+          onEventConfigChange={(next) => { setEventConfigState(next); router.refresh(); }}
+        />
+      )}
 
       <Dialog
         open={!!sendModalEvent}

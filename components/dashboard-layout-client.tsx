@@ -20,6 +20,7 @@ interface DashboardLayoutClientProps {
   children: React.ReactNode;
   canAccessAudit: boolean;
   canUseWhatsApp: boolean;
+  servicesPricingMode: "centralizado" | "descentralizado";
 }
 
 export function DashboardLayoutClient({
@@ -28,6 +29,7 @@ export function DashboardLayoutClient({
   children,
   canAccessAudit,
   canUseWhatsApp,
+  servicesPricingMode,
 }: DashboardLayoutClientProps) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -67,6 +69,7 @@ export function DashboardLayoutClient({
         hasWhatsAppConnected={hasWhatsAppConnected}
         canAccessAudit={canAccessAudit}
         canUseWhatsApp={canUseWhatsApp}
+        servicesPricingMode={servicesPricingMode}
       />
       <main className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-background ${!isWhatsAppPage ? "overflow-y-auto" : ""}`}>
         {isWhatsAppPage ? (

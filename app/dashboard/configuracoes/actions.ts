@@ -451,6 +451,41 @@ export async function updateWhatsAppOperationalControls(input: {
   return { error: null };
 }
 
+export async function updateClinicServicesPricingMode(
+  mode: "centralizado" | "descentralizado"
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") {
+    return { error: "Apenas administradores podem atualizar o modo de serviços e valores." };
+  }
+
+  if (mode !== "centralizado" && mode !== "descentralizado") {
+    return { error: "Modo inválido." };
+  }
+
+  const { error } = await supabase
+    .from("clinics")
+    .update({ services_pricing_mode: mode })
+    .eq("id", profile.clinic_id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/configuracoes");
+  revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard");
+  return { error: null };
+}
+
 export async function updateClinicInfo(data: {
   name?: string | null;
   phone?: string | null;

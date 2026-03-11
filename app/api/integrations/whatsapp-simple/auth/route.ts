@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
  * Inicia o fluxo OAuth simples do Meta/WhatsApp (sem Embedded Signup).
@@ -11,6 +12,10 @@ import { requireClinicAdmin } from "@/lib/auth-helpers";
 export async function GET(request: NextRequest) {
   try {
     const admin = await requireClinicAdmin();
+    const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
+    if (!whatsappAccess.allowed) {
+      return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
+    }
 
     const origin = request.nextUrl.origin;
     const redirectUri = `${origin}/api/integrations/whatsapp-simple/callback`;

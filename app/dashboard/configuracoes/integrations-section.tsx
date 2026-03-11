@@ -79,6 +79,7 @@ interface MetaAssetsResponse {
 interface IntegrationsSectionProps {
   clinicId: string;
   canUseWhatsApp: boolean;
+  canUseEmail: boolean;
 }
 
 type EmbeddedAuthResponse = {
@@ -91,7 +92,11 @@ type EmbeddedAuthResponse = {
   };
 };
 
-export function IntegrationsSection({ clinicId, canUseWhatsApp }: IntegrationsSectionProps) {
+export function IntegrationsSection({
+  clinicId,
+  canUseWhatsApp,
+  canUseEmail,
+}: IntegrationsSectionProps) {
   const searchParams = useSearchParams();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -701,76 +706,101 @@ export function IntegrationsSection({ clinicId, canUseWhatsApp }: IntegrationsSe
         )}
 
         {/* Google Email */}
-        <div className="p-4 border rounded-lg space-y-3 min-w-0">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="p-2 bg-blue-50 rounded-lg shrink-0">
-                <Mail className="h-5 w-5 text-blue-600" />
-              </div>
-              <div className="min-w-0">
-                <div className="font-medium">Email (Google)</div>
-                <div className="text-sm text-muted-foreground break-words">
-                  {googleIntegration?.status === "connected" ? (
-                    <>
-                      Conectado
-                      {googleIntegration.metadata?.email && <> — {googleIntegration.metadata.email}</>}
-                    </>
-                  ) : (
-                    "Conecte sua conta Google para enviar emails"
+        {canUseEmail ? (
+          <div className="p-4 border rounded-lg space-y-3 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 bg-blue-50 rounded-lg shrink-0">
+                  <Mail className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-medium">Email (Google)</div>
+                  <div className="text-sm text-muted-foreground break-words">
+                    {googleIntegration?.status === "connected" ? (
+                      <>
+                        Conectado
+                        {googleIntegration.metadata?.email && <> — {googleIntegration.metadata.email}</>}
+                      </>
+                    ) : (
+                      "Conecte sua conta Google para enviar emails"
+                    )}
+                  </div>
+                  {googleIntegration?.error_message && (
+                    <div className="text-xs text-destructive mt-1">
+                      {googleIntegration.error_message}
+                    </div>
                   )}
                 </div>
-                {googleIntegration?.error_message && (
-                  <div className="text-xs text-destructive mt-1">
-                    {googleIntegration.error_message}
-                  </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {googleIntegration?.status === "connected" ? (
+                  <>
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Conectado
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={disconnectGoogle}
+                      disabled={disconnecting === "email_google"}
+                    >
+                      {disconnecting === "email_google" ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Desconectando...
+                        </>
+                      ) : (
+                        "Desconectar"
+                      )}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    onClick={connectGoogle}
+                    disabled={connecting === "email_google"}
+                    size="sm"
+                  >
+                    {connecting === "email_google" ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Conectando...
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Conectar Google
+                      </>
+                    )}
+                  </Button>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {googleIntegration?.status === "connected" ? (
-                <>
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Conectado
-                  </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={disconnectGoogle}
-                    disabled={disconnecting === "email_google"}
-                  >
-                    {disconnecting === "email_google" ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Desconectando...
-                      </>
-                    ) : (
-                      "Desconectar"
-                    )}
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  onClick={connectGoogle}
-                  disabled={connecting === "email_google"}
-                  size="sm"
-                >
-                  {connecting === "email_google" ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Conectando...
-                    </>
-                  ) : (
-                    <>
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Conectar Google
-                    </>
-                  )}
-                </Button>
-              )}
+          </div>
+        ) : (
+          <div className="p-4 border rounded-lg space-y-3 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 bg-blue-50 rounded-lg shrink-0">
+                  <Mail className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-medium">Email (Google)</div>
+                  <div className="text-sm text-muted-foreground break-words">
+                    Recurso visivel para demonstracao. Disponivel apenas no plano pago.
+                  </div>
+                </div>
+              </div>
+              <Button disabled size="sm" variant="outline">
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Ativar em um plano com Email
+              </Button>
+            </div>
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Ao evoluir de plano, você poderá conectar o Google para envio de e-mails automáticos.
             </div>
           </div>
-        </div>
+        )}
 
         {/* WhatsApp - Meta */}
         {canUseWhatsApp ? (

@@ -102,6 +102,7 @@ export default async function EventosPage() {
       systemTemplates={systemTemplates}
       canUseEmailChannels={canUseEmailChannels}
       canUseWhatsAppChannels={canUseWhatsAppChannels}
+      canManageEventConfig={profile.role === "admin"}
     />
   );
 }

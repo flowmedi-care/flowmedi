@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 type IntegrationRow = {
   integration_type: "whatsapp_simple" | "whatsapp_meta";
@@ -30,6 +31,10 @@ export async function GET() {
   try {
     const admin = await requireClinicAdmin();
     const supabase = await createClient();
+    const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
+    if (!whatsappAccess.allowed) {
+      return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
+    }
 
     const { data: rows, error } = await supabase
       .from("clinic_integrations")

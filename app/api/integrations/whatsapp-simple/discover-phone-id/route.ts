@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
  * Tenta descobrir o Phone Number ID automaticamente via API da Meta
@@ -10,6 +11,10 @@ import { requireClinicAdmin } from "@/lib/auth-helpers";
 export async function POST() {
   try {
     const admin = await requireClinicAdmin();
+    const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
+    if (!whatsappAccess.allowed) {
+      return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
+    }
 
     const supabase = await createClient();
 

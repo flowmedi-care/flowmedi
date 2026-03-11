@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
 import { sendWhatsAppMessage } from "@/lib/comunicacao/whatsapp";
 import { createClient } from "@/lib/supabase/server";
+import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
  * Envia uma mensagem de teste via WhatsApp (usa template hello_world para poder iniciar conversa)
@@ -11,6 +12,10 @@ import { createClient } from "@/lib/supabase/server";
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireClinicAdmin();
+    const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
+    if (!whatsappAccess.allowed) {
+      return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
+    }
     const body = await request.json();
     const to = typeof body.to === "string" ? body.to.trim() : "";
 

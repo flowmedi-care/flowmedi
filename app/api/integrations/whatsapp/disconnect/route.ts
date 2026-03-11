@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
  * Desconecta a integração do WhatsApp/Meta
@@ -10,6 +11,10 @@ export async function POST(request: NextRequest) {
   try {
     const admin = await requireClinicAdmin();
     const supabase = await createClient();
+    const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
+    if (!whatsappAccess.allowed) {
+      return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
+    }
 
     const { error } = await supabase
       .from("clinic_integrations")

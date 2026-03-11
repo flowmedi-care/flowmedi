@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { assertEmailFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
  * Desconecta a integração do Google
@@ -10,6 +11,10 @@ export async function POST(request: NextRequest) {
   try {
     const admin = await requireClinicAdmin();
     const supabase = await createClient();
+    const emailAccess = await assertEmailFeatureAccessForCurrentClinic();
+    if (!emailAccess.allowed) {
+      return NextResponse.json({ error: emailAccess.error }, { status: 403 });
+    }
 
     const { error } = await supabase
       .from("clinic_integrations")

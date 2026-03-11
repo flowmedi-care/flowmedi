@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
  * Registra número WhatsApp com PIN
@@ -10,10 +11,15 @@ import { requireClinicAdmin } from "@/lib/auth-helpers";
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireClinicAdmin();
+    const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
+    if (!whatsappAccess.allowed) {
+      return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
+    }
     const body = await request.json();
-    const pin = typeof body.pin === "string" ? body.pin.trim() : null;
+    const pinInput = typeof body.pin === "string" ? body.pin.trim() : "";
+    const pin = pinInput || "123456";
 
-    if (!pin || !/^\d{6}$/.test(pin)) {
+    if (!/^\d{6}$/.test(pin)) {
       return NextResponse.json(
         { error: "PIN deve ter 6 dígitos" },
         { status: 400 }

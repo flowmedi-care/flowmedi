@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 type EmbeddedSignupSessionData = {
   event?: string;
@@ -27,6 +28,10 @@ export async function POST(request: NextRequest) {
   try {
     const admin = await requireClinicAdmin();
     const supabase = await createClient();
+    const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
+    if (!whatsappAccess.allowed) {
+      return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
+    }
 
     const body = (await request.json()) as {
       code?: string;

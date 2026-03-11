@@ -43,6 +43,15 @@ export default async function DashboardLayout({
   const whatsappEnabledByPlan = Boolean(
     planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
   );
+  const { data: clinic } = profile?.clinic_id
+    ? await supabase
+        .from("clinics")
+        .select("services_pricing_mode")
+        .eq("id", profile.clinic_id)
+        .single()
+    : { data: null };
+  const servicesPricingMode =
+    clinic?.services_pricing_mode === "centralizado" ? "centralizado" : "descentralizado";
 
   // Sempre renderizar o layout com sidebar quando há usuário autenticado
   // Mesmo sem profile, para garantir consistência visual
@@ -52,6 +61,7 @@ export default async function DashboardLayout({
       profile={profileSafe}
       canAccessAudit={auditEnabled}
       canUseWhatsApp={whatsappEnabledByPlan}
+      servicesPricingMode={servicesPricingMode}
     >
       {children}
     </DashboardLayoutClient>

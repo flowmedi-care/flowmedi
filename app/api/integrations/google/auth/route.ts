@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
 import { google } from "googleapis";
+import { assertEmailFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
  * Inicia o fluxo OAuth do Google
@@ -11,6 +12,10 @@ export async function GET(request: NextRequest) {
   try {
     const admin = await requireClinicAdmin();
     const supabase = await createClient();
+    const emailAccess = await assertEmailFeatureAccessForCurrentClinic();
+    if (!emailAccess.allowed) {
+      return NextResponse.json({ error: emailAccess.error }, { status: 403 });
+    }
 
     const searchParams = request.nextUrl.searchParams;
     const redirectUri = searchParams.get("redirect_uri") || 

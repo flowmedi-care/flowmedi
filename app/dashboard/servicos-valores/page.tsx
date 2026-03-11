@@ -18,6 +18,16 @@ export default async function ServicosValoresPage() {
   }
 
   const clinicId = profile.clinic_id;
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("services_pricing_mode")
+    .eq("id", clinicId)
+    .single();
+  const servicesPricingMode =
+    clinic?.services_pricing_mode === "centralizado" ? "centralizado" : "descentralizado";
+  if (servicesPricingMode === "centralizado" && profile.role === "medico") {
+    redirect("/dashboard");
+  }
 
   const [
     servicesRes,

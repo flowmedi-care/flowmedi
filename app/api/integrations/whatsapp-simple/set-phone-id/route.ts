@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
  * Atualiza o Phone Number ID manualmente para WhatsApp Simple
@@ -10,6 +11,10 @@ import { requireClinicAdmin } from "@/lib/auth-helpers";
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireClinicAdmin();
+    const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
+    if (!whatsappAccess.allowed) {
+      return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
+    }
     const body = await request.json();
     const phoneNumberId = typeof body.phone_number_id === "string"
       ? body.phone_number_id.trim()

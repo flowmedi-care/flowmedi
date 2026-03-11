@@ -15,6 +15,16 @@ async function getClinicAndRole() {
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
   if (profile.role !== "admin" && profile.role !== "medico")
     return { error: "Acesso negado. Apenas admin e médico." };
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("services_pricing_mode")
+    .eq("id", profile.clinic_id)
+    .single();
+  const servicesPricingMode =
+    clinic?.services_pricing_mode === "centralizado" ? "centralizado" : "descentralizado";
+  if (servicesPricingMode === "centralizado" && profile.role === "medico") {
+    return { error: "Modo centralizado ativo. Apenas administradores podem gerenciar serviços e valores." };
+  }
   return { supabase, clinicId: profile.clinic_id, userId: user.id, role: profile.role };
 }
 

@@ -44,6 +44,7 @@ export function DashboardNav({
   hasWhatsAppConnected,
   canAccessAudit,
   canUseWhatsApp,
+  servicesPricingMode,
 }: {
   user: User;
   profile: Profile;
@@ -52,6 +53,7 @@ export function DashboardNav({
   hasWhatsAppConnected?: boolean;
   canAccessAudit?: boolean;
   canUseWhatsApp?: boolean;
+  servicesPricingMode: "centralizado" | "descentralizado";
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -173,7 +175,7 @@ export function DashboardNav({
             </Link>
           );
         })}
-        {(isMedico || isAdmin) && (
+        {(isAdmin || (isMedico && servicesPricingMode === "descentralizado")) && (
           <>
             <div className="my-2 border-t border-border" />
             <Link href="/dashboard/servicos-valores">

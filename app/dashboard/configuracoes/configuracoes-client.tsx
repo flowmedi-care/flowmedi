@@ -10,6 +10,7 @@ import {
   updateComplianceConfirmationDays,
   updateComplianceFormDays,
   updateWhatsAppOperationalControls,
+  updateClinicServicesPricingMode,
   upsertClinicReportGoals,
 } from "./actions";
 import { IntegrationsSection } from "./integrations-section";
@@ -39,9 +40,11 @@ export function ConfiguracoesClient({
   autoMessageSendStart,
   autoMessageSendEnd,
   autoMessageTimezone,
+  servicesPricingMode,
   reportGoals,
   clinicId,
   canUseWhatsApp,
+  canUseEmail,
   canUseCustomLogo,
 }: {
   clinicName: string | null;
@@ -59,6 +62,7 @@ export function ConfiguracoesClient({
   autoMessageSendStart: string;
   autoMessageSendEnd: string;
   autoMessageTimezone: string;
+  servicesPricingMode: "centralizado" | "descentralizado";
   reportGoals: {
     targetConfirmationPct: number;
     targetAttendancePct: number;
@@ -71,6 +75,7 @@ export function ConfiguracoesClient({
   };
   clinicId: string;
   canUseWhatsApp: boolean;
+  canUseEmail: boolean;
   canUseCustomLogo: boolean;
 }) {
   const [complianceDays, setComplianceDays] = useState<string>(
@@ -98,6 +103,12 @@ export function ConfiguracoesClient({
   const [opsLoading, setOpsLoading] = useState(false);
   const [opsError, setOpsError] = useState<string | null>(null);
   const [opsSuccess, setOpsSuccess] = useState(false);
+  const [servicesModeInput, setServicesModeInput] = useState<"centralizado" | "descentralizado">(
+    servicesPricingMode
+  );
+  const [servicesModeLoading, setServicesModeLoading] = useState(false);
+  const [servicesModeError, setServicesModeError] = useState<string | null>(null);
+  const [servicesModeSuccess, setServicesModeSuccess] = useState(false);
   const [activeComplianceTab, setActiveComplianceTab] = useState<"confirmation" | "form">("confirmation");
   const [reportGoalsInput, setReportGoalsInput] = useState({
     targetConfirmationPct: String(reportGoals.targetConfirmationPct),
@@ -155,7 +166,63 @@ export function ConfiguracoesClient({
         }}
       />
 
-      <IntegrationsSection clinicId={clinicId} canUseWhatsApp={canUseWhatsApp} />
+      <IntegrationsSection
+        clinicId={clinicId}
+        canUseWhatsApp={canUseWhatsApp}
+        canUseEmail={canUseEmail}
+      />
+
+      <Card>
+        <CardHeader className="space-y-1">
+          <h2 className="text-lg font-semibold">Serviços e valores: modo de gestão</h2>
+          <p className="text-sm text-muted-foreground">
+            Defina se o cadastro e manutenção de serviços/valores fica somente com admin ou também com os médicos.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {servicesModeError && (
+            <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">{servicesModeError}</p>
+          )}
+          {servicesModeSuccess && (
+            <p className="text-sm text-green-700 dark:text-green-400 bg-green-500/10 p-2 rounded-md">
+              Modo de serviços e valores salvo com sucesso.
+            </p>
+          )}
+          <div className="space-y-2 max-w-sm">
+            <Label htmlFor="services_pricing_mode">Modo</Label>
+            <select
+              id="services_pricing_mode"
+              value={servicesModeInput}
+              onChange={(e) =>
+                setServicesModeInput(
+                  e.target.value === "centralizado" ? "centralizado" : "descentralizado"
+                )
+              }
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="centralizado">Centralizado (somente admin)</option>
+              <option value="descentralizado">Descentralizado (admin e médico)</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Em modo centralizado, o médico não visualiza nem altera a área de serviços e valores.
+            </p>
+          </div>
+          <Button
+            disabled={servicesModeLoading}
+            onClick={async () => {
+              setServicesModeError(null);
+              setServicesModeSuccess(false);
+              setServicesModeLoading(true);
+              const res = await updateClinicServicesPricingMode(servicesModeInput);
+              if (res.error) setServicesModeError(res.error);
+              else setServicesModeSuccess(true);
+              setServicesModeLoading(false);
+            }}
+          >
+            {servicesModeLoading ? "Salvando..." : "Salvar modo de serviços e valores"}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="space-y-1">

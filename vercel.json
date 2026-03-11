@@ -4,7 +4,11 @@
   "crons": [
     {
       "path": "/api/cron/check-compliance",
-      "schedule": "0 8 * * *"
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/close-whatsapp-expired",
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/weekly-executive-briefing",
