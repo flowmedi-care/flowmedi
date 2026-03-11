@@ -3,14 +3,6 @@
   "buildCommand": "npm run build",
   "crons": [
     {
-      "path": "/api/cron/check-compliance",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron/close-whatsapp-expired",
-      "schedule": "*/15 * * * *"
-    },
-    {
       "path": "/api/cron/weekly-executive-briefing",
       "schedule": "0 9 * * 1"
     }

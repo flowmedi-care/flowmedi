@@ -1,0 +1,36 @@
+name: Cron Ops (15min)
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run-operational-crons:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.FLOWMEDI_BASE_URL }}" ]; then
+            echo "Missing secret: FLOWMEDI_BASE_URL"
+            exit 1
+          fi
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "Missing secret: CRON_SECRET"
+            exit 1
+          fi
+
+      - name: Run check-compliance
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --silent \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.FLOWMEDI_BASE_URL }}/api/cron/check-compliance"
+
+      - name: Run close-whatsapp-expired
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --silent \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.FLOWMEDI_BASE_URL }}/api/cron/close-whatsapp-expired"
