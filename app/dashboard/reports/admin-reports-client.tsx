@@ -422,138 +422,6 @@ export function AdminReportsClient({
           </Card>
           <Card>
             <CardHeader className="space-y-1">
-              <span className={sectionTitleClass}>Funil operacional</span>
-              <p className={sectionDescClass}>Agendada → Confirmada → Compareceu → Retorno agendado</p>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-md border border-border p-3">
-                  <p className="text-sm text-muted-foreground">Agendadas</p>
-                  <p className="text-xl font-bold">{visaoGeral.funilGeral.agendadas}</p>
-                </div>
-                <div className="rounded-md border border-border p-3">
-                  <p className="text-sm text-muted-foreground">Confirmadas</p>
-                  <p className="text-xl font-bold">{visaoGeral.funilGeral.confirmadas}</p>
-                  <p className="text-xs text-muted-foreground">{visaoGeral.funilGeral.taxaConfirmacao}% taxa</p>
-                </div>
-                <div className="rounded-md border border-border p-3">
-                  <p className="text-sm text-muted-foreground">Compareceram</p>
-                  <p className="text-xl font-bold">{visaoGeral.funilGeral.compareceram}</p>
-                  <p className="text-xs text-muted-foreground">{visaoGeral.funilGeral.taxaComparecimento}% taxa</p>
-                </div>
-                <div className="rounded-md border border-border p-3">
-                  <p className="text-sm text-muted-foreground">Retorno agendado</p>
-                  <p className="text-xl font-bold">{visaoGeral.funilGeral.retornoAgendado}</p>
-                  <p className="text-xs text-muted-foreground">{visaoGeral.funilGeral.taxaRetorno}% taxa</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader className="space-y-1">
-                <span className={sectionTitleClass}>Metas da clínica</span>
-                <p className={sectionDescClass}>Status atual e tendência vs últimos 30 dias.</p>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {visaoGeral.metas.map((m) => (
-                    <div key={m.key} className="flex items-center justify-between rounded-md border border-border p-2 text-sm">
-                      <div>
-                        <p className="font-medium">{m.label}</p>
-                        <p className="text-muted-foreground">
-                          {m.current}% (meta {m.target}%)
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <span className={cn("rounded px-2 py-1 text-xs font-medium", statusClass(m.status))}>{m.status}</span>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {m.trendVs30d >= 0 ? "+" : ""}
-                          {m.trendVs30d} pp vs 30d
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="space-y-1">
-                <span className={sectionTitleClass}>Alertas automáticos</span>
-                <p className={sectionDescClass}>Priorize os itens críticos primeiro.</p>
-              </CardHeader>
-              <CardContent>
-                {visaoGeral.alertas.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sem alertas ativos no período.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {visaoGeral.alertas.map((a, idx) => (
-                      <div key={`${a.title}-${idx}`} className="rounded-md border border-border p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-medium">{a.title}</p>
-                          <span className={cn("rounded px-2 py-1 text-xs font-medium", statusClass(a.severity))}>
-                            {a.severity}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{a.context}</p>
-                        <p className="text-sm">{a.action}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          <Card>
-            <CardHeader>
-              <span className="font-semibold">Benchmark interno (7d vs 30d)</span>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-                <div className="rounded-md border border-border p-3">
-                  <p className="text-muted-foreground">Confirmação</p>
-                  <p className="font-medium">{visaoGeral.benchmark.confirmacao7d}% / {visaoGeral.benchmark.confirmacao30d}%</p>
-                </div>
-                <div className="rounded-md border border-border p-3">
-                  <p className="text-muted-foreground">Comparecimento</p>
-                  <p className="font-medium">{visaoGeral.benchmark.comparecimento7d}% / {visaoGeral.benchmark.comparecimento30d}%</p>
-                </div>
-                <div className="rounded-md border border-border p-3">
-                  <p className="text-muted-foreground">No-show</p>
-                  <p className="font-medium">{visaoGeral.benchmark.noShow7d}% / {visaoGeral.benchmark.noShow30d}%</p>
-                </div>
-                <div className="rounded-md border border-border p-3">
-                  <p className="text-muted-foreground">Ocupação</p>
-                  <p className="font-medium">{visaoGeral.benchmark.ocupacao7d}% / {visaoGeral.benchmark.ocupacao30d}%</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="space-y-1">
-              <span className={sectionTitleClass}>Resumo executivo da semana</span>
-              <p className={sectionDescClass}>
-                O que mudou, por que importa e qual ação tomar hoje.
-              </p>
-            </CardHeader>
-            <CardContent>
-              {visaoGeral.resumoExecutivo.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Sem alertas acionáveis no período.</p>
-              ) : (
-                <div className="space-y-3">
-                  {visaoGeral.resumoExecutivo.map((item, idx) => (
-                    <div key={`${item.titulo}-${idx}`} className="rounded-md border border-border p-3">
-                      <p className="font-medium">{item.titulo}</p>
-                      <p className="text-sm text-muted-foreground">{item.impacto}</p>
-                      <p className="text-sm">{item.acao}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="space-y-1">
               <span className={sectionTitleClass}>Briefing executivo automático</span>
               <p className={sectionDescClass}>3 vitórias, 3 riscos e 3 ações recomendadas.</p>
             </CardHeader>
@@ -646,16 +514,6 @@ export function AdminReportsClient({
               </CardContent>
             </Card>
           </div>
-          <Card>
-            <CardHeader>
-              <span className="font-semibold">Detalhamento por área</span>
-              <p className="text-sm text-muted-foreground">
-                Para evitar duplicidade, os detalhes ficam separados nas abas:{" "}
-                <strong>Por Profissional</strong>, <strong>Produtividade da Equipe</strong> e{" "}
-                <strong>Operacional</strong>.
-              </p>
-            </CardHeader>
-          </Card>
           {visaoGeral.chartData.length > 0 && (
             <Card>
               <CardHeader>
@@ -670,10 +528,10 @@ export function AdminReportsClient({
                       <YAxis className="text-xs" />
                       <Tooltip />
                       <Legend />
-                      <Bar dataKey="total" name="Total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="total" name="Total" fill="#14532d" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="realizadas" name="Realizadas" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="canceladas" name="Canceladas" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="faltas" name="Faltas" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="canceladas" name="Canceladas" fill="#86efac" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="faltas" name="Faltas" fill="#bbf7d0" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
