@@ -233,10 +233,10 @@ export function DashboardNav({
               <Button
                 variant={pathname === "/dashboard/campos-pacientes" ? "secondary" : "ghost"}
                 className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
-                title={isCollapsed ? "Campos de Pacientes" : undefined}
+                title={isCollapsed ? "Cadastro Clínico" : undefined}
               >
                 <FileEdit className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Campos de Pacientes</span>}
+                {!isCollapsed && <span className="ml-2">Cadastro Clínico</span>}
               </Button>
             </Link>
             <Link href="/dashboard/templates">
@@ -280,7 +280,11 @@ export function DashboardNav({
             </p>
             {profile && (
               <p className="text-xs text-muted-foreground px-2 capitalize">
-                {profile.role}
+                {profile.role === "medico"
+                  ? "profissional"
+                  : profile.role === "secretaria"
+                    ? "secretário(a)"
+                    : profile.role}
               </p>
             )}
           </>

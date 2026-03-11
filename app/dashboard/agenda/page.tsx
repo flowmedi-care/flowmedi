@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AgendaClient, type AppointmentRow } from "./agenda-client";
 
@@ -18,7 +18,7 @@ export default async function AgendaPage() {
 
   const clinicId = profile.clinic_id;
 
-  // Secretária: médicos que ela administra (para filtrar appointments e lista de médicos)
+  // SecretÃ¡rio(a): mÃ©dicos que ela administra (para filtrar appointments e lista de mÃ©dicos)
   let allowedDoctorIds: string[] = [];
   if (profile?.role === "secretaria") {
     const { data: sd } = await supabase
@@ -29,7 +29,7 @@ export default async function AgendaPage() {
     allowedDoctorIds = (sd ?? []).map((r) => r.doctor_id);
   }
 
-  // Suporte a navegação por semana/mês: ~4 meses (1 antes, 3 à frente)
+  // Suporte a navegaÃ§Ã£o por semana/mÃªs: ~4 meses (1 antes, 3 Ã  frente)
   const now = new Date();
   const startRange = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const endRange = new Date(now.getFullYear(), now.getMonth() + 3, 0, 23, 59, 59, 999);
@@ -92,8 +92,8 @@ export default async function AgendaPage() {
     .eq("role", "medico")
     .order("full_name");
 
-  // Secretária: médicos que ela administra (allowedDoctorIds já carregado). Vazio = todos.
-  // Médico: mostrar só ele na lista.
+  // SecretÃ¡rio(a): mÃ©dicos que ela administra (allowedDoctorIds jÃ¡ carregado). Vazio = todos.
+  // Profissional: mostrar sÃ³ ele na lista.
   let doctors = doctorsRaw ?? [];
   if (profile?.role === "secretaria" && allowedDoctorIds.length > 0) {
     doctors = doctors.filter((d) => allowedDoctorIds.includes(d.id));
@@ -259,3 +259,4 @@ export default async function AgendaPage() {
     </div>
   );
 }
+

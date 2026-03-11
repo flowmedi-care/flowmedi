@@ -156,7 +156,7 @@ export default async function ConsultaDetalhePage({
               {patient?.full_name}
             </p>
             <p>
-              <span className="text-muted-foreground">Médico:</span>{" "}
+              <span className="text-muted-foreground">Profissional:</span>{" "}
               {doctor?.full_name ?? "—"}
             </p>
             {appointmentType && (

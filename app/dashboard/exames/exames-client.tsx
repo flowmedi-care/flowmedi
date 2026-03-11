@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -212,12 +212,12 @@ export function ExamesClient({
                           <span className="flex items-center gap-1">
                             <User className="h-3 w-3" />
                             {exam.uploaded_by_role === "secretaria"
-                              ? "Secretária"
+                              ? "SecretÃ¡rio(a)"
                               : exam.uploaded_by_role === "admin"
                               ? "Admin"
                               : exam.uploaded_by_role === "patient"
                               ? "Paciente"
-                              : "Médico"}
+                              : "Profissional"}
                           </span>
                         )}
                       </div>
@@ -296,7 +296,7 @@ export function ExamesClient({
                     required
                   />
                   <p className="text-xs text-muted-foreground">
-                    Formatos aceitos: PDF, imagens (JPG, PNG, WEBP), documentos Word. Máximo: 20MB
+                    Formatos aceitos: PDF, imagens (JPG, PNG, WEBP), documentos Word. MÃ¡ximo: 20MB
                   </p>
                 </div>
 
@@ -314,10 +314,10 @@ export function ExamesClient({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="description">Descrição / Observações</Label>
+                  <Label htmlFor="description">DescriÃ§Ã£o / ObservaÃ§Ãµes</Label>
                   <Textarea
                     id="description"
-                    placeholder="Observações sobre o exame..."
+                    placeholder="ObservaÃ§Ãµes sobre o exame..."
                     value={uploadForm.description}
                     onChange={(e) =>
                       setUploadForm((f) => ({ ...f, description: e.target.value }))
@@ -354,11 +354,11 @@ export function ExamesClient({
         </div>
       )}
 
-      {/* Dialog de Confirmação de Exclusão */}
+      {/* Dialog de ConfirmaÃ§Ã£o de ExclusÃ£o */}
       <ConfirmDialog
         open={deletingId !== null}
         title="Excluir Exame"
-        message="Tem certeza que deseja excluir este exame? Esta ação não pode ser desfeita."
+        message="Tem certeza que deseja excluir este exame? Esta aÃ§Ã£o nÃ£o pode ser desfeita."
         confirmLabel="Excluir"
         variant="destructive"
         loading={deletingId !== null}
@@ -372,3 +372,4 @@ export function ExamesClient({
     </div>
   );
 }
+

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock, Plus } from "lucide-react";
+import { CalendarClock, Plus, Search, CalendarRange, Tags, Activity, Stethoscope } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStatusBadgeClassName } from "../agenda/status-utils";
 import type { ConsultaRow } from "./page";
@@ -184,9 +184,7 @@ export function ConsultaClient({
         <div className="flex flex-wrap items-center gap-3">
           {/* Busca por nome / telefone */}
           <div className="flex items-center gap-2 min-w-[200px] flex-1 max-w-sm">
-            <span className="text-muted-foreground shrink-0" title="Busca">
-              🔍
-            </span>
+            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
             <Input
               placeholder="Busca por nome ou telefone"
               value={search}
@@ -197,9 +195,7 @@ export function ConsultaClient({
 
           {/* Período */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-muted-foreground shrink-0" title="Período">
-              📅
-            </span>
+            <CalendarRange className="h-4 w-4 text-muted-foreground shrink-0" />
             <select
               value={period}
               onChange={(e) => setPeriod(e.target.value as (typeof PERIOD_OPTIONS)[number]["value"])}
@@ -234,9 +230,7 @@ export function ConsultaClient({
 
           {/* Tipo */}
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground shrink-0" title="Tipo">
-              🏷
-            </span>
+            <Tags className="h-4 w-4 text-muted-foreground shrink-0" />
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
@@ -255,9 +249,7 @@ export function ConsultaClient({
 
           {/* Status */}
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground shrink-0" title="Status">
-              📊
-            </span>
+            <Activity className="h-4 w-4 text-muted-foreground shrink-0" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -277,9 +269,7 @@ export function ConsultaClient({
           {/* Profissional (se mais de um) */}
           {showDoctorFilter && (
             <div className="flex items-center gap-2">
-              <span className="text-muted-foreground shrink-0" title="Profissional">
-                👩‍⚕️
-              </span>
+              <Stethoscope className="h-4 w-4 text-muted-foreground shrink-0" />
               <select
                 value={doctorFilter}
                 onChange={(e) => setDoctorFilter(e.target.value)}
@@ -335,7 +325,7 @@ export function ConsultaClient({
                     </span>
                   )}
                   {showDoctorFilter && c.doctor?.full_name && (
-                    <span className="text-xs text-muted-foreground">Dr(a). {c.doctor.full_name}</span>
+                    <span className="text-xs text-muted-foreground">Prof.: {c.doctor.full_name}</span>
                   )}
                   <Badge className={getStatusBadgeClassName(c.status) + " ml-auto shrink-0"}>
                     {STATUS_OPTIONS.find((s) => s.value === c.status)?.label ?? c.status}

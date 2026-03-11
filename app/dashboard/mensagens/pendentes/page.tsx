@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getPendingMessages } from "../actions";
 import { PendentesClient } from "./pendentes-client";
@@ -16,7 +16,7 @@ export default async function PendentesPage() {
 
   if (!profile) redirect("/dashboard");
 
-  // Secretária e Admin podem ver mensagens pendentes
+  // SecretÃ¡rio(a) e Admin podem ver mensagens pendentes
   if (profile.role !== "admin" && profile.role !== "secretaria") {
     redirect("/dashboard");
   }
@@ -26,3 +26,4 @@ export default async function PendentesPage() {
 
   return <PendentesClient messages={messages} />;
 }
+

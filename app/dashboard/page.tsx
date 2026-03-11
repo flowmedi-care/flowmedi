@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { SecretariaDashboard } from "./secretaria-dashboard";
 import { MedicoDashboard } from "./medico-dashboard";
@@ -26,8 +26,8 @@ export default async function DashboardPage({
           Complete seu cadastro
         </h1>
         <p className="text-muted-foreground text-sm">
-          Crie sua clínica para começar a usar o FlowMedi. Você será o
-          administrador e poderá convidar médicos e secretárias depois.
+          Crie sua clÃ­nica para comeÃ§ar a usar o FlowMedi. VocÃª serÃ¡ o
+          administrador e poderÃ¡ convidar mÃ©dicos e SecretÃ¡rio(a)s depois.
         </p>
         <p className="text-muted-foreground text-sm">
           E-mail da conta: <strong>{user?.email}</strong>
@@ -36,22 +36,23 @@ export default async function DashboardPage({
           href="/dashboard/onboarding"
           className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground h-9 px-4 py-2 hover:bg-primary/90"
         >
-          Criar minha clínica
+          Criar minha clÃ­nica
         </Link>
       </div>
     );
   }
 
-  // Se for secretária, usar dashboard específico
+  // Se for SecretÃ¡rio(a), usar dashboard especÃ­fico
   if (profile.role === "secretaria") {
     return <SecretariaDashboard profile={profile} />;
   }
 
-  // Se for médico, usar dashboard específico
+  // Se for mÃ©dico, usar dashboard especÃ­fico
   if (profile.role === "medico") {
     return <MedicoDashboard profile={profile} />;
   }
 
-  // Dashboard do admin: relatórios e métricas
+  // Dashboard do admin: relatÃ³rios e mÃ©tricas
   return <AdminDashboard searchParams={searchParams} />;
 }
+

@@ -232,7 +232,7 @@ export function MedicoDashboardClient({
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Dashboard do Médico</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Dashboard do Profissional</h1>
         <p className="text-muted-foreground text-sm">
           {period === "daily"
             ? "Consultas e informações do dia de hoje"

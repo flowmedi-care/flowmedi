@@ -260,7 +260,30 @@ export async function deleteProcedure(id: string) {
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role !== "admin") return { error: "Apenas administradores podem excluir procedimentos." };
+  if (!profile || profile.role !== "admin" || !profile.clinic_id) {
+    return { error: "Apenas administradores podem excluir procedimentos." };
+  }
+
+  const [{ count: appointmentsCount }, { count: templatesCount }] = await Promise.all([
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("clinic_id", profile.clinic_id)
+      .eq("procedure_id", id),
+    supabase
+      .from("form_template_procedures")
+      .select("procedure_id", { count: "exact", head: true })
+      .eq("procedure_id", id),
+  ]);
+
+  const impacts: string[] = [];
+  if ((appointmentsCount ?? 0) > 0) impacts.push(`${appointmentsCount} consulta(s)`);
+  if ((templatesCount ?? 0) > 0) impacts.push(`${templatesCount} vínculo(s) com formulário`);
+  if (impacts.length > 0) {
+    return {
+      error: `Não foi possível excluir este procedimento porque ele está em uso por ${impacts.join(" e ")}.`,
+    };
+  }
 
   const { error } = await supabase
     .from("procedures")

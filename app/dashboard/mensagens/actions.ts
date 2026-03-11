@@ -978,6 +978,7 @@ export type MessageLogEntry = {
   type: string;
   sent_at: string;
   patient_name: string | null;
+  metadata: Record<string, unknown> | null;
 };
 
 export async function getRecentMessageLog(limit = 15): Promise<{
@@ -998,7 +999,7 @@ export async function getRecentMessageLog(limit = 15): Promise<{
 
   const { data, error } = await supabase
     .from("message_log")
-    .select("id, channel, type, sent_at, patients(full_name)")
+    .select("id, channel, type, sent_at, metadata, patients(full_name)")
     .eq("clinic_id", profile.clinic_id)
     .order("sent_at", { ascending: false })
     .limit(limit);
@@ -1011,8 +1012,55 @@ export async function getRecentMessageLog(limit = 15): Promise<{
     type: row.type,
     sent_at: row.sent_at,
     patient_name: row.patients?.full_name ?? null,
+    metadata:
+      row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+        ? (row.metadata as Record<string, unknown>)
+        : null,
   }));
   return { data: entries, error: null };
+}
+
+export async function getMessageLogById(
+  id: string
+): Promise<{ data: MessageLogEntry | null; error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const { data, error } = await supabase
+    .from("message_log")
+    .select("id, channel, type, sent_at, metadata, patients(full_name)")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) return { data: null, error: error.message };
+  if (!data) return { data: null, error: "Mensagem não encontrada." };
+
+  return {
+    data: {
+      id: data.id,
+      channel: data.channel as MessageChannel,
+      type: String(data.type ?? ""),
+      sent_at: String(data.sent_at ?? ""),
+      patient_name: (data as any).patients?.full_name ?? null,
+      metadata:
+        data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata)
+          ? (data.metadata as Record<string, unknown>)
+          : null,
+    },
+    error: null,
+  };
 }
 
 // ========== BUSCAR MENSAGENS PENDENTES ==========

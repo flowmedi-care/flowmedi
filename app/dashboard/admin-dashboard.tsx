@@ -104,7 +104,7 @@ export default async function AdminDashboard({
             href="/dashboard/auditoria"
             className="inline-flex items-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted"
           >
-            🛡 Auditoria
+            Auditoria
           </Link>
         )}
       </div>

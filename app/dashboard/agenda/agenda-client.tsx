@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode } from "react";
 import Link from "next/link";
@@ -52,7 +52,7 @@ import {
 } from "./agenda-date-utils";
 import { getStatusBackgroundColor, getStatusTextColor } from "./status-utils";
 
-/** Retorna className (statuss) ou style (dimensão) para o evento na agenda */
+/** Retorna className (statuss) ou style (dimensÃ£o) para o evento na agenda */
 function getAppointmentEventStyle(
   appointment: AppointmentRow,
   colorBy: "status" | "dimension",
@@ -174,7 +174,7 @@ export function AgendaClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Verificar se deve abrir o formulário automaticamente (ex: ?new=true ou vindo da aba Consulta)
+  // Verificar se deve abrir o formulÃ¡rio automaticamente (ex: ?new=true ou vindo da aba Consulta)
   useEffect(() => {
     const shouldOpenForm = searchParams.get("new") === "true" || searchParams.get("novaConsulta") === "1";
     const patientIdParam = searchParams.get("patientId");
@@ -240,7 +240,7 @@ export function AgendaClient({
     useState<AppointmentRow | null>(null);
 
   // Calcular dateFim automaticamente baseado na granularidade
-  // Usar ref para evitar recalcular quando dateFim é alterado manualmente pelo usuário
+  // Usar ref para evitar recalcular quando dateFim Ã© alterado manualmente pelo usuÃ¡rio
   const dateFimManuallySet = useRef(false);
   
   useEffect(() => {
@@ -249,7 +249,7 @@ export function AgendaClient({
   }, [viewMode, timelineGranularity, calendarGranularity]);
 
   useEffect(() => {
-    // Se dateFim foi alterado manualmente, não recalcular automaticamente
+    // Se dateFim foi alterado manualmente, nÃ£o recalcular automaticamente
     if (dateFimManuallySet.current) {
       return;
     }
@@ -265,7 +265,7 @@ export function AgendaClient({
         // Semana: dateFim = dateInicio + 7 dias
         novoFim = addDays(inicioDate, 7);
       } else if (timelineGranularity === "month") {
-        // Mês: dateFim = fim do mês de dateInicio
+        // MÃªs: dateFim = fim do mÃªs de dateInicio
         novoFim = getEndOfMonth(inicioDate);
       } else {
         novoFim = inicioDate;
@@ -281,7 +281,7 @@ export function AgendaClient({
         // Semana: sempre mostra a semana completa (segunda a domingo)
         novoFim = getEndOfWeek(inicioDate);
       } else if (calendarGranularity === "month") {
-        // Mês: sempre mostra o mês completo
+        // MÃªs: sempre mostra o mÃªs completo
         novoFim = getEndOfMonth(inicioDate);
       } else {
         novoFim = inicioDate;
@@ -450,25 +450,25 @@ export function AgendaClient({
 
   const start = new Date(dateInicio + "T12:00:00");
   const end = new Date(dateFim + "T12:00:00");
-  // Garantir início <= fim
+  // Garantir inÃ­cio <= fim
   const [rangeStart, rangeEnd] =
     start <= end ? [start, end] : [end, start];
   const calendarDate = rangeStart;
 
-  // Filtrar appointments pelo período e filtros apenas para visualização
-  // Mas manter todos os appointments disponíveis para drag and drop
+  // Filtrar appointments pelo perÃ­odo e filtros apenas para visualizaÃ§Ã£o
+  // Mas manter todos os appointments disponÃ­veis para drag and drop
   const appointmentsInPeriod = useMemo(() => {
     const ymdStart = toYMD(rangeStart);
     const ymdEnd = toYMD(rangeEnd);
     
     const filtered = appointments.filter((a) => {
-      // Filtro por período
+      // Filtro por perÃ­odo
       const d = a.scheduled_at.slice(0, 10);
       if (d < ymdStart || d > ymdEnd) {
         return false;
       }
 
-      // Filtro por serviço
+      // Filtro por serviÃ§o
       if (filterByServiceId && a.service_id !== filterByServiceId) {
         return false;
       }
@@ -478,9 +478,9 @@ export function AgendaClient({
         return false;
       }
 
-      // Filtro por formulários
+      // Filtro por formulÃ¡rios
       if (formFilter) {
-        // Verificar se a consulta está confirmada (requisito para filtro de formulários)
+        // Verificar se a consulta estÃ¡ confirmada (requisito para filtro de formulÃ¡rios)
         if (a.status !== "confirmada") {
           return false;
         }
@@ -489,14 +489,14 @@ export function AgendaClient({
         const hasAnsweredForms = formInstances.some(fi => fi.status === "respondido");
         
         if (formFilter === "confirmados_sem_formulario") {
-          // Confirmados que ainda não preencheram formulários
-          // Não deve ter formulários respondidos
+          // Confirmados que ainda nÃ£o preencheram formulÃ¡rios
+          // NÃ£o deve ter formulÃ¡rios respondidos
           if (hasAnsweredForms) {
             return false;
           }
         } else if (formFilter === "confirmados_com_formulario") {
-          // Confirmados que já preencheram formulários
-          // Deve ter pelo menos um formulário respondido
+          // Confirmados que jÃ¡ preencheram formulÃ¡rios
+          // Deve ter pelo menos um formulÃ¡rio respondido
           if (!hasAnsweredForms) {
             return false;
           }
@@ -515,7 +515,7 @@ export function AgendaClient({
     [colorBy, colorByDimensionId, pricingDimensionValues]
   );
 
-  // Para drag and drop, usar todos os appointments (não apenas do período)
+  // Para drag and drop, usar todos os appointments (nÃ£o apenas do perÃ­odo)
   const allAppointmentsForDrag = appointments;
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -529,14 +529,14 @@ export function AgendaClient({
     const targetId = over.id as string;
     const activeId = active.id as string;
 
-    // Se drop no mesmo item, não faz nada
+    // Se drop no mesmo item, nÃ£o faz nada
     if (targetId === activeId) {
       setDraggedAppointment(null);
       return;
     }
 
-    // Verificar se é um dayId (YYYY-MM-DD) ou um appointment ID
-    // Também pode ser um ID único como "2026-02-09-14" (dayId-hour) no calendário semanal
+    // Verificar se Ã© um dayId (YYYY-MM-DD) ou um appointment ID
+    // TambÃ©m pode ser um ID Ãºnico como "2026-02-09-14" (dayId-hour) no calendÃ¡rio semanal
     let targetDate: string | null = null;
     let targetHour: number | null = null;
     
@@ -551,25 +551,25 @@ export function AgendaClient({
         targetHour = parseInt(parts[3], 10);
       }
     } else if (targetId.match(/^\d{4}-\d{2}-\d{2}(-\d+)?$/)) {
-      // É um dayId ou dayId-hour - extrair a data e possivelmente a hora
+      // Ã‰ um dayId ou dayId-hour - extrair a data e possivelmente a hora
       const parts = targetId.split("-");
       targetDate = parts.slice(0, 3).join("-");
       if (parts.length > 3) {
         targetHour = parseInt(parts[3], 10);
       }
     } else {
-      // É outro appointment - neste caso, vamos buscar o DroppableDay pai
+      // Ã‰ outro appointment - neste caso, vamos buscar o DroppableDay pai
       // Mas primeiro, vamos tentar encontrar o appointment e usar seu dayId
       // Isso funciona quando arrastamos sobre um appointment no mesmo dia
       const targetAppointment = allAppointmentsForDrag.find((a) => a.id === targetId);
       if (targetAppointment) {
         // Se arrastamos sobre um appointment, usar o dayId desse appointment
-        // Isso mantém o comportamento de reordenar dentro do mesmo dia
+        // Isso mantÃ©m o comportamento de reordenar dentro do mesmo dia
         targetDate = targetAppointment.scheduled_at.slice(0, 10);
-        // Não mudamos a hora quando arrastamos sobre outro appointment
+        // NÃ£o mudamos a hora quando arrastamos sobre outro appointment
       } else {
-        // Se não encontramos, pode ser que o drop foi em uma área vazia
-        // mas o over.id não é um dayId válido - neste caso, não fazer nada
+        // Se nÃ£o encontramos, pode ser que o drop foi em uma Ã¡rea vazia
+        // mas o over.id nÃ£o Ã© um dayId vÃ¡lido - neste caso, nÃ£o fazer nada
         setDraggedAppointment(null);
         return;
       }
@@ -590,12 +590,12 @@ export function AgendaClient({
     const [year, month, day] = targetDate.split("-").map(Number);
     
     // Determinar a nova hora e minuto
-    // Se targetHour foi extraído (arrastou verticalmente no calendário semanal), usar essa hora
-    // Caso contrário, manter a hora original
+    // Se targetHour foi extraÃ­do (arrastou verticalmente no calendÃ¡rio semanal), usar essa hora
+    // Caso contrÃ¡rio, manter a hora original
     const newHour = targetHour !== null ? targetHour : oldHour;
     const newMinute = targetHour !== null ? 0 : oldMinute; // Quando muda de hora, definir minutos como 0
 
-    // Reagendar se mudou de dia OU se mudou de hora (no calendário semanal)
+    // Reagendar se mudou de dia OU se mudou de hora (no calendÃ¡rio semanal)
     const dateChanged = targetDate !== oldDateStr;
     const hourChanged = targetHour !== null && targetHour !== oldHour;
     
@@ -618,14 +618,14 @@ export function AgendaClient({
 
   function handleDragStart(event: DragStartEvent) {
     const appointmentId = event.active.id as string;
-    // Buscar em todos os appointments, não apenas no período
+    // Buscar em todos os appointments, nÃ£o apenas no perÃ­odo
     const appointment = allAppointmentsForDrag.find((a) => a.id === appointmentId);
     setDraggedAppointment(appointment || null);
   }
 
   return (
     <div className="space-y-4 sm:space-y-6 min-w-0">
-      {/* Header: título + ação principal */}
+      {/* Header: tÃ­tulo + aÃ§Ã£o principal */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between gap-x-4">
         <h1 className="text-xl font-semibold text-foreground sm:text-2xl truncate">Agenda</h1>
         <Button
@@ -642,13 +642,13 @@ export function AgendaClient({
         </Button>
       </div>
 
-      {/* Toolbar único: visualização, período e filtros em blocos claros */}
+      {/* Toolbar Ãºnico: visualizaÃ§Ã£o, perÃ­odo e filtros em blocos claros */}
       <div className="rounded-lg border border-border bg-card p-4 min-w-0">
         <div className="flex flex-col gap-4">
-          {/* Linha 1: Visualização + Período */}
+          {/* Linha 1: VisualizaÃ§Ã£o + PerÃ­odo */}
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide w-full sm:w-auto sm:min-w-0">Visualização</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide w-full sm:w-auto sm:min-w-0">VisualizaÃ§Ã£o</span>
               <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={viewMode}
@@ -660,7 +660,7 @@ export function AgendaClient({
                   className="h-9 rounded-md border border-input bg-background px-3 text-sm font-medium"
                 >
                   <option value="timeline">Timeline</option>
-                  <option value="calendar">Calendário</option>
+                  <option value="calendar">CalendÃ¡rio</option>
                 </select>
                 {viewMode === "timeline" && (
                   <select
@@ -674,7 +674,7 @@ export function AgendaClient({
                   >
                     <option value="day">Dia</option>
                     <option value="week">Semana</option>
-                    <option value="month">Mês</option>
+                    <option value="month">MÃªs</option>
                   </select>
                 )}
                 {viewMode === "calendar" && (
@@ -688,7 +688,7 @@ export function AgendaClient({
                     className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value="week">Semana</option>
-                    <option value="month">Mês</option>
+                    <option value="month">MÃªs</option>
                   </select>
                 )}
               </div>
@@ -697,7 +697,7 @@ export function AgendaClient({
             <div className="h-px bg-border sm:hidden" aria-hidden />
 
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide w-full sm:w-auto">Período</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide w-full sm:w-auto">PerÃ­odo</span>
               {viewMode === "timeline" && timelineGranularity === "day" ? (
                 <>
                   <Input
@@ -729,7 +729,7 @@ export function AgendaClient({
                     }}
                     className="h-9 w-[8.5rem] text-sm"
                   />
-                  <Label htmlFor="date_fim" className="text-muted-foreground text-sm shrink-0">até</Label>
+                  <Label htmlFor="date_fim" className="text-muted-foreground text-sm shrink-0">atÃ©</Label>
                   {viewMode === "timeline" ? (
                     <Input
                       id="date_fim"
@@ -781,7 +781,7 @@ export function AgendaClient({
               />
               {services.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <Label className="text-muted-foreground text-sm shrink-0">Serviço</Label>
+                  <Label className="text-muted-foreground text-sm shrink-0">ServiÃ§o</Label>
                   <select
                     value={filterByServiceId}
                     onChange={async (e) => {
@@ -861,7 +861,7 @@ export function AgendaClient({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Médico *</Label>
+                  <Label>Profissional *</Label>
                   <select
                     className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                     value={form.doctorId}
@@ -947,7 +947,7 @@ export function AgendaClient({
                     ))}
                   </select>
                   <p className="text-xs text-muted-foreground">
-                    Opcional. Pré-preenche recomendações e associa formulários do procedimento.
+                    Opcional. PrÃ©-preenche recomendaÃ§Ãµes e associa formulÃ¡rios do procedimento.
                   </p>
               </div>
               <div className="space-y-2">
@@ -974,15 +974,15 @@ export function AgendaClient({
               {services.length > 0 && (
                 <Card className="sm:col-span-2">
                   <CardHeader className="pb-2">
-                    <h3 className="font-semibold text-sm">Serviço e valor</h3>
+                    <h3 className="font-semibold text-sm">ServiÃ§o e valor</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Escolha o serviço e as dimensões (convênio, cidade, etc.) para definir o valor da consulta nos relatórios.
+                      Escolha o serviÃ§o e as dimensÃµes (convÃªnio, cidade, etc.) para definir o valor da consulta nos relatÃ³rios.
                     </p>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex flex-wrap gap-4 items-end">
                       <div className="space-y-2 min-w-[180px]">
-                        <Label className="text-xs font-medium text-muted-foreground">Serviço</Label>
+                        <Label className="text-xs font-medium text-muted-foreground">ServiÃ§o</Label>
                         <select
                           className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                           value={form.serviceId}
@@ -1014,7 +1014,7 @@ export function AgendaClient({
                                 }))
                               }
                             >
-                              <option value="">—</option>
+                              <option value="">â€”</option>
                               {options.map((v) => (
                                 <option key={v.id} value={v.id}>{v.nome}</option>
                               ))}
@@ -1035,7 +1035,7 @@ export function AgendaClient({
                 </Card>
               )}
               <div className="space-y-2">
-                <Label>Recomendações</Label>
+                <Label>RecomendaÃ§Ãµes</Label>
                 <Textarea
                   value={form.recommendations}
                   onChange={(e) =>
@@ -1045,23 +1045,23 @@ export function AgendaClient({
                   rows={3}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Ao escolher um procedimento acima, o campo é pré-preenchido. Usado em e-mails e mensagens.
+                  Ao escolher um procedimento acima, o campo Ã© prÃ©-preenchido. Usado em e-mails e mensagens.
                 </p>
               </div>
-              {/* Vincular formulário — mesmo layout da tela da consulta */}
+              {/* Vincular formulÃ¡rio â€” mesmo layout da tela da consulta */}
               <div className="space-y-4 sm:col-span-2">
                   <Card>
                     <CardHeader>
-                      <h3 className="font-semibold">Vincular formulário</h3>
+                      <h3 className="font-semibold">Vincular formulÃ¡rio</h3>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {formTemplates.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          Nenhum formulário cadastrado na clínica.
+                          Nenhum formulÃ¡rio cadastrado na clÃ­nica.
                         </p>
                       ) : formTemplates.every((ft) => form.linkedFormTemplateIds.includes(ft.id)) ? (
                         <p className="text-sm text-muted-foreground">
-                          Todos os formulários disponíveis já estão vinculados a esta consulta.
+                          Todos os formulÃ¡rios disponÃ­veis jÃ¡ estÃ£o vinculados a esta consulta.
                         </p>
                       ) : (
                         <>
@@ -1070,7 +1070,7 @@ export function AgendaClient({
                             onChange={(e) => setSelectedFormTemplateId(e.target.value)}
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            <option value="">Selecione um formulário</option>
+                            <option value="">Selecione um formulÃ¡rio</option>
                             {formTemplates
                               .filter((ft) => !form.linkedFormTemplateIds.includes(ft.id))
                               .map((ft) => (
@@ -1094,7 +1094,7 @@ export function AgendaClient({
                             className="w-full"
                           >
                             <Plus className="h-4 w-4 mr-2" />
-                            + Vincular formulário
+                            + Vincular formulÃ¡rio
                           </Button>
                         </>
                       )}
@@ -1102,14 +1102,14 @@ export function AgendaClient({
                   </Card>
                   {form.patientId && (
                     <p className="text-xs text-muted-foreground">
-                      Se o paciente preencheu formulário público, ele será vinculado automaticamente à consulta.
+                      Se o paciente preencheu formulÃ¡rio pÃºblico, ele serÃ¡ vinculado automaticamente Ã  consulta.
                     </p>
                   )}
                   <Card>
                     <CardContent className="py-6">
                       {form.linkedFormTemplateIds.length === 0 && publicFormTemplates.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center">
-                          Nenhum formulário vinculado a esta consulta.
+                          Nenhum formulÃ¡rio vinculado a esta consulta.
                         </p>
                       ) : (
                         <ul className="space-y-2">
@@ -1145,7 +1145,7 @@ export function AgendaClient({
                             >
                               <span className="font-medium">{ft.name}</span>
                               <Badge variant="secondary" className="shrink-0">
-                                Vinculado automaticamente (formulário público)
+                                Vinculado automaticamente (formulÃ¡rio pÃºblico)
                               </Badge>
                             </li>
                           ))}
@@ -1156,7 +1156,7 @@ export function AgendaClient({
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Observações</Label>
+                <Label>ObservaÃ§Ãµes</Label>
                 <Textarea
                   value={form.notes}
                   onChange={(e) =>
@@ -1169,7 +1169,7 @@ export function AgendaClient({
 
               <div className="flex gap-2">
                 <Button type="submit" disabled={loading}>
-                  {loading ? "Agendando…" : "Agendar"}
+                  {loading ? "Agendandoâ€¦" : "Agendar"}
                 </Button>
                 <Button
                   type="button"
@@ -1184,7 +1184,7 @@ export function AgendaClient({
         </Card>
       )}
 
-      {/* Conteúdo da visão */}
+      {/* ConteÃºdo da visÃ£o */}
       <DndContext
         sensors={sensors}
         collisionDetection={pointerWithin}
@@ -1235,7 +1235,7 @@ export function AgendaClient({
   );
 }
 
-/** Timeline com granularidade: Dia (1 dia) | Semana (segunda 8, terça 9...) | Mês (janeiro, fev) */
+/** Timeline com granularidade: Dia (1 dia) | Semana (segunda 8, terÃ§a 9...) | MÃªs (janeiro, fev) */
 function TimelineListView({
   appointments,
   allAppointmentsForDrag,
@@ -1270,7 +1270,7 @@ function TimelineListView({
     return map;
   }, [appointments]);
 
-  // Calcular dados para semana e mês (sempre, para não violar regras dos hooks)
+  // Calcular dados para semana e mÃªs (sempre, para nÃ£o violar regras dos hooks)
   const weekStart = useMemo(() => getWeekStartForPeriod(dateInicio), [dateInicio]);
   const weekDays = useMemo(
     () => iterateDays(weekStart, dateFim),
@@ -1293,7 +1293,7 @@ function TimelineListView({
   }, [monthDays]);
   const monthOrderAdjusted = Object.keys(byMonthAdjusted).sort();
 
-  // Dia: só 1 dia (usa dateInicio)
+  // Dia: sÃ³ 1 dia (usa dateInicio)
   if (granularity === "day") {
     const d = dateInicio;
     const dayId = toYMD(d);
@@ -1339,15 +1339,15 @@ function TimelineListView({
     );
   }
 
-  // Semana: cada dia no período como "Segunda (8)", "Terça (9)", "Segunda (15)"...
-  // Sempre começa na segunda anterior ao início
+  // Semana: cada dia no perÃ­odo como "Segunda (8)", "TerÃ§a (9)", "Segunda (15)"...
+  // Sempre comeÃ§a na segunda anterior ao inÃ­cio
   if (granularity === "week") {
     if (weekDays.length === 0) {
       return (
         <Card>
           <CardContent className="py-8">
             <p className="text-sm text-muted-foreground text-center">
-              Período inválido. Ajuste as datas.
+              PerÃ­odo invÃ¡lido. Ajuste as datas.
             </p>
           </CardContent>
         </Card>
@@ -1414,15 +1414,15 @@ function TimelineListView({
     );
   }
 
-  // Mês: Janeiro, Fevereiro... no período
-  // Sempre começa na segunda anterior ao início (similar à semana)
+  // MÃªs: Janeiro, Fevereiro... no perÃ­odo
+  // Sempre comeÃ§a na segunda anterior ao inÃ­cio (similar Ã  semana)
   if (granularity === "month") {
     if (monthOrderAdjusted.length === 0) {
       return (
         <Card>
           <CardContent className="py-8">
             <p className="text-sm text-muted-foreground text-center">
-              Selecione o período (data inicial e final) para ver as consultas.
+              Selecione o perÃ­odo (data inicial e final) para ver as consultas.
             </p>
           </CardContent>
         </Card>
@@ -1433,7 +1433,7 @@ function TimelineListView({
     <Card>
       <CardHeader>
         <p className="text-sm text-muted-foreground">
-          Meses no período. Clique em uma consulta para abrir.
+          Meses no perÃ­odo. Clique em uma consulta para abrir.
         </p>
       </CardHeader>
       <CardContent>
@@ -1505,7 +1505,7 @@ function TimelineListView({
   );
   }
 
-  // Se nenhuma granularidade foi selecionada (não deveria acontecer)
+  // Se nenhuma granularidade foi selecionada (nÃ£o deveria acontecer)
   return null;
 }
 
@@ -1523,7 +1523,7 @@ function CalendarWeekView({
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
 }) {
   const weekDays = useMemo(() => getWeekDates(currentDate), [currentDate]);
-  // Usar appointments filtrados para exibição
+  // Usar appointments filtrados para exibiÃ§Ã£o
   const byDayHour = useMemo(() => {
     const map: Record<string, Record<number, AppointmentRow[]>> = {};
     weekDays.forEach((d) => {
@@ -1553,7 +1553,7 @@ function CalendarWeekView({
     <Card>
       <CardHeader>
         <p className="text-sm text-muted-foreground">
-          Grade semanal por horário. Clique em uma consulta para abrir.
+          Grade semanal por horÃ¡rio. Clique em uma consulta para abrir.
         </p>
       </CardHeader>
       <CardContent className="p-0 overflow-x-auto">
@@ -1625,7 +1625,7 @@ function CalendarWeekView({
                           </div>
                         </SortableContext>
                       ) : (
-                        // Célula vazia também é drop zone - precisa ter conteúdo mínimo
+                        // CÃ©lula vazia tambÃ©m Ã© drop zone - precisa ter conteÃºdo mÃ­nimo
                         <div className="min-h-[20px] w-full flex-1" />
                       )}
                     </DroppableDay>
@@ -1654,7 +1654,7 @@ function CalendarMonthView({
   onSelectDay: (d: Date) => void;
 }) {
   const grid = getMonthCalendarGrid(currentDate);
-  // Usar appointments filtrados para exibição
+  // Usar appointments filtrados para exibiÃ§Ã£o
   const byDay = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
     appointments.forEach((a) => {
@@ -1674,7 +1674,7 @@ function CalendarMonthView({
       </CardHeader>
       <CardContent className="p-0">
         <div className="grid grid-cols-7 border-b border-border">
-          {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((label) => (
+          {["Seg", "Ter", "Qua", "Qui", "Sex", "SÃ¡b", "Dom"].map((label) => (
             <div
               key={label}
               className="p-2 border-r border-border last:border-r-0 text-center text-xs font-medium text-muted-foreground"
@@ -1760,9 +1760,9 @@ function DroppableDay({
   dayId: string;
   children: ReactNode;
   className?: string;
-  uniqueId?: string; // ID único para evitar conflitos quando há múltiplos drop zones do mesmo dia
+  uniqueId?: string; // ID Ãºnico para evitar conflitos quando hÃ¡ mÃºltiplos drop zones do mesmo dia
 }) {
-  // Usar uniqueId se fornecido, senão usar dayId
+  // Usar uniqueId se fornecido, senÃ£o usar dayId
   const dropId = uniqueId || dayId;
   const { setNodeRef, isOver } = useDroppable({
     id: dropId,
@@ -1887,9 +1887,9 @@ function DraggableAppointmentItem({
           <span className="truncate">{appointment.patient.full_name}</span>
           {(appointment.appointment_type || appointment.procedure) && (
             <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
-              · {[appointment.appointment_type?.name, appointment.procedure?.name]
+              Â· {[appointment.appointment_type?.name, appointment.procedure?.name]
                 .filter(Boolean)
-                .join(" · ")}
+                .join(" Â· ")}
             </span>
           )}
         </Link>
@@ -1903,7 +1903,7 @@ function DraggableAppointmentItem({
             <StatusBadgeDropdown
               appointment={appointment}
               onStatusChange={() => {
-                // Callback vazio, o router.refresh() já atualiza
+                // Callback vazio, o router.refresh() jÃ¡ atualiza
               }}
             />
           </div>
@@ -2046,7 +2046,7 @@ function AppointmentContent({ appointment: a }: { appointment: AppointmentRow })
         <span className="truncate">{a.patient.full_name}</span>
         {(a.appointment_type || a.procedure) && (
           <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
-            · {[a.appointment_type?.name, a.procedure?.name].filter(Boolean).join(" · ")}
+            Â· {[a.appointment_type?.name, a.procedure?.name].filter(Boolean).join(" Â· ")}
           </span>
         )}
       </div>
@@ -2059,7 +2059,7 @@ function AppointmentContent({ appointment: a }: { appointment: AppointmentRow })
         <StatusBadgeDropdown
           appointment={a}
           onStatusChange={() => {
-            // Callback vazio, o router.refresh() já atualiza
+            // Callback vazio, o router.refresh() jÃ¡ atualiza
           }}
         />
       </div>
@@ -2091,7 +2091,7 @@ function AppointmentListItem({
         <span className="truncate">{a.patient.full_name}</span>
         {(a.appointment_type || a.procedure) && (
           <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
-            · {[a.appointment_type?.name, a.procedure?.name].filter(Boolean).join(" · ")}
+            Â· {[a.appointment_type?.name, a.procedure?.name].filter(Boolean).join(" Â· ")}
           </span>
         )}
       </div>
@@ -2104,7 +2104,7 @@ function AppointmentListItem({
         <StatusBadgeDropdown
           appointment={a}
           onStatusChange={() => {
-            // Callback vazio, o router.refresh() já atualiza
+            // Callback vazio, o router.refresh() jÃ¡ atualiza
           }}
         />
       </div>
@@ -2133,4 +2133,5 @@ function AppointmentListItem({
     </li>
   );
 }
+
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -83,10 +83,10 @@ export function ServicosValoresClient({
   const [activeTab, setActiveTab] = useState<Tab>("servicos");
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: "servicos", label: "Serviços", icon: Briefcase },
-    { id: "dimensoes", label: "Dimensões", icon: Sliders },
-    { id: "valores", label: "Valores por dimensão", icon: ListChecks },
-    { id: "regras", label: "Regras de preço", icon: Calculator },
+    { id: "servicos", label: "ServiÃ§os", icon: Briefcase },
+    { id: "dimensoes", label: "DimensÃµes", icon: Sliders },
+    { id: "valores", label: "Valores por dimensÃ£o", icon: ListChecks },
+    { id: "regras", label: "Regras de preÃ§o", icon: Calculator },
   ];
 
   return (
@@ -181,7 +181,7 @@ function ServicosSection({
         setIsNew(false);
         setNome("");
         setCategoria("");
-        toast("Serviço criado com sucesso.", "success");
+        toast("ServiÃ§o criado com sucesso.", "success");
         onMutate();
       }
     } else if (editingId) {
@@ -191,7 +191,7 @@ function ServicosSection({
         setEditingId(null);
         setNome("");
         setCategoria("");
-        toast("Serviço atualizado.", "success");
+        toast("ServiÃ§o atualizado.", "success");
         onMutate();
       }
     }
@@ -207,7 +207,7 @@ function ServicosSection({
     setDeleteTarget(null);
     if (res.error) setError(res.error);
     else {
-      toast("Serviço excluído.", "success");
+      toast("ServiÃ§o excluÃ­do.", "success");
       onMutate();
     }
   }
@@ -216,7 +216,7 @@ function ServicosSection({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <div>
-          <h2 className="text-lg font-semibold">Serviços</h2>
+          <h2 className="text-lg font-semibold">ServiÃ§os</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Ex.: Consulta geral, Botox, Colonoscopia</p>
         </div>
         <Button
@@ -230,7 +230,7 @@ function ServicosSection({
           disabled={isNew}
         >
           <Plus className="h-4 w-4 mr-2" />
-          Novo serviço
+          Novo serviÃ§o
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -250,7 +250,7 @@ function ServicosSection({
                 <Input
                   value={categoria}
                   onChange={(e) => setCategoria(e.target.value)}
-                  placeholder="Ex.: Clínica"
+                  placeholder="Ex.: ClÃ­nica"
                 />
               </div>
             </div>
@@ -277,9 +277,9 @@ function ServicosSection({
         {services.length === 0 && !isNew && !editingId ? (
           <EmptyState
             icon={Inbox}
-            title="Nenhum serviço cadastrado"
-            description="Cadastre os serviços oferecidos pela clínica para configurar preços e usar na agenda."
-            actionLabel="Adicionar primeiro serviço"
+            title="Nenhum serviÃ§o cadastrado"
+            description="Cadastre os serviÃ§os oferecidos pela clÃ­nica para configurar preÃ§os e usar na agenda."
+            actionLabel="Adicionar primeiro serviÃ§o"
             onAction={() => { setIsNew(true); setNome(""); setCategoria(""); }}
           />
         ) : (
@@ -289,7 +289,7 @@ function ServicosSection({
                 <tr className="bg-muted/40">
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Nome</th>
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Categoria</th>
-                  <th className="w-[100px] py-3 px-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Ações</th>
+                  <th className="w-[100px] py-3 px-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">AÃ§Ãµes</th>
                 </tr>
               </thead>
               <tbody>
@@ -312,7 +312,7 @@ function ServicosSection({
                     ) : (
                       <>
                         <td className="py-3 px-4 font-medium">{s.nome}</td>
-                        <td className="py-3 px-4 text-muted-foreground">{s.categoria ?? "—"}</td>
+                        <td className="py-3 px-4 text-muted-foreground">{s.categoria ?? "â€”"}</td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex justify-end gap-1">
                             <Button
@@ -351,8 +351,8 @@ function ServicosSection({
       </CardContent>
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Excluir serviço"
-        message={deleteTarget ? `Excluir "${deleteTarget.nome}"? Regras de preço vinculadas podem ser afetadas.` : ""}
+        title="Excluir serviÃ§o"
+        message={deleteTarget ? `Excluir "${deleteTarget.nome}"? Regras de preÃ§o vinculadas podem ser afetadas.` : ""}
         confirmLabel="Excluir"
         cancelLabel="Cancelar"
         variant="destructive"
@@ -392,7 +392,7 @@ function DimensoesSection({
       else {
         setIsNew(false);
         setNome("");
-        toast("Dimensão criada.", "success");
+        toast("DimensÃ£o criada.", "success");
         onMutate();
       }
     } else if (editingId) {
@@ -402,7 +402,7 @@ function DimensoesSection({
         setEditingId(null);
         setNome("");
         setAtivo(true);
-        toast("Dimensão atualizada.", "success");
+        toast("DimensÃ£o atualizada.", "success");
         onMutate();
       }
     }
@@ -418,7 +418,7 @@ function DimensoesSection({
     setDeleteTarget(null);
     if (res.error) setError(res.error);
     else {
-      toast("Dimensão excluída.", "success");
+      toast("DimensÃ£o excluÃ­da.", "success");
       onMutate();
     }
   }
@@ -427,20 +427,20 @@ function DimensoesSection({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <div>
-          <h2 className="text-lg font-semibold">Dimensões</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">Ex.: Cidade, Convênio, Unidade, Turno, Campanha</p>
+          <h2 className="text-lg font-semibold">DimensÃµes</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Ex.: Cidade, ConvÃªnio, Unidade, Turno, Campanha</p>
         </div>
         <Button size="sm" onClick={() => { setIsNew(true); setEditingId(null); setNome(""); }} disabled={isNew}>
           <Plus className="h-4 w-4 mr-2" />
-          Nova dimensão
+          Nova dimensÃ£o
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {isNew && (
           <div className="rounded-lg border bg-muted/30 p-4 flex flex-wrap items-end gap-4">
             <div className="space-y-2 min-w-[200px]">
-              <Label className="text-sm font-medium">Nome da dimensão</Label>
-              <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Convênio" />
+              <Label className="text-sm font-medium">Nome da dimensÃ£o</Label>
+              <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: ConvÃªnio" />
             </div>
             <div className="flex gap-2">
               <Button onClick={handleSave} disabled={loading || !nome.trim()}>
@@ -455,9 +455,9 @@ function DimensoesSection({
         {dimensions.length === 0 && !isNew ? (
           <EmptyState
             icon={Sliders}
-            title="Nenhuma dimensão cadastrada"
-            description="Crie dimensões para diferenciar preços (convênio, cidade, turno, etc.)."
-            actionLabel="Adicionar primeira dimensão"
+            title="Nenhuma dimensÃ£o cadastrada"
+            description="Crie dimensÃµes para diferenciar preÃ§os (convÃªnio, cidade, turno, etc.)."
+            actionLabel="Adicionar primeira dimensÃ£o"
             onAction={() => { setIsNew(true); setNome(""); }}
           />
         ) : (
@@ -467,7 +467,7 @@ function DimensoesSection({
                 <tr className="bg-muted/40">
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Nome</th>
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ativo</th>
-                  <th className="w-[100px] py-3 px-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Ações</th>
+                  <th className="w-[100px] py-3 px-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">AÃ§Ãµes</th>
                 </tr>
               </thead>
               <tbody>
@@ -516,8 +516,8 @@ function DimensoesSection({
       </CardContent>
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Excluir dimensão"
-        message={deleteTarget ? `Excluir "${deleteTarget.nome}"? Os valores vinculados serão removidos das regras.` : ""}
+        title="Excluir dimensÃ£o"
+        message={deleteTarget ? `Excluir "${deleteTarget.nome}"? Os valores vinculados serÃ£o removidos das regras.` : ""}
         confirmLabel="Excluir"
         cancelLabel="Cancelar"
         variant="destructive"
@@ -596,7 +596,7 @@ function ValoresSection({
     setDeleteTarget(null);
     if (res.error) setError(res.error);
     else {
-      toast("Valor excluído.", "success");
+      toast("Valor excluÃ­do.", "success");
       onMutate();
     }
   }
@@ -605,8 +605,8 @@ function ValoresSection({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <div>
-          <h2 className="text-lg font-semibold">Valores por dimensão</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">Ex.: Unimed, SUS, Particular para Convênio</p>
+          <h2 className="text-lg font-semibold">Valores por dimensÃ£o</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Ex.: Unimed, SUS, Particular para ConvÃªnio</p>
         </div>
         <div className="flex gap-2 items-center">
           <select
@@ -614,7 +614,7 @@ function ValoresSection({
             onChange={(e) => setDimensionId(e.target.value)}
             className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[180px] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           >
-            <option value="">Selecione a dimensão</option>
+            <option value="">Selecione a dimensÃ£o</option>
             {activeDimensions.map((d) => (
               <option key={d.id} value={d.id}>{d.nome}</option>
             ))}
@@ -662,7 +662,7 @@ function ValoresSection({
         {activeDimensions.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-muted/20 py-12 px-4 text-center">
             <ListChecks className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">Cadastre dimensões na aba &quot;Dimensões&quot; para adicionar valores.</p>
+            <p className="text-sm text-muted-foreground">Cadastre dimensÃµes na aba &quot;DimensÃµes&quot; para adicionar valores.</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -715,7 +715,7 @@ function ValoresSection({
                     )
                   )}
                   {dim.values.length === 0 && (
-                    <span className="text-sm text-muted-foreground py-1">Nenhum valor. Selecione esta dimensão acima e clique em &quot;Novo valor&quot;.</span>
+                    <span className="text-sm text-muted-foreground py-1">Nenhum valor. Selecione esta dimensÃ£o acima e clique em &quot;Novo valor&quot;.</span>
                   )}
                 </div>
               </div>
@@ -794,11 +794,11 @@ function RegrasSection({
     setError(null);
     const numValor = parseFloat(valor.replace(",", "."));
     if (isNaN(numValor) || numValor < 0) {
-      setError("Informe um valor válido.");
+      setError("Informe um valor vÃ¡lido.");
       return;
     }
     if (!serviceId) {
-      setError("Selecione o serviço.");
+      setError("Selecione o serviÃ§o.");
       return;
     }
     setLoading(true);
@@ -812,7 +812,7 @@ function RegrasSection({
         setProfessionalId("");
         setValor("");
         setSelectedDimensionValueIds([]);
-        toast("Regra de preço criada.", "success");
+        toast("Regra de preÃ§o criada.", "success");
         onMutate();
       }
     } else if (editingId) {
@@ -825,7 +825,7 @@ function RegrasSection({
         setValor("");
         setSelectedDimensionValueIds([]);
         setAtivo(true);
-        toast("Regra de preço atualizada.", "success");
+        toast("Regra de preÃ§o atualizada.", "success");
         onMutate();
       }
     }
@@ -844,7 +844,7 @@ function RegrasSection({
     setDeleteTarget(null);
     if (res.error) setError(res.error);
     else {
-      toast("Regra de preço excluída.", "success");
+      toast("Regra de preÃ§o excluÃ­da.", "success");
       onMutate();
     }
   }
@@ -853,8 +853,8 @@ function RegrasSection({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <div>
-          <h2 className="text-lg font-semibold">Regras de preço</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">Serviço + opcionalmente médico + dimensões = valor aplicado na agenda</p>
+          <h2 className="text-lg font-semibold">Regras de preÃ§o</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">ServiÃ§o + opcionalmente mÃ©dico + dimensÃµes = valor aplicado na agenda</p>
         </div>
         <Button
           size="sm"
@@ -877,7 +877,7 @@ function RegrasSection({
           <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
             <div className={cn("grid gap-4", isMedico ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4")}>
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Serviço *</Label>
+                <Label className="text-sm font-medium">ServiÃ§o *</Label>
                 <select
                   value={serviceId}
                   onChange={(e) => setServiceId(e.target.value)}
@@ -891,7 +891,7 @@ function RegrasSection({
               </div>
               {!isMedico && (
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Médico (opcional)</Label>
+                  <Label className="text-sm font-medium">Profissional (opcional)</Label>
                   <select
                     value={professionalId}
                     onChange={(e) => setProfessionalId(e.target.value)}
@@ -922,7 +922,7 @@ function RegrasSection({
               )}
             </div>
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Dimensões (ex.: Unimed + Cidade X)</Label>
+              <Label className="text-sm font-medium">DimensÃµes (ex.: Unimed + Cidade X)</Label>
               <div className="flex flex-wrap gap-3">
                 {byDimension.map((dim) => (
                   <div key={dim.id} className="rounded-lg border bg-background p-3 min-w-[160px]">
@@ -965,8 +965,8 @@ function RegrasSection({
         {servicePrices.length === 0 && !isNew && !editingId ? (
           <EmptyState
             icon={Calculator}
-            title="Nenhuma regra de preço"
-            description="Crie regras para definir quanto cobrar por serviço conforme dimensões (convênio, cidade, etc.)."
+            title="Nenhuma regra de preÃ§o"
+            description="Crie regras para definir quanto cobrar por serviÃ§o conforme dimensÃµes (convÃªnio, cidade, etc.)."
             actionLabel="Adicionar primeira regra"
             onAction={() => { setIsNew(true); setServiceId(""); setProfessionalId(""); setValor(""); setSelectedDimensionValueIds([]); }}
           />
@@ -975,14 +975,14 @@ function RegrasSection({
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/40">
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Serviço</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">ServiÃ§o</th>
                   {!isMedico && (
-                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Médico</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Profissional</th>
                   )}
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Valor</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Dimensões</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">DimensÃµes</th>
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ativo</th>
-                  <th className="w-[100px] py-3 px-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Ações</th>
+                  <th className="w-[100px] py-3 px-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">AÃ§Ãµes</th>
                 </tr>
               </thead>
               <tbody>
@@ -990,16 +990,16 @@ function RegrasSection({
                   const service = services.find((s) => s.id === p.service_id);
                   const professional = doctors.find((d) => d.id === p.professional_id);
                   const dvIds = dimensionValueIdsByPriceId[p.id] ?? [];
-                  const label = [service?.nome, formatCurrency(Number(p.valor))].filter(Boolean).join(" · ");
+                  const label = [service?.nome, formatCurrency(Number(p.valor))].filter(Boolean).join(" Â· ");
                   return (
                     <tr key={p.id} className="border-t border-border hover:bg-muted/20 transition-colors">
-                      <td className="py-3 px-4 font-medium">{service?.nome ?? "—"}</td>
+                      <td className="py-3 px-4 font-medium">{service?.nome ?? "â€”"}</td>
                       {!isMedico && (
-                        <td className="py-3 px-4 text-muted-foreground">{professional ? (professional.full_name ?? "—") : "Qualquer"}</td>
+                        <td className="py-3 px-4 text-muted-foreground">{professional ? (professional.full_name ?? "â€”") : "Qualquer"}</td>
                       )}
                       <td className="py-3 px-4">{formatCurrency(Number(p.valor))}</td>
-                      <td className="py-3 px-4 text-muted-foreground max-w-[200px] truncate" title={dvIds.length ? dvIds.map((id) => `${getDimensionNameForValue(id)}: ${getValueLabel(id)}`).join(" · ") : undefined}>
-                        {dvIds.length ? dvIds.map((id) => `${getDimensionNameForValue(id)}: ${getValueLabel(id)}`).join(" · ") : "—"}
+                      <td className="py-3 px-4 text-muted-foreground max-w-[200px] truncate" title={dvIds.length ? dvIds.map((id) => `${getDimensionNameForValue(id)}: ${getValueLabel(id)}`).join(" Â· ") : undefined}>
+                        {dvIds.length ? dvIds.map((id) => `${getDimensionNameForValue(id)}: ${getValueLabel(id)}`).join(" Â· ") : "â€”"}
                       </td>
                       <td className="py-3 px-4">
                         <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", p.ativo ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : "bg-muted text-muted-foreground")}>
@@ -1046,7 +1046,7 @@ function RegrasSection({
       </CardContent>
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Excluir regra de preço"
+        title="Excluir regra de preÃ§o"
         message={deleteTarget ? `Excluir a regra "${deleteTarget.label}"?` : ""}
         confirmLabel="Excluir"
         cancelLabel="Cancelar"
@@ -1058,3 +1058,4 @@ function RegrasSection({
     </Card>
   );
 }
+

@@ -300,12 +300,38 @@ export async function deleteAppointmentType(id: string) {
   if (!user) return { error: "Não autorizado." };
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("clinic_id, role")
     .eq("id", user.id)
     .single();
-  if (profile?.role !== "admin") return { error: "Não autorizado." };
+  if (profile?.role !== "admin" || !profile.clinic_id) return { error: "Não autorizado." };
 
-  const { error } = await supabase.from("appointment_types").delete().eq("id", id);
+  const [{ count: appointmentsCount }, { count: templatesCount }] = await Promise.all([
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("clinic_id", profile.clinic_id)
+      .eq("appointment_type_id", id),
+    supabase
+      .from("form_templates")
+      .select("id", { count: "exact", head: true })
+      .eq("clinic_id", profile.clinic_id)
+      .eq("appointment_type_id", id),
+  ]);
+
+  const impacts: string[] = [];
+  if ((appointmentsCount ?? 0) > 0) impacts.push(`${appointmentsCount} consulta(s)`);
+  if ((templatesCount ?? 0) > 0) impacts.push(`${templatesCount} formulário(s)`);
+  if (impacts.length > 0) {
+    return {
+      error: `Não foi possível excluir este tipo porque ele está em uso por ${impacts.join(" e ")}.`,
+    };
+  }
+
+  const { error } = await supabase
+    .from("appointment_types")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/configuracoes");
   revalidatePath("/dashboard/campos-pacientes");

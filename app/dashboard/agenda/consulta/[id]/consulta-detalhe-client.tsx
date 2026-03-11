@@ -141,7 +141,7 @@ export function ConsultaDetalheClient({
 
   return (
     <div className="space-y-6">
-      {/* Controle de início e status (médico ou admin/secretária) */}
+      {/* Controle de início e status (profissional ou admin/Secretário(a)) */}
       {(isDoctor || canEdit) && (
         <Card>
           <CardHeader>
@@ -161,7 +161,7 @@ export function ConsultaDetalheClient({
                   Iniciar consulta
                 </Button>
                 <span className="text-sm text-muted-foreground">
-                  Ao iniciar, a secretária será sinalizada e o tempo de atendimento será contado até marcar como realizada.
+                  Ao iniciar, o Secretário(a) será sinalizado e o tempo de atendimento será contado até marcar como realizada.
                 </span>
               </div>
             )}
@@ -229,7 +229,7 @@ export function ConsultaDetalheClient({
         </Card>
       )}
 
-      {/* Alterar status completo (admin/secretaria) */}
+      {/* Alterar status completo (admin/Secretário(a)) */}
       {canEdit && !isDoctor && (
         <Card>
           <CardHeader>

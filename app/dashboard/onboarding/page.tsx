@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { OnboardingForm } from "./onboarding-form";
 
@@ -17,19 +17,20 @@ export default async function OnboardingPage() {
 
   if (profile?.clinic_id) redirect("/dashboard");
 
-  // Buscar o nome do usuário do user_metadata (preenchido no cadastro)
+  // Buscar o nome do usuÃ¡rio do user_metadata (preenchido no cadastro)
   const userFullName = (user.user_metadata?.full_name as string) || "";
 
   return (
     <div className="max-w-md mx-auto py-12 px-4">
       <h1 className="text-xl font-semibold text-foreground mb-2">
-        Criar sua clínica
+        Criar sua clÃ­nica
       </h1>
       <p className="text-sm text-muted-foreground mb-6">
-        Você será o administrador. Depois poderá convidar médicos e
-        secretárias.
+        VocÃª serÃ¡ o administrador. Depois poderÃ¡ convidar mÃ©dicos e
+        SecretÃ¡rio(a)s.
       </p>
       <OnboardingForm initialFullName={userFullName} />
     </div>
   );
 }
+

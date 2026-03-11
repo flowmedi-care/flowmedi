@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -87,12 +87,12 @@ export function FormularioEditor({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">
-            {isEdit ? "Editar formulário" : "Novo formulário"}
+            {isEdit ? "Editar formulÃ¡rio" : "Novo formulÃ¡rio"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {isEdit 
-              ? "Atualize as informações e campos do formulário"
-              : "Crie um novo formulário para coletar informações dos pacientes"
+              ? "Atualize as informaÃ§Ãµes e campos do formulÃ¡rio"
+              : "Crie um novo formulÃ¡rio para coletar informaÃ§Ãµes dos pacientes"
             }
           </p>
         </div>
@@ -111,18 +111,18 @@ export function FormularioEditor({
           </div>
         )}
 
-        {/* Seção: Informações Básicas */}
+        {/* SeÃ§Ã£o: InformaÃ§Ãµes BÃ¡sicas */}
         <Card>
           <CardHeader>
-            <h2 className="text-lg font-semibold">Informações básicas</h2>
+            <h2 className="text-lg font-semibold">InformaÃ§Ãµes bÃ¡sicas</h2>
             <p className="text-sm text-muted-foreground">
-              Defina o nome e a vinculação do formulário
+              Defina o nome e a vinculaÃ§Ã£o do formulÃ¡rio
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="template_name">
-                Nome do formulário <span className="text-destructive">*</span>
+                Nome do formulÃ¡rio <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="template_name"
@@ -136,7 +136,7 @@ export function FormularioEditor({
             <div className="space-y-2">
               <Label>Procedimentos</Label>
               <p className="text-xs text-muted-foreground mb-2">
-                Selecione os procedimentos que usam este formulário. Ao agendar com um desses procedimentos, o formulário será associado automaticamente.
+                Selecione os procedimentos que usam este formulÃ¡rio. Ao agendar com um desses procedimentos, o formulÃ¡rio serÃ¡ associado automaticamente.
               </p>
               <div className="flex flex-wrap gap-2">
                 {procedures.map((proc) => {
@@ -172,12 +172,12 @@ export function FormularioEditor({
           </CardContent>
         </Card>
 
-        {/* Seção: Configurações Públicas */}
+        {/* SeÃ§Ã£o: ConfiguraÃ§Ãµes PÃºblicas */}
         <Card>
           <CardHeader>
-            <h2 className="text-lg font-semibold">Uso público</h2>
+            <h2 className="text-lg font-semibold">Uso pÃºblico</h2>
             <p className="text-sm text-muted-foreground">
-              Configure se este formulário pode ser compartilhado publicamente
+              Configure se este formulÃ¡rio pode ser compartilhado publicamente
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -191,11 +191,11 @@ export function FormularioEditor({
               />
               <div className="flex-1 space-y-1">
                 <Label htmlFor="is_public" className="cursor-pointer font-medium">
-                  Permitir uso público
+                  Permitir uso pÃºblico
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Quando ativado, este formulário pode ser compartilhado publicamente (ex: Instagram) 
-                  e também pode ser enviado para pacientes agendados.
+                  Quando ativado, este formulÃ¡rio pode ser compartilhado publicamente (ex: Instagram) 
+                  e tambÃ©m pode ser enviado para pacientes agendados.
                 </p>
               </div>
             </div>
@@ -203,7 +203,7 @@ export function FormularioEditor({
             {isPublic && (
               <div className="mt-4 pt-4 border-t border-border space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="public_doctor">Médico associado</Label>
+                  <Label htmlFor="public_doctor">Profissional associado</Label>
                   <select
                     id="public_doctor"
                     className="h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm"
@@ -218,7 +218,7 @@ export function FormularioEditor({
                     ))}
                   </select>
                   <p className="text-xs text-muted-foreground">
-                    A assinatura do médico aparecerá no final do formulário público
+                    A assinatura do mÃ©dico aparecerÃ¡ no final do formulÃ¡rio pÃºblico
                   </p>
                 </div>
               </div>
@@ -226,12 +226,12 @@ export function FormularioEditor({
           </CardContent>
         </Card>
 
-        {/* Seção: Campos do Formulário */}
+        {/* SeÃ§Ã£o: Campos do FormulÃ¡rio */}
         <Card>
           <CardHeader>
-            <h2 className="text-lg font-semibold">Campos do formulário</h2>
+            <h2 className="text-lg font-semibold">Campos do formulÃ¡rio</h2>
             <p className="text-sm text-muted-foreground">
-              Adicione e configure os campos que serão exibidos no formulário
+              Adicione e configure os campos que serÃ£o exibidos no formulÃ¡rio
             </p>
           </CardHeader>
           <CardContent>
@@ -243,7 +243,7 @@ export function FormularioEditor({
           </CardContent>
         </Card>
 
-        {/* Ações */}
+        {/* AÃ§Ãµes */}
         <div className="flex items-center justify-between pt-4 border-t">
           <Link href="/dashboard/formularios">
             <Button type="button" variant="ghost">
@@ -251,10 +251,11 @@ export function FormularioEditor({
             </Button>
           </Link>
           <Button type="submit" disabled={loading} size="lg">
-            {loading ? "Salvando…" : isEdit ? "Salvar alterações" : "Criar formulário"}
+            {loading ? "Salvandoâ€¦" : isEdit ? "Salvar alteraÃ§Ãµes" : "Criar formulÃ¡rio"}
           </Button>
         </div>
       </form>
     </div>
   );
 }
+

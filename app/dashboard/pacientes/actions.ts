@@ -291,3 +291,61 @@ export async function registerPatientFromPublicForm(
   revalidatePath("/dashboard/eventos");
   return { error: null, patientId };
 }
+
+export type PatientConsultationHistoryItem = {
+  id: string;
+  scheduled_at: string;
+  status: string;
+  professional_name: string | null;
+  appointment_type_name: string | null;
+  notes: string | null;
+};
+
+export async function getPatientConsultationHistory(patientId: string, limit = 30): Promise<{
+  data: PatientConsultationHistoryItem[] | null;
+  error: string | null;
+}> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.floor(limit))) : 30;
+  const { data, error } = await supabase
+    .from("appointments")
+    .select(
+      "id, scheduled_at, status, notes, doctor:profiles!doctor_id(full_name), appointment_type:appointment_types(name)"
+    )
+    .eq("clinic_id", profile.clinic_id)
+    .eq("patient_id", patientId)
+    .order("scheduled_at", { ascending: false })
+    .limit(safeLimit);
+
+  if (error) return { data: null, error: error.message };
+
+  const history: PatientConsultationHistoryItem[] = (data ?? []).map((row: any) => {
+    const doctor = Array.isArray(row.doctor) ? row.doctor[0] : row.doctor;
+    const appointmentType = Array.isArray(row.appointment_type)
+      ? row.appointment_type[0]
+      : row.appointment_type;
+    return {
+      id: String(row.id ?? ""),
+      scheduled_at: String(row.scheduled_at ?? ""),
+      status: String(row.status ?? ""),
+      professional_name: doctor?.full_name ? String(doctor.full_name) : null,
+      appointment_type_name: appointmentType?.name ? String(appointmentType.name) : null,
+      notes: row.notes != null ? String(row.notes) : null,
+    };
+  });
+
+  return { data: history, error: null };
+}

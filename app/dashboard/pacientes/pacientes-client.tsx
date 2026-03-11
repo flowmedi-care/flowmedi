@@ -8,7 +8,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { createPatient, updatePatient, deletePatient, registerPatientFromPublicForm, type PatientInsert, type PatientUpdate } from "./actions";
+import {
+  createPatient,
+  updatePatient,
+  deletePatient,
+  registerPatientFromPublicForm,
+  getPatientConsultationHistory,
+  type PatientInsert,
+  type PatientUpdate,
+  type PatientConsultationHistoryItem,
+} from "./actions";
 import { Search, UserPlus, Pencil, Trash2, X, UserCheck, User, Download, FileText, Grid3x3, List, CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPhoneBr, formatPhoneBrInput, parsePhoneBr } from "@/lib/format-phone";
@@ -79,7 +88,10 @@ export function PacientesClient({
   const [error, setError] = useState<string | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientExams, setPatientExams] = useState<PatientExam[]>([]);
+  const [patientHistory, setPatientHistory] = useState<PatientConsultationHistoryItem[]>([]);
   const [loadingExams, setLoadingExams] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [showFullHistory, setShowFullHistory] = useState(false);
   const [viewMode, setViewMode] = useState<"contacts" | "list">("contacts");
   const [justRegisteredPatientId, setJustRegisteredPatientId] = useState<string | null>(null);
   const searchParams = useSearchParams();
@@ -117,6 +129,8 @@ export function PacientesClient({
   useEffect(() => {
     if (selectedPatient) {
       loadPatientExams(selectedPatient.id);
+      loadPatientHistory(selectedPatient.id);
+      setShowFullHistory(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPatient]);
@@ -133,6 +147,18 @@ export function PacientesClient({
     setLoadingExams(false);
   }
 
+  async function loadPatientHistory(patientId: string) {
+    setLoadingHistory(true);
+    const result = await getPatientConsultationHistory(patientId, 100);
+    if (result.error) {
+      setError(result.error);
+      setPatientHistory([]);
+    } else {
+      setPatientHistory(result.data || []);
+    }
+    setLoadingHistory(false);
+  }
+
   async function handleDownloadExam(exam: PatientExam) {
     const result = await getExamSignedUrl(exam.file_url);
     if (result.error) {
@@ -146,6 +172,15 @@ export function PacientesClient({
     if (bytes < 1024) return bytes + " B";
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  function getStatusLabel(status: string): string {
+    if (status === "agendada") return "Agendada";
+    if (status === "confirmada") return "Confirmada";
+    if (status === "realizada") return "Realizada";
+    if (status === "falta") return "Falta";
+    if (status === "cancelada") return "Cancelada";
+    return status;
   }
 
   // Filtrar pacientes em tempo real conforme digita
@@ -828,7 +863,8 @@ export function PacientesClient({
       {selectedPatient && (
         <Dialog open={!!selectedPatient} onOpenChange={(open) => !open && setSelectedPatient(null)}>
           <DialogContent 
-            title={selectedPatient?.full_name || "Detalhes do Paciente"}
+            title={selectedPatient?.full_name || "Resumo do paciente"}
+            className="max-w-full sm:max-w-3xl sm:ml-auto sm:mr-4"
             onClose={() => setSelectedPatient(null)}
           >
             {selectedPatient && (
@@ -888,6 +924,52 @@ export function PacientesClient({
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-border">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-base font-semibold">Histórico de consultas</h3>
+                    {patientHistory.length > 5 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowFullHistory((prev) => !prev)}
+                      >
+                        {showFullHistory ? "Mostrar menos" : "Ver tudo"}
+                      </Button>
+                    )}
+                  </div>
+                  {loadingHistory ? (
+                    <p className="text-sm text-muted-foreground py-2">Carregando histórico...</p>
+                  ) : patientHistory.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">Nenhuma consulta registrada para este paciente.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(showFullHistory ? patientHistory : patientHistory.slice(0, 5)).map((item) => (
+                        <div key={item.id} className="p-3 rounded-md border border-border">
+                          <p className="text-sm font-medium">
+                            {new Date(item.scheduled_at).toLocaleDateString("pt-BR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })}{" "}
+                            {new Date(item.scheduled_at).toLocaleTimeString("pt-BR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.professional_name ? `Profissional: ${item.professional_name}` : "Profissional não informado"}
+                            {item.appointment_type_name ? ` · ${item.appointment_type_name}` : ""}
+                            {` · ${getStatusLabel(item.status)}`}
+                          </p>
+                          {item.notes && (
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.notes}</p>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

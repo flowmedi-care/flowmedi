@@ -515,7 +515,7 @@ export function ConfiguracoesClient({
               {activeComplianceTab === "confirmation" ? (
                 <p className="text-sm text-muted-foreground break-words">
                   Defina quantos dias antes da consulta ela deve estar confirmada. 
-                  Consultas não confirmadas dentro do prazo aparecerão como alerta no dashboard da secretária.
+                  Consultas não confirmadas dentro do prazo aparecerão como alerta no dashboard do Secretário(a).
                   Exemplo: se definir 2 dias, uma consulta agendada para dia 17 deve estar confirmada até dia 15.
                 </p>
               ) : (

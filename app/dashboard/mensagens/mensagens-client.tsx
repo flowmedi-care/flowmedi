@@ -14,12 +14,14 @@ import {
   getMessageTemplates,
   getSystemTemplatesForDisplay,
   getRecentMessageLog,
+  getMessageLogById,
   createMessageTemplateFromSystem,
   type MessageLogEntry,
   type EffectiveTemplateItem,
 } from "./actions";
-import { Mail, MessageSquare, Plus, FileText, Edit, Copy, Send } from "lucide-react";
+import { Mail, MessageSquare, Plus, FileText, Edit, Copy, Send, Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 const CHANNEL_LABELS: Record<string, string> = {
   email: "Email",
@@ -54,6 +56,12 @@ export function MensagensClient() {
   const [testEmailTo, setTestEmailTo] = useState("");
   const [testEmailSending, setTestEmailSending] = useState(false);
   const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [fullHistory, setFullHistory] = useState<MessageLogEntry[]>([]);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewEntry, setPreviewEntry] = useState<MessageLogEntry | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -223,6 +231,20 @@ export function MensagensClient() {
               <Mail className="h-5 w-5 shrink-0" />
               <span className="truncate">Histórico de mensagens enviadas</span>
             </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-h-[36px]"
+              onClick={async () => {
+                setHistoryOpen(true);
+                setHistoryLoading(true);
+                const res = await getRecentMessageLog(100);
+                setFullHistory(res.data ?? []);
+                setHistoryLoading(false);
+              }}
+            >
+              Ver tudo
+            </Button>
           </div>
           <div className="max-h-48 sm:max-h-64 overflow-y-auto overflow-x-hidden space-y-2">
             {recentLog.length === 0 ? (
@@ -236,13 +258,29 @@ export function MensagensClient() {
                     key={entry.id}
                     className="text-sm flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0"
                   >
-                    <span className="truncate">
-                      {entry.patient_name ?? "Paciente"} ·{" "}
-                      {CHANNEL_LABELS[entry.channel] ?? entry.channel}
-                    </span>
-                    <span className="text-muted-foreground text-xs shrink-0">
-                      {formatDate(entry.sent_at)}
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="truncate block">
+                        {entry.patient_name ?? "Paciente"} ·{" "}
+                        {CHANNEL_LABELS[entry.channel] ?? entry.channel}
+                      </span>
+                      <span className="text-muted-foreground text-xs shrink-0">
+                        {formatDate(entry.sent_at)}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={async () => {
+                        setPreviewOpen(true);
+                        setPreviewLoading(true);
+                        const res = await getMessageLogById(entry.id);
+                        setPreviewEntry(res.data ?? entry);
+                        setPreviewLoading(false);
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -378,6 +416,81 @@ export function MensagensClient() {
           </p>
         )}
       </Card>
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent title="Histórico completo de mensagens" onClose={() => setHistoryOpen(false)}>
+          <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+            {historyLoading ? (
+              <p className="text-sm text-muted-foreground">Carregando histórico...</p>
+            ) : fullHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma mensagem encontrada.</p>
+            ) : (
+              <ul className="space-y-2">
+                {fullHistory.map((entry) => (
+                  <li key={entry.id} className="border rounded-md p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {entry.patient_name ?? "Paciente"} ·{" "}
+                          {CHANNEL_LABELS[entry.channel] ?? entry.channel}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(entry.sent_at)} · tipo: {entry.type}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          setPreviewOpen(true);
+                          setPreviewLoading(true);
+                          const res = await getMessageLogById(entry.id);
+                          setPreviewEntry(res.data ?? entry);
+                          setPreviewLoading(false);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        Preview
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent title="Preview da mensagem enviada" onClose={() => setPreviewOpen(false)}>
+          {previewLoading ? (
+            <p className="text-sm text-muted-foreground">Carregando detalhes...</p>
+          ) : !previewEntry ? (
+            <p className="text-sm text-muted-foreground">Não foi possível carregar os detalhes.</p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm">
+                <strong>Paciente:</strong> {previewEntry.patient_name ?? "Paciente"}
+              </p>
+              <p className="text-sm">
+                <strong>Canal:</strong> {CHANNEL_LABELS[previewEntry.channel] ?? previewEntry.channel}
+              </p>
+              <p className="text-sm">
+                <strong>Data/hora:</strong> {formatDate(previewEntry.sent_at)}
+              </p>
+              <p className="text-sm">
+                <strong>Tipo:</strong> {previewEntry.type}
+              </p>
+              <div>
+                <p className="text-sm font-medium mb-2">Payload registrado</p>
+                <pre className="text-xs p-3 rounded-md bg-muted overflow-auto max-h-[40vh]">
+                  {JSON.stringify(previewEntry.metadata ?? {}, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

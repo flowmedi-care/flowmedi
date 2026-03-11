@@ -20,8 +20,9 @@ import {
   type ProcedureRow,
 } from "./actions";
 import { CamposPacientesClient, type CustomFieldRow } from "./campos-pacientes-client";
-import { Plus, Pencil, Check, UserCircle } from "lucide-react";
+import { Plus, Pencil, Check, UserCircle, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type AppointmentTypeRow = {
   id: string;
@@ -51,16 +52,16 @@ export function CamposProcedimentosClient({
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "paciente", label: "Campos de paciente" },
-    { id: "tipos", label: "Tipos de consulta" },
+    { id: "tipos", label: "Tipos de atendimento" },
     { id: "procedimentos", label: "Procedimentos" },
   ];
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Campos e procedimentos</h1>
+        <h1 className="text-xl font-semibold text-foreground">Cadastro clínico</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Campos de paciente, tipos de consulta (ex.: retorno, reagendada) e procedimentos (ex.: endoscopia) com recomendações e vínculo a formulários.
+          Campos do paciente, tipos de atendimento (ex.: retorno, reagendada) e procedimentos (ex.: endoscopia), com recomendações e vínculo a formulários.
         </p>
       </div>
 
@@ -121,6 +122,8 @@ function TiposConsultaSection({
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [duration, setDuration] = useState(30);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [typeToDelete, setTypeToDelete] = useState<AppointmentTypeRow | null>(null);
 
   const showForm = isNew || editingId !== null;
 
@@ -189,9 +192,9 @@ function TiposConsultaSection({
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-lg font-semibold">Tipos de consulta</h2>
+            <h2 className="text-lg font-semibold">Tipos de atendimento</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Ex.: primeira vez, retorno, reagendada. A secretária escolhe ao agendar; formulários podem ser vinculados por tipo ou por procedimento.
+              Ex.: primeira vez, retorno, reagendada. O Secretário(a) escolhe ao agendar; formulários podem ser vinculados por tipo ou por procedimento.
             </p>
           </div>
           {!showForm && (
@@ -271,19 +274,51 @@ function TiposConsultaSection({
                     {t.duration_minutes} min
                   </span>
                 </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => openEdit(t)}
-                  className="shrink-0"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEdit(t)}
+                    className="shrink-0"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setTypeToDelete(t)}
+                    className="text-destructive hover:text-destructive"
+                    disabled={deletingId === t.id}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
         )}
       </CardContent>
+      <ConfirmDialog
+        open={!!typeToDelete}
+        title="Excluir tipo de atendimento"
+        message={`Tem certeza que deseja excluir "${typeToDelete?.name ?? ""}"?`}
+        confirmLabel="Excluir"
+        variant="destructive"
+        loading={deletingId !== null}
+        onCancel={() => setTypeToDelete(null)}
+        onConfirm={async () => {
+          if (!typeToDelete) return;
+          setDeletingId(typeToDelete.id);
+          const res = await deleteAppointmentType(typeToDelete.id);
+          setDeletingId(null);
+          if (res.error) {
+            setError(res.error);
+            return;
+          }
+          setTypeToDelete(null);
+          onMutate();
+        }}
+      />
     </Card>
   );
 }
@@ -310,6 +345,8 @@ function ProcedimentosSection({
   const [name, setName] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [selectedDoctorIds, setSelectedDoctorIds] = useState<Set<string>>(new Set());
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [procedureToDelete, setProcedureToDelete] = useState<ProcedureRow | null>(null);
 
   const showForm = isNew || editingId !== null;
 
@@ -449,9 +486,9 @@ function ProcedimentosSection({
             </div>
             {doctors.length > 0 && (
               <div className="space-y-2">
-                <Label>Médicos que realizam este procedimento</Label>
+                <Label>Profissionais que realizam este procedimento</Label>
                 <p className="text-xs text-muted-foreground">
-                  Usado no roteamento do chatbot WhatsApp: ao escolher "Agendar" e este procedimento, a conversa será encaminhada às secretárias desses médicos.
+                  Usado no roteamento do chatbot WhatsApp: ao escolher "Agendar" e este procedimento, a conversa será encaminhada para a equipe de Secretário(a) desses profissionais.
                 </p>
                 <ul className="flex flex-wrap gap-2 mt-2">
                   {doctors.map((d) => (
@@ -511,7 +548,7 @@ function ProcedimentosSection({
                   <strong>{p.name}</strong>
                   {linkedDoctors.length > 0 && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Médicos: {linkedDoctors.map((d) => d.full_name).join(", ")}
+                      Profissionais: {linkedDoctors.map((d) => d.full_name).join(", ")}
                     </p>
                   )}
                   {p.recommendations && (
@@ -520,20 +557,52 @@ function ProcedimentosSection({
                     </p>
                   )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => openEdit(p)}
-                  className="shrink-0"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEdit(p)}
+                    className="shrink-0"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setProcedureToDelete(p)}
+                    className="text-destructive hover:text-destructive"
+                    disabled={deletingId === p.id}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </li>
             );
             })}
           </ul>
         )}
       </CardContent>
+      <ConfirmDialog
+        open={!!procedureToDelete}
+        title="Excluir procedimento"
+        message={`Tem certeza que deseja excluir "${procedureToDelete?.name ?? ""}"?`}
+        confirmLabel="Excluir"
+        variant="destructive"
+        loading={deletingId !== null}
+        onCancel={() => setProcedureToDelete(null)}
+        onConfirm={async () => {
+          if (!procedureToDelete) return;
+          setDeletingId(procedureToDelete.id);
+          const res = await deleteProcedure(procedureToDelete.id);
+          setDeletingId(null);
+          if (res.error) {
+            setError(res.error);
+            return;
+          }
+          setProcedureToDelete(null);
+          onMutate();
+        }}
+      />
     </Card>
   );
 }

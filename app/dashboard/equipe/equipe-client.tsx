@@ -29,8 +29,8 @@ type Invite = {
 
 const ROLE_LABEL: Record<string, string> = {
   admin: "Administrador",
-  medico: "Médico",
-  secretaria: "Secretária",
+  medico: "Profissional",
+  secretaria: "Secretário(a)",
 };
 
 export function EquipeClient({
@@ -139,8 +139,8 @@ export function EquipeClient({
                 value={role}
                 onChange={(e) => setRole(e.target.value as "medico" | "secretaria")}
               >
-                <option value="medico">Médico</option>
-                <option value="secretaria">Secretária</option>
+                <option value="medico">Profissional</option>
+                <option value="secretaria">Secretário(a)</option>
               </select>
             </div>
             <Button type="submit" disabled={loading}>
@@ -229,9 +229,9 @@ export function EquipeClient({
       {secretariasMedicos && (
         <Card>
           <CardHeader>
-            <h2 className="font-medium text-foreground">Médicos por secretária</h2>
+            <h2 className="font-medium text-foreground">Profissionais por Secretário(a)</h2>
             <p className="text-sm text-muted-foreground">
-              Defina quais médicos cada secretária atende. Na agenda, a secretária verá apenas esses médicos. Se nenhum for marcado, ela vê todos.
+              Defina quais profissionais cada Secretário(a) atende. Na agenda, o Secretário(a) verá apenas esses profissionais. Se nenhum for marcado, verá todos.
             </p>
           </CardHeader>
           <CardContent>

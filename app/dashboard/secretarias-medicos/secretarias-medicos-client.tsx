@@ -97,7 +97,7 @@ export function SecretariasMedicosClient({
       <Card>
         <CardContent className="pt-6">
           <p className="text-sm text-muted-foreground">
-            Não há secretárias na equipe. Convide uma secretária em Equipe para configurar quais médicos ela atende.
+            Não há Secretário(a) na equipe. Convide um Secretário(a) em Equipe para configurar quais profissionais ele(a) atende.
           </p>
         </CardContent>
       </Card>
@@ -108,7 +108,7 @@ export function SecretariasMedicosClient({
     <div className="grid gap-6 md:grid-cols-[240px_1fr]">
       <Card>
         <CardHeader>
-          <h2 className="text-sm font-medium text-foreground">Secretária</h2>
+          <h2 className="text-sm font-medium text-foreground">Secretário(a)</h2>
         </CardHeader>
         <CardContent className="pt-0">
           <ul className="space-y-1">
@@ -136,9 +136,9 @@ export function SecretariasMedicosClient({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
-            <h2 className="text-sm font-medium text-foreground">Médicos que esta secretária atende</h2>
+            <h2 className="text-sm font-medium text-foreground">Profissionais que este Secretário(a) atende</h2>
             <p className="text-xs text-muted-foreground mt-1">
-              Se nenhum for marcado, ela verá todos os médicos na agenda.
+              Se nenhum for marcado, ele(a) verá todos os profissionais na agenda.
             </p>
           </div>
           <div className="flex gap-2">
@@ -185,7 +185,7 @@ export function SecretariasMedicosClient({
             })}
           </div>
           {doctors.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nenhum médico na clínica. Convide em Equipe.</p>
+            <p className="text-sm text-muted-foreground">Nenhum profissional na clínica. Convide em Equipe.</p>
           )}
           {hasChanges && (
             <Button onClick={handleSave} disabled={isPending}>
