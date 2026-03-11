@@ -283,6 +283,11 @@ export function AdminReportsClient({
   const searchParams = useSearchParams();
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
+  const sectionTitleClass = "text-base font-semibold";
+  const sectionDescClass = "text-sm text-muted-foreground";
+  const tableClass = "w-full text-sm";
+  const thClass = "py-2.5 font-medium";
+  const tdClass = "py-2.5";
   const statusClass = (s: "ok" | "warning" | "critical") =>
     s === "ok"
       ? "bg-green-100 text-green-700"
@@ -411,14 +416,14 @@ export function AdminReportsClient({
           </div>
           <Card>
             <CardHeader>
-              <span className="font-semibold">Crescimento vs período anterior</span>
+              <span className="font-semibold">Variação do período</span>
               <p className="text-sm text-muted-foreground">{visaoGeral.crescimento}%</p>
             </CardHeader>
           </Card>
           <Card>
-            <CardHeader>
-              <span className="font-semibold">Funil operacional</span>
-              <p className="text-sm text-muted-foreground">Agendada → Confirmada → Compareceu → Retorno agendado</p>
+            <CardHeader className="space-y-1">
+              <span className={sectionTitleClass}>Funil operacional</span>
+              <p className={sectionDescClass}>Agendada → Confirmada → Compareceu → Retorno agendado</p>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -446,9 +451,9 @@ export function AdminReportsClient({
           </Card>
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
-              <CardHeader>
-                <span className="font-semibold">Metas da clínica</span>
-                <p className="text-sm text-muted-foreground">Status atual e tendência vs últimos 30 dias.</p>
+              <CardHeader className="space-y-1">
+                <span className={sectionTitleClass}>Metas da clínica</span>
+                <p className={sectionDescClass}>Status atual e tendência vs últimos 30 dias.</p>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -473,9 +478,9 @@ export function AdminReportsClient({
               </CardContent>
             </Card>
             <Card>
-              <CardHeader>
-                <span className="font-semibold">Alertas automáticos</span>
-                <p className="text-sm text-muted-foreground">Priorize os itens críticos primeiro.</p>
+              <CardHeader className="space-y-1">
+                <span className={sectionTitleClass}>Alertas automáticos</span>
+                <p className={sectionDescClass}>Priorize os itens críticos primeiro.</p>
               </CardHeader>
               <CardContent>
                 {visaoGeral.alertas.length === 0 ? (
@@ -525,9 +530,9 @@ export function AdminReportsClient({
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <span className="font-semibold">Resumo executivo da semana</span>
-              <p className="text-sm text-muted-foreground">
+            <CardHeader className="space-y-1">
+              <span className={sectionTitleClass}>Resumo executivo da semana</span>
+              <p className={sectionDescClass}>
                 O que mudou, por que importa e qual ação tomar hoje.
               </p>
             </CardHeader>
@@ -548,9 +553,9 @@ export function AdminReportsClient({
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <span className="font-semibold">Briefing executivo automático</span>
-              <p className="text-sm text-muted-foreground">3 vitórias, 3 riscos e 3 ações recomendadas.</p>
+            <CardHeader className="space-y-1">
+              <span className={sectionTitleClass}>Briefing executivo automático</span>
+              <p className={sectionDescClass}>3 vitórias, 3 riscos e 3 ações recomendadas.</p>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 lg:grid-cols-3">
@@ -583,9 +588,9 @@ export function AdminReportsClient({
           </Card>
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
-              <CardHeader>
-                <span className="font-semibold">Top pacientes com risco de no-show</span>
-                <p className="text-sm text-muted-foreground">
+              <CardHeader className="space-y-1">
+                <span className={sectionTitleClass}>Top pacientes com risco de no-show</span>
+                <p className={sectionDescClass}>
                   Priorize contato hoje para reduzir faltas da próxima semana.
                 </p>
               </CardHeader>
@@ -617,9 +622,9 @@ export function AdminReportsClient({
               </CardContent>
             </Card>
             <Card>
-              <CardHeader>
-                <span className="font-semibold">Horários com maior ociosidade</span>
-                <p className="text-sm text-muted-foreground">
+              <CardHeader className="space-y-1">
+                <span className={sectionTitleClass}>Horários com maior ociosidade</span>
+                <p className={sectionDescClass}>
                   Sugestões de encaixe para aumentar ocupação.
                 </p>
               </CardHeader>
@@ -641,102 +646,16 @@ export function AdminReportsClient({
               </CardContent>
             </Card>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <span className="font-semibold">Funil por profissional</span>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="py-2 text-left">Profissional</th>
-                        <th className="py-2 text-right">Confirmação</th>
-                        <th className="py-2 text-right">Comparecimento</th>
-                        <th className="py-2 text-right">Retorno</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visaoGeral.funilPorProfissional.slice(0, 8).map((row) => (
-                        <tr key={row.id} className="border-b border-border/50">
-                          <td className="py-2">{row.label}</td>
-                          <td className="py-2 text-right">{row.taxaConfirmacao}%</td>
-                          <td className="py-2 text-right">{row.taxaComparecimento}%</td>
-                          <td className="py-2 text-right">{row.taxaRetorno}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <span className="font-semibold">Funil por atendente</span>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="py-2 text-left">Atendente</th>
-                        <th className="py-2 text-right">Confirmação</th>
-                        <th className="py-2 text-right">Comparecimento</th>
-                        <th className="py-2 text-right">Retorno</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visaoGeral.funilPorAtendente.slice(0, 8).map((row) => (
-                        <tr key={row.id} className="border-b border-border/50">
-                          <td className="py-2">{row.label}</td>
-                          <td className="py-2 text-right">{row.taxaConfirmacao}%</td>
-                          <td className="py-2 text-right">{row.taxaComparecimento}%</td>
-                          <td className="py-2 text-right">{row.taxaRetorno}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <span className="font-semibold">Funil por origem</span>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  {visaoGeral.funilPorOrigem.map((row) => (
-                    <div key={row.id} className="rounded-md border border-border p-2 flex items-center justify-between">
-                      <span>{row.label}</span>
-                      <span className="text-muted-foreground">
-                        Conf {row.taxaConfirmacao}% · Comp {row.taxaComparecimento}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <span className="font-semibold">Funil por tipo de consulta</span>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  {visaoGeral.funilPorTipoConsulta.slice(0, 8).map((row) => (
-                    <div key={row.id} className="rounded-md border border-border p-2 flex items-center justify-between">
-                      <span>{row.label}</span>
-                      <span className="text-muted-foreground">
-                        Conf {row.taxaConfirmacao}% · Comp {row.taxaComparecimento}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader>
+              <span className="font-semibold">Detalhamento por área</span>
+              <p className="text-sm text-muted-foreground">
+                Para evitar duplicidade, os detalhes ficam separados nas abas:{" "}
+                <strong>Por Profissional</strong>, <strong>Produtividade da Equipe</strong> e{" "}
+                <strong>Operacional</strong>.
+              </p>
+            </CardHeader>
+          </Card>
           {visaoGeral.chartData.length > 0 && (
             <Card>
               <CardHeader>
@@ -766,6 +685,14 @@ export function AdminReportsClient({
 
       {activeTab === "profissional" && porProfissional && (
         <div className="space-y-4">
+          <Card>
+            <CardHeader className="space-y-1">
+              <span className={sectionTitleClass}>Performance por profissional</span>
+              <p className={sectionDescClass}>
+                Objetivo: identificar quem precisa ação imediata e quem está puxando resultado.
+              </p>
+            </CardHeader>
+          </Card>
           <div className="grid gap-4 sm:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
@@ -793,34 +720,34 @@ export function AdminReportsClient({
             </Card>
           </div>
           <Card>
-            <CardHeader>
-              <span className="font-semibold">Métricas por profissional</span>
-              <p className="text-sm text-muted-foreground">Funil, no-show, retorno e ação recomendada por médico</p>
+            <CardHeader className="space-y-1">
+              <span className={sectionTitleClass}>Painel operacional por médico</span>
+              <p className={sectionDescClass}>Funil, no-show, retorno e status por profissional</p>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className={tableClass}>
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="text-left py-3 font-medium">Profissional</th>
-                      <th className="text-right py-3 font-medium">Total</th>
-                      <th className="text-right py-3 font-medium">Conf.</th>
-                      <th className="text-right py-3 font-medium">Comparecimento</th>
-                      <th className="text-right py-3 font-medium">No-show</th>
-                      <th className="text-right py-3 font-medium">Retorno</th>
-                      <th className="text-right py-3 font-medium">Status</th>
+                      <th className={`text-left ${thClass}`}>Profissional</th>
+                      <th className={`text-right ${thClass}`}>Total</th>
+                      <th className={`text-right ${thClass}`}>Conf.</th>
+                      <th className={`text-right ${thClass}`}>Comparecimento</th>
+                      <th className={`text-right ${thClass}`}>No-show</th>
+                      <th className={`text-right ${thClass}`}>Retorno</th>
+                      <th className={`text-right ${thClass}`}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {porProfissional.rows.map((row) => (
                       <tr key={row.doctorId} className="border-b border-border/50">
-                        <td className="py-3 font-medium">{row.full_name}</td>
-                        <td className="text-right py-3">{row.total}</td>
-                        <td className="text-right py-3">{row.taxaConfirmacao}%</td>
-                        <td className="text-right py-3">{row.taxaComparecimento}%</td>
-                        <td className="text-right py-3">{row.taxaNoShow}%</td>
-                        <td className="text-right py-3">{row.taxaRetorno}%</td>
-                        <td className="text-right py-3">
+                        <td className={`${tdClass} font-medium`}>{row.full_name}</td>
+                        <td className={`text-right ${tdClass}`}>{row.total}</td>
+                        <td className={`text-right ${tdClass}`}>{row.taxaConfirmacao}%</td>
+                        <td className={`text-right ${tdClass}`}>{row.taxaComparecimento}%</td>
+                        <td className={`text-right ${tdClass}`}>{row.taxaNoShow}%</td>
+                        <td className={`text-right ${tdClass}`}>{row.taxaRetorno}%</td>
+                        <td className={`text-right ${tdClass}`}>
                           <span className={cn("rounded px-2 py-1 text-xs font-medium", statusClass(row.status))}>
                             {row.status}
                           </span>
@@ -838,7 +765,7 @@ export function AdminReportsClient({
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>
-                <span className="font-semibold">Top performance</span>
+                <span className="font-semibold">Destaques de performance</span>
               </CardHeader>
               <CardContent className="space-y-2">
                 {porProfissional.topPerformance.map((row) => (
@@ -851,7 +778,7 @@ export function AdminReportsClient({
             </Card>
             <Card>
               <CardHeader>
-                <span className="font-semibold">Pontos de atenção</span>
+                <span className="font-semibold">Riscos por profissional</span>
               </CardHeader>
               <CardContent className="space-y-2">
                 {porProfissional.pontosAtencao.length === 0 ? (
@@ -872,6 +799,14 @@ export function AdminReportsClient({
 
       {activeTab === "atendente" && porAtendente && (
         <div className="space-y-4">
+          <Card>
+            <CardHeader className="space-y-1">
+              <span className={sectionTitleClass}>Performance da equipe de atendimento</span>
+              <p className={sectionDescClass}>
+                Objetivo: melhorar confirmação e reduzir faltas por rotina operacional.
+              </p>
+            </CardHeader>
+          </Card>
           <div className="grid gap-4 sm:grid-cols-2">
             <Card>
               <CardHeader className="pb-2">
@@ -891,32 +826,32 @@ export function AdminReportsClient({
             </Card>
           </div>
           <Card>
-            <CardHeader>
-              <span className="font-semibold">Produtividade por atendente</span>
-              <p className="text-sm text-muted-foreground">Funil por atendente com status e ação recomendada</p>
+            <CardHeader className="space-y-1">
+              <span className={sectionTitleClass}>Painel operacional por atendente</span>
+              <p className={sectionDescClass}>Funil com status e ação recomendada por pessoa</p>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className={tableClass}>
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="text-left py-3 font-medium">Atendente</th>
-                      <th className="text-right py-3 font-medium">Criados</th>
-                      <th className="text-right py-3 font-medium">Conf.</th>
-                      <th className="text-right py-3 font-medium">Comparecimento</th>
-                      <th className="text-right py-3 font-medium">No-show</th>
-                      <th className="text-right py-3 font-medium">Status</th>
+                      <th className={`text-left ${thClass}`}>Atendente</th>
+                      <th className={`text-right ${thClass}`}>Criados</th>
+                      <th className={`text-right ${thClass}`}>Conf.</th>
+                      <th className={`text-right ${thClass}`}>Comparecimento</th>
+                      <th className={`text-right ${thClass}`}>No-show</th>
+                      <th className={`text-right ${thClass}`}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {porAtendente.rows.map((row) => (
                       <tr key={row.userId} className="border-b border-border/50">
-                        <td className="py-3 font-medium">{row.full_name}</td>
-                        <td className="text-right py-3">{row.agendamentosCriados}</td>
-                        <td className="text-right py-3">{row.taxaConfirmacao}%</td>
-                        <td className="text-right py-3">{row.taxaComparecimento}%</td>
-                        <td className="text-right py-3">{row.taxaNoShow}%</td>
-                        <td className="text-right py-3">
+                        <td className={`${tdClass} font-medium`}>{row.full_name}</td>
+                        <td className={`text-right ${tdClass}`}>{row.agendamentosCriados}</td>
+                        <td className={`text-right ${tdClass}`}>{row.taxaConfirmacao}%</td>
+                        <td className={`text-right ${tdClass}`}>{row.taxaComparecimento}%</td>
+                        <td className={`text-right ${tdClass}`}>{row.taxaNoShow}%</td>
+                        <td className={`text-right ${tdClass}`}>
                           <span className={cn("rounded px-2 py-1 text-xs font-medium", statusClass(row.status))}>
                             {row.status}
                           </span>
@@ -947,7 +882,7 @@ export function AdminReportsClient({
             </Card>
             <Card>
               <CardHeader>
-                <span className="font-semibold">Ação prioritária hoje</span>
+                <span className="font-semibold">Riscos da equipe e ação hoje</span>
               </CardHeader>
               <CardContent className="space-y-2">
                 {porAtendente.alertas.length === 0 ? (
@@ -969,9 +904,9 @@ export function AdminReportsClient({
       {activeTab === "financeiro" && financeiro && (
         <div className="space-y-4">
           <Card>
-            <CardHeader>
-              <span className="font-semibold">Financeiro</span>
-              <p className="text-sm text-muted-foreground">{financeiro.mensagem}</p>
+            <CardHeader className="space-y-1">
+              <span className={sectionTitleClass}>Performance financeira</span>
+              <p className={sectionDescClass}>{financeiro.mensagem}</p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1137,6 +1072,14 @@ export function AdminReportsClient({
 
       {activeTab === "operacional" && operacional && (
         <div className="space-y-4">
+          <Card>
+            <CardHeader className="space-y-1">
+              <span className={sectionTitleClass}>Eficiência operacional</span>
+              <p className={sectionDescClass}>
+                Objetivo: reduzir ociosidade, no-show e cancelamentos com ações diárias.
+              </p>
+            </CardHeader>
+          </Card>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
