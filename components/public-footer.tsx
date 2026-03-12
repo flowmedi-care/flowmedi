@@ -7,7 +7,7 @@ export function PublicFooter() {
       <div className="container mx-auto px-4 py-12">
         <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
           <div className="space-y-4">
-            <FlowmediLogo href="/" showText={true} size="md" />
+            <FlowmediLogo href="/" showText={true} size="sm" />
             <p className="max-w-xs text-sm text-muted-foreground">
               Agenda, formulários e comunicação para sua clínica. Simples e em conformidade com a LGPD.
             </p>

@@ -11,7 +11,7 @@ export function PublicHeader({ variant = "default" }: PublicHeaderProps) {
     return (
       <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <FlowmediLogo size="md" />
+          <FlowmediLogo size="sm" />
         </div>
       </header>
     );
@@ -20,7 +20,7 @@ export function PublicHeader({ variant = "default" }: PublicHeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <FlowmediLogo size="md" />
+        <FlowmediLogo size="sm" />
         <nav className="flex items-center gap-1 sm:gap-4">
           <Link
             href="/precos"
