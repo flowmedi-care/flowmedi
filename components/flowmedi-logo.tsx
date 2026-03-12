@@ -31,7 +31,7 @@ export function FlowmediLogo({
   const content = (
     <>
       <svg
-        viewBox="0 0 40 40"
+        viewBox="0 0 64 64"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="shrink-0"
@@ -42,37 +42,53 @@ export function FlowmediLogo({
         <defs>
           <linearGradient
             id={gradId}
-            x1="0"
-            y1="0"
-            x2="40"
-            y2="40"
+            x1="8"
+            y1="56"
+            x2="56"
+            y2="8"
             gradientUnits="userSpaceOnUse"
           >
             <stop stopColor={variant === "light" ? "hsl(0 0% 100%)" : "hsl(var(--primary))"} />
-            <stop offset="1" stopColor={variant === "light" ? "hsl(0 0% 90%)" : "hsl(160 84% 30%)"} />
+            <stop offset="1" stopColor={variant === "light" ? "hsl(0 0% 88%)" : "hsl(198 88% 45%)"} />
           </linearGradient>
         </defs>
-        {/* Rounded container */}
+
         <rect
-          x="2"
-          y="2"
-          width="36"
-          height="36"
+          x="4"
+          y="4"
+          width="56"
+          height="56"
           rx="10"
-          fill={variant === "light" ? "rgba(255,255,255,0.15)" : "hsl(var(--primary) / 0.12)"}
-        />
-        {/* Heartbeat / EKG wave - medical + flow */}
-        <path
-          d="M8 26 L12 26 L14 20 L16 26 L18 18 L20 26 L24 26 L26 22 L28 26 L30 20 L32 26 L34 26"
           stroke={`url(#${gradId})`}
-          strokeWidth="2.2"
+          strokeWidth="4"
+          fill="none"
+        />
+
+        <path
+          d="M18 22h4v-4h4v4h4v4h-4v4h-4v-4h-4z"
+          stroke={`url(#${gradId})`}
+          strokeWidth="3"
+          strokeLinejoin="round"
+          fill="none"
+        />
+
+        <path
+          d="M15 36h12l3-6 4 12 4-17 4 13 3-6h8"
+          stroke={`url(#${gradId})`}
+          strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"
         />
-        {/* Small pulse dot */}
-        <circle cx="8" cy="26" r="1.5" fill={`url(#${gradId})`} />
-        <circle cx="34" cy="26" r="1.5" fill={`url(#${gradId})`} />
+
+        <path
+          d="M37 47v7M44 43v11M51 39v15M44 43h7l8-9"
+          stroke={`url(#${gradId})`}
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
       </svg>
       {showText && (
         <span

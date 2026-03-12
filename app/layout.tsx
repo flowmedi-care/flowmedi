@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   title: "FlowMedi — Agenda e formulários para sua clínica",
   description:
     "Centralize agenda, formulários clínicos e comunicação com o paciente. Autenticação, papéis e LGPD.",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export const viewport = {

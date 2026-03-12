@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <defs>
-    <linearGradient id="flowmediGradient" x1="8" y1="56" x2="56" y2="8" gradientUnits="userSpaceOnUse">
+    <linearGradient id="flowmediFaviconGradient" x1="8" y1="56" x2="56" y2="8" gradientUnits="userSpaceOnUse">
       <stop stop-color="#00D221" />
       <stop offset="1" stop-color="#0A8FD9" />
     </linearGradient>
@@ -12,14 +12,14 @@
     width="56"
     height="56"
     rx="10"
-    stroke="url(#flowmediGradient)"
+    stroke="url(#flowmediFaviconGradient)"
     stroke-width="4"
     fill="none"
   />
 
   <path
     d="M18 22h4v-4h4v4h4v4h-4v4h-4v-4h-4z"
-    stroke="url(#flowmediGradient)"
+    stroke="url(#flowmediFaviconGradient)"
     stroke-width="3"
     stroke-linejoin="round"
     fill="none"
@@ -27,18 +27,16 @@
 
   <path
     d="M15 36h12l3-6 4 12 4-17 4 13 3-6h8"
-    stroke="url(#flowmediGradient)"
+    stroke="url(#flowmediFaviconGradient)"
     stroke-width="3"
     stroke-linecap="round"
     stroke-linejoin="round"
     fill="none"
   />
 
-  <path d="M37 47v7M44 43v11M51 39v15" stroke="url(#flowmediGradient)" stroke-width="3" stroke-linecap="round" />
-
   <path
-    d="M44 43h7l8-9"
-    stroke="url(#flowmediGradient)"
+    d="M37 47v7M44 43v11M51 39v15M44 43h7l8-9"
+    stroke="url(#flowmediFaviconGradient)"
     stroke-width="3"
     stroke-linecap="round"
     stroke-linejoin="round"
