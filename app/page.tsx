@@ -32,7 +32,7 @@ export default function HomePage() {
                 <span className="text-primary">comunicação</span> para sua clínica
               </h1>
               <p className="mt-6 text-lg text-muted-foreground sm:text-xl max-w-2xl mx-auto leading-relaxed">
-                Centralize a agenda por médico, envie formulários clínicos ao paciente
+                Centralize a agenda por profissional, envie formulários clínicos ao paciente
                 e mantenha tudo organizado com confirmações e LGPD em dia.
               </p>
               <div className="mt-10 flex flex-wrap gap-4 justify-center">
@@ -49,7 +49,7 @@ export default function HomePage() {
                 </Link>
               </div>
               <p className="mt-6 text-sm text-muted-foreground">
-                Plano Starter gratuito • 1 médico • Até 50 consultas/mês
+                Plano Starter gratuito • 1 profissional • Até 50 consultas/mês
               </p>
             </div>
           </div>
@@ -73,7 +73,7 @@ export default function HomePage() {
                 </div>
                 <h3 className="font-semibold text-foreground">Agenda central</h3>
                 <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                  Agenda por médico, visualização diária, semanal e mensal.
+                  Agenda por profissional, visualização diária, semanal e mensal.
                   Status: agendada, confirmada, realizada, falta.
                 </p>
               </div>
@@ -84,7 +84,7 @@ export default function HomePage() {
                 <h3 className="font-semibold text-foreground">Formulários clínicos</h3>
                 <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
                   Construtor de formulários personalizados vinculados a tipos de
-                  consulta. Respostas no painel do médico.
+                  consulta. Respostas no painel do profissional.
                 </p>
               </div>
               <div className="group rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
@@ -119,8 +119,8 @@ export default function HomePage() {
                 Simples para toda a equipe
               </h2>
               <p className="mt-4 text-muted-foreground">
-                Cada perfil com o que precisa: Admin configura, Secretária agenda e envia,
-                Médico acompanha agenda e dados do paciente.
+                Cada perfil com o que precisa: Admin configura, Secretário(a) agenda e envia,
+                Profissional acompanha agenda e dados do paciente.
               </p>
               <div className="mt-8 flex flex-wrap gap-4">
                 <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-4 py-2">
@@ -130,12 +130,12 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-4 py-2">
                   <CheckCircle2 className="h-5 w-5 text-primary" />
-                  <span className="text-sm font-medium">Secretária</span>
+                  <span className="text-sm font-medium">Secretário(a)</span>
                   <span className="text-sm text-muted-foreground">— Agenda e formulários</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-4 py-2">
                   <CheckCircle2 className="h-5 w-5 text-primary" />
-                  <span className="text-sm font-medium">Médico</span>
+                  <span className="text-sm font-medium">Profissional</span>
                   <span className="text-sm text-muted-foreground">— Agenda e paciente</span>
                 </div>
               </div>

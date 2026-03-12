@@ -200,7 +200,7 @@ export function SecretariaDashboardClient({
         </div>
       )}
 
-      {/* Consultas em andamento (médico iniciou a consulta) */}
+      {/* Consultas em andamento (profissional iniciou a consulta) */}
       {ongoingConsultations.length > 0 && (
         <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
           <CardHeader className="flex flex-row items-center gap-2 pb-3">
@@ -217,7 +217,7 @@ export function SecretariaDashboardClient({
           </CardHeader>
           <CardContent>
             <p className="text-sm text-amber-800 dark:text-amber-200 mb-4">
-              O médico chamou o paciente. Consulta iniciada — aguardando ser marcada como realizada.
+              O profissional chamou o paciente. Consulta iniciada — aguardando ser marcada como realizada.
             </p>
             <div className="space-y-2">
               {ongoingConsultations.map((appointment) => {

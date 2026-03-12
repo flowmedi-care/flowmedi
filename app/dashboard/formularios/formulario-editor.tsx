@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -218,7 +218,7 @@ export function FormularioEditor({
                     ))}
                   </select>
                   <p className="text-xs text-muted-foreground">
-                    A assinatura do médico aparecerá no final do formulário público
+                    A assinatura do profissional aparecerá no final do formulário público
                   </p>
                 </div>
               </div>

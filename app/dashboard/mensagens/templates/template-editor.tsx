@@ -449,7 +449,7 @@ export function TemplateEditor({
                   id="whatsapp_meta_phrase"
                   value={whatsappMetaPhrase}
                   onChange={(e) => setWhatsappMetaPhrase(e.target.value)}
-                  placeholder="Ex.: Sua consulta foi agendada. (Data e médico serão adicionados automaticamente. Usado quando o paciente não respondeu nas últimas 24h)"
+                  placeholder="Ex.: Sua consulta foi agendada. (Data e profissional serão adicionados automaticamente. Usado quando o paciente não respondeu nas últimas 24h)"
                   rows={4}
                   className="font-mono text-sm"
                 />

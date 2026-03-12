@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -18,14 +18,14 @@ const STRATEGY_DESCRIPTIONS: Record<RoutingStrategy, string> = {
   round_robin:
     "Cada nova conversa é atribuída automaticamente à Secretário(a) com menos conversas abertas. Distribui a carga de forma equilibrada. Ideal para equipes com várias Secretário(a)s.",
   chatbot:
-    "O paciente recebe um menu inicial: 1) Agendar, 2) Remarcar, 3) Cancelar, 4) Falar com atendente. O fluxo direciona para a Secretário(a) certa conforme procedimento e vínculos (médico↔procedimento, Secretário(a)↔médico). Para casos sem Secretário(a) definida ou com múltiplas opções, use o roteamento de apoio abaixo.",
+    "O paciente recebe um menu inicial: 1) Agendar, 2) Remarcar, 3) Cancelar, 4) Falar com atendente. O fluxo direciona para o Secretário(a) certo conforme procedimento e vínculos (profissional↔procedimento, Secretário(a)↔profissional). Para casos sem Secretário(a) definida ou com múltiplas opções, use o roteamento de apoio abaixo.",
 };
 
 const FALLBACK_DESCRIPTIONS: Record<ChatbotFallback, string> = {
   first_responder:
-    "As conversas vão para um pool: todas as Secretário(a)s elegíveis veem e a primeira que responder assume. Casos: opção 2/3 sem paciente vinculado, opção 4 (Falar com atendente), procedimento com 0 ou vários médicos/Secretário(a)s.",
+    "As conversas vão para um pool: todas as Secretário(a)s elegíveis veem e a primeira que responder assume. Casos: opção 2/3 sem paciente vinculado, opção 4 (Falar com atendente), procedimento com 0 ou vários profissionais/Secretário(a)s.",
   round_robin:
-    "As conversas são atribuídas à Secretário(a) com menos conversas abertas. Casos: opção 2/3 sem paciente vinculado, opção 4 (Falar com atendente), procedimento com 0 ou vários médicos/Secretário(a)s.",
+    "As conversas são atribuídas à Secretário(a) com menos conversas abertas. Casos: opção 2/3 sem paciente vinculado, opção 4 (Falar com atendente), procedimento com 0 ou vários profissionais/Secretário(a)s.",
 };
 
 interface WhatsAppRoutingSectionProps {
@@ -121,7 +121,7 @@ export function WhatsAppRoutingSection({ clinicId }: WhatsAppRoutingSectionProps
           <div className="space-y-2">
             <Label>Roteamento de apoio (chatbot)</Label>
             <p className="text-xs text-muted-foreground">
-              Usado quando não há Secretário(a) definida (opções 2, 3, 4) ou quando o procedimento tem vários médicos/Secretário(a)s.
+              Usado quando não há Secretário(a) definida (opções 2, 3, 4) ou quando o procedimento tem vários profissionais/Secretário(a)s.
             </p>
             <Select
               value={chatbotFallback}

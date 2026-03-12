@@ -241,7 +241,7 @@ export function WhatsAppContactSidebar({
                       onChange={(e) => setForwardSecretaryId(e.target.value)}
                       className="flex-1"
                     >
-                      <option value="">Selecionar secretária...</option>
+                      <option value="">Selecionar Secretário(a)...</option>
                       {secretaries.map((s) => (
                         <option
                           key={s.id}

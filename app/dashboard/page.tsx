@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { SecretariaDashboard } from "./secretaria-dashboard";
 import { MedicoDashboard } from "./medico-dashboard";
@@ -27,7 +27,7 @@ export default async function DashboardPage({
         </h1>
         <p className="text-muted-foreground text-sm">
           Crie sua clínica para começar a usar o FlowMedi. Você será o
-          administrador e poderá convidar médicos e Secretário(a)s depois.
+          administrador e poderá convidar profissionais e Secretário(a)s depois.
         </p>
         <p className="text-muted-foreground text-sm">
           E-mail da conta: <strong>{user?.email}</strong>

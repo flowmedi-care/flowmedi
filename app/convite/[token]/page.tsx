@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { ConviteAcceptClient } from "./convite-accept-client";
 
 const ROLE_LABEL: Record<string, string> = {
-  medico: "Médico",
-  secretaria: "Secretária",
+  medico: "Profissional",
+  secretaria: "Secretário(a)",
 };
 
 export default async function ConvitePage({

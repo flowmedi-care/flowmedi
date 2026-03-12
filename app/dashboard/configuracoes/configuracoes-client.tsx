@@ -176,7 +176,7 @@ export function ConfiguracoesClient({
         <CardHeader className="space-y-1">
           <h2 className="text-lg font-semibold">Serviços e valores: modo de gestão</h2>
           <p className="text-sm text-muted-foreground">
-            Defina se o cadastro e manutenção de serviços/valores fica somente com admin ou também com os médicos.
+            Defina se o cadastro e manutenção de serviços/valores fica somente com admin ou também com os profissionais.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -201,10 +201,10 @@ export function ConfiguracoesClient({
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="centralizado">Centralizado (somente admin)</option>
-              <option value="descentralizado">Descentralizado (admin e médico)</option>
+              <option value="descentralizado">Descentralizado (admin e profissional)</option>
             </select>
             <p className="text-xs text-muted-foreground">
-              Em modo centralizado, o médico não visualiza nem altera a área de serviços e valores.
+              Em modo centralizado, o profissional não visualiza nem altera a área de serviços e valores.
             </p>
           </div>
           <Button

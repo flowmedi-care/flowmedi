@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { OnboardingForm } from "./onboarding-form";
 
@@ -26,7 +26,7 @@ export default async function OnboardingPage() {
         Criar sua clínica
       </h1>
       <p className="text-sm text-muted-foreground mb-6">
-        Você será o administrador. Depois poderá convidar médicos e
+        Você será o administrador. Depois poderá convidar profissionais e
         Secretário(a)s.
       </p>
       <OnboardingForm initialFullName={userFullName} />

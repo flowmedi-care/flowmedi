@@ -75,6 +75,9 @@ export function ConsultaClient({
     }
   }, [searchParams, router]);
 
+  const filteredPatientId = searchParams.get("filterPatientId") ?? "";
+  const filteredPatient = patients.find((p) => p.id === filteredPatientId) ?? null;
+
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState<(typeof PERIOD_OPTIONS)[number]["value"]>("mes");
   const [customFrom, setCustomFrom] = useState(() => toYMD(new Date()));
@@ -147,6 +150,11 @@ export function ConsultaClient({
       list = list.filter((c) => c.doctor?.id === doctorFilter);
     }
 
+    // Paciente (filtro vindo do painel de pacientes)
+    if (filteredPatientId) {
+      list = list.filter((c) => c.patient.id === filteredPatientId);
+    }
+
     // Já vem ordenado por scheduled_at do servidor; manter
     list.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
     return list;
@@ -159,6 +167,7 @@ export function ConsultaClient({
     statusFilter,
     typeFilter,
     doctorFilter,
+    filteredPatientId,
   ]);
 
   const showDoctorFilter = doctors.length > 1;
@@ -178,6 +187,23 @@ export function ConsultaClient({
       </div>
 
       {/* Formulário unificado na Agenda — ambos os botões "Nova consulta" levam à mesma tela */}
+
+      {filteredPatientId && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <span>
+            Filtrando consultas do paciente:{" "}
+            <strong>{filteredPatient?.full_name ?? "Paciente selecionado"}</strong>
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/dashboard/consulta")}
+            className="h-7 px-2"
+          >
+            Limpar filtro
+          </Button>
+        </div>
+      )}
 
       {/* Linha horizontal de filtros */}
       <div className="border-t border-b border-border py-4 space-y-3">

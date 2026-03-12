@@ -931,15 +931,27 @@ export function PacientesClient({
                 <div className="pt-4 border-t border-border">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-base font-semibold">Histórico de consultas</h3>
-                    {patientHistory.length > 5 && (
+                    <div className="flex items-center gap-1">
+                      {patientHistory.length > 5 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowFullHistory((prev) => !prev)}
+                        >
+                          {showFullHistory ? "Mostrar menos" : "Expandir"}
+                        </Button>
+                      )}
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        onClick={() => setShowFullHistory((prev) => !prev)}
+                        onClick={() => {
+                          setSelectedPatient(null);
+                          router.push(`/dashboard/consulta?filterPatientId=${selectedPatient.id}`);
+                        }}
                       >
-                        {showFullHistory ? "Mostrar menos" : "Ver tudo"}
+                        Ver tudo em consultas
                       </Button>
-                    )}
+                    </div>
                   </div>
                   {loadingHistory ? (
                     <p className="text-sm text-muted-foreground py-2">Carregando histórico...</p>

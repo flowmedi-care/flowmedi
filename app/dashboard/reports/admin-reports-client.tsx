@@ -579,7 +579,7 @@ export function AdminReportsClient({
           </div>
           <Card>
             <CardHeader className="space-y-1">
-              <span className={sectionTitleClass}>Painel operacional por médico</span>
+              <span className={sectionTitleClass}>Painel operacional por profissional</span>
               <p className={sectionDescClass}>Funil, no-show, retorno e status por profissional</p>
             </CardHeader>
             <CardContent>

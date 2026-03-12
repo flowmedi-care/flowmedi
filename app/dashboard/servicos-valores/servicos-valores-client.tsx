@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -854,7 +854,7 @@ function RegrasSection({
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <div>
           <h2 className="text-lg font-semibold">Regras de preço</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">Serviço + opcionalmente médico + dimensões = valor aplicado na agenda</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Serviço + opcionalmente profissional + dimensões = valor aplicado na agenda</p>
         </div>
         <Button
           size="sm"
