@@ -8,14 +8,16 @@ const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-sans",
 });
 
+const BRAND_ICON_URL = "/brand/flowmedi-icon.svg?v=20260311";
+
 export const metadata: Metadata = {
   title: "FlowMedi — Agenda e formulários para sua clínica",
   description:
     "Centralize agenda, formulários clínicos e comunicação com o paciente. Autenticação, papéis e LGPD.",
   icons: {
-    icon: [{ url: "/brand/flowmedi-icon.svg", type: "image/svg+xml" }],
-    shortcut: [{ url: "/brand/flowmedi-icon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/brand/flowmedi-icon.svg", type: "image/svg+xml" }],
+    icon: [{ url: BRAND_ICON_URL, type: "image/svg+xml" }],
+    shortcut: [{ url: BRAND_ICON_URL, type: "image/svg+xml" }],
+    apple: [{ url: BRAND_ICON_URL, type: "image/svg+xml" }],
   },
 };
 

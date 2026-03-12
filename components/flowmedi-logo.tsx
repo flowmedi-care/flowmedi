@@ -28,7 +28,7 @@ export function FlowmediLogo({
 }: FlowmediLogoProps) {
   const { icon: iconSize, text: textClass } = sizes[size];
   const [hasImageError, setHasImageError] = useState(false);
-  const brandIconSrc = "/brand/flowmedi-icon.svg";
+  const brandIconSrc = "/brand/flowmedi-icon.svg?v=20260311";
   const content = (
     <>
       {!hasImageError ? (
