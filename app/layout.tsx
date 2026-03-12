@@ -13,8 +13,9 @@ export const metadata: Metadata = {
   description:
     "Centralize agenda, formulários clínicos e comunicação com o paciente. Autenticação, papéis e LGPD.",
   icons: {
-    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
-    shortcut: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    icon: [{ url: "/brand/flowmedi-icon.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/brand/flowmedi-icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/brand/flowmedi-icon.svg", type: "image/svg+xml" }],
   },
 };
 

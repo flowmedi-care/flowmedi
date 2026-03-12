@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -27,69 +27,38 @@ export function FlowmediLogo({
   variant = "default",
 }: FlowmediLogoProps) {
   const { icon: iconSize, text: textClass } = sizes[size];
-  const gradId = useId();
+  const [hasImageError, setHasImageError] = useState(false);
+  const brandIconSrc = "/brand/flowmedi-icon.svg";
   const content = (
     <>
-      <svg
-        viewBox="0 0 64 64"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="shrink-0"
-        width={iconSize}
-        height={iconSize}
-        aria-hidden
-      >
-        <defs>
-          <linearGradient
-            id={gradId}
-            x1="8"
-            y1="56"
-            x2="56"
-            y2="8"
-            gradientUnits="userSpaceOnUse"
-          >
-            <stop stopColor={variant === "light" ? "hsl(0 0% 100%)" : "hsl(var(--primary))"} />
-            <stop offset="1" stopColor={variant === "light" ? "hsl(0 0% 88%)" : "hsl(198 88% 45%)"} />
-          </linearGradient>
-        </defs>
-
-        <rect
-          x="4"
-          y="4"
-          width="56"
-          height="56"
-          rx="10"
-          stroke={`url(#${gradId})`}
-          strokeWidth="4"
-          fill="none"
+      {!hasImageError ? (
+        <img
+          src={brandIconSrc}
+          alt="FlowMedi"
+          width={iconSize}
+          height={iconSize}
+          className="shrink-0 object-contain"
+          onError={() => setHasImageError(true)}
         />
-
-        <path
-          d="M18 22h4v-4h4v4h4v4h-4v4h-4v-4h-4z"
-          stroke={`url(#${gradId})`}
-          strokeWidth="3"
-          strokeLinejoin="round"
+      ) : (
+        <svg
+          viewBox="0 0 32 32"
           fill="none"
-        />
-
-        <path
-          d="M15 36h12l3-6 4 12 4-17 4 13 3-6h8"
-          stroke={`url(#${gradId})`}
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-
-        <path
-          d="M37 47v7M44 43v11M51 39v15M44 43h7l8-9"
-          stroke={`url(#${gradId})`}
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-      </svg>
+          xmlns="http://www.w3.org/2000/svg"
+          className="shrink-0"
+          width={iconSize}
+          height={iconSize}
+          aria-hidden
+        >
+          <path
+            d="M5 20h4l2-6 2 6 2-8 2 6 2-4 2 4h4"
+            stroke={variant === "light" ? "hsl(0 0% 100%)" : "hsl(var(--primary))"}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
       {showText && (
         <span
           className={cn(
