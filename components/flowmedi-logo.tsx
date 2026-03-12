@@ -14,9 +14,9 @@ interface FlowmediLogoProps {
 }
 
 const sizes = {
-  sm: { icon: 28, text: "text-lg" },
-  md: { icon: 36, text: "text-xl" },
-  lg: { icon: 44, text: "text-2xl" },
+  sm: { icon: 32, text: "text-xl" },
+  md: { icon: 40, text: "text-2xl" },
+  lg: { icon: 48, text: "text-3xl" },
 };
 
 export function FlowmediLogo({
@@ -37,7 +37,11 @@ export function FlowmediLogo({
           alt="FlowMedi"
           width={iconSize}
           height={iconSize}
-          className="shrink-0 object-contain"
+          className={cn(
+            "shrink-0 object-contain",
+            variant === "light" &&
+              "rounded-full bg-white/20 p-1 ring-1 ring-white/35 shadow-[0_0_12px_rgba(255,255,255,0.25)]"
+          )}
           onError={() => setHasImageError(true)}
         />
       ) : (
