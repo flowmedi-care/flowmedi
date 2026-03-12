@@ -24,7 +24,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
     <div className="min-h-screen flex">
       {/* Left: Branded panel - hidden on small screens */}
       <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] flex-col justify-between bg-primary p-10 text-primary-foreground">
-        <FlowmediLogo href="/" showText={true} size="md" variant="light" />
+        <FlowmediLogo href="/" showText={true} size="lg" variant="light" />
         <div className="space-y-8">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">

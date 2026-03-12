@@ -40,7 +40,7 @@ export function FlowmediLogo({
           className={cn(
             "shrink-0 object-contain",
             variant === "light" &&
-              "rounded-full bg-white/20 p-1 ring-1 ring-white/35 shadow-[0_0_12px_rgba(255,255,255,0.25)]"
+              "brightness-0 invert drop-shadow-[0_2px_6px_rgba(0,0,0,0.35)]"
           )}
           onError={() => setHasImageError(true)}
         />
