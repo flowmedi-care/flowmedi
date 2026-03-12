@@ -212,7 +212,7 @@ export function ExamesClient({
                           <span className="flex items-center gap-1">
                             <User className="h-3 w-3" />
                             {exam.uploaded_by_role === "secretaria"
-                              ? "SecretÃ¡rio(a)"
+                              ? "Secretário(a)"
                               : exam.uploaded_by_role === "admin"
                               ? "Admin"
                               : exam.uploaded_by_role === "patient"
@@ -296,7 +296,7 @@ export function ExamesClient({
                     required
                   />
                   <p className="text-xs text-muted-foreground">
-                    Formatos aceitos: PDF, imagens (JPG, PNG, WEBP), documentos Word. MÃ¡ximo: 20MB
+                    Formatos aceitos: PDF, imagens (JPG, PNG, WEBP), documentos Word. Máximo: 20MB
                   </p>
                 </div>
 
@@ -314,10 +314,10 @@ export function ExamesClient({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="description">DescriÃ§Ã£o / ObservaÃ§Ãµes</Label>
+                  <Label htmlFor="description">Descrição / Observações</Label>
                   <Textarea
                     id="description"
-                    placeholder="ObservaÃ§Ãµes sobre o exame..."
+                    placeholder="Observações sobre o exame..."
                     value={uploadForm.description}
                     onChange={(e) =>
                       setUploadForm((f) => ({ ...f, description: e.target.value }))
@@ -354,11 +354,11 @@ export function ExamesClient({
         </div>
       )}
 
-      {/* Dialog de ConfirmaÃ§Ã£o de ExclusÃ£o */}
+      {/* Dialog de Confirmação de Exclusão */}
       <ConfirmDialog
         open={deletingId !== null}
         title="Excluir Exame"
-        message="Tem certeza que deseja excluir este exame? Esta aÃ§Ã£o nÃ£o pode ser desfeita."
+        message="Tem certeza que deseja excluir este exame? Esta ação não pode ser desfeita."
         confirmLabel="Excluir"
         variant="destructive"
         loading={deletingId !== null}

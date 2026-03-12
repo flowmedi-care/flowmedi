@@ -192,7 +192,7 @@ export async function POST(request: Request) {
     }
 
     // Criar assinatura diretamente (ela vai cobrar o primeiro pagamento automaticamente)
-    // NÃO confirmar o Payment Intent separadamente para evitar cobrança dupla
+    // NàO confirmar o Payment Intent separadamente para evitar cobrança dupla
     const subscription = await stripe.subscriptions.create({
       customer: paymentIntent.customer,
       items: [{ price: targetPlan.stripe_price_id }],

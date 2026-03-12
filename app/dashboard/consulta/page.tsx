@@ -27,7 +27,7 @@ export default async function ConsultaPage() {
 
   const clinicId = profile.clinic_id;
 
-  // SecretÃ¡rio(a): mÃ©dicos que ela administra. Profissional: sÃ³ suas consultas.
+  // Secretário(a): médicos que ela administra. Profissional: só suas consultas.
   let allowedDoctorIds: string[] = [];
   if (profile?.role === "secretaria") {
     const { data: sd } = await supabase
@@ -38,7 +38,7 @@ export default async function ConsultaPage() {
     allowedDoctorIds = (sd ?? []).map((r) => r.doctor_id);
   }
 
-  // Amplo intervalo: 1 ano atrÃ¡s atÃ© 2 anos Ã  frente para listar todas as consultas
+  // Amplo intervalo: 1 ano atrás até 2 anos à frente para listar todas as consultas
   const now = new Date();
   const startRange = new Date(now.getFullYear() - 1, now.getMonth(), 1);
   const endRange = new Date(now.getFullYear() + 2, now.getMonth(), 0, 23, 59, 59, 999);

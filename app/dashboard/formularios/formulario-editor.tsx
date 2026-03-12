@@ -87,12 +87,12 @@ export function FormularioEditor({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">
-            {isEdit ? "Editar formulÃ¡rio" : "Novo formulÃ¡rio"}
+            {isEdit ? "Editar formulário" : "Novo formulário"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {isEdit 
-              ? "Atualize as informaÃ§Ãµes e campos do formulÃ¡rio"
-              : "Crie um novo formulÃ¡rio para coletar informaÃ§Ãµes dos pacientes"
+              ? "Atualize as informações e campos do formulário"
+              : "Crie um novo formulário para coletar informações dos pacientes"
             }
           </p>
         </div>
@@ -111,18 +111,18 @@ export function FormularioEditor({
           </div>
         )}
 
-        {/* SeÃ§Ã£o: InformaÃ§Ãµes BÃ¡sicas */}
+        {/* Seção: Informações Básicas */}
         <Card>
           <CardHeader>
-            <h2 className="text-lg font-semibold">InformaÃ§Ãµes bÃ¡sicas</h2>
+            <h2 className="text-lg font-semibold">Informações básicas</h2>
             <p className="text-sm text-muted-foreground">
-              Defina o nome e a vinculaÃ§Ã£o do formulÃ¡rio
+              Defina o nome e a vinculação do formulário
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="template_name">
-                Nome do formulÃ¡rio <span className="text-destructive">*</span>
+                Nome do formulário <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="template_name"
@@ -136,7 +136,7 @@ export function FormularioEditor({
             <div className="space-y-2">
               <Label>Procedimentos</Label>
               <p className="text-xs text-muted-foreground mb-2">
-                Selecione os procedimentos que usam este formulÃ¡rio. Ao agendar com um desses procedimentos, o formulÃ¡rio serÃ¡ associado automaticamente.
+                Selecione os procedimentos que usam este formulário. Ao agendar com um desses procedimentos, o formulário será associado automaticamente.
               </p>
               <div className="flex flex-wrap gap-2">
                 {procedures.map((proc) => {
@@ -172,12 +172,12 @@ export function FormularioEditor({
           </CardContent>
         </Card>
 
-        {/* SeÃ§Ã£o: ConfiguraÃ§Ãµes PÃºblicas */}
+        {/* Seção: Configurações Públicas */}
         <Card>
           <CardHeader>
-            <h2 className="text-lg font-semibold">Uso pÃºblico</h2>
+            <h2 className="text-lg font-semibold">Uso público</h2>
             <p className="text-sm text-muted-foreground">
-              Configure se este formulÃ¡rio pode ser compartilhado publicamente
+              Configure se este formulário pode ser compartilhado publicamente
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -191,11 +191,11 @@ export function FormularioEditor({
               />
               <div className="flex-1 space-y-1">
                 <Label htmlFor="is_public" className="cursor-pointer font-medium">
-                  Permitir uso pÃºblico
+                  Permitir uso público
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Quando ativado, este formulÃ¡rio pode ser compartilhado publicamente (ex: Instagram) 
-                  e tambÃ©m pode ser enviado para pacientes agendados.
+                  Quando ativado, este formulário pode ser compartilhado publicamente (ex: Instagram) 
+                  e também pode ser enviado para pacientes agendados.
                 </p>
               </div>
             </div>
@@ -218,7 +218,7 @@ export function FormularioEditor({
                     ))}
                   </select>
                   <p className="text-xs text-muted-foreground">
-                    A assinatura do mÃ©dico aparecerÃ¡ no final do formulÃ¡rio pÃºblico
+                    A assinatura do médico aparecerá no final do formulário público
                   </p>
                 </div>
               </div>
@@ -226,12 +226,12 @@ export function FormularioEditor({
           </CardContent>
         </Card>
 
-        {/* SeÃ§Ã£o: Campos do FormulÃ¡rio */}
+        {/* Seção: Campos do Formulário */}
         <Card>
           <CardHeader>
-            <h2 className="text-lg font-semibold">Campos do formulÃ¡rio</h2>
+            <h2 className="text-lg font-semibold">Campos do formulário</h2>
             <p className="text-sm text-muted-foreground">
-              Adicione e configure os campos que serÃ£o exibidos no formulÃ¡rio
+              Adicione e configure os campos que serão exibidos no formulário
             </p>
           </CardHeader>
           <CardContent>
@@ -243,7 +243,7 @@ export function FormularioEditor({
           </CardContent>
         </Card>
 
-        {/* AÃ§Ãµes */}
+        {/* Ações */}
         <div className="flex items-center justify-between pt-4 border-t">
           <Link href="/dashboard/formularios">
             <Button type="button" variant="ghost">
@@ -251,7 +251,7 @@ export function FormularioEditor({
             </Button>
           </Link>
           <Button type="submit" disabled={loading} size="lg">
-            {loading ? "Salvandoâ€¦" : isEdit ? "Salvar alteraÃ§Ãµes" : "Criar formulÃ¡rio"}
+            {loading ? "Salvando..." : isEdit ? "Salvar alterações" : "Criar formulário"}
           </Button>
         </div>
       </form>

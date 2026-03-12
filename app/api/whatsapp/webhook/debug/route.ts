@@ -13,7 +13,7 @@ export async function GET() {
     ok: true,
     message: lastPayload
       ? "Último payload recebido (webhook está sendo chamado pela Meta)"
-      : "Nenhum payload recebido ainda. O webhook só é chamado quando alguém envia mensagem DO celular/WhatsApp PARA o número do negócio — NÃO quando você envia pela interface FlowMedi.",
+      : "Nenhum payload recebido ainda. O webhook só é chamado quando alguém envia mensagem DO celular/WhatsApp PARA o número do negócio — NàO quando você envia pela interface FlowMedi.",
     lastPayload: lastPayload?.body ?? null,
     lastReceivedAt: lastPayload?.receivedAt ?? null,
   });

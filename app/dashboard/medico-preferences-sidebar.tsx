@@ -46,7 +46,7 @@ export function MedicoPreferencesSidebar() {
       setError(result.error);
     } else {
       setOpen(false);
-      // Recarregar pÃ¡gina para aplicar mudanÃ§as
+      // Recarregar página para aplicar mudanças
       window.location.reload();
     }
     setSaving(false);
@@ -74,7 +74,7 @@ export function MedicoPreferencesSidebar() {
         className="fixed bottom-4 right-4 z-50 shadow-lg bg-background hover:bg-muted"
       >
         <Settings className="h-4 w-4 mr-2" />
-        PreferÃªncias
+        Preferências
       </Button>
 
       {open && (
@@ -86,7 +86,7 @@ export function MedicoPreferencesSidebar() {
             <div className="p-6 space-y-6">
               {/* Header */}
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">PreferÃªncias do Profissional</h2>
+                <h2 className="text-xl font-semibold">Preferências do Profissional</h2>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -105,7 +105,7 @@ export function MedicoPreferencesSidebar() {
 
               {loading ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  Carregando preferÃªncias...
+                  Carregando preferências...
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -116,7 +116,7 @@ export function MedicoPreferencesSidebar() {
                         Tempo para considerar consulta atrasada
                       </Label>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Consultas que passaram mais tempo que este serÃ£o exibidas como
+                        Consultas que passaram mais tempo que este serão exibidas como
                         "Atrasadas" no topo da lista.
                       </p>
                     </div>
@@ -165,7 +165,7 @@ export function MedicoPreferencesSidebar() {
                     </div>
                   </div>
 
-                  {/* BotÃµes */}
+                  {/* Botões */}
                   <div className="flex gap-2 pt-4 border-t border-border">
                     <Button
                       variant="outline"

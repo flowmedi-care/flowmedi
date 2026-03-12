@@ -12,20 +12,20 @@ type ChatbotFallback = "first_responder" | "round_robin";
 
 const STRATEGY_DESCRIPTIONS: Record<RoutingStrategy, string> = {
   first_responder:
-    "Novas conversas ficam em um pool disponÃ­vel para todas as SecretÃ¡rio(a)s. A primeira que responder assume a conversa. Ideal quando a equipe Ã© pequena e todos podem atender qualquer contato.",
+    "Novas conversas ficam em um pool disponível para todas as Secretário(a)s. A primeira que responder assume a conversa. Ideal quando a equipe é pequena e todos podem atender qualquer contato.",
   general_secretary:
-    "Todas as novas conversas vÃ£o direto para uma SecretÃ¡rio(a) designada (a SecretÃ¡rio(a) geral). Ela coleta informaÃ§Ãµes e encaminha para a equipe conforme necessÃ¡rio. Ideal quando hÃ¡ uma pessoa central de triagem.",
+    "Todas as novas conversas vão direto para uma Secretário(a) designada (a Secretário(a) geral). Ela coleta informações e encaminha para a equipe conforme necessário. Ideal quando há uma pessoa central de triagem.",
   round_robin:
-    "Cada nova conversa Ã© atribuÃ­da automaticamente Ã  SecretÃ¡rio(a) com menos conversas abertas. Distribui a carga de forma equilibrada. Ideal para equipes com vÃ¡rias SecretÃ¡rio(a)s.",
+    "Cada nova conversa é atribuída automaticamente à Secretário(a) com menos conversas abertas. Distribui a carga de forma equilibrada. Ideal para equipes com várias Secretário(a)s.",
   chatbot:
-    "O paciente recebe um menu inicial: 1) Agendar, 2) Remarcar, 3) Cancelar, 4) Falar com atendente. O fluxo direciona para a SecretÃ¡rio(a) certa conforme procedimento e vÃ­nculos (mÃ©dicoâ†”procedimento, SecretÃ¡rio(a)â†”mÃ©dico). Para casos sem SecretÃ¡rio(a) definida ou com mÃºltiplas opÃ§Ãµes, use o roteamento de apoio abaixo.",
+    "O paciente recebe um menu inicial: 1) Agendar, 2) Remarcar, 3) Cancelar, 4) Falar com atendente. O fluxo direciona para a Secretário(a) certa conforme procedimento e vínculos (médico↔procedimento, Secretário(a)↔médico). Para casos sem Secretário(a) definida ou com múltiplas opções, use o roteamento de apoio abaixo.",
 };
 
 const FALLBACK_DESCRIPTIONS: Record<ChatbotFallback, string> = {
   first_responder:
-    "As conversas vÃ£o para um pool: todas as SecretÃ¡rio(a)s elegÃ­veis veem e a primeira que responder assume. Casos: opÃ§Ã£o 2/3 sem paciente vinculado, opÃ§Ã£o 4 (Falar com atendente), procedimento com 0 ou vÃ¡rios mÃ©dicos/SecretÃ¡rio(a)s.",
+    "As conversas vão para um pool: todas as Secretário(a)s elegíveis veem e a primeira que responder assume. Casos: opção 2/3 sem paciente vinculado, opção 4 (Falar com atendente), procedimento com 0 ou vários médicos/Secretário(a)s.",
   round_robin:
-    "As conversas sÃ£o atribuÃ­das Ã  SecretÃ¡rio(a) com menos conversas abertas. Casos: opÃ§Ã£o 2/3 sem paciente vinculado, opÃ§Ã£o 4 (Falar com atendente), procedimento com 0 ou vÃ¡rios mÃ©dicos/SecretÃ¡rio(a)s.",
+    "As conversas são atribuídas à Secretário(a) com menos conversas abertas. Casos: opção 2/3 sem paciente vinculado, opção 4 (Falar com atendente), procedimento com 0 ou vários médicos/Secretário(a)s.",
 };
 
 interface WhatsAppRoutingSectionProps {
@@ -70,7 +70,7 @@ export function WhatsAppRoutingSection({ clinicId }: WhatsAppRoutingSectionProps
         toast(data.error ?? "Erro ao salvar", "error");
         return;
       }
-      toast("ConfiguraÃ§Ãµes salvas.", "success");
+      toast("Configurações salvas.", "success");
     } catch {
       toast("Erro ao salvar.", "error");
     } finally {
@@ -93,19 +93,19 @@ export function WhatsAppRoutingSection({ clinicId }: WhatsAppRoutingSectionProps
       <CardHeader>
         <CardTitle>Roteamento de conversas WhatsApp</CardTitle>
         <CardDescription>
-          Como as conversas de novos contatos sÃ£o distribuÃ­das entre as SecretÃ¡rio(a)s. Depois que um paciente jÃ¡ estÃ¡ vinculado a uma SecretÃ¡rio(a) (via consulta), as mensagens vÃ£o apenas para ela.
+          Como as conversas de novos contatos são distribuídas entre as Secretário(a)s. Depois que um paciente já está vinculado a uma Secretário(a) (via consulta), as mensagens vão apenas para ela.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
-          <Label>EstratÃ©gia para primeiros contatos</Label>
+          <Label>Estratégia para primeiros contatos</Label>
           <Select
             value={routingStrategy}
             onChange={(e) => setRoutingStrategy(e.target.value as RoutingStrategy)}
             className="max-w-md"
           >
             <option value="first_responder">Primeira que responder assume</option>
-            <option value="general_secretary">SecretÃ¡rio(a) geral</option>
+            <option value="general_secretary">Secretário(a) geral</option>
             <option value="round_robin">Revezamento</option>
             <option value="chatbot">Chatbot simples</option>
           </Select>
@@ -121,7 +121,7 @@ export function WhatsAppRoutingSection({ clinicId }: WhatsAppRoutingSectionProps
           <div className="space-y-2">
             <Label>Roteamento de apoio (chatbot)</Label>
             <p className="text-xs text-muted-foreground">
-              Usado quando nÃ£o hÃ¡ SecretÃ¡rio(a) definida (opÃ§Ãµes 2, 3, 4) ou quando o procedimento tem vÃ¡rios mÃ©dicos/SecretÃ¡rio(a)s.
+              Usado quando não há Secretário(a) definida (opções 2, 3, 4) ou quando o procedimento tem vários médicos/Secretário(a)s.
             </p>
             <Select
               value={chatbotFallback}
@@ -141,7 +141,7 @@ export function WhatsAppRoutingSection({ clinicId }: WhatsAppRoutingSectionProps
 
         {routingStrategy === "general_secretary" && (
           <div className="space-y-2">
-            <Label htmlFor="general_secretary">SecretÃ¡rio(a) geral</Label>
+            <Label htmlFor="general_secretary">Secretário(a) geral</Label>
             <Select
               id="general_secretary"
               value={generalSecretaryId}
@@ -156,7 +156,7 @@ export function WhatsAppRoutingSection({ clinicId }: WhatsAppRoutingSectionProps
               ))}
             </Select>
             {secretaries.length === 0 && (
-              <p className="text-xs text-amber-600">Cadastre SecretÃ¡rio(a)s em Equipe para usar esta opÃ§Ã£o.</p>
+              <p className="text-xs text-amber-600">Cadastre Secretário(a)s em Equipe para usar esta opção.</p>
             )}
           </div>
         )}

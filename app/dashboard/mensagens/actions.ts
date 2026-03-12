@@ -879,7 +879,7 @@ export async function getClinicMessageSettings(): Promise<{
   return { data: normalized, error: null };
 }
 
-// ========== ATUALIZAR CONFIGURAÇÃO DE EVENTO ==========
+// ========== ATUALIZAR CONFIGURAÇàO DE EVENTO ==========
 
 export async function updateClinicMessageSetting(
   eventCode: string,

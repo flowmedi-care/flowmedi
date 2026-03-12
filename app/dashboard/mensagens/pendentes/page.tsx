@@ -16,7 +16,7 @@ export default async function PendentesPage() {
 
   if (!profile) redirect("/dashboard");
 
-  // SecretÃ¡rio(a) e Admin podem ver mensagens pendentes
+  // Secretário(a) e Admin podem ver mensagens pendentes
   if (profile.role !== "admin" && profile.role !== "secretaria") {
     redirect("/dashboard");
   }

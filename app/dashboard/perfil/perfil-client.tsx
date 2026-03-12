@@ -18,7 +18,7 @@ import {
 } from "./referral-actions";
 import { setProfileDimensionValueColors } from "./profile-dimension-colors-actions";
 
-const DEFAULT_MESSAGE = "OlÃ¡ gostaria de obter mais informaÃ§Ã£o sobre a consulta com o dr. [digite seu nome]";
+const DEFAULT_MESSAGE = "Olá gostaria de obter mais informação sobre a consulta com o dr. [digite seu nome]";
 const DEFAULT_AGENDA_COLOR = "#3B82F6";
 import { Share2, Copy, Check, Palette } from "lucide-react";
 
@@ -72,7 +72,7 @@ function ReferralLinkCard() {
         <CardHeader>
           <h2 className="font-semibold flex items-center gap-2">
             <Share2 className="h-5 w-5" />
-            Link de divulgaÃ§Ã£o
+            Link de divulgação
           </h2>
         </CardHeader>
         <CardContent>
@@ -87,10 +87,10 @@ function ReferralLinkCard() {
       <CardHeader>
         <h2 className="font-semibold flex items-center gap-2">
           <Share2 className="h-5 w-5" />
-          Link de divulgaÃ§Ã£o
+          Link de divulgação
         </h2>
         <p className="text-sm text-muted-foreground">
-          Compartilhe este link com seus pacientes. Ao clicar, eles abrem o WhatsApp da clÃ­nica e sÃ£o automaticamente vinculados Ã  sua SecretÃ¡rio(a).
+          Compartilhe este link com seus pacientes. Ao clicar, eles abrem o WhatsApp da clínica e são automaticamente vinculados à sua Secretário(a).
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -102,10 +102,10 @@ function ReferralLinkCard() {
         <div className="space-y-4">
           <div>
             <Label htmlFor="referral-message" className="text-sm font-medium">
-              Mensagem que o paciente verÃ¡ ao clicar no link
+              Mensagem que o paciente verá ao clicar no link
             </Label>
             <p className="text-xs text-muted-foreground mt-1 mb-2">
-              Inclua seu nome para garantir a vinculaÃ§Ã£o correta com sua SecretÃ¡rio(a).
+              Inclua seu nome para garantir a vinculação correta com sua Secretário(a).
             </p>
             <Textarea
               id="referral-message"
@@ -143,7 +143,7 @@ function ReferralLinkCard() {
               </div>
               <div className="text-sm text-muted-foreground">
                 <p>Escaneie o QR code ou copie o link para compartilhar.</p>
-                <p className="mt-1">O paciente envia a mensagem prÃ©-preenchida e serÃ¡ atribuÃ­do Ã  sua SecretÃ¡rio(a).</p>
+                <p className="mt-1">O paciente envia a mensagem pré-preenchida e será atribuído à sua Secretário(a).</p>
               </div>
             </div>
           </div>
@@ -205,7 +205,7 @@ export function PerfilClient({
     if (result.error) {
       setError(result.error);
     } else {
-      // Recarregar pÃ¡gina para aplicar mudanÃ§as
+      // Recarregar página para aplicar mudanças
       window.location.reload();
     }
     setSaving(false);
@@ -255,7 +255,7 @@ export function PerfilClient({
         <CardHeader>
           <h2 className="font-semibold">Minha Logo</h2>
           <p className="text-sm text-muted-foreground">
-            Sua logo aparecerÃ¡ no final dos formulÃ¡rios enviados aos seus pacientes.
+            Sua logo aparecerá no final dos formulários enviados aos seus pacientes.
           </p>
         </CardHeader>
         <CardContent>
@@ -269,9 +269,9 @@ export function PerfilClient({
 
       <Card>
         <CardHeader>
-          <h2 className="font-semibold">PreferÃªncias</h2>
+          <h2 className="font-semibold">Preferências</h2>
           <p className="text-sm text-muted-foreground">
-            Configure suas preferÃªncias de trabalho.
+            Configure suas preferências de trabalho.
           </p>
         </CardHeader>
         <CardContent>
@@ -283,7 +283,7 @@ export function PerfilClient({
 
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">
-              Carregando preferÃªncias...
+              Carregando preferências...
             </div>
           ) : (
             <div className="space-y-6">
@@ -294,7 +294,7 @@ export function PerfilClient({
                     Tempo para considerar consulta atrasada
                   </Label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Consultas que passaram mais tempo que este serÃ£o exibidas como
+                    Consultas que passaram mais tempo que este serão exibidas como
                     "Atrasadas" no topo da lista.
                   </p>
                 </div>
@@ -343,10 +343,10 @@ export function PerfilClient({
                 </div>
               </div>
 
-              {/* BotÃ£o Salvar */}
+              {/* Botão Salvar */}
               <div className="pt-4 border-t border-border">
                 <Button onClick={handleSave} disabled={saving} className="w-full">
-                  {saving ? "Salvando..." : "Salvar PreferÃªncias"}
+                  {saving ? "Salvando..." : "Salvar Preferências"}
                 </Button>
               </div>
             </div>
@@ -354,7 +354,7 @@ export function PerfilClient({
         </CardContent>
       </Card>
 
-      {/* Cores na agenda (dimensÃµes/valores) */}
+      {/* Cores na agenda (dimensões/valores) */}
       {valuesByDimension.some((d) => d.values.length > 0) && (
         <Card>
           <CardHeader>
@@ -363,7 +363,7 @@ export function PerfilClient({
               Cores na agenda
             </h2>
             <p className="text-sm text-muted-foreground">
-              Defina a cor de cada valor de dimensÃ£o para quando vocÃª escolher &quot;Colorir por&quot; essa dimensÃ£o na agenda.
+              Defina a cor de cada valor de dimensão para quando você escolher &quot;Colorir por&quot; essa dimensão na agenda.
             </p>
           </CardHeader>
           <CardContent className="space-y-6">
