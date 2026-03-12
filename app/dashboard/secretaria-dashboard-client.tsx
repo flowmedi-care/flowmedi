@@ -43,6 +43,8 @@ export function SecretariaDashboardClient({
     pipelineCount: number;
     pendingForms: number;
     complianceCount: number;
+    attendanceRate: number;
+    noShowRate: number;
   } | null;
   upcomingAppointments: Array<{
     id: string;
@@ -75,7 +77,7 @@ export function SecretariaDashboardClient({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-foreground truncate sm:text-2xl">
-            Dashboard da Secretaria
+            Dashboard do Secretário(a)
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
             Gerencie consultas, pacientes e formulários
@@ -100,7 +102,7 @@ export function SecretariaDashboardClient({
       )}
 
       {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Link href="/dashboard/agenda?new=true">
           <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center gap-2 pb-2">
@@ -144,7 +146,7 @@ export function SecretariaDashboardClient({
 
       {/* Métricas */}
       {preferences.show_metrics && metrics && (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -200,6 +202,31 @@ export function SecretariaDashboardClient({
         </div>
       )}
 
+      {preferences.show_metrics && metrics && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-2">
+              <span className="text-sm font-medium text-muted-foreground">
+                Desempenho do dia: comparecimento
+              </span>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">{metrics.attendanceRate}%</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <span className="text-sm font-medium text-muted-foreground">
+                Desempenho do dia: no-show
+              </span>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">{metrics.noShowRate}%</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Consultas em andamento (profissional iniciou a consulta) */}
       {ongoingConsultations.length > 0 && (
         <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
@@ -250,7 +277,7 @@ export function SecretariaDashboardClient({
                         <p className="text-xs text-muted-foreground">
                           Iniciada às {timeStr} • Agendada: {dateStr} às {schedTimeStr}
                           {appointment.doctor.full_name &&
-                            ` • Dr(a). ${appointment.doctor.full_name}`}
+                            ` • Prof.: ${appointment.doctor.full_name}`}
                         </p>
                       </div>
                       <Badge
@@ -319,7 +346,7 @@ export function SecretariaDashboardClient({
                           <p className="text-xs text-muted-foreground">
                             {formattedDate} às {formattedTime}
                             {appointment.doctor.full_name &&
-                              ` • Dr(a). ${appointment.doctor.full_name}`}
+                              ` • Prof.: ${appointment.doctor.full_name}`}
                           </p>
                         </div>
                         <Badge
@@ -387,7 +414,7 @@ export function SecretariaDashboardClient({
                           <p className="text-xs text-muted-foreground">
                             {formattedDate} às {formattedTime}
                             {appointment.doctor.full_name &&
-                              ` • Dr(a). ${appointment.doctor.full_name}`}
+                              ` • Prof.: ${appointment.doctor.full_name}`}
                           </p>
                         </div>
                       </Link>

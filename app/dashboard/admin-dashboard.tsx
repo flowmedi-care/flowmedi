@@ -12,6 +12,7 @@ import {
 } from "./reports/actions";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canAccessReportTab } from "@/lib/plan-gates";
+import { getOrSetMemoryCache } from "@/lib/server-memory-cache";
 
 export type ReportTab = "visao-geral" | "profissional" | "atendente" | "financeiro" | "operacional";
 
@@ -76,20 +77,35 @@ export default async function AdminDashboard({
   let operacional = null;
 
   if (activeTab === "visao-geral") {
-    const res = await getVisaoGeralData(clinicId, periodTyped);
-    visaoGeral = res.data;
+    visaoGeral = await getOrSetMemoryCache(
+      `reports:${clinicId}:visao-geral:${periodTyped}`,
+      120000,
+      async () => (await getVisaoGeralData(clinicId, periodTyped)).data
+    );
   } else if (activeTab === "profissional") {
-    const res = await getPorProfissionalData(clinicId, periodTyped);
-    porProfissional = res.data;
+    porProfissional = await getOrSetMemoryCache(
+      `reports:${clinicId}:profissional:${periodTyped}`,
+      120000,
+      async () => (await getPorProfissionalData(clinicId, periodTyped)).data
+    );
   } else if (activeTab === "atendente") {
-    const res = await getPorAtendenteData(clinicId, periodTyped);
-    porAtendente = res.data;
+    porAtendente = await getOrSetMemoryCache(
+      `reports:${clinicId}:atendente:${periodTyped}`,
+      120000,
+      async () => (await getPorAtendenteData(clinicId, periodTyped)).data
+    );
   } else if (activeTab === "financeiro") {
-    const res = await getFinanceiroData(clinicId, periodTyped);
-    financeiro = res.data;
+    financeiro = await getOrSetMemoryCache(
+      `reports:${clinicId}:financeiro:${periodTyped}`,
+      120000,
+      async () => (await getFinanceiroData(clinicId, periodTyped)).data
+    );
   } else if (activeTab === "operacional") {
-    const res = await getOperacionalData(clinicId, periodTyped);
-    operacional = res.data;
+    operacional = await getOrSetMemoryCache(
+      `reports:${clinicId}:operacional:${periodTyped}`,
+      120000,
+      async () => (await getOperacionalData(clinicId, periodTyped)).data
+    );
   }
 
   return (

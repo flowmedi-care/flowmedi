@@ -106,6 +106,13 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
       .gte("scheduled_at", todayStart.toISOString())
       .lte("scheduled_at", todayEnd.toISOString());
 
+    const { data: appointmentStatusesToday } = await supabase
+      .from("appointments")
+      .select("status")
+      .eq("clinic_id", clinicId)
+      .gte("scheduled_at", todayStart.toISOString())
+      .lte("scheduled_at", todayEnd.toISOString());
+
     // Não cadastrados no pipeline
     const { count: pipelineCount } = await supabase
       .from("non_registered_pipeline")
@@ -141,6 +148,22 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
       pipelineCount: pipelineCount || 0,
       pendingForms: pendingForms || 0,
       complianceCount: complianceAppointments.length,
+      attendanceRate:
+        (appointmentStatusesToday?.length ?? 0) > 0
+          ? Math.round(
+              ((appointmentStatusesToday ?? []).filter((a) => a.status === "realizada").length /
+                (appointmentStatusesToday?.length ?? 1)) *
+                100
+            )
+          : 0,
+      noShowRate:
+        (appointmentStatusesToday?.length ?? 0) > 0
+          ? Math.round(
+              ((appointmentStatusesToday ?? []).filter((a) => a.status === "falta").length /
+                (appointmentStatusesToday?.length ?? 1)) *
+                100
+            )
+          : 0,
     };
   }
 

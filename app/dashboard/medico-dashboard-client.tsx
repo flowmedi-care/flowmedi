@@ -228,6 +228,14 @@ export function MedicoDashboardClient({
   const nextAppointment = upcomingAppointments
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0] || null;
 
+  const comparecimentoRate =
+    allAppointments.length > 0 ? Math.round((metrics.completed / allAppointments.length) * 100) : 0;
+  const noShowCount = allAppointments.filter((a) => a.status === "falta").length;
+  const noShowRate = allAppointments.length > 0 ? Math.round((noShowCount / allAppointments.length) * 100) : 0;
+  const onTimeCount = upcomingAppointments.length;
+  const openFlowCount = upcomingAppointments.length + lateAppointments.length;
+  const pontualidadeRate = openFlowCount > 0 ? Math.round((onTimeCount / openFlowCount) * 100) : 100;
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -245,7 +253,7 @@ export function MedicoDashboardClient({
       </div>
 
       {/* Filtro de Período */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">Período:</span>
         {(["daily", "weekly", "monthly", "yearly"] as Period[]).map((p) => (
           <Button
@@ -261,7 +269,7 @@ export function MedicoDashboardClient({
       </div>
 
       {/* Métricas */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -323,6 +331,33 @@ export function MedicoDashboardClient({
             <div className="text-2xl font-bold text-orange-600">
               {loadingMetrics ? "..." : metrics.pendingForms}
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <span className="text-sm font-medium text-muted-foreground">Desempenho: comparecimento</span>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{comparecimentoRate}%</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <span className="text-sm font-medium text-muted-foreground">Desempenho: no-show</span>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{noShowRate}%</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <span className="text-sm font-medium text-muted-foreground">Desempenho: pontualidade</span>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{pontualidadeRate}%</p>
           </CardContent>
         </Card>
       </div>
@@ -745,7 +780,8 @@ function WeeklyCalendar({
             Carregando calendário...
           </div>
         ) : (
-          <div className="grid grid-cols-7 gap-2">
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-7 gap-2 min-w-[720px]">
             {days.map((day, index) => {
               const dayAppointments = getAppointmentsForDay(day);
               const isTodayDate = isToday(day);
@@ -809,6 +845,7 @@ function WeeklyCalendar({
                 </div>
               );
             })}
+            </div>
           </div>
         )}
       </CardContent>

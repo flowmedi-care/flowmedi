@@ -477,7 +477,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         <div
           className={cn(
             "flex flex-col border-r border-border bg-muted/30 min-w-0 shrink-0",
-            fullWidth ? "w-full sm:w-80 sm:min-w-[280px] sm:min-h-0" : "w-80"
+            fullWidth ? "w-full h-[38vh] sm:h-auto sm:w-80 sm:min-w-[280px] sm:min-h-0" : "w-80"
           )}
         >
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
@@ -759,8 +759,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                 {selectedConversation && selectedConversation.status !== "open" && (
                   <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 px-3 py-2 rounded-md">
                     {selectedConversation.status === "closed" 
-                      ? "⚠️ Esta conversa está fechada. Apenas mensagens template são permitidas."
-                      : "✅ Esta conversa está concluída. Apenas mensagens template são permitidas."}
+                      ? "Esta conversa está fechada. Apenas mensagens template são permitidas."
+                      : "Esta conversa está concluída. Apenas mensagens template são permitidas."}
                   </div>
                 )}
                 <div className="flex gap-2 items-center">
