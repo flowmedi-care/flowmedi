@@ -15,10 +15,13 @@ type LogEntry = {
   old_values: Record<string, unknown> | null;
   new_values: Record<string, unknown> | null;
   created_at: string;
-  profiles: { id: string; full_name: string | null } | { id: string; full_name: string | null }[] | null;
+  profiles:
+    | { id: string; full_name: string | null; email: string | null }
+    | { id: string; full_name: string | null; email: string | null }[]
+    | null;
 };
 
-type Member = { id: string; full_name: string | null; role: string };
+type Member = { id: string; full_name: string | null; email: string | null; role: string };
 
 const ACTION_LABEL: Record<string, string> = {
   appointment_created: "Consulta criada",
@@ -35,6 +38,32 @@ const ENTITY_LABEL: Record<string, string> = {
   patient: "Paciente",
   form_template: "Formulário",
 };
+
+const ROLE_LABEL: Record<string, string> = {
+  admin: "Administrador",
+  medico: "Profissional",
+  secretaria: "Secretário(a)",
+};
+
+function readString(obj: Record<string, unknown> | null, key: string): string | null {
+  const value = obj?.[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function getEntitySummary(log: LogEntry): string | null {
+  if (log.entity_type === "patient") {
+    const name = readString(log.new_values, "full_name") ?? readString(log.old_values, "full_name");
+    const email = readString(log.new_values, "email") ?? readString(log.old_values, "email");
+    if (name && email) return `${name} (${email})`;
+    if (name) return name;
+    if (email) return email;
+  }
+  if (log.entity_type === "form_template") {
+    const name = readString(log.new_values, "name") ?? readString(log.old_values, "name");
+    if (name) return name;
+  }
+  return null;
+}
 
 export function AuditoriaClient({
   initialLogs,
@@ -59,9 +88,16 @@ export function AuditoriaClient({
 
   const logs = initialLogs.map((log) => {
     const profile = Array.isArray(log.profiles) ? log.profiles[0] : log.profiles;
+    const actorName = profile?.full_name?.trim() || null;
+    const actorEmail = profile?.email?.trim() || null;
+    const actorDisplay = actorName && actorEmail
+      ? `${actorName} (${actorEmail})`
+      : actorName ?? actorEmail ?? "Sistema";
+    const entitySummary = getEntitySummary(log);
     return {
       ...log,
-      userName: profile?.full_name ?? "Sistema",
+      actorDisplay,
+      entitySummary,
       actionLabel: ACTION_LABEL[log.action] ?? log.action,
       entityLabel: ENTITY_LABEL[log.entity_type] ?? log.entity_type,
     };
@@ -85,7 +121,7 @@ export function AuditoriaClient({
               <option value="">Todos</option>
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.full_name ?? m.id.slice(0, 8)} ({m.role})
+                  {(m.full_name ?? m.email ?? "Sem nome")} · {ROLE_LABEL[m.role] ?? m.role}
                 </option>
               ))}
             </select>
@@ -131,14 +167,14 @@ export function AuditoriaClient({
                   <span className="font-medium">{log.actionLabel}</span>
                   <span className="text-muted-foreground">•</span>
                   <span className="text-muted-foreground">{log.entityLabel}</span>
-                  {log.entity_id && (
+                  {log.entitySummary && (
                     <>
-                      <span className="text-muted-foreground">#</span>
-                      <span className="font-mono text-xs">{log.entity_id.slice(0, 8)}…</span>
+                      <span className="text-muted-foreground">•</span>
+                      <span className="text-xs">{log.entitySummary}</span>
                     </>
                   )}
                   <span className="text-muted-foreground">•</span>
-                  <span>{log.userName}</span>
+                  <span>{log.actorDisplay}</span>
                   <span className="ml-auto text-muted-foreground">
                     {new Date(log.created_at).toLocaleString("pt-BR")}
                   </span>

@@ -239,16 +239,6 @@ export function DashboardNav({
                 {!isCollapsed && <span className="ml-2">Cadastro Clínico</span>}
               </Button>
             </Link>
-            <Link href="/dashboard/templates">
-              <Button
-                variant={pathname === "/dashboard/templates" ? "secondary" : "ghost"}
-                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
-                title={isCollapsed ? "Templates" : undefined}
-              >
-                <Mail className="h-4 w-4" />
-                {!isCollapsed && <span className="ml-2">Templates</span>}
-              </Button>
-            </Link>
             <Link href="/dashboard/configuracoes">
               <Button
                 variant={pathname === "/dashboard/configuracoes" ? "secondary" : "ghost"}

@@ -1,14 +1,20 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
-export default async function TemplatesPage() {
+export default async function LegacyTemplatesCatchAllPage({
+  params,
+}: {
+  params: Promise<{ slug: string[] }>;
+}) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/entrar");
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("clinic_id, role")
+    .select("role")
     .eq("id", user.id)
     .single();
 
@@ -16,6 +22,7 @@ export default async function TemplatesPage() {
     redirect("/dashboard");
   }
 
-  // Compatibilidade: módulo legado de templates foi incorporado em Mensagens.
-  redirect("/dashboard/mensagens/templates");
+  const { slug } = await params;
+  const suffix = slug.length > 0 ? `/${slug.join("/")}` : "";
+  redirect(`/dashboard/mensagens/templates${suffix}`);
 }

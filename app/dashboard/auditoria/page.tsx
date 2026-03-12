@@ -37,7 +37,7 @@ export default async function AuditoriaPage({
 
   const { data: members } = await supabase
     .from("profiles")
-    .select("id, full_name, role")
+    .select("id, full_name, email, role")
     .eq("clinic_id", profile.clinic_id)
     .order("full_name");
 

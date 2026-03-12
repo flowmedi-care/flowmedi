@@ -1396,7 +1396,7 @@ export async function getAuditLog(
       old_values,
       new_values,
       created_at,
-      profiles!user_id ( id, full_name )
+      profiles!user_id ( id, full_name, email )
     `
     )
     .eq("clinic_id", clinicId)
