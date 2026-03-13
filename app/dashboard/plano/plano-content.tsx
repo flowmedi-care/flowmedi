@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { Dispatch, FormEvent, RefObject, SetStateAction } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -68,9 +69,9 @@ type PlanoContentProps = {
   cancelOpen: boolean;
   canceling: boolean;
   resuming: boolean;
-  paymentElementRef: React.RefObject<HTMLDivElement | null>;
+  paymentElementRef: RefObject<HTMLDivElement>;
   onStartCheckout: () => void;
-  onPaymentSubmit: (e: React.FormEvent) => void;
+  onPaymentSubmit: (e: FormEvent) => void;
   onOpenPortal: () => void;
   onResumeSubscription: () => void;
   onCancelClick: () => void;
@@ -84,7 +85,7 @@ type PlanoContentProps = {
   setTaxIdType: (v: "cpf" | "cnpj") => void;
   setTaxIdValue: (v: string) => void;
   setTaxIdError: (v: string) => void;
-  setAddress: React.Dispatch<React.SetStateAction<AddressState>>;
+  setAddress: Dispatch<SetStateAction<AddressState>>;
   setConsentAccepted: (v: boolean) => void;
   handleCEPInputChange: (value: string) => void;
 };
@@ -341,7 +342,7 @@ export function PlanoContent(props: PlanoContentProps) {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Dados do cartão</Label>
-                      <div ref={paymentElementRef as React.Ref<HTMLDivElement>} className="border rounded-lg p-4 min-h-[200px]" />
+                      <div ref={paymentElementRef} className="border rounded-lg p-4 min-h-[200px]" />
                     </div>
                     <div className="space-y-3">
                       <div className="flex items-start gap-2">
