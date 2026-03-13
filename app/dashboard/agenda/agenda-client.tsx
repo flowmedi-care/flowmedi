@@ -13,7 +13,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { createAppointment, updateAppointment, updateUserPreferences, getPublicFormTemplatesForPatient, resolveAppointmentPrice } from "./actions";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
-import { Plus, CalendarClock, GripVertical, ChevronDown } from "lucide-react";
+import { Plus, CalendarClock, GripVertical, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { AgendaFilters } from "./agenda-filters";
 import { cn } from "@/lib/utils";
 import {
@@ -235,6 +235,8 @@ export function AgendaClient({
   const [colorByDimensionId, setColorByDimensionId] = useState<string>(
     initialPreferences?.colorByDimensionId ?? ""
   );
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [dateInicio, setDateInicio] = useState(() => todayYMD());
   const [dateFim, setDateFim] = useState(() => todayYMD());
   const [draggedAppointment, setDraggedAppointment] =
@@ -248,6 +250,16 @@ export function AgendaClient({
     // Resetar flag quando mudar granularidade ou viewMode
     dateFimManuallySet.current = false;
   }, [viewMode, timelineGranularity, calendarGranularity]);
+
+  useEffect(() => {
+    const syncMobile = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth < 640);
+    };
+    syncMobile();
+    window.addEventListener("resize", syncMobile);
+    return () => window.removeEventListener("resize", syncMobile);
+  }, []);
 
   useEffect(() => {
     // Se dateFim foi alterado manualmente, não recalcular automaticamente
@@ -515,6 +527,12 @@ export function AgendaClient({
       getAppointmentEventStyle(appointment, colorBy, colorByDimensionId || null, pricingDimensionValues),
     [colorBy, colorByDimensionId, pricingDimensionValues]
   );
+  const activeFiltersCount = [
+    statusFilter.length > 0,
+    formFilter !== null,
+    filterByServiceId !== "",
+    colorBy === "dimension" && colorByDimensionId !== "",
+  ].filter(Boolean).length;
 
   // Para drag and drop, usar todos os appointments (não apenas do período)
   const allAppointmentsForDrag = appointments;
@@ -630,6 +648,20 @@ export function AgendaClient({
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground sm:text-2xl truncate">Agenda</h1>
         <div className="flex items-center gap-2 shrink-0">
+          <Button
+            size="icon"
+            variant={activeFiltersCount > 0 ? "secondary" : "outline"}
+            className={cn("h-10 w-10 rounded-full sm:hidden", activeFiltersCount > 0 && "relative")}
+            onClick={() => setMobileFiltersOpen(true)}
+            aria-label="Abrir filtros da agenda"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {activeFiltersCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-[10px] leading-[18px] text-center px-1 font-semibold">
+                {activeFiltersCount}
+              </span>
+            )}
+          </Button>
           <Button
             size="icon"
             className="h-10 w-10 rounded-full sm:hidden"
@@ -780,6 +812,7 @@ export function AgendaClient({
 
           {/* Linha 2: Filtros */}
           <div className="h-px bg-border" aria-hidden />
+          {!isMobile && (
           <div className="flex flex-col gap-3">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Filtros</span>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -842,8 +875,129 @@ export function AgendaClient({
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
+      <Dialog open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+        <DialogContent title="Filtros da agenda" onClose={() => setMobileFiltersOpen(false)}>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(STATUS_LABEL).map(([value, label]) => {
+                  const active = statusFilter.includes(value);
+                  return (
+                    <Button
+                      key={value}
+                      type="button"
+                      size="sm"
+                      variant={active ? "secondary" : "outline"}
+                      className={cn("h-8", active && "border-primary bg-primary/10 text-primary")}
+                      onClick={() => {
+                        const next = active
+                          ? statusFilter.filter((s) => s !== value)
+                          : [...statusFilter, value];
+                        setStatusFilter(next);
+                        updateUserPreferences({ agenda_status_filter: next }).catch(console.error);
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Formulários</Label>
+              <select
+                value={formFilter ?? ""}
+                onChange={(e) => {
+                  const value = e.target.value as "confirmados_sem_formulario" | "confirmados_com_formulario" | "";
+                  const next = value === "" ? null : value;
+                  setFormFilter(next);
+                  updateUserPreferences({ agenda_form_filter: next }).catch(console.error);
+                }}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Todos os formulários</option>
+                <option value="confirmados_sem_formulario">Confirmados sem formulário</option>
+                <option value="confirmados_com_formulario">Confirmados com formulário</option>
+              </select>
+            </div>
+            {services.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Serviço</Label>
+                <select
+                  value={filterByServiceId}
+                  onChange={async (e) => {
+                    const v = e.target.value;
+                    setFilterByServiceId(v);
+                    await updateUserPreferences({ agenda_filter_by_service_id: v || undefined });
+                  }}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Todos</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nome}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {(services.length > 0 || pricingDimensions.length > 0) && (
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Colorir por</Label>
+                <select
+                  value={colorBy === "dimension" ? colorByDimensionId : "status"}
+                  onChange={async (e) => {
+                    const v = e.target.value;
+                    if (v === "status") {
+                      setColorBy("status");
+                      setColorByDimensionId("");
+                      await updateUserPreferences({ agenda_color_by: "status", agenda_color_by_dimension_id: "" });
+                    } else {
+                      setColorBy("dimension");
+                      setColorByDimensionId(v);
+                      await updateUserPreferences({ agenda_color_by: "dimension", agenda_color_by_dimension_id: v });
+                    }
+                  }}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="status">Status</option>
+                  {pricingDimensions.map((d) => (
+                    <option key={d.id} value={d.id}>{d.nome}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter([]);
+                  setFormFilter(null);
+                  setFilterByServiceId("");
+                  setColorBy("status");
+                  setColorByDimensionId("");
+                  updateUserPreferences({
+                    agenda_status_filter: [],
+                    agenda_form_filter: null,
+                    agenda_filter_by_service_id: undefined,
+                    agenda_color_by: "status",
+                    agenda_color_by_dimension_id: "",
+                  }).catch(console.error);
+                }}
+              >
+                Limpar tudo
+              </Button>
+              <Button type="button" size="sm" onClick={() => setMobileFiltersOpen(false)}>
+                Aplicar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {showForm && (
         <Card>
@@ -1539,6 +1693,129 @@ function CalendarWeekView({
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
 }) {
   const weekDays = useMemo(() => getWeekDates(currentDate), [currentDate]);
+  const [isMobile, setIsMobile] = useState(false);
+  const [selectedDayYmd, setSelectedDayYmd] = useState(() => toYMD(currentDate));
+
+  useEffect(() => {
+    const syncMobile = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth < 640);
+    };
+    syncMobile();
+    window.addEventListener("resize", syncMobile);
+    return () => window.removeEventListener("resize", syncMobile);
+  }, []);
+
+  useEffect(() => {
+    const dayInWeek = weekDays.find((d) => toYMD(d) === selectedDayYmd);
+    if (!dayInWeek && weekDays[0]) {
+      setSelectedDayYmd(toYMD(weekDays[0]));
+    }
+  }, [weekDays, selectedDayYmd]);
+
+  const byDay = useMemo(() => {
+    const map: Record<string, AppointmentRow[]> = {};
+    appointments.forEach((a) => {
+      const key = a.scheduled_at.slice(0, 10);
+      if (!map[key]) map[key] = [];
+      map[key].push(a);
+    });
+    Object.keys(map).forEach((k) => {
+      map[k].sort(
+        (x, y) => new Date(x.scheduled_at).getTime() - new Date(y.scheduled_at).getTime()
+      );
+    });
+    return map;
+  }, [appointments]);
+
+  if (isMobile) {
+    const selectedDayDate = weekDays.find((d) => toYMD(d) === selectedDayYmd) ?? weekDays[0] ?? today;
+    const selectedDayList = byDay[toYMD(selectedDayDate)] ?? [];
+
+    return (
+      <Card>
+        <CardHeader>
+          <p className="text-sm text-muted-foreground">
+            Toque no dia para ver os horários.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {weekDays.map((d) => {
+              const dayKey = toYMD(d);
+              const isSelected = dayKey === selectedDayYmd;
+              const hasEvents = (byDay[dayKey]?.length ?? 0) > 0;
+              return (
+                <button
+                  key={dayKey}
+                  type="button"
+                  onClick={() => setSelectedDayYmd(dayKey)}
+                  className={cn(
+                    "min-w-[56px] rounded-lg border px-2 py-2 text-center",
+                    isSelected
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background hover:bg-muted/50"
+                  )}
+                >
+                  <p className={cn("text-[10px] uppercase", isSelected ? "text-primary-foreground/90" : "text-muted-foreground")}>
+                    {formatDayShort(d)}
+                  </p>
+                  <p className="text-base font-semibold leading-tight">{d.getDate()}</p>
+                  <span
+                    className={cn(
+                      "mx-auto mt-1 block h-1.5 w-1.5 rounded-full",
+                      hasEvents ? (isSelected ? "bg-primary-foreground" : "bg-primary") : "bg-transparent"
+                    )}
+                  />
+                </button>
+              );
+            })}
+          </div>
+          <div className="rounded-lg border border-border">
+            <div className="border-b border-border px-3 py-2">
+              <p className="text-sm font-medium capitalize">
+                {selectedDayDate.toLocaleDateString("pt-BR", {
+                  weekday: "long",
+                  day: "2-digit",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+            </div>
+            <div className="p-2">
+              {selectedDayList.length === 0 ? (
+                <p className="px-2 py-3 text-sm text-muted-foreground">Sem consultas para este dia.</p>
+              ) : (
+                <div className="space-y-2">
+                  {selectedDayList.map((a) => (
+                    <Link
+                      key={a.id}
+                      href={`/dashboard/agenda/consulta/${a.id}`}
+                      className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 hover:bg-muted/40"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold">
+                          {new Date(a.scheduled_at).toLocaleTimeString("pt-BR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                        <p className="text-sm truncate">{a.patient.full_name}</p>
+                      </div>
+                      <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
+                        {STATUS_LABEL[a.status] ?? a.status}
+                      </Badge>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // Usar appointments filtrados para exibição
   const byDayHour = useMemo(() => {
     const map: Record<string, Record<number, AppointmentRow[]>> = {};
