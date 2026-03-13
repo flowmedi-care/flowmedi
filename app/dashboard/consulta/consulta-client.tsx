@@ -282,8 +282,8 @@ export function ConsultaClient({
 
       <Card>
         <CardContent className="pt-4 space-y-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="flex items-center gap-2 min-w-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-center gap-2 min-w-0 sm:flex-1 sm:max-w-md">
               <Search className="h-4 w-4 text-muted-foreground shrink-0" />
               <Input
                 placeholder="Busca por nome ou telefone"
@@ -293,7 +293,7 @@ export function ConsultaClient({
               />
             </div>
 
-            <div className="flex flex-col gap-2 sm:min-w-[420px]">
+            <div className="flex flex-col gap-2 sm:items-end">
               <div className="flex items-center gap-2">
                 <CalendarRange className="h-4 w-4 text-muted-foreground shrink-0" />
                 <select
