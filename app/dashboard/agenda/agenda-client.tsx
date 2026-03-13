@@ -21,6 +21,8 @@ import {
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
+  CalendarDays,
+  Rows3,
 } from "lucide-react";
 import { AgendaFilters } from "./agenda-filters";
 import { cn } from "@/lib/utils";
@@ -775,8 +777,12 @@ export function AgendaClient({
                         "h-8 rounded-md text-sm font-medium transition-colors",
                         viewMode === "timeline" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                       )}
+                      aria-label="Visualização em timeline"
+                      title="Timeline"
                     >
-                      Timeline
+                      <span className="mx-auto inline-flex items-center justify-center">
+                        <Rows3 className="h-4 w-4" />
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -788,8 +794,12 @@ export function AgendaClient({
                         "h-8 rounded-md text-sm font-medium transition-colors",
                         viewMode === "calendar" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                       )}
+                      aria-label="Visualização em calendário"
+                      title="Calendário"
                     >
-                      Calendário
+                      <span className="mx-auto inline-flex items-center justify-center">
+                        <CalendarDays className="h-4 w-4" />
+                      </span>
                     </button>
                   </div>
                 </div>
