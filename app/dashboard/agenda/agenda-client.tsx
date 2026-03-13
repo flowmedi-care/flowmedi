@@ -95,9 +95,21 @@ function getAppointmentAccentColor(
   colorByDimensionId: string | null,
   dimensionValues: PricingDimensionValueOption[]
 ): string {
-  // Mantém um padrão visual mais profissional e consistente com o app:
-  // destaque sempre em verde, sem excesso de variação por status/dimensão.
-  return "rgba(16, 185, 129, 0.72)";
+  if (colorBy === "dimension" && colorByDimensionId && dimensionValues.length > 0) {
+    const ids = appointment.dimension_value_ids ?? [];
+    const value = dimensionValues.find(
+      (dv) => dv.dimension_id === colorByDimensionId && ids.includes(dv.id)
+    );
+    if (value?.cor) return value.cor;
+  }
+
+  const statusLower = appointment.status.toLowerCase();
+  if (statusLower === "agendada") return "#3b82f6";
+  if (statusLower === "confirmada") return "#10b981";
+  if (statusLower === "realizada") return "#8b5cf6";
+  if (statusLower === "falta") return "#f59e0b";
+  if (statusLower === "cancelada") return "#ef4444";
+  return "#94a3b8";
 }
 
 export type AppointmentRow = {
