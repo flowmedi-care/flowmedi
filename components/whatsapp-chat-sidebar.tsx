@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MessageSquare, Plus, Send, Phone, Info, Trash2, Check, User } from "lucide-react";
+import { MessageSquare, Plus, Send, Info, Trash2, Check, User, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppContactSidebar, type Patient } from "./whatsapp-contact-sidebar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -121,6 +121,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [secretaries, setSecretaries] = useState<{ id: string; full_name: string }[]>([]);
   const [usageLimit, setUsageLimit] = useState<WhatsAppUsageLimit | null>(null);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const supabaseRef = useRef(createSupabaseBrowserClient());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottomRef = useRef(false);
@@ -282,6 +283,16 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   }, [selectedId]);
 
   useEffect(() => {
+    const syncMobile = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth < 640);
+    };
+    syncMobile();
+    window.addEventListener("resize", syncMobile);
+    return () => window.removeEventListener("resize", syncMobile);
+  }, []);
+
+  useEffect(() => {
     loadConversations();
     loadUnreadCounts();
     loadUsageLimit();
@@ -386,6 +397,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   }, [messages]);
 
   const selectedConversation = conversations.find((c) => c.id === selectedId);
+  const showListPane = !fullWidth || !isMobile || !selectedId;
+  const showChatPane = !fullWidth || !isMobile || !!selectedId;
 
   const handleSendNew = async () => {
     const to = newTo.replace(/\D/g, "");
@@ -471,13 +484,14 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       <div
         className={cn(
           "flex h-full min-h-0 w-full",
-          fullWidth ? "flex-col sm:flex-row sm:h-full" : "flex-row"
+          fullWidth ? "sm:flex-row sm:h-full" : "flex-row"
         )}
       >
         <div
           className={cn(
             "flex flex-col border-r border-border bg-muted/30 min-w-0 shrink-0",
-            fullWidth ? "w-full h-[38vh] sm:h-auto sm:w-80 sm:min-w-[280px] sm:min-h-0" : "w-80"
+            fullWidth ? "w-full sm:h-auto sm:w-80 sm:min-w-[280px] sm:min-h-0" : "w-80",
+            !showListPane && "hidden sm:flex"
           )}
         >
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
@@ -557,7 +571,9 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   <li key={c.id}>
                     <button
                       type="button"
-                      onClick={() => setSelectedId(c.id)}
+                      onClick={() => {
+                        setSelectedId(c.id);
+                      }}
                       className={cn(
                         "w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-muted/50 transition-colors",
                         selectedId === c.id && "bg-muted"
@@ -603,30 +619,56 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-background overflow-hidden">
+        <div
+          className={cn(
+            "flex-1 flex flex-col min-h-0 min-w-0 bg-background overflow-hidden",
+            !showChatPane && "hidden sm:flex"
+          )}
+        >
           {selectedId ? (
             <>
               <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card">
-                <div className={cn(
-                  "flex h-10 w-10 rounded-full items-center justify-center shrink-0",
-                  selectedConversation && patientByPhone[selectedConversation.phone_number]
-                    ? "bg-primary/10"
-                    : "bg-yellow-100 dark:bg-yellow-900/20"
-                )}>
-                  <User className={cn(
-                    "h-5 w-5",
-                    selectedConversation && patientByPhone[selectedConversation.phone_number]
-                      ? "text-primary"
-                      : "text-yellow-600 dark:text-yellow-400"
-                  )} />
-                </div>
-                <span className="font-semibold truncate flex-1 min-w-0">
-                  {selectedConversation
-                    ? patientByPhone[selectedConversation.phone_number]?.full_name ??
-                      selectedConversation.contact_name ??
-                      formatPhone(selectedConversation.phone_number)
-                    : selectedId}
-                </span>
+                {fullWidth && isMobile && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 h-9 w-9"
+                    onClick={() => setSelectedId(null)}
+                    title="Voltar para conversas"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setContactSidebarOpen(true)}
+                  className="flex items-center gap-3 min-w-0 flex-1 text-left"
+                >
+                  <div
+                    className={cn(
+                      "flex h-10 w-10 rounded-full items-center justify-center shrink-0",
+                      selectedConversation && patientByPhone[selectedConversation.phone_number]
+                        ? "bg-primary/10"
+                        : "bg-yellow-100 dark:bg-yellow-900/20"
+                    )}
+                  >
+                    <User
+                      className={cn(
+                        "h-5 w-5",
+                        selectedConversation && patientByPhone[selectedConversation.phone_number]
+                          ? "text-primary"
+                          : "text-yellow-600 dark:text-yellow-400"
+                      )}
+                    />
+                  </div>
+                  <span className="font-semibold truncate min-w-0">
+                    {selectedConversation
+                      ? patientByPhone[selectedConversation.phone_number]?.full_name ??
+                        selectedConversation.contact_name ??
+                        formatPhone(selectedConversation.phone_number)
+                      : selectedId}
+                  </span>
+                </button>
                 <Button
                   variant="ghost"
                   size="icon"

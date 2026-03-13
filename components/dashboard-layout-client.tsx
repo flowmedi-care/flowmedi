@@ -61,6 +61,13 @@ export function DashboardLayoutClient({
     checkWhatsAppIntegration();
   }, [profile?.clinic_id]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.innerWidth < 768) {
+      setIsCollapsed(true);
+    }
+  }, [pathname]);
+
   return (
     <div className="flex h-screen overflow-hidden">
       {isCollapsed && (
