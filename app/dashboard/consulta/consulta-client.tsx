@@ -6,9 +6,10 @@ import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock, Plus, Search, CalendarRange, Tags, Activity, Stethoscope } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { CalendarClock, Plus, Search, CalendarRange, Tags, Activity, Stethoscope, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStatusBadgeClassName } from "../agenda/status-utils";
 import type { ConsultaRow } from "./page";
@@ -51,6 +52,8 @@ export function ConsultaClient({
   appointmentTypes,
   procedures,
   formTemplates,
+  pricingDimensions,
+  pricingDimensionValues,
 }: {
   consultas: ConsultaRow[];
   patients: { id: string; full_name: string }[];
@@ -58,6 +61,8 @@ export function ConsultaClient({
   appointmentTypes: { id: string; name: string }[];
   procedures: { id: string; name: string; recommendations: string | null }[];
   formTemplates: { id: string; name: string }[];
+  pricingDimensions: { id: string; nome: string }[];
+  pricingDimensionValues: { id: string; dimension_id: string; nome: string }[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -89,6 +94,24 @@ export function ConsultaClient({
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [doctorFilter, setDoctorFilter] = useState<string>("");
+  const [dimensionFilter, setDimensionFilter] = useState<string>("");
+  const [dimensionValueFilter, setDimensionValueFilter] = useState<string>("");
+  const [valorMinFilter, setValorMinFilter] = useState<string>("");
+  const [valorMaxFilter, setValorMaxFilter] = useState<string>("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  useEffect(() => {
+    if (!dimensionFilter) {
+      setDimensionValueFilter("");
+      return;
+    }
+    if (dimensionValueFilter) {
+      const found = pricingDimensionValues.find((v) => v.id === dimensionValueFilter);
+      if (!found || found.dimension_id !== dimensionFilter) {
+        setDimensionValueFilter("");
+      }
+    }
+  }, [dimensionFilter, dimensionValueFilter, pricingDimensionValues]);
 
   const filtered = useMemo(() => {
     let list = [...consultas];
@@ -150,6 +173,31 @@ export function ConsultaClient({
       list = list.filter((c) => c.doctor?.id === doctorFilter);
     }
 
+    // Dimensão / valor de dimensão
+    if (dimensionFilter) {
+      const valueIdsForDimension = new Set(
+        pricingDimensionValues
+          .filter((v) => v.dimension_id === dimensionFilter)
+          .map((v) => v.id)
+      );
+      list = list.filter((c) => {
+        const ids = c.dimension_value_ids ?? [];
+        if (ids.length === 0) return false;
+        if (dimensionValueFilter) return ids.includes(dimensionValueFilter);
+        return ids.some((id) => valueIdsForDimension.has(id));
+      });
+    }
+
+    // Valor da consulta
+    const valorMin = valorMinFilter.trim() ? Number(valorMinFilter.replace(",", ".")) : null;
+    const valorMax = valorMaxFilter.trim() ? Number(valorMaxFilter.replace(",", ".")) : null;
+    if (valorMin !== null && !Number.isNaN(valorMin)) {
+      list = list.filter((c) => (c.valor ?? -Infinity) >= valorMin);
+    }
+    if (valorMax !== null && !Number.isNaN(valorMax)) {
+      list = list.filter((c) => (c.valor ?? Infinity) <= valorMax);
+    }
+
     // Paciente (filtro vindo do painel de pacientes)
     if (filteredPatientId) {
       list = list.filter((c) => c.patient.id === filteredPatientId);
@@ -167,23 +215,66 @@ export function ConsultaClient({
     statusFilter,
     typeFilter,
     doctorFilter,
+    dimensionFilter,
+    dimensionValueFilter,
+    valorMinFilter,
+    valorMaxFilter,
     filteredPatientId,
+    pricingDimensionValues,
   ]);
 
   const showDoctorFilter = doctors.length > 1;
+  const activeFiltersCount = [
+    statusFilter !== "",
+    typeFilter !== "",
+    doctorFilter !== "",
+    dimensionFilter !== "",
+    dimensionValueFilter !== "",
+    valorMinFilter.trim() !== "",
+    valorMaxFilter.trim() !== "",
+  ].filter(Boolean).length;
+  const dimensionValueOptions = pricingDimensionValues.filter(
+    (v) => !dimensionFilter || v.dimension_id === dimensionFilter
+  );
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Consulta</h1>
-        <Button
-          className="w-full sm:w-auto min-h-[44px] touch-manipulation"
-          type="button"
-          onClick={() => router.push("/dashboard/agenda?new=true")}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Nova consulta
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            size="icon"
+            variant={activeFiltersCount > 0 ? "secondary" : "outline"}
+            className={cn("h-10 w-10 rounded-full", activeFiltersCount > 0 && "relative")}
+            type="button"
+            onClick={() => setFiltersOpen(true)}
+            aria-label="Abrir filtros de consulta"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {activeFiltersCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-[10px] leading-[18px] text-center px-1 font-semibold">
+                {activeFiltersCount}
+              </span>
+            )}
+          </Button>
+          <Button
+            size="icon"
+            className="h-10 w-10 rounded-full sm:hidden"
+            type="button"
+            onClick={() => router.push("/dashboard/agenda?new=true")}
+            aria-label="Nova consulta"
+          >
+            <Plus className="h-5 w-5" />
+          </Button>
+          <Button
+            className="hidden sm:inline-flex min-h-[44px] touch-manipulation"
+            type="button"
+            onClick={() => router.push("/dashboard/agenda?new=true")}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nova consulta
+          </Button>
+        </div>
       </div>
 
       {/* Formulário unificado na Agenda — ambos os botões "Nova consulta" levam à mesma tela */}
@@ -205,22 +296,19 @@ export function ConsultaClient({
         </div>
       )}
 
-      {/* Linha horizontal de filtros */}
-      <div className="border-t border-b border-border py-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Busca por nome / telefone */}
-          <div className="flex items-center gap-2 min-w-[200px] flex-1 max-w-sm">
+      <Card>
+        <CardContent className="pt-4 space-y-3">
+          <div className="flex items-center gap-2">
             <Search className="h-4 w-4 text-muted-foreground shrink-0" />
             <Input
               placeholder="Busca por nome ou telefone"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-9"
+              className="h-10"
             />
           </div>
 
-          {/* Período */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2">
             <CalendarRange className="h-4 w-4 text-muted-foreground shrink-0" />
             <select
               value={period}
@@ -243,7 +331,7 @@ export function ConsultaClient({
                   onChange={(e) => setCustomFrom(e.target.value)}
                   className="h-9 w-[140px]"
                 />
-                <span className="text-muted-foreground">até</span>
+                <span className="text-muted-foreground text-sm">até</span>
                 <Input
                   type="date"
                   value={customTo}
@@ -253,67 +341,154 @@ export function ConsultaClient({
               </>
             )}
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Tipo */}
-          <div className="flex items-center gap-2">
-            <Tags className="h-4 w-4 text-muted-foreground shrink-0" />
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className={cn(
-                "flex h-9 w-[160px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              )}
-            >
-              <option value="">Todos</option>
-              {appointmentTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
+      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <DialogContent title="Filtros de consulta" onClose={() => setFiltersOpen(false)}>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tipo</label>
+                <div className="flex items-center gap-2">
+                  <Tags className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <select
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Todos</option>
+                    {appointmentTypes.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-          {/* Status */}
-          <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-muted-foreground shrink-0" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className={cn(
-                "flex h-9 w-[140px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              )}
-            >
-              <option value="">Todos</option>
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Profissional (se mais de um) */}
-          {showDoctorFilter && (
-            <div className="flex items-center gap-2">
-              <Stethoscope className="h-4 w-4 text-muted-foreground shrink-0" />
-              <select
-                value={doctorFilter}
-                onChange={(e) => setDoctorFilter(e.target.value)}
-                className={cn(
-                  "flex h-9 w-[160px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                )}
-              >
-                <option value="">Todos</option>
-                {doctors.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.full_name || "Sem nome"}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</label>
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Todos</option>
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+
+            {showDoctorFilter && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Profissional</label>
+                <div className="flex items-center gap-2">
+                  <Stethoscope className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <select
+                    value={doctorFilter}
+                    onChange={(e) => setDoctorFilter(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Todos</option>
+                    {doctors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.full_name || "Sem nome"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Dimensão</label>
+                <select
+                  value={dimensionFilter}
+                  onChange={(e) => setDimensionFilter(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Todas</option>
+                  {pricingDimensions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Valor da dimensão</label>
+                <select
+                  value={dimensionValueFilter}
+                  onChange={(e) => setDimensionValueFilter(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Todos</option>
+                  {dimensionValueOptions.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Valor mínimo</label>
+                <Input
+                  inputMode="decimal"
+                  placeholder="Ex.: 150"
+                  value={valorMinFilter}
+                  onChange={(e) => setValorMinFilter(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Valor máximo</label>
+                <Input
+                  inputMode="decimal"
+                  placeholder="Ex.: 400"
+                  value={valorMaxFilter}
+                  onChange={(e) => setValorMaxFilter(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter("");
+                  setTypeFilter("");
+                  setDoctorFilter("");
+                  setDimensionFilter("");
+                  setDimensionValueFilter("");
+                  setValorMinFilter("");
+                  setValorMaxFilter("");
+                }}
+              >
+                Limpar filtros
+              </Button>
+              <Button type="button" size="sm" onClick={() => setFiltersOpen(false)}>
+                Aplicar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Lista de consultas ordenada por data */}
       <div className="space-y-1">

@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ConsultaClient } from "./consulta-client";
 
@@ -7,6 +7,9 @@ export type ConsultaRow = {
   scheduled_at: string;
   status: string;
   notes: string | null;
+  service_id?: string | null;
+  valor?: number | null;
+  dimension_value_ids?: string[];
   patient: { id: string; full_name: string; phone: string | null };
   doctor: { id: string; full_name: string | null };
   appointment_type: { id: string; name: string } | null;
@@ -51,6 +54,8 @@ export default async function ConsultaPage() {
       scheduled_at,
       status,
       notes,
+      service_id,
+      valor,
       patient:patients ( id, full_name, phone ),
       doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( id, name )
@@ -68,6 +73,23 @@ export default async function ConsultaPage() {
   }
 
   const { data: appointments } = await appointmentsQuery;
+  const appointmentIds = (appointments ?? []).map((a: { id: string }) => a.id);
+
+  let appointmentDimensionValues: { appointment_id: string; dimension_value_id: string }[] = [];
+  if (appointmentIds.length > 0) {
+    const { data: adv } = await supabase
+      .from("appointment_dimension_values")
+      .select("appointment_id, dimension_value_id")
+      .in("appointment_id", appointmentIds);
+    appointmentDimensionValues = adv ?? [];
+  }
+  const dimensionValueIdsByAppointment: Record<string, string[]> = {};
+  for (const row of appointmentDimensionValues) {
+    if (!dimensionValueIdsByAppointment[row.appointment_id]) {
+      dimensionValueIdsByAppointment[row.appointment_id] = [];
+    }
+    dimensionValueIdsByAppointment[row.appointment_id].push(row.dimension_value_id);
+  }
 
   const { data: doctorsRaw } = await supabase
     .from("profiles")
@@ -107,6 +129,20 @@ export default async function ConsultaPage() {
     .eq("clinic_id", clinicId)
     .order("name");
 
+  const { data: pricingDimensions } = await supabase
+    .from("price_dimensions")
+    .select("id, nome")
+    .eq("clinic_id", clinicId)
+    .eq("ativo", true)
+    .order("nome");
+
+  const { data: pricingDimensionValues } = await supabase
+    .from("dimension_values")
+    .select("id, dimension_id, nome")
+    .eq("clinic_id", clinicId)
+    .eq("ativo", true)
+    .order("nome");
+
   const rows: ConsultaRow[] = (appointments ?? []).map((a: Record<string, unknown>) => {
     const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
     const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
@@ -115,11 +151,15 @@ export default async function ConsultaPage() {
       : a.appointment_type;
     const procedure = Array.isArray(a.procedure) ? a.procedure[0] : a.procedure;
     const p = patient as { id?: unknown; full_name?: unknown; phone?: unknown } | null;
+    const appointmentId = String(a.id ?? "");
     return {
-      id: String(a.id ?? ""),
+      id: appointmentId,
       scheduled_at: String(a.scheduled_at ?? ""),
       status: String(a.status ?? ""),
       notes: a.notes != null ? String(a.notes) : null,
+      service_id: a.service_id != null ? String(a.service_id) : null,
+      valor: a.valor != null ? Number(a.valor) : null,
+      dimension_value_ids: dimensionValueIdsByAppointment[appointmentId] ?? [],
       patient: {
         id: String(p?.id ?? ""),
         full_name: String(p?.full_name ?? ""),
@@ -170,6 +210,15 @@ export default async function ConsultaPage() {
         formTemplates={(formTemplates ?? []).map((f) => ({
           id: f.id,
           name: f.name,
+        }))}
+        pricingDimensions={(pricingDimensions ?? []).map((d) => ({
+          id: d.id,
+          nome: d.nome,
+        }))}
+        pricingDimensionValues={(pricingDimensionValues ?? []).map((v) => ({
+          id: v.id,
+          dimension_id: v.dimension_id,
+          nome: v.nome,
         }))}
       />
     </div>
