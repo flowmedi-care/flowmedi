@@ -627,20 +627,35 @@ export function AgendaClient({
   return (
     <div className="space-y-4 sm:space-y-6 min-w-0">
       {/* Header: título + ação principal */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between gap-x-4">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground sm:text-2xl truncate">Agenda</h1>
-        <Button
-          className="w-full sm:w-auto min-h-[44px] touch-manipulation shrink-0 order-first sm:order-none"
-          onClick={() => {
-            setShowForm(true);
-            if (doctors.length === 1) {
-              setForm((f) => ({ ...f, doctorId: doctors[0].id }));
-            }
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Nova consulta
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            size="icon"
+            className="h-10 w-10 rounded-full sm:hidden"
+            onClick={() => {
+              setShowForm(true);
+              if (doctors.length === 1) {
+                setForm((f) => ({ ...f, doctorId: doctors[0].id }));
+              }
+            }}
+            aria-label="Nova consulta"
+          >
+            <Plus className="h-5 w-5" />
+          </Button>
+          <Button
+            className="hidden sm:inline-flex min-h-[44px] touch-manipulation"
+            onClick={() => {
+              setShowForm(true);
+              if (doctors.length === 1) {
+                setForm((f) => ({ ...f, doctorId: doctors[0].id }));
+              }
+            }}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nova consulta
+          </Button>
+        </div>
       </div>
 
       {/* Toolbar único: visualização, período e filtros em blocos claros */}
@@ -767,7 +782,7 @@ export function AgendaClient({
           <div className="h-px bg-border" aria-hidden />
           <div className="flex flex-col gap-3">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Filtros</span>
-            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <AgendaFilters
                 statusFilter={statusFilter}
                 formFilter={formFilter}
@@ -781,8 +796,8 @@ export function AgendaClient({
                 }}
               />
               {services.length > 0 && (
-                <div className="grid grid-cols-[auto_1fr] items-center gap-2 sm:flex sm:items-center">
-                  <Label className="text-muted-foreground text-sm shrink-0">Serviço</Label>
+                <div className="space-y-1.5 rounded-md border border-border bg-background px-3 py-2">
+                  <Label className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Serviço</Label>
                   <select
                     value={filterByServiceId}
                     onChange={async (e) => {
@@ -790,7 +805,7 @@ export function AgendaClient({
                       setFilterByServiceId(v);
                       await updateUserPreferences({ agenda_filter_by_service_id: v || undefined });
                     }}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm sm:min-w-[160px]"
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value="">Todos</option>
                     {services.map((s) => (
@@ -800,8 +815,8 @@ export function AgendaClient({
                 </div>
               )}
               {(services.length > 0 || pricingDimensions.length > 0) && (
-                <div className="grid grid-cols-[auto_1fr] items-center gap-2 sm:flex sm:items-center">
-                  <Label className="text-muted-foreground text-sm shrink-0">Colorir por</Label>
+                <div className="space-y-1.5 rounded-md border border-border bg-background px-3 py-2">
+                  <Label className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Colorir por</Label>
                   <select
                     value={colorBy === "dimension" ? colorByDimensionId : "status"}
                     onChange={async (e) => {
@@ -816,7 +831,7 @@ export function AgendaClient({
                         await updateUserPreferences({ agenda_color_by: "dimension", agenda_color_by_dimension_id: v });
                       }
                     }}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm sm:min-w-[160px]"
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value="status">Status</option>
                     {pricingDimensions.map((d) => (

@@ -185,7 +185,12 @@ function FormFilter({ selectedFilter, onFilterChange }: FormFilterProps) {
     { value: "confirmados_com_formulario" as const, label: "Confirmados com formulário" },
   ];
 
-  const selectedLabel = options.find((opt) => opt.value === selectedFilter)?.label || "Formulários";
+  const selectedShortLabel =
+    selectedFilter === "confirmados_sem_formulario"
+      ? "Sem formulário"
+      : selectedFilter === "confirmados_com_formulario"
+      ? "Com formulário"
+      : "Formulários";
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -194,12 +199,12 @@ function FormFilter({ selectedFilter, onFilterChange }: FormFilterProps) {
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "h-9 w-full justify-between gap-2 sm:w-auto sm:justify-start",
+          "h-9 w-full justify-between gap-2",
           selectedFilter && "border-primary bg-primary/5"
         )}
       >
         <Filter className="h-3.5 w-3.5" />
-        <span className="text-xs">{selectedFilter ? selectedLabel : "Formulários"}</span>
+        <span className="text-xs truncate">{selectedShortLabel}</span>
         <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} />
       </Button>
 
@@ -267,7 +272,7 @@ export function AgendaFilters({
   };
 
   return (
-    <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+    <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
       <StatusFilter selectedStatuses={statusFilter} onStatusChange={onStatusChange} />
       <FormFilter selectedFilter={formFilter} onFilterChange={onFormChange} />
       
@@ -276,7 +281,7 @@ export function AgendaFilters({
           variant="ghost"
           size="sm"
           onClick={clearAll}
-          className="h-9 w-full text-xs gap-1 sm:w-auto"
+          className="h-9 w-full text-xs gap-1 sm:col-span-2"
           title="Limpar todos os filtros"
         >
           <X className="h-3.5 w-3.5" />
