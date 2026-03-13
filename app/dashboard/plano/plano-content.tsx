@@ -433,7 +433,7 @@ export function PlanoContent(props: PlanoContentProps) {
                   <p className="text-sm text-muted-foreground mb-3">
                     Troque de plano facilmente. O valor será ajustado de forma proporcional.
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     {otherPlans.map((p) => (
                       <button
                         key={p.id}
@@ -444,7 +444,7 @@ export function PlanoContent(props: PlanoContentProps) {
                           e.stopPropagation();
                           onStartPlanChange(p.slug);
                         }}
-                        className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-xs font-medium h-8 px-3 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                        className="inline-flex w-full sm:w-auto items-center justify-center gap-2 whitespace-nowrap rounded-md text-xs font-medium h-9 px-3 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                       >
                         {loadingCheckout ? (
                           <>
@@ -495,7 +495,7 @@ export function PlanoContent(props: PlanoContentProps) {
           ) : invoices.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">Nenhuma fatura.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm min-w-[320px]">
                 <thead>
                   <tr className="border-b text-left">
@@ -533,6 +533,29 @@ export function PlanoContent(props: PlanoContentProps) {
                 </tbody>
               </table>
             </div>
+            <div className="sm:hidden space-y-2">
+              {invoices.map((inv) => (
+                <div key={inv.id} className="rounded-md border border-border p-3 text-sm">
+                  <p className="font-medium">{formatDate(inv.created)}</p>
+                  <p className="text-muted-foreground">{inv.description ?? "—"}</p>
+                  <div className="mt-1 flex items-center justify-between">
+                    <span>{formatMoney(inv.amount_paid, inv.currency)}</span>
+                    <span className="text-muted-foreground">{invoiceStatusLabel(inv.status)}</span>
+                  </div>
+                  {inv.hosted_invoice_url && (
+                    <a
+                      href={inv.hosted_invoice_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      Ver fatura
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -564,7 +587,7 @@ export function PlanoContent(props: PlanoContentProps) {
               {messageStats.recentMessages.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhuma mensagem registrada ainda.</p>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-sm min-w-[320px]">
                     <thead>
                       <tr className="border-b text-left">
@@ -585,6 +608,17 @@ export function PlanoContent(props: PlanoContentProps) {
                       ))}
                     </tbody>
                   </table>
+                </div>
+                <div className="sm:hidden space-y-2">
+                  {messageStats.recentMessages.map((msg) => (
+                    <div key={msg.id} className="rounded-md border border-border p-3 text-sm">
+                      <p className="font-medium capitalize">{msg.channel}</p>
+                      <p className="text-muted-foreground break-all">{msg.type}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(msg.sent_at).toLocaleString("pt-BR")}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               )}
             </>

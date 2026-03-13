@@ -73,7 +73,7 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "h-8 gap-2",
+          "h-9 gap-2",
           selectedStatuses.length > 0 && "border-primary bg-primary/5"
         )}
       >
@@ -88,11 +88,11 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
       </Button>
 
       {isOpen && (
-        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg border border-border" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
-          <CardContent className="p-2" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
-            <div className="space-y-1" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
+        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg border border-border">
+          <CardContent className="p-2">
+            <div className="space-y-1">
               {/* Header com ações */}
-              <div className="flex items-center justify-between px-2 py-1.5 border-b border-border" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
+              <div className="flex items-center justify-between px-2 py-1.5 border-b border-border">
                 <span className="text-xs font-medium text-muted-foreground">Status</span>
                 <div className="flex items-center gap-1">
                   {!allSelected && (
@@ -115,7 +115,7 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
               </div>
 
               {/* Lista de checkboxes */}
-              <div className="max-h-64 overflow-y-auto" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
+              <div className="max-h-64 overflow-y-auto">
                 {Object.entries(STATUS_LABEL).map(([value, label]) => {
                   const isChecked = selectedStatuses.includes(value);
                   return (
@@ -125,7 +125,6 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
                         "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 transition-colors",
                         isChecked && "bg-primary/5"
                       )}
-                      style={{ backgroundColor: isChecked ? 'hsl(var(--primary) / 0.05)' : 'hsl(var(--background))', opacity: 1 }}
                     >
                       <input
                         type="checkbox"
@@ -195,7 +194,7 @@ function FormFilter({ selectedFilter, onFilterChange }: FormFilterProps) {
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "h-8 gap-2",
+          "h-9 gap-2",
           selectedFilter && "border-primary bg-primary/5"
         )}
       >
@@ -205,13 +204,13 @@ function FormFilter({ selectedFilter, onFilterChange }: FormFilterProps) {
       </Button>
 
       {isOpen && (
-        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg border border-border" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
-          <CardContent className="p-2" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
-            <div className="space-y-1" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
-              <div className="px-2 py-1.5 border-b border-border" style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
+        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg border border-border">
+          <CardContent className="p-2">
+            <div className="space-y-1">
+              <div className="px-2 py-1.5 border-b border-border">
                 <span className="text-xs font-medium text-muted-foreground">Formulários</span>
               </div>
-              <div style={{ backgroundColor: 'hsl(var(--background))', opacity: 1 }}>
+              <div>
                 {options.map((option) => {
                   const isSelected = option.value === selectedFilter;
                   return (
@@ -221,7 +220,6 @@ function FormFilter({ selectedFilter, onFilterChange }: FormFilterProps) {
                         "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 transition-colors",
                         isSelected && "bg-primary/5"
                       )}
-                      style={{ backgroundColor: isSelected ? 'hsl(var(--primary) / 0.05)' : 'hsl(var(--background))', opacity: 1 }}
                       onClick={() => {
                         onFilterChange(option.value);
                         setIsOpen(false);
@@ -269,7 +267,7 @@ export function AgendaFilters({
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <StatusFilter selectedStatuses={statusFilter} onStatusChange={onStatusChange} />
       <FormFilter selectedFilter={formFilter} onFilterChange={onFormChange} />
       
@@ -278,7 +276,7 @@ export function AgendaFilters({
           variant="ghost"
           size="sm"
           onClick={clearAll}
-          className="h-8 text-xs gap-1"
+          className="h-9 text-xs gap-1"
           title="Limpar todos os filtros"
         >
           <X className="h-3.5 w-3.5" />

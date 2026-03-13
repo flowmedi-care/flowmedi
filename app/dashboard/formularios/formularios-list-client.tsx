@@ -103,11 +103,11 @@ export function FormulariosListClient({
               {templates.map((t) => (
                 <li
                   key={t.id}
-                  className="flex items-center justify-between py-3 first:pt-0"
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between py-3 first:pt-0"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{t.name}</span>
+                    <span className="font-medium truncate">{t.name}</span>
                     {t.appointment_type_name && (
                       <span className="text-sm text-muted-foreground">
                         → {t.appointment_type_name}
@@ -119,7 +119,7 @@ export function FormulariosListClient({
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center flex-wrap gap-1">
                     {t.is_public && (
                       <Button
                         variant="ghost"

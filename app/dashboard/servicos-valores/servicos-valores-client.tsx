@@ -214,12 +214,13 @@ function ServicosSection({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0 pb-4">
         <div>
           <h2 className="text-lg font-semibold">Serviços</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Ex.: Consulta geral, Botox, Colonoscopia</p>
         </div>
         <Button
+          className="w-full sm:w-auto"
           size="sm"
           onClick={() => {
             setIsNew(true);
@@ -283,8 +284,8 @@ function ServicosSection({
             onAction={() => { setIsNew(true); setNome(""); setCategoria(""); }}
           />
         ) : (
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="bg-muted/40">
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Nome</th>
@@ -425,12 +426,12 @@ function DimensoesSection({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0 pb-4">
         <div>
           <h2 className="text-lg font-semibold">Dimensões</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Ex.: Cidade, Convênio, Unidade, Turno, Campanha</p>
         </div>
-        <Button size="sm" onClick={() => { setIsNew(true); setEditingId(null); setNome(""); }} disabled={isNew}>
+        <Button className="w-full sm:w-auto" size="sm" onClick={() => { setIsNew(true); setEditingId(null); setNome(""); }} disabled={isNew}>
           <Plus className="h-4 w-4 mr-2" />
           Nova dimensão
         </Button>
@@ -461,8 +462,8 @@ function DimensoesSection({
             onAction={() => { setIsNew(true); setNome(""); }}
           />
         ) : (
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="bg-muted/40">
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Nome</th>
@@ -603,23 +604,23 @@ function ValoresSection({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0 pb-4">
         <div>
           <h2 className="text-lg font-semibold">Valores por dimensão</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Ex.: Unimed, SUS, Particular para Convênio</p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex w-full sm:w-auto flex-col sm:flex-row gap-2 items-stretch sm:items-center">
           <select
             value={dimensionId}
             onChange={(e) => setDimensionId(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[180px] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            className="h-9 w-full sm:w-auto rounded-md border border-input bg-background px-3 text-sm min-w-[180px] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           >
             <option value="">Selecione a dimensão</option>
             {activeDimensions.map((d) => (
               <option key={d.id} value={d.id}>{d.nome}</option>
             ))}
           </select>
-          <Button size="sm" onClick={() => { setIsNew(true); setEditingId(null); setNome(""); }} disabled={isNew || !dimensionId}>
+          <Button className="w-full sm:w-auto" size="sm" onClick={() => { setIsNew(true); setEditingId(null); setNome(""); }} disabled={isNew || !dimensionId}>
             <Plus className="h-4 w-4 mr-2" />
             Novo valor
           </Button>
@@ -851,12 +852,13 @@ function RegrasSection({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0 pb-4">
         <div>
           <h2 className="text-lg font-semibold">Regras de preço</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Serviço + opcionalmente profissional + dimensões = valor aplicado na agenda</p>
         </div>
         <Button
+          className="w-full sm:w-auto"
           size="sm"
           onClick={() => {
             setIsNew(true);
@@ -971,8 +973,8 @@ function RegrasSection({
             onAction={() => { setIsNew(true); setServiceId(""); setProfessionalId(""); setValor(""); setSelectedDimensionValueIds([]); }}
           />
         ) : (
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full min-w-[980px] text-sm">
               <thead>
                 <tr className="bg-muted/40">
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Serviço</th>

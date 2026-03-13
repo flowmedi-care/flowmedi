@@ -95,7 +95,7 @@ export function DashboardLayoutClient({
       <main
         className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-background ${
           !isWhatsAppPage ? "overflow-y-auto" : ""
-        } ${isCollapsed ? "pt-14 md:pt-0" : "pt-0"}`}
+        } ${isCollapsed ? "pt-14 pl-14 md:pt-0 md:pl-0" : "pt-0 pl-0"}`}
       >
         {isWhatsAppPage ? (
           <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">

@@ -186,8 +186,8 @@ export function FormulariosConsultaClient({
 
             return (
               <Card key={fi.id}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <div className="flex items-center gap-2">
+                <CardHeader className="space-y-3 pb-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-medium">{fi.template_name}</h3>
                     <Badge
                       variant={
@@ -201,11 +201,12 @@ export function FormulariosConsultaClient({
                       {fi.status}
                     </Badge>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     {isDoctor && !isRespondido && (
                       <Button
                         variant="outline"
                         size="sm"
+                        className="w-full sm:w-auto"
                         onClick={() => setEditingFormId(fi.id)}
                       >
                         <Edit2 className="h-4 w-4 mr-2" />
@@ -217,7 +218,7 @@ export function FormulariosConsultaClient({
                         variant="outline"
                         size="sm"
                         onClick={() => handleUnlinkForm(fi.id)}
-                        className="text-destructive hover:text-destructive"
+                        className="w-full sm:w-auto text-destructive hover:text-destructive"
                       >
                         <X className="h-4 w-4 mr-2" />
                         Desvincular

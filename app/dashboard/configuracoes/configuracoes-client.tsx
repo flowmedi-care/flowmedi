@@ -555,8 +555,8 @@ export function ConfiguracoesClient({
                   {complianceError}
                 </p>
               )}
-              <div className="flex items-center gap-4">
-                <div className="space-y-2 flex-1 max-w-xs">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                <div className="space-y-2 flex-1 sm:max-w-xs">
                   <Label htmlFor="compliance_days">Dias antes da consulta</Label>
                   <Input
                     id="compliance_days"
@@ -571,8 +571,9 @@ export function ConfiguracoesClient({
                     Deixe vazio para desabilitar a regra de compliance
                   </p>
                 </div>
-                <div className="pt-6">
+                <div className="sm:pt-0">
                   <Button
+                    className="w-full sm:w-auto"
                     onClick={async () => {
                       setComplianceError(null);
                       setComplianceLoading(true);
@@ -616,8 +617,8 @@ export function ConfiguracoesClient({
                   {complianceFormError}
                 </p>
               )}
-              <div className="flex items-center gap-4">
-                <div className="space-y-2 flex-1 max-w-xs">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                <div className="space-y-2 flex-1 sm:max-w-xs">
                   <Label htmlFor="compliance_form_days">Dias antes da consulta</Label>
                   <Input
                     id="compliance_form_days"
@@ -632,8 +633,9 @@ export function ConfiguracoesClient({
                     Deixe vazio para desabilitar a regra de compliance do formulário
                   </p>
                 </div>
-                <div className="pt-6">
+                <div className="sm:pt-0">
                   <Button
+                    className="w-full sm:w-auto"
                     onClick={async () => {
                       setComplianceFormError(null);
                       setComplianceFormLoading(true);

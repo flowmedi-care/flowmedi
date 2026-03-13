@@ -319,20 +319,24 @@ export function AdminReportsClient({
           </CardHeader>
         </Card>
       )}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
-        {TABS.filter((t) => allowedTabs.includes(t.id)).map((t) => (
-          <Button
-            key={t.id}
-            variant={activeTab === t.id ? "secondary" : "ghost"}
-            size="sm"
-            className={cn("gap-2", activeTab === t.id && "bg-primary/10 text-primary")}
-            onClick={() => setTab(t.id)}
-          >
-            {t.icon}
-            {t.label}
-          </Button>
-        ))}
-        <div className="ml-auto flex items-center gap-2">
+      <div className="space-y-3 border-b border-border pb-4">
+        <div className="overflow-x-auto">
+          <div className="flex w-max gap-2">
+            {TABS.filter((t) => allowedTabs.includes(t.id)).map((t) => (
+              <Button
+                key={t.id}
+                variant={activeTab === t.id ? "secondary" : "ghost"}
+                size="sm"
+                className={cn("gap-2 whitespace-nowrap", activeTab === t.id && "bg-primary/10 text-primary")}
+                onClick={() => setTab(t.id)}
+              >
+                {t.icon}
+                {t.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 sm:justify-end">
           <span className="text-sm text-muted-foreground">Período:</span>
           <select
             value={period}

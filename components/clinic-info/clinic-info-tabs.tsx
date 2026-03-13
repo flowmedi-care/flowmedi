@@ -72,7 +72,8 @@ export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: Clin
       </CardHeader>
       <CardContent>
         {/* Tabs */}
-        <div className="flex gap-2 border-b mb-6">
+        <div className="mb-6 overflow-x-auto">
+          <div className="flex gap-2 border-b min-w-max">
           <Button
             variant={activeTab === "info" ? "default" : "ghost"}
             onClick={() => setActiveTab("info")}
@@ -97,6 +98,7 @@ export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: Clin
             <Phone className="h-4 w-4 mr-2" />
             Contato
           </Button>
+          </div>
         </div>
 
         {/* Tab Content */}
@@ -125,7 +127,7 @@ export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: Clin
                 Este nome será usado em emails, formulários e outras comunicações
               </p>
             </div>
-            <Button onClick={handleSaveInfo} disabled={saving || !name.trim()}>
+            <Button className="w-full sm:w-auto" onClick={handleSaveInfo} disabled={saving || !name.trim()}>
               {saving ? "Salvando..." : "Salvar Informações"}
             </Button>
           </div>
@@ -268,7 +270,7 @@ export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: Clin
                 </div>
               </div>
             </div>
-            <Button onClick={handleSaveInfo} disabled={saving}>
+            <Button className="w-full sm:w-auto" onClick={handleSaveInfo} disabled={saving}>
               {saving ? "Salvando..." : "Salvar Contato"}
             </Button>
           </div>
