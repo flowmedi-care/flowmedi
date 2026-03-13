@@ -95,21 +95,9 @@ function getAppointmentAccentColor(
   colorByDimensionId: string | null,
   dimensionValues: PricingDimensionValueOption[]
 ): string {
-  if (colorBy === "dimension" && colorByDimensionId && dimensionValues.length > 0) {
-    const ids = appointment.dimension_value_ids ?? [];
-    const value = dimensionValues.find(
-      (dv) => dv.dimension_id === colorByDimensionId && ids.includes(dv.id)
-    );
-    if (value?.cor) return value.cor;
-  }
-
-  const statusLower = appointment.status.toLowerCase();
-  if (statusLower === "agendada") return "#3b82f6";
-  if (statusLower === "confirmada") return "#10b981";
-  if (statusLower === "realizada") return "#8b5cf6";
-  if (statusLower === "falta") return "#f59e0b";
-  if (statusLower === "cancelada") return "#ef4444";
-  return "#94a3b8";
+  // Mantém um padrão visual mais profissional e consistente com o app:
+  // destaque sempre em verde, sem excesso de variação por status/dimensão.
+  return "rgba(16, 185, 129, 0.72)";
 }
 
 export type AppointmentRow = {
@@ -1860,7 +1848,7 @@ function CalendarWeekView({
                     <Link
                       key={a.id}
                       href={`/dashboard/agenda/consulta/${a.id}`}
-                      className="flex items-center justify-between gap-3 rounded-md border border-border border-l-4 px-3 py-2 hover:bg-muted/40"
+                      className="flex items-center justify-between gap-3 rounded-md border border-border border-l-2 px-3 py-2 hover:bg-muted/40"
                       style={{ borderLeftColor: getAccentColor(a) }}
                     >
                       <div className="min-w-0">
@@ -2167,7 +2155,7 @@ function CalendarMonthView({
                   <Link
                     key={a.id}
                     href={`/dashboard/agenda/consulta/${a.id}`}
-                    className="flex items-center justify-between gap-3 rounded-md border border-border border-l-4 px-3 py-2 hover:bg-muted/40"
+                    className="flex items-center justify-between gap-3 rounded-md border border-border border-l-2 px-3 py-2 hover:bg-muted/40"
                     style={{ borderLeftColor: getAccentColor(a) }}
                     onClick={() => setSelectedDayYmd(null)}
                   >
@@ -2276,7 +2264,7 @@ function DraggableAppointmentItem({
             : { ...baseStyle, borderLeftColor: accentColor }
         }
         className={cn(
-          "flex items-center gap-1 rounded border-l-4 px-1.5 py-0.5",
+          "flex items-center gap-1 rounded border-l-2 px-1.5 py-0.5",
           eventStyle.className,
           "hover:opacity-80 transition-opacity"
         )}
@@ -2314,7 +2302,7 @@ function DraggableAppointmentItem({
       className="py-3 first:pt-0"
     >
       <div
-        className="flex items-center gap-2 hover:bg-muted/50 -mx-2 border-l-4 px-2 py-1 rounded group"
+        className="flex items-center gap-2 hover:bg-muted/50 -mx-2 border-l-2 px-2 py-1 rounded group"
         style={{ borderLeftColor: accentColor }}
       >
         <button
