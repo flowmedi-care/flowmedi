@@ -89,6 +89,29 @@ function getAppointmentEventStyle(
   };
 }
 
+function getAppointmentAccentColor(
+  appointment: AppointmentRow,
+  colorBy: "status" | "dimension",
+  colorByDimensionId: string | null,
+  dimensionValues: PricingDimensionValueOption[]
+): string {
+  if (colorBy === "dimension" && colorByDimensionId && dimensionValues.length > 0) {
+    const ids = appointment.dimension_value_ids ?? [];
+    const value = dimensionValues.find(
+      (dv) => dv.dimension_id === colorByDimensionId && ids.includes(dv.id)
+    );
+    if (value?.cor) return value.cor;
+  }
+
+  const statusLower = appointment.status.toLowerCase();
+  if (statusLower === "agendada") return "#3b82f6";
+  if (statusLower === "confirmada") return "#10b981";
+  if (statusLower === "realizada") return "#8b5cf6";
+  if (statusLower === "falta") return "#f59e0b";
+  if (statusLower === "cancelada") return "#ef4444";
+  return "#94a3b8";
+}
+
 export type AppointmentRow = {
   id: string;
   scheduled_at: string;
@@ -536,6 +559,11 @@ export function AgendaClient({
       getAppointmentEventStyle(appointment, colorBy, colorByDimensionId || null, pricingDimensionValues),
     [colorBy, colorByDimensionId, pricingDimensionValues]
   );
+  const getAccentColor = useCallback(
+    (appointment: AppointmentRow) =>
+      getAppointmentAccentColor(appointment, colorBy, colorByDimensionId || null, pricingDimensionValues),
+    [colorBy, colorByDimensionId, pricingDimensionValues]
+  );
   const mobilePeriodLabel = useMemo(() => {
     const base = new Date(`${dateInicio}T12:00:00`);
     if (viewMode === "timeline") {
@@ -924,7 +952,7 @@ export function AgendaClient({
             )}
             {(services.length > 0 || pricingDimensions.length > 0) && (
               <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Colorir por</Label>
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Critério de cor</Label>
                 <select
                   value={colorBy === "dimension" ? colorByDimensionId : "status"}
                   onChange={async (e) => {
@@ -1381,6 +1409,7 @@ export function AgendaClient({
           today={today}
           granularity={timelineGranularity}
           getEventStyle={getEventStyle}
+          getAccentColor={getAccentColor}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "week" && (
@@ -1389,6 +1418,7 @@ export function AgendaClient({
           currentDate={calendarDate}
           today={today}
           getEventStyle={getEventStyle}
+          getAccentColor={getAccentColor}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "month" && (
@@ -1397,6 +1427,7 @@ export function AgendaClient({
           currentDate={calendarDate}
           today={today}
           getEventStyle={getEventStyle}
+          getAccentColor={getAccentColor}
           onSelectDay={(day) => {
             setDateInicio(toYMD(day));
             setDateFim(toYMD(day));
@@ -1425,6 +1456,7 @@ function TimelineListView({
   today,
   granularity,
   getEventStyle,
+  getAccentColor,
 }: {
   appointments: AppointmentRow[];
   allAppointmentsForDrag: AppointmentRow[];
@@ -1433,6 +1465,7 @@ function TimelineListView({
   today: Date;
   granularity: TimelineGranularity;
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
+  getAccentColor: (appointment: AppointmentRow) => string;
 }) {
   // Usar appointments filtrados para exibir, mas todos para drag and drop
   const byDay = useMemo(() => {
@@ -1509,6 +1542,7 @@ function TimelineListView({
                       appointment={a}
                       dayId={dayId}
                       getEventStyle={getEventStyle}
+                      getAccentColor={getAccentColor}
                     />
                   ))}
                 </ul>
@@ -1580,6 +1614,7 @@ function TimelineListView({
                               appointment={a}
                               dayId={dayId}
                               getEventStyle={getEventStyle}
+                              getAccentColor={getAccentColor}
                             />
                           ))}
                         </ul>
@@ -1667,6 +1702,7 @@ function TimelineListView({
                                     appointment={a}
                                     dayId={dayId}
                                     getEventStyle={getEventStyle}
+                                    getAccentColor={getAccentColor}
                                   />
                                 ))}
                               </ul>
@@ -1697,11 +1733,13 @@ function CalendarWeekView({
   currentDate,
   today,
   getEventStyle,
+  getAccentColor,
 }: {
   appointments: AppointmentRow[];
   currentDate: Date;
   today: Date;
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
+  getAccentColor: (appointment: AppointmentRow) => string;
 }) {
   const weekDays = useMemo(() => getWeekDates(currentDate), [currentDate]);
   const [isMobile, setIsMobile] = useState(false);
@@ -1822,7 +1860,8 @@ function CalendarWeekView({
                     <Link
                       key={a.id}
                       href={`/dashboard/agenda/consulta/${a.id}`}
-                      className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 hover:bg-muted/40"
+                      className="flex items-center justify-between gap-3 rounded-md border border-border border-l-4 px-3 py-2 hover:bg-muted/40"
+                      style={{ borderLeftColor: getAccentColor(a) }}
                     >
                       <div className="min-w-0">
                         <p className="text-sm font-semibold">
@@ -1918,6 +1957,7 @@ function CalendarWeekView({
                                 dayId={dayId}
                                 compact
                                 getEventStyle={getEventStyle}
+                      getAccentColor={getAccentColor}
                               />
                             ))}
                           </div>
@@ -1943,12 +1983,14 @@ function CalendarMonthView({
   currentDate,
   today,
   getEventStyle,
+  getAccentColor,
   onSelectDay,
 }: {
   appointments: AppointmentRow[];
   currentDate: Date;
   today: Date;
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
+  getAccentColor: (appointment: AppointmentRow) => string;
   onSelectDay: (d: Date) => void;
 }) {
   const grid = getMonthCalendarGrid(currentDate);
@@ -2073,6 +2115,7 @@ function CalendarMonthView({
                                     dayId={dayId}
                                     compact
                                     getEventStyle={getEventStyle}
+                                    getAccentColor={getAccentColor}
                                   />
                                 </div>
                               );
@@ -2124,7 +2167,8 @@ function CalendarMonthView({
                   <Link
                     key={a.id}
                     href={`/dashboard/agenda/consulta/${a.id}`}
-                    className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 hover:bg-muted/40"
+                    className="flex items-center justify-between gap-3 rounded-md border border-border border-l-4 px-3 py-2 hover:bg-muted/40"
+                    style={{ borderLeftColor: getAccentColor(a) }}
                     onClick={() => setSelectedDayYmd(null)}
                   >
                     <div className="min-w-0">
@@ -2188,11 +2232,13 @@ function DraggableAppointmentItem({
   dayId,
   compact,
   getEventStyle,
+  getAccentColor,
 }: {
   appointment: AppointmentRow;
   dayId: string;
   compact?: boolean;
   getEventStyle?: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
+  getAccentColor?: (appointment: AppointmentRow) => string;
 }) {
   const {
     attributes,
@@ -2215,6 +2261,7 @@ function DraggableAppointmentItem({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+  const accentColor = getAccentColor?.(appointment);
 
   if (compact) {
     const eventStyle = getEventStyle?.(appointment) ?? {
@@ -2223,9 +2270,13 @@ function DraggableAppointmentItem({
     return (
       <div
         ref={setNodeRef}
-        style={eventStyle.style ? { ...baseStyle, ...eventStyle.style } : baseStyle}
+        style={
+          eventStyle.style
+            ? { ...baseStyle, ...eventStyle.style, borderLeftColor: accentColor }
+            : { ...baseStyle, borderLeftColor: accentColor }
+        }
         className={cn(
-          "flex items-center gap-1 rounded px-1.5 py-0.5",
+          "flex items-center gap-1 rounded border-l-4 px-1.5 py-0.5",
           eventStyle.className,
           "hover:opacity-80 transition-opacity"
         )}
@@ -2262,7 +2313,10 @@ function DraggableAppointmentItem({
       style={baseStyle}
       className="py-3 first:pt-0"
     >
-      <div className="flex items-center gap-2 hover:bg-muted/50 -mx-2 px-2 py-1 rounded group">
+      <div
+        className="flex items-center gap-2 hover:bg-muted/50 -mx-2 border-l-4 px-2 py-1 rounded group"
+        style={{ borderLeftColor: accentColor }}
+      >
         <button
           {...attributes}
           {...listeners}
