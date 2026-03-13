@@ -96,8 +96,6 @@ export function ConsultaClient({
   const [doctorFilter, setDoctorFilter] = useState<string>("");
   const [dimensionFilter, setDimensionFilter] = useState<string>("");
   const [dimensionValueFilter, setDimensionValueFilter] = useState<string>("");
-  const [valorMinFilter, setValorMinFilter] = useState<string>("");
-  const [valorMaxFilter, setValorMaxFilter] = useState<string>("");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
@@ -188,16 +186,6 @@ export function ConsultaClient({
       });
     }
 
-    // Valor da consulta
-    const valorMin = valorMinFilter.trim() ? Number(valorMinFilter.replace(",", ".")) : null;
-    const valorMax = valorMaxFilter.trim() ? Number(valorMaxFilter.replace(",", ".")) : null;
-    if (valorMin !== null && !Number.isNaN(valorMin)) {
-      list = list.filter((c) => (c.valor ?? -Infinity) >= valorMin);
-    }
-    if (valorMax !== null && !Number.isNaN(valorMax)) {
-      list = list.filter((c) => (c.valor ?? Infinity) <= valorMax);
-    }
-
     // Paciente (filtro vindo do painel de pacientes)
     if (filteredPatientId) {
       list = list.filter((c) => c.patient.id === filteredPatientId);
@@ -217,8 +205,6 @@ export function ConsultaClient({
     doctorFilter,
     dimensionFilter,
     dimensionValueFilter,
-    valorMinFilter,
-    valorMaxFilter,
     filteredPatientId,
     pricingDimensionValues,
   ]);
@@ -230,8 +216,6 @@ export function ConsultaClient({
     doctorFilter !== "",
     dimensionFilter !== "",
     dimensionValueFilter !== "",
-    valorMinFilter.trim() !== "",
-    valorMaxFilter.trim() !== "",
   ].filter(Boolean).length;
   const dimensionValueOptions = pricingDimensionValues.filter(
     (v) => !dimensionFilter || v.dimension_id === dimensionFilter
@@ -298,48 +282,53 @@ export function ConsultaClient({
 
       <Card>
         <CardContent className="pt-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-            <Input
-              placeholder="Busca por nome ou telefone"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-10"
-            />
-          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="flex items-center gap-2 min-w-0">
+              <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+              <Input
+                placeholder="Busca por nome ou telefone"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-10"
+              />
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <CalendarRange className="h-4 w-4 text-muted-foreground shrink-0" />
-            <select
-              value={period}
-              onChange={(e) => setPeriod(e.target.value as (typeof PERIOD_OPTIONS)[number]["value"])}
-              className={cn(
-                "flex h-9 w-[140px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            <div className="flex flex-col gap-2 sm:min-w-[420px]">
+              <div className="flex items-center gap-2">
+                <CalendarRange className="h-4 w-4 text-muted-foreground shrink-0" />
+                <select
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value as (typeof PERIOD_OPTIONS)[number]["value"])}
+                  className={cn(
+                    "flex h-9 w-full sm:w-[160px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  )}
+                >
+                  {PERIOD_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {period === "personalizado" && (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                  <Input
+                    type="date"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="h-9 w-full"
+                  />
+                  <span className="hidden sm:inline text-muted-foreground text-sm">até</span>
+                  <Input
+                    type="date"
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="h-9 w-full"
+                  />
+                </div>
               )}
-            >
-              {PERIOD_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            {period === "personalizado" && (
-              <>
-                <Input
-                  type="date"
-                  value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                  className="h-9 w-[140px]"
-                />
-                <span className="text-muted-foreground text-sm">até</span>
-                <Input
-                  type="date"
-                  value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                  className="h-9 w-[140px]"
-                />
-              </>
-            )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -449,29 +438,6 @@ export function ConsultaClient({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Valor mínimo</label>
-                <Input
-                  inputMode="decimal"
-                  placeholder="Ex.: 150"
-                  value={valorMinFilter}
-                  onChange={(e) => setValorMinFilter(e.target.value)}
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Valor máximo</label>
-                <Input
-                  inputMode="decimal"
-                  placeholder="Ex.: 400"
-                  value={valorMaxFilter}
-                  onChange={(e) => setValorMaxFilter(e.target.value)}
-                  className="h-9"
-                />
-              </div>
-            </div>
-
             <div className="flex items-center justify-between gap-2 pt-2">
               <Button
                 type="button"
@@ -483,8 +449,6 @@ export function ConsultaClient({
                   setDoctorFilter("");
                   setDimensionFilter("");
                   setDimensionValueFilter("");
-                  setValorMinFilter("");
-                  setValorMaxFilter("");
                 }}
               >
                 Limpar filtros
@@ -509,33 +473,41 @@ export function ConsultaClient({
               <li key={c.id}>
                 <Link
                   href={`/dashboard/agenda/consulta/${c.id}`}
-                  className="flex flex-wrap items-center gap-2 sm:gap-4 py-3 px-2 -mx-2 rounded-md hover:bg-muted/50 transition-colors"
+                  className="grid grid-cols-[auto_1fr_auto] items-start gap-2 py-3 px-2 -mx-2 rounded-md hover:bg-muted/50 transition-colors"
                 >
                   <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="font-medium tabular-nums shrink-0">
-                    {new Date(c.scheduled_at).toLocaleDateString("pt-BR", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}{" "}
-                    {new Date(c.scheduled_at).toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                  <span className="font-medium truncate">{c.patient.full_name}</span>
-                  {c.patient.phone && (
-                    <span className="text-sm text-muted-foreground truncate">{c.patient.phone}</span>
-                  )}
-                  {(c.appointment_type || c.procedure) && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {[c.appointment_type?.name, c.procedure?.name].filter(Boolean).join(" · ")}
-                    </span>
-                  )}
-                  {showDoctorFilter && c.doctor?.full_name && (
-                    <span className="text-xs text-muted-foreground">Prof.: {c.doctor.full_name}</span>
-                  )}
-                  <Badge className={getStatusBadgeClassName(c.status) + " ml-auto shrink-0"}>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-medium tabular-nums shrink-0">
+                        {new Date(c.scheduled_at).toLocaleDateString("pt-BR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}{" "}
+                        {new Date(c.scheduled_at).toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      <span className="font-medium truncate">{c.patient.full_name}</span>
+                      {c.patient.phone && (
+                        <span className="text-sm text-muted-foreground truncate">{c.patient.phone}</span>
+                      )}
+                    </div>
+                    {((c.appointment_type || c.procedure) || (showDoctorFilter && c.doctor?.full_name)) && (
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        {(c.appointment_type || c.procedure) && (
+                          <span className="shrink-0">
+                            {[c.appointment_type?.name, c.procedure?.name].filter(Boolean).join(" · ")}
+                          </span>
+                        )}
+                        {showDoctorFilter && c.doctor?.full_name && (
+                          <span>Prof.: {c.doctor.full_name}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <Badge className={getStatusBadgeClassName(c.status) + " shrink-0 self-center"}>
                     {STATUS_OPTIONS.find((s) => s.value === c.status)?.label ?? c.status}
                   </Badge>
                 </Link>
