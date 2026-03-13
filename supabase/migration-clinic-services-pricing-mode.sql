@@ -1,6 +1,6 @@
 -- Fase 2: modo de gestão de serviços e valores por clínica
 -- centralizado: apenas admin gerencia serviços/valores
--- descentralizado: admin e médico podem gerenciar (comporatamento atual)
+-- descentralizado: admin e médicos podem gerenciar (comporatamento atual)
 
 ALTER TABLE public.clinics
   ADD COLUMN IF NOT EXISTS services_pricing_mode text NOT NULL DEFAULT 'descentralizado';
