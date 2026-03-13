@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { type User } from "@supabase/supabase-js";
 import { DashboardNav } from "./dashboard-nav";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Menu } from "lucide-react";
 
 type Profile = {
   id: string;
@@ -61,6 +63,18 @@ export function DashboardLayoutClient({
 
   return (
     <div className="flex h-screen overflow-hidden">
+      {isCollapsed && (
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          onClick={() => setIsCollapsed(false)}
+          className="md:hidden fixed top-3 left-3 z-50 h-10 w-10 rounded-full shadow-sm"
+          aria-label="Abrir navegação"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+      )}
       <DashboardNav
         user={user}
         profile={profile}
