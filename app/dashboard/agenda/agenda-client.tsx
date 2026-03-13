@@ -2252,21 +2252,12 @@ function DraggableAppointmentItem({
   const accentColor = getAccentColor?.(appointment);
 
   if (compact) {
-    const eventStyle = getEventStyle?.(appointment) ?? {
-      className: `${getStatusBackgroundColor(appointment.status)} ${getStatusTextColor(appointment.status)}`,
-    };
     return (
       <div
         ref={setNodeRef}
-        style={
-          eventStyle.style
-            ? { ...baseStyle, ...eventStyle.style, borderLeftColor: accentColor }
-            : { ...baseStyle, borderLeftColor: accentColor }
-        }
+        style={{ ...baseStyle, borderLeftColor: accentColor }}
         className={cn(
-          "flex items-center gap-1 rounded border-l-2 px-1.5 py-0.5",
-          eventStyle.className,
-          "hover:opacity-80 transition-opacity"
+          "flex items-center gap-1 rounded border border-border border-l-2 bg-background px-1.5 py-0.5 text-foreground hover:bg-muted/40 transition-colors"
         )}
       >
         <button
