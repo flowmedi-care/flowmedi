@@ -430,14 +430,21 @@ export function ConsultaClient({
                 <select
                   value={dimensionValueFilter}
                   onChange={(e) => setDimensionValueFilter(e.target.value)}
+                  disabled={!dimensionFilter}
                   className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="">Todos</option>
-                  {dimensionValueOptions.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.nome}
-                    </option>
-                  ))}
+                  {!dimensionFilter ? (
+                    <option value="">Selecione uma dimensão primeiro</option>
+                  ) : (
+                    <>
+                      <option value="">Todos</option>
+                      {dimensionValueOptions.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.nome}
+                        </option>
+                      ))}
+                    </>
+                  )}
                 </select>
               </div>
             </div>
