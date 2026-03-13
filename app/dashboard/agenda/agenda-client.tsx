@@ -1728,6 +1728,31 @@ function CalendarWeekView({
     return map;
   }, [appointments]);
 
+  // Sempre calcular para manter ordem de hooks estável entre mobile/desktop
+  const byDayHour = useMemo(() => {
+    const map: Record<string, Record<number, AppointmentRow[]>> = {};
+    weekDays.forEach((d) => {
+      map[toYMD(d)] = {};
+      HOUR_SLOTS.forEach((h) => {
+        map[toYMD(d)][h] = [];
+      });
+    });
+    appointments.forEach((a) => {
+      const key = a.scheduled_at.slice(0, 10);
+      const hour = new Date(a.scheduled_at).getHours();
+      if (map[key] && map[key][hour] !== undefined) map[key][hour].push(a);
+    });
+    Object.keys(map).forEach((dayKey) => {
+      Object.keys(map[dayKey]).forEach((h) => {
+        const hour = Number(h);
+        map[dayKey][hour].sort(
+          (x, y) => new Date(x.scheduled_at).getTime() - new Date(y.scheduled_at).getTime()
+        );
+      });
+    });
+    return map;
+  }, [appointments, weekDays]);
+
   if (isMobile) {
     const selectedDayDate = weekDays.find((d) => toYMD(d) === selectedDayYmd) ?? weekDays[0] ?? today;
     const selectedDayList = byDay[toYMD(selectedDayDate)] ?? [];
@@ -1815,32 +1840,6 @@ function CalendarWeekView({
       </Card>
     );
   }
-
-  // Usar appointments filtrados para exibição
-  const byDayHour = useMemo(() => {
-    const map: Record<string, Record<number, AppointmentRow[]>> = {};
-    weekDays.forEach((d) => {
-      map[toYMD(d)] = {};
-      HOUR_SLOTS.forEach((h) => {
-        map[toYMD(d)][h] = [];
-      });
-    });
-    appointments.forEach((a) => {
-      const key = a.scheduled_at.slice(0, 10);
-      const hour = new Date(a.scheduled_at).getHours();
-      if (map[key] && map[key][hour] !== undefined) map[key][hour].push(a);
-    });
-    Object.keys(map).forEach((dayKey) => {
-      Object.keys(map[dayKey]).forEach((h) => {
-        const hour = Number(h);
-        map[dayKey][hour].sort(
-          (x, y) =>
-            new Date(x.scheduled_at).getTime() - new Date(y.scheduled_at).getTime()
-        );
-      });
-    });
-    return map;
-  }, [appointments, weekDays]);
 
   return (
     <Card>
