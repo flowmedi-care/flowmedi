@@ -24,7 +24,6 @@ import {
   CalendarDays,
   Rows3,
 } from "lucide-react";
-import { AgendaFilters } from "./agenda-filters";
 import { cn } from "@/lib/utils";
 import {
   DndContext,
@@ -718,7 +717,7 @@ export function AgendaClient({
           <Button
             size="icon"
             variant={activeFiltersCount > 0 ? "secondary" : "outline"}
-            className={cn("h-10 w-10 rounded-full sm:hidden", activeFiltersCount > 0 && "relative")}
+            className={cn("h-10 w-10 rounded-full", activeFiltersCount > 0 && "relative")}
             onClick={() => setMobileFiltersOpen(true)}
             aria-label="Abrir filtros da agenda"
           >
@@ -849,105 +848,7 @@ export function AgendaClient({
               })}
             </div>
 
-            <div className="h-px bg-border" aria-hidden />
-
-            <div className="space-y-2">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Período</span>
-              <div className="flex items-center justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 shrink-0"
-                  onClick={() => shiftPeriod(-1)}
-                  aria-label="Período anterior"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <p className="flex-1 text-center text-sm font-semibold capitalize">{mobilePeriodLabel}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 shrink-0"
-                  onClick={() => shiftPeriod(1)}
-                  aria-label="Próximo período"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-              <Button variant="ghost" size="sm" className="h-8 w-full" onClick={() => setDateInicio(todayYMD())}>
-                Hoje
-              </Button>
-            </div>
           </div>
-
-          {/* Linha 2: Filtros */}
-          <div className="h-px bg-border" aria-hidden />
-          {!isMobile && (
-          <div className="flex flex-col gap-3">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Filtros</span>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <AgendaFilters
-                statusFilter={statusFilter}
-                formFilter={formFilter}
-                onStatusChange={(statuses) => {
-                  setStatusFilter(statuses);
-                  updateUserPreferences({ agenda_status_filter: statuses }).catch(console.error);
-                }}
-                onFormChange={(filter) => {
-                  setFormFilter(filter);
-                  updateUserPreferences({ agenda_form_filter: filter }).catch(console.error);
-                }}
-              />
-              {services.length > 0 && (
-                <div className="space-y-1.5 rounded-md border border-border bg-background px-3 py-2">
-                  <Label className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Serviço</Label>
-                  <select
-                    value={filterByServiceId}
-                    onChange={async (e) => {
-                      const v = e.target.value;
-                      setFilterByServiceId(v);
-                      await updateUserPreferences({ agenda_filter_by_service_id: v || undefined });
-                    }}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="">Todos</option>
-                    {services.map((s) => (
-                      <option key={s.id} value={s.id}>{s.nome}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              {(services.length > 0 || pricingDimensions.length > 0) && (
-                <div className="space-y-1.5 rounded-md border border-border bg-background px-3 py-2">
-                  <Label className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Colorir por</Label>
-                  <select
-                    value={colorBy === "dimension" ? colorByDimensionId : "status"}
-                    onChange={async (e) => {
-                      const v = e.target.value;
-                      if (v === "status") {
-                        setColorBy("status");
-                        setColorByDimensionId("");
-                        await updateUserPreferences({ agenda_color_by: "status", agenda_color_by_dimension_id: "" });
-                      } else {
-                        setColorBy("dimension");
-                        setColorByDimensionId(v);
-                        await updateUserPreferences({ agenda_color_by: "dimension", agenda_color_by_dimension_id: v });
-                      }
-                    }}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="status">Status</option>
-                    {pricingDimensions.map((d) => (
-                      <option key={d.id} value={d.id}>{d.nome}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          </div>
-          )}
         </div>
       </div>
       <Dialog open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
@@ -1070,6 +971,38 @@ export function AgendaClient({
           </div>
         </DialogContent>
       </Dialog>
+
+      <div className="rounded-lg border border-border bg-card p-4 min-w-0">
+        <div className="space-y-2">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Período</span>
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={() => shiftPeriod(-1)}
+              aria-label="Período anterior"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <p className="flex-1 text-center text-sm font-semibold capitalize">{mobilePeriodLabel}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={() => shiftPeriod(1)}
+              aria-label="Próximo período"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button variant="ghost" size="sm" className="h-8 w-full" onClick={() => setDateInicio(todayYMD())}>
+            Hoje
+          </Button>
+        </div>
+      </div>
 
       {showForm && (
         <Card>
@@ -1831,12 +1764,7 @@ function CalendarWeekView({
 
     return (
       <Card>
-        <CardHeader>
-          <p className="text-sm text-muted-foreground">
-            Toque no dia para ver os horários.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-4">
           <div className="flex gap-2 overflow-x-auto pb-1">
             {weekDays.map((d) => {
               const dayKey = toYMD(d);
