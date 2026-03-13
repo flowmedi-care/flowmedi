@@ -73,7 +73,7 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "h-9 gap-2",
+          "h-9 w-full justify-between gap-2 sm:w-auto sm:justify-start",
           selectedStatuses.length > 0 && "border-primary bg-primary/5"
         )}
       >
@@ -88,7 +88,7 @@ function StatusFilter({ selectedStatuses, onStatusChange }: StatusFilterProps) {
       </Button>
 
       {isOpen && (
-        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg border border-border">
+        <Card className="absolute top-full left-0 mt-1 z-50 w-[min(18rem,calc(100vw-2rem))] shadow-lg border border-border">
           <CardContent className="p-2">
             <div className="space-y-1">
               {/* Header com ações */}
@@ -194,7 +194,7 @@ function FormFilter({ selectedFilter, onFilterChange }: FormFilterProps) {
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "h-9 gap-2",
+          "h-9 w-full justify-between gap-2 sm:w-auto sm:justify-start",
           selectedFilter && "border-primary bg-primary/5"
         )}
       >
@@ -204,7 +204,7 @@ function FormFilter({ selectedFilter, onFilterChange }: FormFilterProps) {
       </Button>
 
       {isOpen && (
-        <Card className="absolute top-full left-0 mt-1 z-50 w-64 shadow-lg border border-border">
+        <Card className="absolute top-full left-0 mt-1 z-50 w-[min(18rem,calc(100vw-2rem))] shadow-lg border border-border">
           <CardContent className="p-2">
             <div className="space-y-1">
               <div className="px-2 py-1.5 border-b border-border">
@@ -267,7 +267,7 @@ export function AgendaFilters({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
       <StatusFilter selectedStatuses={statusFilter} onStatusChange={onStatusChange} />
       <FormFilter selectedFilter={formFilter} onFilterChange={onFormChange} />
       
@@ -276,7 +276,7 @@ export function AgendaFilters({
           variant="ghost"
           size="sm"
           onClick={clearAll}
-          className="h-9 text-xs gap-1"
+          className="h-9 w-full text-xs gap-1 sm:w-auto"
           title="Limpar todos os filtros"
         >
           <X className="h-3.5 w-3.5" />

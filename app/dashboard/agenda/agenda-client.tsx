@@ -765,9 +765,9 @@ export function AgendaClient({
 
           {/* Linha 2: Filtros */}
           <div className="h-px bg-border" aria-hidden />
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">Filtros</span>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex flex-col gap-3">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Filtros</span>
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
               <AgendaFilters
                 statusFilter={statusFilter}
                 formFilter={formFilter}
@@ -781,7 +781,7 @@ export function AgendaClient({
                 }}
               />
               {services.length > 0 && (
-                <div className="flex items-center gap-2">
+                <div className="grid grid-cols-[auto_1fr] items-center gap-2 sm:flex sm:items-center">
                   <Label className="text-muted-foreground text-sm shrink-0">Serviço</Label>
                   <select
                     value={filterByServiceId}
@@ -790,7 +790,7 @@ export function AgendaClient({
                       setFilterByServiceId(v);
                       await updateUserPreferences({ agenda_filter_by_service_id: v || undefined });
                     }}
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[120px]"
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm sm:min-w-[160px]"
                   >
                     <option value="">Todos</option>
                     {services.map((s) => (
@@ -800,7 +800,7 @@ export function AgendaClient({
                 </div>
               )}
               {(services.length > 0 || pricingDimensions.length > 0) && (
-                <div className="flex items-center gap-2">
+                <div className="grid grid-cols-[auto_1fr] items-center gap-2 sm:flex sm:items-center">
                   <Label className="text-muted-foreground text-sm shrink-0">Colorir por</Label>
                   <select
                     value={colorBy === "dimension" ? colorByDimensionId : "status"}
@@ -816,7 +816,7 @@ export function AgendaClient({
                         await updateUserPreferences({ agenda_color_by: "dimension", agenda_color_by_dimension_id: v });
                       }
                     }}
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[120px]"
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm sm:min-w-[160px]"
                   >
                     <option value="status">Status</option>
                     {pricingDimensions.map((d) => (

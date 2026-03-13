@@ -76,7 +76,7 @@ export function DashboardLayoutClient({
           size="icon"
           variant="outline"
           onClick={() => setIsCollapsed(false)}
-          className="md:hidden fixed top-3 left-3 z-50 h-10 w-10 rounded-full shadow-sm"
+          className="md:hidden fixed top-3 left-4 z-50 h-10 w-10 rounded-full bg-background/95 shadow-sm"
           aria-label="Abrir navegação"
         >
           <Menu className="h-5 w-5" />
@@ -95,7 +95,7 @@ export function DashboardLayoutClient({
       <main
         className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-background ${
           !isWhatsAppPage ? "overflow-y-auto" : ""
-        } ${isCollapsed ? "pt-14 pl-14 md:pt-0 md:pl-0" : "pt-0 pl-0"}`}
+        } ${isCollapsed ? "pt-14 md:pt-0" : "pt-0"}`}
       >
         {isWhatsAppPage ? (
           <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
