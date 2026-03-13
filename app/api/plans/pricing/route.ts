@@ -17,8 +17,25 @@ export async function GET() {
     .order("sort_order", { ascending: true });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message },
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        },
+      }
+    );
   }
 
-  return NextResponse.json({ plans: plans ?? [] });
+  return NextResponse.json(
+    { plans: plans ?? [] },
+    {
+      headers: {
+        // Cache alto para reduzir chamadas repetidas da página /precos.
+        // 12h em CDN + 24h stale enquanto revalida.
+        "Cache-Control": "public, s-maxage=43200, stale-while-revalidate=86400",
+      },
+    }
+  );
 }

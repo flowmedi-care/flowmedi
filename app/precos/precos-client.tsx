@@ -23,7 +23,7 @@ export function PrecosClient() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/plans/pricing")
+    fetch("/api/plans/pricing", { cache: "force-cache" })
       .then((res) => res.json())
       .then((data) => {
         if (data.plans && Array.isArray(data.plans)) {
