@@ -761,247 +761,125 @@ export function AgendaClient({
       <div className="rounded-lg border border-border bg-card p-4 min-w-0">
         <div className="flex flex-col gap-4">
           {/* Linha 1: Visualização + Período */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
-            {isMobile ? (
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Visualização</span>
-                  <div className="grid grid-cols-2 rounded-lg border border-border bg-muted/40 p-1">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setViewMode("timeline");
-                        await updateUserPreferences({ agenda_view_mode: "timeline" });
-                      }}
-                      className={cn(
-                        "h-8 rounded-md text-sm font-medium transition-colors",
-                        viewMode === "timeline" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                      )}
-                      aria-label="Visualização em timeline"
-                      title="Timeline"
-                    >
-                      <span className="mx-auto inline-flex items-center justify-center">
-                        <Rows3 className="h-4 w-4" />
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setViewMode("calendar");
-                        await updateUserPreferences({ agenda_view_mode: "calendar" });
-                      }}
-                      className={cn(
-                        "h-8 rounded-md text-sm font-medium transition-colors",
-                        viewMode === "calendar" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                      )}
-                      aria-label="Visualização em calendário"
-                      title="Calendário"
-                    >
-                      <span className="mx-auto inline-flex items-center justify-center">
-                        <CalendarDays className="h-4 w-4" />
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div
-                    className={cn(
-                      "rounded-lg border border-border bg-muted/40 p-1 grid",
-                      viewMode === "timeline" ? "grid-cols-3" : "grid-cols-2"
-                    )}
-                  >
-                    {(viewMode === "timeline"
-                      ? [
-                          { id: "day", label: "Dia" },
-                          { id: "week", label: "Semana" },
-                          { id: "month", label: "Mês" },
-                        ]
-                      : [
-                          { id: "week", label: "Semana" },
-                          { id: "month", label: "Mês" },
-                        ]
-                    ).map((opt) => {
-                      const isActive =
-                        viewMode === "timeline"
-                          ? timelineGranularity === (opt.id as TimelineGranularity)
-                          : calendarGranularity === (opt.id as CalendarGranularity);
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={async () => {
-                            if (viewMode === "timeline") {
-                              const g = opt.id as TimelineGranularity;
-                              setTimelineGranularity(g);
-                              await updateUserPreferences({ agenda_timeline_granularity: g });
-                            } else {
-                              const g = opt.id as CalendarGranularity;
-                              setCalendarGranularity(g);
-                              await updateUserPreferences({ agenda_calendar_granularity: g });
-                            }
-                          }}
-                          className={cn(
-                            "h-8 rounded-md text-sm font-medium transition-colors",
-                            isActive ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                          )}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="h-px bg-border" aria-hidden />
-
-                <div className="space-y-2">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Período</span>
-                  <div className="flex items-center justify-between gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9 shrink-0"
-                      onClick={() => shiftPeriod(-1)}
-                      aria-label="Período anterior"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <p className="flex-1 text-center text-sm font-semibold capitalize">{mobilePeriodLabel}</p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9 shrink-0"
-                      onClick={() => shiftPeriod(1)}
-                      aria-label="Próximo período"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Button variant="ghost" size="sm" className="h-8 w-full" onClick={() => setDateInicio(todayYMD())}>
-                    Hoje
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide w-full sm:w-auto sm:min-w-0">Visualização</span>
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={viewMode}
-                  onChange={async (e) => {
-                    const newMode = e.target.value as ViewMode;
-                    setViewMode(newMode);
-                    await updateUserPreferences({ agenda_view_mode: newMode });
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Visualização</span>
+              <div className="grid w-[120px] grid-cols-2 rounded-lg border border-border bg-muted/40 p-1">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setViewMode("timeline");
+                    await updateUserPreferences({ agenda_view_mode: "timeline" });
                   }}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm font-medium"
+                  className={cn(
+                    "h-8 rounded-md text-sm font-medium transition-colors",
+                    viewMode === "timeline" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                  )}
+                  aria-label="Visualização em timeline"
+                  title="Timeline"
                 >
-                  <option value="timeline">Timeline</option>
-                  <option value="calendar">Calendário</option>
-                </select>
-                {viewMode === "timeline" && (
-                  <select
-                    value={timelineGranularity}
-                    onChange={async (e) => {
-                      const newGran = e.target.value as TimelineGranularity;
-                      setTimelineGranularity(newGran);
-                      await updateUserPreferences({ agenda_timeline_granularity: newGran });
-                    }}
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="day">Dia</option>
-                    <option value="week">Semana</option>
-                    <option value="month">Mês</option>
-                  </select>
-                )}
-                {viewMode === "calendar" && (
-                  <select
-                    value={calendarGranularity}
-                    onChange={async (e) => {
-                      const newGran = e.target.value as CalendarGranularity;
-                      setCalendarGranularity(newGran);
-                      await updateUserPreferences({ agenda_calendar_granularity: newGran });
-                    }}
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="week">Semana</option>
-                    <option value="month">Mês</option>
-                  </select>
-                )}
+                  <span className="mx-auto inline-flex items-center justify-center">
+                    <Rows3 className="h-4 w-4" />
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setViewMode("calendar");
+                    await updateUserPreferences({ agenda_view_mode: "calendar" });
+                  }}
+                  className={cn(
+                    "h-8 rounded-md text-sm font-medium transition-colors",
+                    viewMode === "calendar" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                  )}
+                  aria-label="Visualização em calendário"
+                  title="Calendário"
+                >
+                  <span className="mx-auto inline-flex items-center justify-center">
+                    <CalendarDays className="h-4 w-4" />
+                  </span>
+                </button>
               </div>
             </div>
 
-            <div className="h-px bg-border sm:hidden" aria-hidden />
-
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide w-full sm:w-auto">Período</span>
-              {viewMode === "timeline" && timelineGranularity === "day" ? (
-                <>
-                  <Input
-                    id="date_inicio"
-                    type="date"
-                    value={dateInicio}
-                    onChange={(e) => setDateInicio(e.target.value)}
-                    className="h-9 w-[8.5rem] text-sm"
-                  />
-                  <Button variant="outline" size="sm" className="h-9" onClick={() => setDateInicio(todayYMD())}>
-                    Hoje
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Label htmlFor="date_inicio" className="text-muted-foreground text-sm shrink-0">De</Label>
-                  <Input
-                    id="date_inicio"
-                    type="date"
-                    value={dateInicio}
-                    onChange={(e) => {
-                      const novoInicio = e.target.value;
-                      setDateInicio(novoInicio);
-                      if (viewMode === "calendar") {
-                        const inicioDate = new Date(novoInicio + "T12:00:00");
-                        const novoFim = calendarGranularity === "week" ? getEndOfWeek(inicioDate) : getEndOfMonth(inicioDate);
-                        setDateFim(toYMD(novoFim));
+            <div
+              className={cn(
+                "rounded-lg border border-border bg-muted/40 p-1 grid",
+                viewMode === "timeline" ? "grid-cols-3" : "grid-cols-2"
+              )}
+            >
+              {(viewMode === "timeline"
+                ? [
+                    { id: "day", label: "Dia" },
+                    { id: "week", label: "Semana" },
+                    { id: "month", label: "Mês" },
+                  ]
+                : [
+                    { id: "week", label: "Semana" },
+                    { id: "month", label: "Mês" },
+                  ]
+              ).map((opt) => {
+                const isActive =
+                  viewMode === "timeline"
+                    ? timelineGranularity === (opt.id as TimelineGranularity)
+                    : calendarGranularity === (opt.id as CalendarGranularity);
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={async () => {
+                      if (viewMode === "timeline") {
+                        const g = opt.id as TimelineGranularity;
+                        setTimelineGranularity(g);
+                        await updateUserPreferences({ agenda_timeline_granularity: g });
+                      } else {
+                        const g = opt.id as CalendarGranularity;
+                        setCalendarGranularity(g);
+                        await updateUserPreferences({ agenda_calendar_granularity: g });
                       }
                     }}
-                    className="h-9 w-[8.5rem] text-sm"
-                  />
-                  <Label htmlFor="date_fim" className="text-muted-foreground text-sm shrink-0">até</Label>
-                  {viewMode === "timeline" ? (
-                    <Input
-                      id="date_fim"
-                      type="date"
-                      value={dateFim}
-                      min={dateInicio}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v >= dateInicio) {
-                          dateFimManuallySet.current = true;
-                          setDateFim(v);
-                        }
-                      }}
-                      className="h-9 w-[8.5rem] text-sm"
-                    />
-                  ) : (
-                    <Input
-                      id="date_fim"
-                      type="date"
-                      value={dateFim}
-                      readOnly
-                      className="h-9 w-[8.5rem] text-sm bg-muted cursor-not-allowed"
-                    />
-                  )}
-                  <Button variant="outline" size="sm" className="h-9" onClick={() => setDateInicio(todayYMD())}>
-                    Hoje
-                  </Button>
-                </>
-              )}
+                    className={cn(
+                      "h-8 rounded-md text-sm font-medium transition-colors",
+                      isActive ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
-              </>
-            )}
+
+            <div className="h-px bg-border" aria-hidden />
+
+            <div className="space-y-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Período</span>
+              <div className="flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => shiftPeriod(-1)}
+                  aria-label="Período anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <p className="flex-1 text-center text-sm font-semibold capitalize">{mobilePeriodLabel}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => shiftPeriod(1)}
+                  aria-label="Próximo período"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <Button variant="ghost" size="sm" className="h-8 w-full" onClick={() => setDateInicio(todayYMD())}>
+                Hoje
+              </Button>
+            </div>
           </div>
 
           {/* Linha 2: Filtros */}
