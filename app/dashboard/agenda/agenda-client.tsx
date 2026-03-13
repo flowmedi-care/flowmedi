@@ -772,7 +772,9 @@ export function AgendaClient({
                   }}
                   className={cn(
                     "h-8 rounded-md text-sm font-medium transition-colors",
-                    viewMode === "timeline" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                    viewMode === "timeline"
+                      ? "bg-background text-foreground shadow-md ring-1 ring-border/60"
+                      : "text-muted-foreground"
                   )}
                   aria-label="Visualização em timeline"
                   title="Timeline"
@@ -789,7 +791,9 @@ export function AgendaClient({
                   }}
                   className={cn(
                     "h-8 rounded-md text-sm font-medium transition-colors",
-                    viewMode === "calendar" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                    viewMode === "calendar"
+                      ? "bg-background text-foreground shadow-md ring-1 ring-border/60"
+                      : "text-muted-foreground"
                   )}
                   aria-label="Visualização em calendário"
                   title="Calendário"
@@ -839,7 +843,9 @@ export function AgendaClient({
                     }}
                     className={cn(
                       "h-8 rounded-md text-sm font-medium transition-colors",
-                      isActive ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                      isActive
+                        ? "bg-background text-foreground shadow-md ring-1 ring-border/60"
+                        : "text-muted-foreground"
                     )}
                   >
                     {opt.label}
@@ -1778,7 +1784,7 @@ function CalendarWeekView({
                   className={cn(
                     "min-w-[56px] rounded-lg border px-2 py-2 text-center",
                     isSelected
-                      ? "border-primary bg-primary text-primary-foreground"
+                      ? "border-primary bg-primary text-primary-foreground shadow-md ring-1 ring-primary/30"
                       : "border-border bg-background hover:bg-muted/50"
                   )}
                 >
