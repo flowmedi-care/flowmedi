@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode } from "react";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { createAppointment, updateAppointment, updateUserPreferences, getPublicFormTemplatesForPatient, resolveAppointmentPrice } from "./actions";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
@@ -1654,6 +1655,19 @@ function CalendarMonthView({
   onSelectDay: (d: Date) => void;
 }) {
   const grid = getMonthCalendarGrid(currentDate);
+  const [isMobile, setIsMobile] = useState(false);
+  const [selectedDayYmd, setSelectedDayYmd] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncMobile = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth < 640);
+    };
+    syncMobile();
+    window.addEventListener("resize", syncMobile);
+    return () => window.removeEventListener("resize", syncMobile);
+  }, []);
+
   // Usar appointments filtrados para exibição
   const byDay = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
@@ -1664,6 +1678,11 @@ function CalendarMonthView({
     });
     return map;
   }, [appointments]);
+
+  const selectedDayDate = selectedDayYmd
+    ? new Date(`${selectedDayYmd}T12:00:00`)
+    : null;
+  const selectedDayAppointments = selectedDayYmd ? byDay[selectedDayYmd] ?? [] : [];
 
   return (
     <Card>
@@ -1701,7 +1720,13 @@ function CalendarMonthView({
                   <>
                     <button
                       type="button"
-                      onClick={() => onSelectDay(day)}
+                      onClick={() => {
+                        if (isMobile) {
+                          setSelectedDayYmd(toYMD(day));
+                          return;
+                        }
+                        onSelectDay(day);
+                      }}
                       className={cn(
                         "w-7 h-7 rounded-full text-sm font-medium flex items-center justify-center hover:bg-muted self-start",
                         isSameDay(day, today) &&
@@ -1710,36 +1735,60 @@ function CalendarMonthView({
                     >
                       {day.getDate()}
                     </button>
-                    <DroppableDay
-                      dayId={toYMD(day)}
-                      className="mt-1 space-y-1 flex-1 overflow-hidden min-h-[60px]"
-                    >
-                      {(byDay[toYMD(day)] ?? []).length > 0 ? (
-                        <SortableContext
-                          items={(byDay[toYMD(day)] ?? []).map((ap) => ap.id)}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          {(byDay[toYMD(day)] ?? []).slice(0, 4).map((a) => {
-                            const dayId = toYMD(day);
-                            return (
-                              <div key={a.id} className="mb-0.5">
-                                <DraggableAppointmentItem
-                                  appointment={a}
-                                  dayId={dayId}
-                                  compact
-                                  getEventStyle={getEventStyle}
-                                />
-                              </div>
-                            );
-                          })}
-                        </SortableContext>
-                      ) : null}
-                      {(byDay[toYMD(day)] ?? []).length > 4 && (
-                        <span className="text-xs text-muted-foreground">
-                          +{(byDay[toYMD(day)] ?? []).length - 4} mais
-                        </span>
-                      )}
-                    </DroppableDay>
+                    {isMobile ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDayYmd(toYMD(day))}
+                        className="mt-1 space-y-1 flex-1 overflow-hidden min-h-[60px] w-full text-left"
+                      >
+                        {(byDay[toYMD(day)] ?? []).length > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            {(byDay[toYMD(day)] ?? []).slice(0, 3).map((a) => (
+                              <span
+                                key={a.id}
+                                className="inline-block h-2 w-2 rounded-full bg-primary/80"
+                              />
+                            ))}
+                            {(byDay[toYMD(day)] ?? []).length > 3 && (
+                              <span className="text-[10px] text-muted-foreground">
+                                +{(byDay[toYMD(day)] ?? []).length - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    ) : (
+                      <DroppableDay
+                        dayId={toYMD(day)}
+                        className="mt-1 space-y-1 flex-1 overflow-hidden min-h-[60px]"
+                      >
+                        {(byDay[toYMD(day)] ?? []).length > 0 ? (
+                          <SortableContext
+                            items={(byDay[toYMD(day)] ?? []).map((ap) => ap.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            {(byDay[toYMD(day)] ?? []).slice(0, 4).map((a) => {
+                              const dayId = toYMD(day);
+                              return (
+                                <div key={a.id} className="mb-0.5">
+                                  <DraggableAppointmentItem
+                                    appointment={a}
+                                    dayId={dayId}
+                                    compact
+                                    getEventStyle={getEventStyle}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </SortableContext>
+                        ) : null}
+                        {(byDay[toYMD(day)] ?? []).length > 4 && (
+                          <span className="text-xs text-muted-foreground">
+                            +{(byDay[toYMD(day)] ?? []).length - 4} mais
+                          </span>
+                        )}
+                      </DroppableDay>
+                    )}
                   </>
                 ) : null}
               </div>
@@ -1747,6 +1796,58 @@ function CalendarMonthView({
           </div>
         ))}
       </CardContent>
+      <Dialog
+        open={isMobile && selectedDayYmd !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedDayYmd(null);
+        }}
+      >
+        <DialogContent
+          title={
+            selectedDayDate
+              ? `Eventos de ${selectedDayDate.toLocaleDateString("pt-BR", {
+                  day: "2-digit",
+                  month: "long",
+                  year: "numeric",
+                })}`
+              : "Eventos do dia"
+          }
+          onClose={() => setSelectedDayYmd(null)}
+        >
+          <div className="space-y-3">
+            {selectedDayAppointments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sem eventos para este dia.</p>
+            ) : (
+              selectedDayAppointments
+                .sort(
+                  (a, b) =>
+                    new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+                )
+                .map((a) => (
+                  <Link
+                    key={a.id}
+                    href={`/dashboard/agenda/consulta/${a.id}`}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 hover:bg-muted/40"
+                    onClick={() => setSelectedDayYmd(null)}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{a.patient.full_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(a.scheduled_at).toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                    <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
+                      {STATUS_LABEL[a.status] ?? a.status}
+                    </Badge>
+                  </Link>
+                ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

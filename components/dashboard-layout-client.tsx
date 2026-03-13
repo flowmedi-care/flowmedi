@@ -92,7 +92,11 @@ export function DashboardLayoutClient({
         canUseWhatsApp={canUseWhatsApp}
         servicesPricingMode={servicesPricingMode}
       />
-      <main className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-background ${!isWhatsAppPage ? "overflow-y-auto" : ""}`}>
+      <main
+        className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-background ${
+          !isWhatsAppPage ? "overflow-y-auto" : ""
+        } ${isCollapsed ? "pt-14 md:pt-0" : "pt-0"}`}
+      >
         {isWhatsAppPage ? (
           <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
             {children}
