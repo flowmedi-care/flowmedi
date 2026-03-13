@@ -13,7 +13,15 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { createAppointment, updateAppointment, updateUserPreferences, getPublicFormTemplatesForPatient, resolveAppointmentPrice } from "./actions";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
-import { Plus, CalendarClock, GripVertical, ChevronDown, SlidersHorizontal } from "lucide-react";
+import {
+  Plus,
+  CalendarClock,
+  GripVertical,
+  ChevronDown,
+  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { AgendaFilters } from "./agenda-filters";
 import { cn } from "@/lib/utils";
 import {
@@ -527,6 +535,63 @@ export function AgendaClient({
       getAppointmentEventStyle(appointment, colorBy, colorByDimensionId || null, pricingDimensionValues),
     [colorBy, colorByDimensionId, pricingDimensionValues]
   );
+  const mobilePeriodLabel = useMemo(() => {
+    const base = new Date(`${dateInicio}T12:00:00`);
+    if (viewMode === "timeline") {
+      if (timelineGranularity === "day") {
+        return base.toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        });
+      }
+      if (timelineGranularity === "week") {
+        const start = getStartOfWeek(base);
+        const end = getEndOfWeek(base);
+        return `${start.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })} - ${end.toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })}`;
+      }
+      return base.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    }
+
+    if (calendarGranularity === "week") {
+      const start = getStartOfWeek(base);
+      const end = getEndOfWeek(base);
+      return `${start.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })} - ${end.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })}`;
+    }
+    return base.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  }, [viewMode, timelineGranularity, calendarGranularity, dateInicio]);
+
+  function shiftPeriod(direction: -1 | 1) {
+    const base = new Date(`${dateInicio}T12:00:00`);
+    let next = new Date(base);
+    if (viewMode === "timeline") {
+      if (timelineGranularity === "day") {
+        next = addDays(base, direction);
+      } else if (timelineGranularity === "week") {
+        next = addDays(base, direction * 7);
+      } else {
+        next = new Date(base);
+        next.setDate(1);
+        next.setMonth(next.getMonth() + direction);
+      }
+    } else if (calendarGranularity === "week") {
+      next = addDays(base, direction * 7);
+    } else {
+      next = new Date(base);
+      next.setDate(1);
+      next.setMonth(next.getMonth() + direction);
+    }
+    dateFimManuallySet.current = false;
+    setDateInicio(toYMD(next));
+  }
   const activeFiltersCount = [
     statusFilter.length > 0,
     formFilter !== null,
@@ -695,6 +760,123 @@ export function AgendaClient({
         <div className="flex flex-col gap-4">
           {/* Linha 1: Visualização + Período */}
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
+            {isMobile ? (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Visualização</span>
+                  <div className="grid grid-cols-2 rounded-lg border border-border bg-muted/40 p-1">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setViewMode("timeline");
+                        await updateUserPreferences({ agenda_view_mode: "timeline" });
+                      }}
+                      className={cn(
+                        "h-8 rounded-md text-sm font-medium transition-colors",
+                        viewMode === "timeline" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                      )}
+                    >
+                      Timeline
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setViewMode("calendar");
+                        await updateUserPreferences({ agenda_view_mode: "calendar" });
+                      }}
+                      className={cn(
+                        "h-8 rounded-md text-sm font-medium transition-colors",
+                        viewMode === "calendar" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                      )}
+                    >
+                      Calendário
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div
+                    className={cn(
+                      "rounded-lg border border-border bg-muted/40 p-1 grid",
+                      viewMode === "timeline" ? "grid-cols-3" : "grid-cols-2"
+                    )}
+                  >
+                    {(viewMode === "timeline"
+                      ? [
+                          { id: "day", label: "Dia" },
+                          { id: "week", label: "Semana" },
+                          { id: "month", label: "Mês" },
+                        ]
+                      : [
+                          { id: "week", label: "Semana" },
+                          { id: "month", label: "Mês" },
+                        ]
+                    ).map((opt) => {
+                      const isActive =
+                        viewMode === "timeline"
+                          ? timelineGranularity === (opt.id as TimelineGranularity)
+                          : calendarGranularity === (opt.id as CalendarGranularity);
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={async () => {
+                            if (viewMode === "timeline") {
+                              const g = opt.id as TimelineGranularity;
+                              setTimelineGranularity(g);
+                              await updateUserPreferences({ agenda_timeline_granularity: g });
+                            } else {
+                              const g = opt.id as CalendarGranularity;
+                              setCalendarGranularity(g);
+                              await updateUserPreferences({ agenda_calendar_granularity: g });
+                            }
+                          }}
+                          className={cn(
+                            "h-8 rounded-md text-sm font-medium transition-colors",
+                            isActive ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="h-px bg-border" aria-hidden />
+
+                <div className="space-y-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Período</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 shrink-0"
+                      onClick={() => shiftPeriod(-1)}
+                      aria-label="Período anterior"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <p className="flex-1 text-center text-sm font-semibold capitalize">{mobilePeriodLabel}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 shrink-0"
+                      onClick={() => shiftPeriod(1)}
+                      aria-label="Próximo período"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-8 w-full" onClick={() => setDateInicio(todayYMD())}>
+                    Hoje
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide w-full sm:w-auto sm:min-w-0">Visualização</span>
               <div className="flex flex-wrap items-center gap-2">
@@ -808,6 +990,8 @@ export function AgendaClient({
                 </>
               )}
             </div>
+              </>
+            )}
           </div>
 
           {/* Linha 2: Filtros */}
