@@ -183,6 +183,20 @@ export function IntegrationsSection({
         };
 
         if (data.type === "WA_EMBEDDED_SIGNUP") {
+          const current = metaSessionInfoRef.current as {
+            event?: string | null;
+            data?: { waba_id?: string; phone_number_id?: string };
+          } | null;
+          const nextWabaId = typeof data.data?.waba_id === "string" ? data.data.waba_id : null;
+          const nextPhoneId =
+            typeof data.data?.phone_number_id === "string" ? data.data.phone_number_id : null;
+          const currentHasIds =
+            Boolean(current?.data?.waba_id) || Boolean(current?.data?.phone_number_id);
+          const nextHasIds = Boolean(nextWabaId) || Boolean(nextPhoneId);
+
+          // Evita sobrescrever payload completo por eventos intermediários sem IDs.
+          if (currentHasIds && !nextHasIds) return;
+
           const sessionPayload = {
             event: data.event || null,
             data: data.data || {},
