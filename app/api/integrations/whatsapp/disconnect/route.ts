@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
- * Desconecta a integração do WhatsApp/Meta
+ * Desconecta a integração do WhatsApp/Meta com reset completo.
  * POST /api/integrations/whatsapp/disconnect
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const admin = await requireClinicAdmin();
     const supabase = await createClient();
@@ -16,7 +16,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
     }
 
-    const { error } = await supabase
+    // 1) Reset completo das integrações WhatsApp da clínica (meta e legado).
+    const { error: resetIntegrationsError } = await supabase
       .from("clinic_integrations")
       .update({
         status: "disconnected",
@@ -27,16 +28,29 @@ export async function POST(request: NextRequest) {
         error_message: null,
       })
       .eq("clinic_id", admin.clinicId)
-      .eq("integration_type", "whatsapp_meta");
+      .in("integration_type", ["whatsapp_meta", "whatsapp_simple"]);
 
-    if (error) {
+    if (resetIntegrationsError) {
       return NextResponse.json(
-        { error: error.message },
+        { error: resetIntegrationsError.message },
         { status: 400 }
       );
     }
 
-    return NextResponse.json({ success: true });
+    // 2) Limpa o pareamento/status local dos templates Meta para forçar ressincronização limpa.
+    const { error: resetTemplatesError } = await supabase
+      .from("clinic_whatsapp_meta_templates")
+      .delete()
+      .eq("clinic_id", admin.clinicId);
+
+    if (resetTemplatesError) {
+      return NextResponse.json(
+        { error: resetTemplatesError.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ success: true, reset: true });
   } catch (error) {
     console.error("Erro ao desconectar WhatsApp:", error);
     return NextResponse.json(
