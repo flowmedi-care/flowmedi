@@ -484,7 +484,7 @@ export async function sendChatbotMenuIfNeeded(
   const result = await sendWhatsAppMessage(
     clinicId,
     { to: phoneNumber, text: CHATBOT_MENU },
-    true,
+    false,
     supabase
   );
   if (result.success) {
@@ -509,7 +509,7 @@ export async function sendChatbotReply(
   const result = await sendWhatsAppMessage(
     clinicId,
     { to: phoneNumber, text: reply },
-    true,
+    false,
     supabase
   );
   if (result.success) {

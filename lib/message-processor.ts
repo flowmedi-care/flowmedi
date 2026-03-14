@@ -805,7 +805,7 @@ async function sendWhatsApp(
     const { checkWhatsAppIntegration, sendWhatsAppMessage } = await import("@/lib/comunicacao/whatsapp");
 
     // Verificar se a integração WhatsApp está conectada
-    const integrationCheck = await checkWhatsAppIntegration(clinicId, true, supabaseClient);
+    const integrationCheck = await checkWhatsAppIntegration(clinicId, false, supabaseClient);
     if (!integrationCheck.connected) {
       return {
         success: false,
@@ -835,14 +835,14 @@ async function sendWhatsApp(
       result = await sendWhatsAppMessage(clinicId, {
         to: toInternational,
         text: textMessage,
-      }, true, supabaseClient);
+      }, false, supabaseClient);
     } else if (templateName && templateParams) {
       // Ticket fechado: usar somente template Meta aprovado
       result = await sendWhatsAppMessage(clinicId, {
         to: toInternational,
         template: templateName,
         templateParams: templateParams,
-      }, true, supabaseClient);
+      }, false, supabaseClient);
     } else {
       return {
         success: false,

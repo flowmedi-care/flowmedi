@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
     let phoneNumberId = pickString(body.sessionInfo?.data?.phone_number_id);
 
     // Fallback: descobrir WABA e número automaticamente quando a sessão não trouxer IDs.
+    // Importante: evitar "pegar o primeiro" quando existem múltiplas contas/números.
     if (!wabaId || !phoneNumberId) {
       const businessesRes = await fetch(
         `https://graph.facebook.com/${graphVersion}/me/businesses?fields=id,name`,
@@ -87,6 +88,12 @@ export async function POST(request: NextRequest) {
       };
 
       if (businessesRes.ok && businessesData.data?.length) {
+        type WabaCandidate = {
+          wabaId: string;
+          phoneIds: string[];
+        };
+        const candidates: WabaCandidate[] = [];
+
         for (const business of businessesData.data) {
           const ownedWabaRes = await fetch(
             `https://graph.facebook.com/${graphVersion}/${business.id}/owned_whatsapp_business_accounts?fields=id,name`,
@@ -96,21 +103,52 @@ export async function POST(request: NextRequest) {
             data?: Array<{ id: string; name?: string }>;
           };
 
-          if (!ownedWabaRes.ok || !ownedWabaData.data?.length) continue;
+          if (!ownedWabaRes.ok || !ownedWabaData.data?.length) {
+            continue;
+          }
 
-          const selectedWabaId = ownedWabaData.data[0].id;
-          const phonesRes = await fetch(
-            `https://graph.facebook.com/${graphVersion}/${selectedWabaId}/phone_numbers?fields=id,display_phone_number`,
-            { headers: bearer }
+          for (const waba of ownedWabaData.data) {
+            const selectedWabaId = waba.id;
+            const phonesRes = await fetch(
+              `https://graph.facebook.com/${graphVersion}/${selectedWabaId}/phone_numbers?fields=id,display_phone_number`,
+              { headers: bearer }
+            );
+            const phonesData = (await phonesRes.json()) as {
+              data?: Array<{ id: string; display_phone_number?: string }>;
+            };
+            const phoneIds = phonesRes.ok
+              ? (phonesData.data ?? [])
+                  .map((phone) => pickString(phone.id))
+                  .filter((phone): phone is string => Boolean(phone))
+              : [];
+            candidates.push({
+              wabaId: selectedWabaId,
+              phoneIds,
+            });
+          }
+        }
+
+        if (!wabaId && phoneNumberId) {
+          const byPhone = candidates.find((candidate) =>
+            candidate.phoneIds.includes(phoneNumberId as string)
           );
-          const phonesData = (await phonesRes.json()) as {
-            data?: Array<{ id: string; display_phone_number?: string }>;
-          };
+          if (byPhone) {
+            wabaId = byPhone.wabaId;
+          }
+        }
 
-          if (phonesRes.ok && phonesData.data?.length) {
-            wabaId = wabaId || selectedWabaId;
-            phoneNumberId = phoneNumberId || phonesData.data[0].id;
-            break;
+        if (wabaId && !phoneNumberId) {
+          const byWaba = candidates.find((candidate) => candidate.wabaId === wabaId);
+          if (byWaba?.phoneIds.length) {
+            phoneNumberId = byWaba.phoneIds[0];
+          }
+        }
+
+        if (!wabaId || !phoneNumberId) {
+          const uniqueWabas = candidates.filter((candidate) => candidate.phoneIds.length > 0);
+          if (uniqueWabas.length === 1) {
+            wabaId = wabaId || uniqueWabas[0].wabaId;
+            phoneNumberId = phoneNumberId || uniqueWabas[0].phoneIds[0] || null;
           }
         }
       }

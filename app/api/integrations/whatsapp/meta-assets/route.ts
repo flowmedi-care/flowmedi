@@ -4,7 +4,7 @@ import { requireClinicAdmin } from "@/lib/auth-helpers";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 type IntegrationRow = {
-  integration_type: "whatsapp_simple" | "whatsapp_meta";
+  integration_type: "whatsapp_meta";
   credentials: { access_token?: string } | null;
   metadata: { waba_id?: string; phone_number_id?: string } | null;
 };
@@ -40,7 +40,7 @@ export async function GET() {
       .from("clinic_integrations")
       .select("integration_type, credentials, metadata")
       .eq("clinic_id", admin.clinicId)
-      .in("integration_type", ["whatsapp_simple", "whatsapp_meta"])
+      .eq("integration_type", "whatsapp_meta")
       .eq("status", "connected");
 
     if (error) {
@@ -48,16 +48,7 @@ export async function GET() {
     }
 
     const typedRows = (rows ?? []) as IntegrationRow[];
-    const simpleIntegration = typedRows.find((r) => r.integration_type === "whatsapp_simple");
-    const metaIntegration = typedRows.find((r) => r.integration_type === "whatsapp_meta");
-    const metaHasTarget =
-      typeof metaIntegration?.metadata?.waba_id === "string" ||
-      typeof metaIntegration?.metadata?.phone_number_id === "string";
-
-    const chosen =
-      (metaIntegration && metaHasTarget ? metaIntegration : null) ??
-      metaIntegration ??
-      simpleIntegration;
+    const chosen = typedRows[0] ?? null;
 
     if (!chosen?.credentials?.access_token) {
       return NextResponse.json(

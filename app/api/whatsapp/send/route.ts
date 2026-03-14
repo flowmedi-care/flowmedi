@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     const result = await sendWhatsAppMessage(
       clinicId,
       { to: normalizedTo, text: text.trim() },
-      true,
+      false,
       supabase
     );
 

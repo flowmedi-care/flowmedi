@@ -130,7 +130,7 @@ export function ConfiguracoesClient({
     const integration = searchParams.get("integration");
     const status = searchParams.get("status");
 
-    if ((integration === "whatsapp" || integration === "whatsapp_simple") && status) {
+    if (integration === "whatsapp" && status) {
       // Limpar URL após mostrar mensagem de sucesso
       if (typeof window !== "undefined") {
         const url = new URL(window.location.href);

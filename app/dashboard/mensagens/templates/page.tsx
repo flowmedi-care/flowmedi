@@ -36,7 +36,7 @@ export default async function TemplatesPage() {
       .from("clinic_integrations")
       .select("id")
       .eq("clinic_id", profile.clinic_id)
-      .in("integration_type", ["whatsapp_simple", "whatsapp_meta"])
+      .eq("integration_type", "whatsapp_meta")
       .eq("status", "connected")
       .limit(1),
   ]);

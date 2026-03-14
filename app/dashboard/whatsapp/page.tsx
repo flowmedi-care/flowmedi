@@ -55,14 +55,11 @@ export default async function WhatsAppPage() {
     .from("clinic_integrations")
     .select("id, integration_type, metadata")
     .eq("clinic_id", profile.clinic_id)
-    .in("integration_type", ["whatsapp_meta", "whatsapp_simple"])
+    .eq("integration_type", "whatsapp_meta")
     .eq("status", "connected")
-    .limit(2);
+    .limit(1);
 
-  const integration =
-    integrations?.find((row) => row.integration_type === "whatsapp_meta") ??
-    integrations?.find((row) => row.integration_type === "whatsapp_simple") ??
-    null;
+  const integration = integrations?.[0] ?? null;
 
   if (!integration) {
     return (

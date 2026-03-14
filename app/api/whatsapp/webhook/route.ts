@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         const { data: integrations } = await supabase
           .from("clinic_integrations")
           .select("clinic_id, metadata")
-          .in("integration_type", ["whatsapp_simple", "whatsapp_meta"])
+          .eq("integration_type", "whatsapp_meta")
           .eq("status", "connected");
 
         if (phoneNumberId && integrations?.length) {

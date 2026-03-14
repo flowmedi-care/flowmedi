@@ -48,7 +48,7 @@ export function DashboardLayoutClient({
           .from("clinic_integrations")
           .select("id")
           .eq("clinic_id", profile.clinic_id)
-          .in("integration_type", ["whatsapp_meta", "whatsapp_simple"])
+          .eq("integration_type", "whatsapp_meta")
           .eq("status", "connected")
           .limit(1);
         

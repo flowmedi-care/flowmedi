@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const result = await sendWhatsAppMessage(admin.clinicId, {
       to: digitsOnly,
       template: "hello_world",
-    }, true, supabase);
+    }, false, supabase);
 
     console.log("[WhatsApp Test] Resultado:", { success: result.success, error: result.error, debug: result.debug });
 

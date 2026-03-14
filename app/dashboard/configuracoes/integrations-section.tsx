@@ -117,7 +117,6 @@ export function IntegrationsSection({
   const [savingSimplePhoneId, setSavingSimplePhoneId] = useState(false);
   const [simplePhoneIdError, setSimplePhoneIdError] = useState<string | null>(null);
   const [discoveringPhoneId, setDiscoveringPhoneId] = useState(false);
-  const autoDiscoverAttemptedRef = useRef(false);
   const [metaAssets, setMetaAssets] = useState<MetaAssetsResponse | null>(null);
   const [metaAssetsLoading, setMetaAssetsLoading] = useState(false);
   const [metaAssetsError, setMetaAssetsError] = useState<string | null>(null);
@@ -199,34 +198,8 @@ export function IntegrationsSection({
     return () => window.removeEventListener("message", handleMetaMessage);
   }, []);
 
-  // Auto-descobrir Phone Number ID ao carregar (após OAuth) se conectado mas sem número
+  // Integração simples mantida como legado (não utilizada por padrão no produto).
   const whatsappSimpleIntegration = integrations.find((i) => i.integration_type === "whatsapp_simple");
-  useEffect(() => {
-    if (
-      loading ||
-      autoDiscoverAttemptedRef.current ||
-      !whatsappSimpleIntegration ||
-      whatsappSimpleIntegration.status !== "connected" ||
-      whatsappSimpleIntegration.metadata?.phone_number_id
-    ) {
-      return;
-    }
-    autoDiscoverAttemptedRef.current = true;
-    setDiscoveringPhoneId(true);
-    fetch("/api/integrations/whatsapp-simple/discover-phone-id", { method: "POST" })
-      .then(async (res) => {
-        const data = await res.json();
-        if (res.ok) {
-          setSuccessMessage("Phone Number ID encontrado automaticamente!");
-          setTimeout(() => setSuccessMessage(null), 5000);
-          loadIntegrations();
-        } else {
-          setSimplePhoneIdError(data.error || null);
-        }
-      })
-      .catch(() => setSimplePhoneIdError("Não foi possível descobrir. Tente o botão abaixo."))
-      .finally(() => setDiscoveringPhoneId(false));
-  }, [loading, whatsappSimpleIntegration?.id, whatsappSimpleIntegration?.status, whatsappSimpleIntegration?.metadata?.phone_number_id]);
 
   async function loadIntegrations() {
     try {
@@ -654,9 +627,7 @@ export function IntegrationsSection({
   const googleIntegration = integrations.find((i) => i.integration_type === "email_google");
   const whatsappIntegration = integrations.find((i) => i.integration_type === "whatsapp_meta");
   const isAnyWhatsAppConnected = integrations.some(
-    (i) =>
-      (i.integration_type === "whatsapp_meta" || i.integration_type === "whatsapp_simple") &&
-      i.status === "connected"
+    (i) => i.integration_type === "whatsapp_meta" && i.status === "connected"
   );
 
   useEffect(() => {

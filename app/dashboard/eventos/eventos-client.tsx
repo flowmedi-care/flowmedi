@@ -929,13 +929,17 @@ export function EventosClient({
       </Dialog>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent title="Preview da mensagem" onClose={() => setPreviewOpen(false)}>
+        <DialogContent
+          title="Preview da mensagem"
+          onClose={() => setPreviewOpen(false)}
+          className="max-w-[96vw] sm:max-w-2xl"
+        >
           {previewLoading ? (
             <p className="text-sm text-muted-foreground">Carregando...</p>
           ) : previewData?.error ? (
             <p className="text-sm text-destructive">{previewData.error}</p>
           ) : previewData && previewData.preview.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
               <div className="flex flex-wrap gap-2">
                 {previewData.eventName && (
                   <Badge variant="secondary">Evento: {previewData.eventName}</Badge>
@@ -964,7 +968,7 @@ export function EventosClient({
                       <div>
                         <p className="text-xs text-muted-foreground">Corpo</p>
                         <div
-                          className="text-sm rounded bg-muted/50 p-3 prose prose-sm max-w-none dark:prose-invert"
+                          className="text-sm rounded bg-muted/50 p-3 prose prose-sm max-w-none max-h-[38vh] overflow-auto dark:prose-invert"
                           dangerouslySetInnerHTML={{ __html: item.body }}
                         />
                       </div>

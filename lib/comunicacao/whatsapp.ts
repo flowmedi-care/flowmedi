@@ -39,9 +39,9 @@ export interface MetaTemplateSummary {
  * Regra de escolha:
  * 1) Se houver `whatsapp_meta` com WABA/Phone configurado, prioriza ela
  *    (evita usar integração legada e puxar dados de conta errada).
- * 2) Caso contrário, respeita `preferSimple` para fallback.
+ * 2) Caso contrário, respeita `preferSimple` para fallback legado.
  */
-async function getWhatsAppCredentials(clinicId: string, preferSimple = true, supabaseClient?: SupabaseClient) {
+async function getWhatsAppCredentials(clinicId: string, preferSimple = false, supabaseClient?: SupabaseClient) {
   const supabase = supabaseClient ?? await createClient();
 
   const { data: rows, error } = await supabase
@@ -63,17 +63,16 @@ async function getWhatsAppCredentials(clinicId: string, preferSimple = true, sup
   const simpleIntegration = rows.find((row) => row.integration_type === "whatsapp_simple");
   const metaIntegration = rows.find((row) => row.integration_type === "whatsapp_meta");
 
-  const hasMetaTarget =
-    typeof metaIntegration?.metadata?.waba_id === "string" ||
-    typeof metaIntegration?.metadata?.phone_number_id === "string";
-
-  const integration =
-    (metaIntegration && hasMetaTarget ? metaIntegration : null) ||
-    (preferSimple ? simpleIntegration : metaIntegration) ||
-    simpleIntegration ||
-    metaIntegration;
+  const integration = preferSimple
+    ? (simpleIntegration ?? metaIntegration)
+    : metaIntegration;
 
   if (!integration) {
+    if (!preferSimple && simpleIntegration) {
+      throw new Error(
+        "Integração WhatsApp Simples detectada, mas está desativada. Conecte via Cadastro Incorporado (WhatsApp Meta)."
+      );
+    }
     throw new Error("Integração WhatsApp conectada não encontrada");
   }
 
@@ -144,7 +143,7 @@ export async function submitTemplateForApproval(
   error?: string;
 }> {
   try {
-    const { credentials, wabaId } = await getWhatsAppCredentials(clinicId, true, supabaseClient);
+    const { credentials, wabaId } = await getWhatsAppCredentials(clinicId, false, supabaseClient);
     if (!wabaId) {
       return { success: false, error: "WABA ID não encontrado na integração WhatsApp." };
     }
@@ -215,7 +214,7 @@ export async function listMetaTemplates(
   supabaseClient?: SupabaseClient
 ): Promise<{ success: boolean; templates?: MetaTemplateSummary[]; error?: string }> {
   try {
-    const { credentials, wabaId } = await getWhatsAppCredentials(clinicId, true, supabaseClient);
+    const { credentials, wabaId } = await getWhatsAppCredentials(clinicId, false, supabaseClient);
     if (!wabaId) {
       return { success: false, error: "WABA ID não encontrado na integração WhatsApp." };
     }
@@ -264,7 +263,7 @@ export async function createMetaTemplate(
   error?: string;
 }> {
   try {
-    const { credentials, wabaId } = await getWhatsAppCredentials(clinicId, true, supabaseClient);
+    const { credentials, wabaId } = await getWhatsAppCredentials(clinicId, false, supabaseClient);
     if (!wabaId) {
       return { success: false, error: "WABA ID não encontrado na integração WhatsApp." };
     }
@@ -330,7 +329,7 @@ export async function fetchTemplateStatus(
   error?: string;
 }> {
   try {
-    const { credentials } = await getWhatsAppCredentials(clinicId, true, supabaseClient);
+    const { credentials } = await getWhatsAppCredentials(clinicId, false, supabaseClient);
     const url = `https://graph.facebook.com/v23.0/${templateId}?fields=status`;
     const response = await fetch(url, {
       headers: {
@@ -370,7 +369,7 @@ export async function fetchTemplateDetails(
   error?: string;
 }> {
   try {
-    const { credentials } = await getWhatsAppCredentials(clinicId, true, supabaseClient);
+    const { credentials } = await getWhatsAppCredentials(clinicId, false, supabaseClient);
     const url = `https://graph.facebook.com/v23.0/${templateId}?fields=id,name,status`;
     const response = await fetch(url, {
       headers: {
@@ -414,7 +413,7 @@ export type SendWhatsAppResult = {
 export async function sendWhatsAppMessage(
   clinicId: string,
   options: WhatsAppOptions,
-  preferSimple = true,
+  preferSimple = false,
   supabaseClient?: SupabaseClient
 ): Promise<SendWhatsAppResult> {
   try {
@@ -521,7 +520,7 @@ export async function sendWhatsAppMessage(
 /**
  * Verifica se a integração de WhatsApp está conectada e funcionando
  */
-export async function checkWhatsAppIntegration(clinicId: string, preferSimple = true, supabaseClient?: SupabaseClient): Promise<{
+export async function checkWhatsAppIntegration(clinicId: string, preferSimple = false, supabaseClient?: SupabaseClient): Promise<{
   connected: boolean;
   phoneNumberId?: string;
   error?: string;
