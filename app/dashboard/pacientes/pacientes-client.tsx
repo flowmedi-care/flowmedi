@@ -790,8 +790,8 @@ export function PacientesClient({
               </p>
             ) : viewMode === "contacts" ? (
               // Visualização de contatos (padrão para todos)
-              <div className="relative">
-                <div ref={contactsScrollRef} className="h-[600px] overflow-y-auto pr-2 md:pr-10">
+              <div className="grid grid-cols-[minmax(0,1fr)_18px] gap-1">
+                <div ref={contactsScrollRef} className="h-[600px] overflow-y-auto pr-2">
                   <div className="space-y-6">
                     {groupedPatients.map((group) => (
                       <section
@@ -831,7 +831,7 @@ export function PacientesClient({
                     ))}
                   </div>
                 </div>
-                <div className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm pointer-events-none">
+                <div className="flex h-[600px] flex-col items-center justify-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm">
                   {alphabet.map((letter) => {
                     const enabled = availableLetters.has(letter);
                     return (
@@ -841,7 +841,7 @@ export function PacientesClient({
                         onClick={() => enabled && scrollToLetter(letter)}
                         disabled={!enabled}
                         className={cn(
-                          "h-3.5 w-3.5 text-[10px] leading-none rounded-sm pointer-events-auto",
+                          "h-3.5 w-3.5 text-[10px] leading-none rounded-sm",
                           enabled
                             ? "text-muted-foreground hover:text-foreground"
                             : "text-muted-foreground/30 cursor-not-allowed"
@@ -856,8 +856,8 @@ export function PacientesClient({
                 </div>
               </div>
             ) : (
-              <div className="relative">
-                <div ref={contactsScrollRef} className="h-[600px] overflow-y-auto pr-2 md:pr-10">
+              <div className="grid grid-cols-[minmax(0,1fr)_18px] gap-1">
+                <div ref={contactsScrollRef} className="h-[600px] overflow-y-auto pr-2">
                   <div className="space-y-6">
                     {groupedPatients.map((group) => (
                       <section
@@ -911,7 +911,7 @@ export function PacientesClient({
                     ))}
                   </div>
                 </div>
-                <div className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm pointer-events-none">
+                <div className="flex h-[600px] flex-col items-center justify-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm">
                   {alphabet.map((letter) => {
                     const enabled = availableLetters.has(letter);
                     return (
@@ -921,7 +921,7 @@ export function PacientesClient({
                         onClick={() => enabled && scrollToLetter(letter)}
                         disabled={!enabled}
                         className={cn(
-                          "h-3.5 w-3.5 text-[10px] leading-none rounded-sm pointer-events-auto",
+                          "h-3.5 w-3.5 text-[10px] leading-none rounded-sm",
                           enabled
                             ? "text-muted-foreground hover:text-foreground"
                             : "text-muted-foreground/30 cursor-not-allowed"
