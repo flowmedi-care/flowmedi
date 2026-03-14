@@ -18,7 +18,7 @@ import {
   type PatientUpdate,
   type PatientConsultationHistoryItem,
 } from "./actions";
-import { Search, UserPlus, Pencil, Trash2, X, UserCheck, User, Download, FileText, Grid3x3, List, CalendarPlus } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, X, UserCheck, User, Download, FileText, Grid3x3, List, CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPhoneBr, formatPhoneBrInput, parsePhoneBr } from "@/lib/format-phone";
 import { toast } from "@/components/ui/toast";
@@ -432,8 +432,8 @@ export function PacientesClient({
           </div>
         </div>
       )}
-      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
-        <div className="relative flex-1 w-full min-w-0 max-w-full sm:max-w-sm">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             placeholder="Buscar por nome, e-mail ou telefone..."
@@ -442,37 +442,40 @@ export function PacientesClient({
               const newValue = e.target.value;
               setSearch(newValue);
             }}
-            className="pl-9 min-h-[44px] touch-manipulation"
+            className="pl-9 h-10"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {activeTab === "registered" && (
-            <>
-              <Button
-                variant={viewMode === "contacts" ? "default" : "outline"}
-                size="sm"
-                className="min-h-[44px] min-w-[44px] touch-manipulation sm:min-h-9 sm:min-w-9"
-                onClick={() => setViewMode("contacts")}
-                title="Visualização de contatos"
-              >
-                <Grid3x3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "list" ? "default" : "outline"}
-                size="sm"
-                className="min-h-[44px] min-w-[44px] touch-manipulation sm:min-h-9 sm:min-w-9"
-                onClick={() => setViewMode("list")}
-                title="Visualização em lista"
-              >
-                <List className="h-4 w-4" />
-              </Button>
-              <Button onClick={openNew} className="min-h-[44px] touch-manipulation flex-1 sm:flex-initial">
-                <UserPlus className="h-4 w-4 mr-2 shrink-0" />
-                Novo paciente
-              </Button>
-            </>
-          )}
-        </div>
+        {activeTab === "registered" && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant={viewMode === "contacts" ? "default" : "outline"}
+              size="icon"
+              className="h-10 w-10"
+              onClick={() => setViewMode("contacts")}
+              title="Visualização de contatos"
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "outline"}
+              size="icon"
+              className="h-10 w-10"
+              onClick={() => setViewMode("list")}
+              title="Visualização em lista"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              className="h-10 w-10 rounded-full"
+              onClick={openNew}
+              title="Novo paciente"
+              aria-label="Novo paciente"
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Abas */}
