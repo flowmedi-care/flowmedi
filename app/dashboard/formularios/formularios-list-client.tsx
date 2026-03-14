@@ -150,11 +150,10 @@ export function FormulariosListClient({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 sm:h-9 sm:w-9"
+                      className="h-8 w-8 sm:h-9 sm:w-9 text-destructive hover:text-destructive"
                       onClick={() => openExcluirConfirm(t.id, t.name)}
                       disabled={deletingId === t.id}
                       title="Excluir formulário"
-                      className="text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
