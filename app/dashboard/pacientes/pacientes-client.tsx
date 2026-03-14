@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,6 +103,9 @@ export function PacientesClient({
     notes: "",
     custom_fields: {},
   });
+  const contactsScrollRef = useRef<HTMLDivElement | null>(null);
+  const letterSectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const alphabet = useMemo(() => Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)), []);
 
   // Sincronizar lista quando o servidor enviar dados novos (ex.: após router.refresh())
   useEffect(() => {
@@ -248,6 +251,20 @@ export function PacientesClient({
       ),
     }));
   }, [filtered]);
+  const availableLetters = useMemo(
+    () => new Set(groupedPatients.map((g) => g.letter).filter((l) => l !== "#")),
+    [groupedPatients]
+  );
+
+  function scrollToLetter(letter: string) {
+    const container = contactsScrollRef.current;
+    const target = letterSectionRefs.current[letter];
+    if (!container || !target) return;
+    container.scrollTo({
+      top: Math.max(0, target.offsetTop - 8),
+      behavior: "smooth",
+    });
+  }
 
   const filteredNonRegistered = nonRegisteredList.filter(
     (nr) =>
@@ -773,86 +790,150 @@ export function PacientesClient({
               </p>
             ) : viewMode === "contacts" ? (
               // Visualização de contatos (padrão para todos)
-              <div className="h-[600px] overflow-y-auto pr-2">
-                <div className="space-y-6">
-                  {groupedPatients.map((group) => (
-                    <section key={group.letter} className="space-y-3">
-                      <h3 className="text-sm font-semibold text-muted-foreground tracking-wide">
-                        {group.letter}
-                      </h3>
-                      <div className="space-y-2">
-                        {group.patients.map((p) => (
-                          <Card
-                            key={p.id}
-                            className="cursor-pointer hover:bg-muted/50 transition-colors"
-                            onClick={() => setSelectedPatient(p)}
-                          >
-                            <CardContent className="py-3 px-3">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                  <User className="h-6 w-6 text-primary" />
+              <div className="relative">
+                <div ref={contactsScrollRef} className="h-[600px] overflow-y-auto pr-8">
+                  <div className="space-y-6">
+                    {groupedPatients.map((group) => (
+                      <section
+                        key={group.letter}
+                        className="space-y-3"
+                        ref={(el) => {
+                          letterSectionRefs.current[group.letter] = el;
+                        }}
+                      >
+                        <h3 className="text-sm font-semibold text-muted-foreground tracking-wide">
+                          {group.letter}
+                        </h3>
+                        <div className="space-y-2">
+                          {group.patients.map((p) => (
+                            <Card
+                              key={p.id}
+                              className="cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() => setSelectedPatient(p)}
+                            >
+                              <CardContent className="py-3 px-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                    <User className="h-6 w-6 text-primary" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-sm truncate">{p.full_name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {[p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") || "Sem contato"}
+                                    </p>
+                                  </div>
                                 </div>
-                                <div className="min-w-0">
-                                  <p className="font-medium text-sm truncate">{p.full_name}</p>
-                                  <p className="text-xs text-muted-foreground truncate">
-                                    {[p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") || "Sem contato"}
-                                  </p>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </section>
-                  ))}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                </div>
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm">
+                  {alphabet.map((letter) => {
+                    const enabled = availableLetters.has(letter);
+                    return (
+                      <button
+                        key={letter}
+                        type="button"
+                        onClick={() => enabled && scrollToLetter(letter)}
+                        disabled={!enabled}
+                        className={cn(
+                          "h-3.5 w-3.5 text-[10px] leading-none rounded-sm",
+                          enabled
+                            ? "text-muted-foreground hover:text-foreground"
+                            : "text-muted-foreground/30 cursor-not-allowed"
+                        )}
+                        aria-label={`Ir para letra ${letter}`}
+                        title={enabled ? `Ir para ${letter}` : `Sem pacientes em ${letter}`}
+                      >
+                        {letter}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
-                {groupedPatients.map((group) => (
-                  <section key={group.letter} className="space-y-2">
-                    <h3 className="text-sm font-semibold text-muted-foreground tracking-wide">
-                      {group.letter}
-                    </h3>
-                    <ul className="divide-y divide-border">
-                      {group.patients.map((p) => (
-                        <li
-                          key={p.id}
-                          className={cn(
-                            "flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0",
-                            editingId === p.id && "bg-muted/50 -mx-2 px-2 rounded"
-                          )}
-                        >
-                          <div>
-                            <p className="font-medium">{p.full_name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {[p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") || "—"}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEdit(p)}
+              <div className="relative">
+                <div ref={contactsScrollRef} className="h-[600px] overflow-y-auto pr-8">
+                  <div className="space-y-6">
+                    {groupedPatients.map((group) => (
+                      <section
+                        key={group.letter}
+                        className="space-y-2"
+                        ref={(el) => {
+                          letterSectionRefs.current[group.letter] = el;
+                        }}
+                      >
+                        <h3 className="text-sm font-semibold text-muted-foreground tracking-wide">
+                          {group.letter}
+                        </h3>
+                        <ul className="divide-y divide-border">
+                          {group.patients.map((p) => (
+                            <li
+                              key={p.id}
+                              className={cn(
+                                "flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0",
+                                editingId === p.id && "bg-muted/50 -mx-2 px-2 rounded"
+                              )}
                             >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openExcluirConfirm(p)}
-                              disabled={deletingId === p.id}
-                              title="Excluir cadastro"
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                ))}
+                              <div>
+                                <p className="font-medium">{p.full_name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {[p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") || "—"}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openEdit(p)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openExcluirConfirm(p)}
+                                  disabled={deletingId === p.id}
+                                  title="Excluir cadastro"
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+                </div>
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm">
+                  {alphabet.map((letter) => {
+                    const enabled = availableLetters.has(letter);
+                    return (
+                      <button
+                        key={letter}
+                        type="button"
+                        onClick={() => enabled && scrollToLetter(letter)}
+                        disabled={!enabled}
+                        className={cn(
+                          "h-3.5 w-3.5 text-[10px] leading-none rounded-sm",
+                          enabled
+                            ? "text-muted-foreground hover:text-foreground"
+                            : "text-muted-foreground/30 cursor-not-allowed"
+                        )}
+                        aria-label={`Ir para letra ${letter}`}
+                        title={enabled ? `Ir para ${letter}` : `Sem pacientes em ${letter}`}
+                      >
+                        {letter}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </CardContent>
