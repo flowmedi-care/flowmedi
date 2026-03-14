@@ -44,7 +44,6 @@ export default async function PacientesPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-foreground">Pacientes</h1>
       <PacientesClient 
         initialPatients={patients} 
         customFields={customFields ?? []}

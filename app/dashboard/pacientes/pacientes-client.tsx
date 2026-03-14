@@ -432,6 +432,22 @@ export function PacientesClient({
           </div>
         </div>
       )}
+
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Pacientes</h1>
+        {activeTab === "registered" && (
+          <Button
+            size="icon"
+            className="h-10 w-10 rounded-full"
+            onClick={openNew}
+            title="Novo paciente"
+            aria-label="Novo paciente"
+          >
+            <Plus className="h-5 w-5" />
+          </Button>
+        )}
+      </div>
+
       <div className="flex items-center gap-2">
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -464,15 +480,6 @@ export function PacientesClient({
               title="Visualização em lista"
             >
               <List className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              className="h-10 w-10 rounded-full"
-              onClick={openNew}
-              title="Novo paciente"
-              aria-label="Novo paciente"
-            >
-              <Plus className="h-5 w-5" />
             </Button>
           </div>
         )}
