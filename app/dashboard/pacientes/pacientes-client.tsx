@@ -827,7 +827,7 @@ export function PacientesClient({
                     ))}
                   </div>
                 </div>
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm md:static md:h-[600px] md:translate-y-0 md:justify-center">
+                <div className="fixed right-2 top-1/2 z-40 -translate-y-1/2 flex flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm md:static md:h-[600px] md:translate-y-0 md:justify-center">
                   {alphabet.map((letter) => {
                     const enabled = availableLetters.has(letter);
                     return (
@@ -907,7 +907,7 @@ export function PacientesClient({
                     ))}
                   </div>
                 </div>
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm md:static md:h-[600px] md:translate-y-0 md:justify-center">
+                <div className="fixed right-2 top-1/2 z-40 -translate-y-1/2 flex flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm md:static md:h-[600px] md:translate-y-0 md:justify-center">
                   {alphabet.map((letter) => {
                     const enabled = availableLetters.has(letter);
                     return (
