@@ -119,11 +119,12 @@ export function FormulariosListClient({
                       </span>
                     )}
                   </div>
-                  <div className="flex w-full items-center justify-between sm:w-auto sm:justify-end sm:flex-wrap gap-1">
+                  <div className="ml-auto flex items-center gap-1.5 rounded-md border border-border bg-muted/30 p-1 sm:ml-0 sm:bg-transparent sm:border-0 sm:p-0">
                     {t.is_public && (
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
+                        className="h-8 w-8 sm:h-9 sm:w-9"
                         onClick={() => handleGeneratePublicLink(t.id, t.name)}
                         title="Gerar link público"
                       >
@@ -132,7 +133,8 @@ export function FormulariosListClient({
                     )}
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon"
+                      className="h-8 w-8 sm:h-9 sm:w-9"
                       onClick={() =>
                         setEncaminharTemplate({ id: t.id, name: t.name })
                       }
@@ -141,13 +143,14 @@ export function FormulariosListClient({
                       <Send className="h-4 w-4" />
                     </Button>
                     <Link href={`/dashboard/formularios/${t.id}/editar`}>
-                      <Button variant="ghost" size="sm" title="Editar">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" title="Editar">
                         <Pencil className="h-4 w-4" />
                       </Button>
                     </Link>
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon"
+                      className="h-8 w-8 sm:h-9 sm:w-9"
                       onClick={() => openExcluirConfirm(t.id, t.name)}
                       disabled={deletingId === t.id}
                       title="Excluir formulário"
