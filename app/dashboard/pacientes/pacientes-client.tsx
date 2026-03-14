@@ -217,6 +217,38 @@ export function PacientesClient({
     });
   }, [patients, search]);
 
+  const groupedPatients = useMemo(() => {
+    const groups = new Map<string, Patient[]>();
+
+    const normalize = (value: string) =>
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toUpperCase();
+
+    for (const patient of filtered) {
+      const normalizedName = normalize(patient.full_name);
+      const firstChar = normalizedName.charAt(0);
+      const key = /^[A-Z]$/.test(firstChar) ? firstChar : "#";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(patient);
+    }
+
+    const sortedKeys = [...groups.keys()].sort((a, b) => {
+      if (a === "#") return 1;
+      if (b === "#") return -1;
+      return a.localeCompare(b, "pt-BR");
+    });
+
+    return sortedKeys.map((letter) => ({
+      letter,
+      patients: (groups.get(letter) ?? []).sort((a, b) =>
+        a.full_name.localeCompare(b.full_name, "pt-BR", { sensitivity: "base" })
+      ),
+    }));
+  }, [filtered]);
+
   const filteredNonRegistered = nonRegisteredList.filter(
     (nr) =>
       (nr.name && nr.name.toLowerCase().includes(search.toLowerCase())) ||
@@ -742,66 +774,84 @@ export function PacientesClient({
             ) : viewMode === "contacts" ? (
               // Visualização de contatos (padrão para todos)
               <div className="h-[600px] overflow-y-auto pr-2">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {filtered.map((p) => (
-                    <Card
-                      key={p.id}
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => setSelectedPatient(p)}
-                    >
-                      <CardContent className="pt-6 pb-4 flex flex-col items-center text-center">
-                        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                          <User className="h-8 w-8 text-primary" />
-                        </div>
-                        <p className="font-medium text-sm truncate w-full">{p.full_name}</p>
-                        {p.phone && (
-                          <p className="text-xs text-muted-foreground mt-1 truncate w-full">
-                            {formatPhoneBr(p.phone)}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
+                <div className="space-y-6">
+                  {groupedPatients.map((group) => (
+                    <section key={group.letter} className="space-y-3">
+                      <h3 className="text-sm font-semibold text-muted-foreground tracking-wide">
+                        {group.letter}
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        {group.patients.map((p) => (
+                          <Card
+                            key={p.id}
+                            className="cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => setSelectedPatient(p)}
+                          >
+                            <CardContent className="pt-6 pb-4 flex flex-col items-center text-center">
+                              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                                <User className="h-8 w-8 text-primary" />
+                              </div>
+                              <p className="font-medium text-sm truncate w-full">{p.full_name}</p>
+                              {p.phone && (
+                                <p className="text-xs text-muted-foreground mt-1 truncate w-full">
+                                  {formatPhoneBr(p.phone)}
+                                </p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
               </div>
             ) : (
-              <ul className="divide-y divide-border">
-                {filtered.map((p) => (
-                  <li
-                    key={p.id}
-                    className={cn(
-                      "flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0",
-                      editingId === p.id && "bg-muted/50 -mx-2 px-2 rounded"
-                    )}
-                  >
-                    <div>
-                      <p className="font-medium">{p.full_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {[p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") || "—"}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEdit(p)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openExcluirConfirm(p)}
-                        disabled={deletingId === p.id}
-                        title="Excluir cadastro"
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </li>
+              <div className="space-y-6">
+                {groupedPatients.map((group) => (
+                  <section key={group.letter} className="space-y-2">
+                    <h3 className="text-sm font-semibold text-muted-foreground tracking-wide">
+                      {group.letter}
+                    </h3>
+                    <ul className="divide-y divide-border">
+                      {group.patients.map((p) => (
+                        <li
+                          key={p.id}
+                          className={cn(
+                            "flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0",
+                            editingId === p.id && "bg-muted/50 -mx-2 px-2 rounded"
+                          )}
+                        >
+                          <div>
+                            <p className="font-medium">{p.full_name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {[p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") || "—"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEdit(p)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openExcluirConfirm(p)}
+                              disabled={deletingId === p.id}
+                              title="Excluir cadastro"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
                 ))}
-              </ul>
+              </div>
             )}
           </CardContent>
         </Card>
