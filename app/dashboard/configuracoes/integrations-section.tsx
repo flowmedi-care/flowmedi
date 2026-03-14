@@ -217,7 +217,7 @@ export function IntegrationsSection({
 
   async function loadIntegrations() {
     try {
-      const res = await fetch("/api/integrations");
+      const res = await fetch("/api/integrations", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
       setIntegrations(data.integrations || []);
@@ -232,14 +232,34 @@ export function IntegrationsSection({
     setMetaAssetsLoading(true);
     setMetaAssetsError(null);
     try {
-      const res = await fetch("/api/integrations/whatsapp/meta-assets");
+      const res = await fetch(`/api/integrations/whatsapp/meta-assets?t=${Date.now()}`, {
+        cache: "no-store",
+      });
       const data = await res.json();
+      console.info("[WA_DEBUG][MetaAssets] response", {
+        ok: res.ok,
+        status: res.status,
+        data,
+      });
       if (!res.ok) {
         setMetaAssets(null);
         setMetaAssetsError(data.error || "Não foi possível carregar ativos da Meta.");
         return;
       }
       setMetaAssets(data as MetaAssetsResponse);
+      const typedData = data as MetaAssetsResponse;
+      console.info("[WA_DEBUG][MetaAssets] selected-vs-available", {
+        selectedWabaId: typedData.selected_waba_id,
+        selectedPhoneNumberId: typedData.selected_phone_number_id,
+        businessesCount: typedData.businesses.length,
+        wabas: typedData.businesses.flatMap((business) =>
+          business.wabas.map((waba) => ({
+            businessId: business.id,
+            wabaId: waba.id,
+            phoneIds: waba.phone_numbers.map((phone) => phone.id),
+          }))
+        ),
+      });
     } catch {
       setMetaAssetsError("Erro de conexão ao carregar ativos da Meta.");
       setMetaAssets(null);
@@ -363,6 +383,7 @@ export function IntegrationsSection({
               }
 
               setSuccessMessage("WhatsApp (Meta) conectado com sucesso via Cadastro Incorporado.");
+              console.info("[WA_DEBUG][EmbeddedSignup] complete-embedded", completeData);
               setTimeout(() => setSuccessMessage(null), 5000);
               await loadIntegrations();
               setConnecting(null);

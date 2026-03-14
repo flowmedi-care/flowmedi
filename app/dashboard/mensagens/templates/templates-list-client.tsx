@@ -15,7 +15,7 @@ import {
   type RemoteMetaTemplateItem,
 } from "../actions";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const CHANNEL_LABELS: Record<string, string> = {
   email: "Email",
@@ -50,6 +50,14 @@ export function TemplatesListClient({
   const [requestingSystemTemplates, setRequestingSystemTemplates] = useState(false);
   const [syncingSystemStatuses, setSyncingSystemStatuses] = useState(false);
 
+  useEffect(() => {
+    console.info("[WA_DEBUG][TemplatesList] render", {
+      hasWhatsAppIntegration,
+      remoteTemplatesCount: remoteMetaTemplates.length,
+      remoteTemplateNames: remoteMetaTemplates.map((tpl) => tpl.name),
+    });
+  }, [hasWhatsAppIntegration, remoteMetaTemplates]);
+
   async function handleDelete(id: string) {
     if (!confirm("Tem certeza que deseja desativar este template?")) return;
     setDeleting(id);
@@ -76,6 +84,7 @@ export function TemplatesListClient({
     setRequestingSystemTemplates(true);
     const result = await requestSystemMetaTemplates();
     setRequestingSystemTemplates(false);
+    console.info("[WA_DEBUG][TemplatesList] requestSystemMetaTemplates", result);
     if (result.error) alert(`Erro ao solicitar templates: ${result.error}`);
     router.refresh();
   }
@@ -84,6 +93,7 @@ export function TemplatesListClient({
     setSyncingSystemStatuses(true);
     const result = await refreshSystemMetaTemplatesStatus();
     setSyncingSystemStatuses(false);
+    console.info("[WA_DEBUG][TemplatesList] refreshSystemMetaTemplatesStatus", result);
     if (result.error) alert(`Erro ao sincronizar status: ${result.error}`);
     router.refresh();
   }

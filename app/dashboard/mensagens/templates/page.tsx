@@ -13,6 +13,8 @@ import {
 import { TemplatesListClient } from "./templates-list-client";
 import { EmailBrandingCard } from "./email-branding-card";
 
+export const dynamic = "force-dynamic";
+
 export default async function TemplatesPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

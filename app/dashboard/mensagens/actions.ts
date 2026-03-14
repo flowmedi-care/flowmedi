@@ -748,7 +748,10 @@ export async function getRemoteMetaTemplates(): Promise<{
   return { data, error: null };
 }
 
-export async function requestSystemMetaTemplates(): Promise<{ error: string | null }> {
+export async function requestSystemMetaTemplates(): Promise<{
+  error: string | null;
+  debug?: Record<string, unknown>;
+}> {
   const ctx = await getClinicAdminContext();
   if (ctx.error || !ctx.clinicId) return { error: ctx.error };
   const { supabase, clinicId } = ctx;
@@ -759,6 +762,14 @@ export async function requestSystemMetaTemplates(): Promise<{ error: string | nu
   }
 
   const nowIso = new Date().toISOString();
+  const { data: integrationRow } = await supabase
+    .from("clinic_integrations")
+    .select("status, metadata")
+    .eq("clinic_id", clinicId)
+    .eq("integration_type", "whatsapp_meta")
+    .maybeSingle();
+  const integrationMeta = (integrationRow?.metadata as Record<string, unknown> | null) || null;
+
   const listed = await listMetaTemplates(clinicId, supabase);
   const remoteByName = new Map<string, { id: string; status: WhatsAppTemplateReviewStatus }>();
   if (listed.success && listed.templates) {
@@ -806,11 +817,25 @@ export async function requestSystemMetaTemplates(): Promise<{ error: string | nu
     })
   );
 
+  const debug = {
+    clinicId,
+    integrationStatus: integrationRow?.status ?? null,
+    selectedWabaId: integrationMeta?.waba_id ?? null,
+    selectedPhoneNumberId: integrationMeta?.phone_number_id ?? null,
+    listedSuccess: listed.success,
+    listedCount: listed.templates?.length ?? 0,
+    listedTemplateNames: (listed.templates ?? []).map((tpl) => tpl.name),
+  };
+  console.info("[WA_DEBUG][Actions] requestSystemMetaTemplates", debug);
+
   revalidatePath("/dashboard/mensagens/templates");
-  return { error: null };
+  return { error: null, debug };
 }
 
-export async function refreshSystemMetaTemplatesStatus(): Promise<{ error: string | null }> {
+export async function refreshSystemMetaTemplatesStatus(): Promise<{
+  error: string | null;
+  debug?: Record<string, unknown>;
+}> {
   const ctx = await getClinicAdminContext();
   if (ctx.error || !ctx.clinicId) return { error: ctx.error };
   const { supabase, clinicId } = ctx;
@@ -843,8 +868,24 @@ export async function refreshSystemMetaTemplatesStatus(): Promise<{ error: strin
       .eq("template_key", row.template_key);
   }
 
+  const { data: integrationRow } = await supabase
+    .from("clinic_integrations")
+    .select("status, metadata")
+    .eq("clinic_id", clinicId)
+    .eq("integration_type", "whatsapp_meta")
+    .maybeSingle();
+  const integrationMeta = (integrationRow?.metadata as Record<string, unknown> | null) || null;
+  const debug = {
+    clinicId,
+    integrationStatus: integrationRow?.status ?? null,
+    selectedWabaId: integrationMeta?.waba_id ?? null,
+    selectedPhoneNumberId: integrationMeta?.phone_number_id ?? null,
+    localRowsCount: rows?.length ?? 0,
+  };
+  console.info("[WA_DEBUG][Actions] refreshSystemMetaTemplatesStatus", debug);
+
   revalidatePath("/dashboard/mensagens/templates");
-  return { error: null };
+  return { error: null, debug };
 }
 
 // ========== BUSCAR CONFIGURAÇÕES DA CLÍNICA ==========
