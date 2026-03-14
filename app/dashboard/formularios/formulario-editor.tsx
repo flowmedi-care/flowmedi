@@ -84,8 +84,13 @@ export function FormularioEditor({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-start gap-3">
+        <Link href="/dashboard/formularios">
+          <Button variant="ghost" size="icon" className="h-9 w-9 mt-0.5">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold">
             {isEdit ? "Editar formulário" : "Novo formulário"}
           </h1>
@@ -96,12 +101,6 @@ export function FormularioEditor({
             }
           </p>
         </div>
-        <Link href="/dashboard/formularios">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar
-          </Button>
-        </Link>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

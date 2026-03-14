@@ -119,7 +119,7 @@ export function FormulariosListClient({
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center flex-wrap gap-1">
+                  <div className="flex w-full items-center justify-between sm:w-auto sm:justify-end sm:flex-wrap gap-1">
                     {t.is_public && (
                       <Button
                         variant="ghost"

@@ -59,10 +59,15 @@ export default async function FormulariosPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-        <h1 className="text-xl font-semibold text-foreground">Formulários</h1>
-        <Link href="/dashboard/formularios/novo">
-          <Button className="w-full sm:w-auto">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Formulários</h1>
+        <Link href="/dashboard/formularios/novo" className="sm:hidden">
+          <Button size="icon" className="h-10 w-10 rounded-full" aria-label="Novo formulário">
+            <Plus className="h-5 w-5" />
+          </Button>
+        </Link>
+        <Link href="/dashboard/formularios/novo" className="hidden sm:block">
+          <Button className="w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Novo formulário
           </Button>
