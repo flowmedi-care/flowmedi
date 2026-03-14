@@ -780,23 +780,25 @@ export function PacientesClient({
                       <h3 className="text-sm font-semibold text-muted-foreground tracking-wide">
                         {group.letter}
                       </h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      <div className="space-y-2">
                         {group.patients.map((p) => (
                           <Card
                             key={p.id}
                             className="cursor-pointer hover:bg-muted/50 transition-colors"
                             onClick={() => setSelectedPatient(p)}
                           >
-                            <CardContent className="pt-6 pb-4 flex flex-col items-center text-center">
-                              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                                <User className="h-8 w-8 text-primary" />
+                            <CardContent className="py-3 px-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                  <User className="h-6 w-6 text-primary" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-medium text-sm truncate">{p.full_name}</p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {[p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") || "Sem contato"}
+                                  </p>
+                                </div>
                               </div>
-                              <p className="font-medium text-sm truncate w-full">{p.full_name}</p>
-                              {p.phone && (
-                                <p className="text-xs text-muted-foreground mt-1 truncate w-full">
-                                  {formatPhoneBr(p.phone)}
-                                </p>
-                              )}
                             </CardContent>
                           </Card>
                         ))}
