@@ -103,23 +103,27 @@ export function FormulariosListClient({
               {templates.map((t) => (
                 <li
                   key={t.id}
-                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between py-3 first:pt-0"
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 first:pt-0"
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium truncate">{t.name}</span>
-                    {t.appointment_type_name && (
-                      <span className="text-sm text-muted-foreground">
-                        → {t.appointment_type_name}
-                      </span>
-                    )}
-                    {t.is_public && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                        Público
-                      </span>
-                    )}
+                  <div className="flex items-start gap-2 min-w-0">
+                    <FileText className="mt-0.5 h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium truncate">{t.name}</span>
+                        {t.is_public && (
+                          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                            Público
+                          </span>
+                        )}
+                      </div>
+                      {t.appointment_type_name && (
+                        <span className="text-sm text-muted-foreground">
+                          {t.appointment_type_name}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="ml-auto flex items-center gap-1.5 rounded-md border border-border bg-muted/30 p-1 sm:ml-0 sm:bg-transparent sm:border-0 sm:p-0">
+                  <div className="flex items-center gap-1.5 rounded-md border border-border bg-muted/30 p-1 shrink-0">
                     {t.is_public && (
                       <Button
                         variant="ghost"
