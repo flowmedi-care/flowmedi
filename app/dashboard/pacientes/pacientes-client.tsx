@@ -257,13 +257,9 @@ export function PacientesClient({
   );
 
   function scrollToLetter(letter: string) {
-    const container = contactsScrollRef.current;
     const target = letterSectionRefs.current[letter];
-    if (!container || !target) return;
-    container.scrollTo({
-      top: Math.max(0, target.offsetTop - 8),
-      behavior: "smooth",
-    });
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   const filteredNonRegistered = nonRegisteredList.filter(
@@ -790,8 +786,8 @@ export function PacientesClient({
               </p>
             ) : viewMode === "contacts" ? (
               // Visualização de contatos (padrão para todos)
-              <div className="grid grid-cols-[minmax(0,1fr)_18px] gap-1">
-                <div ref={contactsScrollRef} className="h-[600px] overflow-y-auto pr-2">
+              <div className="relative md:grid md:grid-cols-[minmax(0,1fr)_18px] md:gap-1">
+                <div ref={contactsScrollRef} className="max-h-none overflow-visible pr-4 md:h-[600px] md:overflow-y-auto md:pr-2">
                   <div className="space-y-6">
                     {groupedPatients.map((group) => (
                       <section
@@ -831,7 +827,7 @@ export function PacientesClient({
                     ))}
                   </div>
                 </div>
-                <div className="flex h-[600px] flex-col items-center justify-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm">
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm md:static md:h-[600px] md:translate-y-0 md:justify-center">
                   {alphabet.map((letter) => {
                     const enabled = availableLetters.has(letter);
                     return (
@@ -856,8 +852,8 @@ export function PacientesClient({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-[minmax(0,1fr)_18px] gap-1">
-                <div ref={contactsScrollRef} className="h-[600px] overflow-y-auto pr-2">
+              <div className="relative md:grid md:grid-cols-[minmax(0,1fr)_18px] md:gap-1">
+                <div ref={contactsScrollRef} className="max-h-none overflow-visible pr-4 md:h-[600px] md:overflow-y-auto md:pr-2">
                   <div className="space-y-6">
                     {groupedPatients.map((group) => (
                       <section
@@ -911,7 +907,7 @@ export function PacientesClient({
                     ))}
                   </div>
                 </div>
-                <div className="flex h-[600px] flex-col items-center justify-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm">
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm md:static md:h-[600px] md:translate-y-0 md:justify-center">
                   {alphabet.map((letter) => {
                     const enabled = availableLetters.has(letter);
                     return (
