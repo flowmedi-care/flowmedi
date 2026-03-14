@@ -48,9 +48,16 @@ export async function GET() {
     }
 
     const typedRows = (rows ?? []) as IntegrationRow[];
+    const simpleIntegration = typedRows.find((r) => r.integration_type === "whatsapp_simple");
+    const metaIntegration = typedRows.find((r) => r.integration_type === "whatsapp_meta");
+    const metaHasTarget =
+      typeof metaIntegration?.metadata?.waba_id === "string" ||
+      typeof metaIntegration?.metadata?.phone_number_id === "string";
+
     const chosen =
-      typedRows.find((r) => r.integration_type === "whatsapp_simple") ??
-      typedRows.find((r) => r.integration_type === "whatsapp_meta");
+      (metaIntegration && metaHasTarget ? metaIntegration : null) ??
+      metaIntegration ??
+      simpleIntegration;
 
     if (!chosen?.credentials?.access_token) {
       return NextResponse.json(

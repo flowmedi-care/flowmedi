@@ -34,41 +34,51 @@ export interface MetaTemplateSummary {
 }
 
 /**
- * Obtém as credenciais do WhatsApp/Meta para uma clínica
- * Tenta primeiro whatsapp_simple, depois whatsapp_meta (coexistência)
+ * Obtém as credenciais do WhatsApp/Meta para uma clínica.
+ *
+ * Regra de escolha:
+ * 1) Se houver `whatsapp_meta` com WABA/Phone configurado, prioriza ela
+ *    (evita usar integração legada e puxar dados de conta errada).
+ * 2) Caso contrário, respeita `preferSimple` para fallback.
  */
 async function getWhatsAppCredentials(clinicId: string, preferSimple = true, supabaseClient?: SupabaseClient) {
   const supabase = supabaseClient ?? await createClient();
-  
-  const integrationType = preferSimple ? "whatsapp_simple" : "whatsapp_meta";
-  
-  let { data: integration, error } = await supabase
+
+  const { data: rows, error } = await supabase
     .from("clinic_integrations")
-    .select("credentials, metadata")
+    .select("integration_type, credentials, metadata")
     .eq("clinic_id", clinicId)
-    .eq("integration_type", integrationType)
+    .in("integration_type", ["whatsapp_simple", "whatsapp_meta"])
     .eq("status", "connected")
-    .single();
+    .returns<Array<{
+      integration_type: "whatsapp_simple" | "whatsapp_meta";
+      credentials: Record<string, unknown> | null;
+      metadata: Record<string, unknown> | null;
+    }>>();
 
-  // Se não encontrou e preferSimple=true, tentar whatsapp_meta
-  if ((error || !integration) && preferSimple) {
-    const fallback = await supabase
-      .from("clinic_integrations")
-      .select("credentials, metadata")
-      .eq("clinic_id", clinicId)
-      .eq("integration_type", "whatsapp_meta")
-      .eq("status", "connected")
-      .single();
-    integration = fallback.data;
-    error = fallback.error;
-  }
-
-  if (error || !integration) {
+  if (error || !rows || rows.length === 0) {
     throw new Error("Integração WhatsApp não encontrada ou não conectada");
   }
 
+  const simpleIntegration = rows.find((row) => row.integration_type === "whatsapp_simple");
+  const metaIntegration = rows.find((row) => row.integration_type === "whatsapp_meta");
+
+  const hasMetaTarget =
+    typeof metaIntegration?.metadata?.waba_id === "string" ||
+    typeof metaIntegration?.metadata?.phone_number_id === "string";
+
+  const integration =
+    (metaIntegration && hasMetaTarget ? metaIntegration : null) ||
+    (preferSimple ? simpleIntegration : metaIntegration) ||
+    simpleIntegration ||
+    metaIntegration;
+
+  if (!integration) {
+    throw new Error("Integração WhatsApp conectada não encontrada");
+  }
+
   return {
-    credentials: integration.credentials as {
+    credentials: (integration.credentials ?? {}) as {
       access_token: string;
       expires_in: number | null;
       token_type: string;
