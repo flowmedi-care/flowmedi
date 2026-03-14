@@ -104,7 +104,7 @@ export function PacientesClient({
     custom_fields: {},
   });
   const contactsScrollRef = useRef<HTMLDivElement | null>(null);
-  const letterSectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const letterSectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const alphabet = useMemo(() => Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)), []);
 
   // Sincronizar lista quando o servidor enviar dados novos (ex.: após router.refresh())
