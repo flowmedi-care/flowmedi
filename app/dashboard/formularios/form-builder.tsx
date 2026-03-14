@@ -12,7 +12,6 @@ import {
   isChoiceType,
   hasPlaceholder,
   hasOptions,
-  hasMinMax,
 } from "@/lib/form-types";
 import { Plus, Trash2, Check } from "lucide-react";
 
@@ -146,60 +145,69 @@ export function FormBuilder({
               key={field.id}
               className="border border-border rounded-lg p-4 bg-card hover:border-primary/50 transition-colors"
             >
-              <div className="flex flex-wrap items-center gap-2">
-              <select
-                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
-                value={field.type}
-                onChange={(e) =>
-                  updateField(field.id, {
-                    type: e.target.value as FormFieldType,
-                    options: isChoiceType(e.target.value as FormFieldType)
-                      ? field.options ?? []
-                      : undefined,
-                  })
-                }
-                disabled={disabled}
-              >
-                {FORM_FIELD_TYPES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <Input
-                placeholder="Rótulo do campo"
-                value={field.label}
-                onChange={(e) =>
-                  updateField(field.id, { label: e.target.value })
-                }
-                className="flex-1 min-w-[180px]"
-                disabled={disabled}
-              />
-              <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
-                <input
-                  type="checkbox"
-                  checked={field.required ?? false}
-                  onChange={(e) =>
-                    updateField(field.id, { required: e.target.checked })
-                  }
+              <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <Label className="text-xs">Tipo</Label>
+                  <select
+                    className="mt-1 h-10 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                    value={field.type}
+                    onChange={(e) =>
+                      updateField(field.id, {
+                        type: e.target.value as FormFieldType,
+                        options: isChoiceType(e.target.value as FormFieldType)
+                          ? field.options ?? []
+                          : undefined,
+                      })
+                    }
+                    disabled={disabled}
+                  >
+                    {FORM_FIELD_TYPES.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeField(field.id)}
                   disabled={disabled}
-                />
-                Obrigatório
-              </label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => removeField(field.id)}
-                disabled={disabled}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
+                  className="h-10 w-10 mt-5 text-destructive hover:text-destructive"
+                  title="Remover campo"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
 
-            {(hasPlaceholder(field.type) || hasOptions(field.type) || hasMinMax(field.type)) && (
-              <div className="mt-3 pt-3 border-t border-border space-y-2">
+              <div className="mt-3 pt-3 border-t border-border space-y-3">
+                <div>
+                  <Label className="text-xs">Rótulo</Label>
+                  <Input
+                    placeholder="Rótulo do campo"
+                    value={field.label}
+                    onChange={(e) =>
+                      updateField(field.id, { label: e.target.value })
+                    }
+                    className="mt-1 h-10 w-full"
+                    disabled={disabled}
+                  />
+                </div>
+
+                <label className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
+                  <span>Obrigatório</span>
+                  <input
+                    type="checkbox"
+                    checked={field.required ?? false}
+                    onChange={(e) =>
+                      updateField(field.id, { required: e.target.checked })
+                    }
+                    disabled={disabled}
+                    className="h-4 w-4"
+                  />
+                </label>
+
                 {hasPlaceholder(field.type) && (
                   <div>
                     <Label className="text-xs">Descrição</Label>
@@ -211,7 +219,7 @@ export function FormBuilder({
                         })
                       }
                       placeholder="Ex.: Descrição do campo..."
-                      className="mt-1"
+                      className="mt-1 h-10 w-full"
                       disabled={disabled}
                     />
                   </div>
@@ -227,7 +235,7 @@ export function FormBuilder({
                   />
                 )}
                 {field.type === "number" && (
-                  <div className="flex gap-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
                       <Label className="text-xs">Mínimo</Label>
                       <Input
@@ -240,7 +248,7 @@ export function FormBuilder({
                               : undefined,
                           })
                         }
-                        className="mt-1 w-24"
+                        className="mt-1 h-10 w-full"
                         disabled={disabled}
                       />
                     </div>
@@ -256,14 +264,13 @@ export function FormBuilder({
                               : undefined,
                           })
                         }
-                        className="mt-1 w-24"
+                        className="mt-1 h-10 w-full"
                         disabled={disabled}
                       />
                     </div>
                   </div>
                 )}
               </div>
-            )}
             </li>
           ))}
         </ul>
