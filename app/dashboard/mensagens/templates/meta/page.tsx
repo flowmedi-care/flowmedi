@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { getClinicMetaMessageModels, getMessageEvents } from "../../actions";
+import { getClinicMetaMessageModels } from "../../actions";
 import { MetaModelsClient } from "../meta-models-client";
 
 export const dynamic = "force-dynamic";
@@ -25,10 +25,7 @@ export default async function TemplatesMetaPage() {
     redirect("/dashboard");
   }
 
-  const [modelsResult, eventsResult] = await Promise.all([
-    getClinicMetaMessageModels(),
-    getMessageEvents(),
-  ]);
+  const modelsResult = await getClinicMetaMessageModels();
 
   return (
     <div className="space-y-6">
@@ -53,10 +50,7 @@ export default async function TemplatesMetaPage() {
         </div>
       ) : null}
 
-      <MetaModelsClient
-        initialModels={modelsResult.data ?? []}
-        events={eventsResult.data ?? []}
-      />
+      <MetaModelsClient initialModels={modelsResult.data ?? []} />
     </div>
   );
 }

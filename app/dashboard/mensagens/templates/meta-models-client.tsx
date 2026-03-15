@@ -13,10 +13,8 @@ import {
   createClinicMetaMessageModel,
   deleteClinicMetaMessageModel,
   submitClinicMetaMessageModel,
-  type MessageEvent,
   type MetaMessageModelDraft,
   type MetaMessageModelPayload,
-  type SystemMetaTemplateKey,
 } from "../actions";
 
 type MetaButtonKind = "none" | "quick_reply" | "url" | "phone";
@@ -132,17 +130,14 @@ function WhatsAppTemplatePreview({
 
 export function MetaModelsClient({
   initialModels,
-  events,
 }: {
   initialModels: MetaMessageModelDraft[];
-  events: MessageEvent[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
-  const [eventCode, setEventCode] = useState("");
-  const [templateKey, setTemplateKey] = useState<SystemMetaTemplateKey>("flowmedi_consulta");
+  const [metaCategory, setMetaCategory] = useState<"MARKETING" | "UTILITY" | "AUTHENTICATION">("UTILITY");
   const [metaLanguage, setMetaLanguage] = useState("pt_BR");
   const [headerText, setHeaderText] = useState("");
   const [bodyText, setBodyText] = useState("");
@@ -169,8 +164,8 @@ export function MetaModelsClient({
     });
     const payload: MetaMessageModelPayload = {
       name,
-      eventCode,
-      templateKey,
+      eventCode: null,
+      metaCategory,
       bodyText,
       metaLanguage,
       metaComponents: components,
@@ -183,8 +178,7 @@ export function MetaModelsClient({
     }
     setOpen(false);
     setName("");
-    setEventCode("");
-    setTemplateKey("flowmedi_consulta");
+    setMetaCategory("UTILITY");
     setMetaLanguage("pt_BR");
     setHeaderText("");
     setBodyText("");
@@ -239,10 +233,7 @@ export function MetaModelsClient({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-medium">{model.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Evento: {events.find((e) => e.code === model.event_code)?.name || model.event_code}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Modelo: {model.template_key}</p>
+                  <p className="text-xs text-muted-foreground">Categoria: {model.meta_category}</p>
                   <p className="text-xs text-muted-foreground">Idioma: {model.meta_language || "pt_BR"}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -301,38 +292,21 @@ export function MetaModelsClient({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Evento vinculado</Label>
+                  <Label>Categoria</Label>
                   <select
-                    value={eventCode}
-                    onChange={(e) => setEventCode(e.target.value)}
+                    value={metaCategory}
+                    onChange={(e) => setMetaCategory(e.target.value as "MARKETING" | "UTILITY" | "AUTHENTICATION")}
                     className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
-                    <option value="">Selecione</option>
-                    {events.map((event) => (
-                      <option key={event.id} value={event.code}>
-                        {event.name}
-                      </option>
-                    ))}
+                    <option value="UTILITY">Utilidade</option>
+                    <option value="MARKETING">Marketing</option>
+                    <option value="AUTHENTICATION">Autenticação</option>
                   </select>
                 </div>
               </div>
 
               <Card className="p-3 space-y-3">
                 <p className="text-sm font-medium">Conteúdo</p>
-                <div className="space-y-2">
-                  <Label>Tipo de modelo</Label>
-                  <select
-                    value={templateKey}
-                    onChange={(e) => setTemplateKey(e.target.value as SystemMetaTemplateKey)}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="flowmedi_consulta">Consulta</option>
-                    <option value="flowmedi_agenda_com_formulario">Consulta com formulário</option>
-                    <option value="flowmedi_formulario">Formulário</option>
-                    <option value="flowmedi_aviso">Aviso</option>
-                    <option value="flowmedi_mensagem_livre">Mensagem livre</option>
-                  </select>
-                </div>
                 <div className="space-y-2">
                   <Label>Cabeçalho (opcional)</Label>
                   <Input value={headerText} onChange={(e) => setHeaderText(e.target.value)} maxLength={60} />

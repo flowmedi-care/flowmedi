@@ -82,7 +82,8 @@ export type RemoteMetaTemplateItem = {
 export type MetaMessageModelDraft = {
   id: string;
   name: string;
-  event_code: string;
+  event_code: string | null;
+  meta_category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
   template_key: SystemMetaTemplateKey;
   body_text: string;
   meta_language: string;
@@ -97,8 +98,8 @@ export type MetaMessageModelDraft = {
 
 export type MetaMessageModelPayload = {
   name: string;
-  eventCode: string;
-  templateKey: SystemMetaTemplateKey;
+  eventCode?: string | null;
+  metaCategory: "MARKETING" | "UTILITY" | "AUTHENTICATION";
   bodyText: string;
   metaLanguage?: string;
   metaComponents?: Array<Record<string, unknown>>;
@@ -896,7 +897,7 @@ export async function getClinicMetaMessageModels(): Promise<{
 
   const { data, error } = await ctx.supabase
     .from("clinic_meta_message_models")
-    .select("id, name, event_code, template_key, body_text, meta_language, meta_components, status, meta_template_id, meta_status, last_error, created_at, updated_at")
+    .select("id, name, event_code, meta_category, template_key, body_text, meta_language, meta_components, status, meta_template_id, meta_status, last_error, created_at, updated_at")
     .eq("clinic_id", ctx.clinicId)
     .order("created_at", { ascending: false });
 
@@ -917,7 +918,12 @@ export async function getClinicMetaMessageModels(): Promise<{
   const normalized = ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
     id: String(row.id ?? ""),
     name: String(row.name ?? ""),
-    event_code: String(row.event_code ?? ""),
+    event_code: row.event_code ? String(row.event_code) : null,
+    meta_category:
+      row.meta_category === "MARKETING" ||
+      row.meta_category === "AUTHENTICATION"
+        ? (row.meta_category as "MARKETING" | "AUTHENTICATION")
+        : ("UTILITY" as const),
     template_key: String(row.template_key ?? "") as SystemMetaTemplateKey,
     body_text: String(row.body_text ?? ""),
     meta_language: typeof row.meta_language === "string" && row.meta_language.trim() ? row.meta_language : "pt_BR",
@@ -946,7 +952,6 @@ export async function createClinicMetaMessageModel(
   if (ctx.error || !ctx.clinicId) return { data: null, error: ctx.error };
 
   if (!payload.name.trim()) return { data: null, error: "Nome do modelo é obrigatório." };
-  if (!payload.eventCode.trim()) return { data: null, error: "Evento é obrigatório." };
   if (!payload.bodyText.trim()) return { data: null, error: "Texto da mensagem é obrigatório." };
 
   const { data, error } = await ctx.supabase
@@ -954,14 +959,16 @@ export async function createClinicMetaMessageModel(
     .insert({
       clinic_id: ctx.clinicId,
       name: payload.name.trim(),
-      event_code: payload.eventCode.trim(),
-      template_key: payload.templateKey,
+      event_code: payload.eventCode?.trim() || null,
+      meta_category: payload.metaCategory,
+      // Mantido por compatibilidade da estrutura antiga
+      template_key: "flowmedi_mensagem_livre",
       body_text: payload.bodyText.trim(),
       meta_language: payload.metaLanguage?.trim() || "pt_BR",
       meta_components: Array.isArray(payload.metaComponents) ? payload.metaComponents : [],
       status: "draft",
     })
-    .select("id, name, event_code, template_key, body_text, meta_language, meta_components, status, meta_template_id, meta_status, last_error, created_at, updated_at")
+    .select("id, name, event_code, meta_category, template_key, body_text, meta_language, meta_components, status, meta_template_id, meta_status, last_error, created_at, updated_at")
     .single();
 
   if (error) return { data: null, error: error.message };
@@ -996,7 +1003,7 @@ export async function submitClinicMetaMessageModel(
 
   const { data: model, error: modelError } = await ctx.supabase
     .from("clinic_meta_message_models")
-    .select("id, name, body_text, template_key, meta_language, meta_components")
+    .select("id, name, body_text, meta_category, template_key, meta_language, meta_components")
     .eq("id", id)
     .eq("clinic_id", ctx.clinicId)
     .single();
@@ -1019,6 +1026,10 @@ export async function submitClinicMetaMessageModel(
     {
       name: modelName,
       bodyText: String(model.body_text || ""),
+      category:
+        model.meta_category === "MARKETING" || model.meta_category === "AUTHENTICATION"
+          ? model.meta_category
+          : "UTILITY",
       language: typeof model.meta_language === "string" && model.meta_language.trim()
         ? model.meta_language
         : "pt_BR",
