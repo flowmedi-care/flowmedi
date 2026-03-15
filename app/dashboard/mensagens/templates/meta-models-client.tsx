@@ -375,10 +375,14 @@ export function MetaModelsClient({
               </div>
               <p className="text-sm mt-3 whitespace-pre-wrap">{model.body_text}</p>
               {model.last_error && (
-                <p className="text-xs mt-2 text-destructive">{translateMetaError(model.last_error)}</p>
+                <p className="text-xs mt-2 text-destructive break-words whitespace-pre-wrap">
+                  {translateMetaError(model.last_error)}
+                </p>
               )}
               {submitErrors[model.id] && (
-                <p className="text-xs mt-2 text-destructive">{submitErrors[model.id]}</p>
+                <p className="text-xs mt-2 text-destructive break-words whitespace-pre-wrap">
+                  {submitErrors[model.id]}
+                </p>
               )}
               <div className="flex gap-2 mt-4">
                 <Button
@@ -406,12 +410,12 @@ export function MetaModelsClient({
         <DialogContent
           title="Novo modelo de mensagem Meta"
           onClose={() => setOpen(false)}
-          className="max-w-[96vw] sm:max-w-6xl h-[92vh] overflow-hidden"
+          className="w-[96vw] sm:w-[96vw] sm:max-w-6xl max-h-[95vh] overflow-y-auto"
         >
-          <div className="grid gap-4 lg:grid-cols-[1fr_320px] h-full overflow-hidden">
-            <div className="space-y-3 overflow-y-auto pr-1">
+          <div className="grid gap-4 lg:grid-cols-[1fr_320px] min-w-0">
+            <div className="space-y-3 min-w-0">
               <div className="min-h-5">
-                {error ? <p className="text-sm text-destructive">{error}</p> : null}
+                {error ? <p className="text-sm text-destructive break-words whitespace-pre-wrap">{error}</p> : null}
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
@@ -539,7 +543,7 @@ export function MetaModelsClient({
                 </Button>
               </div>
             </div>
-            <Card className="p-3 h-fit overflow-y-auto">
+            <Card className="p-3 h-fit min-w-0">
               <p className="text-sm font-medium mb-2">Prévia do modelo</p>
               <WhatsAppTemplatePreview
                 headerText={headerText}
