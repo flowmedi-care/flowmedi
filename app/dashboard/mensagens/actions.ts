@@ -57,6 +57,7 @@ export type MessageTemplate = {
 
 export type SystemMetaTemplateKey =
   | "flowmedi_consulta"
+  | "flowmedi_agenda_com_formulario"
   | "flowmedi_formulario"
   | "flowmedi_aviso"
   | "flowmedi_mensagem_livre";
@@ -112,6 +113,11 @@ const SYSTEM_META_TEMPLATE_DEFS: Array<{
     key: "flowmedi_consulta",
     name: "flowmedi_consulta",
     body: "Olá {{1}}! Temos uma mensagem importante sobre sua consulta.\n\n{{2}}\n\nSe precisar, responda esta mensagem.",
+  },
+  {
+    key: "flowmedi_agenda_com_formulario",
+    name: "flowmedi_agenda_com_formulario",
+    body: "Olá {{1}}! Temos uma mensagem importante sobre sua consulta.\n\n{{2}}\n\n{{3}}\n\nSe precisar, responda esta mensagem.",
   },
   {
     key: "flowmedi_formulario",

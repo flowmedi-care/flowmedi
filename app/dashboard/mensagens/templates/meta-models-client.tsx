@@ -327,6 +327,7 @@ export function MetaModelsClient({
                     className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value="flowmedi_consulta">Consulta</option>
+                    <option value="flowmedi_agenda_com_formulario">Consulta com formulário</option>
                     <option value="flowmedi_formulario">Formulário</option>
                     <option value="flowmedi_aviso">Aviso</option>
                     <option value="flowmedi_mensagem_livre">Mensagem livre</option>

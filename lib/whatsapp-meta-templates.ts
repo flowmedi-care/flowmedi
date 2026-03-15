@@ -1,12 +1,16 @@
 /**
  * Mapeamento de event_code → template Meta para envio fora da janela de 24h.
- * Templates: flowmedi_consulta | flowmedi_formulario | flowmedi_aviso
+ * Templates: flowmedi_consulta | flowmedi_agenda_com_formulario | flowmedi_formulario | flowmedi_aviso
  * Ver docs/WHATSAPP-META-TEMPLATES-GUIA-COMPLETO.md
  */
 
 import type { VariableContext } from "./message-variables";
 
-export type MetaTemplateName = "flowmedi_consulta" | "flowmedi_formulario" | "flowmedi_aviso";
+export type MetaTemplateName =
+  | "flowmedi_consulta"
+  | "flowmedi_agenda_com_formulario"
+  | "flowmedi_formulario"
+  | "flowmedi_aviso";
 
 export interface MetaTemplateConfig {
   template: MetaTemplateName;
@@ -37,6 +41,10 @@ export function renderFallbackMetaTemplateText(
   switch (template) {
     case "flowmedi_formulario":
       return `Olá ${safeNome},\n\n${safeMensagem}\n\nObrigado pelo apoio.`;
+    case "flowmedi_agenda_com_formulario": {
+      const blocoFormulario = params[2] || "";
+      return `Olá ${safeNome},\n\n${safeMensagem}\n\n${blocoFormulario}\n\nSe precisar, responda esta mensagem.`;
+    }
     case "flowmedi_aviso":
       return `Olá ${safeNome},\n\n${safeMensagem}\n\nEstamos à disposição para qualquer dúvida.`;
     case "flowmedi_consulta":
@@ -195,8 +203,14 @@ export function getMetaTemplateParams(
       const blocos: string[] = [phrase];
       if (dataHora) blocos.push(`Data e hora: ${dataHora}.`);
       if (medico) blocos.push(`Profissional: ${medico}.`);
-      if (instrucao) blocos.push(instrucao);
+      if (instrucao && eventCode !== "appointment_created") blocos.push(instrucao);
       const mensagemCompleta = blocos.join("\n\n");
+      if (eventCode === "appointment_created" && instrucao) {
+        return {
+          template: "flowmedi_agenda_com_formulario",
+          params: [nome, mensagemCompleta, instrucao],
+        };
+      }
       return {
         template: "flowmedi_consulta",
         params: [nome, mensagemCompleta],
