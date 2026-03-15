@@ -427,6 +427,13 @@ export type SendWhatsAppResult = {
   debug?: { status: number; metaResponse: unknown };
 };
 
+function sanitizeTemplateParam(value: string): string {
+  return String(value ?? "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/ {5,}/g, "    ")
+    .trim();
+}
+
 export async function sendWhatsAppMessage(
   clinicId: string,
   options: WhatsAppOptions,
@@ -446,6 +453,10 @@ export async function sendWhatsAppMessage(
     let payload: Record<string, unknown>;
 
     if (options.template) {
+      const sanitizedTemplateParams = Array.isArray(options.templateParams)
+        ? options.templateParams.map((param) => sanitizeTemplateParam(param))
+        : undefined;
+
       // Mensagem usando template aprovado pela Meta
       payload = {
         messaging_product: "whatsapp",
@@ -456,11 +467,11 @@ export async function sendWhatsAppMessage(
           language: {
             code: options.template === "hello_world" ? "en_US" : "pt_BR",
           },
-          components: options.templateParams && options.templateParams.length > 0
+          components: sanitizedTemplateParams && sanitizedTemplateParams.length > 0
             ? [
                 {
                   type: "body",
-                  parameters: options.templateParams.map((param) => ({
+                  parameters: sanitizedTemplateParams.map((param) => ({
                     type: "text",
                     text: param,
                   })),
@@ -469,6 +480,16 @@ export async function sendWhatsAppMessage(
             : undefined,
         },
       };
+
+      console.log("[WhatsApp Template Debug] Request", {
+        clinicId,
+        to: options.to,
+        template: options.template,
+        language: options.template === "hello_world" ? "en_US" : "pt_BR",
+        originalParams: options.templateParams ?? [],
+        sanitizedParams: sanitizedTemplateParams ?? [],
+        payload,
+      });
     } else if (options.text) {
       // Mensagem de texto simples (requer que o usuário tenha iniciado conversa nas últimas 24h)
       payload = {
@@ -494,6 +515,7 @@ export async function sendWhatsAppMessage(
 
     const data = await response.json();
     const debugPayload = { status: response.status, metaResponse: data };
+    console.log("[WhatsApp Template Debug] Response", debugPayload);
 
     if (!response.ok) {
       const errorMessage = data.error?.message || "Erro ao enviar mensagem WhatsApp";

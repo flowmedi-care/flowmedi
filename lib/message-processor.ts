@@ -976,6 +976,15 @@ async function sendWhatsApp(
     }
 
     if (!result.success) {
+      if (!useTextMessage && templateName) {
+        console.error("[WhatsApp Template Debug] Send failure", {
+          clinicId,
+          templateName,
+          templateParams: templateParams ?? [],
+          metaDebug: result.debug ?? null,
+          error: result.error ?? "Erro desconhecido",
+        });
+      }
       return {
         success: false,
         error: result.error || "Erro ao enviar mensagem WhatsApp",
