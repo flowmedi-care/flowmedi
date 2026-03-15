@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { FileText, Layers, Plus } from "lucide-react";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 import {
@@ -56,12 +56,10 @@ export default async function TemplatesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-foreground">Templates de Mensagens</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Templates salvos (seus) e templates do sistema (padrão por evento/canal)
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">Organize templates salvos, sistema e Meta em páginas separadas.</p>
         </div>
         {canCreateTemplates ? (
           <Link href="/dashboard/mensagens/templates/novo">
@@ -84,14 +82,43 @@ export default async function TemplatesPage() {
         </div>
       )}
 
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 xl:grid-cols-2">
+        <Link href="/dashboard/mensagens/templates/salvos">
+          <div className="rounded-lg border border-border bg-card p-4 sm:p-5 hover:bg-muted/20 transition-colors">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-2 sm:text-lg">
+              <FileText className="h-5 w-5" />
+              Templates salvos
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Os templates criados/editados pela clínica.
+            </p>
+            <p className="text-xs text-muted-foreground mt-3">{savedTemplates.length} template(s)</p>
+          </div>
+        </Link>
+
+        <Link href="/dashboard/mensagens/templates/sistema">
+          <div className="rounded-lg border border-border bg-card p-4 sm:p-5 hover:bg-muted/20 transition-colors">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-2 sm:text-lg">
+              <Layers className="h-5 w-5" />
+              Templates do sistema
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Modelos padrão por evento/canal para copiar e personalizar.
+            </p>
+            <p className="text-xs text-muted-foreground mt-3">{systemTemplates.length} template(s)</p>
+          </div>
+        </Link>
+      </div>
+
       <TemplatesListClient
-        savedTemplates={savedTemplates}
-        systemTemplates={systemTemplates}
+        savedTemplates={[]}
+        systemTemplates={[]}
         remoteMetaTemplates={remoteMetaTemplates}
         hasWhatsAppIntegration={hasWhatsAppIntegration}
         canCreateTemplates={canCreateTemplates}
         canUseEmailTemplates={canUseEmailTemplates}
         canUseWhatsAppTemplates={canUseWhatsAppTemplates}
+        mode="meta"
       />
     </div>
   );

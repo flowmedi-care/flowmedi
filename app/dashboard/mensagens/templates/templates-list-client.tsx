@@ -35,6 +35,7 @@ export function TemplatesListClient({
   canCreateTemplates,
   canUseEmailTemplates,
   canUseWhatsAppTemplates,
+  mode = "all",
 }: {
   savedTemplates: MessageTemplate[];
   systemTemplates: EffectiveTemplateItem[];
@@ -43,6 +44,7 @@ export function TemplatesListClient({
   canCreateTemplates: boolean;
   canUseEmailTemplates: boolean;
   canUseWhatsAppTemplates: boolean;
+  mode?: "all" | "saved" | "system" | "meta";
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -100,10 +102,14 @@ export function TemplatesListClient({
     return <Badge variant="outline">Meta: {normalized}</Badge>;
   }
 
+  const showSaved = mode === "all" || mode === "saved";
+  const showSystem = mode === "all" || mode === "system";
+  const showMeta = mode === "all" || mode === "meta";
+
   return (
     <div className="space-y-8">
       {/* 1. Templates salvos (configurados/editados pelos usuários) */}
-      <section>
+      {showSaved && <section>
         <h2 className="text-lg font-semibold text-foreground mb-2">Templates salvos</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Os que você configurou ou editou.
@@ -167,10 +173,10 @@ export function TemplatesListClient({
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
       {/* 2. Templates do sistema */}
-      <section>
+      {showSystem && <section>
         <h2 className="text-lg font-semibold text-foreground mb-2">Templates do sistema</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Padrão por evento (Email e WhatsApp separados). Use “Usar e editar” para copiar e personalizar.
@@ -215,11 +221,11 @@ export function TemplatesListClient({
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
       {/* 3. Templates Meta canônicos (por clínica) */}
-      <section>
-        <h2 className="text-lg font-semibold text-foreground mb-2">Templates Meta da clínica</h2>
+      {showMeta && <section>
+        <h2 className="text-lg font-semibold text-foreground mb-2">Templates aprovados pela Meta</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Solicite os templates padrão uma única vez para permitir envios fora da janela de 24h.
         </p>
@@ -268,7 +274,7 @@ export function TemplatesListClient({
             )}
           </div>
         </Card>
-      </section>
+      </section>}
     </div>
   );
 }
