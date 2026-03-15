@@ -35,10 +35,18 @@ function formatDate(s: string) {
 function formatSender(entry: MessageLogEntry) {
   if (entry.sender_type === "system") return "Sistema";
   const userLabel = entry.sender_name || entry.sender_email;
-  return userLabel ? `Usuário (${userLabel})` : "Usuário";
+  const roleLabel =
+    entry.sender_role === "admin"
+      ? "Admin"
+      : entry.sender_role === "secretaria"
+        ? "Secretária"
+        : entry.sender_role === "medico"
+          ? "Profissional"
+          : "Usuário";
+  return userLabel ? `${roleLabel} (${userLabel})` : roleLabel;
 }
 
-function WhatsAppPreviewBubble({ body }: { body: string }) {
+function WhatsAppPreviewBubble({ body, sentAt }: { body: string; sentAt?: string }) {
   const plainText = body
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
@@ -46,8 +54,8 @@ function WhatsAppPreviewBubble({ body }: { body: string }) {
     .replace(/<[^>]*>/g, "")
     .replace(/&nbsp;/g, " ")
     .trim();
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const referenceDate = sentAt ? new Date(sentAt) : new Date();
+  const timeStr = referenceDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="rounded-xl border border-border bg-[#d1ccc6] dark:bg-[#0b141a] p-4 shadow-inner max-w-[96%]">
@@ -336,7 +344,10 @@ export function MensagensClient() {
                     <MessageSquare className="h-4 w-4" />
                     WhatsApp — {previewEntry.type}
                   </p>
-                  <WhatsAppPreviewBubble body={previewEntry.body_text || previewEntry.body_html || ""} />
+                  <WhatsAppPreviewBubble
+                    body={previewEntry.body_text || previewEntry.body_html || ""}
+                    sentAt={previewEntry.sent_at}
+                  />
                 </div>
               )}
 

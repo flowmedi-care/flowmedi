@@ -460,11 +460,12 @@ export async function sendMessage(
     let senderType: "system" | "user" = actorUser ? "user" : "system";
     let senderName: string | null = actorUser?.email ?? null;
     let senderEmail: string | null = actorUser?.email ?? null;
+    let senderRole: "admin" | "medico" | "secretaria" | null = null;
 
     if (actorUser?.id) {
       const { data: actorProfile } = await supabase
         .from("profiles")
-        .select("full_name, email")
+        .select("full_name, email, role")
         .eq("id", actorUser.id)
         .maybeSingle();
       senderName =
@@ -480,10 +481,17 @@ export async function sendMessage(
         (typeof actorProfile?.email === "string" && actorProfile.email.trim()
           ? actorProfile.email
           : null) ?? actorUser.email ?? null;
+      senderRole =
+        actorProfile?.role === "admin" ||
+        actorProfile?.role === "medico" ||
+        actorProfile?.role === "secretaria"
+          ? actorProfile.role
+          : null;
     } else {
       senderType = "system";
       senderName = "Sistema";
       senderEmail = null;
+      senderRole = null;
     }
 
     // Buscar email/telefone do paciente
@@ -759,6 +767,7 @@ export async function sendMessage(
         sender_type: senderType,
         sender_name: senderName,
         sender_email: senderEmail,
+        sender_role: senderRole,
       },
     });
 
@@ -1053,6 +1062,7 @@ export async function processEventByIdForPublicForm(
         sender_type: "system",
         sender_name: "Sistema",
         sender_email: null,
+        sender_role: null,
       },
     });
     if (logError) {

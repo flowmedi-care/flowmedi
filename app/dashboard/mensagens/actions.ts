@@ -988,6 +988,7 @@ export type MessageLogEntry = {
   sent_at: string;
   patient_name: string | null;
   sender_type: "system" | "user";
+  sender_role: "admin" | "medico" | "secretaria" | null;
   sender_name: string | null;
   sender_email: string | null;
   subject: string | null;
@@ -1041,6 +1042,12 @@ export async function getRecentMessageLog(limit = 15): Promise<{
       sent_at: row.sent_at,
       patient_name: row.patients?.full_name ?? null,
       sender_type: senderType,
+      sender_role:
+        metadataMap?.sender_role === "admin" ||
+        metadataMap?.sender_role === "medico" ||
+        metadataMap?.sender_role === "secretaria"
+          ? metadataMap.sender_role
+          : null,
       sender_name: extractString(metadataMap?.sender_name),
       sender_email: extractString(metadataMap?.sender_email),
       subject: extractString(metadataMap?.subject),
@@ -1095,6 +1102,12 @@ export async function getMessageLogById(
       sent_at: String(data.sent_at ?? ""),
       patient_name: (data as any).patients?.full_name ?? null,
       sender_type: senderType,
+      sender_role:
+        metadata?.sender_role === "admin" ||
+        metadata?.sender_role === "medico" ||
+        metadata?.sender_role === "secretaria"
+          ? metadata.sender_role
+          : null,
       sender_name: asString(metadata?.sender_name),
       sender_email: asString(metadata?.sender_email),
       subject: asString(metadata?.subject),
