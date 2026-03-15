@@ -195,8 +195,8 @@ export function getMetaTemplateParams(
       const blocos: string[] = [phrase];
       if (dataHora) blocos.push(`Data e hora: ${dataHora}.`);
       if (medico) blocos.push(`Profissional: ${medico}.`);
-      if (instrucao) blocos.push(`\n${instrucao}`);
-      const mensagemCompleta = blocos.join("\n");
+      if (instrucao) blocos.push(instrucao);
+      const mensagemCompleta = blocos.join("\n\n");
       return {
         template: "flowmedi_consulta",
         params: [nome, mensagemCompleta],

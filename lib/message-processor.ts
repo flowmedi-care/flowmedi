@@ -598,6 +598,7 @@ export async function sendMessage(
         let resolvedTemplateId = clinicMeta?.meta_template_id ?? null;
         let resolvedTemplateName = clinicMeta?.template_name || metaTemplate.template;
         let currentStatus = String(clinicMeta?.status || "PENDING").toUpperCase();
+        let requiredParamCount: number | null = null;
 
         if (!resolvedTemplateId) {
           const { listMetaTemplates } = await import("@/lib/comunicacao/whatsapp");
@@ -644,6 +645,15 @@ export async function sendMessage(
         if (details.success) {
           if (details.name) resolvedTemplateName = details.name;
           if (details.status) currentStatus = details.status;
+          if (details.bodyText) {
+            const matches = Array.from(details.bodyText.matchAll(/\{\{(\d+)\}\}/g));
+            if (matches.length > 0) {
+              requiredParamCount = matches.reduce((max, match) => {
+                const value = Number(match[1]);
+                return Number.isFinite(value) && value > max ? value : max;
+              }, 0);
+            }
+          }
           await supabase
             .from("clinic_whatsapp_meta_templates")
             .update({
@@ -673,7 +683,25 @@ export async function sendMessage(
         }
 
         templateName = resolvedTemplateName;
-        templateParams = metaTemplate.params;
+        templateParams = [...metaTemplate.params];
+        if (requiredParamCount && requiredParamCount > 0) {
+          const clinicName = String(variables?.clinica?.nome || "").slice(0, 256);
+          const fallbackValues = [
+            templateParams[0] || "Paciente",
+            templateParams[1] || "Temos uma atualização da sua clínica.",
+            clinicName || "Equipe da clínica",
+            "",
+            "",
+          ];
+
+          if (templateParams.length > requiredParamCount) {
+            templateParams = templateParams.slice(0, requiredParamCount);
+          } else {
+            while (templateParams.length < requiredParamCount) {
+              templateParams.push(fallbackValues[templateParams.length] ?? "");
+            }
+          }
+        }
       }
       
       sendResult = await sendWhatsApp(
