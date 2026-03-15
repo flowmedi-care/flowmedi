@@ -663,13 +663,15 @@ export async function sendMessage(
         if (details.success) {
           if (details.name) resolvedTemplateName = details.name;
           if (details.status) currentStatus = details.status;
-          if (details.bodyText) {
+          if (typeof details.bodyText === "string") {
             const matches = Array.from(details.bodyText.matchAll(/\{\{(\d+)\}\}/g));
             if (matches.length > 0) {
               requiredParamCount = matches.reduce((max, match) => {
                 const value = Number(match[1]);
                 return Number.isFinite(value) && value > max ? value : max;
               }, 0);
+            } else {
+              requiredParamCount = 0;
             }
           }
           await supabase
@@ -702,7 +704,7 @@ export async function sendMessage(
 
         templateName = resolvedTemplateName;
         templateParams = [...metaTemplate.params];
-        if (requiredParamCount && requiredParamCount > 0) {
+        if (requiredParamCount !== null) {
           const clinicName = String(variables?.clinica?.nome || "").slice(0, 256);
           const fallbackValues = [
             templateParams[0] || "Paciente",
@@ -734,6 +736,9 @@ export async function sendMessage(
             if (normalized) return normalized;
             return defaults[index] ?? "Informação indisponível.";
           });
+        }
+        if (requiredParamCount === 0) {
+          templateParams = [];
         }
       }
       

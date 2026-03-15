@@ -456,7 +456,7 @@ export async function sendWhatsAppMessage(
           language: {
             code: options.template === "hello_world" ? "en_US" : "pt_BR",
           },
-          components: options.templateParams
+          components: options.templateParams && options.templateParams.length > 0
             ? [
                 {
                   type: "body",
@@ -497,6 +497,7 @@ export async function sendWhatsAppMessage(
 
     if (!response.ok) {
       const errorMessage = data.error?.message || "Erro ao enviar mensagem WhatsApp";
+      const errorDetails = data.error?.error_data?.details;
       const errorCode = data.error?.code;
       const errorSubcode = data.error?.error_subcode;
 
@@ -515,7 +516,7 @@ export async function sendWhatsAppMessage(
 
       return {
         success: false,
-        error: errorMessage,
+        error: errorDetails ? `${errorMessage} (${errorDetails})` : errorMessage,
         debug: debugPayload,
       };
     }
