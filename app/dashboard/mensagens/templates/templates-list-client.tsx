@@ -15,7 +15,7 @@ import {
   type RemoteMetaTemplateItem,
 } from "../actions";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const CHANNEL_LABELS: Record<string, string> = {
   email: "Email",
@@ -50,14 +50,6 @@ export function TemplatesListClient({
   const [requestingSystemTemplates, setRequestingSystemTemplates] = useState(false);
   const [syncingSystemStatuses, setSyncingSystemStatuses] = useState(false);
 
-  useEffect(() => {
-    console.info("[WA_DEBUG][TemplatesList] render", {
-      hasWhatsAppIntegration,
-      remoteTemplatesCount: remoteMetaTemplates.length,
-      remoteTemplateNames: remoteMetaTemplates.map((tpl) => tpl.name),
-    });
-  }, [hasWhatsAppIntegration, remoteMetaTemplates]);
-
   async function handleDelete(id: string) {
     if (!confirm("Tem certeza que deseja desativar este template?")) return;
     setDeleting(id);
@@ -84,7 +76,6 @@ export function TemplatesListClient({
     setRequestingSystemTemplates(true);
     const result = await requestSystemMetaTemplates();
     setRequestingSystemTemplates(false);
-    console.info("[WA_DEBUG][TemplatesList] requestSystemMetaTemplates", result);
     if (result.error) alert(`Erro ao solicitar templates: ${result.error}`);
     router.refresh();
   }
@@ -93,9 +84,12 @@ export function TemplatesListClient({
     setSyncingSystemStatuses(true);
     const result = await refreshSystemMetaTemplatesStatus();
     setSyncingSystemStatuses(false);
-    console.info("[WA_DEBUG][TemplatesList] refreshSystemMetaTemplatesStatus", result);
     if (result.error) alert(`Erro ao sincronizar status: ${result.error}`);
     router.refresh();
+  }
+
+  function displayTemplateName(rawName: string) {
+    return rawName.replace(/_v\d+$/i, "");
   }
 
   function renderMetaStatusBadge(status: string | null | undefined) {
@@ -261,7 +255,7 @@ export function TemplatesListClient({
                 {remoteMetaTemplates.map((tpl) => (
                   <div key={tpl.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
                     <div className="text-xs">
-                      <p className="font-medium">{tpl.name}</p>
+                      <p className="font-medium">{displayTemplateName(tpl.name)}</p>
                       <p className="text-muted-foreground font-mono">{tpl.id}</p>
                     </div>
                     <div className="flex items-center gap-2">

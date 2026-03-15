@@ -81,17 +81,17 @@ const SYSTEM_META_TEMPLATE_DEFS: Array<{
 }> = [
   {
     key: "flowmedi_consulta",
-    name: "flowmedi_consulta_v5",
+    name: "flowmedi_consulta",
     body: "Olá {{1}}! Temos uma mensagem importante sobre sua consulta.\n\n{{2}}\n\nSe precisar, responda esta mensagem.",
   },
   {
     key: "flowmedi_formulario",
-    name: "flowmedi_formulario_v5",
+    name: "flowmedi_formulario",
     body: "Olá {{1}}! Precisamos da sua ajuda com um formulário da clínica.\n\n{{2}}\n\nObrigado pelo apoio.",
   },
   {
     key: "flowmedi_aviso",
-    name: "flowmedi_aviso_v5",
+    name: "flowmedi_aviso",
     body: "Olá {{1}}! Temos um aviso importante.\n\n{{2}}\n\nEstamos à disposição para dúvidas.",
   },
 ];
@@ -748,10 +748,7 @@ export async function getRemoteMetaTemplates(): Promise<{
   return { data, error: null };
 }
 
-export async function requestSystemMetaTemplates(): Promise<{
-  error: string | null;
-  debug?: Record<string, unknown>;
-}> {
+export async function requestSystemMetaTemplates(): Promise<{ error: string | null }> {
   const ctx = await getClinicAdminContext();
   if (ctx.error || !ctx.clinicId) return { error: ctx.error };
   const { supabase, clinicId } = ctx;
@@ -762,14 +759,6 @@ export async function requestSystemMetaTemplates(): Promise<{
   }
 
   const nowIso = new Date().toISOString();
-  const { data: integrationRow } = await supabase
-    .from("clinic_integrations")
-    .select("status, metadata")
-    .eq("clinic_id", clinicId)
-    .eq("integration_type", "whatsapp_meta")
-    .maybeSingle();
-  const integrationMeta = (integrationRow?.metadata as Record<string, unknown> | null) || null;
-
   const listed = await listMetaTemplates(clinicId, supabase);
   const remoteByName = new Map<string, { id: string; status: WhatsAppTemplateReviewStatus }>();
   if (listed.success && listed.templates) {
@@ -817,25 +806,11 @@ export async function requestSystemMetaTemplates(): Promise<{
     })
   );
 
-  const debug = {
-    clinicId,
-    integrationStatus: integrationRow?.status ?? null,
-    selectedWabaId: integrationMeta?.waba_id ?? null,
-    selectedPhoneNumberId: integrationMeta?.phone_number_id ?? null,
-    listedSuccess: listed.success,
-    listedCount: listed.templates?.length ?? 0,
-    listedTemplateNames: (listed.templates ?? []).map((tpl) => tpl.name),
-  };
-  console.info("[WA_DEBUG][Actions] requestSystemMetaTemplates", debug);
-
   revalidatePath("/dashboard/mensagens/templates");
-  return { error: null, debug };
+  return { error: null };
 }
 
-export async function refreshSystemMetaTemplatesStatus(): Promise<{
-  error: string | null;
-  debug?: Record<string, unknown>;
-}> {
+export async function refreshSystemMetaTemplatesStatus(): Promise<{ error: string | null }> {
   const ctx = await getClinicAdminContext();
   if (ctx.error || !ctx.clinicId) return { error: ctx.error };
   const { supabase, clinicId } = ctx;
@@ -868,24 +843,8 @@ export async function refreshSystemMetaTemplatesStatus(): Promise<{
       .eq("template_key", row.template_key);
   }
 
-  const { data: integrationRow } = await supabase
-    .from("clinic_integrations")
-    .select("status, metadata")
-    .eq("clinic_id", clinicId)
-    .eq("integration_type", "whatsapp_meta")
-    .maybeSingle();
-  const integrationMeta = (integrationRow?.metadata as Record<string, unknown> | null) || null;
-  const debug = {
-    clinicId,
-    integrationStatus: integrationRow?.status ?? null,
-    selectedWabaId: integrationMeta?.waba_id ?? null,
-    selectedPhoneNumberId: integrationMeta?.phone_number_id ?? null,
-    localRowsCount: rows?.length ?? 0,
-  };
-  console.info("[WA_DEBUG][Actions] refreshSystemMetaTemplatesStatus", debug);
-
   revalidatePath("/dashboard/mensagens/templates");
-  return { error: null, debug };
+  return { error: null };
 }
 
 // ========== BUSCAR CONFIGURAÇÕES DA CLÍNICA ==========

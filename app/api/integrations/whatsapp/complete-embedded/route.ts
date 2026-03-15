@@ -75,12 +75,6 @@ export async function POST(request: NextRequest) {
 
     let wabaId = pickString(body.sessionInfo?.data?.waba_id);
     let phoneNumberId = pickString(body.sessionInfo?.data?.phone_number_id);
-    console.info("[WA_EMBEDDED] complete:start", {
-      clinicId: admin.clinicId,
-      sessionEvent: pickString(body.sessionInfo?.event),
-      hasSessionWabaId: Boolean(wabaId),
-      hasSessionPhoneNumberId: Boolean(phoneNumberId),
-    });
 
     // Fallback 1: endpoint direto de WhatsApp (não depende de business_management).
     if (!wabaId || !phoneNumberId) {
@@ -126,12 +120,6 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        console.info("[WA_EMBEDDED] complete:wa-accounts-fallback", {
-          clinicId: admin.clinicId,
-          waAccountCount: waAccountsData.data.length,
-          resolvedWabaId: wabaId,
-          resolvedPhoneNumberId: phoneNumberId,
-        });
       }
     }
 
@@ -208,32 +196,12 @@ export async function POST(request: NextRequest) {
           if (uniqueWabas.length === 1) {
             wabaId = wabaId || uniqueWabas[0].wabaId;
             phoneNumberId = phoneNumberId || uniqueWabas[0].phoneIds[0] || null;
-          } else if (uniqueWabas.length > 1) {
-            console.warn("[WA_EMBEDDED] complete:ambiguous-fallback", {
-              clinicId: admin.clinicId,
-              candidates: uniqueWabas.map((candidate) => ({
-                wabaId: candidate.wabaId,
-                phoneCount: candidate.phoneIds.length,
-              })),
-            });
           }
         }
-
-        console.info("[WA_EMBEDDED] complete:fallback-result", {
-          clinicId: admin.clinicId,
-          candidateCount: candidates.length,
-          resolvedWabaId: wabaId,
-          resolvedPhoneNumberId: phoneNumberId,
-        });
       }
     }
 
     if (!wabaId || !phoneNumberId) {
-      console.warn("[WA_EMBEDDED] complete:missing-target-after-fallback", {
-        clinicId: admin.clinicId,
-        hasWabaId: Boolean(wabaId),
-        hasPhoneNumberId: Boolean(phoneNumberId),
-      });
       return NextResponse.json(
         {
           error:
@@ -286,13 +254,6 @@ export async function POST(request: NextRequest) {
     if (upsertError) {
       return NextResponse.json({ error: upsertError.message }, { status: 400 });
     }
-
-    console.info("[WA_EMBEDDED] complete:success", {
-      clinicId: admin.clinicId,
-      wabaId,
-      phoneNumberId,
-      embeddedEvent: pickString(body.sessionInfo?.event),
-    });
 
     return NextResponse.json({
       success: true,
