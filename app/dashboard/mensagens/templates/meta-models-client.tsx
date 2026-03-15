@@ -24,6 +24,46 @@ function toMetaBodyVariableTokens(text: string): string[] {
   return Array.from(new Set(matches));
 }
 
+function stripMetaVariables(text: string): string {
+  return text.replace(/\{\{\d+\}\}/g, "").trim();
+}
+
+function validateMetaBody(text: string) {
+  const trimmed = text.trim();
+  const vars = toMetaBodyVariableTokens(trimmed);
+  const uniqueVarNumbers = Array.from(
+    new Set(
+      vars.map((token) => Number(token.replace(/[^\d]/g, ""))).filter((n) => Number.isFinite(n))
+    )
+  ).sort((a, b) => a - b);
+  const plainLength = stripMetaVariables(trimmed).length;
+  const errors: string[] = [];
+
+  if (!trimmed) {
+    errors.push("Corpo é obrigatório.");
+    return { errors, vars };
+  }
+  if (/^\s*\{\{\d+\}\}/.test(trimmed) || /\{\{\d+\}\}\s*$/.test(trimmed)) {
+    errors.push("As variáveis não podem estar no início ou no fim do modelo.");
+  }
+  if (uniqueVarNumbers.length > 0) {
+    const expected = Array.from({ length: uniqueVarNumbers.length }, (_, i) => i + 1);
+    const sequential = expected.every((num, idx) => num === uniqueVarNumbers[idx]);
+    if (!sequential) {
+      errors.push("As variáveis devem seguir a sequência {{1}}, {{2}}, {{3}}...");
+    }
+  }
+  if (vars.length > 0 && plainLength / vars.length < 22) {
+    errors.push(
+      "Este modelo contém muitas variáveis para sua extensão. Reduza o número de variáveis ou aumente a extensão da mensagem."
+    );
+  }
+  if (vars.length > 10) {
+    errors.push("A Meta permite no máximo 10 variáveis no corpo.");
+  }
+  return { errors, vars };
+}
+
 function compileMetaComponents(input: {
   headerText: string;
   bodyText: string;
@@ -149,9 +189,16 @@ export function MetaModelsClient({
   const [error, setError] = useState<string | null>(null);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
+
+  const bodyValidation = validateMetaBody(bodyText);
 
   async function handleCreate() {
     setError(null);
+    if (bodyValidation.errors.length > 0) {
+      setError(bodyValidation.errors[0]);
+      return;
+    }
     setSaving(true);
     const components = compileMetaComponents({
       headerText,
@@ -191,11 +238,17 @@ export function MetaModelsClient({
   }
 
   async function handleSubmit(id: string) {
+    setSubmitErrors((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     setSubmittingId(id);
     const res = await submitClinicMetaMessageModel(id);
     setSubmittingId(null);
     if (res.error) {
-      alert(res.error);
+      setSubmitErrors((prev) => ({ ...prev, [id]: res.error || "Erro ao enviar para Meta." }));
+      router.refresh();
       return;
     }
     router.refresh();
@@ -214,6 +267,25 @@ export function MetaModelsClient({
   }
 
   const bodyVars = toMetaBodyVariableTokens(bodyText);
+
+  function insertBodyVariable() {
+    const textarea = document.getElementById("meta-body-text") as HTMLTextAreaElement | null;
+    const existingNumbers = bodyVars.map((token) => Number(token.replace(/[^\d]/g, ""))).filter((n) => Number.isFinite(n));
+    const nextNum = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+    const token = `{{${nextNum}}}`;
+    if (!textarea) {
+      setBodyText((prev) => `${prev}${prev ? " " : ""}${token}`);
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const nextText = bodyText.substring(0, start) + token + bodyText.substring(end);
+    setBodyText(nextText);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + token.length, start + token.length);
+    }, 0);
+  }
 
   return (
     <div className="space-y-4">
@@ -246,6 +318,9 @@ export function MetaModelsClient({
               <p className="text-sm mt-3 whitespace-pre-wrap">{model.body_text}</p>
               {model.last_error && (
                 <p className="text-xs mt-2 text-destructive">{model.last_error}</p>
+              )}
+              {submitErrors[model.id] && (
+                <p className="text-xs mt-2 text-destructive">{submitErrors[model.id]}</p>
               )}
               <div className="flex gap-2 mt-4">
                 <Button
@@ -314,6 +389,7 @@ export function MetaModelsClient({
                 <div className="space-y-2">
                   <Label>Corpo</Label>
                   <Textarea
+                    id="meta-body-text"
                     value={bodyText}
                     onChange={(e) => setBodyText(e.target.value)}
                     rows={8}
@@ -323,6 +399,22 @@ export function MetaModelsClient({
                     Use variáveis posicionais no padrão Meta: {"{{1}}"}, {"{{2}}"}, {"{{3}}"}...
                   </p>
                 </div>
+
+                <div className="flex justify-end">
+                  <Button type="button" size="sm" variant="outline" onClick={insertBodyVariable}>
+                    + Adicionar variável
+                  </Button>
+                </div>
+
+                {bodyValidation.errors.length > 0 && (
+                  <div className="space-y-1">
+                    {bodyValidation.errors.map((msg, idx) => (
+                      <p key={`${msg}-${idx}`} className="text-xs text-destructive">
+                        {msg}
+                      </p>
+                    ))}
+                  </div>
+                )}
 
                 {bodyVars.length > 0 && (
                   <div className="space-y-2">
