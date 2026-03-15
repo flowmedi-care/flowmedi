@@ -2,11 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
-import { getMessageTemplates } from "../../actions";
+import { getMessageEvents, getMessageTemplates } from "../../actions";
 import { TemplatesListClient } from "../templates-list-client";
+import { NewTemplateWizardModal } from "../new-template-wizard-modal";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,12 @@ export default async function TemplatesSalvosPage() {
     redirect("/dashboard");
   }
 
-  const savedResult = await getMessageTemplates();
+  const [savedResult, eventsResult] = await Promise.all([
+    getMessageTemplates(),
+    getMessageEvents(),
+  ]);
   const savedTemplates = savedResult.data || [];
+  const events = eventsResult.data || [];
   const planData = await getClinicPlanData();
   const canUseEmailTemplates = Boolean(
     planData && canUseEmail(planData.limits, planData.planSlug, planData.subscriptionStatus)
@@ -55,12 +60,12 @@ export default async function TemplatesSalvosPage() {
             </Button>
           </Link>
           {canCreateTemplates ? (
-            <Link href="/dashboard/mensagens/templates/novo">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Template
-              </Button>
-            </Link>
+            <NewTemplateWizardModal
+              events={events}
+              canUseEmailTemplates={canUseEmailTemplates}
+              canUseWhatsAppTemplates={canUseWhatsAppTemplates}
+              triggerLabel="Novo Template"
+            />
           ) : null}
         </div>
       </div>

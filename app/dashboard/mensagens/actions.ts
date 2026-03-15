@@ -78,6 +78,20 @@ export type RemoteMetaTemplateItem = {
   language?: string;
 };
 
+export type MetaMessageModelDraft = {
+  id: string;
+  name: string;
+  event_code: string;
+  template_key: SystemMetaTemplateKey;
+  body_text: string;
+  status: "draft" | "ready_to_submit" | "submitted";
+  meta_template_id: string | null;
+  meta_status: WhatsAppTemplateReviewStatus | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 const SYSTEM_META_TEMPLATE_DEFS: Array<{
   key: SystemMetaTemplateKey;
   name: string;
@@ -853,6 +867,144 @@ export async function refreshSystemMetaTemplatesStatus(): Promise<{ error: strin
   }
 
   revalidatePath("/dashboard/mensagens/templates");
+  return { error: null };
+}
+
+export async function getClinicMetaMessageModels(): Promise<{
+  data: MetaMessageModelDraft[] | null;
+  error: string | null;
+}> {
+  const ctx = await getClinicAdminContext();
+  if (ctx.error || !ctx.clinicId) return { data: null, error: ctx.error };
+
+  const { data, error } = await ctx.supabase
+    .from("clinic_meta_message_models")
+    .select("id, name, event_code, template_key, body_text, status, meta_template_id, meta_status, last_error, created_at, updated_at")
+    .eq("clinic_id", ctx.clinicId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    if (error.message.toLowerCase().includes("relation") && error.message.toLowerCase().includes("does not exist")) {
+      return {
+        data: [],
+        error: "Tabela de modelos Meta não encontrada. Execute a migration correspondente.",
+      };
+    }
+    return { data: null, error: error.message };
+  }
+  return { data: (data ?? []) as MetaMessageModelDraft[], error: null };
+}
+
+export async function createClinicMetaMessageModel(
+  name: string,
+  eventCode: string,
+  templateKey: SystemMetaTemplateKey,
+  bodyText: string
+): Promise<{ data: MetaMessageModelDraft | null; error: string | null }> {
+  const ctx = await getClinicAdminContext();
+  if (ctx.error || !ctx.clinicId) return { data: null, error: ctx.error };
+
+  if (!name.trim()) return { data: null, error: "Nome do modelo é obrigatório." };
+  if (!eventCode.trim()) return { data: null, error: "Evento é obrigatório." };
+  if (!bodyText.trim()) return { data: null, error: "Texto da mensagem é obrigatório." };
+
+  const { data, error } = await ctx.supabase
+    .from("clinic_meta_message_models")
+    .insert({
+      clinic_id: ctx.clinicId,
+      name: name.trim(),
+      event_code: eventCode.trim(),
+      template_key: templateKey,
+      body_text: bodyText.trim(),
+      status: "draft",
+    })
+    .select("id, name, event_code, template_key, body_text, status, meta_template_id, meta_status, last_error, created_at, updated_at")
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  revalidatePath("/dashboard/mensagens/templates");
+  revalidatePath("/dashboard/mensagens/templates/meta");
+  return { data: data as MetaMessageModelDraft, error: null };
+}
+
+export async function deleteClinicMetaMessageModel(
+  id: string
+): Promise<{ error: string | null }> {
+  const ctx = await getClinicAdminContext();
+  if (ctx.error || !ctx.clinicId) return { error: ctx.error };
+
+  const { error } = await ctx.supabase
+    .from("clinic_meta_message_models")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", ctx.clinicId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/mensagens/templates");
+  revalidatePath("/dashboard/mensagens/templates/meta");
+  return { error: null };
+}
+
+export async function submitClinicMetaMessageModel(
+  id: string
+): Promise<{ error: string | null }> {
+  const ctx = await getClinicAdminContext();
+  if (ctx.error || !ctx.clinicId) return { error: ctx.error };
+
+  const { data: model, error: modelError } = await ctx.supabase
+    .from("clinic_meta_message_models")
+    .select("id, name, body_text, template_key")
+    .eq("id", id)
+    .eq("clinic_id", ctx.clinicId)
+    .single();
+  if (modelError || !model) return { error: modelError?.message || "Modelo não encontrado." };
+
+  const access = await getMessagingPlanAccess();
+  if (!access.whatsappAllowed) {
+    return { error: "Este recurso está disponível nos planos com WhatsApp." };
+  }
+
+  const modelNameBase = String(model.name || "flowmedi_modelo")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .slice(0, 40);
+  const modelName = `${modelNameBase}_${Date.now().toString().slice(-6)}`;
+
+  const created = await createMetaTemplate(
+    ctx.clinicId,
+    {
+      name: modelName,
+      bodyText: String(model.body_text || ""),
+    },
+    ctx.supabase
+  );
+
+  if (!created.success) {
+    await ctx.supabase
+      .from("clinic_meta_message_models")
+      .update({
+        status: "ready_to_submit",
+        last_error: created.error || "Falha ao criar template na Meta.",
+      })
+      .eq("id", id)
+      .eq("clinic_id", ctx.clinicId);
+    return { error: created.error || "Falha ao criar template na Meta." };
+  }
+
+  await ctx.supabase
+    .from("clinic_meta_message_models")
+    .update({
+      status: "submitted",
+      meta_template_id: created.templateId ?? null,
+      meta_status: created.status ?? "PENDING",
+      last_error: null,
+    })
+    .eq("id", id)
+    .eq("clinic_id", ctx.clinicId);
+
+  revalidatePath("/dashboard/mensagens/templates");
+  revalidatePath("/dashboard/mensagens/templates/meta");
   return { error: null };
 }
 

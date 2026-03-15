@@ -2,15 +2,17 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { FileText, Layers, Plus } from "lucide-react";
+import { FileText, Layers, MessageSquareCode, Plus } from "lucide-react";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 import {
   getMessageTemplates,
   getRemoteMetaTemplates,
   getSystemTemplatesForDisplay,
+  getMessageEvents,
 } from "../actions";
 import { TemplatesListClient } from "./templates-list-client";
+import { NewTemplateWizardModal } from "./new-template-wizard-modal";
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +31,11 @@ export default async function TemplatesPage() {
     redirect("/dashboard");
   }
 
-  const [savedResult, systemResult, remoteMetaTemplatesResult, whatsappIntegrationResult] = await Promise.all([
+  const [savedResult, systemResult, remoteMetaTemplatesResult, eventsResult, whatsappIntegrationResult] = await Promise.all([
     getMessageTemplates(),
     getSystemTemplatesForDisplay(),
     getRemoteMetaTemplates(),
+    getMessageEvents(),
     supabase
       .from("clinic_integrations")
       .select("id")
@@ -44,6 +47,7 @@ export default async function TemplatesPage() {
   const savedTemplates = savedResult.data || [];
   const systemTemplates = systemResult.data || [];
   const remoteMetaTemplates = remoteMetaTemplatesResult.data || [];
+  const events = eventsResult.data || [];
   const hasWhatsAppIntegration = (whatsappIntegrationResult.data?.length ?? 0) > 0;
   const planData = await getClinicPlanData();
   const canUseEmailTemplates = Boolean(
@@ -62,12 +66,12 @@ export default async function TemplatesPage() {
           <p className="text-sm text-muted-foreground mt-1">Organize templates salvos, sistema e Meta em páginas separadas.</p>
         </div>
         {canCreateTemplates ? (
-          <Link href="/dashboard/mensagens/templates/novo">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Template
-            </Button>
-          </Link>
+          <NewTemplateWizardModal
+            events={events}
+            canUseEmailTemplates={canUseEmailTemplates}
+            canUseWhatsAppTemplates={canUseWhatsAppTemplates}
+            triggerLabel="Novo Template"
+          />
         ) : (
           <Button variant="outline" disabled>
             <Plus className="h-4 w-4 mr-2" />
@@ -82,7 +86,7 @@ export default async function TemplatesPage() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:gap-6 grid-cols-1 xl:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 xl:grid-cols-3">
         <Link href="/dashboard/mensagens/templates/salvos">
           <div className="rounded-lg border border-border bg-card p-4 sm:p-5 hover:bg-muted/20 transition-colors">
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-2 sm:text-lg">
@@ -108,6 +112,18 @@ export default async function TemplatesPage() {
             <p className="text-xs text-muted-foreground mt-3">{systemTemplates.length} template(s)</p>
           </div>
         </Link>
+
+        <Link href="/dashboard/mensagens/templates/meta">
+          <div className="rounded-lg border border-border bg-card p-4 sm:p-5 hover:bg-muted/20 transition-colors">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-2 sm:text-lg">
+              <MessageSquareCode className="h-5 w-5" />
+              Modelos de mensagens Meta
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Crie modelos para submissão à Meta e acompanhe o envio.
+            </p>
+          </div>
+        </Link>
       </div>
 
       <TemplatesListClient
@@ -118,7 +134,7 @@ export default async function TemplatesPage() {
         canCreateTemplates={canCreateTemplates}
         canUseEmailTemplates={canUseEmailTemplates}
         canUseWhatsAppTemplates={canUseWhatsAppTemplates}
-        mode="meta"
+        mode="metaApproved"
       />
     </div>
   );

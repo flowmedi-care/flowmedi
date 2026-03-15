@@ -44,7 +44,7 @@ export function TemplatesListClient({
   canCreateTemplates: boolean;
   canUseEmailTemplates: boolean;
   canUseWhatsAppTemplates: boolean;
-  mode?: "all" | "saved" | "system" | "meta";
+  mode?: "all" | "saved" | "system" | "metaApproved" | "meta";
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -104,7 +104,7 @@ export function TemplatesListClient({
 
   const showSaved = mode === "all" || mode === "saved";
   const showSystem = mode === "all" || mode === "system";
-  const showMeta = mode === "all" || mode === "meta";
+  const showMeta = mode === "all" || mode === "metaApproved" || mode === "meta";
   const showSectionTitles = mode === "all";
 
   return (
