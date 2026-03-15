@@ -919,9 +919,11 @@ export async function getClinicMetaMessageModels(): Promise<{
       ? (row.meta_components as Array<Record<string, unknown>>)
       : [],
     status:
-      row.status === "submitted" || row.status === "ready_to_submit"
-        ? row.status
-        : "draft",
+      row.status === "submitted"
+        ? ("submitted" as const)
+        : row.status === "ready_to_submit"
+          ? ("ready_to_submit" as const)
+          : ("draft" as const),
     meta_template_id: row.meta_template_id ? String(row.meta_template_id) : null,
     meta_status: row.meta_status ? (String(row.meta_status) as WhatsAppTemplateReviewStatus) : null,
     last_error: row.last_error ? String(row.last_error) : null,
