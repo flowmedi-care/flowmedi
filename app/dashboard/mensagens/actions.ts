@@ -55,7 +55,11 @@ export type MessageTemplate = {
   updated_at: string;
 };
 
-export type SystemMetaTemplateKey = "flowmedi_consulta" | "flowmedi_formulario" | "flowmedi_aviso";
+export type SystemMetaTemplateKey =
+  | "flowmedi_consulta"
+  | "flowmedi_formulario"
+  | "flowmedi_aviso"
+  | "flowmedi_mensagem_livre";
 
 export type ClinicMetaTemplateStatus = {
   template_key: SystemMetaTemplateKey;
@@ -93,6 +97,11 @@ const SYSTEM_META_TEMPLATE_DEFS: Array<{
     key: "flowmedi_aviso",
     name: "flowmedi_aviso",
     body: "Olá {{1}}! Temos um aviso importante.\n\n{{2}}\n\nEstamos à disposição para dúvidas.",
+  },
+  {
+    key: "flowmedi_mensagem_livre",
+    name: "flowmedi_mensagem_livre",
+    body: "Oi, {{1}}.\n\nGostaríamos de falar com você sobre {{2}}.\n\nQualquer dúvida, estamos à disposição.",
   },
 ];
 

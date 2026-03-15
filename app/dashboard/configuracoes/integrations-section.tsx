@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Mail, Loader2, ExternalLink, AlertCircle, HelpCircle, Building2, RefreshCcw } from "lucide-react";
+import { CheckCircle2, Mail, Loader2, ExternalLink, HelpCircle, Building2, RefreshCcw } from "lucide-react";
 
 declare global {
   interface Window {
@@ -107,9 +107,6 @@ export function IntegrationsSection({
   const [whatsappPhoneIdInput, setWhatsappPhoneIdInput] = useState("");
   const [savingPhoneId, setSavingPhoneId] = useState(false);
   const [phoneIdError, setPhoneIdError] = useState<string | null>(null);
-  const [testPhoneNumber, setTestPhoneNumber] = useState("");
-  const [sendingTest, setSendingTest] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string; debug?: unknown } | null>(null);
   const [registerPin, setRegisterPin] = useState("");
   const [registering, setRegistering] = useState(false);
   const [registerResult, setRegisterResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -122,8 +119,6 @@ export function IntegrationsSection({
   const [metaAssetsError, setMetaAssetsError] = useState<string | null>(null);
   const [metaSdkReady, setMetaSdkReady] = useState(false);
   const metaSessionInfoRef = useRef<Record<string, unknown> | null>(null);
-  const [billingCheckLoading, setBillingCheckLoading] = useState(false);
-  const [billingCheckMessage, setBillingCheckMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadIntegrations();
@@ -426,26 +421,6 @@ export function IntegrationsSection({
     }
   }
 
-  async function checkWhatsAppBillingStatus() {
-    setBillingCheckLoading(true);
-    setBillingCheckMessage(null);
-    setErrorMessage(null);
-    try {
-      const res = await fetch("/api/integrations/whatsapp/billing-status");
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorMessage(data.error || "Erro ao verificar cobrança no Meta.");
-        return;
-      }
-      setBillingCheckMessage(data.message || "Status de cobrança atualizado.");
-      await loadIntegrations();
-    } catch {
-      setErrorMessage("Erro de conexão ao verificar cobrança no Meta.");
-    } finally {
-      setBillingCheckLoading(false);
-    }
-  }
-
   async function disconnectWhatsApp() {
     if (!confirm("Tem certeza que deseja desconectar a conta do WhatsApp? Você não poderá mais enviar mensagens até reconectar.")) {
       return;
@@ -605,41 +580,6 @@ export function IntegrationsSection({
     }
   }
 
-  async function sendTestWhatsApp() {
-    if (!testPhoneNumber.trim()) {
-      setTestResult({ ok: false, message: "Informe o número para teste" });
-      return;
-    }
-    setSendingTest(true);
-    setTestResult(null);
-    try {
-      const res = await fetch("/api/integrations/whatsapp/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: testPhoneNumber.trim() }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setTestResult({
-          ok: true,
-          message: "Mensagem de teste enviada! Verifique o WhatsApp (template hello_world).",
-          debug: data.debug,
-        });
-        setTestPhoneNumber("");
-      } else {
-        setTestResult({
-          ok: false,
-          message: data.error || "Erro ao enviar",
-          debug: data.debug,
-        });
-      }
-    } catch (error) {
-      setTestResult({ ok: false, message: "Erro de conexão" });
-    } finally {
-      setSendingTest(false);
-    }
-  }
-
   const googleIntegration = integrations.find((i) => i.integration_type === "email_google");
   const whatsappIntegration = integrations.find((i) => i.integration_type === "whatsapp_meta");
   const isAnyWhatsAppConnected = integrations.some(
@@ -684,11 +624,6 @@ export function IntegrationsSection({
         {errorMessage && (
           <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
             {errorMessage}
-          </div>
-        )}
-        {billingCheckMessage && (
-          <div className="p-3 rounded-md bg-blue-50 text-blue-700 text-sm">
-            {billingCheckMessage}
           </div>
         )}
 
@@ -874,78 +809,6 @@ export function IntegrationsSection({
             </div>
           </div>
 
-          {(whatsappIntegration?.status === "connected" || whatsappIntegration?.status === "pending") && (
-            <div className="pt-3 border-t border-border space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Label className="text-sm font-medium">Cobrança da conta Meta</Label>
-                {whatsappIntegration.metadata?.whatsapp_billing_status === "configured" && (
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    Pagamento configurado
-                  </Badge>
-                )}
-                {whatsappIntegration.metadata?.whatsapp_billing_status === "pending" && (
-                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                    Pendência de pagamento
-                  </Badge>
-                )}
-                {(!whatsappIntegration.metadata?.whatsapp_billing_status ||
-                  whatsappIntegration.metadata?.whatsapp_billing_status === "unknown") && (
-                  <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
-                    Status não confirmado
-                  </Badge>
-                )}
-              </div>
-
-              {whatsappIntegration.metadata?.whatsapp_billing_status === "pending" && (
-                <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                  O WhatsApp foi conectado, mas ainda não identificamos forma de pagamento ativa na Meta.
-                </div>
-              )}
-
-              {whatsappIntegration.metadata?.whatsapp_billing_last_error && (
-                <p className="text-xs text-destructive">
-                  {whatsappIntegration.metadata.whatsapp_billing_last_error}
-                </p>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={checkWhatsAppBillingStatus}
-                  disabled={billingCheckLoading}
-                >
-                  {billingCheckLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Verificando...
-                    </>
-                  ) : (
-                    "Verificar pagamento"
-                  )}
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  asChild
-                >
-                  <a
-                    href={
-                      whatsappIntegration.metadata?.whatsapp_billing_manage_url ||
-                      "https://business.facebook.com/settings/whatsapp-business-accounts"
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Abrir cobrança no Meta
-                  </a>
-                </Button>
-              </div>
-            </div>
-          )}
-
           {/* Campo para informar Phone Number ID quando conectado mas sem número */}
           {(whatsappIntegration?.status === "connected" || whatsappIntegration?.status === "pending") && !whatsappIntegration?.metadata?.phone_number_id && (
             <div className="pt-3 border-t border-border space-y-2">
@@ -989,58 +852,6 @@ export function IntegrationsSection({
             </div>
           )}
 
-          {/* Enviar mensagem de teste — só quando estiver pronto para enviar */}
-          {(whatsappIntegration?.status === "connected" || whatsappIntegration?.status === "pending") && whatsappIntegration?.metadata?.phone_number_id && (
-            <div className="pt-3 border-t border-border space-y-2">
-              <Label className="text-sm font-medium">Enviar mensagem de teste</Label>
-              <p className="text-xs text-muted-foreground">
-                Digite um número com DDI (ex: 5562999999999). Usamos o template &quot;hello_world&quot; (como no painel da Meta). Se não chegar nem no painel da Meta: adicione o número como destinatário de teste em WhatsApp → Configuração da API → &quot;Até&quot;.
-              </p>
-              <div className="flex gap-2 flex-wrap items-center">
-                <Input
-                  placeholder="5562999999999"
-                  value={testPhoneNumber}
-                  onChange={(e) => {
-                    setTestPhoneNumber(e.target.value);
-                    setTestResult(null);
-                  }}
-                  className="max-w-xs font-mono text-sm"
-                />
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={sendTestWhatsApp}
-                  disabled={sendingTest || !testPhoneNumber.trim()}
-                >
-                  {sendingTest ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    "Enviar teste"
-                  )}
-                </Button>
-              </div>
-              {testResult && (
-                <div className="space-y-1">
-                  <p className={`text-sm ${testResult.ok ? "text-green-600" : "text-destructive"}`}>
-                    {testResult.ok ? "✓ " : ""}{testResult.message}
-                  </p>
-                  {testResult.debug != null && (
-                    <details className="text-xs">
-                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                        Ver resposta da API (debug)
-                      </summary>
-                      <pre className="mt-1 p-2 rounded bg-muted overflow-auto max-h-40 font-mono whitespace-pre-wrap break-all">
-                        {JSON.stringify(testResult.debug, null, 2)}
-                      </pre>
-                    </details>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
         ) : (
           <div className="p-4 border rounded-lg space-y-3 min-w-0">

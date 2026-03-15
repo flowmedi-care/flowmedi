@@ -5,6 +5,14 @@ import { sendWhatsAppMessage } from "@/lib/comunicacao/whatsapp";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 import { getAndSyncEffectiveTicketStatus } from "@/lib/whatsapp-ticket-status";
 
+const FREE_MESSAGE_TEMPLATE_KEY = "flowmedi_mensagem_livre";
+
+function normalizePhoneForMatch(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("55") && digits.length >= 12) return digits.slice(2);
+  return digits;
+}
+
 /**
  * POST /api/whatsapp/send
  * Body: { to: string (ex: 5511999999999), text: string }
@@ -35,7 +43,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: existing } = await supabase
       .from("whatsapp_conversations")
-      .select("id, status, assigned_secretary_id, last_inbound_message_at")
+      .select("id, status, assigned_secretary_id, last_inbound_message_at, contact_name")
       .eq("clinic_id", clinicId)
       .eq("phone_number", normalizedTo)
       .maybeSingle();
@@ -52,26 +60,66 @@ export async function POST(request: NextRequest) {
       supabase
     );
 
-    // Verificar se pode enviar texto livre (só se status for "open")
-    if (conversationStatus !== "open") {
-      return NextResponse.json(
-        { 
-          error:
-            conversationStatus === "completed"
-              ? "Conversa está concluída. Apenas mensagens template são permitidas."
-              : "Janela de 24h fechada para texto livre. Aguarde mensagem do paciente ou envie template.",
-          status: conversationStatus ?? "closed"
+    const sanitizedText = text.trim();
+    const useTemplateMode = conversationStatus !== "open";
+
+    let result;
+    if (useTemplateMode) {
+      const { data: clinicTemplate } = await supabase
+        .from("clinic_whatsapp_meta_templates")
+        .select("template_name, status")
+        .eq("clinic_id", clinicId)
+        .eq("template_key", FREE_MESSAGE_TEMPLATE_KEY)
+        .maybeSingle();
+
+      const templateStatus = String(clinicTemplate?.status || "PENDING").toUpperCase();
+      if (!clinicTemplate?.template_name || templateStatus !== "APPROVED") {
+        return NextResponse.json(
+          {
+            error:
+              "Para iniciar conversa fora da janela de 24h, solicite e aprove o template de mensagem livre da clínica.",
+            status: conversationStatus ?? "closed",
+          },
+          { status: 403 }
+        );
+      }
+
+      const { data: patients } = await supabase
+        .from("patients")
+        .select("full_name, phone")
+        .eq("clinic_id", clinicId)
+        .not("phone", "is", null);
+
+      const normalizedTarget = normalizePhoneForMatch(normalizedTo);
+      const matchedPatient = (patients ?? []).find((row) => {
+        const candidate = normalizePhoneForMatch(String(row.phone ?? ""));
+        return Boolean(candidate) && candidate === normalizedTarget;
+      });
+
+      const recipientName = (
+        matchedPatient?.full_name ||
+        existing?.contact_name ||
+        "Paciente"
+      ).slice(0, 256);
+
+      result = await sendWhatsAppMessage(
+        clinicId,
+        {
+          to: normalizedTo,
+          template: clinicTemplate.template_name,
+          templateParams: [recipientName, sanitizedText.slice(0, 900)],
         },
-        { status: 403 }
+        false,
+        supabase
+      );
+    } else {
+      result = await sendWhatsAppMessage(
+        clinicId,
+        { to: normalizedTo, text: sanitizedText },
+        false,
+        supabase
       );
     }
-
-    const result = await sendWhatsAppMessage(
-      clinicId,
-      { to: normalizedTo, text: text.trim() },
-      false,
-      supabase
-    );
 
     if (!result.success) {
       return NextResponse.json(
@@ -89,7 +137,7 @@ export async function POST(request: NextRequest) {
         .insert({ 
           clinic_id: clinicId, 
           phone_number: normalizedTo,
-          status: "open"
+          status: useTemplateMode ? "closed" : "open"
         })
         .select("id")
         .single();
@@ -104,7 +152,7 @@ export async function POST(request: NextRequest) {
       clinic_id: clinicId,
       direction: "outbound",
       message_type: "text",
-      content: text.trim(),
+      content: sanitizedText,
       sent_at: new Date().toISOString(),
     } as Record<string, unknown>);
 

@@ -39,6 +39,12 @@ type WhatsAppUsageLimit = {
   blocked: boolean;
 };
 
+type ContactOption = {
+  id: string;
+  full_name: string | null;
+  phone: string;
+};
+
 interface WhatsAppChatSidebarProps {
   fullWidth?: boolean;
 }
@@ -106,7 +112,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [loading, setLoading] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [newChatOpen, setNewChatOpen] = useState(false);
-  const [newTo, setNewTo] = useState("");
+  const [newContactQuery, setNewContactQuery] = useState("");
+  const [newContactResults, setNewContactResults] = useState<ContactOption[]>([]);
+  const [selectedContactId, setSelectedContactId] = useState<string>("");
+  const [loadingContactOptions, setLoadingContactOptions] = useState(false);
   const [newText, setNewText] = useState("");
   const [sending, setSending] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -401,7 +410,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const showChatPane = !fullWidth || !isMobile || !!selectedId;
 
   const handleSendNew = async () => {
-    const to = newTo.replace(/\D/g, "");
+    const selectedContact = newContactResults.find((contact) => contact.id === selectedContactId) ?? null;
+    const to = (selectedContact?.phone ?? "").replace(/\D/g, "");
     if (!to || !newText.trim()) return;
     setSending(true);
     try {
@@ -412,7 +422,9 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       });
       if (res.ok) {
         setNewChatOpen(false);
-        setNewTo("");
+        setNewContactQuery("");
+        setNewContactResults([]);
+        setSelectedContactId("");
         setNewText("");
         loadConversations(false);
         loadUnreadCounts();
@@ -426,15 +438,36 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     }
   };
 
+  useEffect(() => {
+    if (!newChatOpen) return;
+    let cancelled = false;
+    const timeout = setTimeout(async () => {
+      setLoadingContactOptions(true);
+      try {
+        const res = await fetch(`/api/patients/search?q=${encodeURIComponent(newContactQuery.trim())}`);
+        const data = await res.json();
+        if (!res.ok || cancelled) return;
+        const contacts = Array.isArray(data.contacts) ? (data.contacts as ContactOption[]) : [];
+        setNewContactResults(contacts);
+        setSelectedContactId((prev) =>
+          prev && contacts.some((contact) => contact.id === prev) ? prev : ""
+        );
+      } catch {
+        if (!cancelled) setNewContactResults([]);
+      } finally {
+        if (!cancelled) setLoadingContactOptions(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [newChatOpen, newContactQuery]);
+
   const handleSendInChat = async () => {
     if (!selectedConversation || !replyText.trim()) return;
     
-    // Verificar se pode enviar texto livre
-    if (selectedConversation.status !== "open") {
-      alert(`Esta conversa está ${selectedConversation.status === "closed" ? "fechada" : "concluída"}. Apenas mensagens template são permitidas.`);
-      return;
-    }
-
     const text = replyText.trim();
     setReplyText("");
     setSendingReply(true);
@@ -801,8 +834,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                 {selectedConversation && selectedConversation.status !== "open" && (
                   <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 px-3 py-2 rounded-md">
                     {selectedConversation.status === "closed" 
-                      ? "Esta conversa está fechada. Apenas mensagens template são permitidas."
-                      : "Esta conversa está concluída. Apenas mensagens template são permitidas."}
+                      ? "Esta conversa está fechada. A mensagem será enviada via template aprovado."
+                      : "Esta conversa está concluída. A mensagem será enviada via template aprovado."}
                   </div>
                 )}
                 <div className="flex gap-2 items-center">
@@ -815,13 +848,12 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                         handleSendInChat();
                       }
                     }}
-                    placeholder={selectedConversation?.status === "open" ? "Digite uma mensagem..." : "Apenas templates permitidos"}
+                    placeholder="Digite uma mensagem..."
                     className="min-h-11 flex-1"
-                    disabled={selectedConversation?.status !== "open"}
                   />
                   <Button
                     onClick={handleSendInChat}
-                    disabled={sendingReply || !replyText.trim() || selectedConversation?.status !== "open"}
+                    disabled={sendingReply || !replyText.trim()}
                     size="icon"
                     className="rounded-lg h-11 w-11 shrink-0 bg-[#25D366] hover:bg-[#20bd5a] text-white disabled:opacity-50"
                   >
@@ -910,16 +942,49 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
         <DialogContent
           title="Nova conversa"
-          onClose={() => setNewChatOpen(false)}
+          onClose={() => {
+            setNewChatOpen(false);
+            setNewContactQuery("");
+            setNewContactResults([]);
+            setSelectedContactId("");
+            setNewText("");
+          }}
         >
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-1 block">Número (ex: 5511999999999)</label>
+              <label className="text-sm font-medium mb-1 block">Contato</label>
               <Input
-                value={newTo}
-                onChange={(e) => setNewTo(e.target.value)}
-                placeholder="5511999999999"
+                value={newContactQuery}
+                onChange={(e) => setNewContactQuery(e.target.value)}
+                placeholder="Buscar paciente por nome..."
               />
+              <div className="mt-2 max-h-40 overflow-auto rounded-md border border-border">
+                {loadingContactOptions ? (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">Buscando contatos...</p>
+                ) : newContactResults.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum contato encontrado.</p>
+                ) : (
+                  <ul>
+                    {newContactResults.map((contact) => (
+                      <li key={contact.id}>
+                        <button
+                          type="button"
+                          className={cn(
+                            "w-full text-left px-3 py-2 text-sm hover:bg-muted",
+                            selectedContactId === contact.id && "bg-muted"
+                          )}
+                          onClick={() => setSelectedContactId(contact.id)}
+                        >
+                          <span className="font-medium block truncate">
+                            {contact.full_name || "Sem nome"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{formatPhone(contact.phone)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Mensagem</label>
@@ -931,7 +996,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
             </div>
             <Button
               onClick={handleSendNew}
-              disabled={sending || !newTo.trim() || !newText.trim()}
+              disabled={sending || !selectedContactId || !newText.trim()}
             >
               <Send className="h-4 w-4 mr-2" />
               Enviar

@@ -221,7 +221,7 @@ export function TemplatesListClient({
       <section>
         <h2 className="text-lg font-semibold text-foreground mb-2">Templates Meta da clínica</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Solicite os 3 templates padrão uma única vez para permitir envios fora da janela de 24h.
+          Solicite os templates padrão uma única vez para permitir envios fora da janela de 24h.
         </p>
         <Card className="p-4">
           <div className="flex flex-wrap items-center gap-2 mb-4">
