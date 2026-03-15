@@ -191,13 +191,12 @@ export function getMetaTemplateParams(
 
   switch (config.template) {
     case "flowmedi_consulta": {
-      // {{2}} = mensagem completa: frase + data/hora + médico
-      const mensagemCompleta =
-        dataHora && medico
-          ? `${phrase} Data e hora: ${dataHora}. Profissional: ${medico}.`
-          : dataHora
-            ? `${phrase} Data e hora: ${dataHora}.`
-            : phrase;
+      // {{2}} = mensagem completa da consulta no formato usado pelos templates atuais.
+      const detalhes: string[] = [phrase];
+      if (dataHora) detalhes.push(`Data e hora: ${dataHora}.`);
+      if (medico) detalhes.push(`Profissional: ${medico}.`);
+      if (instrucao) detalhes.push(instrucao);
+      const mensagemCompleta = detalhes.join(" ").replace(/\s+/g, " ").trim();
       return {
         template: "flowmedi_consulta",
         params: [nome, mensagemCompleta],
