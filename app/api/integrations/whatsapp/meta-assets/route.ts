@@ -119,6 +119,85 @@ export async function GET() {
       });
     }
 
+    // Fallback: quando /me/businesses retorna vazio, tentar endpoint direto de WhatsApp.
+    if (businesses.length === 0) {
+      const waAccountsRes = await fetch(
+        "https://graph.facebook.com/v23.0/me/whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,code_verification_status,status}",
+        { headers: bearer }
+      );
+      const waAccountsData = await waAccountsRes.json();
+      if (waAccountsRes.ok) {
+        function readPhones(rawPhones: unknown): Array<Record<string, unknown>> {
+          if (Array.isArray(rawPhones)) return rawPhones as Array<Record<string, unknown>>;
+          if (
+            rawPhones &&
+            typeof rawPhones === "object" &&
+            Array.isArray((rawPhones as { data?: unknown[] }).data)
+          ) {
+            return (rawPhones as { data: Array<Record<string, unknown>> }).data;
+          }
+          return [];
+        }
+
+        const wabas = (waAccountsData.data ?? []).map((waba: Record<string, unknown>) => ({
+          id: String(waba.id ?? ""),
+          name: String(waba.name ?? ""),
+          phone_numbers: readPhones(waba.phone_numbers).map((phone: Record<string, unknown>) => ({
+                id: String(phone.id ?? ""),
+                display_phone_number:
+                  typeof phone.display_phone_number === "string" ? phone.display_phone_number : undefined,
+                verified_name: typeof phone.verified_name === "string" ? phone.verified_name : undefined,
+                quality_rating: typeof phone.quality_rating === "string" ? phone.quality_rating : undefined,
+                code_verification_status:
+                  typeof phone.code_verification_status === "string"
+                    ? phone.code_verification_status
+                    : undefined,
+                status: typeof phone.status === "string" ? phone.status : undefined,
+              }))
+        }));
+
+        if (wabas.length > 0) {
+          businesses.push({
+            id: "direct_whatsapp_accounts",
+            name: "WhatsApp Business Accounts",
+            verification_status: undefined,
+            wabas,
+          });
+        }
+
+        // Auto-correção de metadata quando houver somente 1 WABA e 1 número.
+        const onlyWaba =
+          wabas.length === 1
+            ? wabas[0]
+            : null;
+        const onlyPhone =
+          onlyWaba && onlyWaba.phone_numbers.length === 1
+            ? onlyWaba.phone_numbers[0]
+            : null;
+
+        if (onlyWaba && onlyPhone) {
+          const currentMetadata = (chosen.metadata as Record<string, unknown> | null) || {};
+          if (
+            currentMetadata.waba_id !== onlyWaba.id ||
+            currentMetadata.phone_number_id !== onlyPhone.id
+          ) {
+            await supabase
+              .from("clinic_integrations")
+              .update({
+                metadata: {
+                  ...currentMetadata,
+                  waba_id: onlyWaba.id,
+                  phone_number_id: onlyPhone.id,
+                },
+                last_sync_at: new Date().toISOString(),
+              })
+              .eq("clinic_id", admin.clinicId)
+              .eq("integration_type", "whatsapp_meta");
+          }
+        }
+      }
+    }
+
     return NextResponse.json({
       integration_type: chosen.integration_type,
       selected_waba_id: chosen.metadata?.waba_id ?? null,

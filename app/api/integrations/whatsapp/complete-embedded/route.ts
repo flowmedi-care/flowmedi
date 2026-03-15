@@ -82,7 +82,60 @@ export async function POST(request: NextRequest) {
       hasSessionPhoneNumberId: Boolean(phoneNumberId),
     });
 
-    // Fallback: descobrir WABA e número automaticamente quando a sessão não trouxer IDs.
+    // Fallback 1: endpoint direto de WhatsApp (não depende de business_management).
+    if (!wabaId || !phoneNumberId) {
+      const waAccountsRes = await fetch(
+        `https://graph.facebook.com/${graphVersion}/me/whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number}`,
+        { headers: bearer }
+      );
+      const waAccountsData = (await waAccountsRes.json()) as {
+        data?: Array<{
+          id: string;
+          name?: string;
+          phone_numbers?: Array<{ id: string; display_phone_number?: string }>;
+        }>;
+      };
+
+      if (waAccountsRes.ok && waAccountsData.data?.length) {
+        const waCandidates = waAccountsData.data.map((account) => ({
+          wabaId: account.id,
+          phoneIds: (account.phone_numbers ?? [])
+            .map((phone) => pickString(phone.id))
+            .filter((phone): phone is string => Boolean(phone)),
+        }));
+
+        if (!wabaId && phoneNumberId) {
+          const byPhone = waCandidates.find((candidate) =>
+            candidate.phoneIds.includes(phoneNumberId as string)
+          );
+          if (byPhone) wabaId = byPhone.wabaId;
+        }
+
+        if (wabaId && !phoneNumberId) {
+          const byWaba = waCandidates.find((candidate) => candidate.wabaId === wabaId);
+          if (byWaba?.phoneIds.length) {
+            phoneNumberId = byWaba.phoneIds[0];
+          }
+        }
+
+        if (!wabaId || !phoneNumberId) {
+          const withPhones = waCandidates.filter((candidate) => candidate.phoneIds.length > 0);
+          if (withPhones.length === 1) {
+            wabaId = wabaId || withPhones[0].wabaId;
+            phoneNumberId = phoneNumberId || withPhones[0].phoneIds[0] || null;
+          }
+        }
+
+        console.info("[WA_EMBEDDED] complete:wa-accounts-fallback", {
+          clinicId: admin.clinicId,
+          waAccountCount: waAccountsData.data.length,
+          resolvedWabaId: wabaId,
+          resolvedPhoneNumberId: phoneNumberId,
+        });
+      }
+    }
+
+    // Fallback 2: descobrir WABA e número via businesses quando necessário.
     // Importante: evitar "pegar o primeiro" quando existem múltiplas contas/números.
     if (!wabaId || !phoneNumberId) {
       const businessesRes = await fetch(
