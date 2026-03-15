@@ -71,7 +71,7 @@ export function TextEditorWithVariables({
           ref={textareaRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder || "Digite o texto aqui... Você pode usar variáveis como {{nome_paciente}}"}
+          placeholder={placeholder || "Digite o texto aqui... Você pode usar variáveis como {{primeiro_nome_paciente}}"}
           rows={rows}
           className="font-mono text-sm"
         />

@@ -22,7 +22,7 @@ type ChannelChoice = "email" | "whatsapp" | "both";
 type WizardStep = "base" | "email" | "whatsapp" | "review";
 
 const EMAIL_AVAILABLE_VARIABLES = [
-  "{{nome_paciente}}",
+  "{{primeiro_nome_paciente}}",
   "{{data_consulta}}",
   "{{hora_consulta}}",
   "{{nome_medico}}",
@@ -42,18 +42,18 @@ function toHtmlFromText(text: string) {
 function composeWhatsappText(templateKey: SystemMetaTemplateKey, message: string) {
   const core = message.trim() || "{{mensagem}}";
   if (templateKey === "flowmedi_formulario") {
-    return `Olá {{nome_paciente}}!\n\nPrecisamos da sua ajuda com um formulário da clínica.\n\n${core}\n\nObrigado pelo apoio.\n\n{{nome_clinica}}`;
+    return `Olá {{primeiro_nome_paciente}}!\n\nPrecisamos da sua ajuda com um formulário da clínica.\n\n${core}\n\nObrigado pelo apoio.\n\n{{nome_clinica}}`;
   }
   if (templateKey === "flowmedi_agenda_com_formulario") {
-    return `Olá {{nome_paciente}}!\n\nTemos uma mensagem importante sobre sua consulta.\n\n${core}\n\nPara preencher antes da consulta, acesse: {{link_formulario}}\n\nSe precisar, responda esta mensagem.\n\n{{nome_clinica}}`;
+    return `Olá {{primeiro_nome_paciente}}!\n\nTemos uma mensagem importante sobre sua consulta.\n\n${core}\n\nPara preencher antes da consulta, acesse: {{link_formulario}}\n\nSe precisar, responda esta mensagem.\n\n{{nome_clinica}}`;
   }
   if (templateKey === "flowmedi_aviso") {
-    return `Olá {{nome_paciente}}!\n\nTemos um aviso importante.\n\n${core}\n\nEstamos à disposição para dúvidas.\n\n{{nome_clinica}}`;
+    return `Olá {{primeiro_nome_paciente}}!\n\nTemos um aviso importante.\n\n${core}\n\nEstamos à disposição para dúvidas.\n\n{{nome_clinica}}`;
   }
   if (templateKey === "flowmedi_mensagem_livre") {
-    return `Oi, {{nome_paciente}}.\n\n${core}\n\nQualquer dúvida, estamos à disposição.\n\n{{nome_clinica}}`;
+    return `Oi, {{primeiro_nome_paciente}}.\n\n${core}\n\nQualquer dúvida, estamos à disposição.\n\n{{nome_clinica}}`;
   }
-  return `Olá {{nome_paciente}}!\n\nTemos uma mensagem importante sobre sua consulta.\n\n${core}\n\nSe precisar, responda esta mensagem.\n\n{{nome_clinica}}`;
+  return `Olá {{primeiro_nome_paciente}}!\n\nTemos uma mensagem importante sobre sua consulta.\n\n${core}\n\nSe precisar, responda esta mensagem.\n\n{{nome_clinica}}`;
 }
 
 function WhatsAppPreviewBubble({ text }: { text: string }) {

@@ -156,7 +156,7 @@ export function BlockComponent({
               value={block.content}
               onChange={(value) => onUpdate({ ...block, content: value })}
               label="Título"
-              placeholder="Digite o título... Use variáveis como {{nome_paciente}}"
+              placeholder="Digite o título... Use variáveis como {{primeiro_nome_paciente}}"
               rows={2}
               availableVariables={availableVariables}
             />
@@ -198,7 +198,7 @@ export function BlockComponent({
               value={block.content}
               onChange={(value) => onUpdate({ ...block, content: value })}
               label="Texto"
-              placeholder="Digite o texto aqui... Você pode usar variáveis como {{nome_paciente}}, {{data_consulta}}, etc."
+              placeholder="Digite o texto aqui... Você pode usar variáveis como {{primeiro_nome_paciente}}, {{data_consulta}}, etc."
               rows={6}
               availableVariables={availableVariables}
             />

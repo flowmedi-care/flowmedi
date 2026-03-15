@@ -20,7 +20,7 @@ import { EmailBlock } from "@/components/email-template-builder/types";
 import { htmlToBlocks } from "@/components/email-template-builder/html-converter";
 
 const AVAILABLE_VARIABLES = [
-  { category: "Paciente", vars: ["{{nome_paciente}}", "{{email_paciente}}", "{{telefone_paciente}}", "{{data_nascimento}}"] },
+  { category: "Paciente", vars: ["{{primeiro_nome_paciente}}", "{{nome_paciente}}", "{{email_paciente}}", "{{telefone_paciente}}", "{{data_nascimento}}"] },
   { category: "Consulta", vars: ["{{data_consulta}}", "{{hora_consulta}}", "{{data_hora_consulta}}", "{{nome_medico}}", "{{tipo_consulta}}", "{{nome_procedimento}}", "{{status_consulta}}"] },
   { category: "Preparação", vars: ["{{recomendacoes}}", "{{precisa_jejum}}", "{{instrucoes_especiais}}", "{{notas_preparo}}", "{{preparo_completo}}"] },
   { category: "Formulário", vars: ["{{link_formulario}}", "{{nome_formulario}}", "{{prazo_formulario}}", "{{instrucao_formulario}}"] },

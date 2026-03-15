@@ -36,6 +36,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 const AVAILABLE_VARIABLES = [
+  "{{primeiro_nome_paciente}}",
   "{{nome_paciente}}",
   "{{email_paciente}}",
   "{{telefone_paciente}}",

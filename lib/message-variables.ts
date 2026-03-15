@@ -74,6 +74,16 @@ function formatDateTime(date: string | Date): string {
 }
 
 /**
+ * Extrai o primeiro nome para comunicação mais natural.
+ */
+function extractFirstName(fullName?: string | null): string {
+  if (!fullName) return "";
+  const normalized = fullName.trim().replace(/\s+/g, " ");
+  if (!normalized) return "";
+  return normalized.split(" ")[0] || "";
+}
+
+/**
  * Gera texto completo de preparo baseado nos campos da consulta
  */
 function generatePreparoCompleto(context: VariableContext): string {
@@ -106,7 +116,9 @@ function generatePreparoCompleto(context: VariableContext): string {
  */
 const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
   // Variáveis de paciente
-  "{{nome_paciente}}": (ctx) => ctx.paciente?.nome || "",
+  "{{primeiro_nome_paciente}}": (ctx) => extractFirstName(ctx.paciente?.nome),
+  // Mantida por compatibilidade: agora retorna também só o primeiro nome.
+  "{{nome_paciente}}": (ctx) => extractFirstName(ctx.paciente?.nome),
   "{{email_paciente}}": (ctx) => ctx.paciente?.email || "",
   "{{telefone_paciente}}": (ctx) => ctx.paciente?.telefone || "",
   "{{data_nascimento}}": (ctx) =>
