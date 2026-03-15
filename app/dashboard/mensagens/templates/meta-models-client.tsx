@@ -60,6 +60,13 @@ function translateMetaError(raw: string): string {
     132012: "Formato dos parâmetros do template está incorreto.",
     132015: "Template pausado por baixa qualidade.",
     132016: "Template desativado permanentemente por baixa qualidade.",
+    2388019: "Limite de modelos de mensagem excedido para esta conta (máximo de 250 templates).",
+    2388040: "Um campo do modelo excedeu o limite máximo de caracteres permitido.",
+    2388047: "Formato do cabeçalho inválido.",
+    2388072: "Formato do corpo da mensagem inválido.",
+    2388073: "Formato do rodapé inválido.",
+    2388293: "Muitas variáveis para o tamanho da mensagem. Reduza variáveis ou aumente o texto.",
+    2388299: "Variáveis não podem estar no início nem no fim do modelo.",
   };
 
   if (code >= 200 && code <= 299) {
