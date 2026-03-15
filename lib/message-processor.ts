@@ -307,7 +307,7 @@ async function buildVariableContextFromIds(
   // Buscar clínica
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("name, phone, address, whatsapp_url, facebook_url, instagram_url")
+    .select("name, phone, email, address, whatsapp_url, facebook_url, instagram_url")
     .eq("id", clinicId)
     .single();
 
@@ -1013,7 +1013,7 @@ export async function processEventByIdForPublicForm(
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("name, phone, address, whatsapp_url, facebook_url, instagram_url")
+    .select("name, phone, email, address, whatsapp_url, facebook_url, instagram_url")
     .eq("id", event.clinic_id)
     .single();
 

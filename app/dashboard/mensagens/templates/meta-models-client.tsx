@@ -19,6 +19,57 @@ import {
 
 type MetaButtonKind = "none" | "quick_reply" | "url" | "phone";
 
+function translateMetaError(raw: string): string {
+  const msg = String(raw || "").trim();
+  if (!msg) return "Erro ao processar resposta da Meta.";
+  const lower = msg.toLowerCase();
+
+  // Mensagens textuais comuns da API da Meta
+  if (lower.includes("this template has too many variables for its length")) {
+    return "Este modelo tem muitas variáveis para o tamanho do texto. Reduza variáveis ou aumente a mensagem.";
+  }
+  if (lower.includes("variables cannot be at the start or end of the template")) {
+    return "As variáveis não podem estar no início nem no fim do modelo.";
+  }
+  if (lower.includes("template has too many variables")) {
+    return "Este modelo tem variáveis em excesso para o conteúdo informado.";
+  }
+  if (lower.includes("parameter format mismatch")) {
+    return "Os parâmetros do template não estão no formato esperado pela Meta.";
+  }
+
+  // O retorno da Meta costuma vir como "(#130429) Rate limit hit"
+  const codeMatch = msg.match(/#?(\d{3,6})/);
+  const code = codeMatch ? Number(codeMatch[1]) : null;
+  if (!code) return msg;
+
+  const codeTranslations: Record<number, string> = {
+    0: "Falha de autenticação da integração com a Meta. Reconecte a conta.",
+    3: "Permissão/capacidade insuficiente para esta ação na API da Meta.",
+    10: "Permissão negada pela Meta. Verifique permissões da integração.",
+    190: "Token de acesso expirado ou inválido. Reconecte a integração com a Meta.",
+    368: "Conta temporariamente bloqueada por política da Meta.",
+    80007: "A conta atingiu limite de taxa. Tente novamente em instantes.",
+    130429: "Limite de throughput atingido na Cloud API. Aguarde e tente novamente.",
+    131048: "Limite por spam atingido. Verifique qualidade do número/template.",
+    131056: "Limite para o mesmo remetente/destinatário atingido. Aguarde antes de reenviar.",
+    132000: "Quantidade de variáveis enviada não corresponde ao template.",
+    132001: "Template não existe nesse idioma ou ainda não foi aprovado.",
+    132005: "Texto traduzido do template excede o tamanho permitido.",
+    132007: "Conteúdo do template viola política da Meta.",
+    132012: "Formato dos parâmetros do template está incorreto.",
+    132015: "Template pausado por baixa qualidade.",
+    132016: "Template desativado permanentemente por baixa qualidade.",
+  };
+
+  if (code >= 200 && code <= 299) {
+    return `Meta (#${code}): permissão ausente/removida para executar esta ação.`;
+  }
+
+  const translated = codeTranslations[code];
+  return translated ? `Meta (#${code}): ${translated}` : msg;
+}
+
 function toMetaBodyVariableTokens(text: string): string[] {
   const matches = text.match(/\{\{\d+\}\}/g) ?? [];
   return Array.from(new Set(matches));
@@ -220,7 +271,7 @@ export function MetaModelsClient({
     const res = await createClinicMetaMessageModel(payload);
     setSaving(false);
     if (res.error) {
-      setError(res.error);
+      setError(translateMetaError(res.error));
       return;
     }
     setOpen(false);
@@ -247,7 +298,7 @@ export function MetaModelsClient({
     const res = await submitClinicMetaMessageModel(id);
     setSubmittingId(null);
     if (res.error) {
-      setSubmitErrors((prev) => ({ ...prev, [id]: res.error || "Erro ao enviar para Meta." }));
+      setSubmitErrors((prev) => ({ ...prev, [id]: translateMetaError(res.error || "Erro ao enviar para Meta.") }));
       router.refresh();
       return;
     }
@@ -317,7 +368,7 @@ export function MetaModelsClient({
               </div>
               <p className="text-sm mt-3 whitespace-pre-wrap">{model.body_text}</p>
               {model.last_error && (
-                <p className="text-xs mt-2 text-destructive">{model.last_error}</p>
+                <p className="text-xs mt-2 text-destructive">{translateMetaError(model.last_error)}</p>
               )}
               {submitErrors[model.id] && (
                 <p className="text-xs mt-2 text-destructive">{submitErrors[model.id]}</p>
@@ -345,10 +396,16 @@ export function MetaModelsClient({
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent title="Novo modelo de mensagem Meta" onClose={() => setOpen(false)} className="max-w-[96vw] sm:max-w-6xl">
-          <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-            <div className="space-y-3">
-            {error && <p className="text-sm text-destructive">{error}</p>}
+        <DialogContent
+          title="Novo modelo de mensagem Meta"
+          onClose={() => setOpen(false)}
+          className="max-w-[96vw] sm:max-w-6xl h-[92vh] overflow-hidden"
+        >
+          <div className="grid gap-4 lg:grid-cols-[1fr_320px] h-full overflow-hidden">
+            <div className="space-y-3 overflow-y-auto pr-1">
+              <div className="min-h-5">
+                {error ? <p className="text-sm text-destructive">{error}</p> : null}
+              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
                   <Label>Nome do modelo</Label>
@@ -406,15 +463,13 @@ export function MetaModelsClient({
                   </Button>
                 </div>
 
-                {bodyValidation.errors.length > 0 && (
-                  <div className="space-y-1">
-                    {bodyValidation.errors.map((msg, idx) => (
-                      <p key={`${msg}-${idx}`} className="text-xs text-destructive">
-                        {msg}
-                      </p>
-                    ))}
-                  </div>
-                )}
+                <div className="space-y-1 min-h-[56px]">
+                  {bodyValidation.errors.map((msg, idx) => (
+                    <p key={`${msg}-${idx}`} className="text-xs text-destructive">
+                      {msg}
+                    </p>
+                  ))}
+                </div>
 
                 {bodyVars.length > 0 && (
                   <div className="space-y-2">
@@ -477,7 +532,7 @@ export function MetaModelsClient({
                 </Button>
               </div>
             </div>
-            <Card className="p-3 h-fit">
+            <Card className="p-3 h-fit overflow-y-auto">
               <p className="text-sm font-medium mb-2">Prévia do modelo</p>
               <WhatsAppTemplatePreview
                 headerText={headerText}

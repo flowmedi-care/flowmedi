@@ -34,6 +34,7 @@ export type VariableContext = {
   clinica?: {
     nome?: string;
     telefone?: string;
+    email?: string;
     endereco?: string;
     link_whatsapp?: string;
     link_facebook?: string;
@@ -148,6 +149,7 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
   // Variáveis de clínica
   "{{nome_clinica}}": (ctx) => ctx.clinica?.nome || "",
   "{{telefone_clinica}}": (ctx) => ctx.clinica?.telefone || "",
+  "{{email_clinica}}": (ctx) => ctx.clinica?.email || "",
   "{{endereco_clinica}}": (ctx) => ctx.clinica?.endereco || "",
   "{{link_whatsapp_clinica}}": (ctx) => ctx.clinica?.link_whatsapp || "",
   "{{link_facebook_clinica}}": (ctx) => ctx.clinica?.link_facebook || "",
@@ -235,6 +237,7 @@ export async function buildVariableContext(data: {
   clinic?: {
     name?: string | null;
     phone?: string | null;
+    email?: string | null;
     address?: string | null;
     whatsapp_url?: string | null;
     facebook_url?: string | null;
@@ -299,6 +302,7 @@ export async function buildVariableContext(data: {
     context.clinica = {
       nome: data.clinic.name || undefined,
       telefone: data.clinic.phone || undefined,
+      email: data.clinic.email || undefined,
       endereco: data.clinic.address || undefined,
       link_whatsapp: data.clinic.whatsapp_url || undefined,
       link_facebook: data.clinic.facebook_url || undefined,

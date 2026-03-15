@@ -63,7 +63,7 @@ function generateHeaderHTML(
   const phone = useVariables 
     ? (clinicPhone ? "{{telefone_clinica}}" : null)
     : (clinicPhone || null);
-  const email = clinicEmail || "";
+  const email = useVariables ? "{{email_clinica}}" : (clinicEmail || "");
 
   switch (template) {
     case "professional":
