@@ -26,6 +26,7 @@ export function EmailBrandingCard() {
   const [headerTemplate, setHeaderTemplate] = useState<EmailBrandingTemplate>("professional");
   const [footerTemplate, setFooterTemplate] = useState<EmailBrandingTemplate>("professional");
   const [modernHeaderColor, setModernHeaderColor] = useState<string>("#667eea");
+  const [modernFooterColor, setModernFooterColor] = useState<string>("#94a3b8");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -38,8 +39,10 @@ export function EmailBrandingCard() {
         setHeaderTemplate((res.data.email_header_template as EmailBrandingTemplate) || "professional");
         setFooterTemplate((res.data.email_footer_template as EmailBrandingTemplate) || "professional");
         const colors = res.data.email_branding_colors as Record<string, unknown> | null;
-        const saved = colors && typeof colors.modern_header_color === "string" ? colors.modern_header_color : null;
-        setModernHeaderColor(saved || "#667eea");
+        const savedHeader = colors && typeof colors.modern_header_color === "string" ? colors.modern_header_color : null;
+        const savedFooter = colors && typeof colors.modern_footer_color === "string" ? colors.modern_footer_color : null;
+        setModernHeaderColor(savedHeader || "#667eea");
+        setModernFooterColor(savedFooter || "#94a3b8");
       }
     });
   }, []);
@@ -79,7 +82,8 @@ export function EmailBrandingCard() {
           brandingData.address || null,
           brandingData.logo_url,
           true,
-          undefined,
+          undefined, // modernHeaderColor (footer não usa)
+          footerTemplate === "modern" ? modernFooterColor : undefined,
           brandingData.whatsapp_url ?? null,
           brandingData.facebook_url ?? null,
           brandingData.instagram_url ?? null
@@ -92,6 +96,9 @@ export function EmailBrandingCard() {
     };
     if (headerTemplate === "modern") {
       brandingColors.modern_header_color = modernHeaderColor;
+    }
+    if (footerTemplate === "modern") {
+      brandingColors.modern_footer_color = modernFooterColor;
     }
 
     const result = await updateClinicEmailBranding(
@@ -154,6 +161,8 @@ export function EmailBrandingCard() {
         clinicAddress={brandingData.address}
         logoUrl={null}
         hasPhoneOrEmail={!!(brandingData.phone || brandingData.email)}
+        modernFooterColor={modernFooterColor}
+        onModernFooterColorChange={setModernFooterColor}
         clinicWhatsappUrl={brandingData.whatsapp_url}
         clinicFacebookUrl={brandingData.facebook_url}
         clinicInstagramUrl={brandingData.instagram_url}

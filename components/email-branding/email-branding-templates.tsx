@@ -20,6 +20,9 @@ interface EmailBrandingTemplatesProps {
   /** Cor do cabeçalho moderno (só usado quando type="header" e template="modern") */
   modernHeaderColor?: string | null;
   onModernHeaderColorChange?: (color: string) => void;
+  /** Cor do rodapé moderno (só usado quando type="footer" e template="modern") */
+  modernFooterColor?: string | null;
+  onModernFooterColorChange?: (color: string) => void;
   /** Redes sociais (só usados quando type="footer") */
   clinicWhatsappUrl?: string | null;
   clinicFacebookUrl?: string | null;
@@ -34,6 +37,16 @@ function darkenHex(hex: string, factor: number): string {
   const g = Math.max(0, Math.floor(parseInt(match[1], 16) * factor));
   const b = Math.max(0, Math.floor(parseInt(match[2], 16) * factor));
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const match = hex.replace(/^#/, "").match(/.{2}/g);
+  if (!match) return null;
+  return {
+    r: parseInt(match[0], 16),
+    g: parseInt(match[1], 16),
+    b: parseInt(match[2], 16),
+  };
 }
 
 // Templates profissionais inspirados em grandes marcas
@@ -152,6 +165,7 @@ function generateFooterHTML(
   clinicEmail: string | null,
   clinicAddress: string | null,
   useVariables: boolean = false,
+  modernFooterColor?: string | null,
   clinicWhatsappUrl?: string | null,
   clinicFacebookUrl?: string | null,
   clinicInstagramUrl?: string | null
@@ -238,10 +252,15 @@ function generateFooterHTML(
       `;
 
     case "modern":
+      {
+      const baseColor = (modernFooterColor && /^#[0-9A-Fa-f]{6}$/.test(modernFooterColor))
+        ? modernFooterColor
+        : "#94a3b8";
+      const rgb = hexToRgb(baseColor) || { r: 148, g: 163, b: 184 };
       return `
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
           <tr>
-            <td style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 32px 20px 30px 20px; border-radius: 0 0 8px 8px;">
+            <td style="background: linear-gradient(135deg, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12) 0%, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.34) 100%); padding: 32px 20px 30px 20px; border-radius: 0 0 8px 8px;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="text-align: center;">
@@ -263,6 +282,7 @@ function generateFooterHTML(
           </tr>
         </table>
       `;
+      }
 
     default:
       return "";
@@ -281,13 +301,15 @@ export function EmailBrandingTemplates({
   hasPhoneOrEmail = false,
   modernHeaderColor = null,
   onModernHeaderColorChange,
+  modernFooterColor = null,
+  onModernFooterColorChange,
   clinicWhatsappUrl = null,
   clinicFacebookUrl = null,
   clinicInstagramUrl = null,
 }: EmailBrandingTemplatesProps) {
   const html = type === "header"
     ? generateHeaderHTML(selectedTemplate, clinicName || "", clinicPhone, clinicEmail, logoUrl, false, modernHeaderColor)
-    : generateFooterHTML(selectedTemplate, clinicName || "", clinicPhone, clinicEmail, clinicAddress, false, clinicWhatsappUrl, clinicFacebookUrl, clinicInstagramUrl);
+    : generateFooterHTML(selectedTemplate, clinicName || "", clinicPhone, clinicEmail, clinicAddress, false, modernFooterColor, clinicWhatsappUrl, clinicFacebookUrl, clinicInstagramUrl);
 
   return (
     <Card>
@@ -362,6 +384,20 @@ export function EmailBrandingTemplates({
             </span>
           </div>
         )}
+        {type === "footer" && selectedTemplate === "modern" && onModernFooterColorChange && (
+          <div className="flex items-center gap-3">
+            <Label className="shrink-0">Cor do rodapé</Label>
+            <input
+              type="color"
+              value={modernFooterColor || "#94a3b8"}
+              onChange={(e) => onModernFooterColorChange(e.target.value)}
+              className="h-10 w-14 cursor-pointer rounded border border-input bg-background"
+            />
+            <span className="text-sm text-muted-foreground">
+              {modernFooterColor || "#94a3b8"}
+            </span>
+          </div>
+        )}
 
         {/* Preview */}
         <div>
@@ -392,11 +428,12 @@ export function getTemplateHTML(
   logoUrl: string | null,
   useVariables: boolean = true,
   modernHeaderColor?: string | null,
+  modernFooterColor?: string | null,
   clinicWhatsappUrl?: string | null,
   clinicFacebookUrl?: string | null,
   clinicInstagramUrl?: string | null
 ): string {
   return type === "header"
     ? generateHeaderHTML(template, clinicName, clinicPhone, clinicEmail, logoUrl, useVariables, modernHeaderColor)
-    : generateFooterHTML(template, clinicName, clinicPhone, clinicEmail, clinicAddress, useVariables, clinicWhatsappUrl, clinicFacebookUrl, clinicInstagramUrl);
+    : generateFooterHTML(template, clinicName, clinicPhone, clinicEmail, clinicAddress, useVariables, modernFooterColor, clinicWhatsappUrl, clinicFacebookUrl, clinicInstagramUrl);
 }

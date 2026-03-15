@@ -214,7 +214,7 @@ export async function processMessageEvent(
         .single();
       const header = (clinic?.email_header && replaceVariables(clinic.email_header, context)) || "";
       const footer = (clinic?.email_footer && replaceVariables(clinic.email_footer, context)) || "";
-      processedBody = header + rawBody + footer;
+      processedBody = composeEmailHtml(rawBody, header, footer);
     }
 
     // 6. Enviar diretamente: modo automático OU usuário clicou Enviar (forceImmediateSend)
@@ -411,6 +411,19 @@ async function buildVariableContextFromIds(
     clinic: clinic || undefined,
     formInstance: formInstance || undefined,
   });
+}
+
+function composeEmailHtml(rawBody: string, header: string, footer: string): string {
+  const bodySection = `
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto;">
+      <tr>
+        <td style="padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #111827;">
+          ${rawBody}
+        </td>
+      </tr>
+    </table>
+  `;
+  return `${header}${bodySection}${footer}`;
 }
 
 /**
@@ -1014,7 +1027,7 @@ export async function processEventByIdForPublicForm(
     .single();
   const header = (clinicRow?.email_header && replaceVariables(clinicRow.email_header, context)) || "";
   const footer = (clinicRow?.email_footer && replaceVariables(clinicRow.email_footer, context)) || "";
-  const processedBody = header + rawBody + footer;
+  const processedBody = composeEmailHtml(rawBody, header, footer);
 
   if (!processedSubject) {
     return { success: false, error: "Assunto do email é obrigatório." };
@@ -1183,7 +1196,7 @@ export async function getMessagePreview(
         .single();
       const header = (clinicRow?.email_header && replaceVariables(clinicRow.email_header, context)) || "";
       const footer = (clinicRow?.email_footer && replaceVariables(clinicRow.email_footer, context)) || "";
-      body = header + rawBody + footer;
+      body = composeEmailHtml(rawBody, header, footer);
     } else if (channel === "whatsapp" && event.patient_id) {
       // WhatsApp: se ticket fechado, mostrar preview do template Meta; senão texto livre
       const { data: patient } = await supabase
