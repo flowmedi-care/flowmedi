@@ -1232,16 +1232,32 @@ export async function getMessagePreview(
       }
       const useMetaTemplate = ticketStatus && ticketStatus !== "open";
       if (useMetaTemplate) {
-        const { getMetaTemplateParams } = await import("@/lib/whatsapp-meta-templates");
+        const {
+          getMetaTemplateParams,
+          fillMetaTemplateBodyText,
+          renderFallbackMetaTemplateText,
+        } = await import("@/lib/whatsapp-meta-templates");
         const meta = getMetaTemplateParams(event.event_code, context, template.whatsapp_meta_phrase);
         if (meta) {
-          const [nome, msg] = meta.params;
-          if (meta.template === "flowmedi_formulario") {
-            body = `Olá ${nome}!\n\nPrecisamos que você preencha um formulário da clínica:\n\n${msg}\n\nObrigado pelo apoio.`;
-          } else if (meta.template === "flowmedi_aviso") {
-            body = `Olá ${nome}!\n\n${msg}\n\nEstamos à disposição para qualquer dúvida.`;
+          // Tentamos renderizar com o corpo oficial na Meta para o preview refletir
+          // o texto real do template aprovado da clínica.
+          const { data: clinicMeta } = await supabase
+            .from("clinic_whatsapp_meta_templates")
+            .select("meta_template_id")
+            .eq("clinic_id", clinicId)
+            .eq("template_key", meta.template)
+            .maybeSingle();
+
+          if (clinicMeta?.meta_template_id) {
+            const { fetchTemplateDetails } = await import("@/lib/comunicacao/whatsapp");
+            const details = await fetchTemplateDetails(clinicId, clinicMeta.meta_template_id);
+            if (details.success && details.bodyText) {
+              body = fillMetaTemplateBodyText(details.bodyText, meta.params);
+            } else {
+              body = renderFallbackMetaTemplateText(meta.template, meta.params);
+            }
           } else {
-            body = `Olá ${nome}!\n\nTemos uma mensagem importante sobre sua consulta:\n\n${msg}\n\nSe precisar, responda esta mensagem.`;
+            body = renderFallbackMetaTemplateText(meta.template, meta.params);
           }
         }
       }

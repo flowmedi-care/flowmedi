@@ -14,6 +14,37 @@ export interface MetaTemplateConfig {
   phrase: string;
 }
 
+export function fillMetaTemplateBodyText(bodyText: string, params: string[]): string {
+  return bodyText
+    .replace(/\{\{(\d+)\}\}/g, (_, rawIndex: string) => {
+      const index = Number(rawIndex) - 1;
+      if (!Number.isInteger(index) || index < 0) return "";
+      return params[index] ?? "";
+    })
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function renderFallbackMetaTemplateText(
+  template: MetaTemplateName,
+  params: string[]
+): string {
+  const [nome, mensagem] = params;
+  const safeNome = nome || "Paciente";
+  const safeMensagem = mensagem || "Temos uma atualização da clínica.";
+
+  switch (template) {
+    case "flowmedi_formulario":
+      return `Olá ${safeNome},\n\n${safeMensagem}\n\nObrigado pelo apoio.`;
+    case "flowmedi_aviso":
+      return `Olá ${safeNome},\n\n${safeMensagem}\n\nEstamos à disposição para qualquer dúvida.`;
+    case "flowmedi_consulta":
+    default:
+      return `Olá ${safeNome},\n\n${safeMensagem}\n\nQualquer dúvida, estamos à disposição.`;
+  }
+}
+
 function formatDateTime(date: string | undefined): string {
   if (!date) return "";
   const d = new Date(date);
@@ -163,7 +194,7 @@ export function getMetaTemplateParams(
       // {{2}} = mensagem completa: frase + data/hora + médico
       const mensagemCompleta =
         dataHora && medico
-          ? `${phrase} Data e hora: ${dataHora}. Médico(a): ${medico}.`
+          ? `${phrase} Data e hora: ${dataHora}. Profissional: ${medico}.`
           : dataHora
             ? `${phrase} Data e hora: ${dataHora}.`
             : phrase;

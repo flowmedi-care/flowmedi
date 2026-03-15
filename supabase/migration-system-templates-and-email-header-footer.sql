@@ -48,11 +48,11 @@ SELECT
   CASE WHEN ch.channel = 'email' THEN '{{nome_clinica}}: ' || me.name ELSE NULL END,
   CASE
     WHEN ch.channel = 'email' THEN
-      '<p>Olá {{nome_paciente}},</p><p>Segue informação sobre sua consulta.</p><p><strong>Data/hora:</strong> {{data_hora_consulta}}</p><p><strong>Médico(a):</strong> {{nome_medico}}</p><p>{{nome_clinica}}</p>'
+      '<p>Olá {{nome_paciente}},</p><p>Segue informação sobre sua consulta.</p><p><strong>Data/hora:</strong> {{data_hora_consulta}}</p><p><strong>Profissional:</strong> {{nome_medico}}</p><p>{{nome_clinica}}</p>'
     ELSE
-      'Olá {{nome_paciente}}! ' || me.name || '. Data/hora: {{data_hora_consulta}}. Médico(a): {{nome_medico}}. {{nome_clinica}}.'
+      'Olá {{nome_paciente}}! ' || me.name || '. Data/hora: {{data_hora_consulta}}. Profissional: {{nome_medico}}. {{nome_clinica}}.'
   END,
-  CASE WHEN ch.channel = 'whatsapp' THEN 'Olá {{nome_paciente}}! ' || me.name || '. Data/hora: {{data_hora_consulta}}. Médico(a): {{nome_medico}}. {{nome_clinica}}.' ELSE NULL END,
+  CASE WHEN ch.channel = 'whatsapp' THEN 'Olá {{nome_paciente}}! ' || me.name || '. Data/hora: {{data_hora_consulta}}. Profissional: {{nome_medico}}. {{nome_clinica}}.' ELSE NULL END,
   CASE WHEN ch.channel = 'email' THEN '<div style="font-size:12px;color:#666;">{{nome_clinica}} | {{telefone_clinica}}</div>' ELSE NULL END,
   CASE WHEN ch.channel = 'email' THEN '<div style="margin-top:24px;font-size:11px;color:#999;">Este é um email automático. Em caso de dúvidas, entre em contato com a clínica.</div>' ELSE NULL END,
   '["{{nome_paciente}}","{{data_hora_consulta}}","{{nome_medico}}","{{nome_clinica}}","{{telefone_clinica}}"]'::jsonb

@@ -21,12 +21,12 @@ BEGIN
 
     -- Migrar: preencher com template usando o nome do médico
     UPDATE public.doctor_referral_codes drc
-    SET custom_message = 'Olá gostaria de obter mais informação sobre a consulta com o dr ' ||
+    SET custom_message = 'Olá gostaria de obter mais informação sobre a consulta com o profissional ' ||
       COALESCE(TRIM(initcap((SELECT full_name FROM public.profiles p WHERE p.id = drc.doctor_id))), '[seu nome]')
     WHERE custom_message IS NULL;
 
     UPDATE public.doctor_referral_codes
-    SET custom_message = 'Olá gostaria de obter mais informação sobre a consulta com o dr [seu nome]'
+    SET custom_message = 'Olá gostaria de obter mais informação sobre a consulta com o profissional [seu nome]'
     WHERE custom_message IS NULL OR custom_message = '';
 
     -- Remover coluna code
@@ -44,4 +44,4 @@ BEGIN
 END $$;
 
 COMMENT ON TABLE public.doctor_referral_codes IS 'Mensagem personalizada por médico para link de divulgação. Paciente envia a mensagem; sistema faz match e vincula à secretária do médico.';
-COMMENT ON COLUMN public.doctor_referral_codes.custom_message IS 'Mensagem que o paciente verá preenchida ao clicar no link. Ex: Olá gostaria de obter mais informação sobre a consulta com o dr [seu nome].';
+COMMENT ON COLUMN public.doctor_referral_codes.custom_message IS 'Mensagem que o paciente verá preenchida ao clicar no link. Ex: Olá gostaria de obter mais informação sobre a consulta com o profissional [seu nome].';

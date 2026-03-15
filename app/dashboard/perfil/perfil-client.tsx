@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -18,7 +18,8 @@ import {
 } from "./referral-actions";
 import { setProfileDimensionValueColors } from "./profile-dimension-colors-actions";
 
-const DEFAULT_MESSAGE = "Olá gostaria de obter mais informação sobre a consulta com o dr. [digite seu nome]";
+const DEFAULT_MESSAGE =
+  "Olá gostaria de obter mais informação sobre a consulta com o profissional [digite seu nome]";
 const DEFAULT_AGENDA_COLOR = "#3B82F6";
 import { Share2, Copy, Check, Palette } from "lucide-react";
 

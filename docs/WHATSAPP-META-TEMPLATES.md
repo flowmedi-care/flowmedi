@@ -31,7 +31,7 @@ Com **três templates** você cobre todos os eventos do Flowmedi: um genérico d
   {{2}}
 
   📅 Data/hora: {{3}}
-  👤 Médico(a): {{4}}
+  👤 Profissional: {{4}}
 
   {{5}}
   ```
@@ -39,7 +39,7 @@ Com **três templates** você cobre todos os eventos do Flowmedi: um genérico d
   - `{{1}}` = nome do paciente
   - `{{2}}` = frase do evento (ex.: "Sua consulta foi agendada." / "Lembrete: sua consulta está próxima." / "Sua consulta foi confirmada.")
   - `{{3}}` = data e hora da consulta
-  - `{{4}}` = nome do médico
+  - `{{4}}` = nome do profissional
   - `{{5}}` = nome da clínica (ou rodapé)
 
 **Uso no Flowmedi:** eventos de agendamento, lembretes (30d, 15d, 7d, 48h, 24h, 2h), confirmação, remarcação, retorno. Só mudamos o valor de `{{2}}` conforme o evento.

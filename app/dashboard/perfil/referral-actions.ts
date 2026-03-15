@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
-const DEFAULT_MESSAGE = "Olá gostaria de obter mais informação sobre a consulta com o dr [seu nome]";
+const DEFAULT_MESSAGE = "Olá gostaria de obter mais informação sobre a consulta com o profissional [seu nome]";
 
 export async function getReferralLinkData(): Promise<{
   referralLink: string | null;

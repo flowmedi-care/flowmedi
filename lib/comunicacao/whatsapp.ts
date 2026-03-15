@@ -374,11 +374,12 @@ export async function fetchTemplateDetails(
   success: boolean;
   name?: string;
   status?: WhatsAppTemplateReviewStatus;
+  bodyText?: string;
   error?: string;
 }> {
   try {
     const { credentials } = await getWhatsAppCredentials(clinicId, false, supabaseClient);
-    const url = `https://graph.facebook.com/v23.0/${templateId}?fields=id,name,status`;
+    const url = `https://graph.facebook.com/v23.0/${templateId}?fields=id,name,status,components`;
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${credentials.access_token}`,
@@ -395,6 +396,14 @@ export async function fetchTemplateDetails(
       success: true,
       name: typeof data?.name === "string" ? data.name : undefined,
       status: toMetaTemplateStatus(data?.status),
+      bodyText: Array.isArray(data?.components)
+        ? (
+            data.components.find(
+              (component: Record<string, unknown>) =>
+                String(component?.type || "").toUpperCase() === "BODY"
+            ) as Record<string, unknown> | undefined
+          )?.text as string | undefined
+        : undefined,
     };
   } catch (error) {
     return {
