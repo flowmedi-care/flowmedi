@@ -11,7 +11,6 @@ import {
   getSystemTemplatesForDisplay,
 } from "../actions";
 import { TemplatesListClient } from "./templates-list-client";
-import { EmailBrandingCard } from "./email-branding-card";
 
 export const dynamic = "force-dynamic";
 
@@ -84,8 +83,6 @@ export default async function TemplatesPage() {
           Os templates já estão visíveis para sua equipe. Ao evoluir de plano, você poderá criar, editar e ativar envios automáticos.
         </div>
       )}
-
-      <EmailBrandingCard />
 
       <TemplatesListClient
         savedTemplates={savedTemplates}

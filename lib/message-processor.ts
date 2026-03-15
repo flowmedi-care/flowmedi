@@ -441,6 +441,38 @@ export async function sendMessage(
   const supabase = supabaseClient ?? (await createClient());
 
   try {
+    const {
+      data: { user: actorUser },
+    } = await supabase.auth.getUser();
+    let senderType: "system" | "user" = actorUser ? "user" : "system";
+    let senderName: string | null = actorUser?.email ?? null;
+    let senderEmail: string | null = actorUser?.email ?? null;
+
+    if (actorUser?.id) {
+      const { data: actorProfile } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", actorUser.id)
+        .maybeSingle();
+      senderName =
+        (typeof actorProfile?.full_name === "string" && actorProfile.full_name.trim()
+          ? actorProfile.full_name
+          : null) ??
+        (typeof actorProfile?.email === "string" && actorProfile.email.trim()
+          ? actorProfile.email
+          : null) ??
+        actorUser.email ??
+        null;
+      senderEmail =
+        (typeof actorProfile?.email === "string" && actorProfile.email.trim()
+          ? actorProfile.email
+          : null) ?? actorUser.email ?? null;
+    } else {
+      senderType = "system";
+      senderName = "Sistema";
+      senderEmail = null;
+    }
+
     // Buscar email/telefone do paciente
     const { data: patient } = await supabase
       .from("patients")
@@ -709,6 +741,11 @@ export async function sendMessage(
       metadata: {
         template_id: templateId,
         subject,
+        body_html: channel === "email" ? body : null,
+        body_text: channel === "whatsapp" ? extractTextFromHtml(body) : body.replace(/<[^>]*>/g, "").trim(),
+        sender_type: senderType,
+        sender_name: senderName,
+        sender_email: senderEmail,
       },
     });
 
@@ -994,7 +1031,16 @@ export async function processEventByIdForPublicForm(
       appointment_id: null,
       channel: "email",
       type: event.event_code,
-      metadata: { event_id: eventId, form_instance_id: metadata.form_instance_id },
+      metadata: {
+        event_id: eventId,
+        form_instance_id: metadata.form_instance_id,
+        subject: processedSubject,
+        body_html: processedBody,
+        body_text: processedBody.replace(/<[^>]*>/g, "").trim(),
+        sender_type: "system",
+        sender_name: "Sistema",
+        sender_email: null,
+      },
     });
     if (logError) {
       console.error("[processEventByIdForPublicForm] message_log insert:", logError);

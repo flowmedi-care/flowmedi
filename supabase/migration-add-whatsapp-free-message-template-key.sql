@@ -23,6 +23,9 @@ BEGIN
 END $$;
 
 ALTER TABLE public.clinic_whatsapp_meta_templates
+DROP CONSTRAINT IF EXISTS clinic_whatsapp_meta_templates_template_key_check;
+
+ALTER TABLE public.clinic_whatsapp_meta_templates
 ADD CONSTRAINT clinic_whatsapp_meta_templates_template_key_check
 CHECK (
   template_key IN (

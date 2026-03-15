@@ -987,6 +987,12 @@ export type MessageLogEntry = {
   type: string;
   sent_at: string;
   patient_name: string | null;
+  sender_type: "system" | "user";
+  sender_name: string | null;
+  sender_email: string | null;
+  subject: string | null;
+  body_html: string | null;
+  body_text: string | null;
   metadata: Record<string, unknown> | null;
 };
 
@@ -1015,17 +1021,34 @@ export async function getRecentMessageLog(limit = 15): Promise<{
 
   if (error) return { data: null, error: error.message };
 
-  const entries: MessageLogEntry[] = (data ?? []).map((row: any) => ({
-    id: row.id,
-    channel: row.channel,
-    type: row.type,
-    sent_at: row.sent_at,
-    patient_name: row.patients?.full_name ?? null,
-    metadata:
-      row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
-        ? (row.metadata as Record<string, unknown>)
-        : null,
-  }));
+  function extractMetadataMap(metadataRaw: unknown): Record<string, unknown> | null {
+    if (!metadataRaw || typeof metadataRaw !== "object" || Array.isArray(metadataRaw)) return null;
+    return metadataRaw as Record<string, unknown>;
+  }
+
+  function extractString(value: unknown): string | null {
+    return typeof value === "string" && value.trim() ? value : null;
+  }
+
+  const entries: MessageLogEntry[] = (data ?? []).map((row: any) => {
+    const metadataMap = extractMetadataMap(row.metadata);
+    const senderType = metadataMap?.sender_type === "user" ? "user" : "system";
+
+    return {
+      id: row.id,
+      channel: row.channel,
+      type: row.type,
+      sent_at: row.sent_at,
+      patient_name: row.patients?.full_name ?? null,
+      sender_type: senderType,
+      sender_name: extractString(metadataMap?.sender_name),
+      sender_email: extractString(metadataMap?.sender_email),
+      subject: extractString(metadataMap?.subject),
+      body_html: extractString(metadataMap?.body_html),
+      body_text: extractString(metadataMap?.body_text),
+      metadata: metadataMap,
+    };
+  });
   return { data: entries, error: null };
 }
 
@@ -1056,6 +1079,14 @@ export async function getMessageLogById(
   if (error) return { data: null, error: error.message };
   if (!data) return { data: null, error: "Mensagem não encontrada." };
 
+  const metadata =
+    data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata)
+      ? (data.metadata as Record<string, unknown>)
+      : null;
+  const senderType = metadata?.sender_type === "user" ? "user" : "system";
+  const asString = (value: unknown): string | null =>
+    typeof value === "string" && value.trim() ? value : null;
+
   return {
     data: {
       id: data.id,
@@ -1063,10 +1094,13 @@ export async function getMessageLogById(
       type: String(data.type ?? ""),
       sent_at: String(data.sent_at ?? ""),
       patient_name: (data as any).patients?.full_name ?? null,
-      metadata:
-        data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata)
-          ? (data.metadata as Record<string, unknown>)
-          : null,
+      sender_type: senderType,
+      sender_name: asString(metadata?.sender_name),
+      sender_email: asString(metadata?.sender_email),
+      subject: asString(metadata?.subject),
+      body_html: asString(metadata?.body_html),
+      body_text: asString(metadata?.body_text),
+      metadata,
     },
     error: null,
   };
