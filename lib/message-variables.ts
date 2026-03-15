@@ -16,6 +16,7 @@ export type VariableContext = {
     hora?: string;
     data_hora?: string;
     nome_medico?: string;
+    nome_procedimento?: string;
     tipo?: string;
     status?: string;
     local?: string;
@@ -134,9 +135,10 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
   "{{data_hora_consulta}}": (ctx) =>
     ctx.consulta?.data ? formatDateTime(ctx.consulta.data) : "",
   "{{nome_medico}}": (ctx) => ctx.consulta?.nome_medico || "",
+  "{{nome_procedimento}}": (ctx) => ctx.consulta?.nome_procedimento || "",
   "{{tipo_consulta}}": (ctx) => ctx.consulta?.tipo || "",
   "{{status_consulta}}": (ctx) => ctx.consulta?.status || "",
-  "{{local_consulta}}": (ctx) => ctx.consulta?.local || "",
+  "{{local_consulta}}": (ctx) => ctx.consulta?.local || ctx.clinica?.endereco || "",
 
   // Variáveis de recomendações/preparação
   "{{recomendacoes}}": (ctx) => ctx.consulta?.recomendacoes || "",
@@ -282,6 +284,7 @@ export async function buildVariableContext(data: {
       hora: data.appointment.scheduled_at || undefined,
       data_hora: data.appointment.scheduled_at || undefined,
       nome_medico: data.doctor?.full_name || undefined,
+      nome_procedimento: data.procedure?.name || undefined,
       tipo: data.appointmentType?.name || undefined,
       status: data.appointment.status || undefined,
       recomendacoes: data.appointment.recommendations || undefined,
@@ -306,6 +309,9 @@ export async function buildVariableContext(data: {
     context.formulario = {
       link,
       nome: data.formInstance.form_template?.name || undefined,
+      prazo: data.appointment?.scheduled_at
+        ? formatDate(data.appointment.scheduled_at)
+        : undefined,
     };
   }
 

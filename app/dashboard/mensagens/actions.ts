@@ -12,6 +12,11 @@ import {
 import { getAndSyncEffectiveTicketStatus } from "@/lib/whatsapp-ticket-status";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
+import { extractVariables, validateVariables } from "@/lib/message-variables";
+import {
+  getAllowedVariablesForEventChannel,
+  getDisallowedVariablesForEventChannel,
+} from "@/lib/message-variable-catalog";
 
 // ========== TIPOS ==========
 
@@ -180,6 +185,41 @@ async function getMessagingPlanAccess() {
     planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
   );
   return { emailAllowed, whatsappAllowed };
+}
+
+function composeTemplateValidationText(
+  subject: string | null,
+  bodyHtml: string,
+  bodyText: string | null
+): string {
+  return [subject || "", bodyHtml || "", bodyText || ""].join("\n");
+}
+
+function validateTemplateVariablesByEventChannel(input: {
+  eventCode: string;
+  channel: MessageChannel;
+  subject: string | null;
+  bodyHtml: string;
+  bodyText: string | null;
+}): string | null {
+  const text = composeTemplateValidationText(input.subject, input.bodyHtml, input.bodyText);
+  const syntaxValidation = validateVariables(text);
+  if (!syntaxValidation.valid) {
+    return `Variáveis não reconhecidas: ${syntaxValidation.missing.join(", ")}.`;
+  }
+
+  const disallowed = getDisallowedVariablesForEventChannel(
+    text,
+    input.eventCode,
+    input.channel
+  );
+  if (disallowed.length === 0) return null;
+
+  const allowed = getAllowedVariablesForEventChannel(input.eventCode, input.channel);
+  return [
+    `As variáveis ${disallowed.join(", ")} não estão disponíveis para este evento/canal.`,
+    `Use apenas: ${allowed.join(", ")}.`,
+  ].join(" ");
 }
 
 // ========== BUSCAR EVENTOS DISPONÍVEIS ==========
@@ -487,7 +527,7 @@ export async function createMessageTemplate(
   subject: string | null,
   bodyHtml: string,
   bodyText: string | null,
-  variablesUsed: string[] = [],
+  _variablesUsed: string[] = [],
   emailHeader: string | null = null,
   emailFooter: string | null = null,
   whatsappMetaPhrase: string | null = null
@@ -515,6 +555,19 @@ export async function createMessageTemplate(
     return { data: null, error: "Edição de templates de WhatsApp disponível nos planos com mensageria." };
   }
 
+  const validationError = validateTemplateVariablesByEventChannel({
+    eventCode,
+    channel,
+    subject,
+    bodyHtml,
+    bodyText,
+  });
+  if (validationError) return { data: null, error: validationError };
+
+  const variablesUsedNormalized = extractVariables(
+    composeTemplateValidationText(subject, bodyHtml, bodyText)
+  );
+
   const bodyPlain = bodyText?.trim() || bodyHtml.replace(/<[^>]*>/g, "").trim() || "";
   const insertData: Record<string, unknown> = {
     clinic_id: profile.clinic_id,
@@ -528,7 +581,7 @@ export async function createMessageTemplate(
     body_text: bodyText?.trim() || null,
     email_header: emailHeader?.trim() || null,
     email_footer: emailFooter?.trim() || null,
-    variables_used: variablesUsed,
+    variables_used: variablesUsedNormalized,
     is_active: true,
     is_default: false,
   };
@@ -603,7 +656,7 @@ export async function updateMessageTemplate(
   subject: string | null,
   bodyHtml: string,
   bodyText: string | null,
-  variablesUsed: string[] = [],
+  _variablesUsed: string[] = [],
   emailHeader: string | null = null,
   emailFooter: string | null = null,
   whatsappMetaPhrase?: string | null
@@ -622,7 +675,7 @@ export async function updateMessageTemplate(
 
   const { data: templateRow } = await supabase
     .from("message_templates")
-    .select("channel")
+    .select("channel, event_code")
     .eq("id", id)
     .eq("clinic_id", profile.clinic_id)
     .maybeSingle();
@@ -636,6 +689,23 @@ export async function updateMessageTemplate(
     return { data: null, error: "Edição de templates de WhatsApp disponível nos planos com mensageria." };
   }
 
+  const eventCode = String(templateRow.event_code || "");
+  const channel = templateRow.channel as MessageChannel;
+  if (!eventCode) return { data: null, error: "Template sem evento vinculado." };
+
+  const validationError = validateTemplateVariablesByEventChannel({
+    eventCode,
+    channel,
+    subject,
+    bodyHtml,
+    bodyText,
+  });
+  if (validationError) return { data: null, error: validationError };
+
+  const variablesUsedNormalized = extractVariables(
+    composeTemplateValidationText(subject, bodyHtml, bodyText)
+  );
+
   const updateData: Record<string, unknown> = {
     name: name.trim(),
     subject: subject?.trim() || null,
@@ -643,7 +713,7 @@ export async function updateMessageTemplate(
     body_text: bodyText?.trim() || null,
     email_header: emailHeader?.trim() ?? null,
     email_footer: emailFooter?.trim() ?? null,
-    variables_used: variablesUsed,
+    variables_used: variablesUsedNormalized,
   };
   if (whatsappMetaPhrase !== undefined) {
     updateData.whatsapp_meta_phrase = whatsappMetaPhrase?.trim() || null;

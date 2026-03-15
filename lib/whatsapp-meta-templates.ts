@@ -196,6 +196,11 @@ export function getMetaTemplateParams(
   const medico = (v.nome_medico || "").slice(0, 256);
   const dataHora = (v.data_hora_consulta || "").slice(0, 256);
   const instrucao = (v.instrucao_formulario || "").slice(0, 256);
+  const formLink = String(context.formulario?.link || "").trim();
+  const hasFormLink =
+    formLink.startsWith("http://") ||
+    formLink.startsWith("https://") ||
+    formLink.startsWith("/");
 
   switch (config.template) {
     case "flowmedi_consulta": {
@@ -205,7 +210,8 @@ export function getMetaTemplateParams(
       if (medico) blocos.push(`Profissional: ${medico}.`);
       if (instrucao && eventCode !== "appointment_created") blocos.push(instrucao);
       const mensagemCompleta = blocos.join("\n\n");
-      if (eventCode === "appointment_created" && instrucao) {
+      // Para consulta recém-criada, só usar template com formulário se houver link real.
+      if (eventCode === "appointment_created" && hasFormLink && instrucao) {
         return {
           template: "flowmedi_agenda_com_formulario",
           params: [nome, mensagemCompleta, instrucao],

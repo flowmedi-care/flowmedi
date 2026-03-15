@@ -34,38 +34,13 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-
-const AVAILABLE_VARIABLES = [
-  "{{primeiro_nome_paciente}}",
-  "{{nome_paciente}}",
-  "{{email_paciente}}",
-  "{{telefone_paciente}}",
-  "{{data_nascimento}}",
-  "{{data_consulta}}",
-  "{{hora_consulta}}",
-  "{{data_hora_consulta}}",
-  "{{nome_medico}}",
-  "{{tipo_consulta}}",
-  "{{nome_procedimento}}",
-  "{{status_consulta}}",
-  "{{recomendacoes}}",
-  "{{precisa_jejum}}",
-  "{{instrucoes_especiais}}",
-  "{{notas_preparo}}",
-  "{{preparo_completo}}",
-  "{{link_formulario}}",
-  "{{nome_formulario}}",
-  "{{prazo_formulario}}",
-  "{{instrucao_formulario}}",
-  "{{nome_clinica}}",
-  "{{telefone_clinica}}",
-  "{{endereco_clinica}}",
-];
+import { ALL_MESSAGE_TEMPLATE_VARIABLES } from "@/lib/message-variable-catalog";
 
 interface VisualEditorProps {
   initialBlocks?: EmailBlock[];
   onBlocksChange: (blocks: EmailBlock[]) => void;
   channel: "email" | "whatsapp";
+  availableVariables?: string[];
 }
 
 function SortableBlock({ 
@@ -112,7 +87,12 @@ function SortableBlock({
   );
 }
 
-export function VisualEditor({ initialBlocks = [], onBlocksChange, channel }: VisualEditorProps) {
+export function VisualEditor({
+  initialBlocks = [],
+  onBlocksChange,
+  channel,
+  availableVariables = ALL_MESSAGE_TEMPLATE_VARIABLES,
+}: VisualEditorProps) {
   const [blocks, setBlocks] = useState<EmailBlock[]>(initialBlocks);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -144,7 +124,7 @@ export function VisualEditor({ initialBlocks = [], onBlocksChange, channel }: Vi
     }
 
     if (type === "variable") {
-      newBlock.variableName = "";
+      newBlock.variableName = availableVariables[0] ?? "";
     }
 
     const newBlocks = [...blocks, newBlock];
@@ -362,7 +342,7 @@ export function VisualEditor({ initialBlocks = [], onBlocksChange, channel }: Vi
                           onDelete={() => handleDeleteBlock(block.id)}
                           isEditing={editingBlockId === block.id}
                           onEdit={() => setEditingBlockId(block.id === editingBlockId ? null : block.id)}
-                          availableVariables={AVAILABLE_VARIABLES}
+                          availableVariables={availableVariables}
                         />
                       ))}
                     </div>

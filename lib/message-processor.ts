@@ -579,12 +579,30 @@ export async function sendMessage(
         }
 
         const { getMetaTemplateParams } = await import("@/lib/whatsapp-meta-templates");
-        const metaTemplate = getMetaTemplateParams(eventCode, variables, whatsappMetaPhrase);
+        let metaTemplate = getMetaTemplateParams(eventCode, variables, whatsappMetaPhrase);
         if (!metaTemplate) {
           return {
             success: false,
             error:
               "Evento não possui mapeamento para template Meta. Ajuste o evento/template no sistema.",
+          };
+        }
+
+        // Safety net: em appointment_created sem link de formulário,
+        // nunca tentar o template agenda_com_formulario.
+        const formLink = String(variables?.formulario?.link || "").trim();
+        const hasFormLink =
+          formLink.startsWith("http://") ||
+          formLink.startsWith("https://") ||
+          formLink.startsWith("/");
+        if (
+          eventCode === "appointment_created" &&
+          !hasFormLink &&
+          metaTemplate.template === "flowmedi_agenda_com_formulario"
+        ) {
+          metaTemplate = {
+            template: "flowmedi_consulta",
+            params: metaTemplate.params.slice(0, 2),
           };
         }
 

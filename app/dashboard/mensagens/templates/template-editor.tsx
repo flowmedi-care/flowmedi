@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -18,14 +18,11 @@ import { ArrowLeft, Mail, MessageSquare, AlertCircle, Code2, Palette } from "luc
 import { VisualEditor, blocksToHtml } from "@/components/email-template-builder/visual-editor";
 import { EmailBlock } from "@/components/email-template-builder/types";
 import { htmlToBlocks } from "@/components/email-template-builder/html-converter";
-
-const AVAILABLE_VARIABLES = [
-  { category: "Paciente", vars: ["{{primeiro_nome_paciente}}", "{{nome_paciente}}", "{{email_paciente}}", "{{telefone_paciente}}", "{{data_nascimento}}"] },
-  { category: "Consulta", vars: ["{{data_consulta}}", "{{hora_consulta}}", "{{data_hora_consulta}}", "{{nome_medico}}", "{{tipo_consulta}}", "{{nome_procedimento}}", "{{status_consulta}}"] },
-  { category: "Preparação", vars: ["{{recomendacoes}}", "{{precisa_jejum}}", "{{instrucoes_especiais}}", "{{notas_preparo}}", "{{preparo_completo}}"] },
-  { category: "Formulário", vars: ["{{link_formulario}}", "{{nome_formulario}}", "{{prazo_formulario}}", "{{instrucao_formulario}}"] },
-  { category: "Clínica", vars: ["{{nome_clinica}}", "{{telefone_clinica}}", "{{endereco_clinica}}"] },
-];
+import {
+  getVariableGroupsForEventChannel,
+  getAllowedVariablesForEventChannel,
+  getOptionalBlankRiskVariablesForEventChannel,
+} from "@/lib/message-variable-catalog";
 
 export function TemplateEditor({
   templateId,
@@ -72,6 +69,22 @@ export function TemplateEditor({
   const isEdit = !!templateId;
   const variablesUsed = extractVariables(bodyHtml + (subject || ""));
   const validation = validateVariables(bodyHtml + (subject || ""));
+  const availableVariableGroups = useMemo(
+    () => getVariableGroupsForEventChannel(eventCode, channel),
+    [eventCode, channel]
+  );
+  const allowedVariables = useMemo(
+    () => getAllowedVariablesForEventChannel(eventCode, channel),
+    [eventCode, channel]
+  );
+  const unavailableVariables = useMemo(() => {
+    const allowedSet = new Set(allowedVariables);
+    return variablesUsed.filter((variable) => !allowedSet.has(variable));
+  }, [allowedVariables, variablesUsed]);
+  const optionalBlankRiskVariables = useMemo(
+    () => getOptionalBlankRiskVariablesForEventChannel(variablesUsed, eventCode, channel),
+    [variablesUsed, eventCode, channel]
+  );
 
   // Inicializa blocos a partir do HTML existente apenas uma vez
   useEffect(() => {
@@ -131,6 +144,12 @@ export function TemplateEditor({
 
     if (!bodyHtml.trim()) {
       setError("Corpo da mensagem é obrigatório");
+      return;
+    }
+    if (unavailableVariables.length > 0) {
+      setError(
+        `As variáveis ${unavailableVariables.join(", ")} não estão disponíveis para este evento/canal.`
+      );
       return;
     }
 
@@ -378,6 +397,7 @@ export function TemplateEditor({
                 initialBlocks={blocks}
                 onBlocksChange={handleBlocksChange}
                 channel={channel}
+                availableVariables={allowedVariables}
               />
             ) : (
               <div className="space-y-4">
@@ -397,12 +417,12 @@ export function TemplateEditor({
                     required
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    Use as variáveis disponíveis no painel ao lado. Exemplo: Olá {"{{"}nome_paciente{"}}"}, sua consulta está agendada para {"{{"}data_consulta{"}}"}.
+                    Use as variáveis disponíveis no painel ao lado. Exemplo: Olá {"{{"}primeiro_nome_paciente{"}}"}, sua consulta está agendada para {"{{"}data_consulta{"}}"}.
                   </p>
                 </div>
 
                 <div className="flex gap-2">
-                  {AVAILABLE_VARIABLES.map((group) => (
+                  {availableVariableGroups.map((group) => (
                     <div key={group.category} className="flex-1">
                       <p className="text-xs font-medium text-muted-foreground mb-1">
                         {group.category}
@@ -463,6 +483,19 @@ export function TemplateEditor({
               <div className="text-sm text-destructive p-3 bg-destructive/10 rounded border border-destructive/20">
                 <strong>Atenção:</strong> Variáveis não reconhecidas:{" "}
                 {validation.missing.join(", ")}
+              </div>
+            )}
+            {unavailableVariables.length > 0 && (
+              <div className="text-sm text-destructive p-3 bg-destructive/10 rounded border border-destructive/20">
+                <strong>Atenção:</strong> variáveis fora do escopo deste evento/canal:{" "}
+                {unavailableVariables.join(", ")}
+              </div>
+            )}
+            {optionalBlankRiskVariables.length > 0 && (
+              <div className="text-sm text-amber-700 p-3 bg-amber-50 rounded border border-amber-200">
+                <strong>Aviso:</strong> estas variáveis são opcionais e podem ficar em branco se não
+                estiverem preenchidas no cadastro/configuração:{" "}
+                {optionalBlankRiskVariables.join(", ")}
               </div>
             )}
 

@@ -12,6 +12,11 @@ import { Code2, Mail, MessageSquare, Palette, Plus } from "lucide-react";
 import { VisualEditor, blocksToHtml } from "@/components/email-template-builder/visual-editor";
 import { type EmailBlock } from "@/components/email-template-builder/types";
 import {
+  extractTemplateVariables,
+  getAllowedVariablesForEventChannel,
+  getOptionalBlankRiskVariablesForEventChannel,
+} from "@/lib/message-variable-catalog";
+import {
   createMessageTemplate,
   getClinicEmailBranding,
   type MessageEvent,
@@ -20,16 +25,6 @@ import {
 
 type ChannelChoice = "email" | "whatsapp" | "both";
 type WizardStep = "base" | "email" | "whatsapp" | "review";
-
-const EMAIL_AVAILABLE_VARIABLES = [
-  "{{primeiro_nome_paciente}}",
-  "{{data_consulta}}",
-  "{{hora_consulta}}",
-  "{{nome_medico}}",
-  "{{link_formulario}}",
-  "{{nome_clinica}}",
-  "{{telefone_clinica}}",
-];
 
 function toHtmlFromText(text: string) {
   return text
@@ -40,7 +35,7 @@ function toHtmlFromText(text: string) {
 }
 
 function composeWhatsappText(templateKey: SystemMetaTemplateKey, message: string) {
-  const core = message.trim() || "{{mensagem}}";
+  const core = message.trim() || "uma mensagem importante da clínica";
   if (templateKey === "flowmedi_formulario") {
     return `Olá {{primeiro_nome_paciente}}!\n\nPrecisamos da sua ajuda com um formulário da clínica.\n\n${core}\n\nObrigado pelo apoio.\n\n{{nome_clinica}}`;
   }
@@ -101,6 +96,22 @@ export function NewTemplateWizardModal({
 
   const includeEmail = channel === "email" || channel === "both";
   const includeWhatsapp = channel === "whatsapp" || channel === "both";
+  const emailAllowedVariables = useMemo(
+    () => getAllowedVariablesForEventChannel(eventCode, "email"),
+    [eventCode]
+  );
+  const emailUsedVariables = useMemo(
+    () => extractTemplateVariables(`${emailSubject}\n${emailBody}`),
+    [emailSubject, emailBody]
+  );
+  const emailUnavailableVariables = useMemo(() => {
+    const allowedSet = new Set(emailAllowedVariables);
+    return emailUsedVariables.filter((variable) => !allowedSet.has(variable));
+  }, [emailAllowedVariables, emailUsedVariables]);
+  const emailOptionalBlankRiskVariables = useMemo(
+    () => getOptionalBlankRiskVariablesForEventChannel(emailUsedVariables, eventCode, "email"),
+    [emailUsedVariables, eventCode]
+  );
 
   const steps = useMemo<WizardStep[]>(() => {
     return ["base", ...(includeEmail ? ["email" as const] : []), ...(includeWhatsapp ? ["whatsapp" as const] : []), "review"];
@@ -144,6 +155,9 @@ export function NewTemplateWizardModal({
     if (step === "email") {
       if (!emailSubject.trim()) return "Informe o assunto do email.";
       if (!emailBody.trim()) return "Informe o corpo do email.";
+      if (emailUnavailableVariables.length > 0) {
+        return `Variáveis fora do escopo deste evento/canal: ${emailUnavailableVariables.join(", ")}.`;
+      }
     }
     if (step === "whatsapp") {
       if (!whatsappMessage.trim()) return "Informe a mensagem principal do WhatsApp.";
@@ -350,6 +364,7 @@ export function NewTemplateWizardModal({
                     <VisualEditor
                       initialBlocks={emailBlocks}
                       channel="email"
+                      availableVariables={emailAllowedVariables}
                       onBlocksChange={(blocks) => {
                         setEmailBlocks(blocks);
                         setEmailBody(blocksToHtml(blocks));
@@ -369,7 +384,7 @@ export function NewTemplateWizardModal({
                         />
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {EMAIL_AVAILABLE_VARIABLES.map((variable) => (
+                        {emailAllowedVariables.map((variable) => (
                           <Button
                             key={variable}
                             type="button"
@@ -381,6 +396,17 @@ export function NewTemplateWizardModal({
                           </Button>
                         ))}
                       </div>
+                      {emailUnavailableVariables.length > 0 && (
+                        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                          Variáveis fora do escopo deste evento/canal: {emailUnavailableVariables.join(", ")}
+                        </div>
+                      )}
+                      {emailOptionalBlankRiskVariables.length > 0 && (
+                        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                          Estas variáveis podem ficar em branco se não estiverem preenchidas:{" "}
+                          {emailOptionalBlankRiskVariables.join(", ")}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
