@@ -720,6 +720,21 @@ export async function sendMessage(
             }
           }
         }
+
+        // A Meta pode rejeitar parâmetros vazios (#132018). Normalizamos com fallback.
+        if (templateParams.length > 0) {
+          const clinicName = String(variables?.clinica?.nome || "").slice(0, 256);
+          const defaults = [
+            "Paciente",
+            "Temos uma atualização da sua clínica.",
+            clinicName || "Equipe da clínica",
+          ];
+          templateParams = templateParams.map((param, index) => {
+            const normalized = String(param ?? "").trim();
+            if (normalized) return normalized;
+            return defaults[index] ?? "Informação indisponível.";
+          });
+        }
       }
       
       sendResult = await sendWhatsApp(
