@@ -105,15 +105,20 @@ export function TemplatesListClient({
   const showSaved = mode === "all" || mode === "saved";
   const showSystem = mode === "all" || mode === "system";
   const showMeta = mode === "all" || mode === "meta";
+  const showSectionTitles = mode === "all";
 
   return (
     <div className="space-y-8">
       {/* 1. Templates salvos (configurados/editados pelos usuários) */}
       {showSaved && <section>
-        <h2 className="text-lg font-semibold text-foreground mb-2">Templates salvos</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Os que você configurou ou editou.
-        </p>
+        {showSectionTitles && (
+          <>
+            <h2 className="text-lg font-semibold text-foreground mb-2">Templates salvos</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Os que você configurou ou editou.
+            </p>
+          </>
+        )}
         {savedTemplates.length === 0 ? (
           <Card className="p-6">
             <p className="text-muted-foreground mb-4">Nenhum template criado ainda.</p>
@@ -177,10 +182,14 @@ export function TemplatesListClient({
 
       {/* 2. Templates do sistema */}
       {showSystem && <section>
-        <h2 className="text-lg font-semibold text-foreground mb-2">Templates do sistema</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Padrão por evento (Email e WhatsApp separados). Use “Usar e editar” para copiar e personalizar.
-        </p>
+        {showSectionTitles && (
+          <>
+            <h2 className="text-lg font-semibold text-foreground mb-2">Templates do sistema</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Padrão por evento (Email e WhatsApp separados). Use “Usar e editar” para copiar e personalizar.
+            </p>
+          </>
+        )}
         {systemTemplates.length === 0 ? (
           <Card className="p-6">
             <p className="text-muted-foreground">
