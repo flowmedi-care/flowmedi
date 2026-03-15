@@ -24,6 +24,9 @@ interface SubmitTemplateOptions {
 export interface CreateMetaTemplateOptions {
   name: string;
   bodyText: string;
+  language?: string;
+  category?: "UTILITY" | "MARKETING" | "AUTHENTICATION";
+  components?: Array<Record<string, unknown>>;
 }
 
 export interface MetaTemplateSummary {
@@ -269,6 +272,19 @@ export async function createMetaTemplate(
     }
 
     const templateName = sanitizeMetaTemplateName(options.name);
+    const language = options.language || "pt_BR";
+    const category = options.category || "UTILITY";
+    const components = Array.isArray(options.components) && options.components.length > 0
+      ? options.components
+      : [
+          {
+            type: "BODY",
+            text: options.bodyText,
+            example: {
+              body_text: buildBodyTextExample(options.bodyText),
+            },
+          },
+        ];
     const createUrl = `https://graph.facebook.com/v23.0/${wabaId}/message_templates`;
     const response = await fetch(createUrl, {
       method: "POST",
@@ -278,18 +294,10 @@ export async function createMetaTemplate(
       },
       body: JSON.stringify({
         name: templateName,
-        category: "UTILITY",
-        language: "pt_BR",
+        category,
+        language,
         parameter_format: "positional",
-        components: [
-          {
-            type: "BODY",
-            text: options.bodyText,
-            example: {
-              body_text: buildBodyTextExample(options.bodyText),
-            },
-          },
-        ],
+        components,
       }),
     });
 

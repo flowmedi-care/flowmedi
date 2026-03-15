@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Mail, MessageSquare, Plus } from "lucide-react";
+import { Code2, Mail, MessageSquare, Palette, Plus } from "lucide-react";
+import { VisualEditor, blocksToHtml } from "@/components/email-template-builder/visual-editor";
+import { type EmailBlock } from "@/components/email-template-builder/types";
 import {
   createMessageTemplate,
   getClinicEmailBranding,
@@ -18,6 +20,16 @@ import {
 
 type ChannelChoice = "email" | "whatsapp" | "both";
 type WizardStep = "base" | "email" | "whatsapp" | "review";
+
+const EMAIL_AVAILABLE_VARIABLES = [
+  "{{nome_paciente}}",
+  "{{data_consulta}}",
+  "{{hora_consulta}}",
+  "{{nome_medico}}",
+  "{{link_formulario}}",
+  "{{nome_clinica}}",
+  "{{telefone_clinica}}",
+];
 
 function toHtmlFromText(text: string) {
   return text
@@ -76,6 +88,8 @@ export function NewTemplateWizardModal({
   const [channel, setChannel] = useState<ChannelChoice>("email");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
+  const [emailBlocks, setEmailBlocks] = useState<EmailBlock[]>([]);
+  const [emailEditorMode, setEmailEditorMode] = useState<"visual" | "html">("visual");
   const [whatsappTemplateKey, setWhatsappTemplateKey] = useState<SystemMetaTemplateKey>("flowmedi_consulta");
   const [whatsappMessage, setWhatsappMessage] = useState("");
   const [step, setStep] = useState<WizardStep>("base");
@@ -107,6 +121,8 @@ export function NewTemplateWizardModal({
     setChannel("email");
     setEmailSubject("");
     setEmailBody("");
+    setEmailBlocks([]);
+    setEmailEditorMode("visual");
     setWhatsappTemplateKey("flowmedi_consulta");
     setWhatsappMessage("");
     setStep("base");
@@ -167,7 +183,7 @@ export function NewTemplateWizardModal({
           channel === "both" ? `${name} - Email` : name,
           "email",
           emailSubject.trim(),
-          toHtmlFromText(emailBody),
+          emailBody,
           emailBody,
           [],
           null,
@@ -207,7 +223,22 @@ export function NewTemplateWizardModal({
   }
 
   const whatsappPreview = composeWhatsappText(whatsappTemplateKey, whatsappMessage);
-  const emailPreviewHtml = `${emailHeader || ""}${toHtmlFromText(emailBody)}${emailFooter || ""}`;
+  const emailPreviewHtml = `${emailHeader || ""}${emailBody || ""}${emailFooter || ""}`;
+  const emailBodyText = emailBody.replace(/<[^>]*>/g, "").trim();
+
+  function insertVariableOnHtml(variable: string) {
+    const id = "wizard-email-html";
+    const textarea = document.getElementById(id) as HTMLTextAreaElement | null;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const newText = emailBody.substring(0, start) + variable + emailBody.substring(end);
+    setEmailBody(newText);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + variable.length, start + variable.length);
+    }, 0);
+  }
 
   return (
     <>
@@ -291,20 +322,72 @@ export function NewTemplateWizardModal({
                     <Label>Assunto</Label>
                     <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Assunto do email" />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Corpo da mensagem</Label>
-                    <Textarea
-                      value={emailBody}
-                      onChange={(e) => setEmailBody(e.target.value)}
-                      rows={14}
-                      placeholder="Digite aqui a mensagem do email..."
-                    />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={emailEditorMode === "visual" ? "default" : "outline"}
+                      onClick={() => setEmailEditorMode("visual")}
+                    >
+                      <Palette className="h-4 w-4 mr-2" />
+                      Visual
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={emailEditorMode === "html" ? "default" : "outline"}
+                      onClick={() => setEmailEditorMode("html")}
+                    >
+                      <Code2 className="h-4 w-4 mr-2" />
+                      HTML
+                    </Button>
                   </div>
+
+                  {emailEditorMode === "visual" ? (
+                    <VisualEditor
+                      initialBlocks={emailBlocks}
+                      channel="email"
+                      onBlocksChange={(blocks) => {
+                        setEmailBlocks(blocks);
+                        setEmailBody(blocksToHtml(blocks));
+                      }}
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label>Corpo da mensagem (HTML)</Label>
+                        <Textarea
+                          id="wizard-email-html"
+                          value={emailBody}
+                          onChange={(e) => setEmailBody(e.target.value)}
+                          rows={14}
+                          className="font-mono text-sm"
+                          placeholder="Digite aqui o HTML do email..."
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {EMAIL_AVAILABLE_VARIABLES.map((variable) => (
+                          <Button
+                            key={variable}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => insertVariableOnHtml(variable)}
+                          >
+                            {variable}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <Card className="p-3 overflow-auto max-h-[60vh]">
                   <p className="text-xs text-muted-foreground mb-2">Preview do email (com cabeçalho/rodapé)</p>
                   <p className="text-sm rounded bg-muted/50 p-2 mb-3">
                     <strong>Assunto:</strong> {emailSubject || "(sem assunto)"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Texto plano: {emailBodyText || "(vazio)"}
                   </p>
                   <div
                     className="rounded bg-white p-2 text-sm"

@@ -84,12 +84,23 @@ export type MetaMessageModelDraft = {
   event_code: string;
   template_key: SystemMetaTemplateKey;
   body_text: string;
+  meta_language: string;
+  meta_components: Array<Record<string, unknown>>;
   status: "draft" | "ready_to_submit" | "submitted";
   meta_template_id: string | null;
   meta_status: WhatsAppTemplateReviewStatus | null;
   last_error: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type MetaMessageModelPayload = {
+  name: string;
+  eventCode: string;
+  templateKey: SystemMetaTemplateKey;
+  bodyText: string;
+  metaLanguage?: string;
+  metaComponents?: Array<Record<string, unknown>>;
 };
 
 const SYSTEM_META_TEMPLATE_DEFS: Array<{
@@ -879,46 +890,70 @@ export async function getClinicMetaMessageModels(): Promise<{
 
   const { data, error } = await ctx.supabase
     .from("clinic_meta_message_models")
-    .select("id, name, event_code, template_key, body_text, status, meta_template_id, meta_status, last_error, created_at, updated_at")
+    .select("id, name, event_code, template_key, body_text, meta_language, meta_components, status, meta_template_id, meta_status, last_error, created_at, updated_at")
     .eq("clinic_id", ctx.clinicId)
     .order("created_at", { ascending: false });
 
   if (error) {
-    if (error.message.toLowerCase().includes("relation") && error.message.toLowerCase().includes("does not exist")) {
+    const msg = error.message.toLowerCase();
+    if (
+      (msg.includes("relation") && msg.includes("does not exist")) ||
+      msg.includes("meta_components") ||
+      msg.includes("meta_language")
+    ) {
       return {
         data: [],
-        error: "Tabela de modelos Meta não encontrada. Execute a migration correspondente.",
+        error: "Estrutura de modelos Meta desatualizada. Execute as migrations de modelos Meta.",
       };
     }
     return { data: null, error: error.message };
   }
-  return { data: (data ?? []) as MetaMessageModelDraft[], error: null };
+  const normalized = ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    id: String(row.id ?? ""),
+    name: String(row.name ?? ""),
+    event_code: String(row.event_code ?? ""),
+    template_key: String(row.template_key ?? "") as SystemMetaTemplateKey,
+    body_text: String(row.body_text ?? ""),
+    meta_language: typeof row.meta_language === "string" && row.meta_language.trim() ? row.meta_language : "pt_BR",
+    meta_components: Array.isArray(row.meta_components)
+      ? (row.meta_components as Array<Record<string, unknown>>)
+      : [],
+    status:
+      row.status === "submitted" || row.status === "ready_to_submit"
+        ? row.status
+        : "draft",
+    meta_template_id: row.meta_template_id ? String(row.meta_template_id) : null,
+    meta_status: row.meta_status ? (String(row.meta_status) as WhatsAppTemplateReviewStatus) : null,
+    last_error: row.last_error ? String(row.last_error) : null,
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+  }));
+  return { data: normalized, error: null };
 }
 
 export async function createClinicMetaMessageModel(
-  name: string,
-  eventCode: string,
-  templateKey: SystemMetaTemplateKey,
-  bodyText: string
+  payload: MetaMessageModelPayload
 ): Promise<{ data: MetaMessageModelDraft | null; error: string | null }> {
   const ctx = await getClinicAdminContext();
   if (ctx.error || !ctx.clinicId) return { data: null, error: ctx.error };
 
-  if (!name.trim()) return { data: null, error: "Nome do modelo é obrigatório." };
-  if (!eventCode.trim()) return { data: null, error: "Evento é obrigatório." };
-  if (!bodyText.trim()) return { data: null, error: "Texto da mensagem é obrigatório." };
+  if (!payload.name.trim()) return { data: null, error: "Nome do modelo é obrigatório." };
+  if (!payload.eventCode.trim()) return { data: null, error: "Evento é obrigatório." };
+  if (!payload.bodyText.trim()) return { data: null, error: "Texto da mensagem é obrigatório." };
 
   const { data, error } = await ctx.supabase
     .from("clinic_meta_message_models")
     .insert({
       clinic_id: ctx.clinicId,
-      name: name.trim(),
-      event_code: eventCode.trim(),
-      template_key: templateKey,
-      body_text: bodyText.trim(),
+      name: payload.name.trim(),
+      event_code: payload.eventCode.trim(),
+      template_key: payload.templateKey,
+      body_text: payload.bodyText.trim(),
+      meta_language: payload.metaLanguage?.trim() || "pt_BR",
+      meta_components: Array.isArray(payload.metaComponents) ? payload.metaComponents : [],
       status: "draft",
     })
-    .select("id, name, event_code, template_key, body_text, status, meta_template_id, meta_status, last_error, created_at, updated_at")
+    .select("id, name, event_code, template_key, body_text, meta_language, meta_components, status, meta_template_id, meta_status, last_error, created_at, updated_at")
     .single();
 
   if (error) return { data: null, error: error.message };
@@ -953,7 +988,7 @@ export async function submitClinicMetaMessageModel(
 
   const { data: model, error: modelError } = await ctx.supabase
     .from("clinic_meta_message_models")
-    .select("id, name, body_text, template_key")
+    .select("id, name, body_text, template_key, meta_language, meta_components")
     .eq("id", id)
     .eq("clinic_id", ctx.clinicId)
     .single();
@@ -976,6 +1011,12 @@ export async function submitClinicMetaMessageModel(
     {
       name: modelName,
       bodyText: String(model.body_text || ""),
+      language: typeof model.meta_language === "string" && model.meta_language.trim()
+        ? model.meta_language
+        : "pt_BR",
+      components: Array.isArray(model.meta_components) && model.meta_components.length > 0
+        ? (model.meta_components as Array<Record<string, unknown>>)
+        : undefined,
     },
     ctx.supabase
   );

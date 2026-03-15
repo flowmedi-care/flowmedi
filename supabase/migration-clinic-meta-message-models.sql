@@ -6,6 +6,8 @@ create table if not exists public.clinic_meta_message_models (
   event_code text not null,
   template_key text not null check (template_key in ('flowmedi_consulta', 'flowmedi_formulario', 'flowmedi_aviso', 'flowmedi_mensagem_livre')),
   body_text text not null,
+  meta_language text not null default 'pt_BR',
+  meta_components jsonb not null default '[]'::jsonb,
   status text not null default 'draft' check (status in ('draft', 'ready_to_submit', 'submitted')),
   meta_template_id text null,
   meta_status text null,
