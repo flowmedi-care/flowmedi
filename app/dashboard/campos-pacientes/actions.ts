@@ -17,6 +17,42 @@ export type CustomFieldInsert = {
 
 export type CustomFieldUpdate = Partial<CustomFieldInsert>;
 
+function normalizeFieldName(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+async function buildUniqueFieldName(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  requestedName: string,
+  fallbackLabel: string
+): Promise<string> {
+  const base = normalizeFieldName(requestedName || fallbackLabel || "campo");
+  const safeBase = base || "campo";
+
+  const { data: existing, error } = await supabase
+    .from("patient_custom_fields")
+    .select("field_name")
+    .eq("clinic_id", clinicId)
+    .ilike("field_name", `${safeBase}%`);
+
+  if (error) return safeBase;
+
+  const existingNames = new Set((existing ?? []).map((item) => item.field_name));
+  if (!existingNames.has(safeBase)) return safeBase;
+
+  let suffix = 2;
+  while (existingNames.has(`${safeBase}_${suffix}`)) {
+    suffix += 1;
+  }
+  return `${safeBase}_${suffix}`;
+}
+
 export async function createCustomField(data: CustomFieldInsert) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -48,9 +84,16 @@ export async function createCustomField(data: CustomFieldInsert) {
     }
   }
 
+  const uniqueFieldName = await buildUniqueFieldName(
+    supabase,
+    profile.clinic_id,
+    data.field_name,
+    data.field_label
+  );
+
   const { error } = await supabase.from("patient_custom_fields").insert({
     clinic_id: profile.clinic_id,
-    field_name: data.field_name,
+    field_name: uniqueFieldName,
     field_type: data.field_type,
     field_label: data.field_label,
     required: data.required,

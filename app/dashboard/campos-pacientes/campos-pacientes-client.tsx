@@ -31,6 +31,14 @@ export function CamposPacientesClient({
 }: {
   initialFields: CustomFieldRow[];
 }) {
+  const normalizeFieldName = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+
   const [fields, setFields] = useState<CustomFieldRow[]>(initialFields);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -113,13 +121,20 @@ export function CamposPacientesClient({
     setError(null);
     setLoading(true);
 
-    const fieldName = form.field_name.trim().toLowerCase().replace(/\s+/g, "_");
+    const nameSource = form.field_name.trim() || form.field_label.trim();
+    const fieldName = normalizeFieldName(nameSource);
     const options = form.field_type === "select" && optionsText.trim()
       ? optionsText.split(",").map((o) => o.trim()).filter(Boolean)
       : [];
 
     if (form.field_type === "select" && options.length === 0) {
       setError("Campos do tipo 'Seleção' precisam ter pelo menos uma opção.");
+      setLoading(false);
+      return;
+    }
+
+    if (!fieldName) {
+      setError("Informe um rótulo válido para gerar o nome interno do campo.");
       setLoading(false);
       return;
     }
