@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/toast";
-import { Copy, Loader2, Pencil, Send, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Send, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getEditWindowRemainingMs,
@@ -286,27 +286,6 @@ export function SugestoesClient() {
     }
   }
 
-  async function copyPageLink() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast("Link da página copiado.", "success");
-    } catch {
-      toast("Não foi possível copiar o link da página.", "error");
-    }
-  }
-
-  async function copyEditLink(id: string) {
-    const token = ownedTokens[id];
-    if (!token) return;
-    const link = `${window.location.origin}/edit/${token}`;
-    try {
-      await navigator.clipboard.writeText(link);
-      toast("Link secreto de edição copiado.", "success");
-    } catch {
-      toast("Não foi possível copiar o link de edição.", "error");
-    }
-  }
-
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[1fr_1.15fr]">
       <Card className="h-fit border-border/80">
@@ -347,11 +326,6 @@ export function SugestoesClient() {
                   Enviar sugestão
                 </>
               )}
-            </Button>
-
-            <Button variant="outline" onClick={copyPageLink}>
-              <Copy className="h-4 w-4" />
-              Copiar link da página
             </Button>
           </div>
         </CardContent>
@@ -467,14 +441,6 @@ export function SugestoesClient() {
                           </>
                         )}
 
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => void copyEditLink(suggestion.id)}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          Copiar link secreto
-                        </Button>
                       </div>
                     </div>
                   ) : null}
