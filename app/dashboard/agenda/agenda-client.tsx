@@ -503,8 +503,22 @@ export function AgendaClient({
   // Filtrar appointments pelo período e filtros apenas para visualização
   // Mas manter todos os appointments disponíveis para drag and drop
   const appointmentsInPeriod = useMemo(() => {
-    const ymdStart = toYMD(rangeStart);
-    const ymdEnd = toYMD(rangeEnd);
+    // Na visão de calendário, sempre filtrar pelo período visual completo
+    // (semana inteira ou mês inteiro), não apenas pelo dateInicio bruto.
+    let effectiveStart = rangeStart;
+    let effectiveEnd = rangeEnd;
+    if (viewMode === "calendar") {
+      if (calendarGranularity === "week") {
+        effectiveStart = getStartOfWeek(rangeStart);
+        effectiveEnd = getEndOfWeek(rangeStart);
+      } else if (calendarGranularity === "month") {
+        effectiveStart = getStartOfMonth(rangeStart);
+        effectiveEnd = getEndOfMonth(rangeStart);
+      }
+    }
+
+    const ymdStart = toYMD(effectiveStart);
+    const ymdEnd = toYMD(effectiveEnd);
     
     const filtered = appointments.filter((a) => {
       // Filtro por período
@@ -552,7 +566,16 @@ export function AgendaClient({
     });
     
     return filtered;
-  }, [appointments, rangeStart, rangeEnd, statusFilter, formFilter, filterByServiceId]);
+  }, [
+    appointments,
+    rangeStart,
+    rangeEnd,
+    viewMode,
+    calendarGranularity,
+    statusFilter,
+    formFilter,
+    filterByServiceId,
+  ]);
 
   const getEventStyle = useCallback(
     (appointment: AppointmentRow) =>
