@@ -520,6 +520,8 @@ export async function updateClinicInfo(data: {
   whatsapp_url?: string | null;
   facebook_url?: string | null;
   instagram_url?: string | null;
+  agenda_work_start?: string | null;
+  agenda_work_end?: string | null;
 }): Promise<{ error: string | null }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -543,6 +545,31 @@ export async function updateClinicInfo(data: {
   if (data.whatsapp_url !== undefined) updateData.whatsapp_url = data.whatsapp_url?.trim() || null;
   if (data.facebook_url !== undefined) updateData.facebook_url = data.facebook_url?.trim() || null;
   if (data.instagram_url !== undefined) updateData.instagram_url = data.instagram_url?.trim() || null;
+  const normalizeTime = (value: string): string | null => {
+    const cleaned = String(value || "").trim();
+    const match = cleaned.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const h = Number(match[1]);
+    const m = Number(match[2]);
+    if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+  };
+  const startInput =
+    data.agenda_work_start !== undefined ? data.agenda_work_start : undefined;
+  const endInput =
+    data.agenda_work_end !== undefined ? data.agenda_work_end : undefined;
+  if (startInput !== undefined || endInput !== undefined) {
+    const start = normalizeTime(startInput ?? "07:00");
+    const end = normalizeTime(endInput ?? "20:00");
+    if (!start || !end) {
+      return { error: "Horários da agenda inválidos. Use o formato HH:mm." };
+    }
+    if (start > end) {
+      return { error: "O início do expediente não pode ser maior que o final." };
+    }
+    updateData.agenda_work_start = start;
+    updateData.agenda_work_end = end;
+  }
 
   const { error } = await supabase
     .from("clinics")

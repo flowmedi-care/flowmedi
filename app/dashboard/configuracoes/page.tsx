@@ -22,7 +22,7 @@ export default async function ConfiguracoesPage() {
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("name, logo_url, logo_scale, phone, email, address, whatsapp_url, facebook_url, instagram_url, compliance_confirmation_days, compliance_form_days, whatsapp_monthly_post24h_limit, auto_message_send_start, auto_message_send_end, auto_message_timezone, services_pricing_mode")
+    .select("name, logo_url, logo_scale, agenda_work_start, agenda_work_end, phone, email, address, whatsapp_url, facebook_url, instagram_url, compliance_confirmation_days, compliance_form_days, whatsapp_monthly_post24h_limit, auto_message_send_start, auto_message_send_end, auto_message_timezone, services_pricing_mode")
     .eq("id", profile.clinic_id)
     .single();
   const { data: reportGoals } = await supabase
@@ -51,6 +51,8 @@ export default async function ConfiguracoesPage() {
         clinicName={clinic?.name ?? null}
         clinicLogoUrl={clinic?.logo_url ?? null}
         clinicLogoScale={clinic?.logo_scale ?? 100}
+        clinicAgendaWorkStart={clinic?.agenda_work_start ?? "07:00:00"}
+        clinicAgendaWorkEnd={clinic?.agenda_work_end ?? "20:00:00"}
         clinicPhone={clinic?.phone ?? null}
         clinicEmail={clinic?.email ?? null}
         clinicAddress={clinic?.address ?? null}

@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS public.clinics (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   name text NOT NULL,
   slug text,
+  agenda_work_start time without time zone NOT NULL DEFAULT '07:00:00'::time,
+  agenda_work_end time without time zone NOT NULL DEFAULT '20:00:00'::time,
   plan_id uuid REFERENCES public.plans(id),
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()

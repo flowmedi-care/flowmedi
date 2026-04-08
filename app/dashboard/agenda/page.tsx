@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AgendaClient, type AppointmentRow } from "./agenda-client";
 
@@ -17,6 +17,31 @@ export default async function AgendaPage() {
   const preferences = (profile?.preferences as Record<string, unknown>) || {};
 
   const clinicId = profile.clinic_id;
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("agenda_work_start, agenda_work_end")
+    .eq("id", clinicId)
+    .single();
+  const parseHour = (value: string | null | undefined): number | null => {
+    if (!value) return null;
+    const hour = Number.parseInt(value.split(":")[0] ?? "", 10);
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+    return hour;
+  };
+  const parsedStartHour = parseHour(clinic?.agenda_work_start);
+  const parsedEndHour = parseHour(clinic?.agenda_work_end);
+  const agendaStartHour =
+    parsedStartHour !== null &&
+    parsedEndHour !== null &&
+    parsedStartHour <= parsedEndHour
+      ? parsedStartHour
+      : 7;
+  const agendaEndHour =
+    parsedStartHour !== null &&
+    parsedEndHour !== null &&
+    parsedStartHour <= parsedEndHour
+      ? parsedEndHour
+      : 20;
 
   // Secretário(a): médicos que ela administra (para filtrar appointments e lista de médicos)
   let allowedDoctorIds: string[] = [];
@@ -212,6 +237,8 @@ export default async function AgendaPage() {
     <div className="space-y-4">
       <AgendaClient
         appointments={rows}
+        agendaStartHour={agendaStartHour}
+        agendaEndHour={agendaEndHour}
         patients={(patients ?? []).map((p) => ({
           id: p.id,
           full_name: p.full_name,

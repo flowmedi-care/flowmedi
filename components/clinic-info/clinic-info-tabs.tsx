@@ -16,6 +16,8 @@ interface ClinicInfoTabsProps {
     name: string | null;
     logoUrl: string | null;
     logoScale: number;
+    agendaWorkStart: string | null;
+    agendaWorkEnd: string | null;
     phone: string | null;
     email: string | null;
     address: string | null;
@@ -28,6 +30,12 @@ interface ClinicInfoTabsProps {
 export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: ClinicInfoTabsProps) {
   const [activeTab, setActiveTab] = useState<"info" | "logo" | "contact">("info");
   const [name, setName] = useState(initialData.name || "");
+  const [agendaWorkStart, setAgendaWorkStart] = useState(
+    String(initialData.agendaWorkStart || "07:00:00").slice(0, 5)
+  );
+  const [agendaWorkEnd, setAgendaWorkEnd] = useState(
+    String(initialData.agendaWorkEnd || "20:00:00").slice(0, 5)
+  );
   const [phone, setPhone] = useState(initialData.phone || "");
   const [email, setEmail] = useState(initialData.email || "");
   const [address, setAddress] = useState(initialData.address || "");
@@ -51,6 +59,8 @@ export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: Clin
       whatsapp_url: whatsappUrl.trim() || null,
       facebook_url: facebookUrl.trim() || null,
       instagram_url: instagramUrl.trim() || null,
+      agenda_work_start: agendaWorkStart,
+      agenda_work_end: agendaWorkEnd,
     });
 
     setSaving(false);
@@ -127,6 +137,29 @@ export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: Clin
                 Este nome será usado em emails, formulários e outras comunicações
               </p>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="agenda-work-start">Início do expediente</Label>
+                <Input
+                  id="agenda-work-start"
+                  type="time"
+                  value={agendaWorkStart}
+                  onChange={(e) => setAgendaWorkStart(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="agenda-work-end">Final do expediente</Label>
+                <Input
+                  id="agenda-work-end"
+                  type="time"
+                  value={agendaWorkEnd}
+                  onChange={(e) => setAgendaWorkEnd(e.target.value)}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Esses horários definem a grade exibida na agenda semanal (padrão 07:00-20:00).
+            </p>
             <Button className="w-full sm:w-auto" onClick={handleSaveInfo} disabled={saving || !name.trim()}>
               {saving ? "Salvando..." : "Salvar Informações"}
             </Button>

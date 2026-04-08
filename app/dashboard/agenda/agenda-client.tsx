@@ -167,6 +167,8 @@ export type PricingDimensionValueOption = { id: string; dimension_id: string; no
 
 export function AgendaClient({
   appointments,
+  agendaStartHour = 7,
+  agendaEndHour = 20,
   patients,
   doctors,
   appointmentTypes,
@@ -180,6 +182,8 @@ export function AgendaClient({
   initialPreferences,
 }: {
   appointments: AppointmentRow[];
+  agendaStartHour?: number;
+  agendaEndHour?: number;
   patients: PatientOption[];
   doctors: DoctorOption[];
   appointmentTypes: AppointmentTypeOption[];
@@ -1440,6 +1444,7 @@ export function AgendaClient({
           appointments={appointmentsInPeriod}
           currentDate={calendarDate}
           today={today}
+          hourSlots={getHourSlots(agendaStartHour, agendaEndHour)}
           getEventStyle={getEventStyle}
           getAccentColor={getAccentColor}
         />
@@ -1749,18 +1754,18 @@ function TimelineListView({
   return null;
 }
 
-const HOUR_SLOTS = getHourSlots(7, 20);
-
 function CalendarWeekView({
   appointments,
   currentDate,
   today,
+  hourSlots,
   getEventStyle,
   getAccentColor,
 }: {
   appointments: AppointmentRow[];
   currentDate: Date;
   today: Date;
+  hourSlots: number[];
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
   getAccentColor: (appointment: AppointmentRow) => string;
 }) {
@@ -1805,7 +1810,7 @@ function CalendarWeekView({
     const map: Record<string, Record<number, AppointmentRow[]>> = {};
     weekDays.forEach((d) => {
       map[toYMD(d)] = {};
-      HOUR_SLOTS.forEach((h) => {
+      hourSlots.forEach((h) => {
         map[toYMD(d)][h] = [];
       });
     });
@@ -1823,7 +1828,7 @@ function CalendarWeekView({
       });
     });
     return map;
-  }, [appointments, weekDays]);
+  }, [appointments, weekDays, hourSlots]);
 
   if (isMobile) {
     const selectedDayDate = weekDays.find((d) => toYMD(d) === selectedDayYmd) ?? weekDays[0] ?? today;
@@ -1944,7 +1949,7 @@ function CalendarWeekView({
               ))}
             </div>
           </div>
-          {HOUR_SLOTS.map((hour) => (
+          {hourSlots.map((hour) => (
             <div
               key={hour}
               className="grid grid-cols-[56px_1fr] border-b border-border min-h-[48px]"

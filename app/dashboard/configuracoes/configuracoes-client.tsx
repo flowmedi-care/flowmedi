@@ -28,6 +28,8 @@ export function ConfiguracoesClient({
   clinicName,
   clinicLogoUrl,
   clinicLogoScale,
+  clinicAgendaWorkStart,
+  clinicAgendaWorkEnd,
   clinicPhone,
   clinicEmail,
   clinicAddress,
@@ -50,6 +52,8 @@ export function ConfiguracoesClient({
   clinicName: string | null;
   clinicLogoUrl: string | null;
   clinicLogoScale: number;
+  clinicAgendaWorkStart: string;
+  clinicAgendaWorkEnd: string;
   clinicPhone: string | null;
   clinicEmail: string | null;
   clinicAddress: string | null;
@@ -157,6 +161,8 @@ export function ConfiguracoesClient({
           name: clinicName,
           logoUrl: clinicLogoUrl,
           logoScale: clinicLogoScale,
+          agendaWorkStart: clinicAgendaWorkStart,
+          agendaWorkEnd: clinicAgendaWorkEnd,
           phone: clinicPhone,
           email: clinicEmail,
           address: clinicAddress,
