@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -19,11 +18,11 @@ import type {
   ClinicalDocument,
   ClinicalDocumentTemplate,
   ClinicalDocumentType,
-  ExamItem,
-  MedicationItem,
   StructuredContent,
 } from "@/lib/clinical-documents/types";
-import { emptyStructuredContent } from "@/lib/clinical-documents/render";
+import { emptyStructuredContent, isExamCatalogSelection } from "@/lib/clinical-documents/render";
+import { MedicationPrescriptionEditor } from "./medication-prescription-editor";
+import { ExamChecklistEditor } from "./exam-checklist-editor";
 
 const TYPE_LABELS: Record<ClinicalDocumentType, { title: string; newLabel: string }> = {
   prescription: { title: "Receitas", newLabel: "Nova receita" },
@@ -111,7 +110,12 @@ export function ClinicalDocumentsClient({
     setEditingId(doc.id);
     setTitle(doc.title ?? "");
     setBodyText(doc.body_text);
-    setStructured(doc.structured_content);
+    const sc = doc.structured_content;
+    if (doc.type === "exam_request" && "exams" in sc && !("selectedExamIds" in sc)) {
+      setStructured({ selectedExamIds: [], examNotes: "" });
+    } else {
+      setStructured(sc);
+    }
     setView("edit");
     setError(null);
   }
@@ -146,7 +150,26 @@ export function ClinicalDocumentsClient({
     await load();
   }
 
+  function validateBeforeFinalize(): string | null {
+    if (type === "prescription" && "medications" in structured) {
+      const hasMed = structured.medications.some((m) => m.name.trim());
+      if (!hasMed) return "Adicione pelo menos um medicamento.";
+    }
+    if (type === "exam_request" && isExamCatalogSelection(structured)) {
+      if (structured.selectedExamIds.length === 0) {
+        return "Selecione pelo menos um exame.";
+      }
+    }
+    return null;
+  }
+
   async function handleFinalizeAndPrint() {
+    const validationErr = validateBeforeFinalize();
+    if (validationErr) {
+      setError(validationErr);
+      return;
+    }
+
     setFinalizing(true);
     setError(null);
 
@@ -243,42 +266,37 @@ export function ClinicalDocumentsClient({
                 </div>
               )}
 
-              <div>
-                <Label htmlFor="doc-title">Título (opcional)</Label>
-                <Input
-                  id="doc-title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder={type === "prescription" ? "Receituário médico" : "Pedido de exame"}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="doc-body">Texto do documento</Label>
-                <p className="text-xs text-muted-foreground mb-1">
-                  Variáveis: {"{{nome_paciente}}"}, {"{{cpf_paciente}}"}, {"{{data_emissao}}"}, etc.
-                </p>
-                <Textarea
-                  id="doc-body"
-                  value={bodyText}
-                  onChange={(e) => setBodyText(e.target.value)}
-                  rows={8}
-                  className="font-mono text-sm"
-                />
-              </div>
-
               {type === "prescription" && "medications" in structured && (
-                <StructuredMedications
-                  items={structured.medications}
+                <MedicationPrescriptionEditor
+                  medications={structured.medications}
                   onChange={(medications) => setStructured({ medications })}
                 />
               )}
 
-              {type === "exam_request" && "exams" in structured && (
-                <StructuredExams
-                  items={structured.exams}
-                  onChange={(exams) => setStructured({ exams })}
+              {type === "exam_request" && isExamCatalogSelection(structured) && (
+                <ExamChecklistEditor
+                  selectedIds={structured.selectedExamIds}
+                  examNotes={structured.examNotes ?? ""}
+                  onSelectionChange={(selectedExamIds) =>
+                    setStructured({ selectedExamIds, examNotes: structured.examNotes })
+                  }
+                  onNotesChange={(examNotes) =>
+                    setStructured({ selectedExamIds: structured.selectedExamIds, examNotes })
+                  }
                 />
+              )}
+
+              {type === "prescription" && (
+                <div>
+                  <Label htmlFor="doc-body">Observações adicionais (opcional)</Label>
+                  <Textarea
+                    id="doc-body"
+                    value={bodyText}
+                    onChange={(e) => setBodyText(e.target.value)}
+                    rows={3}
+                    placeholder="Orientações gerais ao paciente..."
+                  />
+                </div>
               )}
 
               <div className="flex flex-wrap gap-2 pt-2">
@@ -374,118 +392,3 @@ export function ClinicalDocumentsClient({
   );
 }
 
-function StructuredMedications({
-  items,
-  onChange,
-}: {
-  items: MedicationItem[];
-  onChange: (items: MedicationItem[]) => void;
-}) {
-  function update(i: number, field: keyof MedicationItem, value: string) {
-    const next = [...items];
-    next[i] = { ...next[i], [field]: value };
-    onChange(next);
-  }
-
-  function addRow() {
-    onChange([...items, { name: "", dosage: "", quantity: "", instructions: "" }]);
-  }
-
-  function removeRow(i: number) {
-    if (items.length <= 1) return;
-    onChange(items.filter((_, idx) => idx !== i));
-  }
-
-  return (
-    <div className="space-y-3">
-      <Label>Medicamentos</Label>
-      {items.map((m, i) => (
-        <div key={i} className="p-3 border rounded-md space-y-2 bg-muted/30">
-          <Input
-            placeholder="Nome do medicamento"
-            value={m.name}
-            onChange={(e) => update(i, "name", e.target.value)}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="Dosagem"
-              value={m.dosage}
-              onChange={(e) => update(i, "dosage", e.target.value)}
-            />
-            <Input
-              placeholder="Quantidade"
-              value={m.quantity}
-              onChange={(e) => update(i, "quantity", e.target.value)}
-            />
-          </div>
-          <Input
-            placeholder="Posologia / instruções"
-            value={m.instructions}
-            onChange={(e) => update(i, "instructions", e.target.value)}
-          />
-          {items.length > 1 && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(i)}>
-              Remover
-            </Button>
-          )}
-        </div>
-      ))}
-      <Button type="button" variant="outline" size="sm" onClick={addRow}>
-        <Plus className="h-4 w-4 mr-1" />
-        Adicionar medicamento
-      </Button>
-    </div>
-  );
-}
-
-function StructuredExams({
-  items,
-  onChange,
-}: {
-  items: ExamItem[];
-  onChange: (items: ExamItem[]) => void;
-}) {
-  function update(i: number, field: keyof ExamItem, value: string) {
-    const next = [...items];
-    next[i] = { ...next[i], [field]: value };
-    onChange(next);
-  }
-
-  function addRow() {
-    onChange([...items, { name: "", notes: "" }]);
-  }
-
-  function removeRow(i: number) {
-    if (items.length <= 1) return;
-    onChange(items.filter((_, idx) => idx !== i));
-  }
-
-  return (
-    <div className="space-y-3">
-      <Label>Exames solicitados</Label>
-      {items.map((e, i) => (
-        <div key={i} className="p-3 border rounded-md space-y-2 bg-muted/30">
-          <Input
-            placeholder="Nome do exame"
-            value={e.name}
-            onChange={(ev) => update(i, "name", ev.target.value)}
-          />
-          <Input
-            placeholder="Observações (jejum, contraste, etc.)"
-            value={e.notes}
-            onChange={(ev) => update(i, "notes", ev.target.value)}
-          />
-          {items.length > 1 && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(i)}>
-              Remover
-            </Button>
-          )}
-        </div>
-      ))}
-      <Button type="button" variant="outline" size="sm" onClick={addRow}>
-        <Plus className="h-4 w-4 mr-1" />
-        Adicionar exame
-      </Button>
-    </div>
-  );
-}

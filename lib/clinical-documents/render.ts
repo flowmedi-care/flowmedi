@@ -181,6 +181,12 @@ export function renderClinicalDocumentHtml(input: RenderDocumentInput): string {
 
 export function emptyStructuredContent(type: ClinicalDocumentType): StructuredContent {
   return type === "prescription"
-    ? { medications: [{ name: "", dosage: "", quantity: "", instructions: "" }] }
-    : { exams: [{ name: "", notes: "" }] };
+    ? { medications: [] }
+    : { selectedExamIds: [], examNotes: "" };
+}
+
+export function isExamCatalogSelection(
+  content: StructuredContent
+): content is { selectedExamIds: string[]; examNotes?: string } {
+  return "selectedExamIds" in content && Array.isArray(content.selectedExamIds);
 }

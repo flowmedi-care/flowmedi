@@ -21,11 +21,38 @@ export type MedicationItem = {
 export type ExamItem = {
   name: string;
   notes: string;
+  catalogId?: string;
+  category?: string;
 };
 
 export type StructuredContent =
   | { medications: MedicationItem[] }
-  | { exams: ExamItem[] };
+  | { exams: ExamItem[] }
+  | { selectedExamIds: string[]; examNotes?: string };
+
+export type MedicationCatalogItem = {
+  id: string;
+  clinic_id: string;
+  scope: ClinicalTemplateScope;
+  doctor_id: string | null;
+  name: string;
+  default_dosage: string;
+  default_quantity: string;
+  default_instructions: string;
+  display_order: number;
+  is_active: boolean;
+};
+
+export type ExamCatalogItem = {
+  id: string;
+  clinic_id: string;
+  scope: ClinicalTemplateScope;
+  doctor_id: string | null;
+  name: string;
+  category: string;
+  display_order: number;
+  is_active: boolean;
+};
 
 export type ClinicalDocumentTemplate = {
   id: string;

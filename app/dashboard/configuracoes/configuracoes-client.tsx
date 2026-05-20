@@ -16,6 +16,7 @@ import {
 import { IntegrationsSection } from "./integrations-section";
 import { ClinicInfoTabs } from "@/components/clinic-info/clinic-info-tabs";
 import { ClinicalTemplatesSection } from "../clinical-documents/clinical-templates-section";
+import { ClinicalCatalogSection } from "../clinical-documents/clinical-catalog-section";
 
 const BRAZIL_TIMEZONE_OPTIONS = [
   { value: "America/Sao_Paulo", label: "Brasilia: GMT+3" },
@@ -681,10 +682,22 @@ export function ConfiguracoesClient({
         </CardContent>
       </Card>
 
+      <ClinicalCatalogSection
+        kind="medication"
+        scope="clinic"
+        title="Medicamentos da clínica"
+        description="Lista compartilhada de medicamentos para os médicos usarem nas receitas."
+      />
+      <ClinicalCatalogSection
+        kind="exam"
+        scope="clinic"
+        title="Exames da clínica"
+        description="Catálogo de exames por categoria para pedidos com layout em checklist."
+      />
       <ClinicalTemplatesSection
         scope="clinic"
-        title="Templates da clínica (receitas e pedidos)"
-        description="Modelos compartilhados que todos os médicos da clínica podem usar ao emitir documentos."
+        title="Templates de texto da clínica"
+        description="Textos opcionais compartilhados entre os médicos."
       />
     </div>
   );

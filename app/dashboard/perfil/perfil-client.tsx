@@ -19,6 +19,7 @@ import {
 import { setProfileDimensionValueColors } from "./profile-dimension-colors-actions";
 import { DoctorProfessionalCard } from "./doctor-professional-card";
 import { ClinicalTemplatesSection } from "../clinical-documents/clinical-templates-section";
+import { ClinicalCatalogSection } from "../clinical-documents/clinical-catalog-section";
 
 const DEFAULT_MESSAGE =
   "Olá gostaria de obter mais informação sobre a consulta com o profissional [digite seu nome]";
@@ -268,10 +269,22 @@ export function PerfilClient({
         initialCrmUf={doctorCrmUf}
         initialSpecialty={doctorSpecialty}
       />
+      <ClinicalCatalogSection
+        kind="medication"
+        scope="doctor"
+        title="Meus medicamentos"
+        description="Cadastre os medicamentos que você prescreve com frequência. Na receita, basta clicar para adicionar."
+      />
+      <ClinicalCatalogSection
+        kind="exam"
+        scope="doctor"
+        title="Meus exames"
+        description="Cadastre exames por categoria (ex.: Próstata, Urinário). No pedido, marque os que deseja solicitar."
+      />
       <ClinicalTemplatesSection
         scope="doctor"
-        title="Meus templates de receita e pedido"
-        description="Modelos de texto pessoais para usar ao emitir documentos na consulta."
+        title="Meus templates de texto"
+        description="Textos opcionais para observações em receitas ou pedidos."
       />
       <Card>
         <CardHeader>

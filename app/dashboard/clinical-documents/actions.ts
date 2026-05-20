@@ -2,13 +2,17 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { renderClinicalDocumentHtml } from "@/lib/clinical-documents/render";
+import { renderClinicalDocumentHtml, isExamCatalogSelection } from "@/lib/clinical-documents/render";
+import { renderExamRequestModernHtml } from "@/lib/clinical-documents/render-exam-modern";
+import { renderPrescriptionModernHtml } from "@/lib/clinical-documents/render-prescription-modern";
 import type {
   ClinicalDocument,
   ClinicalDocumentTemplate,
   ClinicalDocumentType,
   DocumentRenderContext,
+  ExamCatalogItem,
   ExamItem,
+  MedicationCatalogItem,
   MedicationItem,
   StructuredContent,
 } from "@/lib/clinical-documents/types";
@@ -50,6 +54,12 @@ function parseStructuredContent(
       })),
     };
   }
+  if (type === "exam_request" && Array.isArray(obj.selectedExamIds)) {
+    return {
+      selectedExamIds: (obj.selectedExamIds as string[]).map(String),
+      examNotes: obj.examNotes ? String(obj.examNotes) : "",
+    };
+  }
   if (type === "exam_request" && Array.isArray(obj.exams)) {
     return {
       exams: (obj.exams as ExamItem[]).map((e) => ({
@@ -59,6 +69,23 @@ function parseStructuredContent(
     };
   }
   return emptyStructuredContent(type);
+}
+
+async function listExamCatalogForDoctor(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  doctorId: string
+): Promise<ExamCatalogItem[]> {
+  const { data } = await supabase
+    .from("clinical_exam_catalog")
+    .select("*")
+    .eq("clinic_id", clinicId)
+    .eq("is_active", true)
+    .or(`scope.eq.clinic,and(scope.eq.doctor,doctor_id.eq.${doctorId})`)
+    .order("category")
+    .order("display_order")
+    .order("name");
+  return (data ?? []) as ExamCatalogItem[];
 }
 
 export async function loadDocumentRenderContext(
@@ -434,14 +461,38 @@ export async function finalizeClinicalDocumentManual(
   );
   if (ctxErr || !ctx) return { html: null, error: ctxErr ?? "Erro ao carregar dados." };
 
-  const html = renderClinicalDocumentHtml({
-    type,
-    title: doc.title,
-    bodyText: doc.body_text,
-    structuredContent: structured,
-    ctx,
-    manualSignature: true,
-  });
+  let html: string;
+
+  if (type === "prescription" && "medications" in structured) {
+    html = renderPrescriptionModernHtml({
+      ctx,
+      medications: structured.medications,
+      bodyText: doc.body_text,
+      manualSignature: true,
+    });
+  } else if (type === "exam_request" && isExamCatalogSelection(structured)) {
+    const catalog = await listExamCatalogForDoctor(
+      auth.supabase,
+      doc.clinic_id,
+      doc.doctor_id
+    );
+    html = renderExamRequestModernHtml({
+      ctx,
+      catalog,
+      selectedExamIds: structured.selectedExamIds,
+      examNotes: structured.examNotes,
+      manualSignature: true,
+    });
+  } else {
+    html = renderClinicalDocumentHtml({
+      type,
+      title: doc.title,
+      bodyText: doc.body_text,
+      structuredContent: structured,
+      ctx,
+      manualSignature: true,
+    });
+  }
 
   const { error: updateErr } = await auth.supabase
     .from("clinical_documents")
@@ -478,6 +529,222 @@ export async function getClinicalDocumentHtml(
     return { html: null, error: error?.message ?? "Documento sem visualização." };
   }
   return { html: doc.body_rendered as string, error: null };
+}
+
+// ——— Catálogos ———
+
+export async function listMedicationCatalog(): Promise<{
+  data: MedicationCatalogItem[];
+  error: string | null;
+}> {
+  const auth = await getAuthDoctor();
+  if (auth.error || !auth.user || !auth.profile) return { data: [], error: auth.error };
+
+  const { data, error } = await auth.supabase
+    .from("clinical_medication_catalog")
+    .select("*")
+    .eq("clinic_id", auth.profile.clinic_id)
+    .eq("is_active", true)
+    .or(`scope.eq.clinic,and(scope.eq.doctor,doctor_id.eq.${auth.user.id})`)
+    .order("display_order")
+    .order("name");
+
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as MedicationCatalogItem[], error: null };
+}
+
+export async function listExamCatalog(): Promise<{
+  data: ExamCatalogItem[];
+  error: string | null;
+}> {
+  const auth = await getAuthDoctor();
+  if (auth.error || !auth.user || !auth.profile) return { data: [], error: auth.error };
+
+  const data = await listExamCatalogForDoctor(
+    auth.supabase,
+    auth.profile.clinic_id,
+    auth.user.id
+  );
+  return { data, error: null };
+}
+
+export async function listMedicationCatalogForManage(
+  scope: "clinic" | "doctor"
+): Promise<{ data: MedicationCatalogItem[]; error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: [], error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { data: [], error: "Clínica não encontrada." };
+  if (scope === "clinic" && profile.role !== "admin") return { data: [], error: "Sem permissão." };
+  if (scope === "doctor" && profile.role !== "medico") return { data: [], error: "Sem permissão." };
+
+  let query = supabase
+    .from("clinical_medication_catalog")
+    .select("*")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("scope", scope)
+    .order("display_order")
+    .order("name");
+  if (scope === "doctor") query = query.eq("doctor_id", user.id);
+
+  const { data, error } = await query;
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as MedicationCatalogItem[], error: null };
+}
+
+export async function listExamCatalogForManage(
+  scope: "clinic" | "doctor"
+): Promise<{ data: ExamCatalogItem[]; error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: [], error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { data: [], error: "Clínica não encontrada." };
+  if (scope === "clinic" && profile.role !== "admin") return { data: [], error: "Sem permissão." };
+  if (scope === "doctor" && profile.role !== "medico") return { data: [], error: "Sem permissão." };
+
+  let query = supabase
+    .from("clinical_exam_catalog")
+    .select("*")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("scope", scope)
+    .order("category")
+    .order("display_order")
+    .order("name");
+  if (scope === "doctor") query = query.eq("doctor_id", user.id);
+
+  const { data, error } = await query;
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as ExamCatalogItem[], error: null };
+}
+
+export async function saveMedicationCatalogItem(input: {
+  id?: string;
+  scope: "clinic" | "doctor";
+  name: string;
+  default_dosage?: string;
+  default_quantity?: string;
+  default_instructions?: string;
+  display_order?: number;
+  is_active?: boolean;
+}): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+  if (input.scope === "clinic" && profile.role !== "admin") return { error: "Sem permissão." };
+  if (input.scope === "doctor" && profile.role !== "medico") return { error: "Sem permissão." };
+
+  const row = {
+    clinic_id: profile.clinic_id,
+    scope: input.scope,
+    doctor_id: input.scope === "doctor" ? user.id : null,
+    name: input.name.trim(),
+    default_dosage: input.default_dosage ?? "",
+    default_quantity: input.default_quantity ?? "",
+    default_instructions: input.default_instructions ?? "",
+    display_order: input.display_order ?? 0,
+    is_active: input.is_active ?? true,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.id) {
+    const { error } = await supabase.from("clinical_medication_catalog").update(row).eq("id", input.id);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from("clinical_medication_catalog").insert(row);
+    if (error) return { error: error.message };
+  }
+  revalidatePath("/dashboard/perfil");
+  revalidatePath("/dashboard/configuracoes");
+  return { error: null };
+}
+
+export async function saveExamCatalogItem(input: {
+  id?: string;
+  scope: "clinic" | "doctor";
+  name: string;
+  category: string;
+  display_order?: number;
+  is_active?: boolean;
+}): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+  if (input.scope === "clinic" && profile.role !== "admin") return { error: "Sem permissão." };
+  if (input.scope === "doctor" && profile.role !== "medico") return { error: "Sem permissão." };
+
+  const row = {
+    clinic_id: profile.clinic_id,
+    scope: input.scope,
+    doctor_id: input.scope === "doctor" ? user.id : null,
+    name: input.name.trim(),
+    category: input.category.trim() || "Geral",
+    display_order: input.display_order ?? 0,
+    is_active: input.is_active ?? true,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.id) {
+    const { error } = await supabase.from("clinical_exam_catalog").update(row).eq("id", input.id);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from("clinical_exam_catalog").insert(row);
+    if (error) return { error: error.message };
+  }
+  revalidatePath("/dashboard/perfil");
+  revalidatePath("/dashboard/configuracoes");
+  return { error: null };
+}
+
+export async function deleteMedicationCatalogItem(id: string): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("clinical_medication_catalog").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/perfil");
+  revalidatePath("/dashboard/configuracoes");
+  return { error: null };
+}
+
+export async function deleteExamCatalogItem(id: string): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("clinical_exam_catalog").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/perfil");
+  revalidatePath("/dashboard/configuracoes");
+  return { error: null };
 }
 
 export async function updateDoctorProfessionalInfo(input: {
