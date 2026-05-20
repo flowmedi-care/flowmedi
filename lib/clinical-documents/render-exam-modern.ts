@@ -1,11 +1,11 @@
-import type { DocumentRenderContext, ExamCatalogItem } from "./types";
+import type { DocumentRenderContext, ExamOrderLine } from "./types";
 import { buildPlaceholderMap } from "./placeholders";
 
 function logoImg(url: string | null, scale: number | null, alt: string): string {
   if (!url) return "";
   const pct = scale && scale > 0 ? scale : 100;
-  const maxH = Math.round(56 * (pct / 100));
-  return `<img src="${url}" alt="${alt}" style="max-height:${maxH}px;max-width:200px;object-fit:contain" />`;
+  const maxH = Math.round(52 * (pct / 100));
+  return `<img src="${url}" alt="${alt}" style="max-height:${maxH}px;max-width:180px;object-fit:contain" />`;
 }
 
 function escapeHtml(s: string): string {
@@ -16,71 +16,29 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function groupByCategory(items: ExamCatalogItem[]): Map<string, ExamCatalogItem[]> {
-  const map = new Map<string, ExamCatalogItem[]>();
-  for (const item of items) {
-    const cat = item.category?.trim() || "Geral";
-    const list = map.get(cat) ?? [];
-    list.push(item);
-    map.set(cat, list);
-  }
-  return map;
-}
-
-/** Distribui categorias em até 3 colunas de forma equilibrada */
-function splitCategoriesIntoColumns(
-  categories: [string, ExamCatalogItem[]][]
-): [string, ExamCatalogItem[]][][] {
-  const cols: [string, ExamCatalogItem[]][][] = [[], [], []];
-  categories.forEach((entry, i) => {
-    cols[i % 3].push(entry);
-  });
-  return cols;
-}
-
-function renderCategoryBlock(
-  category: string,
-  items: ExamCatalogItem[],
-  selectedIds: Set<string>
-): string {
-  const rows = items
-    .map((item) => {
-      const checked = selectedIds.has(item.id);
-      return `<label class="exam-item">
-        <span class="exam-checkbox${checked ? " checked" : ""}"></span>
-        <span class="exam-name">${escapeHtml(item.name)}</span>
-      </label>`;
-    })
-    .join("");
-  return `<div class="exam-category">
-    <h3 class="exam-category-title">${escapeHtml(category)}</h3>
-    <div class="exam-items">${rows}</div>
-  </div>`;
-}
-
 export type RenderExamRequestInput = {
   ctx: DocumentRenderContext;
-  catalog: ExamCatalogItem[];
-  selectedExamIds: string[];
+  examLines: ExamOrderLine[];
   examNotes?: string;
-  manualSignature?: boolean;
+  qrCodeUrl?: string | null;
 };
 
 export function renderExamRequestModernHtml(input: RenderExamRequestInput): string {
   const map = buildPlaceholderMap(input.ctx);
-  const selected = new Set(input.selectedExamIds);
-  const activeCatalog = input.catalog.filter((c) => c.is_active);
-  const grouped = groupByCategory(activeCatalog);
-  const categories = Array.from(grouped.entries()).sort((a, b) =>
-    a[0].localeCompare(b[0], "pt-BR")
-  );
-  const columns = splitCategoriesIntoColumns(categories);
+  const lines = input.examLines.filter((l) => l.name.trim());
 
-  const columnHtml = columns
-    .map((col) => {
-      const blocks = col.map(([cat, items]) => renderCategoryBlock(cat, items, selected)).join("");
-      return `<div class="exam-column">${blocks}</div>`;
-    })
+  const examListHtml = lines
+    .map(
+      (line, i) => `
+      <div class="exam-line">
+        <p class="exam-line-name"><span class="exam-num">${i + 1}.</span> ${escapeHtml(line.name)}</p>
+        ${
+          line.details.trim()
+            ? `<p class="exam-line-details">${escapeHtml(line.details).replace(/\n/g, "<br/>")}</p>`
+            : ""
+        }
+      </div>`
+    )
     .join("");
 
   const clinicLogo = logoImg(
@@ -88,24 +46,22 @@ export function renderExamRequestModernHtml(input: RenderExamRequestInput): stri
     input.ctx.clinic.logo_scale,
     input.ctx.clinic.name
   );
-  const doctorStamp = logoImg(
-    input.ctx.doctor.logo_url,
-    input.ctx.doctor.logo_scale,
-    "Carimbo"
-  );
+
+  const qrHtml = input.qrCodeUrl
+    ? `<img src="${escapeHtml(input.qrCodeUrl)}" alt="QR Code" class="qr-img" width="72" height="72" />`
+    : "";
 
   const crmLine = map["{{crm_medico}}"];
-  const cityLine = input.ctx.clinic.address?.split(",")[0]?.trim() || "Local";
-  const [d, m, y] = map["{{data_emissao}}"].split("/");
+  const birthDisplay = map["{{data_nascimento}}"];
+  const emissionDate = map["{{data_emissao}}"];
 
   const notesBlock = input.examNotes?.trim()
-    ? `<div class="exam-notes"><strong>Observações:</strong> ${escapeHtml(input.examNotes)}</div>`
+    ? `<div class="exam-notes"><strong>Observações gerais:</strong> ${escapeHtml(input.examNotes).replace(/\n/g, "<br/>")}</div>`
     : "";
 
   const contactParts = [
-    input.ctx.clinic.phone ? `📞 ${escapeHtml(input.ctx.clinic.phone)}` : "",
-    input.ctx.clinic.email ? `✉ ${escapeHtml(input.ctx.clinic.email)}` : "",
-    input.ctx.clinic.address ? `📍 ${escapeHtml(input.ctx.clinic.address)}` : "",
+    input.ctx.clinic.phone ? escapeHtml(input.ctx.clinic.phone) : "",
+    input.ctx.clinic.email ? escapeHtml(input.ctx.clinic.email) : "",
   ].filter(Boolean);
 
   return `<!DOCTYPE html>
@@ -116,209 +72,151 @@ export function renderExamRequestModernHtml(input: RenderExamRequestInput): stri
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-      font-size: 9pt;
-      color: #1a3d4a;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      font-size: 11pt;
+      color: #1a3339;
       background: #fff;
     }
     .page {
       max-width: 210mm;
       margin: 0 auto;
-      padding: 12mm 14mm;
+      padding: 14mm 16mm;
       min-height: 277mm;
-      position: relative;
       display: flex;
       flex-direction: column;
     }
-    .watermark {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0.04;
-      pointer-events: none;
-      z-index: 0;
-    }
-    .content { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; }
     .header {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: start;
-      gap: 12px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid #b8d4dc;
-      margin-bottom: 12px;
-    }
-    .header-center { text-align: center; }
-    .doctor-name {
-      font-family: Georgia, serif;
-      font-size: 14pt;
-      font-weight: 600;
-      color: #0d5c6d;
-      margin-bottom: 2px;
-    }
-    .doctor-crm { font-size: 8.5pt; color: #5a7a85; }
-    .qr-placeholder {
-      width: 52px;
-      height: 52px;
-      border: 1px solid #c5dde4;
-      border-radius: 4px;
-      background: #f0f7f9;
-      justify-self: end;
-    }
-    .patient-row {
-      margin: 10px 0 14px;
-      font-size: 10pt;
-    }
-    .patient-row strong { color: #0d5c6d; }
-    .patient-line {
-      border-bottom: 1px solid #8eb4c0;
-      display: inline-block;
-      min-width: 280px;
-      margin-left: 8px;
-      padding-bottom: 2px;
-    }
-    .badge-title {
-      display: inline-block;
-      background: linear-gradient(135deg, #0d6b7d, #1496ad);
-      color: #fff;
-      font-size: 9pt;
-      font-weight: 600;
-      padding: 5px 16px;
-      border-radius: 20px;
-      margin-bottom: 14px;
-      letter-spacing: 0.02em;
-    }
-    .exam-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 14px 18px;
-      flex: 1;
-    }
-    .exam-column { display: flex; flex-direction: column; gap: 12px; }
-    .exam-category-title {
-      font-size: 7.5pt;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: #0d5c6d;
-      margin-bottom: 6px;
-      padding-bottom: 3px;
-      border-bottom: 1px solid #c5dde4;
-    }
-    .exam-items { display: flex; flex-direction: column; gap: 4px; }
-    .exam-item {
       display: flex;
       align-items: flex-start;
-      gap: 6px;
-      font-size: 8pt;
-      line-height: 1.3;
-      cursor: default;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #0d6b7d;
+      margin-bottom: 16px;
     }
-    .exam-checkbox {
-      flex-shrink: 0;
-      width: 11px;
-      height: 11px;
-      border: 1.5px solid #5a9aaa;
-      border-radius: 50%;
-      margin-top: 1px;
-      background: #fff;
+    .header-left { flex: 1; }
+    .clinic-name { font-size: 11pt; font-weight: 600; color: #0d6b7d; margin-top: 6px; }
+    .doctor-block { text-align: right; }
+    .doctor-name {
+      font-family: Georgia, serif;
+      font-size: 13pt;
+      font-weight: 600;
+      color: #0d3d4a;
     }
-    .exam-checkbox.checked {
+    .doctor-crm { font-size: 9pt; color: #5a7a85; margin-top: 2px; }
+    .qr-img { display: block; margin-top: 6px; margin-left: auto; border-radius: 4px; }
+    .title-badge {
+      display: inline-block;
       background: #0d6b7d;
-      border-color: #0d6b7d;
-      box-shadow: inset 0 0 0 2px #fff;
+      color: #fff;
+      font-size: 10pt;
+      font-weight: 600;
+      padding: 6px 18px;
+      border-radius: 18px;
+      margin-bottom: 16px;
     }
-    .exam-name { color: #2a4a55; }
+    .patient-simple {
+      font-size: 10.5pt;
+      margin-bottom: 18px;
+      line-height: 1.6;
+    }
+    .patient-simple strong { color: #0d5c6d; font-weight: 600; }
+    .exam-list { flex: 1; }
+    .exam-line {
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e8f0f2;
+    }
+    .exam-line:last-child { border-bottom: none; }
+    .exam-line-name { font-weight: 600; font-size: 11pt; color: #0d3d4a; margin-bottom: 4px; }
+    .exam-num { color: #0d6b7d; }
+    .exam-line-details {
+      font-size: 10pt;
+      color: #3d5a63;
+      line-height: 1.45;
+      padding-left: 18px;
+      margin: 0;
+    }
     .exam-notes {
       margin-top: 12px;
-      padding: 8px 10px;
-      background: #f0f7f9;
+      padding: 10px 12px;
+      background: #f4fafb;
       border-radius: 6px;
-      font-size: 8.5pt;
-    }
-    .sign-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-      margin-top: 20px;
-      padding-top: 12px;
-    }
-    .sign-box label {
-      font-size: 8pt;
-      color: #5a7a85;
-      display: block;
-      margin-bottom: 4px;
-    }
-    .sign-field {
-      border: 1px solid #b8d4dc;
-      border-radius: 4px;
-      min-height: 36px;
-      background: #fafcfd;
-      padding: 6px 10px;
       font-size: 10pt;
+      border-left: 3px solid #0d6b7d;
     }
-    .sign-stamp-area {
-      min-height: 50px;
+    .sign-footer {
+      margin-top: auto;
+      padding-top: 24px;
       display: flex;
-      align-items: flex-end;
       justify-content: flex-end;
-      gap: 8px;
+    }
+    .sign-block {
+      width: 55%;
+      text-align: right;
+    }
+    .sign-date {
+      font-size: 10pt;
+      color: #3d5a63;
+      margin-bottom: 28px;
+    }
+    .sign-area {
+      border-top: 1px solid #8eb4c0;
+      padding-top: 6px;
+      min-height: 22mm;
+    }
+    .sign-label {
+      font-size: 8.5pt;
+      color: #5a7a85;
+      text-align: right;
     }
     .footer-contact {
-      margin-top: auto;
-      padding-top: 10px;
-      border-top: 1px solid #d0e4ea;
-      font-size: 7.5pt;
-      color: #5a7a85;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px 20px;
-      justify-content: center;
+      margin-top: 12px;
+      font-size: 8pt;
+      color: #7a949c;
+      text-align: center;
     }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      @page { size: A4; margin: 8mm; }
+      @page { size: A4; margin: 10mm; }
     }
   </style>
 </head>
 <body>
   <div class="page">
-    <div class="watermark">${clinicLogo}</div>
-    <div class="content">
-      <header class="header">
-        <div class="header-logo">${clinicLogo}</div>
-        <div class="header-center">
-          <p class="doctor-name">${escapeHtml(map["{{nome_medico}}"])}</p>
-          <p class="doctor-crm">Médico(a) • ${escapeHtml(crmLine)}</p>
-        </div>
-        <div class="qr-placeholder" title="QR Code"></div>
-      </header>
-
-      <p class="patient-row">
-        <strong>Paciente</strong>
-        <span class="patient-line">${escapeHtml(map["{{nome_paciente}}"])}</span>
-      </p>
-
-      <div class="badge-title">Solicitação de exames</div>
-
-      <div class="exam-grid">${columnHtml}</div>
-      ${notesBlock}
-
-      <div class="sign-row">
-        <div class="sign-box">
-          <label>${escapeHtml(cityLine)},</label>
-          <div class="sign-field">${d && m && y ? `${d} / ${m} / ${y}` : map["{{data_emissao}}"]}</div>
-        </div>
-        <div class="sign-box">
-          <label>Carimbo e assinatura</label>
-          <div class="sign-field sign-stamp-area">${doctorStamp}</div>
-        </div>
+    <header class="header">
+      <div class="header-left">
+        ${clinicLogo}
+        <p class="clinic-name">${escapeHtml(input.ctx.clinic.name)}</p>
       </div>
+      <div class="doctor-block">
+        <p class="doctor-name">${escapeHtml(map["{{nome_medico}}"])}</p>
+        <p class="doctor-crm">${escapeHtml(crmLine)}</p>
+        ${qrHtml}
+      </div>
+    </header>
 
-      ${contactParts.length ? `<div class="footer-contact">${contactParts.join(" &nbsp;|&nbsp; ")}</div>` : ""}
+    <div class="title-badge">Solicitação de exames</div>
+
+    <div class="patient-simple">
+      <p><strong>Paciente:</strong> ${escapeHtml(map["{{nome_paciente}}"])}</p>
+      <p><strong>Data de nascimento:</strong> ${birthDisplay}</p>
     </div>
+
+    <div class="exam-list">
+      ${examListHtml || "<p style='color:#888'>Nenhum exame informado.</p>"}
+    </div>
+    ${notesBlock}
+
+    <div class="sign-footer">
+      <div class="sign-block">
+        <p class="sign-date">${escapeHtml(emissionDate)}</p>
+        <div class="sign-area"></div>
+        <p class="sign-label">Assinatura e carimbo do médico</p>
+      </div>
+    </div>
+
+    ${contactParts.length ? `<p class="footer-contact">${contactParts.join(" · ")}</p>` : ""}
   </div>
 </body>
 </html>`;

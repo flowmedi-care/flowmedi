@@ -1,4 +1,9 @@
-import type { ClinicalDocumentType, DocumentRenderContext, StructuredContent } from "./types";
+import type {
+  ClinicalDocumentType,
+  DocumentRenderContext,
+  ExamOrderLine,
+  StructuredContent,
+} from "./types";
 import {
   applyPlaceholders,
   bodyTextToHtmlParagraphs,
@@ -182,11 +187,11 @@ export function renderClinicalDocumentHtml(input: RenderDocumentInput): string {
 export function emptyStructuredContent(type: ClinicalDocumentType): StructuredContent {
   return type === "prescription"
     ? { medications: [] }
-    : { selectedExamIds: [], examNotes: "" };
+    : { examLines: [], examNotes: "" };
 }
 
-export function isExamCatalogSelection(
+export function isExamOrderContent(
   content: StructuredContent
-): content is { selectedExamIds: string[]; examNotes?: string } {
-  return "selectedExamIds" in content && Array.isArray(content.selectedExamIds);
+): content is { examLines: ExamOrderLine[]; examNotes?: string } {
+  return "examLines" in content && Array.isArray(content.examLines);
 }

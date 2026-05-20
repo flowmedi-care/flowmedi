@@ -153,11 +153,11 @@ export function ClinicalCatalogSection({
             </div>
             {kind === "exam" && (
               <div>
-                <Label>Categoria (agrupa no pedido impresso)</Label>
+                <Label>Grupo (opcional, só para organizar seu catálogo)</Label>
                 <Input
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  placeholder="Ex.: Próstata, Urinário, Sorologias"
+                  placeholder="Ex.: Laboratorial, Imagem..."
                 />
               </div>
             )}

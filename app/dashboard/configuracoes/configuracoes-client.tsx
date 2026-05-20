@@ -692,7 +692,7 @@ export function ConfiguracoesClient({
         kind="exam"
         scope="clinic"
         title="Exames da clínica"
-        description="Catálogo de exames por categoria para pedidos com layout em checklist."
+        description="Nomes de exames compartilhados; o médico complementa os detalhes ao emitir cada pedido."
       />
       <ClinicalTemplatesSection
         scope="clinic"

@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { renderClinicalDocumentHtml, isExamCatalogSelection } from "@/lib/clinical-documents/render";
+import { renderClinicalDocumentHtml, isExamOrderContent } from "@/lib/clinical-documents/render";
 import { renderExamRequestModernHtml } from "@/lib/clinical-documents/render-exam-modern";
 import { renderPrescriptionModernHtml } from "@/lib/clinical-documents/render-prescription-modern";
 import type {
@@ -12,11 +12,13 @@ import type {
   DocumentRenderContext,
   ExamCatalogItem,
   ExamItem,
+  ExamOrderLine,
   MedicationCatalogItem,
   MedicationItem,
   StructuredContent,
 } from "@/lib/clinical-documents/types";
 import { emptyStructuredContent } from "@/lib/clinical-documents/render";
+import { getReferralLinkForDoctor } from "@/app/dashboard/perfil/referral-actions";
 
 async function getAuthDoctor() {
   const supabase = await createClient();
@@ -54,18 +56,26 @@ function parseStructuredContent(
       })),
     };
   }
-  if (type === "exam_request" && Array.isArray(obj.selectedExamIds)) {
+  if (type === "exam_request" && Array.isArray(obj.examLines)) {
     return {
-      selectedExamIds: (obj.selectedExamIds as string[]).map(String),
+      examLines: (obj.examLines as ExamOrderLine[]).map((l) => ({
+        catalogId: l?.catalogId ? String(l.catalogId) : undefined,
+        name: String(l?.name ?? ""),
+        details: String(l?.details ?? ""),
+      })),
       examNotes: obj.examNotes ? String(obj.examNotes) : "",
     };
   }
+  if (type === "exam_request" && Array.isArray(obj.selectedExamIds)) {
+    return { examLines: [], examNotes: obj.examNotes ? String(obj.examNotes) : "" };
+  }
   if (type === "exam_request" && Array.isArray(obj.exams)) {
     return {
-      exams: (obj.exams as ExamItem[]).map((e) => ({
+      examLines: (obj.exams as ExamItem[]).map((e) => ({
         name: String(e?.name ?? ""),
-        notes: String(e?.notes ?? ""),
+        details: String(e?.notes ?? ""),
       })),
+      examNotes: "",
     };
   }
   return emptyStructuredContent(type);
@@ -470,18 +480,16 @@ export async function finalizeClinicalDocumentManual(
       bodyText: doc.body_text,
       manualSignature: true,
     });
-  } else if (type === "exam_request" && isExamCatalogSelection(structured)) {
-    const catalog = await listExamCatalogForDoctor(
-      auth.supabase,
-      doc.clinic_id,
-      doc.doctor_id
-    );
+  } else if (type === "exam_request" && isExamOrderContent(structured)) {
+    const referralLink = await getReferralLinkForDoctor(doc.doctor_id, doc.clinic_id);
+    const qrCodeUrl = referralLink
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=144x144&data=${encodeURIComponent(referralLink)}`
+      : null;
     html = renderExamRequestModernHtml({
       ctx,
-      catalog,
-      selectedExamIds: structured.selectedExamIds,
+      examLines: structured.examLines,
       examNotes: structured.examNotes,
-      manualSignature: true,
+      qrCodeUrl,
     });
   } else {
     html = renderClinicalDocumentHtml({

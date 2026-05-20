@@ -279,7 +279,7 @@ export function PerfilClient({
         kind="exam"
         scope="doctor"
         title="Meus exames"
-        description="Cadastre exames por categoria (ex.: Próstata, Urinário). No pedido, marque os que deseja solicitar."
+        description="Cadastre nomes de exames (ex.: Hemograma, PSA). Na consulta, adicione ao pedido e descreva os detalhes de cada um."
       />
       <ClinicalTemplatesSection
         scope="doctor"

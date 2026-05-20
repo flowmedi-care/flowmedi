@@ -20,9 +20,9 @@ import type {
   ClinicalDocumentType,
   StructuredContent,
 } from "@/lib/clinical-documents/types";
-import { emptyStructuredContent, isExamCatalogSelection } from "@/lib/clinical-documents/render";
+import { emptyStructuredContent, isExamOrderContent } from "@/lib/clinical-documents/render";
 import { MedicationPrescriptionEditor } from "./medication-prescription-editor";
-import { ExamChecklistEditor } from "./exam-checklist-editor";
+import { ExamOrderEditor } from "./exam-order-editor";
 
 const TYPE_LABELS: Record<ClinicalDocumentType, { title: string; newLabel: string }> = {
   prescription: { title: "Receitas", newLabel: "Nova receita" },
@@ -111,8 +111,11 @@ export function ClinicalDocumentsClient({
     setTitle(doc.title ?? "");
     setBodyText(doc.body_text);
     const sc = doc.structured_content;
-    if (doc.type === "exam_request" && "exams" in sc && !("selectedExamIds" in sc)) {
-      setStructured({ selectedExamIds: [], examNotes: "" });
+    if (
+      doc.type === "exam_request" &&
+      !isExamOrderContent(sc)
+    ) {
+      setStructured({ examLines: [], examNotes: "" });
     } else {
       setStructured(sc);
     }
@@ -155,10 +158,9 @@ export function ClinicalDocumentsClient({
       const hasMed = structured.medications.some((m) => m.name.trim());
       if (!hasMed) return "Adicione pelo menos um medicamento.";
     }
-    if (type === "exam_request" && isExamCatalogSelection(structured)) {
-      if (structured.selectedExamIds.length === 0) {
-        return "Selecione pelo menos um exame.";
-      }
+    if (type === "exam_request" && isExamOrderContent(structured)) {
+      const hasExam = structured.examLines.some((l) => l.name.trim());
+      if (!hasExam) return "Adicione pelo menos um exame.";
     }
     return null;
   }
@@ -273,15 +275,15 @@ export function ClinicalDocumentsClient({
                 />
               )}
 
-              {type === "exam_request" && isExamCatalogSelection(structured) && (
-                <ExamChecklistEditor
-                  selectedIds={structured.selectedExamIds}
+              {type === "exam_request" && isExamOrderContent(structured) && (
+                <ExamOrderEditor
+                  examLines={structured.examLines}
                   examNotes={structured.examNotes ?? ""}
-                  onSelectionChange={(selectedExamIds) =>
-                    setStructured({ selectedExamIds, examNotes: structured.examNotes })
+                  onLinesChange={(examLines) =>
+                    setStructured({ examLines, examNotes: structured.examNotes })
                   }
                   onNotesChange={(examNotes) =>
-                    setStructured({ selectedExamIds: structured.selectedExamIds, examNotes })
+                    setStructured({ examLines: structured.examLines, examNotes })
                   }
                 />
               )}

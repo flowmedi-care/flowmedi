@@ -5,6 +5,47 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 const DEFAULT_MESSAGE = "Olá gostaria de obter mais informação sobre a consulta com o profissional [seu nome]";
 
+/** Link WhatsApp do médico (mesmo QR do perfil) para impressão em pedidos de exame */
+export async function getReferralLinkForDoctor(
+  doctorId: string,
+  clinicId: string
+): Promise<string | null> {
+  const serviceSupabase = createServiceRoleClient();
+  const { data: clinic } = await serviceSupabase
+    .from("clinics")
+    .select("whatsapp_url, phone")
+    .eq("id", clinicId)
+    .single();
+
+  let whatsappUrl = (clinic?.whatsapp_url as string | null) ?? null;
+  if (!whatsappUrl?.trim()) {
+    const phone = (clinic?.phone as string | null) ?? null;
+    if (phone?.trim()) {
+      const digits = phone.replace(/\D/g, "");
+      const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
+      if (withCountry.length >= 12) {
+        whatsappUrl = `https://wa.me/${withCountry}`;
+      }
+    }
+  }
+
+  const supabase = await createClient();
+  const { data: referralRow } = await supabase
+    .from("doctor_referral_codes")
+    .select("custom_message")
+    .eq("clinic_id", clinicId)
+    .eq("doctor_id", doctorId)
+    .maybeSingle();
+
+  const customMessage = referralRow ? (referralRow.custom_message as string) : null;
+  if (whatsappUrl && customMessage && customMessage.trim().length >= 15) {
+    const base = whatsappUrl.trim().replace(/\/$/, "");
+    const sep = base.includes("?") ? "&" : "?";
+    return `${base}${sep}text=${encodeURIComponent(customMessage.trim())}`;
+  }
+  return null;
+}
+
 export async function getReferralLinkData(): Promise<{
   referralLink: string | null;
   customMessage: string | null;

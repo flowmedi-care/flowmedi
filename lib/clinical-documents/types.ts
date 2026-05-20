@@ -25,10 +25,18 @@ export type ExamItem = {
   category?: string;
 };
 
+/** Linha do pedido: exame do catálogo + detalhes do que solicitar (ex.: itens do hemograma) */
+export type ExamOrderLine = {
+  catalogId?: string;
+  name: string;
+  details: string;
+};
+
 export type StructuredContent =
   | { medications: MedicationItem[] }
   | { exams: ExamItem[] }
-  | { selectedExamIds: string[]; examNotes?: string };
+  | { selectedExamIds: string[]; examNotes?: string }
+  | { examLines: ExamOrderLine[]; examNotes?: string };
 
 export type MedicationCatalogItem = {
   id: string;
