@@ -33,6 +33,7 @@ export type Patient = {
   email: string | null;
   phone: string | null;
   birth_date: string | null;
+  cpf: string | null;
   notes: string | null;
   custom_fields?: Record<string, unknown>;
   created_at: string;
@@ -100,6 +101,7 @@ export function PacientesClient({
     email: "",
     phone: "",
     birth_date: "",
+    cpf: "",
     notes: "",
     custom_fields: {},
   });
@@ -298,6 +300,7 @@ export function PacientesClient({
           email: nr.email,
           phone: nr.phone ?? null,
           birth_date: nr.birth_date ?? null,
+          cpf: null,
           notes: null,
           custom_fields: nr.custom_fields,
           created_at: new Date().toISOString(),
@@ -325,6 +328,7 @@ export function PacientesClient({
       email: "",
       phone: "",
       birth_date: "",
+      cpf: "",
       notes: "",
       custom_fields: initialCustomFields,
     });
@@ -344,6 +348,7 @@ export function PacientesClient({
       email: p.email ?? "",
       phone: p.phone ?? "",
       birth_date: p.birth_date ?? "",
+      cpf: p.cpf ?? "",
       notes: p.notes ?? "",
       custom_fields: initialCustomFields,
     });
@@ -385,6 +390,7 @@ export function PacientesClient({
         email: form.email || null,
         phone: parsePhoneBr(form.phone) || null,
         birth_date: form.birth_date || null,
+        cpf: form.cpf || null,
         notes: form.notes || null,
         custom_fields: form.custom_fields || {},
       });
@@ -402,7 +408,9 @@ export function PacientesClient({
           email: form.email || null,
           phone: form.phone || null,
           birth_date: form.birth_date || null,
+          cpf: form.cpf || null,
           notes: form.notes || null,
+          custom_fields: form.custom_fields,
           created_at: new Date().toISOString(),
         },
       ]);
@@ -422,6 +430,7 @@ export function PacientesClient({
         email: form.email || null,
         phone: parsePhoneBr(form.phone) || null,
         birth_date: form.birth_date || null,
+        cpf: form.cpf || null,
         notes: form.notes || null,
         custom_fields: form.custom_fields || {},
       };
@@ -599,6 +608,18 @@ export function PacientesClient({
                     onChange={(e) =>
                       setForm((f) => ({ ...f, birth_date: e.target.value }))
                     }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cpf">CPF</Label>
+                  <Input
+                    id="cpf"
+                    value={form.cpf ?? ""}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, cpf: e.target.value.replace(/\D/g, "") }))
+                    }
+                    placeholder="Somente números"
+                    maxLength={11}
                   />
                 </div>
               </div>

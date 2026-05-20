@@ -17,6 +17,8 @@ import {
   saveReferralMessage,
 } from "./referral-actions";
 import { setProfileDimensionValueColors } from "./profile-dimension-colors-actions";
+import { DoctorProfessionalCard } from "./doctor-professional-card";
+import { ClinicalTemplatesSection } from "../clinical-documents/clinical-templates-section";
 
 const DEFAULT_MESSAGE =
   "Olá gostaria de obter mais informação sobre a consulta com o profissional [digite seu nome]";
@@ -160,12 +162,20 @@ type AgendaDimensionValue = { id: string; dimension_id: string; nome: string; co
 export function PerfilClient({
   doctorLogoUrl,
   doctorLogoScale,
+  doctorCpf = null,
+  doctorCrm = null,
+  doctorCrmUf = null,
+  doctorSpecialty = null,
   agendaDimensions = [],
   agendaDimensionValues = [],
   agendaColorOverrides = {},
 }: {
   doctorLogoUrl: string | null;
   doctorLogoScale: number;
+  doctorCpf?: string | null;
+  doctorCrm?: string | null;
+  doctorCrmUf?: string | null;
+  doctorSpecialty?: string | null;
   agendaDimensions?: AgendaDimension[];
   agendaDimensionValues?: AgendaDimensionValue[];
   agendaColorOverrides?: Record<string, string>;
@@ -252,6 +262,17 @@ export function PerfilClient({
   return (
     <div className="space-y-6">
       <ReferralLinkCard />
+      <DoctorProfessionalCard
+        initialCpf={doctorCpf}
+        initialCrm={doctorCrm}
+        initialCrmUf={doctorCrmUf}
+        initialSpecialty={doctorSpecialty}
+      />
+      <ClinicalTemplatesSection
+        scope="doctor"
+        title="Meus templates de receita e pedido"
+        description="Modelos de texto pessoais para usar ao emitir documentos na consulta."
+      />
       <Card>
         <CardHeader>
           <h2 className="font-semibold">Minha Logo</h2>

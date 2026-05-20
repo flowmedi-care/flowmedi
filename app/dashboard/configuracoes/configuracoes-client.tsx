@@ -15,6 +15,7 @@ import {
 } from "./actions";
 import { IntegrationsSection } from "./integrations-section";
 import { ClinicInfoTabs } from "@/components/clinic-info/clinic-info-tabs";
+import { ClinicalTemplatesSection } from "../clinical-documents/clinical-templates-section";
 
 const BRAZIL_TIMEZONE_OPTIONS = [
   { value: "America/Sao_Paulo", label: "Brasilia: GMT+3" },
@@ -679,6 +680,12 @@ export function ConfiguracoesClient({
           )}
         </CardContent>
       </Card>
+
+      <ClinicalTemplatesSection
+        scope="clinic"
+        title="Templates da clínica (receitas e pedidos)"
+        description="Modelos compartilhados que todos os médicos da clínica podem usar ao emitir documentos."
+      />
     </div>
   );
 }

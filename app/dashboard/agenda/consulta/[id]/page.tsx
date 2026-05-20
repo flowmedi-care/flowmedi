@@ -48,7 +48,7 @@ export default async function ConsultaDetalhePage({
       status,
       notes,
       doctor_id,
-      patient:patients ( id, full_name, email, phone, birth_date ),
+      patient:patients ( id, full_name, email, phone, birth_date, cpf ),
       doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( id, name )
     `

@@ -9,7 +9,7 @@ export default async function PerfilPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, role, logo_url, logo_scale, clinic_id")
+    .select("id, full_name, role, logo_url, logo_scale, clinic_id, cpf, crm, crm_uf, specialty")
     .eq("id", user.id)
     .single();
 
@@ -61,6 +61,10 @@ export default async function PerfilPage() {
       <PerfilClient
         doctorLogoUrl={profile.logo_url ?? null}
         doctorLogoScale={profile.logo_scale ?? 100}
+        doctorCpf={profile.cpf ?? null}
+        doctorCrm={profile.crm ?? null}
+        doctorCrmUf={profile.crm_uf ?? null}
+        doctorSpecialty={profile.specialty ?? null}
         agendaDimensionValues={dimensionValues}
         agendaDimensions={dimensions}
         agendaColorOverrides={colorOverrides}

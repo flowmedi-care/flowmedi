@@ -7,11 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { ConsultaDetalheClient } from "./consulta-detalhe-client";
 import { ExamesClient } from "../../../exames/exames-client";
 import { FormulariosConsultaClient } from "./formularios-consulta-client";
+import { ClinicalDocumentsClient } from "../../../clinical-documents/clinical-documents-client";
 import { formatPhoneBr } from "@/lib/format-phone";
 import { cn } from "@/lib/utils";
 import type { FormInstanceItem } from "./page";
 
-type Tab = "consulta" | "paciente" | "formularios" | "exames";
+type Tab = "consulta" | "paciente" | "formularios" | "exames" | "receitas" | "pedidos";
 
 export function ConsultaTabsClient({
   appointmentId,
@@ -54,7 +55,14 @@ export function ConsultaTabsClient({
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab === "formularios" || tab === "paciente" || tab === "exames" || tab === "consulta") {
+    if (
+      tab === "formularios" ||
+      tab === "paciente" ||
+      tab === "exames" ||
+      tab === "consulta" ||
+      tab === "receitas" ||
+      tab === "pedidos"
+    ) {
       setActiveTab(tab);
     }
   }, [searchParams]);
@@ -63,7 +71,13 @@ export function ConsultaTabsClient({
     { id: "consulta", label: "Consulta" },
     { id: "paciente", label: "Paciente" },
     { id: "formularios", label: "Formulários" },
-    { id: "exames", label: "Exames" },
+    { id: "exames", label: "Arquivos" },
+    ...(isDoctor
+      ? [
+          { id: "receitas" as const, label: "Receitas" },
+          { id: "pedidos" as const, label: "Pedidos" },
+        ]
+      : []),
   ];
 
   return (
@@ -168,6 +182,24 @@ export function ConsultaTabsClient({
             patientId={patientId}
             appointmentId={appointmentId}
             canEdit={canEdit}
+          />
+        )}
+
+        {activeTab === "receitas" && (
+          <ClinicalDocumentsClient
+            type="prescription"
+            patientId={patientId}
+            appointmentId={appointmentId}
+            isDoctor={isDoctor}
+          />
+        )}
+
+        {activeTab === "pedidos" && (
+          <ClinicalDocumentsClient
+            type="exam_request"
+            patientId={patientId}
+            appointmentId={appointmentId}
+            isDoctor={isDoctor}
           />
         )}
       </div>

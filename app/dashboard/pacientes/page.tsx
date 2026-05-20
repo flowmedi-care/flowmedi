@@ -17,7 +17,7 @@ export default async function PacientesPage() {
 
   const { data: rows } = await supabase
     .from("patients")
-    .select("id, full_name, email, phone, birth_date, notes, custom_fields, created_at")
+    .select("id, full_name, email, phone, birth_date, cpf, notes, custom_fields, created_at")
     .eq("clinic_id", profile.clinic_id)
     .order("full_name");
 
@@ -33,6 +33,7 @@ export default async function PacientesPage() {
     email: r.email,
     phone: r.phone,
     birth_date: r.birth_date,
+    cpf: r.cpf ?? null,
     notes: r.notes,
     custom_fields: (r.custom_fields as Record<string, unknown>) || {},
     created_at: r.created_at,

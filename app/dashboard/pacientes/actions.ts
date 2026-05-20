@@ -10,6 +10,7 @@ export type PatientInsert = {
   email?: string | null;
   phone?: string | null;
   birth_date?: string | null;
+  cpf?: string | null;
   notes?: string | null;
   custom_fields?: Record<string, unknown>;
 };
@@ -50,6 +51,7 @@ export async function createPatient(data: PatientInsert) {
       email: data.email || null,
       phone: data.phone || null,
       birth_date: data.birth_date || null,
+      cpf: data.cpf?.replace(/\D/g, "") || null,
       notes: data.notes || null,
       custom_fields: data.custom_fields && Object.keys(data.custom_fields).length > 0 ? data.custom_fields : {},
     })
@@ -101,6 +103,7 @@ export async function updatePatient(id: string, data: PatientUpdate) {
   if (data.email !== undefined) updateData.email = data.email ?? null;
   if (data.phone !== undefined) updateData.phone = data.phone ?? null;
   if (data.birth_date !== undefined) updateData.birth_date = data.birth_date || null;
+  if (data.cpf !== undefined) updateData.cpf = data.cpf?.replace(/\D/g, "") || null;
   if (data.notes !== undefined) updateData.notes = data.notes ?? null;
   if (data.custom_fields !== undefined) updateData.custom_fields = data.custom_fields || {};
 
