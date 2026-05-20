@@ -40,6 +40,7 @@ export function ClinicalCatalogSection({
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Geral");
+  const [defaultDetails, setDefaultDetails] = useState("");
   const [dosage, setDosage] = useState("");
   const [quantity, setQuantity] = useState("");
   const [instructions, setInstructions] = useState("");
@@ -66,6 +67,7 @@ export function ClinicalCatalogSection({
     setEditing("new");
     setName("");
     setCategory("Geral");
+    setDefaultDetails("");
     setDosage("");
     setQuantity("");
     setInstructions("");
@@ -74,7 +76,11 @@ export function ClinicalCatalogSection({
   function openEdit(item: MedicationCatalogItem | ExamCatalogItem) {
     setEditing(item.id);
     setName(item.name);
-    if (kind === "exam") setCategory((item as ExamCatalogItem).category);
+    if (kind === "exam") {
+      const e = item as ExamCatalogItem;
+      setCategory(e.category);
+      setDefaultDetails(e.default_details ?? "");
+    }
     if (kind === "medication") {
       const m = item as MedicationCatalogItem;
       setDosage(m.default_dosage);
@@ -104,6 +110,7 @@ export function ClinicalCatalogSection({
             scope,
             name,
             category,
+            default_details: defaultDetails,
           });
     setSaving(false);
     if (res.error) setError(res.error);
@@ -152,14 +159,28 @@ export function ClinicalCatalogSection({
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             {kind === "exam" && (
-              <div>
-                <Label>Grupo (opcional, só para organizar seu catálogo)</Label>
-                <Input
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  placeholder="Ex.: Laboratorial, Imagem..."
-                />
-              </div>
+              <>
+                <div>
+                  <Label>Detalhes do exame (o que solicitar)</Label>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Este texto entra automaticamente no pedido (ex.: hemograma completo, VHS, jejum de 8h).
+                  </p>
+                  <Textarea
+                    value={defaultDetails}
+                    onChange={(e) => setDefaultDetails(e.target.value)}
+                    rows={4}
+                    placeholder="Descreva o que costuma pedir neste exame..."
+                  />
+                </div>
+                <div>
+                  <Label>Grupo (opcional, só para organizar seu catálogo)</Label>
+                  <Input
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="Ex.: Laboratorial, Imagem..."
+                  />
+                </div>
+              </>
             )}
             {kind === "medication" && (
               <>
@@ -237,8 +258,15 @@ export function ClinicalCatalogSection({
                         <p className="text-xs font-semibold uppercase text-primary mb-1">{cat}</p>
                         <ul className="divide-y border rounded-lg text-sm">
                           {exams.map((e) => (
-                            <li key={e.id} className="flex justify-between items-center p-2 gap-2">
-                              <span>{e.name}</span>
+                            <li key={e.id} className="flex justify-between items-start p-2 gap-2">
+                              <div className="min-w-0">
+                                <span className="font-medium">{e.name}</span>
+                                {e.default_details?.trim() && (
+                                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                                    {e.default_details}
+                                  </p>
+                                )}
+                              </div>
                               <div className="flex gap-1">
                                 <Button size="icon" variant="ghost" onClick={() => openEdit(e)}>
                                   <Pencil className="h-3 w-3" />

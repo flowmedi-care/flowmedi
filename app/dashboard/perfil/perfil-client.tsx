@@ -279,7 +279,7 @@ export function PerfilClient({
         kind="exam"
         scope="doctor"
         title="Meus exames"
-        description="Cadastre nomes de exames (ex.: Hemograma, PSA). Na consulta, adicione ao pedido e descreva os detalhes de cada um."
+        description="Cadastre cada exame com nome e detalhes do que você costuma solicitar. Na consulta, basta escolher quais entram no pedido."
       />
       <ClinicalTemplatesSection
         scope="doctor"

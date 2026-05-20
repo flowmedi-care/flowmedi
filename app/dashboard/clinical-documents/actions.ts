@@ -691,11 +691,62 @@ export async function saveMedicationCatalogItem(input: {
   return { error: null };
 }
 
+export async function previewClinicalDocumentHtml(input: {
+  type: ClinicalDocumentType;
+  patientId: string;
+  appointmentId: string;
+  bodyText: string;
+  structuredContent: StructuredContent;
+}): Promise<{ html: string | null; error: string | null }> {
+  const auth = await getAuthDoctor();
+  if (auth.error || !auth.user || !auth.profile) return { html: null, error: auth.error };
+
+  const { ctx, error: ctxErr } = await loadDocumentRenderContext(
+    input.patientId,
+    auth.user.id,
+    auth.profile.clinic_id
+  );
+  if (ctxErr || !ctx) return { html: null, error: ctxErr ?? "Erro ao carregar dados." };
+
+  const structured = input.structuredContent;
+
+  if (input.type === "prescription" && "medications" in structured) {
+    return {
+      html: renderPrescriptionModernHtml({
+        ctx,
+        medications: structured.medications,
+        bodyText: input.bodyText,
+        manualSignature: true,
+      }),
+      error: null,
+    };
+  }
+
+  if (input.type === "exam_request" && isExamOrderContent(structured)) {
+    const referralLink = await getReferralLinkForDoctor(auth.user.id, auth.profile.clinic_id);
+    const qrCodeUrl = referralLink
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=144x144&data=${encodeURIComponent(referralLink)}`
+      : null;
+    return {
+      html: renderExamRequestModernHtml({
+        ctx,
+        examLines: structured.examLines,
+        examNotes: structured.examNotes,
+        qrCodeUrl,
+      }),
+      error: null,
+    };
+  }
+
+  return { html: null, error: "Conteúdo inválido para pré-visualização." };
+}
+
 export async function saveExamCatalogItem(input: {
   id?: string;
   scope: "clinic" | "doctor";
   name: string;
   category: string;
+  default_details?: string;
   display_order?: number;
   is_active?: boolean;
 }): Promise<{ error: string | null }> {
@@ -720,6 +771,7 @@ export async function saveExamCatalogItem(input: {
     doctor_id: input.scope === "doctor" ? user.id : null,
     name: input.name.trim(),
     category: input.category.trim() || "Geral",
+    default_details: input.default_details?.trim() ?? "",
     display_order: input.display_order ?? 0,
     is_active: input.is_active ?? true,
     updated_at: new Date().toISOString(),

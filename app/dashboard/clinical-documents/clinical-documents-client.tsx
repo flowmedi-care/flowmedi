@@ -23,6 +23,7 @@ import type {
 import { emptyStructuredContent, isExamOrderContent } from "@/lib/clinical-documents/render";
 import { MedicationPrescriptionEditor } from "./medication-prescription-editor";
 import { ExamOrderEditor } from "./exam-order-editor";
+import { ClinicalDocumentPreview } from "./clinical-document-preview";
 
 const TYPE_LABELS: Record<ClinicalDocumentType, { title: string; newLabel: string }> = {
   prescription: { title: "Receitas", newLabel: "Nova receita" },
@@ -317,6 +318,14 @@ export function ClinicalDocumentsClient({
               </p>
             </CardContent>
           </Card>
+
+          <ClinicalDocumentPreview
+            type={type}
+            patientId={patientId}
+            appointmentId={appointmentId}
+            bodyText={bodyText}
+            structuredContent={structured}
+          />
         </div>
       </div>
     );

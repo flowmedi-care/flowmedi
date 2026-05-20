@@ -58,6 +58,7 @@ export type ExamCatalogItem = {
   doctor_id: string | null;
   name: string;
   category: string;
+  default_details: string;
   display_order: number;
   is_active: boolean;
 };
