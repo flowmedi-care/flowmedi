@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,23 +8,19 @@ import Link from "next/link";
 import {
   Clock,
   Calendar,
-  FileText,
   AlertTriangle,
   CheckCircle2,
   User,
   ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getStatusBadgeClassName, getStatusBackgroundColor, getStatusTextColor } from "./agenda/status-utils";
+import { getStatusBadgeClassName } from "./agenda/status-utils";
 import {
   getDoctorMetricsByPeriod,
   getWeeklyAppointments,
   type Period,
 } from "./medico-dashboard-actions";
-import {
-  getDoctorPreferences,
-  type DoctorPreferences,
-} from "./medico-preferences-actions";
+import { getDoctorPreferences } from "./medico-preferences-actions";
 import { StatusToggle } from "./medico-dashboard-status-toggle";
 
 type Appointment = {
@@ -57,7 +52,6 @@ export function MedicoDashboardClient({
   appointments,
   pendingForms,
   metrics: initialMetrics,
-  nextAppointment: initialNextAppointment,
   doctorId,
   clinicId,
 }: {
@@ -70,7 +64,6 @@ export function MedicoDashboardClient({
     remaining: number;
     pendingForms: number;
   };
-  nextAppointment: Appointment | null;
   doctorId: string;
   clinicId: string;
 }) {
@@ -95,7 +88,6 @@ export function MedicoDashboardClient({
   const [loadingWeekly, setLoadingWeekly] = useState(false);
   const [lateThresholdMinutes, setLateThresholdMinutes] = useState(15);
   const [appointmentsState, setAppointmentsState] = useState<Appointment[]>(appointments);
-  const router = useRouter();
 
   // Atualizar estado quando appointments mudarem
   useEffect(() => {
@@ -197,36 +189,46 @@ export function MedicoDashboardClient({
   }
 
   const now = new Date();
-  
-  // Separar consultas por status e atraso (usar estado local)
-  const allAppointments = appointmentsState.filter(
-    (a) => a.status === "agendada" || a.status === "confirmada" || a.status === "realizada" || a.status === "falta" || a.status === "cancelada"
-  );
 
-  // Consultas atrasadas: agendadas/confirmadas que passaram do threshold
-  const lateAppointments = allAppointments.filter((a) => {
-    if (a.status !== "agendada" && a.status !== "confirmada") return false;
-    const appointmentTime = new Date(a.scheduled_at);
+  function isAppointmentLate(appointment: Appointment): boolean {
+    if (appointment.status !== "agendada" && appointment.status !== "confirmada") return false;
+    const appointmentTime = new Date(appointment.scheduled_at);
     const diffMinutes = (now.getTime() - appointmentTime.getTime()) / (1000 * 60);
     return diffMinutes > lateThresholdMinutes;
-  });
+  }
 
-  // Consultas não atrasadas: agendadas/confirmadas que não passaram do threshold
-  const upcomingAppointments = allAppointments.filter((a) => {
-    if (a.status !== "agendada" && a.status !== "confirmada") return false;
-    const appointmentTime = new Date(a.scheduled_at);
-    const diffMinutes = (now.getTime() - appointmentTime.getTime()) / (1000 * 60);
-    return diffMinutes <= lateThresholdMinutes;
-  });
+  function updateAppointmentStatus(appointmentId: string, newStatus: string) {
+    setAppointmentsState((prev) =>
+      prev.map((a) => (a.id === appointmentId ? { ...a, status: newStatus } : a))
+    );
+  }
 
-  // Consultas realizadas, falta ou canceladas vão para baixo
-  const pastAppointments = allAppointments.filter(
-    (a) => a.status === "realizada" || a.status === "falta" || a.status === "cancelada"
+  const allAppointments = appointmentsState.filter(
+    (a) =>
+      a.status === "agendada" ||
+      a.status === "confirmada" ||
+      a.status === "realizada" ||
+      a.status === "falta" ||
+      a.status === "cancelada"
   );
 
-  // Próxima consulta: primeira não atrasada (agendada/confirmada que não está na lista de atrasadas)
-  const nextAppointment = upcomingAppointments
-    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0] || null;
+  const activeAppointments = allAppointments
+    .filter((a) => a.status === "agendada" || a.status === "confirmada")
+    .sort(
+      (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+    );
+
+  const pastAppointments = allAppointments
+    .filter((a) => a.status === "realizada" || a.status === "falta" || a.status === "cancelada")
+    .sort(
+      (a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
+    );
+
+  const nextAppointment =
+    activeAppointments.find((a) => !isAppointmentLate(a)) ?? null;
+
+  const hasNoAppointmentsToday =
+    activeAppointments.length === 0 && pastAppointments.length === 0;
 
   const comparecimentoRate =
     allAppointments.length > 0 ? Math.round((metrics.completed / allAppointments.length) * 100) : 0;
@@ -335,6 +337,7 @@ export function MedicoDashboardClient({
         </Card>
       </div>
 
+<<<<<<< Updated upstream
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
@@ -428,58 +431,12 @@ export function MedicoDashboardClient({
           </CardContent>
         </Card>
       )}
+=======
+      {/* Calendário Semanal */}
+      <WeeklyCalendar appointments={weeklyAppointments} loading={loadingWeekly} />
+>>>>>>> Stashed changes
 
-      {/* Próxima Consulta em Destaque */}
-      {nextAppointment && (
-        <Card className="border-primary/50 bg-primary/5">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              <span className="font-semibold text-primary">Próxima Consulta</span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="font-medium text-lg">{nextAppointment.patient.full_name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatDateTime(nextAppointment.scheduled_at)}
-                  </p>
-                  {nextAppointment.appointment_type && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {nextAppointment.appointment_type.name}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <StatusToggle
-                      appointmentId={nextAppointment.id}
-                      currentStatus={nextAppointment.status}
-                      onStatusChange={(newStatus) => {
-                        setAppointmentsState((prev) =>
-                          prev.map((a) =>
-                            a.id === nextAppointment.id ? { ...a, status: newStatus } : a
-                          )
-                        );
-                      }}
-                    />
-                  </div>
-                  <Link href={`/dashboard/agenda/consulta/${nextAppointment.id}`}>
-                    <Button size="sm">
-                      Ver Detalhes
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Consultas do Dia */}
+      {/* Consultas de Hoje */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Consultas de Hoje</h2>
@@ -490,164 +447,167 @@ export function MedicoDashboardClient({
           </Link>
         </div>
 
-        {lateAppointments.length === 0 && upcomingAppointments.length === 0 && pastAppointments.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Nenhuma consulta agendada para hoje.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {/* Consultas Agendadas/Confirmadas (não atrasadas) */}
-            {upcomingAppointments.length > 0 && (
-              <div className="space-y-2">
-                {upcomingAppointments
-                  .sort((a, b) => 
-                    new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
-                  )
-                  .map((appointment) => {
-                  const isNext = nextAppointment?.id === appointment.id;
-                  return (
-                    <Link
-                      key={appointment.id}
-                      href={`/dashboard/agenda/consulta/${appointment.id}`}
-                    >
-                      <Card
-                        className={cn(
-                          "hover:bg-muted/50 transition-colors cursor-pointer",
-                          isNext && "border-primary/50 bg-primary/5"
-                        )}
-                      >
-                        <CardContent className="pt-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex items-start gap-3 flex-1">
-                              <div
-                                className={cn(
-                                  "text-lg font-semibold min-w-[60px]",
-                                  isNext && "text-primary"
-                                )}
-                              >
-                                {formatTime(appointment.scheduled_at)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <p className="font-medium">{appointment.patient.full_name}</p>
-                                  {isNext && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      Próxima
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                                  {appointment.appointment_type && (
-                                    <span>{appointment.appointment_type.name}</span>
-                                  )}
-                                  {appointment.patient.birth_date && (
-                                    <span className="flex items-center gap-1">
-                                      <User className="h-3 w-3" />
-                                      {calculateAge(appointment.patient.birth_date)} anos
-                                    </span>
-                                  )}
-                                  {appointment.patient.phone && (
-                                    <span>{appointment.patient.phone}</span>
-                                  )}
-                                </div>
-                                {appointment.notes && (
-                                  <p className="text-sm text-muted-foreground mt-2">
-                                    {appointment.notes}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <div onClick={(e) => e.stopPropagation()}>
-                                <StatusToggle
-                                  appointmentId={appointment.id}
-                                  currentStatus={appointment.status}
-                                  onStatusChange={(newStatus) => {
-                                    setAppointmentsState((prev) =>
-                                      prev.map((a) =>
-                                        a.id === appointment.id ? { ...a, status: newStatus } : a
-                                      )
-                                    );
-                                  }}
-                                  size="sm"
-                                />
-                              </div>
-                              <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Consultas Realizadas / Falta / Canceladas (em baixo) */}
-            {pastAppointments.length > 0 && (
-              <div className="space-y-2 pt-4 border-t border-border">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Consultas Realizadas / Falta / Canceladas
+        {hasNoAppointmentsToday ? (
+          <div className="grid gap-6 lg:grid-cols-2">
+            <NextAppointmentPanel
+              appointment={null}
+              formatDateTime={formatDateTime}
+              onStatusChange={updateAppointmentStatus}
+            />
+            <Card>
+              <CardContent className="py-8 text-center">
+                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma consulta agendada para hoje.
                 </p>
-                {pastAppointments
-                  .sort((a, b) => 
-                    new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
-                  )
-                  .map((appointment) => (
-                  <Link
-                    key={appointment.id}
-                    href={`/dashboard/agenda/consulta/${appointment.id}`}
-                  >
-                    <Card className="hover:bg-muted/50 transition-colors cursor-pointer opacity-75">
-                      <CardContent className="pt-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-start gap-3 flex-1">
-                            <div className="text-lg font-semibold min-w-[60px] text-muted-foreground">
-                              {formatTime(appointment.scheduled_at)}
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+            <NextAppointmentPanel
+              appointment={nextAppointment}
+              formatDateTime={formatDateTime}
+              onStatusChange={updateAppointmentStatus}
+            />
+            <div className="space-y-3 min-h-0">
+              <p className="text-sm font-medium text-muted-foreground">Todas as consultas</p>
+              <div className="max-h-[min(60vh,32rem)] overflow-y-auto pr-1 space-y-3">
+                {activeAppointments.length > 0 && (
+                  <div className="space-y-2">
+                    {activeAppointments.map((appointment) => {
+                      const isLate = isAppointmentLate(appointment);
+                      return (
+                        <Link
+                          key={appointment.id}
+                          href={`/dashboard/agenda/consulta/${appointment.id}`}
+                        >
+                          <Card
+                            className={cn(
+                              "hover:bg-muted/50 transition-colors cursor-pointer",
+                              isLate &&
+                                "border-orange-200 bg-orange-50/50 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950/10 dark:hover:bg-orange-900/20"
+                            )}
+                          >
+                            <CardContent className="pt-4 pb-4">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex items-start gap-3 flex-1 min-w-0">
+                                  <div
+                                    className={cn(
+                                      "text-lg font-semibold min-w-[60px]",
+                                      isLate && "text-orange-700 dark:text-orange-300"
+                                    )}
+                                  >
+                                    {formatTime(appointment.scheduled_at)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <p className="font-medium">{appointment.patient.full_name}</p>
+                                      {isLate && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200"
+                                        >
+                                          Atrasada
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                                      {appointment.appointment_type && (
+                                        <span>{appointment.appointment_type.name}</span>
+                                      )}
+                                      {appointment.patient.birth_date && (
+                                        <span className="flex items-center gap-1">
+                                          <User className="h-3 w-3" />
+                                          {calculateAge(appointment.patient.birth_date)} anos
+                                        </span>
+                                      )}
+                                      {appointment.patient.phone && (
+                                        <span>{appointment.patient.phone}</span>
+                                      )}
+                                    </div>
+                                    {appointment.notes && (
+                                      <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                                        {appointment.notes}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <StatusToggle
+                                      appointmentId={appointment.id}
+                                      currentStatus={appointment.status}
+                                      onStatusChange={(newStatus) =>
+                                        updateAppointmentStatus(appointment.id, newStatus)
+                                      }
+                                      size="sm"
+                                    />
+                                  </div>
+                                  <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {pastAppointments.length > 0 && (
+                  <div className="space-y-2 pt-4 border-t border-border">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Consultas Realizadas / Falta / Canceladas
+                    </p>
+                    {pastAppointments.map((appointment) => (
+                      <Link
+                        key={appointment.id}
+                        href={`/dashboard/agenda/consulta/${appointment.id}`}
+                      >
+                        <Card className="hover:bg-muted/50 transition-colors cursor-pointer opacity-75">
+                          <CardContent className="pt-4 pb-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3 flex-1 min-w-0">
+                                <div className="text-lg font-semibold min-w-[60px] text-muted-foreground">
+                                  {formatTime(appointment.scheduled_at)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium">{appointment.patient.full_name}</p>
+                                  {appointment.appointment_type && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {appointment.appointment_type.name}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div onClick={(e) => e.stopPropagation()}>
+                                  <StatusToggle
+                                    appointmentId={appointment.id}
+                                    currentStatus={appointment.status}
+                                    onStatusChange={(newStatus) =>
+                                      updateAppointmentStatus(appointment.id, newStatus)
+                                    }
+                                    size="sm"
+                                  />
+                                </div>
+                                <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                              </div>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium">{appointment.patient.full_name}</p>
-                              {appointment.appointment_type && (
-                                <p className="text-xs text-muted-foreground">
-                                  {appointment.appointment_type.name}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div onClick={(e) => e.stopPropagation()}>
-                              <StatusToggle
-                                appointmentId={appointment.id}
-                                currentStatus={appointment.status}
-                                onStatusChange={(newStatus) => {
-                                  setAppointmentsState((prev) =>
-                                    prev.map((a) =>
-                                      a.id === appointment.id ? { ...a, status: newStatus } : a
-                                    )
-                                  );
-                                }}
-                                size="sm"
-                              />
-                            </div>
-                            <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Alertas - Formulários Pendentes */}
+      {/* Formulários Pendentes */}
       {pendingForms.length > 0 && (
         <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900">
           <CardHeader className="flex flex-row items-center gap-2 pb-3">
@@ -695,10 +655,67 @@ export function MedicoDashboardClient({
           </CardContent>
         </Card>
       )}
-
-      {/* Calendário Semanal */}
-      <WeeklyCalendar appointments={weeklyAppointments} loading={loadingWeekly} />
     </div>
+  );
+}
+
+function NextAppointmentPanel({
+  appointment,
+  formatDateTime,
+  onStatusChange,
+}: {
+  appointment: Appointment | null;
+  formatDateTime: (dateString: string) => string;
+  onStatusChange: (appointmentId: string, newStatus: string) => void;
+}) {
+  return (
+    <Card className={cn(appointment && "border-primary/50 bg-primary/5")}>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Clock className={cn("h-5 w-5", appointment ? "text-primary" : "text-muted-foreground")} />
+          <span className={cn("font-semibold", appointment ? "text-primary" : "text-foreground")}>
+            Próxima Consulta
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {appointment ? (
+          <div className="space-y-4">
+            <div>
+              <p className="font-medium text-lg">{appointment.patient.full_name}</p>
+              <p className="text-sm text-muted-foreground">
+                {formatDateTime(appointment.scheduled_at)}
+              </p>
+              {appointment.appointment_type && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {appointment.appointment_type.name}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div onClick={(e) => e.stopPropagation()}>
+                <StatusToggle
+                  appointmentId={appointment.id}
+                  currentStatus={appointment.status}
+                  onStatusChange={(newStatus) => onStatusChange(appointment.id, newStatus)}
+                />
+              </div>
+              <Link href={`/dashboard/agenda/consulta/${appointment.id}`}>
+                <Button size="sm">
+                  Ver Detalhes
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="py-6 text-center">
+            <Clock className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground">Nenhuma consulta próxima.</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

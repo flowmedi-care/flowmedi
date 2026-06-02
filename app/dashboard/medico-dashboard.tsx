@@ -105,12 +105,6 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
     (a) => a.status === "realizada"
   ).length;
   const remainingCount = appointmentsToday.length - completedCount;
-  // Próxima consulta será calculada no cliente considerando o threshold de atraso
-  // Por enquanto, pegar a primeira agendada/confirmada (será filtrada no cliente)
-  const nextAppointment = appointmentsToday
-    .filter((a) => a.status === "agendada" || a.status === "confirmada")
-    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0];
-
   const metrics = {
     totalToday: appointmentsToday.length,
     completed: completedCount,
@@ -129,7 +123,6 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
         remaining: metrics.remaining,
         pendingForms: metrics.pendingForms,
       }}
-      nextAppointment={nextAppointment || null}
       doctorId={doctorId}
       clinicId={clinicId}
     />
