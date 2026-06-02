@@ -234,9 +234,11 @@ export function MedicoDashboardClient({
     allAppointments.length > 0 ? Math.round((metrics.completed / allAppointments.length) * 100) : 0;
   const noShowCount = allAppointments.filter((a) => a.status === "falta").length;
   const noShowRate = allAppointments.length > 0 ? Math.round((noShowCount / allAppointments.length) * 100) : 0;
-  const onTimeCount = upcomingAppointments.length;
-  const openFlowCount = upcomingAppointments.length + lateAppointments.length;
-  const pontualidadeRate = openFlowCount > 0 ? Math.round((onTimeCount / openFlowCount) * 100) : 100;
+  const onTimeCount = activeAppointments.filter((a) => !isAppointmentLate(a)).length;
+  const lateCount = activeAppointments.filter((a) => isAppointmentLate(a)).length;
+  const openFlowCount = onTimeCount + lateCount;
+  const pontualidadeRate =
+    openFlowCount > 0 ? Math.round((onTimeCount / openFlowCount) * 100) : 100;
 
   return (
     <div className="space-y-8">
@@ -337,7 +339,6 @@ export function MedicoDashboardClient({
         </Card>
       </div>
 
-<<<<<<< Updated upstream
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
@@ -365,76 +366,8 @@ export function MedicoDashboardClient({
         </Card>
       </div>
 
-      {/* Consultas Atrasadas */}
-      {lateAppointments.length > 0 && (
-        <Card className="border-orange-200 bg-orange-50/50 dark:bg-orange-950/10">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-600" />
-              <span className="font-semibold text-orange-900 dark:text-orange-100">
-                Consultas Atrasadas
-              </span>
-              <Badge variant="outline" className="ml-auto bg-orange-100 dark:bg-orange-900/50">
-                {lateAppointments.length}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {lateAppointments
-                .sort((a, b) => 
-                  new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
-                )
-                .map((appointment) => (
-                  <Link
-                    key={appointment.id}
-                    href={`/dashboard/agenda/consulta/${appointment.id}`}
-                  >
-                    <Card className="hover:bg-orange-100 dark:hover:bg-orange-900/20 transition-colors cursor-pointer border-orange-200 dark:border-orange-800">
-                      <CardContent className="pt-3 pb-3">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="text-sm font-semibold min-w-[50px] text-orange-700 dark:text-orange-300">
-                              {formatTime(appointment.scheduled_at)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">
-                                {appointment.patient.full_name}
-                              </p>
-                              {appointment.appointment_type && (
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {appointment.appointment_type.name}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div onClick={(e) => e.stopPropagation()}>
-                            <StatusToggle
-                              appointmentId={appointment.id}
-                              currentStatus={appointment.status}
-                              onStatusChange={(newStatus) => {
-                                setAppointmentsState((prev) =>
-                                  prev.map((a) =>
-                                    a.id === appointment.id ? { ...a, status: newStatus } : a
-                                  )
-                                );
-                              }}
-                              size="sm"
-                            />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-=======
       {/* Calendário Semanal */}
       <WeeklyCalendar appointments={weeklyAppointments} loading={loadingWeekly} />
->>>>>>> Stashed changes
 
       {/* Consultas de Hoje */}
       <div className="space-y-4">
