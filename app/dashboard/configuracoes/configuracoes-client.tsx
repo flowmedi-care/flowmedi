@@ -32,6 +32,7 @@ export function ConfiguracoesClient({
   clinicLogoScale,
   clinicAgendaWorkStart,
   clinicAgendaWorkEnd,
+  clinicAgendaMaxConcurrent,
   clinicPhone,
   clinicEmail,
   clinicAddress,
@@ -56,6 +57,7 @@ export function ConfiguracoesClient({
   clinicLogoScale: number;
   clinicAgendaWorkStart: string;
   clinicAgendaWorkEnd: string;
+  clinicAgendaMaxConcurrent: number | null;
   clinicPhone: string | null;
   clinicEmail: string | null;
   clinicAddress: string | null;
@@ -165,6 +167,7 @@ export function ConfiguracoesClient({
           logoScale: clinicLogoScale,
           agendaWorkStart: clinicAgendaWorkStart,
           agendaWorkEnd: clinicAgendaWorkEnd,
+          agendaMaxConcurrent: clinicAgendaMaxConcurrent,
           phone: clinicPhone,
           email: clinicEmail,
           address: clinicAddress,

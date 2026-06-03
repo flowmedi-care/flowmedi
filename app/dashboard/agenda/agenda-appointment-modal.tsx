@@ -569,7 +569,13 @@ export function AgendaAppointmentModal({
               <Label>Data e hora *</Label>
               <div className="flex gap-2">
                 <Input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} required />
-                <Input type="time" value={form.time} onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))} required />
+                <Input
+                  type="time"
+                  step={60}
+                  value={form.time}
+                  onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
+                  required
+                />
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm">

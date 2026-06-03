@@ -522,6 +522,7 @@ export async function updateClinicInfo(data: {
   instagram_url?: string | null;
   agenda_work_start?: string | null;
   agenda_work_end?: string | null;
+  agenda_max_concurrent?: number | null;
 }): Promise<{ error: string | null }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -571,6 +572,17 @@ export async function updateClinicInfo(data: {
     updateData.agenda_work_end = end;
   }
 
+  if (data.agenda_max_concurrent !== undefined) {
+    const raw = data.agenda_max_concurrent;
+    if (raw === null || raw <= 1) {
+      updateData.agenda_max_concurrent = null;
+    } else if (!Number.isInteger(raw) || raw < 2 || raw > 20) {
+      return { error: "Consultórios simultâneos deve ser entre 2 e 20, ou vazio para sem limite na clínica." };
+    } else {
+      updateData.agenda_max_concurrent = raw;
+    }
+  }
+
   const { error } = await supabase
     .from("clinics")
     .update(updateData)
@@ -579,6 +591,7 @@ export async function updateClinicInfo(data: {
   if (error) return { error: error.message };
   revalidatePath("/dashboard/configuracoes");
   revalidatePath("/dashboard/mensagens/templates");
+  revalidatePath("/dashboard/agenda");
   return { error: null };
 }
 

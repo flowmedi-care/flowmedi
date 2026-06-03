@@ -774,6 +774,76 @@ async function getDurationMinutes(
   return at?.duration_minutes ?? 30;
 }
 
+function dayBoundsForScheduledAt(scheduledAt: string): { dayStart: string; dayEnd: string } {
+  const d = new Date(scheduledAt);
+  const dayStart = new Date(d);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(d);
+  dayEnd.setHours(23, 59, 59, 999);
+  return { dayStart: dayStart.toISOString(), dayEnd: dayEnd.toISOString() };
+}
+
+function formatConflictTimeRange(startMs: number, endMs: number): string {
+  const fmt = (ms: number) =>
+    new Date(ms).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return `${fmt(startMs)} às ${fmt(endMs)}`;
+}
+
+function intervalsOverlap(
+  startA: number,
+  endA: number,
+  startB: number,
+  endB: number
+): boolean {
+  return startA < endB && endA > startB;
+}
+
+async function buildDurationMap(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  appointmentTypeIds: (string | null)[]
+): Promise<Map<string, number>> {
+  const ids = [...new Set(appointmentTypeIds.filter(Boolean))] as string[];
+  const map = new Map<string, number>();
+  if (!ids.length) return map;
+  const { data: types } = await supabase
+    .from("appointment_types")
+    .select("id, duration_minutes")
+    .eq("clinic_id", clinicId)
+    .in("id", ids);
+  for (const t of types ?? []) {
+    map.set(t.id, t.duration_minutes ?? 30);
+  }
+  return map;
+}
+
+function appointmentEndMs(
+  scheduledAt: string,
+  appointmentTypeId: string | null,
+  durationMap: Map<string, number>
+): number {
+  const start = new Date(scheduledAt).getTime();
+  const duration =
+    appointmentTypeId && durationMap.has(appointmentTypeId)
+      ? durationMap.get(appointmentTypeId)!
+      : 30;
+  return start + duration * 60 * 1000;
+}
+
+async function getClinicAgendaMaxConcurrent(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string
+): Promise<number | null> {
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("agenda_max_concurrent")
+    .eq("id", clinicId)
+    .single();
+  const n = clinic?.agenda_max_concurrent;
+  if (n == null || n < 2) return null;
+  return n;
+}
+
 async function checkAppointmentConflict(
   supabase: Awaited<ReturnType<typeof createClient>>,
   opts: {
@@ -786,30 +856,85 @@ async function checkAppointmentConflict(
 ): Promise<string | null> {
   const start = new Date(opts.scheduledAt).getTime();
   const end = start + opts.durationMinutes * 60 * 1000;
+  const { dayStart, dayEnd } = dayBoundsForScheduledAt(opts.scheduledAt);
 
-  let query = supabase
+  const { data: doctor } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", opts.doctorId)
+    .single();
+  const doctorName = (doctor?.full_name as string | undefined)?.trim() || "este profissional";
+
+  let doctorQuery = supabase
     .from("appointments")
     .select("id, scheduled_at, appointment_type_id")
     .eq("clinic_id", opts.clinicId)
     .eq("doctor_id", opts.doctorId)
-    .neq("status", "cancelada");
+    .neq("status", "cancelada")
+    .gte("scheduled_at", dayStart)
+    .lte("scheduled_at", dayEnd);
 
   if (opts.excludeAppointmentId) {
-    query = query.neq("id", opts.excludeAppointmentId);
+    doctorQuery = doctorQuery.neq("id", opts.excludeAppointmentId);
   }
 
-  const { data: existing } = await query;
+  const { data: doctorDayAppointments } = await doctorQuery;
 
-  for (const appt of existing ?? []) {
-    const apptDuration = appt.appointment_type_id
-      ? await getDurationMinutes(supabase, appt.appointment_type_id, opts.clinicId)
-      : 30;
+  const durationMap = await buildDurationMap(
+    supabase,
+    opts.clinicId,
+    (doctorDayAppointments ?? []).map((a) => a.appointment_type_id)
+  );
+
+  for (const appt of doctorDayAppointments ?? []) {
     const apptStart = new Date(appt.scheduled_at).getTime();
-    const apptEnd = apptStart + apptDuration * 60 * 1000;
-    if (start < apptEnd && end > apptStart) {
-      return "Já existe uma consulta com esse médico neste horário. Escolha outro horário.";
+    const apptEnd = appointmentEndMs(
+      appt.scheduled_at,
+      appt.appointment_type_id,
+      durationMap
+    );
+    if (intervalsOverlap(start, end, apptStart, apptEnd)) {
+      return `${doctorName} já tem consulta das ${formatConflictTimeRange(apptStart, apptEnd)}. Escolha outro horário.`;
     }
   }
+
+  const maxConcurrent = await getClinicAgendaMaxConcurrent(supabase, opts.clinicId);
+  if (!maxConcurrent) return null;
+
+  let clinicQuery = supabase
+    .from("appointments")
+    .select("id, scheduled_at, appointment_type_id")
+    .eq("clinic_id", opts.clinicId)
+    .neq("status", "cancelada")
+    .gte("scheduled_at", dayStart)
+    .lte("scheduled_at", dayEnd);
+
+  if (opts.excludeAppointmentId) {
+    clinicQuery = clinicQuery.neq("id", opts.excludeAppointmentId);
+  }
+
+  const { data: clinicDayAppointments } = await clinicQuery;
+  const clinicDurationMap = await buildDurationMap(
+    supabase,
+    opts.clinicId,
+    (clinicDayAppointments ?? []).map((a) => a.appointment_type_id)
+  );
+
+  let overlapping = 0;
+  for (const appt of clinicDayAppointments ?? []) {
+    const apptStart = new Date(appt.scheduled_at).getTime();
+    const apptEnd = appointmentEndMs(
+      appt.scheduled_at,
+      appt.appointment_type_id,
+      clinicDurationMap
+    );
+    if (intervalsOverlap(start, end, apptStart, apptEnd)) overlapping += 1;
+  }
+
+  if (overlapping >= maxConcurrent) {
+    return `A clínica permite no máximo ${maxConcurrent} consulta(s) simultânea(s) (${maxConcurrent} consultório(s)). Já há ${overlapping} neste horário. Escolha outro horário.`;
+  }
+
   return null;
 }
 

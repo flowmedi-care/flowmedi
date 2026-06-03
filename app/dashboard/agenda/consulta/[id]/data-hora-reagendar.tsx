@@ -112,6 +112,7 @@ export function DataHoraReagendar({
                 <Label className="text-gray-900">Novo horário</Label>
                 <Input
                   type="time"
+                  step={60}
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
                   required

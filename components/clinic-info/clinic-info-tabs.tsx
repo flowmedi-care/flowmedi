@@ -18,6 +18,7 @@ interface ClinicInfoTabsProps {
     logoScale: number;
     agendaWorkStart: string | null;
     agendaWorkEnd: string | null;
+    agendaMaxConcurrent: number | null;
     phone: string | null;
     email: string | null;
     address: string | null;
@@ -36,6 +37,9 @@ export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: Clin
   const [agendaWorkEnd, setAgendaWorkEnd] = useState(
     String(initialData.agendaWorkEnd || "20:00:00").slice(0, 5)
   );
+  const [agendaMaxConcurrent, setAgendaMaxConcurrent] = useState(
+    initialData.agendaMaxConcurrent != null ? String(initialData.agendaMaxConcurrent) : ""
+  );
   const [phone, setPhone] = useState(initialData.phone || "");
   const [email, setEmail] = useState(initialData.email || "");
   const [address, setAddress] = useState(initialData.address || "");
@@ -51,6 +55,12 @@ export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: Clin
     setError(null);
     setSuccess(false);
     
+    const concurrentRaw = agendaMaxConcurrent.trim();
+    const concurrentParsed =
+      concurrentRaw === ""
+        ? null
+        : Number.parseInt(concurrentRaw, 10);
+
     const result = await updateClinicInfo({
       name: name.trim() || null,
       phone: phone.trim() || null,
@@ -61,6 +71,8 @@ export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: Clin
       instagram_url: instagramUrl.trim() || null,
       agenda_work_start: agendaWorkStart,
       agenda_work_end: agendaWorkEnd,
+      agenda_max_concurrent:
+        concurrentRaw === "" ? null : Number.isNaN(concurrentParsed) ? null : concurrentParsed,
     });
 
     setSaving(false);
@@ -158,8 +170,24 @@ export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: Clin
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Esses horários definem a grade exibida na agenda semanal (padrão 07:00-20:00).
+              Esses horários definem a grade exibida na agenda semanal (faixas de 15 min; padrão 07:00-20:00).
             </p>
+            <div className="space-y-2">
+              <Label htmlFor="agenda-max-concurrent">Consultórios simultâneos</Label>
+              <Input
+                id="agenda-max-concurrent"
+                type="number"
+                min={2}
+                max={20}
+                placeholder="Vazio = sem limite (só por médico)"
+                value={agendaMaxConcurrent}
+                onChange={(e) => setAgendaMaxConcurrent(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Ex.: 2 para duas salas. Médicos diferentes podem agendar no mesmo horário até esse limite.
+                Deixe vazio para não limitar a clínica inteira.
+              </p>
+            </div>
             <Button className="w-full sm:w-auto" onClick={handleSaveInfo} disabled={saving || !name.trim()}>
               {saving ? "Salvando..." : "Salvar Informações"}
             </Button>

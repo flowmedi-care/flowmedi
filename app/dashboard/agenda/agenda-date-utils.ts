@@ -114,11 +114,62 @@ export function formatDayShort(d: Date): string {
   return d.toLocaleDateString("pt-BR", { weekday: "short" });
 }
 
-/** Horas no dia para grade (ex.: 7–20). */
+/** Faixa de horário na grade da agenda (ex.: 09:15). */
+export type AgendaTimeSlot = { hour: number; minute: number };
+
+const AGENDA_SLOT_STEP_MINUTES = 15;
+
+/** Horas no dia para grade (ex.: 7–20). Mantido para compatibilidade. */
 export function getHourSlots(startHour = 7, endHour = 20): number[] {
   const slots: number[] = [];
   for (let h = startHour; h <= endHour; h++) slots.push(h);
   return slots;
+}
+
+/** Slots de 15 min entre início e fim do expediente (inclusive na hora final :00). */
+export function getAgendaTimeSlots(
+  startHour = 7,
+  endHour = 20,
+  stepMinutes = AGENDA_SLOT_STEP_MINUTES
+): AgendaTimeSlot[] {
+  const slots: AgendaTimeSlot[] = [];
+  for (let h = startHour; h <= endHour; h++) {
+    for (let m = 0; m < 60; m += stepMinutes) {
+      if (h === endHour && m > 0) break;
+      slots.push({ hour: h, minute: m });
+    }
+  }
+  return slots;
+}
+
+export function formatAgendaSlotLabel(slot: AgendaTimeSlot): string {
+  return `${String(slot.hour).padStart(2, "0")}:${String(slot.minute).padStart(2, "0")}`;
+}
+
+export function agendaSlotKey(slot: AgendaTimeSlot): string {
+  return `${slot.hour}-${slot.minute}`;
+}
+
+/** Associa consulta à faixa de 15 min (arredonda para baixo). */
+export function getAgendaSlotForScheduledAt(
+  scheduledAt: string,
+  stepMinutes = AGENDA_SLOT_STEP_MINUTES
+): AgendaTimeSlot {
+  const d = new Date(scheduledAt);
+  const minute = Math.floor(d.getMinutes() / stepMinutes) * stepMinutes;
+  return { hour: d.getHours(), minute };
+}
+
+export function parseDropSlotFromId(
+  dropId: string
+): { dayId: string; hour: number; minute: number } | null {
+  const match = dropId.match(/^(\d{4}-\d{2}-\d{2})-(\d{1,2})(?:-(\d{1,2}))?$/);
+  if (!match) return null;
+  const hour = Number(match[2]);
+  const minute = match[3] !== undefined ? Number(match[3]) : 0;
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) return null;
+  return { dayId: match[1], hour, minute };
 }
 
 /** Retorna o número da semana no mês (1–5) e intervalo dd-dd. Ex: Semana 1 (01-07). */

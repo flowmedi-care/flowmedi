@@ -56,7 +56,12 @@ import {
   toYMD,
   formatMonthYear,
   formatDayShort,
-  getHourSlots,
+  getAgendaTimeSlots,
+  formatAgendaSlotLabel,
+  agendaSlotKey,
+  getAgendaSlotForScheduledAt,
+  parseDropSlotFromId,
+  type AgendaTimeSlot,
   getWeekOfMonthLabel,
   iterateDays,
   getWeekStartForPeriod,
@@ -583,23 +588,36 @@ export function AgendaClient({
     // Também pode ser um ID único como "2026-02-09-14" (dayId-hour) no calendário semanal
     let targetDate: string | null = null;
     let targetHour: number | null = null;
-    
-    // Tentar extrair dayId do over.data primeiro (se for um DroppableDay)
-    const overData = (over.data.current as { dayId?: string; type?: string }) || {};
+    let targetMinute: number | null = null;
+
+    const overData =
+      (over.data.current as {
+        dayId?: string;
+        type?: string;
+        slotHour?: number;
+        slotMinute?: number;
+      }) || {};
     if (overData.type === "day" && overData.dayId) {
-      // DroppableDay sempre tem dayId nos dados
       targetDate = overData.dayId;
-      // Se o uniqueId tem formato dayId-hour, extrair a hora
-      if (targetId.match(/^\d{4}-\d{2}-\d{2}-\d+$/)) {
-        const parts = targetId.split("-");
-        targetHour = parseInt(parts[3], 10);
+      if (typeof overData.slotHour === "number") {
+        targetHour = overData.slotHour;
+        targetMinute = typeof overData.slotMinute === "number" ? overData.slotMinute : 0;
+      } else {
+        const parsed = parseDropSlotFromId(targetId);
+        if (parsed) {
+          targetDate = parsed.dayId;
+          targetHour = parsed.hour;
+          targetMinute = parsed.minute;
+        }
       }
-    } else if (targetId.match(/^\d{4}-\d{2}-\d{2}(-\d+)?$/)) {
-      // É um dayId ou dayId-hour - extrair a data e possivelmente a hora
-      const parts = targetId.split("-");
-      targetDate = parts.slice(0, 3).join("-");
-      if (parts.length > 3) {
-        targetHour = parseInt(parts[3], 10);
+    } else if (targetId.match(/^\d{4}-\d{2}-\d{2}/)) {
+      const parsed = parseDropSlotFromId(targetId);
+      if (parsed) {
+        targetDate = parsed.dayId;
+        targetHour = parsed.hour;
+        targetMinute = parsed.minute;
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(targetId)) {
+        targetDate = targetId;
       }
     } else {
       // É outro appointment - neste caso, vamos buscar o DroppableDay pai
@@ -637,13 +655,15 @@ export function AgendaClient({
     // Se targetHour foi extraído (arrastou verticalmente no calendário semanal), usar essa hora
     // Caso contrário, manter a hora original
     const newHour = targetHour !== null ? targetHour : oldHour;
-    const newMinute = targetHour !== null ? 0 : oldMinute; // Quando muda de hora, definir minutos como 0
+    const newMinute =
+      targetHour !== null && targetMinute !== null ? targetMinute : oldMinute;
 
-    // Reagendar se mudou de dia OU se mudou de hora (no calendário semanal)
     const dateChanged = targetDate !== oldDateStr;
-    const hourChanged = targetHour !== null && targetHour !== oldHour;
-    
-    if (dateChanged || hourChanged) {
+    const timeChanged =
+      targetHour !== null &&
+      (targetHour !== oldHour || (targetMinute !== null && targetMinute !== oldMinute));
+
+    if (dateChanged || timeChanged) {
       // Converter para ISO string preservando a data local (evita problemas de timezone)
       const isoString = localDateToISO(year, month, day, newHour, newMinute);
       const res = await updateAppointment(draggedAppointment.id, {
@@ -1003,7 +1023,7 @@ export function AgendaClient({
           appointments={appointmentsInPeriod}
           currentDate={calendarDate}
           today={today}
-          hourSlots={getHourSlots(agendaStartHour, agendaEndHour)}
+          timeSlots={getAgendaTimeSlots(agendaStartHour, agendaEndHour)}
           getEventStyle={getEventStyle}
           getAccentColor={getAccentColor}
           onEditAppointment={openEditModal}
@@ -1324,7 +1344,7 @@ function CalendarWeekView({
   appointments,
   currentDate,
   today,
-  hourSlots,
+  timeSlots,
   getEventStyle,
   getAccentColor,
   onEditAppointment,
@@ -1332,7 +1352,7 @@ function CalendarWeekView({
   appointments: AppointmentRow[];
   currentDate: Date;
   today: Date;
-  hourSlots: number[];
+  timeSlots: AgendaTimeSlot[];
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
   getAccentColor: (appointment: AppointmentRow) => string;
   onEditAppointment?: (appointmentId: string) => void;
@@ -1374,29 +1394,29 @@ function CalendarWeekView({
   }, [appointments]);
 
   // Sempre calcular para manter ordem de hooks estável entre mobile/desktop
-  const byDayHour = useMemo(() => {
-    const map: Record<string, Record<number, AppointmentRow[]>> = {};
+  const byDaySlot = useMemo(() => {
+    const map: Record<string, Record<string, AppointmentRow[]>> = {};
     weekDays.forEach((d) => {
       map[toYMD(d)] = {};
-      hourSlots.forEach((h) => {
-        map[toYMD(d)][h] = [];
+      timeSlots.forEach((slot) => {
+        map[toYMD(d)][agendaSlotKey(slot)] = [];
       });
     });
     appointments.forEach((a) => {
       const key = a.scheduled_at.slice(0, 10);
-      const hour = new Date(a.scheduled_at).getHours();
-      if (map[key] && map[key][hour] !== undefined) map[key][hour].push(a);
+      const slot = getAgendaSlotForScheduledAt(a.scheduled_at);
+      const slotKey = agendaSlotKey(slot);
+      if (map[key] && map[key][slotKey] !== undefined) map[key][slotKey].push(a);
     });
     Object.keys(map).forEach((dayKey) => {
-      Object.keys(map[dayKey]).forEach((h) => {
-        const hour = Number(h);
-        map[dayKey][hour].sort(
+      Object.keys(map[dayKey]).forEach((sk) => {
+        map[dayKey][sk].sort(
           (x, y) => new Date(x.scheduled_at).getTime() - new Date(y.scheduled_at).getTime()
         );
       });
     });
     return map;
-  }, [appointments, weekDays, hourSlots]);
+  }, [appointments, weekDays, timeSlots]);
 
   if (isMobile) {
     const selectedDayDate = weekDays.find((d) => toYMD(d) === selectedDayYmd) ?? weekDays[0] ?? today;
@@ -1517,36 +1537,41 @@ function CalendarWeekView({
               ))}
             </div>
           </div>
-          {hourSlots.map((hour) => (
+          {timeSlots.map((slot) => {
+            const slotKey = agendaSlotKey(slot);
+            const showLabel = slot.minute === 0;
+            return (
             <div
-              key={hour}
-              className="grid grid-cols-[56px_1fr] border-b border-border min-h-[48px]"
+              key={slotKey}
+              className="grid grid-cols-[56px_1fr] border-b border-border min-h-[36px]"
             >
-              <div className="border-r border-border bg-muted/30 py-1 pr-2 text-right text-xs text-muted-foreground">
-                {hour.toString().padStart(2, "0")}:00
+              <div className="border-r border-border bg-muted/30 py-0.5 pr-2 text-right text-[10px] text-muted-foreground">
+                {showLabel ? formatAgendaSlotLabel(slot) : ""}
               </div>
               <div className="grid grid-cols-7 border-border">
                 {weekDays.map((d) => {
                   const dayId = toYMD(d);
-                  const hourAppointments = byDayHour[dayId]?.[hour] ?? [];
-                  const uniqueDropId = `${dayId}-${hour}`;
+                  const slotAppointments = byDaySlot[dayId]?.[slotKey] ?? [];
+                  const uniqueDropId = `${dayId}-${slot.hour}-${slot.minute}`;
                   return (
                     <DroppableDay
                       key={uniqueDropId}
                       dayId={dayId}
                       uniqueId={uniqueDropId}
+                      slotHour={slot.hour}
+                      slotMinute={slot.minute}
                       className={cn(
-                        "p-1 border-r border-border last:border-r-0 min-h-[48px] relative flex flex-col",
+                        "p-0.5 border-r border-border last:border-r-0 min-h-[36px] relative flex flex-col",
                         isSameDay(d, today) && "bg-primary/5"
                       )}
                     >
-                      {hourAppointments.length > 0 ? (
+                      {slotAppointments.length > 0 ? (
                         <SortableContext
-                          items={hourAppointments.map((a) => a.id)}
+                          items={slotAppointments.map((a) => a.id)}
                           strategy={verticalListSortingStrategy}
                         >
                           <div className="flex flex-col gap-0.5">
-                            {hourAppointments.map((a) => (
+                            {slotAppointments.map((a) => (
                               <DraggableAppointmentItem
                                 key={a.id}
                                 appointment={a}
@@ -1568,7 +1593,8 @@ function CalendarWeekView({
                 })}
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       </CardContent>
     </Card>
@@ -1805,19 +1831,25 @@ function DroppableDay({
   children,
   className,
   uniqueId,
+  slotHour,
+  slotMinute,
 }: {
   dayId: string;
   children: ReactNode;
   className?: string;
-  uniqueId?: string; // ID único para evitar conflitos quando há múltiplos drop zones do mesmo dia
+  uniqueId?: string;
+  slotHour?: number;
+  slotMinute?: number;
 }) {
-  // Usar uniqueId se fornecido, senão usar dayId
   const dropId = uniqueId || dayId;
   const { setNodeRef, isOver } = useDroppable({
     id: dropId,
     data: {
       type: "day",
-      dayId, // Sempre passar dayId nos dados para extrair depois
+      dayId,
+      ...(typeof slotHour === "number"
+        ? { slotHour, slotMinute: slotMinute ?? 0 }
+        : {}),
     },
   });
 
