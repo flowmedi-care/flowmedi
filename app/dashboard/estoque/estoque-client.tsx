@@ -24,16 +24,19 @@ export function EstoqueClient({
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("un");
   const [cost, setCost] = useState("");
+  const [salePrice, setSalePrice] = useState("");
   const [initialQty, setInitialQty] = useState("0");
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!isAdmin) return;
     setLoading(true);
+    const parsedSale = salePrice.trim() ? parseFloat(salePrice.replace(",", ".")) : null;
     const res = await createProduct({
       name,
       unit,
       cost: parseFloat(cost.replace(",", ".")) || 0,
+      sale_price: parsedSale != null && !Number.isNaN(parsedSale) ? parsedSale : null,
       initial_quantity: parseFloat(initialQty.replace(",", ".")) || 0,
     });
     if (res.error) toast(res.error, "error");
@@ -89,6 +92,14 @@ export function EstoqueClient({
                 <Input value={cost} onChange={(e) => setCost(e.target.value)} />
               </div>
               <div className="space-y-1">
+                <Label>Preço de venda ao paciente (R$)</Label>
+                <Input
+                  value={salePrice}
+                  onChange={(e) => setSalePrice(e.target.value)}
+                  placeholder="Opcional — usado na comanda"
+                />
+              </div>
+              <div className="space-y-1">
                 <Label>Quantidade inicial</Label>
                 <Input value={initialQty} onChange={(e) => setInitialQty(e.target.value)} />
               </div>
@@ -109,6 +120,7 @@ export function EstoqueClient({
                   <th className="py-2 pr-4">Comprometido</th>
                   <th className="py-2 pr-4">Disponível</th>
                   <th className="py-2 pr-4">Custo</th>
+                  <th className="py-2 pr-4">Venda</th>
                   <th className="py-2">Ações</th>
                 </tr>
               </thead>
@@ -123,6 +135,11 @@ export function EstoqueClient({
                       <td className="py-3 pr-4">{available} {p.unit}</td>
                       <td className="py-3 pr-4">
                         {p.cost.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </td>
+                      <td className="py-3 pr-4 text-muted-foreground">
+                        {p.sale_price != null
+                          ? p.sale_price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                          : "—"}
                       </td>
                       <td className="py-3">
                         <div className="flex gap-1">

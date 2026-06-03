@@ -13,6 +13,8 @@ import {
   resolveAppointmentPrice,
   getPublicFormTemplatesForPatient,
   getAppointmentForEdit,
+  getAppointmentChargePreview,
+  type AppointmentChargePreview,
 } from "./actions";
 import type {
   PatientOption,
@@ -95,6 +97,8 @@ export function AgendaAppointmentModal({
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resolvedValor, setResolvedValor] = useState<number | null>(null);
+  const [chargePreview, setChargePreview] = useState<AppointmentChargePreview | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
   const [publicFormTemplates, setPublicFormTemplates] = useState<{ id: string; name: string }[]>([]);
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState("");
 
@@ -211,15 +215,35 @@ export function AgendaAppointmentModal({
   }, [form.patientId]);
 
   useEffect(() => {
-    if (!form.serviceId || !form.doctorId) {
-      setResolvedValor(null);
+    if (!open || !form.doctorId) {
+      setChargePreview(null);
       return;
     }
+    let cancelled = false;
+    setLoadingPreview(true);
     const dimensionValueIds = Object.values(form.dimensionSelections).filter(Boolean);
-    resolveAppointmentPrice(form.serviceId, form.doctorId, dimensionValueIds).then((res) => {
-      setResolvedValor(res.valor ?? null);
+    getAppointmentChargePreview(
+      form.procedureIds,
+      form.doctorId,
+      form.serviceId || null,
+      dimensionValueIds
+    ).then((res) => {
+      if (cancelled) return;
+      setLoadingPreview(false);
+      if (res.error || !res.data) {
+        setChargePreview(null);
+        return;
+      }
+      setChargePreview(res.data);
+      setResolvedValor(res.data.totalAmount);
+      if (!form.serviceId && res.data.linkedServiceId) {
+        setForm((f) => ({ ...f, serviceId: res.data!.linkedServiceId! }));
+      }
     });
-  }, [form.serviceId, form.doctorId, form.dimensionSelections]);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, form.procedureIds, form.serviceId, form.doctorId, form.dimensionSelections]);
 
   const toggleProcedure = (id: string) => {
     setForm((f) => {
@@ -255,10 +279,32 @@ export function AgendaAppointmentModal({
       setTab("dados");
       return;
     }
+    if (!form.procedureIds.length) {
+      setError("Selecione pelo menos um procedimento (aba Procedimentos).");
+      setTab("procedimentos");
+      return;
+    }
+    const dimensionValueIds = Object.values(form.dimensionSelections).filter(Boolean);
+    const previewRes = await getAppointmentChargePreview(
+      form.procedureIds,
+      form.doctorId,
+      form.serviceId || null,
+      dimensionValueIds
+    );
+    const effectiveServiceId =
+      form.serviceId || previewRes.data?.linkedServiceId || null;
+    if (!effectiveServiceId) {
+      setError(
+        "Configure o serviço padrão no procedimento (Campos & Procedimentos) ou escolha o serviço na aba Financeiro."
+      );
+      setTab("financeiro");
+      return;
+    }
+    const finalValor = previewRes.data?.totalAmount ?? resolvedValor ?? null;
+
     setLoading(true);
     const localDate = new Date(`${form.date}T${form.time}:00`);
     const scheduledAt = localDate.toISOString();
-    const dimensionValueIds = Object.values(form.dimensionSelections).filter(Boolean);
 
     if (isEdit && appointmentId) {
       const res = await updateAppointment(appointmentId, {
@@ -267,8 +313,8 @@ export function AgendaAppointmentModal({
         appointment_type_id: form.appointmentTypeId || null,
         procedure_id: form.procedureIds[0] || null,
         procedure_ids: form.procedureIds,
-        service_id: form.serviceId || null,
-        valor: resolvedValor ?? null,
+        service_id: effectiveServiceId,
+        valor: finalValor,
         scheduled_at: scheduledAt,
         notes: form.notes || null,
         recommendations: form.recommendations || null,
@@ -297,8 +343,8 @@ export function AgendaAppointmentModal({
         form.specialInstructions || null,
         form.preparationNotes || null,
         form.linkedFormTemplateIds.length ? form.linkedFormTemplateIds : undefined,
-        form.serviceId || null,
-        resolvedValor ?? null,
+        effectiveServiceId,
+        finalValor,
         dimensionValueIds.length ? dimensionValueIds : undefined,
         form.procedureIds
       );
@@ -397,8 +443,13 @@ export function AgendaAppointmentModal({
         {tab === "procedimentos" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Selecione um ou mais procedimentos. Recomendações e serviço padrão serão aplicados automaticamente.
+              Selecione um ou mais procedimentos. O sistema aplica serviço padrão, insumos (BOM) e valor total na cobrança.
             </p>
+            {form.procedureIds.length === 0 && (
+              <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 p-2 rounded-md">
+                Obrigatório: escolha ao menos um procedimento para vincular serviço, materiais e pagamento.
+              </p>
+            )}
             <ul className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
               {availableProcedures.length === 0 ? (
                 <li className="text-sm text-muted-foreground py-2">Nenhum procedimento disponível para este profissional.</li>
@@ -423,6 +474,23 @@ export function AgendaAppointmentModal({
                 ))
               )}
             </ul>
+            {chargePreview && chargePreview.materialLines.length > 0 && (
+              <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Insumos previstos (BOM)</p>
+                <ul className="text-sm space-y-0.5">
+                  {chargePreview.materialLines.map((l) => (
+                    <li key={l.product_id} className="flex justify-between gap-2">
+                      <span>
+                        {l.product_name} × {l.quantity}
+                      </span>
+                      <span className="text-muted-foreground shrink-0">
+                        {l.line_total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Recomendações (editável)</Label>
               <Textarea
@@ -491,18 +559,26 @@ export function AgendaAppointmentModal({
 
         {tab === "financeiro" && (
           <div className="space-y-4">
+            {chargePreview?.linkedServiceName && !form.serviceId && (
+              <p className="text-sm text-muted-foreground">
+                Serviço sugerido pelo procedimento: <strong>{chargePreview.linkedServiceName}</strong>
+              </p>
+            )}
             <div className="space-y-2">
-              <Label>Serviço</Label>
+              <Label>Serviço (cobrança)</Label>
               <select
                 className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                 value={form.serviceId}
                 onChange={(e) => setForm((f) => ({ ...f, serviceId: e.target.value, dimensionSelections: {} }))}
               >
-                <option value="">Nenhum</option>
+                <option value="">Detectar pelo procedimento…</option>
                 {availableServices.map((s) => (
                   <option key={s.id} value={s.id}>{s.nome}</option>
                 ))}
               </select>
+              <p className="text-xs text-muted-foreground">
+                Preço vem de Serviços e Valores; materiais usam preço de venda do estoque (ou custo).
+              </p>
             </div>
             {pricingDimensions.map((dim) => {
               const values = pricingDimensionValues.filter((v) => v.dimension_id === dim.id);
@@ -528,11 +604,45 @@ export function AgendaAppointmentModal({
                 </div>
               );
             })}
-            {resolvedValor != null && (
-              <p className="text-sm font-medium">
-                Valor resolvido:{" "}
-                {resolvedValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-              </p>
+            {loadingPreview && (
+              <p className="text-sm text-muted-foreground">Calculando valores…</p>
+            )}
+            {chargePreview && !loadingPreview && (
+              <div className="rounded-lg border p-4 space-y-2 bg-primary/5">
+                <p className="text-sm font-semibold">Resumo da cobrança</p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Serviço</span>
+                  <span>
+                    {chargePreview.serviceAmount.toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Materiais</span>
+                  <span>
+                    {chargePreview.materialsAmount.toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm font-semibold pt-2 border-t">
+                  <span>Total a cobrar</span>
+                  <span>
+                    {chargePreview.totalAmount.toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </span>
+                </div>
+                {chargePreview.warnings.map((w) => (
+                  <p key={w} className="text-xs text-amber-700 dark:text-amber-400">
+                    {w}
+                  </p>
+                ))}
+              </div>
             )}
           </div>
         )}

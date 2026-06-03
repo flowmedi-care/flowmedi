@@ -1,6 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  type BomLineEstimate,
+  productChargeUnitPrice,
+  sumBomLines,
+} from "@/lib/appointment-charge";
 
 type Db = SupabaseClient;
+
+export type { BomLineEstimate } from "@/lib/appointment-charge";
+export { sumBomLines, productChargeUnitPrice } from "@/lib/appointment-charge";
 
 export async function syncAppointmentProcedures(
   supabase: Db,
@@ -265,4 +273,69 @@ export async function resolveMultiProcedurePrice(
     }
   }
   return hasAny ? total : null;
+}
+
+/** BOM agregado dos procedimentos com preço de cobrança por produto. */
+export async function getBomEstimateForProcedures(
+  supabase: Db,
+  procedureIds: string[]
+): Promise<BomLineEstimate[]> {
+  if (!procedureIds.length) return [];
+
+  const { data: bom } = await supabase
+    .from("procedure_products")
+    .select(
+      "product_id, quantity_per_procedure, products(id, name, cost, sale_price)"
+    )
+    .in("procedure_id", procedureIds);
+
+  const qtyByProduct: Record<string, number> = {};
+  const productMeta: Record<string, { name: string; cost: number; sale_price: number | null }> = {};
+
+  for (const row of bom ?? []) {
+    const pid = row.product_id as string;
+    const q = Number(row.quantity_per_procedure) || 1;
+    qtyByProduct[pid] = (qtyByProduct[pid] ?? 0) + q;
+    const prod = Array.isArray(row.products) ? row.products[0] : row.products;
+    if (prod && !productMeta[pid]) {
+      productMeta[pid] = {
+        name: String((prod as { name: string }).name),
+        cost: Number((prod as { cost?: number }).cost) || 0,
+        sale_price:
+          (prod as { sale_price?: number | null }).sale_price != null
+            ? Number((prod as { sale_price: number }).sale_price)
+            : null,
+      };
+    }
+  }
+
+  return Object.entries(qtyByProduct).map(([product_id, quantity]) => {
+    const meta = productMeta[product_id];
+    const unit_price = productChargeUnitPrice(meta?.sale_price, meta?.cost ?? 0);
+    return {
+      product_id,
+      product_name: meta?.name ?? "Material",
+      quantity,
+      unit_price,
+      line_total: Number((quantity * unit_price).toFixed(2)),
+    };
+  });
+}
+
+/** Totais de cobrança a partir do serviço resolvido e linhas de consumo. */
+export function computeBillingFromLines(
+  serviceAmount: number,
+  consumption: { quantity: number; sale_price?: number | null; cost?: number }[]
+): { serviceAmount: number; materialsAmount: number; totalAmount: number } {
+  const materialsAmount = consumption.reduce((s, line) => {
+    const unit = productChargeUnitPrice(line.sale_price, Number(line.cost) || 0);
+    return s + Number(line.quantity) * unit;
+  }, 0);
+  const materialsRounded = Number(materialsAmount.toFixed(2));
+  const serviceRounded = Number(Math.max(0, serviceAmount).toFixed(2));
+  return {
+    serviceAmount: serviceRounded,
+    materialsAmount: materialsRounded,
+    totalAmount: Number((serviceRounded + materialsRounded).toFixed(2)),
+  };
 }

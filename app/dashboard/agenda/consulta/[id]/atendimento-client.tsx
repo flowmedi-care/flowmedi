@@ -13,8 +13,10 @@ import {
   updateConsumptionQuantity,
   removeConsumptionLine,
   finalizeBilling,
+  getBillingPreview,
   startEncounter,
   type ConsumptionLine,
+  type BillingPreview,
 } from "../../encounter-actions";
 import { listProductsForClinic } from "@/app/dashboard/campos-pacientes/actions";
 import { toast } from "@/components/ui/toast";
@@ -35,6 +37,8 @@ export function AtendimentoClient({
   const [products, setProducts] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [billingOpen, setBillingOpen] = useState(false);
+  const [billingPreview, setBillingPreview] = useState<BillingPreview | null>(null);
+  const [loadingBilling, setLoadingBilling] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("pix");
   const [addProductId, setAddProductId] = useState("");
@@ -77,6 +81,22 @@ export function AtendimentoClient({
     }
   }
 
+  async function openBilling() {
+    setBillingOpen(true);
+    setLoadingBilling(true);
+    const res = await getBillingPreview(appointmentId);
+    setLoadingBilling(false);
+    if (res.error) {
+      toast(res.error, "error");
+      setBillingOpen(false);
+      return;
+    }
+    if (res.data) {
+      setBillingPreview(res.data);
+      setPaymentAmount(String(res.data.totalAmount));
+    }
+  }
+
   async function handleFinalize() {
     const amount = parseFloat(paymentAmount.replace(",", ".")) || 0;
     const res = await finalizeBilling(appointmentId, amount, paymentMethod);
@@ -99,7 +119,7 @@ export function AtendimentoClient({
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <h3 className="font-semibold">Consumo de material</h3>
           {canEdit && !isLocked && (
-            <Button variant="outline" size="sm" onClick={() => setBillingOpen(true)}>
+            <Button variant="outline" size="sm" onClick={openBilling}>
               Finalizar cobrança
             </Button>
           )}
@@ -170,23 +190,58 @@ export function AtendimentoClient({
       <Dialog open={billingOpen} onOpenChange={setBillingOpen}>
         <DialogContent title="Resumo e cobrança" onClose={() => setBillingOpen(false)}>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Revise os materiais e confirme o pagamento. Será criada uma comanda com o valor da consulta
-              {appointmentValor != null &&
-                ` (${appointmentValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`}
-              .
-            </p>
-            <ul className="text-sm border rounded-md p-3 max-h-40 overflow-y-auto">
-              {lines.map((l) => (
-                <li key={l.id}>{l.product_name} × {l.quantity}</li>
-              ))}
-            </ul>
+            {loadingBilling ? (
+              <p className="text-sm text-muted-foreground">Calculando totais…</p>
+            ) : billingPreview ? (
+              <div className="rounded-lg border p-3 space-y-2 text-sm">
+                {billingPreview.serviceName && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Serviço — {billingPreview.serviceName}</span>
+                    <span>
+                      {billingPreview.serviceAmount.toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                      })}
+                    </span>
+                  </div>
+                )}
+                {billingPreview.materialLines.map((l, i) => (
+                  <div key={i} className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">
+                      {l.name} × {l.quantity}
+                    </span>
+                    <span>
+                      {l.line_total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex justify-between font-semibold pt-2 border-t">
+                  <span>Total da comanda</span>
+                  <span>
+                    {billingPreview.totalAmount.toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Revise os materiais e confirme o pagamento.
+              </p>
+            )}
             <div className="space-y-2">
               <Label>Valor pago agora (R$)</Label>
               <Input
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
-                placeholder={appointmentValor != null ? String(appointmentValor) : "0"}
+                placeholder={
+                  billingPreview
+                    ? String(billingPreview.totalAmount)
+                    : appointmentValor != null
+                      ? String(appointmentValor)
+                      : "0"
+                }
               />
             </div>
             <div className="space-y-2">

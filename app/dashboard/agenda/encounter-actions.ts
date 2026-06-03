@@ -2,7 +2,16 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { ensureEncounter } from "@/lib/clinic-operations";
+import { ensureEncounter, computeBillingFromLines } from "@/lib/clinic-operations";
+import { resolveAppointmentPrice } from "./actions";
+
+export type BillingPreview = {
+  serviceAmount: number;
+  materialsAmount: number;
+  totalAmount: number;
+  serviceName: string | null;
+  materialLines: { name: string; quantity: number; unit_price: number; line_total: number }[];
+};
 
 export type ConsumptionLine = {
   id: string;
@@ -112,6 +121,96 @@ export async function removeConsumptionLine(lineId: string) {
   return { error: null };
 }
 
+export async function getBillingPreview(appointmentId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: null };
+
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("id, service_id, valor, doctor_id, services(nome)")
+    .eq("id", appointmentId)
+    .single();
+
+  if (!appt) return { error: "Consulta não encontrada.", data: null };
+
+  const { data: dimRows } = await supabase
+    .from("appointment_dimension_values")
+    .select("dimension_value_id")
+    .eq("appointment_id", appointmentId);
+
+  const dimensionValueIds = (dimRows ?? []).map((r) => r.dimension_value_id as string);
+
+  let serviceAmount = 0;
+  let serviceName: string | null = null;
+  const svc = Array.isArray(appt.services) ? appt.services[0] : appt.services;
+  serviceName = (svc as { nome?: string })?.nome ?? null;
+
+  if (appt.service_id && appt.doctor_id) {
+    const priceRes = await resolveAppointmentPrice(
+      appt.service_id as string,
+      appt.doctor_id as string,
+      dimensionValueIds
+    );
+    serviceAmount = priceRes.valor ?? (Number(appt.valor) || 0);
+  } else {
+    serviceAmount = Number(appt.valor) || 0;
+  }
+
+  const { data: consumption } = await supabase
+    .from("appointment_consumption_lines")
+    .select("quantity, products(name, cost, sale_price)")
+    .eq("appointment_id", appointmentId);
+
+  const materialLines = (consumption ?? []).map((line: Record<string, unknown>) => {
+    const prod = Array.isArray(line.products) ? line.products[0] : line.products;
+    const cost = Number((prod as { cost?: number })?.cost) || 0;
+    const sale_price = (prod as { sale_price?: number | null })?.sale_price;
+    const quantity = Number(line.quantity);
+    const unit =
+      sale_price != null && Number(sale_price) > 0
+        ? Number(sale_price)
+        : cost > 0
+          ? cost
+          : 0;
+    return {
+      name: String((prod as { name?: string })?.name ?? "Material"),
+      quantity,
+      unit_price: unit,
+      line_total: Number((quantity * unit).toFixed(2)),
+      sale_price: sale_price != null ? Number(sale_price) : null,
+      cost,
+    };
+  });
+
+  const totals = computeBillingFromLines(
+    serviceAmount,
+    materialLines.map((l) => ({
+      quantity: l.quantity,
+      sale_price: l.sale_price,
+      cost: l.cost,
+    }))
+  );
+
+  return {
+    error: null,
+    data: {
+      serviceAmount: totals.serviceAmount,
+      materialsAmount: totals.materialsAmount,
+      totalAmount: totals.totalAmount,
+      serviceName,
+      materialLines: materialLines.map(({ name, quantity, unit_price, line_total }) => ({
+        name,
+        quantity,
+        unit_price,
+        line_total,
+      })),
+    } satisfies BillingPreview,
+  };
+}
+
 export async function finalizeBilling(
   appointmentId: string,
   paymentAmount: number,
@@ -139,7 +238,10 @@ export async function finalizeBilling(
   const encounter = await ensureEncounter(supabase, profile.clinic_id, appointmentId);
   if (!encounter) return { error: "Erro ao criar atendimento." };
 
-  const totalAmount = Number(appt.valor) || 0;
+  const previewRes = await getBillingPreview(appointmentId);
+  const billing = previewRes.data;
+  const totalAmount = billing?.totalAmount ?? (Number(appt.valor) || 0);
+  const serviceAmount = billing?.serviceAmount ?? 0;
 
   const { data: comanda, error: comandaErr } = await supabase
     .from("comandas")
@@ -159,40 +261,48 @@ export async function finalizeBilling(
 
   if (comandaErr) return { error: comandaErr.message };
 
-  if (appt.service_id && totalAmount > 0) {
+  if (appt.service_id && serviceAmount > 0) {
     const { data: svc } = await supabase.from("services").select("nome").eq("id", appt.service_id).single();
     await supabase.from("comanda_items").insert({
       comanda_id: comanda!.id,
       item_type: "service",
       description: svc?.nome ?? "Serviço",
       quantity: 1,
-      unit_price: totalAmount,
-      total_price: totalAmount,
+      unit_price: serviceAmount,
+      total_price: serviceAmount,
       reference_id: appt.service_id,
     });
   }
 
   const { data: consumption } = await supabase
     .from("appointment_consumption_lines")
-    .select("id, product_id, quantity, products(name, cost)")
+    .select("id, product_id, quantity, products(name, cost, sale_price)")
     .eq("appointment_id", appointmentId);
 
   for (const line of consumption ?? []) {
     const prod = Array.isArray(line.products) ? line.products[0] : line.products;
     const cost = Number((prod as { cost?: number })?.cost) || 0;
+    const sale = (prod as { sale_price?: number | null })?.sale_price;
+    const unitPrice =
+      sale != null && Number(sale) > 0 ? Number(sale) : cost > 0 ? cost : 0;
     const qty = Number(line.quantity);
-    if (qty > 0) {
+    if (qty > 0 && unitPrice > 0) {
       await supabase.from("comanda_items").insert({
         comanda_id: comanda!.id,
         item_type: "product",
         description: (prod as { name?: string })?.name ?? "Material",
         quantity: qty,
-        unit_price: cost,
-        total_price: cost * qty,
+        unit_price: unitPrice,
+        total_price: Number((qty * unitPrice).toFixed(2)),
         reference_id: line.product_id,
       });
     }
   }
+
+  await supabase
+    .from("appointments")
+    .update({ valor: totalAmount, updated_at: new Date().toISOString() })
+    .eq("id", appointmentId);
 
   await supabase
     .from("appointment_consumption_lines")

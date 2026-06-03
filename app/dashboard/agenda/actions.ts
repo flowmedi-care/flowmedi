@@ -170,6 +170,110 @@ export async function resolveAppointmentPrice(
   return { valor: best.valor, error: null };
 }
 
+export type AppointmentChargePreview = {
+  serviceAmount: number;
+  materialsAmount: number;
+  totalAmount: number;
+  materialLines: {
+    product_id: string;
+    product_name: string;
+    quantity: number;
+    unit_price: number;
+    line_total: number;
+  }[];
+  linkedServiceId: string | null;
+  linkedServiceName: string | null;
+  warnings: string[];
+};
+
+/** Preview unificado: procedimento(s) → serviço + insumos → total. */
+export async function getAppointmentChargePreview(
+  procedureIds: string[],
+  doctorId: string,
+  serviceId: string | null,
+  dimensionValueIds: string[]
+): Promise<{ error: string | null; data: AppointmentChargePreview | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: null };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", data: null };
+
+  const warnings: string[] = [];
+  const { getBomEstimateForProcedures, resolveMultiProcedurePrice } = await import(
+    "@/lib/clinic-operations"
+  );
+  const { computeChargeTotal } = await import("@/lib/appointment-charge");
+
+  const materialLines = await getBomEstimateForProcedures(supabase, procedureIds);
+  const materialsAmount = materialLines.reduce((s, l) => s + l.line_total, 0);
+
+  if (procedureIds.length && materialLines.length === 0) {
+    warnings.push("Procedimento(s) sem insumos cadastrados no BOM.");
+  }
+
+  let serviceAmount = 0;
+  let linkedServiceId = serviceId || null;
+
+  if (serviceId) {
+    const res = await resolveAppointmentPrice(serviceId, doctorId, dimensionValueIds);
+    serviceAmount = res.valor ?? 0;
+    if (res.valor == null) {
+      warnings.push("Nenhuma regra de preço encontrada para o serviço selecionado.");
+    }
+  } else if (procedureIds.length) {
+    const multi = await resolveMultiProcedurePrice(
+      supabase,
+      profile.clinic_id,
+      procedureIds,
+      doctorId,
+      dimensionValueIds,
+      async (sid, profId, dimIds) => resolveAppointmentPrice(sid, profId, dimIds)
+    );
+    serviceAmount = multi ?? 0;
+    if (multi == null) {
+      warnings.push("Configure o serviço padrão no procedimento e as regras em Serviços e Valores.");
+    }
+    const { data: procs } = await supabase
+      .from("procedures")
+      .select("default_service_id")
+      .in("id", procedureIds);
+    linkedServiceId = procs?.find((p) => p.default_service_id)?.default_service_id ?? null;
+  }
+
+  if (!procedureIds.length) {
+    warnings.push("Selecione pelo menos um procedimento para unificar serviço, insumos e cobrança.");
+  }
+
+  let linkedServiceName: string | null = null;
+  if (linkedServiceId) {
+    const { data: svc } = await supabase.from("services").select("nome").eq("id", linkedServiceId).single();
+    linkedServiceName = svc?.nome ?? null;
+  }
+
+  const totalAmount = computeChargeTotal(serviceAmount, materialLines);
+
+  return {
+    error: null,
+    data: {
+      serviceAmount: Number(serviceAmount.toFixed(2)),
+      materialsAmount: Number(materialsAmount.toFixed(2)),
+      totalAmount,
+      materialLines,
+      linkedServiceId,
+      linkedServiceName,
+      warnings,
+    },
+  };
+}
+
 export async function createAppointment(
   patientId: string,
   doctorId: string,

@@ -543,6 +543,9 @@ function ProcedimentosSection({
                     <option key={s.id} value={s.id}>{s.nome}</option>
                   ))}
                 </select>
+                <p className="text-xs text-muted-foreground">
+                  Vincula o procedimento ao preço em Serviços e Valores. Obrigatório para cobrança unificada na agenda.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Tipo de consulta padrão</Label>
@@ -562,7 +565,7 @@ function ProcedimentosSection({
               <div className="space-y-2">
                 <Label>Insumos do procedimento (BOM)</Label>
                 <p className="text-xs text-muted-foreground">
-                  Materiais reservados no estoque ao agendar consultas com este procedimento.
+                  Reservados no estoque ao agendar. Na cobrança, usa o preço de venda do produto (Estoque); se vazio, usa o custo.
                 </p>
                 {bomItems.length > 0 && (
                   <ul className="text-sm space-y-1 border rounded-md p-2">
