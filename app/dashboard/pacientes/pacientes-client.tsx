@@ -13,19 +13,15 @@ import {
   updatePatient,
   deletePatient,
   registerPatientFromPublicForm,
-  getPatientConsultationHistory,
   type PatientInsert,
   type PatientUpdate,
-  type PatientConsultationHistoryItem,
 } from "./actions";
-import { Search, Plus, Pencil, Trash2, X, UserCheck, User, Download, FileText, Grid3x3, List, CalendarPlus } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, X, UserCheck, User, Grid3x3, List, CalendarPlus, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPhoneBr, formatPhoneBrInput, parsePhoneBr } from "@/lib/format-phone";
 import { toast } from "@/components/ui/toast";
 import Link from "next/link";
 import { ExamesClient } from "../exames/exames-client";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { getPatientExams, getExamSignedUrl, type PatientExam } from "../exames/actions";
 
 export type Patient = {
   id: string;
@@ -87,12 +83,6 @@ export function PacientesClient({
   const [patientToExcluir, setPatientToExcluir] = useState<Patient | null>(null);
   const [registeringEmail, setRegisteringEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [patientExams, setPatientExams] = useState<PatientExam[]>([]);
-  const [patientHistory, setPatientHistory] = useState<PatientConsultationHistoryItem[]>([]);
-  const [loadingExams, setLoadingExams] = useState(false);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [showFullHistory, setShowFullHistory] = useState(false);
   const [viewMode, setViewMode] = useState<"contacts" | "list">("contacts");
   const [justRegisteredPatientId, setJustRegisteredPatientId] = useState<string | null>(null);
   const searchParams = useSearchParams();
@@ -130,63 +120,19 @@ export function PacientesClient({
     }
   }, [searchParams, isNew, editingId, router]);
 
-  // Carregar exames quando um paciente for selecionado (para todos os usuários)
+  // Abrir edição se vier ?edit=id (ex.: link do perfil)
   useEffect(() => {
-    if (selectedPatient) {
-      loadPatientExams(selectedPatient.id);
-      loadPatientHistory(selectedPatient.id);
-      setShowFullHistory(false);
+    const editId = searchParams.get("edit");
+    if (!editId || isNew || editingId) return;
+    const p = patients.find((x) => x.id === editId);
+    if (p) {
+      openEdit(p);
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete("edit");
+      router.replace(newUrl.pathname + newUrl.search, { scroll: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPatient]);
-
-
-  async function loadPatientExams(patientId: string) {
-    setLoadingExams(true);
-    const result = await getPatientExams(patientId);
-    if (result.error) {
-      setError(result.error);
-    } else {
-      setPatientExams(result.data || []);
-    }
-    setLoadingExams(false);
-  }
-
-  async function loadPatientHistory(patientId: string) {
-    setLoadingHistory(true);
-    const result = await getPatientConsultationHistory(patientId, 100);
-    if (result.error) {
-      setError(result.error);
-      setPatientHistory([]);
-    } else {
-      setPatientHistory(result.data || []);
-    }
-    setLoadingHistory(false);
-  }
-
-  async function handleDownloadExam(exam: PatientExam) {
-    const result = await getExamSignedUrl(exam.file_url);
-    if (result.error) {
-      setError(result.error);
-    } else if (result.url) {
-      window.open(result.url, "_blank");
-    }
-  }
-
-  function formatFileSize(bytes: number): string {
-    if (bytes < 1024) return bytes + " B";
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-  }
-
-  function getStatusLabel(status: string): string {
-    if (status === "agendada") return "Agendada";
-    if (status === "confirmada") return "Confirmada";
-    if (status === "realizada") return "Realizada";
-    if (status === "falta") return "Falta";
-    if (status === "cancelada") return "Cancelada";
-    return status;
-  }
+  }, [searchParams, patients]);
 
   // Filtrar pacientes em tempo real conforme digita
   const filtered = useMemo(() => {
@@ -826,7 +772,7 @@ export function PacientesClient({
                             <Card
                               key={p.id}
                               className="cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => setSelectedPatient(p)}
+                              onClick={() => router.push(`/dashboard/pacientes/${p.id}`)}
                             >
                               <CardContent className="py-3 px-3">
                                 <div className="flex items-center gap-3 min-w-0">
@@ -896,13 +842,32 @@ export function PacientesClient({
                                 editingId === p.id && "bg-muted/50 -mx-2 px-2 rounded"
                               )}
                             >
-                              <div>
-                                <p className="font-medium">{p.full_name}</p>
+                              <div
+                                className="min-w-0 flex-1 cursor-pointer"
+                                onClick={() => router.push(`/dashboard/pacientes/${p.id}`)}
+                                role="link"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    router.push(`/dashboard/pacientes/${p.id}`);
+                                  }
+                                }}
+                              >
+                                <p className="font-medium hover:underline">{p.full_name}</p>
                                 <p className="text-sm text-muted-foreground">
                                   {[p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") || "—"}
                                 </p>
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Ver perfil"
+                                  onClick={() => router.push(`/dashboard/pacientes/${p.id}`)}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -1018,227 +983,6 @@ export function PacientesClient({
         onConfirm={handleConfirmExcluirPatient}
         onCancel={() => setPatientToExcluir(null)}
       />
-
-      {/* Modal de detalhes do paciente (para todos os usuários) */}
-      {selectedPatient && (
-        <Dialog open={!!selectedPatient} onOpenChange={(open) => !open && setSelectedPatient(null)}>
-          <DialogContent 
-            title={selectedPatient?.full_name || "Resumo do paciente"}
-            className="max-w-full sm:max-w-3xl sm:ml-auto sm:mr-4"
-            onClose={() => setSelectedPatient(null)}
-          >
-            {selectedPatient && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-center mb-4">
-                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                    <User className="h-10 w-10 text-primary" />
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Nome completo</p>
-                    <p className="text-base">{selectedPatient.full_name}</p>
-                  </div>
-                  
-                  {selectedPatient.email && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">E-mail</p>
-                      <p className="text-base">{selectedPatient.email}</p>
-                    </div>
-                  )}
-                  
-                  {selectedPatient.phone && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Telefone</p>
-                      <p className="text-base">{formatPhoneBr(selectedPatient.phone)}</p>
-                    </div>
-                  )}
-                  
-                  {selectedPatient.birth_date && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Data de nascimento</p>
-                      <p className="text-base">
-                        {new Date(selectedPatient.birth_date).toLocaleDateString("pt-BR")}
-                      </p>
-                    </div>
-                  )}
-                  
-                  {selectedPatient.notes && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Observações</p>
-                      <p className="text-base whitespace-pre-wrap">{selectedPatient.notes}</p>
-                    </div>
-                  )}
-                  
-                  {customFields.length > 0 && selectedPatient.custom_fields && (
-                    <div className="pt-4 border-t border-border">
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Informações Adicionais</p>
-                      {customFields.map((field) => {
-                        const value = selectedPatient.custom_fields?.[field.field_name];
-                        if (!value) return null;
-                        return (
-                          <div key={field.id} className="mb-2">
-                            <p className="text-sm font-medium text-muted-foreground">{field.field_label}</p>
-                            <p className="text-base">{String(value)}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-4 border-t border-border">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-base font-semibold">Histórico de consultas</h3>
-                    <div className="flex items-center gap-1">
-                      {patientHistory.length > 5 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowFullHistory((prev) => !prev)}
-                        >
-                          {showFullHistory ? "Mostrar menos" : "Expandir"}
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedPatient(null);
-                          router.push(`/dashboard/pacientes/${selectedPatient.id}`);
-                        }}
-                      >
-                        Ver perfil completo
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedPatient(null);
-                          router.push(`/dashboard/consulta?filterPatientId=${selectedPatient.id}`);
-                        }}
-                      >
-                        Ver consultas
-                      </Button>
-                    </div>
-                  </div>
-                  {loadingHistory ? (
-                    <p className="text-sm text-muted-foreground py-2">Carregando histórico...</p>
-                  ) : patientHistory.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-2">Nenhuma consulta registrada para este paciente.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {(showFullHistory ? patientHistory : patientHistory.slice(0, 5)).map((item) => (
-                        <div key={item.id} className="p-3 rounded-md border border-border">
-                          <p className="text-sm font-medium">
-                            {new Date(item.scheduled_at).toLocaleDateString("pt-BR", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                            })}{" "}
-                            {new Date(item.scheduled_at).toLocaleTimeString("pt-BR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.professional_name ? `Profissional: ${item.professional_name}` : "Profissional não informado"}
-                            {item.appointment_type_name ? ` · ${item.appointment_type_name}` : ""}
-                            {` · ${getStatusLabel(item.status)}`}
-                          </p>
-                          {item.notes && (
-                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.notes}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Seção de Documentos/Exames */}
-                <div className="pt-4 border-t border-border">
-                  <h3 className="text-base font-semibold mb-3 flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Documentos
-                  </h3>
-                  {loadingExams ? (
-                    <p className="text-sm text-muted-foreground py-4">Carregando documentos...</p>
-                  ) : patientExams.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-4">Nenhum documento encontrado.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {patientExams.map((exam) => (
-                        <div
-                          key={exam.id}
-                          className="flex items-center justify-between p-3 rounded-md border border-border hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{exam.file_name}</p>
-                            <div className="flex items-center gap-3 mt-1">
-                              {exam.exam_type && (
-                                <span className="text-xs text-muted-foreground">{exam.exam_type}</span>
-                              )}
-                              <span className="text-xs text-muted-foreground">
-                                {formatFileSize(exam.file_size)}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(exam.created_at).toLocaleDateString("pt-BR")}
-                              </span>
-                            </div>
-                            {exam.description && (
-                              <p className="text-xs text-muted-foreground mt-1 truncate">
-                                {exam.description}
-                              </p>
-                            )}
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDownloadExam(exam)}
-                            className="ml-3 shrink-0"
-                          >
-                            <Download className="h-4 w-4 mr-1" />
-                            Baixar
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex gap-2 pt-4 border-t border-border">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedPatient(null);
-                      openEdit(selectedPatient);
-                    }}
-                    className="flex-1"
-                  >
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Editar
-                  </Button>
-                  {(userRole === "admin" || userRole === "secretaria") && (
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        setSelectedPatient(null);
-                        openExcluirConfirm(selectedPatient);
-                      }}
-                      className="flex-1"
-                      disabled={deletingId === selectedPatient.id}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Excluir
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
