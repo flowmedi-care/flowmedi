@@ -110,11 +110,14 @@ export function FieldRender({
             id={id}
             type="text"
             value={(value as string) ?? ""}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              if (readOnly) return;
+              onChange(e.target.value);
+            }}
             placeholder={field.placeholder}
             required={required && !readOnly}
-            readOnly={readOnly}
-            className={readOnly ? undefined : "bg-background text-foreground"}
+            {...(readOnly ? { readOnly: true } : {})}
+            className={readOnly ? undefined : "bg-background text-foreground caret-foreground"}
           />
         </div>
       );
@@ -127,12 +130,18 @@ export function FieldRender({
           </Label>
           <textarea
             id={id}
-            className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground caret-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             value={(value as string) ?? ""}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              if (readOnly) return;
+              onChange(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (readOnly) e.preventDefault();
+            }}
             placeholder={field.placeholder}
             required={required && !readOnly}
-            readOnly={readOnly}
+            {...(readOnly ? { readOnly: true } : {})}
             rows={4}
           />
         </div>
@@ -193,7 +202,9 @@ export function FieldRender({
                 name={id}
                 value="yes"
                 checked={(value as string) === "yes"}
-                onChange={() => onChange("yes")}
+                onChange={() => {
+                  if (!readOnly) onChange("yes");
+                }}
                 required={required && !readOnly}
                 className="h-4 w-4 accent-primary"
                 tabIndex={readOnly ? -1 : 0}
@@ -208,7 +219,9 @@ export function FieldRender({
                 name={id}
                 value="no"
                 checked={(value as string) === "no"}
-                onChange={() => onChange("no")}
+                onChange={() => {
+                  if (!readOnly) onChange("no");
+                }}
                 className="h-4 w-4 accent-primary"
                 tabIndex={readOnly ? -1 : 0}
               />

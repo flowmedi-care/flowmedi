@@ -75,7 +75,11 @@ export async function getFormReportsForAtendimento(
     .from("form_instances")
     .select(
       `
-      ${selectBase.trim()},
+      id,
+      status,
+      responses,
+      appointment_id,
+      form_template:form_templates ( name, definition ),
       appointments!inner ( scheduled_at, patient_id, clinic_id )
     `
     )
@@ -93,7 +97,7 @@ export async function getFormReportsForAtendimento(
   const data: FormReportItem[] = [];
 
   for (const row of currentRows ?? []) {
-    const item = mapFormRow(row as Record<string, unknown>, appointmentId);
+    const item = mapFormRow(row as unknown as Record<string, unknown>, appointmentId);
     if (item && !seen.has(item.id)) {
       seen.add(item.id);
       data.push(item);
@@ -101,7 +105,7 @@ export async function getFormReportsForAtendimento(
   }
 
   for (const row of otherRows ?? []) {
-    const item = mapFormRow(row as Record<string, unknown>, appointmentId);
+    const item = mapFormRow(row as unknown as Record<string, unknown>, appointmentId);
     if (item && !seen.has(item.id)) {
       seen.add(item.id);
       data.push(item);

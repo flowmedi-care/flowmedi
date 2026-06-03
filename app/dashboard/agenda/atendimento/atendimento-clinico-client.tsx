@@ -308,7 +308,7 @@ export function AtendimentoClinicoClient({
           )}
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-6 min-h-[300px]">
+        <main className="relative z-10 flex-1 overflow-y-auto p-6 min-h-[300px] bg-background">
           {activeFicha?.template.ficha_type === "fields" && (
             <FichaFieldsPanel
               key={activeFicha.id}
@@ -316,7 +316,9 @@ export function AtendimentoClinicoClient({
               templateName={activeFicha.template.name}
               definition={activeFicha.template.definition}
               initialResponses={activeFicha.responses}
-              locked={false}
+              interactive={
+                canEdit && activeFicha.status !== "concluida"
+              }
             />
           )}
           {activeFicha?.template.ficha_type === "prescription" && isDoctor && (
