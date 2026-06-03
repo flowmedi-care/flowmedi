@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitFormPresentially } from "./formularios-consulta-actions";
 import { X, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { FormFieldDefinition } from "@/lib/form-types";
 
 export function FormularioPreenchimentoPresencial({
@@ -111,8 +112,9 @@ export function FieldRender({
             value={(value as string) ?? ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder={field.placeholder}
-            required={required}
+            required={required && !readOnly}
             readOnly={readOnly}
+            className={readOnly ? undefined : "bg-background text-foreground"}
           />
         </div>
       );
@@ -125,11 +127,11 @@ export function FieldRender({
           </Label>
           <textarea
             id={id}
-            className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             value={(value as string) ?? ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder={field.placeholder}
-            required={required}
+            required={required && !readOnly}
             readOnly={readOnly}
             rows={4}
           />
@@ -183,26 +185,32 @@ export function FieldRender({
             {required && " *"}
           </Label>
           <div className="flex gap-4">
-            <label className="flex items-center gap-2">
+            <label
+              className={`flex items-center gap-2 ${readOnly ? "opacity-60 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
+            >
               <input
                 type="radio"
                 name={id}
                 value="yes"
                 checked={(value as string) === "yes"}
                 onChange={() => onChange("yes")}
-                required={required}
-                disabled={readOnly}
+                required={required && !readOnly}
+                className="h-4 w-4 accent-primary"
+                tabIndex={readOnly ? -1 : 0}
               />
               Sim
             </label>
-            <label className="flex items-center gap-2">
+            <label
+              className={`flex items-center gap-2 ${readOnly ? "opacity-60 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
+            >
               <input
                 type="radio"
                 name={id}
                 value="no"
                 checked={(value as string) === "no"}
                 onChange={() => onChange("no")}
-                disabled={readOnly}
+                className="h-4 w-4 accent-primary"
+                tabIndex={readOnly ? -1 : 0}
               />
               Não
             </label>
@@ -222,7 +230,12 @@ export function FieldRender({
               return (
                 <label
                   key={opt}
-                  className="flex items-center gap-2 rounded border border-input px-3 py-2 cursor-pointer hover:bg-muted/50 has-[:focus]:ring-2 has-[:focus]:ring-ring"
+                  className={cn(
+                    "flex items-center gap-2 rounded border border-input px-3 py-2",
+                    readOnly
+                      ? "opacity-60 cursor-not-allowed pointer-events-none"
+                      : "cursor-pointer hover:bg-muted/50 has-[:focus]:ring-2 has-[:focus]:ring-ring"
+                  )}
                 >
                   <input
                     type="radio"
@@ -230,8 +243,7 @@ export function FieldRender({
                     value={opt}
                     checked={isSelected}
                     onChange={() => onChange(opt)}
-                    required={required}
-                    disabled={readOnly}
+                    required={required && !readOnly}
                     className="sr-only"
                   />
                   <span
@@ -263,19 +275,24 @@ export function FieldRender({
               return (
                 <label
                   key={opt}
-                  className="flex items-center gap-2 rounded border border-input px-3 py-2 cursor-pointer hover:bg-muted/50 has-[:focus]:ring-2 has-[:focus]:ring-ring"
+                  className={cn(
+                    "flex items-center gap-2 rounded border border-input px-3 py-2",
+                    readOnly
+                      ? "opacity-60 cursor-not-allowed pointer-events-none"
+                      : "cursor-pointer hover:bg-muted/50 has-[:focus]:ring-2 has-[:focus]:ring-ring"
+                  )}
                 >
                   <input
                     type="checkbox"
                     checked={isChecked}
                     onChange={(e) => {
+                      if (readOnly) return;
                       if (e.target.checked) {
                         onChange([...arr, opt]);
                       } else {
                         onChange(arr.filter((x) => x !== opt));
                       }
                     }}
-                    disabled={readOnly}
                     className="sr-only"
                   />
                   <span

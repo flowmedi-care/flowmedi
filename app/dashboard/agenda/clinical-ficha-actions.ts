@@ -120,6 +120,19 @@ export async function saveFichaResponses(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Não autorizado." };
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (
+    !profile?.clinic_id ||
+    !["admin", "secretaria", "medico"].includes(profile.role ?? "")
+  ) {
+    return { error: "Sem permissão para preencher ficha." };
+  }
+
   const { data: inst } = await supabase
     .from("appointment_ficha_instances")
     .select("appointment_id, status")
@@ -140,7 +153,7 @@ export async function saveFichaResponses(
 
   if (error) return { error: error.message };
 
-  revalidatePath(`/dashboard/agenda/atendimento/${inst.appointment_id}`);
+  // Não revalidar a cada autosave — evita refresh da página e perda de foco
   return { error: null };
 }
 

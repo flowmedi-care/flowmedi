@@ -311,11 +311,12 @@ export function AtendimentoClinicoClient({
         <main className="flex-1 overflow-y-auto p-6 min-h-[300px]">
           {activeFicha?.template.ficha_type === "fields" && (
             <FichaFieldsPanel
+              key={activeFicha.id}
               instanceId={activeFicha.id}
               templateName={activeFicha.template.name}
               definition={activeFicha.template.definition}
               initialResponses={activeFicha.responses}
-              canEdit={canEdit}
+              locked={false}
             />
           )}
           {activeFicha?.template.ficha_type === "prescription" && isDoctor && (
