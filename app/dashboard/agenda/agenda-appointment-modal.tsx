@@ -171,11 +171,18 @@ export function AgendaAppointmentModal({
     return map;
   }, [doctorProcedures]);
 
+  const doctorProcedureFilterActive = useMemo(() => {
+    if (!form.doctorId || !doctorProcedures.length) return false;
+    const allowed = doctorProceduresByDoctor[form.doctorId];
+    return !!allowed && allowed.size > 0;
+  }, [form.doctorId, doctorProcedures.length, doctorProceduresByDoctor]);
+
   const availableProcedures = useMemo(() => {
     if (!form.doctorId) return procedures;
     if (!doctorProcedures.length) return procedures;
     const allowed = doctorProceduresByDoctor[form.doctorId];
-    if (!allowed || allowed.size === 0) return [];
+    // Sem vínculo médico↔procedimento: mostra todos (não esconder a lista)
+    if (!allowed || allowed.size === 0) return procedures;
     return procedures.filter((p) => allowed.has(p.id));
   }, [form.doctorId, procedures, doctorProcedures, doctorProceduresByDoctor]);
 
@@ -411,7 +418,19 @@ export function AgendaAppointmentModal({
                 <select
                   className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                   value={form.doctorId}
-                  onChange={(e) => setForm((f) => ({ ...f, doctorId: e.target.value, procedureIds: [] }))}
+                  onChange={(e) => {
+                    const doctorId = e.target.value;
+                    setForm((f) => {
+                      let procedureIds = f.procedureIds;
+                      if (doctorId && doctorProcedures.length) {
+                        const allowed = doctorProceduresByDoctor[doctorId];
+                        if (allowed && allowed.size > 0) {
+                          procedureIds = f.procedureIds.filter((id) => allowed.has(id));
+                        }
+                      }
+                      return { ...f, doctorId, procedureIds };
+                    });
+                  }}
                 >
                   <option value="">Selecione</option>
                   {doctors.map((d) => (
@@ -450,9 +469,16 @@ export function AgendaAppointmentModal({
                 Obrigatório: escolha ao menos um procedimento para vincular serviço, materiais e pagamento.
               </p>
             )}
+            {doctorProcedureFilterActive && (
+              <p className="text-xs text-muted-foreground">
+                Exibindo apenas procedimentos vinculados a este profissional em Campos &amp; Procedimentos.
+              </p>
+            )}
             <ul className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
               {availableProcedures.length === 0 ? (
-                <li className="text-sm text-muted-foreground py-2">Nenhum procedimento disponível para este profissional.</li>
+                <li className="text-sm text-muted-foreground py-2">
+                  Nenhum procedimento vinculado a este profissional. Edite o procedimento e marque os médicos que o realizam.
+                </li>
               ) : (
                 availableProcedures.map((p) => (
                   <li key={p.id}>
