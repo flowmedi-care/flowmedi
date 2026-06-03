@@ -25,7 +25,7 @@ export function FichaFieldsPanel({
 
   useEffect(() => {
     setResponses(initialResponses);
-  }, [instanceId, initialResponses]);
+  }, [instanceId]);
 
   function scheduleSave(next: Record<string, unknown>) {
     if (!canEdit) return;

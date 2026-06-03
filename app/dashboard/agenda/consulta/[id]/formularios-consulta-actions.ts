@@ -3,6 +3,127 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { slugify } from "@/lib/form-slug";
+import type { FormFieldDefinition } from "@/lib/form-types";
+
+export type FormReportItem = {
+  id: string;
+  status: string;
+  template_name: string;
+  definition: FormFieldDefinition[];
+  responses: Record<string, unknown>;
+  appointment_id: string | null;
+  scheduled_at: string | null;
+  is_current_appointment: boolean;
+};
+
+function mapFormRow(
+  row: Record<string, unknown>,
+  appointmentId: string
+): FormReportItem | null {
+  const ft = Array.isArray(row.form_template) ? row.form_template[0] : row.form_template;
+  if (!ft) return null;
+  const ftObj = ft as { name?: string; definition?: unknown };
+  const appt = Array.isArray(row.appointments) ? row.appointments[0] : row.appointments;
+  const apptId = row.appointment_id != null ? String(row.appointment_id) : null;
+  return {
+    id: String(row.id),
+    status: String(row.status ?? "pendente"),
+    template_name: String(ftObj.name ?? "Relatório"),
+    definition: (Array.isArray(ftObj.definition) ? ftObj.definition : []) as FormFieldDefinition[],
+    responses: (row.responses as Record<string, unknown>) ?? {},
+    appointment_id: apptId,
+    scheduled_at: appt
+      ? String((appt as { scheduled_at?: string }).scheduled_at ?? "")
+      : null,
+    is_current_appointment: apptId === appointmentId,
+  };
+}
+
+export async function getFormReportsForAtendimento(
+  appointmentId: string,
+  patientId: string
+): Promise<{ data: FormReportItem[]; error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: [], error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { data: [], error: "Clínica não encontrada." };
+
+  const selectBase = `
+    id,
+    status,
+    responses,
+    appointment_id,
+    form_template:form_templates ( name, definition )
+  `;
+
+  const { data: currentRows, error: curErr } = await supabase
+    .from("form_instances")
+    .select(selectBase)
+    .eq("appointment_id", appointmentId);
+
+  if (curErr) return { data: [], error: curErr.message };
+
+  const { data: otherRows, error: otherErr } = await supabase
+    .from("form_instances")
+    .select(
+      `
+      ${selectBase.trim()},
+      appointments!inner ( scheduled_at, patient_id, clinic_id )
+    `
+    )
+    .eq("appointments.patient_id", patientId)
+    .eq("appointments.clinic_id", profile.clinic_id)
+    .neq("appointment_id", appointmentId)
+    .order("created_at", { ascending: false })
+    .limit(40);
+
+  if (otherErr && !otherErr.message.includes("does not exist")) {
+    return { data: [], error: otherErr.message };
+  }
+
+  const seen = new Set<string>();
+  const data: FormReportItem[] = [];
+
+  for (const row of currentRows ?? []) {
+    const item = mapFormRow(row as Record<string, unknown>, appointmentId);
+    if (item && !seen.has(item.id)) {
+      seen.add(item.id);
+      data.push(item);
+    }
+  }
+
+  for (const row of otherRows ?? []) {
+    const item = mapFormRow(row as Record<string, unknown>, appointmentId);
+    if (item && !seen.has(item.id)) {
+      seen.add(item.id);
+      data.push(item);
+    }
+  }
+
+  data.sort((a, b) => {
+    if (a.is_current_appointment !== b.is_current_appointment) {
+      return a.is_current_appointment ? -1 : 1;
+    }
+    return a.template_name.localeCompare(b.template_name, "pt-BR");
+  });
+
+  return { data, error: null };
+}
+
+function revalidateConsultaAndAtendimento(appointmentId: string | null) {
+  if (appointmentId) {
+    revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
+    revalidatePath(`/dashboard/agenda/atendimento/${appointmentId}`);
+  }
+}
 
 export async function getFormTemplatesForAppointment(
   appointmentId: string
@@ -184,7 +305,7 @@ export async function linkFormToAppointment(
     }
   }
 
-  revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
+  revalidateConsultaAndAtendimento(appointmentId);
   revalidatePath("/dashboard/eventos");
   return { error: null };
 }
@@ -232,7 +353,9 @@ export async function unlinkFormFromAppointment(
 
   if (deleteError) return { error: deleteError.message };
 
-  revalidatePath(`/dashboard/agenda/consulta/${instance.appointment_id}`);
+  revalidateConsultaAndAtendimento(
+    instance.appointment_id != null ? String(instance.appointment_id) : null
+  );
   return { error: null };
 }
 
@@ -284,6 +407,8 @@ export async function submitFormPresentially(
 
   if (updateError) return { error: updateError.message };
 
-  revalidatePath(`/dashboard/agenda/consulta/${instance.appointment_id}`);
+  revalidateConsultaAndAtendimento(
+    instance.appointment_id != null ? String(instance.appointment_id) : null
+  );
   return { error: null };
 }

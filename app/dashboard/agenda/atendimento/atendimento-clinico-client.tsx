@@ -11,19 +11,40 @@ import {
   ensureAppointmentFichas,
   finalizeClinicalEncounter,
 } from "../clinical-ficha-actions";
+import {
+  getFormReportsForAtendimento,
+  type FormReportItem,
+} from "../consulta/[id]/formularios-consulta-actions";
 import type { AppointmentFichaInstance } from "@/lib/clinical-ficha-types";
 import { FichaFieldsPanel } from "./ficha-fields-panel";
+import {
+  AtendimentoRelatorioPanel,
+  VincularRelatorioAtendimento,
+} from "./atendimento-relatorio-panel";
 import { ClinicalDocumentsClient } from "@/app/dashboard/clinical-documents/clinical-documents-client";
 import { AtendimentoClient } from "../consulta/[id]/atendimento-client";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import {
   ArrowLeft,
+  ClipboardList,
   Clock,
   CreditCard,
   ExternalLink,
+  FileText,
   User,
 } from "lucide-react";
+
+type ActivePanel =
+  | { kind: "ficha"; id: string }
+  | { kind: "relatorio"; id: string }
+  | null;
+
+const RELATORIO_STATUS: Record<string, string> = {
+  pendente: "Pendente",
+  respondido: "OK",
+  incompleto: "Incompleto",
+};
 
 export function AtendimentoClinicoClient({
   appointmentId,
@@ -52,31 +73,47 @@ export function AtendimentoClinicoClient({
 }) {
   const router = useRouter();
   const [fichas, setFichas] = useState<AppointmentFichaInstance[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [relatorios, setRelatorios] = useState<FormReportItem[]>([]);
+  const [loadingFichas, setLoadingFichas] = useState(true);
+  const [loadingRelatorios, setLoadingRelatorios] = useState(true);
+  const [active, setActive] = useState<ActivePanel>(null);
   const [comandaOpen, setComandaOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [finalizing, setFinalizing] = useState(false);
 
   const age = calcPatientAge(patientBirthDate);
 
-  async function load() {
-    setLoading(true);
+  async function loadFichas() {
+    setLoadingFichas(true);
     const res = await ensureAppointmentFichas(appointmentId);
-    setLoading(false);
+    setLoadingFichas(false);
     if (res.error) {
       toast(res.error, "error");
       return;
     }
     setFichas(res.data);
-    if (!activeId && res.data.length > 0) {
-      setActiveId(res.data[0].id);
-    }
+    setActive((prev) => {
+      if (prev) return prev;
+      if (res.data.length > 0) return { kind: "ficha", id: res.data[0].id };
+      return null;
+    });
+  }
+
+  async function loadRelatorios() {
+    setLoadingRelatorios(true);
+    const res = await getFormReportsForAtendimento(appointmentId, patientId);
+    setLoadingRelatorios(false);
+    if (res.error) toast(res.error, "error");
+    else setRelatorios(res.data);
+  }
+
+  async function loadAll() {
+    await Promise.all([loadFichas(), loadRelatorios()]);
   }
 
   useEffect(() => {
-    load();
-  }, [appointmentId]);
+    loadAll();
+  }, [appointmentId, patientId]);
 
   useEffect(() => {
     if (autoFinalize) setComandaOpen(true);
@@ -88,7 +125,12 @@ export function AtendimentoClinicoClient({
     return () => clearInterval(iv);
   }, [appointmentId]);
 
-  const active = fichas.find((f) => f.id === activeId) ?? fichas[0] ?? null;
+  const activeFicha =
+    active?.kind === "ficha" ? fichas.find((f) => f.id === active.id) ?? null : null;
+  const activeRelatorio =
+    active?.kind === "relatorio"
+      ? relatorios.find((r) => r.id === active.id) ?? null
+      : null;
 
   const fmtTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -107,9 +149,11 @@ export function AtendimentoClinicoClient({
     }
   }
 
+  const relatoriosConsulta = relatorios.filter((r) => r.is_current_appointment);
+  const relatoriosOutros = relatorios.filter((r) => !r.is_current_appointment);
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-8rem)] border rounded-lg overflow-hidden bg-background">
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 bg-card">
         <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="sm" asChild>
@@ -148,9 +192,8 @@ export function AtendimentoClinicoClient({
       </div>
 
       <div className="flex flex-1 min-h-0 flex-col md:flex-row">
-        {/* Sidebar fichas */}
-        <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r bg-muted/20 shrink-0">
-          <div className="p-4 border-b flex items-center gap-3">
+        <aside className="w-full md:w-72 border-b md:border-b-0 md:border-r bg-muted/20 shrink-0 flex flex-col max-h-[55vh] md:max-h-none">
+          <div className="p-4 border-b flex items-center gap-3 shrink-0">
             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
               {patientPhotoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -166,52 +209,116 @@ export function AtendimentoClinicoClient({
               )}
             </div>
           </div>
-          <nav className="p-2 space-y-0.5 max-h-[50vh] md:max-h-none overflow-y-auto">
-            {loading && (
-              <p className="text-sm text-muted-foreground p-3">Carregando fichas…</p>
-            )}
-            {!loading && fichas.length === 0 && (
-              <p className="text-sm text-muted-foreground p-3">
-                Nenhuma ficha configurada. Cadastre em Cadastro Clínico → Fichas de atendimento.
-              </p>
-            )}
-            {fichas.map((f, idx) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setActiveId(f.id)}
-                className={cn(
-                  "w-full text-left px-3 py-2.5 rounded-md text-sm transition-colors flex items-center justify-between gap-2",
-                  active?.id === f.id
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted/60"
-                )}
-              >
-                <span className="truncate">
-                  {String(idx + 1).padStart(2, "0")}. {f.template.name}
-                </span>
-                {f.status === "concluida" && (
-                  <Badge variant="secondary" className="text-[10px] shrink-0">
-                    OK
-                  </Badge>
-                )}
-              </button>
-            ))}
-          </nav>
-        </aside>
 
-        {/* Painel central */}
-        <main className="flex-1 overflow-y-auto p-6 min-h-[300px]">
-          {active?.template.ficha_type === "fields" && (
-            <FichaFieldsPanel
-              instanceId={active.id}
-              templateName={active.template.name}
-              definition={active.template.definition}
-              initialResponses={active.responses}
-              canEdit={canEdit && isDoctor}
+          <nav className="flex-1 overflow-y-auto p-2 space-y-3">
+            {/* Fichas clínicas */}
+            <div>
+              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <FileText className="h-3 w-3" />
+                Fichas de atendimento
+              </p>
+              {loadingFichas && (
+                <p className="text-sm text-muted-foreground p-3">Carregando…</p>
+              )}
+              {!loadingFichas && fichas.length === 0 && (
+                <p className="text-xs text-muted-foreground px-2 py-1">
+                  Nenhuma ficha configurada.
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {fichas.map((f, idx) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setActive({ kind: "ficha", id: f.id })}
+                    className={cn(
+                      "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center justify-between gap-2",
+                      active?.kind === "ficha" && active.id === f.id
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted/60"
+                    )}
+                  >
+                    <span className="truncate">
+                      {String(idx + 1).padStart(2, "0")}. {f.template.name}
+                    </span>
+                    {f.status === "concluida" && (
+                      <Badge variant="secondary" className="text-[10px] shrink-0">
+                        OK
+                      </Badge>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Relatórios / formulários */}
+            <div>
+              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <ClipboardList className="h-3 w-3" />
+                Relatórios do paciente
+              </p>
+              {loadingRelatorios && (
+                <p className="text-sm text-muted-foreground p-3">Carregando…</p>
+              )}
+              {!loadingRelatorios && relatorios.length === 0 && (
+                <p className="text-xs text-muted-foreground px-2 py-1">
+                  Nenhum relatório vinculado.
+                </p>
+              )}
+
+              {relatoriosConsulta.length > 0 && (
+                <p className="text-[10px] text-muted-foreground px-2 pt-1">Esta consulta</p>
+              )}
+              <div className="space-y-0.5">
+                {relatoriosConsulta.map((r) => (
+                  <RelatorioSidebarItem
+                    key={r.id}
+                    report={r}
+                    active={active?.kind === "relatorio" && active.id === r.id}
+                    onSelect={() => setActive({ kind: "relatorio", id: r.id })}
+                  />
+                ))}
+              </div>
+
+              {relatoriosOutros.length > 0 && (
+                <p className="text-[10px] text-muted-foreground px-2 pt-2">Outras consultas</p>
+              )}
+              <div className="space-y-0.5">
+                {relatoriosOutros.map((r) => (
+                  <RelatorioSidebarItem
+                    key={r.id}
+                    report={r}
+                    active={active?.kind === "relatorio" && active.id === r.id}
+                    onSelect={() => setActive({ kind: "relatorio", id: r.id })}
+                    showDate
+                  />
+                ))}
+              </div>
+            </div>
+          </nav>
+
+          {(canEdit || isDoctor) && (
+            <VincularRelatorioAtendimento
+              appointmentId={appointmentId}
+              onLinked={() => {
+                loadRelatorios();
+                router.refresh();
+              }}
             />
           )}
-          {active?.template.ficha_type === "prescription" && isDoctor && (
+        </aside>
+
+        <main className="flex-1 overflow-y-auto p-6 min-h-[300px]">
+          {activeFicha?.template.ficha_type === "fields" && (
+            <FichaFieldsPanel
+              instanceId={activeFicha.id}
+              templateName={activeFicha.template.name}
+              definition={activeFicha.template.definition}
+              initialResponses={activeFicha.responses}
+              canEdit={canEdit}
+            />
+          )}
+          {activeFicha?.template.ficha_type === "prescription" && isDoctor && (
             <ClinicalDocumentsClient
               type="prescription"
               patientId={patientId}
@@ -219,7 +326,7 @@ export function AtendimentoClinicoClient({
               isDoctor={isDoctor}
             />
           )}
-          {active?.template.ficha_type === "exam_request" && isDoctor && (
+          {activeFicha?.template.ficha_type === "exam_request" && isDoctor && (
             <ClinicalDocumentsClient
               type="exam_request"
               patientId={patientId}
@@ -227,21 +334,31 @@ export function AtendimentoClinicoClient({
               isDoctor={isDoctor}
             />
           )}
-          {active &&
-            (active.template.ficha_type === "prescription" ||
-              active.template.ficha_type === "exam_request") &&
+          {activeFicha &&
+            (activeFicha.template.ficha_type === "prescription" ||
+              activeFicha.template.ficha_type === "exam_request") &&
             !isDoctor && (
               <p className="text-sm text-muted-foreground">
                 Apenas o profissional pode preencher esta ficha.
               </p>
             )}
-          {!active && !loading && (
-            <p className="text-muted-foreground text-sm">Selecione uma ficha na barra lateral.</p>
+
+          {activeRelatorio && (
+            <AtendimentoRelatorioPanel
+              report={activeRelatorio}
+              isDoctor={isDoctor}
+              onUpdated={loadRelatorios}
+            />
+          )}
+
+          {!active && !loadingFichas && !loadingRelatorios && (
+            <p className="text-muted-foreground text-sm">
+              Selecione uma ficha ou relatório na barra lateral.
+            </p>
           )}
         </main>
       </div>
 
-      {/* Footer */}
       <footer className="border-t px-4 py-3 flex flex-wrap items-center justify-between gap-3 bg-card">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Clock className="h-4 w-4" />
@@ -249,11 +366,7 @@ export function AtendimentoClinicoClient({
         </div>
         <div className="flex gap-2">
           {canEdit && isDoctor && (
-            <Button
-              variant="default"
-              onClick={handleFinalizeClinical}
-              disabled={finalizing}
-            >
+            <Button variant="default" onClick={handleFinalizeClinical} disabled={finalizing}>
               {finalizing ? "Finalizando…" : "Finalizar atendimento"}
             </Button>
           )}
@@ -275,5 +388,57 @@ export function AtendimentoClinicoClient({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function RelatorioSidebarItem({
+  report,
+  active,
+  onSelect,
+  showDate,
+}: {
+  report: FormReportItem;
+  active: boolean;
+  onSelect: () => void;
+  showDate?: boolean;
+}) {
+  const badgeLabel = RELATORIO_STATUS[report.status] ?? report.status;
+  const isPending = report.status === "pendente" || report.status === "incompleto";
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
+        active ? "bg-primary text-primary-foreground" : "hover:bg-muted/60"
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate font-medium">{report.template_name}</span>
+        <Badge
+          variant={
+            report.status === "respondido"
+              ? "secondary"
+              : isPending
+                ? "outline"
+                : "secondary"
+          }
+          className={cn("text-[10px] shrink-0", active && "bg-primary-foreground/20 text-inherit")}
+        >
+          {badgeLabel}
+        </Badge>
+      </div>
+      {showDate && report.scheduled_at && (
+        <p
+          className={cn(
+            "text-[10px] mt-0.5 truncate",
+            active ? "text-primary-foreground/80" : "text-muted-foreground"
+          )}
+        >
+          {new Date(report.scheduled_at).toLocaleDateString("pt-BR")}
+        </p>
+      )}
+    </button>
   );
 }

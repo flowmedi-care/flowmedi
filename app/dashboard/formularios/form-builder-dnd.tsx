@@ -12,6 +12,7 @@ import {
   hasPlaceholder,
 } from "@/lib/form-types";
 import { createDefaultField } from "@/lib/form-builder-utils";
+import { FieldRender } from "@/app/dashboard/agenda/consulta/[id]/formulario-preenchimento-presencial";
 import { cn } from "@/lib/utils";
 import {
   DndContext,
@@ -44,10 +45,16 @@ import {
   ListChecks,
   Plus,
   Search,
+  Settings2,
   ToggleLeft,
   Trash2,
   Type,
 } from "lucide-react";
+
+/** Evita que o DnD capture cliques em inputs, radios e textareas. */
+function stopDragPropagation(e: React.PointerEvent | React.MouseEvent) {
+  e.stopPropagation();
+}
 
 const PALETTE_META: Record<
   FormFieldType,
@@ -225,6 +232,8 @@ function SortableFieldCard({
   onRemove,
   expanded,
   onToggleExpand,
+  previewValue,
+  onPreviewChange,
 }: {
   field: FormFieldDefinition;
   disabled?: boolean;
@@ -232,6 +241,8 @@ function SortableFieldCard({
   onRemove: () => void;
   expanded: boolean;
   onToggleExpand: () => void;
+  previewValue: unknown;
+  onPreviewChange: (value: unknown) => void;
 }) {
   const meta = PALETTE_META[field.type];
   const Icon = meta.icon;
@@ -283,6 +294,17 @@ function SortableFieldCard({
           </p>
           <p className="text-xs text-muted-foreground">{meta.description}</p>
         </button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onToggleExpand}
+          disabled={disabled}
+          className="h-8 w-8 p-0 shrink-0"
+          title="Configurar campo"
+        >
+          <Settings2 className="h-4 w-4" />
+        </Button>
         {field.required && (
           <span className="text-[10px] uppercase tracking-wide text-primary font-medium shrink-0">
             Obrigatório
@@ -300,8 +322,32 @@ function SortableFieldCard({
         </Button>
       </div>
 
+      {/* Preview interativo — como ficará no atendimento */}
+      <div
+        className="px-4 pb-4 pt-1"
+        onPointerDown={stopDragPropagation}
+        onMouseDown={stopDragPropagation}
+      >
+        {isChoiceType(field.type) && (field.options ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground italic">
+            Abra a configuração (ícone engrenagem) e adicione opções para este campo.
+          </p>
+        ) : (
+          <FieldRender
+            field={field}
+            value={previewValue}
+            onChange={onPreviewChange}
+            readOnly={disabled}
+          />
+        )}
+      </div>
+
       {expanded && (
-        <div className="border-t px-4 pb-4 pt-3 space-y-3 bg-muted/20">
+        <div
+          className="border-t px-4 pb-4 pt-3 space-y-3 bg-muted/20"
+          onPointerDown={stopDragPropagation}
+          onMouseDown={stopDragPropagation}
+        >
           <div>
             <Label className="text-xs">Rótulo do campo</Label>
             <Input
@@ -428,9 +474,12 @@ export function FormBuilderDnd({
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [previewValues, setPreviewValues] = useState<Record<string, unknown>>({});
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 10 },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -469,6 +518,11 @@ export function FormBuilderDnd({
   function removeField(id: string) {
     onChange(definition.filter((f) => f.id !== id));
     if (expandedId === id) setExpandedId(null);
+    setPreviewValues((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -560,6 +614,10 @@ export function FormBuilderDnd({
                         expanded={expandedId === field.id}
                         onToggleExpand={() =>
                           setExpandedId((id) => (id === field.id ? null : field.id))
+                        }
+                        previewValue={previewValues[field.id]}
+                        onPreviewChange={(value) =>
+                          setPreviewValues((prev) => ({ ...prev, [field.id]: value }))
                         }
                       />
                     </li>
