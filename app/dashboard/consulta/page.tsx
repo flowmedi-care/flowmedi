@@ -57,7 +57,7 @@ export default async function ConsultaPage() {
       patient:patients ( id, full_name, phone ),
       doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( id, name ),
-      procedure:procedures ( id, name )
+      procedure:procedures!procedure_id ( id, name )
     `
     )
     .eq("clinic_id", clinicId)

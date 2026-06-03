@@ -74,7 +74,7 @@ export default async function AgendaPage() {
       patient:patients ( id, full_name ),
       doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( id, name ),
-      procedure:procedures ( id, name ),
+      procedure:procedures!procedure_id ( id, name ),
       form_instances:form_instances ( id, status )
     `
     )

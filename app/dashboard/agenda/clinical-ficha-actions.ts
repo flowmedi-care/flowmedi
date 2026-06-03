@@ -37,7 +37,7 @@ export async function ensureAppointmentFichas(appointmentId: string) {
 
   const { data: appt } = await supabase
     .from("appointments")
-    .select("id, procedure:procedures ( id, name )")
+    .select("id, procedure:procedures!procedure_id ( id, name )")
     .eq("id", appointmentId)
     .eq("clinic_id", profile.clinic_id)
     .maybeSingle();

@@ -56,8 +56,8 @@ export async function getPatientProfileBundle(
       valor,
       doctor:profiles!doctor_id ( full_name ),
       appointment_type:appointment_types ( name ),
-      procedure:procedures ( name ),
-      appointment_procedures ( procedures ( name ) )
+      procedure:procedures!procedure_id ( name ),
+      appointment_procedures ( procedures!procedure_id ( name ) )
     `
     )
     .eq("patient_id", patientId)

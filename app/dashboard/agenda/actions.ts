@@ -330,7 +330,7 @@ export async function getAppointmentEventSummary(
       patient:patients ( id, full_name, phone ),
       doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( name ),
-      procedure:procedures ( id, name )
+      procedure:procedures!procedure_id ( id, name )
     `
     )
     .eq("id", appointmentId)

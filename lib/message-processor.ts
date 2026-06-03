@@ -331,7 +331,7 @@ async function buildVariableContextFromIds(
         procedure_id,
         doctor:profiles!appointments_doctor_id_fkey(full_name),
         appointment_type:appointment_types(name),
-        procedure:procedures(name, recommendations)
+        procedure:procedures!procedure_id(name, recommendations)
       `)
       .eq("id", appointmentId)
       .single();

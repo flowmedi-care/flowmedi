@@ -585,7 +585,7 @@ export async function startEncounter(appointmentId: string) {
 
   const { data: appt } = await supabase
     .from("appointments")
-    .select("procedure:procedures ( id, name )")
+    .select("procedure:procedures!procedure_id ( id, name )")
     .eq("id", appointmentId)
     .maybeSingle();
   const legacyProc = appt

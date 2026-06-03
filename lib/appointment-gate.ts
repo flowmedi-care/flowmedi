@@ -14,7 +14,7 @@ const BASE_SELECT = `
   patient:patients ( id, full_name, email, phone, birth_date, cpf ),
   doctor:profiles!doctor_id ( id, full_name ),
   appointment_type:appointment_types ( id, name ),
-  procedure:procedures ( id, name )
+  procedure:procedures!procedure_id ( id, name )
 `;
 
 const BASE_SELECT_ATENDIMENTO = `
@@ -25,7 +25,7 @@ const BASE_SELECT_ATENDIMENTO = `
   patient:patients ( id, full_name, email, phone, birth_date, cpf ),
   doctor:profiles!doctor_id ( id, full_name ),
   appointment_type:appointment_types ( id, name ),
-  procedure:procedures ( id, name )
+  procedure:procedures!procedure_id ( id, name )
 `;
 
 export async function loadAppointmentGate(

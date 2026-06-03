@@ -18,7 +18,7 @@ export async function loadAppointmentProcedures(
 ): Promise<AppointmentProcedureRef[]> {
   const { data: apProcs, error } = await supabase
     .from("appointment_procedures")
-    .select("procedure_id, procedures ( id, name )")
+    .select("procedure_id, procedures!procedure_id ( id, name )")
     .eq("appointment_id", appointmentId)
     .order("sort_order");
 
