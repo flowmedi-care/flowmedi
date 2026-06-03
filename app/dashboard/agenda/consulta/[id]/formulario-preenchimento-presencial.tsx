@@ -186,50 +186,64 @@ export function FieldRender({
           />
         </div>
       );
-    case "yes_no":
+    case "yes_no": {
+      const yesNoOptions = [
+        { value: "yes", label: "Sim" },
+        { value: "no", label: "Não" },
+      ] as const;
       return (
         <div className="space-y-2">
           <Label>
             {field.label}
             {required && " *"}
           </Label>
-          <div className="flex gap-4">
-            <label
-              className={`flex items-center gap-2 ${readOnly ? "opacity-60 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
-            >
-              <input
-                type="radio"
-                name={id}
-                value="yes"
-                checked={(value as string) === "yes"}
-                onChange={() => {
-                  if (!readOnly) onChange("yes");
-                }}
-                required={required && !readOnly}
-                className="h-4 w-4 accent-primary"
-                tabIndex={readOnly ? -1 : 0}
-              />
-              Sim
-            </label>
-            <label
-              className={`flex items-center gap-2 ${readOnly ? "opacity-60 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
-            >
-              <input
-                type="radio"
-                name={id}
-                value="no"
-                checked={(value as string) === "no"}
-                onChange={() => {
-                  if (!readOnly) onChange("no");
-                }}
-                className="h-4 w-4 accent-primary"
-                tabIndex={readOnly ? -1 : 0}
-              />
-              Não
-            </label>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={field.label}>
+            {yesNoOptions.map((opt) => {
+              const isSelected = (value as string) === opt.value;
+              return (
+                <label
+                  key={opt.value}
+                  className={cn(
+                    "flex min-w-[120px] flex-1 items-center gap-2 rounded-md border px-3 py-2.5 transition-colors",
+                    isSelected
+                      ? "border-primary bg-primary/5 text-foreground"
+                      : "border-input bg-background",
+                    readOnly
+                      ? "opacity-60 cursor-not-allowed pointer-events-none"
+                      : "cursor-pointer hover:bg-muted/50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name={id}
+                    value={opt.value}
+                    checked={isSelected}
+                    onChange={() => {
+                      if (!readOnly) onChange(opt.value);
+                    }}
+                    required={required && !readOnly}
+                    className="sr-only"
+                    tabIndex={readOnly ? -1 : 0}
+                  />
+                  <span
+                    className={cn(
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                      isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
+                    )}
+                    aria-hidden
+                  >
+                    {isSelected ? (
+                      <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
+                    ) : null}
+                  </span>
+                  <span className="text-sm font-medium">{opt.label}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
       );
+    }
     case "single_choice":
       return (
         <div className="space-y-2">

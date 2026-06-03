@@ -141,7 +141,7 @@ export async function saveFichaResponses(
 
   if (!inst) return { error: "Ficha não encontrada." };
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("appointment_ficha_instances")
     .update({
       responses,
@@ -149,11 +149,18 @@ export async function saveFichaResponses(
       filled_by: user.id,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", instanceId);
+    .eq("id", instanceId)
+    .select("id")
+    .maybeSingle();
 
   if (error) return { error: error.message };
+  if (!updated) {
+    return {
+      error:
+        "Não foi possível salvar a ficha. Verifique se a migration clinical-fichas foi aplicada e suas permissões.",
+    };
+  }
 
-  // Não revalidar a cada autosave — evita refresh da página e perda de foco
   return { error: null };
 }
 

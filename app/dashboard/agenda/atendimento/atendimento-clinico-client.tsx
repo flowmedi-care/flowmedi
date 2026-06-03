@@ -132,6 +132,12 @@ export function AtendimentoClinicoClient({
       ? relatorios.find((r) => r.id === active.id) ?? null
       : null;
 
+  function handleFichaSaved(fichaId: string, responses: Record<string, unknown>) {
+    setFichas((prev) =>
+      prev.map((f) => (f.id === fichaId ? { ...f, responses } : f))
+    );
+  }
+
   const fmtTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
@@ -319,6 +325,7 @@ export function AtendimentoClinicoClient({
               interactive={
                 canEdit && activeFicha.status !== "concluida"
               }
+              onSaved={(responses) => handleFichaSaved(activeFicha.id, responses)}
             />
           )}
           {activeFicha?.template.ficha_type === "prescription" && isDoctor && (
