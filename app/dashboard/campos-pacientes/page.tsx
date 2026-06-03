@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { CamposProcedimentosClient } from "./campos-procedimentos-client";
+import { listClinicalFichaTemplates } from "./clinical-fichas-actions";
 
 export default async function CamposPacientesPage() {
   const supabase = await createClient();
@@ -75,6 +76,9 @@ export default async function CamposPacientesPage() {
     doctorIdsByProcedureId[row.procedure_id].push(row.doctor_id);
   }
 
+  const fichaRes = await listClinicalFichaTemplates();
+  const fichaTemplates = fichaRes.data ?? [];
+
   return (
     <CamposProcedimentosClient
       initialFields={fields}
@@ -84,6 +88,7 @@ export default async function CamposPacientesPage() {
       doctorIdsByProcedureId={doctorIdsByProcedureId}
       services={services}
       products={products}
+      fichaTemplates={fichaTemplates}
     />
   );
 }

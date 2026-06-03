@@ -1,24 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { BackButton } from "../../consulta/[id]/back-button";
-import { AtendimentoClient } from "../../consulta/[id]/atendimento-client";
-import { getAppointmentChargePreview } from "../../actions";
-import { getStatusBadgeClassName } from "../../status-utils";
-import { cn } from "@/lib/utils";
-import { ExternalLink, Stethoscope } from "lucide-react";
-import { loadAppointmentProcedures, loadServiceName } from "@/lib/appointment-procedures";
-
-const STATUS_LABEL: Record<string, string> = {
-  agendada: "Agendada",
-  confirmada: "Confirmada",
-  realizada: "Realizada",
-  falta: "Falta",
-  cancelada: "Cancelada",
-};
+import { loadAppointmentGate } from "@/lib/appointment-gate";
+import { SchemaErrorBanner } from "../../schema-error-banner";
+import { AtendimentoClinicoClient } from "../atendimento-clinico-client";
 
 export default async function AtendimentoPage({
   params,
@@ -42,185 +26,60 @@ export default async function AtendimentoPage({
     .single();
   if (!profile?.clinic_id) redirect("/dashboard");
 
-  const { data: appointment, error } = await supabase
-    .from("appointments")
-    .select(
-      `
-      id,
-      scheduled_at,
-      status,
-      valor,
-      doctor_id,
-      service_id,
-      patient:patients ( id, full_name ),
-      doctor:profiles!doctor_id ( full_name ),
-      procedure:procedures ( id, name )
-    `
-    )
-    .eq("id", id)
-    .eq("clinic_id", profile.clinic_id)
-    .single();
+  const gate = await loadAppointmentGate(supabase, id, profile.clinic_id, { includeNotes: false });
+  if (!gate.ok && gate.kind === "not_found") notFound();
+  if (!gate.ok) {
+    return (
+      <div className="space-y-4">
+        <SchemaErrorBanner message={gate.message} />
+      </div>
+    );
+  }
 
-  if (error || !appointment) notFound();
+  const appointment = gate.appointment;
+  const appointmentValor = gate.valor;
 
-  const procedures = await loadAppointmentProcedures(supabase, id, appointment.procedure);
-
-  const { data: dimRows } = await supabase
-    .from("appointment_dimension_values")
-    .select("dimension_value_id")
-    .eq("appointment_id", id);
-  const dimensionValueIds = (dimRows ?? []).map((r) => r.dimension_value_id as string);
-
-  const chargeRes = await getAppointmentChargePreview(
-    procedures.map((p) => p.id),
-    appointment.doctor_id as string,
-    appointment.service_id as string | null,
-    dimensionValueIds
-  );
-  const charge = chargeRes.data;
-
-  const { data: encounter } = await supabase
-    .from("encounters")
-    .select("status")
-    .eq("appointment_id", id)
-    .maybeSingle();
-
-  let comanda: { id: string; status: string; total_amount: number; paid_amount: number } | null = null;
-  const { data: comandaRow, error: comandaErr } = await supabase
-    .from("comandas")
-    .select("id, status, total_amount, paid_amount")
-    .eq("appointment_id", id)
-    .neq("status", "cancelada")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!comandaErr && comandaRow) comanda = comandaRow;
-
-  const patient = Array.isArray(appointment.patient)
+  const patientRaw = Array.isArray(appointment.patient)
     ? appointment.patient[0]
     : appointment.patient;
-  const doctor = Array.isArray(appointment.doctor)
+  const doctorRaw = Array.isArray(appointment.doctor)
     ? appointment.doctor[0]
     : appointment.doctor;
-  const serviceName = await loadServiceName(supabase, appointment.service_id as string | null);
 
-  const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  const canEdit = profile.role === "admin" || profile.role === "secretaria" || profile.role === "medico";
-  const totalPreview = charge?.totalAmount ?? (appointment.valor != null ? Number(appointment.valor) : 0);
+  const patientId = String((patientRaw as { id?: string })?.id ?? "");
+  const patientName = String((patientRaw as { full_name?: string })?.full_name ?? "Paciente");
+  const patientBirthDate =
+    (patientRaw as { birth_date?: string | null })?.birth_date ?? null;
+
+  let patientPhotoUrl: string | null = null;
+  if (patientId) {
+    const { data: photoRow } = await supabase
+      .from("patients")
+      .select("photo_url")
+      .eq("id", patientId)
+      .maybeSingle();
+    patientPhotoUrl = photoRow?.photo_url ?? null;
+  }
+
+  const canEdit =
+    profile.role === "admin" ||
+    profile.role === "secretaria" ||
+    profile.role === "medico";
+  const isDoctor = profile.role === "medico";
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <BackButton />
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/dashboard/agenda">Agenda</Link>
-        </Button>
-        <Button variant="outline" size="sm" asChild>
-          <Link href={`/dashboard/agenda/consulta/${id}`}>
-            <ExternalLink className="h-4 w-4 mr-1" />
-            Consulta clínica
-          </Link>
-        </Button>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <h1 className="text-xl font-semibold">Atendimento</h1>
-            <p className="text-sm text-muted-foreground">
-              Consumo de material, comanda e cobrança
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              <span className="text-muted-foreground">Paciente:</span>{" "}
-              <span className="font-medium">{patient?.full_name}</span>
-            </p>
-            <p>
-              <span className="text-muted-foreground">Data:</span>{" "}
-              {new Date(appointment.scheduled_at).toLocaleString("pt-BR", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
-            {doctor?.full_name && (
-              <p>
-                <span className="text-muted-foreground">Profissional:</span> {doctor.full_name}
-              </p>
-            )}
-            <p>
-              <span className="text-muted-foreground">Status consulta:</span>{" "}
-              <Badge className={cn(getStatusBadgeClassName(appointment.status))}>
-                {STATUS_LABEL[appointment.status] ?? appointment.status}
-              </Badge>
-            </p>
-            {encounter?.status && (
-              <p>
-                <span className="text-muted-foreground">Atendimento:</span>{" "}
-                <Badge variant="outline">{encounter.status}</Badge>
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <h2 className="font-semibold flex items-center gap-2">
-              <Stethoscope className="h-4 w-4" />
-              Procedimentos e valor
-            </h2>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {procedures.length === 0 ? (
-              <p className="text-muted-foreground">Nenhum procedimento vinculado.</p>
-            ) : (
-              <ul className="space-y-1">
-                {procedures.map((p) => (
-                  <li key={p.id}>{p.name}</li>
-                ))}
-              </ul>
-            )}
-            <div className="rounded-lg border p-3 space-y-1 bg-muted/30">
-              {serviceName && charge && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Serviço — {serviceName}</span>
-                  <span>{fmt(charge.serviceAmount)}</span>
-                </div>
-              )}
-              {charge?.materialLines.map((l, i) => (
-                <div key={i} className="flex justify-between gap-2">
-                  <span className="text-muted-foreground truncate">
-                    {l.product_name} × {l.quantity}
-                  </span>
-                  <span className="shrink-0">{fmt(l.line_total)}</span>
-                </div>
-              ))}
-              <div className="flex justify-between font-semibold pt-2 border-t">
-                <span>Total previsto</span>
-                <span>{fmt(totalPreview)}</span>
-              </div>
-            </div>
-            {comanda && (
-              <div className="rounded-md border border-green-200 bg-green-50/50 dark:bg-green-950/20 p-3">
-                <p className="font-medium">Comanda — {comanda.status}</p>
-                <p>
-                  {fmt(Number(comanda.paid_amount))} / {fmt(Number(comanda.total_amount))}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <AtendimentoClient
-        appointmentId={id}
-        appointmentValor={appointment.valor != null ? Number(appointment.valor) : null}
-        canEdit={canEdit}
-        autoFinalize={finalize === "1"}
-      />
-    </div>
+    <AtendimentoClinicoClient
+      appointmentId={id}
+      patientId={patientId}
+      patientName={patientName}
+      patientBirthDate={patientBirthDate}
+      patientPhotoUrl={patientPhotoUrl}
+      scheduledAt={String(appointment.scheduled_at ?? "")}
+      doctorName={(doctorRaw as { full_name?: string })?.full_name ?? null}
+      appointmentValor={appointmentValor}
+      canEdit={canEdit}
+      isDoctor={isDoctor}
+      autoFinalize={finalize === "1"}
+    />
   );
 }

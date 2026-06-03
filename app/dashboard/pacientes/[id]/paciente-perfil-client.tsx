@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { formatPhoneBr } from "@/lib/format-phone";
 import { toast } from "@/components/ui/toast";
 import { ExamesClient } from "../../exames/exames-client";
+import { ProntuarioFichasSection } from "./prontuario-fichas-section";
 import { uploadPatientPhoto } from "../profile-actions";
 import { getComandaDetail, type ComandaDetail } from "../../agenda/encounter-actions";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -441,6 +442,10 @@ export function PacientePerfilClient({
                         ))}
                       </ul>
                     )}
+                  </div>
+                  <div className="pt-4 border-t">
+                    <h3 className="text-lg font-semibold mb-3">Fichas de atendimento</h3>
+                    <ProntuarioFichasSection patientId={patient.id} />
                   </div>
                   <div className="pt-4 border-t">
                     <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">

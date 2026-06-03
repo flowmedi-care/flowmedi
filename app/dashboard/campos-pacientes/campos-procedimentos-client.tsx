@@ -23,6 +23,12 @@ import {
   type ProcedureProductRow,
 } from "./actions";
 import { CamposPacientesClient, type CustomFieldRow } from "./campos-pacientes-client";
+import { ClinicalFichasConfigClient } from "./clinical-fichas-config-client";
+import type { ClinicalFichaTemplateRow } from "./clinical-fichas-actions";
+import {
+  getProcedureClinicalFichaIds,
+  syncProcedureClinicalFichas,
+} from "./clinical-fichas-actions";
 import { Plus, Pencil, Check, UserCircle, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -33,7 +39,7 @@ type AppointmentTypeRow = {
   duration_minutes: number;
 };
 
-type Tab = "paciente" | "tipos" | "procedimentos";
+type Tab = "paciente" | "tipos" | "procedimentos" | "fichas";
 
 type DoctorOption = { id: string; full_name: string };
 
@@ -45,6 +51,7 @@ export function CamposProcedimentosClient({
   doctorIdsByProcedureId,
   services,
   products,
+  fichaTemplates,
 }: {
   initialFields: CustomFieldRow[];
   appointmentTypes: AppointmentTypeRow[];
@@ -53,6 +60,7 @@ export function CamposProcedimentosClient({
   doctorIdsByProcedureId: Record<string, string[]>;
   services: { id: string; nome: string }[];
   products: { id: string; name: string; unit: string }[];
+  fichaTemplates: ClinicalFichaTemplateRow[];
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("paciente");
@@ -61,6 +69,7 @@ export function CamposProcedimentosClient({
     { id: "paciente", label: "Campos de paciente" },
     { id: "tipos", label: "Tipos de atendimento" },
     { id: "procedimentos", label: "Procedimentos" },
+    { id: "fichas", label: "Fichas de atendimento" },
   ];
 
   return (
@@ -107,8 +116,12 @@ export function CamposProcedimentosClient({
             appointmentTypes={appointmentTypes}
             services={services}
             products={products}
+            fichaTemplates={fichaTemplates}
             onMutate={() => router.refresh()}
           />
+        )}
+        {activeTab === "fichas" && (
+          <ClinicalFichasConfigClient initialTemplates={fichaTemplates} />
         )}
       </div>
     </div>
@@ -340,6 +353,7 @@ function ProcedimentosSection({
   appointmentTypes,
   services,
   products,
+  fichaTemplates,
   onMutate,
 }: {
   initialProcedures: ProcedureRow[];
@@ -348,6 +362,7 @@ function ProcedimentosSection({
   appointmentTypes: AppointmentTypeRow[];
   services: { id: string; nome: string }[];
   products: { id: string; name: string; unit: string }[];
+  fichaTemplates: ClinicalFichaTemplateRow[];
   onMutate: () => void;
 }) {
   const [procedures, setProcedures] = useState<ProcedureRow[]>(initialProcedures);
@@ -366,6 +381,7 @@ function ProcedimentosSection({
   const [bomProductId, setBomProductId] = useState("");
   const [bomQty, setBomQty] = useState("1");
   const [selectedDoctorIds, setSelectedDoctorIds] = useState<Set<string>>(new Set());
+  const [selectedFichaIds, setSelectedFichaIds] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [procedureToDelete, setProcedureToDelete] = useState<ProcedureRow | null>(null);
 
@@ -380,6 +396,7 @@ function ProcedimentosSection({
     setDefaultAppointmentTypeId("");
     setBomItems([]);
     setSelectedDoctorIds(new Set());
+    setSelectedFichaIds([]);
     setError(null);
   }
 
@@ -403,6 +420,8 @@ function ProcedimentosSection({
         }))
       );
     }
+    const fichaRes = await getProcedureClinicalFichaIds(p.id);
+    setSelectedFichaIds(fichaRes.error ? [] : fichaRes.data);
     setError(null);
   }
 
@@ -413,6 +432,7 @@ function ProcedimentosSection({
     setBomItems([]);
     setBomProductId("");
     setBomQty("1");
+    setSelectedFichaIds([]);
   }
 
   const toggleDoctor = (doctorId: string) => {
@@ -422,6 +442,12 @@ function ProcedimentosSection({
       else next.add(doctorId);
       return next;
     });
+  };
+
+  const toggleFicha = (fichaId: string) => {
+    setSelectedFichaIds((prev) =>
+      prev.includes(fichaId) ? prev.filter((id) => id !== fichaId) : [...prev, fichaId]
+    );
   };
 
   async function handleSubmit(e: React.FormEvent) {
@@ -445,8 +471,14 @@ function ProcedimentosSection({
             ? await syncDoctorProcedures(procedureId, [...selectedDoctorIds])
             : { error: null as string | null };
         const bomSync = await syncProcedureProducts(procedureId, bomItems);
+        const fichaSync = await syncProcedureClinicalFichas(procedureId, selectedFichaIds);
         if (bomSync.error) {
           setError(bomSync.error);
+          setLoading(false);
+          return;
+        }
+        if (fichaSync.error) {
+          setError(fichaSync.error);
           setLoading(false);
           return;
         }
@@ -473,12 +505,18 @@ function ProcedimentosSection({
         setLoading(false);
         return;
       }
-      const [doctorSync, bomSync] = await Promise.all([
+      const [doctorSync, bomSync, fichaSync] = await Promise.all([
         syncDoctorProcedures(editingId, [...selectedDoctorIds]),
         syncProcedureProducts(editingId, bomItems),
+        syncProcedureClinicalFichas(editingId, selectedFichaIds),
       ]);
       if (bomSync.error) {
         setError(bomSync.error);
+        setLoading(false);
+        return;
+      }
+      if (fichaSync.error) {
+        setError(fichaSync.error);
         setLoading(false);
         return;
       }
@@ -629,6 +667,35 @@ function ProcedimentosSection({
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
+              </div>
+            )}
+            {fichaTemplates.length > 0 && (
+              <div className="space-y-2">
+                <Label>Fichas de atendimento</Label>
+                <p className="text-xs text-muted-foreground">
+                  Selecione quais fichas aparecem na sidebar do atendimento clínico para este procedimento.
+                </p>
+                <ul className="flex flex-wrap gap-2 mt-2">
+                  {fichaTemplates.filter((f) => f.active).map((f) => (
+                    <li key={f.id}>
+                      <button
+                        type="button"
+                        onClick={() => toggleFicha(f.id)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border transition-colors",
+                          selectedFichaIds.includes(f.id)
+                            ? "bg-primary/10 border-primary text-primary"
+                            : "bg-muted/30 border-border text-muted-foreground hover:border-primary/50"
+                        )}
+                      >
+                        {selectedFichaIds.includes(f.id) ? (
+                          <Check className="h-4 w-4" />
+                        ) : null}
+                        {f.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
             {doctors.length > 0 && (

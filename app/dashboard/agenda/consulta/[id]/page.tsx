@@ -12,7 +12,9 @@ import { formatPhoneBr } from "@/lib/format-phone";
 import { cn } from "@/lib/utils";
 import { getAppointmentChargePreview } from "../../actions";
 import { Package } from "lucide-react";
-import { loadAppointmentProcedures, loadServiceName } from "@/lib/appointment-procedures";
+import { loadAppointmentProcedures, loadServiceName, type LegacyProcedureRow } from "@/lib/appointment-procedures";
+import { loadAppointmentGate } from "@/lib/appointment-gate";
+import { SchemaErrorBanner } from "../../schema-error-banner";
 
 export type FormInstanceItem = {
   id: string;
@@ -41,29 +43,25 @@ export default async function ConsultaDetalhePage({
     .single();
   if (!profile?.clinic_id) redirect("/dashboard");
 
-  // Colunas base — sem joins que dependem de migration-procedure-hub-operations
-  const { data: appointment, error: appointmentError } = await supabase
-    .from("appointments")
-    .select(
-      `
-      id,
-      scheduled_at,
-      status,
-      notes,
-      valor,
-      doctor_id,
-      service_id,
-      patient:patients ( id, full_name, email, phone, birth_date, cpf ),
-      doctor:profiles!doctor_id ( id, full_name ),
-      appointment_type:appointment_types ( id, name ),
-      procedure:procedures ( id, name )
-    `
-    )
-    .eq("id", id)
-    .eq("clinic_id", profile.clinic_id)
-    .single();
-
-  if (appointmentError || !appointment) notFound();
+  const gate = await loadAppointmentGate(supabase, id, profile.clinic_id);
+  if (!gate.ok && gate.kind === "not_found") notFound();
+  if (!gate.ok) {
+    return (
+      <div className="space-y-4">
+        <BackButton />
+        <SchemaErrorBanner message={gate.message} />
+      </div>
+    );
+  }
+  const appointment = gate.appointment;
+  const service_id = gate.service_id;
+  const appointmentValor = gate.valor;
+  const scheduledAt = String(appointment.scheduled_at ?? "");
+  const appointmentStatus = String(appointment.status ?? "");
+  const appointmentNotes =
+    appointment.notes != null ? String(appointment.notes) : null;
+  const doctorId =
+    appointment.doctor_id != null ? String(appointment.doctor_id) : null;
 
   // Colunas de tempo de atendimento (podem não existir se as migrations não foram rodadas)
   let started_at: string | null = null;
@@ -140,7 +138,11 @@ export default async function ConsultaDetalhePage({
     };
   });
 
-  const apProcs = await loadAppointmentProcedures(supabase, id, appointment.procedure);
+  const apProcs = await loadAppointmentProcedures(
+    supabase,
+    id,
+    appointment.procedure as LegacyProcedureRow
+  );
   const procedures = apProcs;
 
   const { data: dimRows } = await supabase
@@ -151,12 +153,12 @@ export default async function ConsultaDetalhePage({
 
   const chargeRes = await getAppointmentChargePreview(
     procedures.map((p) => p.id),
-    appointment.doctor_id as string,
-    appointment.service_id as string | null,
+    doctorId as string,
+    service_id,
     dimensionValueIds
   );
   const charge = chargeRes.data;
-  const serviceName = await loadServiceName(supabase, appointment.service_id as string | null);
+  const serviceName = await loadServiceName(supabase, service_id);
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   return (
@@ -170,10 +172,10 @@ export default async function ConsultaDetalhePage({
           </CardHeader>
           <CardContent className="space-y-2">
             <DataHoraReagendar
-              scheduledAt={appointment.scheduled_at}
+              scheduledAt={scheduledAt}
               appointmentId={id}
               canEdit={profile.role === "admin" || profile.role === "secretaria"}
-              isAgendarRetorno={appointment.status === "realizada"}
+              isAgendarRetorno={appointmentStatus === "realizada"}
               retornoTypeId={retornoType?.id ?? null}
             />
             <p>
@@ -192,24 +194,24 @@ export default async function ConsultaDetalhePage({
             )}
             <p>
               <span className="text-muted-foreground">Status:</span>{" "}
-              <Badge className={cn(getStatusBadgeClassName(appointment.status))}>
-                {appointment.status === "agendada"
+              <Badge className={cn(getStatusBadgeClassName(appointmentStatus))}>
+                {appointmentStatus === "agendada"
                   ? "Agendada"
-                  : appointment.status === "confirmada"
+                  : appointmentStatus === "confirmada"
                     ? "Confirmada"
-                    : appointment.status === "realizada"
+                    : appointmentStatus === "realizada"
                       ? "Realizada"
-                      : appointment.status === "falta"
+                      : appointmentStatus === "falta"
                         ? "Falta"
-                        : appointment.status === "cancelada"
+                        : appointmentStatus === "cancelada"
                           ? "Cancelada"
-                          : appointment.status}
+                          : appointmentStatus}
               </Badge>
             </p>
-            {appointment.notes && (
+            {appointmentNotes && (
               <p>
                 <span className="text-muted-foreground">Observações:</span>{" "}
-                {appointment.notes}
+                {appointmentNotes}
               </p>
             )}
           </CardContent>
@@ -284,13 +286,13 @@ export default async function ConsultaDetalhePage({
 
       <ConsultaTabsClient
         appointmentId={id}
-        appointmentValor={appointment.valor != null ? Number(appointment.valor) : null}
-        appointmentStatus={appointment.status}
-        appointmentScheduledAt={appointment.scheduled_at}
+        appointmentValor={appointmentValor}
+        appointmentStatus={appointmentStatus}
+        appointmentScheduledAt={scheduledAt}
         startedAt={started_at}
         completedAt={completed_at}
         durationMinutes={duration_minutes}
-        doctorId={appointment.doctor_id ?? null}
+        doctorId={doctorId}
         patientId={patient?.id ?? ""}
         patientData={{
           full_name: patient?.full_name ?? "",

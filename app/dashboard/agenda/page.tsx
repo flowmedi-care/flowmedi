@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AgendaClient, type AppointmentRow } from "./agenda-client";
+import { SchemaErrorBanner } from "./schema-error-banner";
+import { loadAppointmentProcedures } from "@/lib/appointment-procedures";
 
 export default async function AgendaPage() {
   const supabase = await createClient();
@@ -73,8 +75,6 @@ export default async function AgendaPage() {
       doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( id, name ),
       procedure:procedures ( id, name ),
-      service:services ( id, nome ),
-      appointment_procedures ( procedure_id, procedures ( id, name ) ),
       form_instances:form_instances ( id, status )
     `
     )
@@ -90,7 +90,7 @@ export default async function AgendaPage() {
     appointmentsQuery = appointmentsQuery.in("doctor_id", allowedDoctorIds);
   }
 
-  const { data: appointments } = await appointmentsQuery;
+  const { data: appointments, error: appointmentsError } = await appointmentsQuery;
   const appointmentIds = (appointments ?? []).map((a: { id: string }) => a.id);
 
   let appointmentDimensionValues: { appointment_id: string; dimension_value_id: string }[] = [];
@@ -194,6 +194,26 @@ export default async function AgendaPage() {
     .select("doctor_id, procedure_id")
     .eq("clinic_id", clinicId);
 
+  const serviceNameById = new Map(
+    (services ?? []).map((s) => [s.id, s.nome] as const)
+  );
+
+  const proceduresByAppointment = new Map<string, { id: string; name: string }[]>();
+  if (appointmentIds.length > 0) {
+    await Promise.all(
+      (appointments ?? []).map(async (a: Record<string, unknown>) => {
+        const apptId = String(a.id ?? "");
+        const legacyProc = Array.isArray(a.procedure) ? a.procedure[0] : a.procedure;
+        const procs = await loadAppointmentProcedures(
+          supabase,
+          apptId,
+          legacyProc as Parameters<typeof loadAppointmentProcedures>[2]
+        );
+        proceduresByAppointment.set(apptId, procs);
+      })
+    );
+  }
+
   const rows: AppointmentRow[] = (appointments ?? []).map((a: Record<string, unknown>) => {
     const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
     const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
@@ -201,29 +221,19 @@ export default async function AgendaPage() {
       ? a.appointment_type[0]
       : a.appointment_type;
     const procedure = Array.isArray(a.procedure) ? a.procedure[0] : a.procedure;
-    const service = Array.isArray(a.service) ? a.service[0] : a.service;
-    const apProcsRaw = Array.isArray(a.appointment_procedures) ? a.appointment_procedures : [];
-    const proceduresList = apProcsRaw
-      .map((row: Record<string, unknown>) => {
-        const pr = Array.isArray(row.procedures) ? row.procedures[0] : row.procedures;
-        if (!pr) return null;
-        return {
-          id: String((pr as { id?: unknown }).id ?? ""),
-          name: String((pr as { name?: unknown }).name ?? ""),
-        };
-      })
-      .filter(Boolean) as { id: string; name: string }[];
-    const formInstances = Array.isArray(a.form_instances) ? a.form_instances : [];
     const appointmentId = String(a.id ?? "");
+    const proceduresList = proceduresByAppointment.get(appointmentId) ?? [];
+    const formInstances = Array.isArray(a.form_instances) ? a.form_instances : [];
     const valorNum = a.valor != null ? Number(a.valor) : null;
+    const svcId = a.service_id != null ? String(a.service_id) : null;
     return {
       id: appointmentId,
       scheduled_at: String(a.scheduled_at ?? ""),
       status: String(a.status ?? ""),
       notes: a.notes != null ? String(a.notes) : null,
-      service_id: a.service_id != null ? String(a.service_id) : null,
+      service_id: svcId,
       valor: valorNum,
-      service_name: service ? String((service as { nome?: unknown }).nome ?? "") : null,
+      service_name: svcId ? serviceNameById.get(svcId) ?? null : null,
       dimension_value_ids: dimensionValueIdsByAppointment[appointmentId] ?? [],
       patient: {
         id: String((patient as { id?: unknown })?.id ?? ""),
@@ -256,6 +266,9 @@ export default async function AgendaPage() {
 
   return (
     <div className="space-y-4">
+      {appointmentsError && (
+        <SchemaErrorBanner message={appointmentsError.message} />
+      )}
       <AgendaClient
         appointments={rows}
         agendaStartHour={agendaStartHour}

@@ -9,6 +9,7 @@ import {
   hasStockBeenConsumed,
 } from "@/lib/clinic-operations";
 import { resolveAppointmentPrice } from "./actions";
+import { provisionAppointmentFichas } from "@/lib/clinical-fichas-provision";
 
 export type BillingPreview = {
   serviceAmount: number;
@@ -581,6 +582,19 @@ export async function startEncounter(appointmentId: string) {
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
 
   await ensureEncounter(supabase, profile.clinic_id, appointmentId);
+
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("procedure:procedures ( id, name )")
+    .eq("id", appointmentId)
+    .maybeSingle();
+  const legacyProc = appt
+    ? Array.isArray(appt.procedure)
+      ? appt.procedure[0]
+      : appt.procedure
+    : undefined;
+  await provisionAppointmentFichas(supabase, profile.clinic_id, appointmentId, legacyProc, user.id);
+
   revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
   revalidatePath(`/dashboard/agenda/atendimento/${appointmentId}`);
   return { error: null };

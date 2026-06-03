@@ -2,17 +2,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type AppointmentProcedureRef = { id: string; name: string };
 
-type LegacyProcedureRow =
+export type LegacyProcedureRow =
   | { id: string; name: string }
   | { id: string; name: string }[]
   | null
   | undefined;
 
+type LegacyProcedureRowInternal = LegacyProcedureRow;
+
 /** Carrega procedimentos da consulta; tolera ausência de appointment_procedures (migration parcial). */
 export async function loadAppointmentProcedures(
   supabase: SupabaseClient,
   appointmentId: string,
-  legacyProcedure?: LegacyProcedureRow
+  legacyProcedure?: LegacyProcedureRowInternal
 ): Promise<AppointmentProcedureRef[]> {
   const { data: apProcs, error } = await supabase
     .from("appointment_procedures")

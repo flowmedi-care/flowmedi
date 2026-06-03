@@ -82,7 +82,7 @@ export async function GET(request: Request) {
         .from("clinic_whatsapp_routing_settings")
         .select("routing_strategy, general_secretary_id")
         .eq("clinic_id", clinicId)
-        .single();
+        .maybeSingle();
       const strategy = (routingSettings as { routing_strategy?: string })?.routing_strategy ?? "first_responder";
       const generalSecretaryId = (routingSettings as { general_secretary_id?: string | null })?.general_secretary_id
         ? String((routingSettings as { general_secretary_id?: string | null }).general_secretary_id)

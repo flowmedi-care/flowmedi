@@ -54,11 +54,10 @@ export default async function ConsultaPage() {
       scheduled_at,
       status,
       notes,
-      service_id,
-      valor,
       patient:patients ( id, full_name, phone ),
       doctor:profiles!doctor_id ( id, full_name ),
-      appointment_type:appointment_types ( id, name )
+      appointment_type:appointment_types ( id, name ),
+      procedure:procedures ( id, name )
     `
     )
     .eq("clinic_id", clinicId)

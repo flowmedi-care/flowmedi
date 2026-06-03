@@ -4,22 +4,18 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { ConsultaDetalheClient } from "./consulta-detalhe-client";
 import { ExamesClient } from "../../../exames/exames-client";
 import { FormulariosConsultaClient } from "./formularios-consulta-client";
-import { ClinicalDocumentsClient } from "../../../clinical-documents/clinical-documents-client";
-import { AtendimentoClient } from "./atendimento-client";
 import { formatPhoneBr } from "@/lib/format-phone";
 import { cn } from "@/lib/utils";
 import type { FormInstanceItem } from "./page";
 
-type Tab = "consulta" | "atendimento" | "paciente" | "formularios" | "exames" | "receitas" | "pedidos";
+type Tab = "consulta" | "paciente" | "formularios" | "exames";
 
 export function ConsultaTabsClient({
   appointmentId,
-  appointmentValor,
   appointmentStatus,
   appointmentScheduledAt,
   startedAt,
@@ -64,10 +60,7 @@ export function ConsultaTabsClient({
       tab === "formularios" ||
       tab === "paciente" ||
       tab === "exames" ||
-      tab === "consulta" ||
-      tab === "atendimento" ||
-      tab === "receitas" ||
-      tab === "pedidos"
+      tab === "consulta"
     ) {
       setActiveTab(tab);
     }
@@ -75,21 +68,13 @@ export function ConsultaTabsClient({
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "consulta", label: "Consulta" },
-    { id: "atendimento", label: "Atendimento" },
     { id: "paciente", label: "Paciente" },
     { id: "formularios", label: "Formulários" },
     { id: "exames", label: "Arquivos" },
-    ...(isDoctor
-      ? [
-          { id: "receitas" as const, label: "Receitas" },
-          { id: "pedidos" as const, label: "Pedidos" },
-        ]
-      : []),
   ];
 
   return (
     <div className="space-y-4">
-      {/* Abas */}
       <div className="flex gap-2 border-b border-border overflow-x-auto">
         {tabs.map((tab) => (
           <button
@@ -107,14 +92,16 @@ export function ConsultaTabsClient({
         ))}
       </div>
 
-      {/* Conteúdo das Abas */}
       <div className="min-h-[400px]">
-        <div className="mb-4 rounded-lg border bg-muted/30 p-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-muted-foreground">
-            Consumo de material, comanda e cobrança estão na página de Atendimento.
+        <div className="mb-4 rounded-lg border bg-primary/5 p-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm">
+            Anamnese, evolução, receita e pedidos de exame estão na página de{" "}
+            <strong>Atendimento</strong> clínico.
           </p>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/dashboard/agenda/atendimento/${appointmentId}`}>Ir para Atendimento</Link>
+          <Button size="sm" asChild>
+            <Link href={`/dashboard/agenda/atendimento/${appointmentId}`}>
+              Ir para Atendimento
+            </Link>
           </Button>
         </div>
 
@@ -133,39 +120,6 @@ export function ConsultaTabsClient({
             isDoctor={isDoctor}
             currentUserId={currentUserId}
           />
-        )}
-
-        {activeTab === "atendimento" && (
-          <div className="space-y-6">
-            <AtendimentoClient
-              appointmentId={appointmentId}
-              appointmentValor={appointmentValor}
-              canEdit={canEdit || isDoctor}
-            />
-            <FormulariosConsultaClient
-              appointmentId={appointmentId}
-              formInstances={formInstances}
-              isDoctor={isDoctor}
-              canEdit={canEdit}
-            />
-            {isDoctor && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <ClinicalDocumentsClient
-                  type="prescription"
-                  patientId={patientId}
-                  appointmentId={appointmentId}
-                  isDoctor={isDoctor}
-                />
-                <ClinicalDocumentsClient
-                  type="exam_request"
-                  patientId={patientId}
-                  appointmentId={appointmentId}
-                  isDoctor={isDoctor}
-                />
-              </div>
-            )}
-            <ExamesClient patientId={patientId} appointmentId={appointmentId} canEdit={canEdit} />
-          </div>
         )}
 
         {activeTab === "paciente" && (
@@ -202,7 +156,10 @@ export function ConsultaTabsClient({
                     const today = new Date();
                     let age = today.getFullYear() - birthDate.getFullYear();
                     const monthDiff = today.getMonth() - birthDate.getMonth();
-                    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                    if (
+                      monthDiff < 0 ||
+                      (monthDiff === 0 && today.getDate() < birthDate.getDate())
+                    ) {
                       age--;
                     }
                     return (
@@ -227,29 +184,7 @@ export function ConsultaTabsClient({
         )}
 
         {activeTab === "exames" && (
-          <ExamesClient
-            patientId={patientId}
-            appointmentId={appointmentId}
-            canEdit={canEdit}
-          />
-        )}
-
-        {activeTab === "receitas" && (
-          <ClinicalDocumentsClient
-            type="prescription"
-            patientId={patientId}
-            appointmentId={appointmentId}
-            isDoctor={isDoctor}
-          />
-        )}
-
-        {activeTab === "pedidos" && (
-          <ClinicalDocumentsClient
-            type="exam_request"
-            patientId={patientId}
-            appointmentId={appointmentId}
-            isDoctor={isDoctor}
-          />
+          <ExamesClient patientId={patientId} appointmentId={appointmentId} canEdit={canEdit} />
         )}
       </div>
     </div>

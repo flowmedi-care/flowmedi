@@ -83,7 +83,7 @@ export function FormularioPreenchimentoPresencial({
   );
 }
 
-function FieldRender({
+export function FieldRender({
   field,
   value,
   onChange,

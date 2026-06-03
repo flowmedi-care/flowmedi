@@ -71,7 +71,7 @@ export async function applyReferralRoutingIfMatch(
     .from("clinic_whatsapp_routing_settings")
     .select("chatbot_fallback_strategy")
     .eq("clinic_id", clinicId)
-    .single();
+    .maybeSingle();
 
   const fallback = (settings as { chatbot_fallback_strategy?: string })?.chatbot_fallback_strategy ?? "first_responder";
 
@@ -121,7 +121,7 @@ export async function applyRoutingOnNewConversation(
     .from("clinic_whatsapp_routing_settings")
     .select("routing_strategy, general_secretary_id")
     .eq("clinic_id", clinicId)
-    .single();
+    .maybeSingle();
 
   const strategy = (settings as { routing_strategy?: string })?.routing_strategy ?? "first_responder";
   const generalSecretaryId = (settings as { general_secretary_id?: string | null })?.general_secretary_id ?? null;
@@ -287,7 +287,7 @@ export async function handleChatbotMessage(
     .from("clinic_whatsapp_routing_settings")
     .select("routing_strategy, chatbot_fallback_strategy")
     .eq("clinic_id", clinicId)
-    .single();
+    .maybeSingle();
   const strategy = (settings as { routing_strategy?: string })?.routing_strategy ?? "first_responder";
   const chatbotFallback = (settings as { chatbot_fallback_strategy?: string })?.chatbot_fallback_strategy ?? "first_responder";
   if (strategy !== "chatbot") {
@@ -298,7 +298,7 @@ export async function handleChatbotMessage(
     .from("whatsapp_conversations")
     .select("chatbot_step")
     .eq("id", conversationId)
-    .single();
+    .maybeSingle();
 
   const step = (conv as { chatbot_step?: string | null })?.chatbot_step ?? "menu";
   const trimmed = String(userMessage ?? "").trim();
