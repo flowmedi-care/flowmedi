@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FormBuilder } from "@/app/dashboard/formularios/form-builder";
+import { Switch } from "@/components/ui/switch";
+import { FormBuilderDnd } from "@/app/dashboard/formularios/form-builder-dnd";
 import {
   createClinicalFichaTemplate,
   updateClinicalFichaTemplate,
@@ -15,7 +16,7 @@ import {
 } from "./clinical-fichas-actions";
 import type { ClinicalFichaType } from "@/lib/clinical-ficha-types";
 import type { FormFieldDefinition } from "@/lib/form-types";
-import { Plus, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const FICHA_TYPE_LABEL: Record<ClinicalFichaType, string> = {
@@ -47,6 +48,7 @@ export function ClinicalFichasConfigClient({
   const [active, setActive] = useState(true);
 
   const showForm = isNew || editingId !== null;
+  const isFieldsEditor = fichaType === "fields";
 
   function openNew() {
     setIsNew(true);
@@ -76,9 +78,12 @@ export function ClinicalFichasConfigClient({
     setError(null);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSave() {
     setError(null);
+    if (!name.trim()) {
+      setError("Informe o nome da ficha.");
+      return;
+    }
     setLoading(true);
 
     if (isNew) {
@@ -116,6 +121,92 @@ export function ClinicalFichasConfigClient({
     setLoading(false);
   }
 
+  if (showForm && isFieldsEditor) {
+    return (
+      <div className="flex flex-col min-h-[calc(100vh-10rem)] -mx-1">
+        <div className="flex items-center gap-3 mb-4">
+          <Button type="button" variant="ghost" size="sm" onClick={cancelForm}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Voltar
+          </Button>
+          <div>
+            <h2 className="text-lg font-semibold">
+              {isNew ? "Nova ficha" : "Editar ficha"}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Monte o relatório arrastando campos para a área central
+            </p>
+          </div>
+        </div>
+
+        {error && (
+          <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md mb-4">
+            {error}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-end gap-4 mb-4 pb-4 border-b">
+          <div className="flex-1 min-w-[200px] max-w-md space-y-1">
+            <Label htmlFor="ficha_name">
+              Nome da ficha <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="ficha_name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Digite"
+            />
+          </div>
+          {isNew && (
+            <div className="space-y-1 min-w-[160px]">
+              <Label>Tipo</Label>
+              <select
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                value={fichaType}
+                onChange={(e) => setFichaType(e.target.value as ClinicalFichaType)}
+              >
+                <option value="fields">Campos customizados</option>
+                <option value="prescription">Receita</option>
+                <option value="exam_request">Pedido de exame</option>
+              </select>
+            </div>
+          )}
+          <div className="space-y-1 w-24">
+            <Label htmlFor="ficha_order">Ordem</Label>
+            <Input
+              id="ficha_order"
+              type="number"
+              value={displayOrder}
+              onChange={(e) => setDisplayOrder(e.target.value)}
+            />
+          </div>
+          {!isNew && (
+            <div className="pb-1">
+              <Switch
+                label="Ativo"
+                checked={active}
+                onChange={setActive}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 min-h-0">
+          <FormBuilderDnd definition={definition} onChange={setDefinition} />
+        </div>
+
+        <div className="sticky bottom-0 mt-4 flex items-center justify-end gap-2 border-t bg-background py-4">
+          <Button type="button" variant="ghost" onClick={cancelForm}>
+            Cancelar
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={loading || !name.trim()}>
+            {loading ? "Salvando…" : "Salvar"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -136,9 +227,12 @@ export function ClinicalFichasConfigClient({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {showForm && (
+        {showForm && !isFieldsEditor && (
           <form
-            onSubmit={handleSubmit}
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
+            }}
             className="p-4 rounded-lg border border-border bg-muted/30 space-y-4"
           >
             {error && (
@@ -146,19 +240,19 @@ export function ClinicalFichasConfigClient({
             )}
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="ficha_name">Nome *</Label>
+                <Label htmlFor="ficha_name_simple">Nome *</Label>
                 <Input
-                  id="ficha_name"
+                  id="ficha_name_simple"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Ex.: Anamnese"
+                  placeholder="Ex.: Receita"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="ficha_order">Ordem</Label>
+                <Label htmlFor="ficha_order_simple">Ordem</Label>
                 <Input
-                  id="ficha_order"
+                  id="ficha_order_simple"
                   type="number"
                   value={displayOrder}
                   onChange={(e) => setDisplayOrder(e.target.value)}
@@ -177,38 +271,20 @@ export function ClinicalFichasConfigClient({
                   <option value="prescription">Receita</option>
                   <option value="exam_request">Pedido de exame</option>
                 </select>
-                <p className="text-xs text-muted-foreground">
-                  Receita e pedido de exame usam o editor existente; não é possível alterar o tipo após criar.
-                </p>
               </div>
             )}
             {!isNew && (
-              <div className="flex items-center gap-2">
-                <Label className="text-sm">Tipo:</Label>
-                <Badge variant="outline">{FICHA_TYPE_LABEL[fichaType]}</Badge>
-                {fichaType !== "fields" && (
-                  <span className="text-xs text-muted-foreground">
-                    (editor especial — sem campos customizados)
-                  </span>
-                )}
-              </div>
+              <>
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm">Tipo:</Label>
+                  <Badge variant="outline">{FICHA_TYPE_LABEL[fichaType]}</Badge>
+                </div>
+                <Switch label="Ficha ativa" checked={active} onChange={setActive} />
+              </>
             )}
-            {!isNew && (
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={active}
-                  onChange={(e) => setActive(e.target.checked)}
-                />
-                Ficha ativa
-              </label>
-            )}
-            {fichaType === "fields" && (
-              <div className="space-y-2">
-                <Label>Campos da ficha</Label>
-                <FormBuilder definition={definition} onChange={setDefinition} />
-              </div>
-            )}
+            <p className="text-xs text-muted-foreground">
+              Receita e pedido de exame usam o editor clínico existente no atendimento — aqui você só define nome e ordem.
+            </p>
             <div className="flex items-center justify-end gap-2 pt-2 border-t">
               <Button type="button" variant="ghost" onClick={cancelForm}>
                 Cancelar
@@ -220,14 +296,16 @@ export function ClinicalFichasConfigClient({
           </form>
         )}
 
-        {templates.length === 0 ? (
+        {!showForm && templates.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <p className="text-sm mb-1">Nenhuma ficha cadastrada</p>
             <p className="text-xs">
               Execute a migration clinical-fichas no Supabase ou crie uma ficha manualmente.
             </p>
           </div>
-        ) : (
+        )}
+
+        {!showForm && templates.length > 0 && (
           <ul className="divide-y divide-border">
             {templates.map((t) => (
               <li

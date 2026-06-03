@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { FormBuilder } from "./form-builder";
+import { FormBuilderDnd } from "./form-builder-dnd";
 import { createFormTemplate, updateFormTemplate } from "./actions";
 import type { FormFieldDefinition } from "@/lib/form-types";
 import { ArrowLeft } from "lucide-react";
@@ -226,15 +226,15 @@ export function FormularioEditor({
         </Card>
 
         {/* Seção: Campos do Formulário */}
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <h2 className="text-lg font-semibold">Campos do formulário</h2>
             <p className="text-sm text-muted-foreground">
-              Adicione e configure os campos que serão exibidos no formulário
+              Arraste campos da paleta ou clique duplo para adicionar
             </p>
           </CardHeader>
-          <CardContent>
-            <FormBuilder
+          <CardContent className="p-0 sm:p-6">
+            <FormBuilderDnd
               definition={definition}
               onChange={setDefinition}
               disabled={loading}
