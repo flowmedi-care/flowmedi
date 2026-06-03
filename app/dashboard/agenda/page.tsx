@@ -68,10 +68,13 @@ export default async function AgendaPage() {
       status,
       notes,
       service_id,
+      valor,
       patient:patients ( id, full_name ),
       doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( id, name ),
       procedure:procedures ( id, name ),
+      service:services ( id, nome ),
+      appointment_procedures ( procedure_id, procedures ( id, name ) ),
       form_instances:form_instances ( id, status )
     `
     )
@@ -134,7 +137,7 @@ export default async function AgendaPage() {
 
   const { data: procedures } = await supabase
     .from("procedures")
-    .select("id, name, recommendations")
+    .select("id, name, recommendations, default_service_id, default_appointment_type_id")
     .eq("clinic_id", clinicId)
     .order("display_order", { ascending: true });
 
@@ -198,14 +201,29 @@ export default async function AgendaPage() {
       ? a.appointment_type[0]
       : a.appointment_type;
     const procedure = Array.isArray(a.procedure) ? a.procedure[0] : a.procedure;
+    const service = Array.isArray(a.service) ? a.service[0] : a.service;
+    const apProcsRaw = Array.isArray(a.appointment_procedures) ? a.appointment_procedures : [];
+    const proceduresList = apProcsRaw
+      .map((row: Record<string, unknown>) => {
+        const pr = Array.isArray(row.procedures) ? row.procedures[0] : row.procedures;
+        if (!pr) return null;
+        return {
+          id: String((pr as { id?: unknown }).id ?? ""),
+          name: String((pr as { name?: unknown }).name ?? ""),
+        };
+      })
+      .filter(Boolean) as { id: string; name: string }[];
     const formInstances = Array.isArray(a.form_instances) ? a.form_instances : [];
     const appointmentId = String(a.id ?? "");
+    const valorNum = a.valor != null ? Number(a.valor) : null;
     return {
       id: appointmentId,
       scheduled_at: String(a.scheduled_at ?? ""),
       status: String(a.status ?? ""),
       notes: a.notes != null ? String(a.notes) : null,
       service_id: a.service_id != null ? String(a.service_id) : null,
+      valor: valorNum,
+      service_name: service ? String((service as { nome?: unknown }).nome ?? "") : null,
       dimension_value_ids: dimensionValueIdsByAppointment[appointmentId] ?? [],
       patient: {
         id: String((patient as { id?: unknown })?.id ?? ""),
@@ -226,6 +244,9 @@ export default async function AgendaPage() {
       procedure: procedure
         ? { id: String((procedure as { id?: unknown })?.id ?? ""), name: String((procedure as { name?: unknown })?.name ?? "") }
         : null,
+      procedures: proceduresList.length ? proceduresList : procedure
+        ? [{ id: String((procedure as { id?: unknown })?.id ?? ""), name: String((procedure as { name?: unknown })?.name ?? "") }]
+        : [],
       form_instances: formInstances.map((fi: { id?: unknown; status?: unknown }) => ({
         id: String(fi?.id ?? ""),
         status: String(fi?.status ?? ""),
@@ -256,6 +277,8 @@ export default async function AgendaPage() {
           id: p.id,
           name: p.name,
           recommendations: p.recommendations ?? null,
+          default_service_id: p.default_service_id ?? null,
+          default_appointment_type_id: p.default_appointment_type_id ?? null,
         }))}
         formTemplates={(formTemplates ?? []).map((f) => ({ id: f.id, name: f.name }))}
         services={(services ?? []).map((s) => ({ id: s.id, nome: s.nome }))}

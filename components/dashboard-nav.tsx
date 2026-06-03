@@ -22,6 +22,8 @@ import {
   Bell,
   ShieldCheck,
   CircleDollarSign,
+  Package,
+  Wallet,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -175,6 +177,31 @@ export function DashboardNav({
             </Link>
           );
         })}
+        {(isAdmin || isSecretaria) && (
+          <>
+            <div className="my-2 border-t border-border" />
+            <Link href="/dashboard/estoque">
+              <Button
+                variant={pathname === "/dashboard/estoque" ? "secondary" : "ghost"}
+                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                title={isCollapsed ? "Estoque" : undefined}
+              >
+                <Package className="h-4 w-4" />
+                {!isCollapsed && <span className="ml-2">Estoque</span>}
+              </Button>
+            </Link>
+            <Link href="/dashboard/financeiro">
+              <Button
+                variant={pathname === "/dashboard/financeiro" ? "secondary" : "ghost"}
+                className={cn("w-full justify-start", isCollapsed && "justify-center px-0")}
+                title={isCollapsed ? "Financeiro" : undefined}
+              >
+                <Wallet className="h-4 w-4" />
+                {!isCollapsed && <span className="ml-2">Financeiro</span>}
+              </Button>
+            </Link>
+          </>
+        )}
         {(isAdmin || (isMedico && servicesPricingMode === "descentralizado")) && (
           <>
             <div className="my-2 border-t border-border" />

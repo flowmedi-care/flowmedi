@@ -47,6 +47,7 @@ export default async function ConsultaDetalhePage({
       scheduled_at,
       status,
       notes,
+      valor,
       doctor_id,
       patient:patients ( id, full_name, email, phone, birth_date, cpf ),
       doctor:profiles!doctor_id ( id, full_name ),
@@ -214,6 +215,7 @@ export default async function ConsultaDetalhePage({
 
       <ConsultaTabsClient
         appointmentId={id}
+        appointmentValor={appointment.valor != null ? Number(appointment.valor) : null}
         appointmentStatus={appointment.status}
         appointmentScheduledAt={appointment.scheduled_at}
         startedAt={started_at}

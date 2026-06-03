@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { createAppointment, updateAppointment, updateUserPreferences, getPublicFormTemplatesForPatient, resolveAppointmentPrice } from "./actions";
+import { updateAppointment, updateUserPreferences } from "./actions";
+import { AgendaAppointmentModal } from "./agenda-appointment-modal";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
 import {
@@ -23,6 +24,7 @@ import {
   ChevronRight,
   CalendarDays,
   Rows3,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -118,18 +120,27 @@ export type AppointmentRow = {
   status: string;
   notes: string | null;
   service_id?: string | null;
+  valor?: number | null;
+  service_name?: string | null;
   dimension_value_ids?: string[];
   patient: { id: string; full_name: string };
   doctor: { id: string; full_name: string | null };
   appointment_type: { id: string; name: string } | null;
   procedure: { id: string; name: string } | null;
+  procedures?: { id: string; name: string }[];
   form_instances?: { id: string; status: string }[];
 };
 
 export type PatientOption = { id: string; full_name: string; email?: string };
 export type DoctorOption = { id: string; full_name: string | null };
 export type AppointmentTypeOption = { id: string; name: string };
-export type ProcedureOption = { id: string; name: string; recommendations: string | null };
+export type ProcedureOption = {
+  id: string;
+  name: string;
+  recommendations: string | null;
+  default_service_id?: string | null;
+  default_appointment_type_id?: string | null;
+};
 export type FormTemplateOption = { id: string; name: string };
 export type ServicePriceRuleOption = { serviceId: string; professionalId: string | null };
 export type DoctorProcedureLink = { doctorId: string; procedureId: string };
@@ -159,6 +170,27 @@ type CalendarGranularity = "week" | "month";
 
 function todayYMD() {
   return toYMD(new Date());
+}
+
+function formatAppointmentTooltip(appointment: AppointmentRow): string {
+  const time = new Date(appointment.scheduled_at).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const procs = (appointment.procedures ?? (appointment.procedure ? [appointment.procedure] : []))
+    .map((p) => p.name)
+    .join(", ");
+  const forms = appointment.form_instances ?? [];
+  const formsPending = forms.filter((f) => f.status !== "respondido").length;
+  const parts = [
+    `${time} — ${appointment.patient.full_name}`,
+    procs && `Procedimento(s): ${procs}`,
+    appointment.service_name && `Serviço: ${appointment.service_name}`,
+    appointment.valor != null &&
+      `Valor: ${appointment.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`,
+    forms.length > 0 && `Formulários: ${forms.length - formsPending}/${forms.length} respondidos`,
+  ].filter(Boolean);
+  return parts.join("\n");
 }
 
 export type ServiceOption = { id: string; nome: string };
@@ -207,9 +239,32 @@ export function AgendaClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const [appointmentModalMode, setAppointmentModalMode] = useState<"create" | "edit">("create");
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
+  const [modalInitialForm, setModalInitialForm] = useState<Partial<import("./agenda-appointment-modal").AppointmentFormState>>({});
+
+  function openCreateModal(partial?: Partial<import("./agenda-appointment-modal").AppointmentFormState>) {
+    setAppointmentModalMode("create");
+    setEditingAppointmentId(null);
+    setModalInitialForm(partial ?? {});
+    setAppointmentModalOpen(true);
+  }
+
+  function openEditModal(appointmentId: string) {
+    setAppointmentModalMode("edit");
+    setEditingAppointmentId(appointmentId);
+    setModalInitialForm({});
+    setAppointmentModalOpen(true);
+  }
+
+  function handleModalOpenChange(open: boolean) {
+    setAppointmentModalOpen(open);
+    if (!open) {
+      setEditingAppointmentId(null);
+      setAppointmentModalMode("create");
+    }
+  }
   
   // Verificar se deve abrir o formulário automaticamente (ex: ?new=true ou vindo da aba Consulta)
   useEffect(() => {
@@ -219,22 +274,18 @@ export function AgendaClient({
     const doctorIdParam = searchParams.get("doctorId");
     
     if (shouldOpenForm || patientIdParam || patientEmailParam || doctorIdParam) {
-      setShowForm(true);
-      
-      setForm((prev) => {
-        let next = { ...prev };
-        if (patientIdParam) {
-          const patient = patients.find((p) => p.id === patientIdParam);
-          if (patient) next = { ...next, patientId: patient.id };
-        } else if (patientEmailParam) {
-          const patient = patients.find((p) => p.email?.toLowerCase() === patientEmailParam.toLowerCase());
-          if (patient) next = { ...next, patientId: patient.id };
-        }
-        if (doctorIdParam && doctors.some((d) => d.id === doctorIdParam)) {
-          next = { ...next, doctorId: doctorIdParam };
-        }
-        return next;
-      });
+      const initial: Partial<import("./agenda-appointment-modal").AppointmentFormState> = {};
+      if (patientIdParam) {
+        const patient = patients.find((p) => p.id === patientIdParam);
+        if (patient) initial.patientId = patient.id;
+      } else if (patientEmailParam) {
+        const patient = patients.find((p) => p.email?.toLowerCase() === patientEmailParam.toLowerCase());
+        if (patient) initial.patientId = patient.id;
+      }
+      if (doctorIdParam && doctors.some((d) => d.id === doctorIdParam)) {
+        initial.doctorId = doctorIdParam;
+      }
+      openCreateModal(initial);
       
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete("new");
@@ -341,99 +392,6 @@ export function AgendaClient({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateInicio, viewMode, timelineGranularity, calendarGranularity]);
-  const [form, setForm] = useState({
-    patientId: "",
-    doctorId: "",
-    appointmentTypeId: "",
-    procedureId: "",
-    serviceId: "",
-    dimensionSelections: {} as Record<string, string>,
-    linkedFormTemplateIds: [] as string[],
-    date: todayYMD(),
-    time: "09:00",
-    notes: "",
-    recommendations: "",
-    requiresFasting: false,
-    requiresMedicationStop: false,
-    specialInstructions: "",
-    preparationNotes: "",
-  });
-  const [resolvedValor, setResolvedValor] = useState<number | null>(null);
-  const [selectedFormTemplateId, setSelectedFormTemplateId] = useState("");
-  const [publicFormTemplates, setPublicFormTemplates] = useState<{ id: string; name: string }[]>([]);
-
-  const doctorProceduresByDoctor = useMemo(() => {
-    const map: Record<string, Set<string>> = {};
-    for (const link of doctorProcedures) {
-      if (!map[link.doctorId]) {
-        map[link.doctorId] = new Set();
-      }
-      map[link.doctorId].add(link.procedureId);
-    }
-    return map;
-  }, [doctorProcedures]);
-
-  const availableProcedures = useMemo(() => {
-    if (!form.doctorId) return procedures;
-    if (!doctorProcedures.length) return procedures;
-    const allowed = doctorProceduresByDoctor[form.doctorId];
-    if (!allowed || allowed.size === 0) return [];
-    return procedures.filter((p) => allowed.has(p.id));
-  }, [form.doctorId, procedures, doctorProcedures, doctorProceduresByDoctor]);
-
-  const servicesByDoctor = useMemo(() => {
-    const global = new Set<string>();
-    const byDoctor: Record<string, Set<string>> = {};
-    for (const rule of servicePriceRules) {
-      if (!rule.serviceId) continue;
-      if (rule.professionalId) {
-        if (!byDoctor[rule.professionalId]) {
-          byDoctor[rule.professionalId] = new Set();
-        }
-        byDoctor[rule.professionalId].add(rule.serviceId);
-      } else {
-        global.add(rule.serviceId);
-      }
-    }
-    return { global, byDoctor };
-  }, [servicePriceRules]);
-
-  const availableServices = useMemo(() => {
-    if (services.length === 0) return [];
-    if (!form.doctorId) return services;
-    if (!servicePriceRules.length) return services;
-    const { global, byDoctor } = servicesByDoctor;
-    const specific = byDoctor[form.doctorId];
-    if (!specific && global.size === 0) {
-      return [];
-    }
-    return services.filter((s) => global.has(s.id) || specific?.has(s.id));
-  }, [services, form.doctorId, servicePriceRules, servicesByDoctor]);
-
-  useEffect(() => {
-    if (!form.patientId) {
-      setPublicFormTemplates([]);
-      return;
-    }
-    getPublicFormTemplatesForPatient(form.patientId).then((res) => {
-      setPublicFormTemplates(res.data ?? []);
-    });
-  }, [form.patientId]);
-
-  useEffect(() => {
-    if (!form.serviceId || !form.doctorId) {
-      setResolvedValor(null);
-      return;
-    }
-    const dimensionValueIds = Object.entries(form.dimensionSelections)
-      .map(([, valueId]) => valueId)
-      .filter(Boolean);
-    resolveAppointmentPrice(form.serviceId, form.doctorId, dimensionValueIds).then((res) => {
-      setResolvedValor(res.valor ?? null);
-    });
-  }, [form.serviceId, form.doctorId, form.dimensionSelections]);
-
-
   const today = useMemo(() => new Date(), []);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -442,60 +400,6 @@ export function AgendaClient({
       },
     })
   );
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    const localDate = new Date(`${form.date}T${form.time}:00`);
-    const scheduledAt = localDate.toISOString();
-    const dimensionValueIds = Object.values(form.dimensionSelections).filter(Boolean);
-    const res = await createAppointment(
-      form.patientId,
-      form.doctorId,
-      form.appointmentTypeId || null,
-      scheduledAt,
-      form.notes || null,
-      form.recommendations || null,
-      form.procedureId || null,
-      form.requiresFasting,
-      form.requiresMedicationStop,
-      form.specialInstructions || null,
-      form.preparationNotes || null,
-      form.linkedFormTemplateIds.length ? form.linkedFormTemplateIds : undefined,
-      form.serviceId || null,
-      resolvedValor ?? null,
-      dimensionValueIds.length ? dimensionValueIds : undefined
-    );
-    if (res.error) {
-      setError(res.error);
-      toast(res.error, "error");
-      setLoading(false);
-      return;
-    }
-    setShowForm(false);
-    setSelectedFormTemplateId("");
-    setForm({
-      patientId: "",
-      doctorId: "",
-      appointmentTypeId: "",
-      procedureId: "",
-      serviceId: "",
-      dimensionSelections: {},
-      linkedFormTemplateIds: [],
-      date: todayYMD(),
-      time: "09:00",
-      notes: "",
-      recommendations: "",
-      requiresFasting: false,
-      requiresMedicationStop: false,
-      specialInstructions: "",
-      preparationNotes: "",
-    });
-    setResolvedValor(null);
-    router.refresh();
-    setLoading(false);
-  }
 
   const start = new Date(dateInicio + "T12:00:00");
   const end = new Date(dateFim + "T12:00:00");
@@ -786,24 +690,14 @@ export function AgendaClient({
           <Button
             size="icon"
             className="h-10 w-10 rounded-full sm:hidden"
-            onClick={() => {
-              setShowForm(true);
-              if (doctors.length === 1) {
-                setForm((f) => ({ ...f, doctorId: doctors[0].id }));
-              }
-            }}
+            onClick={() => openCreateModal(doctors.length === 1 ? { doctorId: doctors[0].id } : {})}
             aria-label="Nova consulta"
           >
             <Plus className="h-5 w-5" />
           </Button>
           <Button
             className="hidden sm:inline-flex min-h-[44px] touch-manipulation"
-            onClick={() => {
-              setShowForm(true);
-              if (doctors.length === 1) {
-                setForm((f) => ({ ...f, doctorId: doctors[0].id }));
-              }
-            }}
+            onClick={() => openCreateModal(doctors.length === 1 ? { doctorId: doctors[0].id } : {})}
           >
             <Plus className="h-4 w-4 mr-2" />
             Nova consulta
@@ -1065,360 +959,24 @@ export function AgendaClient({
         </div>
       </div>
 
-      {showForm && (
-        <Card>
-          <CardHeader className="pb-2">
-            <h2 className="font-semibold">Agendar consulta</h2>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
-                  {error}
-                </p>
-              )}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Paciente *</Label>
-                  <select
-                    className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                    value={form.patientId}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, patientId: e.target.value }))
-                    }
-                    required
-                  >
-                    <option value="">Selecione</option>
-                    {patients.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.full_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Profissional *</Label>
-                  <select
-                    className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                    value={form.doctorId}
-                    onChange={(e) => {
-                      const newDoctorId = e.target.value;
-                      setForm((f) => {
-                        let next = { ...f, doctorId: newDoctorId };
-
-                        if (doctorProcedures.length && f.procedureId) {
-                          const allowed = doctorProceduresByDoctor[newDoctorId];
-                          if (!allowed || !allowed.has(f.procedureId)) {
-                            next = { ...next, procedureId: "" };
-                          }
-                        }
-
-                        if (servicePriceRules.length && f.serviceId) {
-                          const { global, byDoctor } = servicesByDoctor;
-                          const specific = byDoctor[newDoctorId];
-                          const isAllowed =
-                            (specific && specific.has(f.serviceId)) ||
-                            global.has(f.serviceId);
-                          if (!isAllowed) {
-                            next = { ...next, serviceId: "", dimensionSelections: {} };
-                          }
-                        }
-
-                        return next;
-                      });
-                      setResolvedValor(null);
-                    }}
-                    required
-                  >
-                    <option value="">Selecione</option>
-                    {doctors.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.full_name || d.id.slice(0, 8)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Tipo de consulta</Label>
-                  <select
-                    className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                    value={form.appointmentTypeId}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        appointmentTypeId: e.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">Nenhum</option>
-                    {appointmentTypes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Procedimento</Label>
-                  <select
-                    className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                    value={form.procedureId}
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      const proc = procedures.find((p) => p.id === id);
-                      setForm((f) => ({
-                        ...f,
-                        procedureId: id,
-                        recommendations: proc?.recommendations ?? f.recommendations,
-                      }));
-                    }}
-                  >
-                    <option value="">Nenhum</option>
-                    {availableProcedures.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    Opcional. Pré-preenche recomendações e associa formulários do procedimento.
-                  </p>
-              </div>
-              <div className="space-y-2">
-                <Label>Data e hora *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="date"
-                    value={form.date}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, date: e.target.value }))
-                    }
-                    required
-                  />
-                  <Input
-                    type="time"
-                    value={form.time}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, time: e.target.value }))
-                    }
-                    required
-                  />
-                </div>
-              </div>
-              {services.length > 0 && (
-                <Card className="sm:col-span-2">
-                  <CardHeader className="pb-2">
-                    <h3 className="font-semibold text-sm">Serviço e valor</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Escolha o serviço e as dimensões (convênio, cidade, etc.) para definir o valor da consulta nos relatórios.
-                    </p>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex flex-wrap gap-4 items-end">
-                      <div className="space-y-2 min-w-[180px]">
-                        <Label className="text-xs font-medium text-muted-foreground">Serviço</Label>
-                        <select
-                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                          value={form.serviceId}
-                          onChange={(e) =>
-                            setForm((f) => ({ ...f, serviceId: e.target.value, dimensionSelections: {} }))
-                          }
-                        >
-                          <option value="">Nenhum</option>
-                          {availableServices.map((s) => (
-                            <option key={s.id} value={s.id}>{s.nome}</option>
-                          ))}
-                        </select>
-                      </div>
-                      {pricingDimensions.map((dim) => {
-                        const options = pricingDimensionValues.filter((v) => v.dimension_id === dim.id);
-                        return (
-                          <div key={dim.id} className="space-y-2 min-w-[140px]">
-                            <Label className="text-xs font-medium text-muted-foreground">{dim.nome}</Label>
-                            <select
-                              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                              value={form.dimensionSelections[dim.id] ?? ""}
-                              onChange={(e) =>
-                                setForm((f) => ({
-                                  ...f,
-                                  dimensionSelections: {
-                                    ...f.dimensionSelections,
-                                    [dim.id]: e.target.value,
-                                  },
-                                }))
-                              }
-                            >
-                              <option value="">-</option>
-                              {options.map((v) => (
-                                <option key={v.id} value={v.id}>{v.nome}</option>
-                              ))}
-                            </select>
-                          </div>
-                        );
-                      })}
-                      {resolvedValor != null && (
-                        <div className="ml-auto flex items-center rounded-lg border border-border bg-muted/30 px-4 py-2">
-                          <span className="text-xs font-medium text-muted-foreground mr-2">Valor da consulta</span>
-                          <span className="text-lg font-semibold tabular-nums">
-                            {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(resolvedValor)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              <div className="space-y-2">
-                <Label>Recomendações</Label>
-                <Textarea
-                  value={form.recommendations}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, recommendations: e.target.value }))
-                  }
-                  placeholder="Ex.: Comparecer em jejum de 8 horas. Trazer exames anteriores..."
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Ao escolher um procedimento acima, o campo é pré-preenchido. Usado em e-mails e mensagens.
-                </p>
-              </div>
-              {/* Vincular formulário - mesmo layout da tela da consulta */}
-              <div className="space-y-4 sm:col-span-2">
-                  <Card>
-                    <CardHeader>
-                      <h3 className="font-semibold">Vincular formulário</h3>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {formTemplates.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          Nenhum formulário cadastrado na clínica.
-                        </p>
-                      ) : formTemplates.every((ft) => form.linkedFormTemplateIds.includes(ft.id)) ? (
-                        <p className="text-sm text-muted-foreground">
-                          Todos os formulários disponíveis já estão vinculados a esta consulta.
-                        </p>
-                      ) : (
-                        <>
-                          <select
-                            value={selectedFormTemplateId}
-                            onChange={(e) => setSelectedFormTemplateId(e.target.value)}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <option value="">Selecione um formulário</option>
-                            {formTemplates
-                              .filter((ft) => !form.linkedFormTemplateIds.includes(ft.id))
-                              .map((ft) => (
-                                <option key={ft.id} value={ft.id}>
-                                  {ft.name}
-                                </option>
-                              ))}
-                          </select>
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              if (!selectedFormTemplateId) return;
-                              if (form.linkedFormTemplateIds.includes(selectedFormTemplateId)) return;
-                              setForm((f) => ({
-                                ...f,
-                                linkedFormTemplateIds: [...f.linkedFormTemplateIds, selectedFormTemplateId],
-                              }));
-                              setSelectedFormTemplateId("");
-                            }}
-                            disabled={!selectedFormTemplateId}
-                            className="w-full"
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            + Vincular formulário
-                          </Button>
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
-                  {form.patientId && (
-                    <p className="text-xs text-muted-foreground">
-                      Se o paciente preencheu formulário público, ele será vinculado automaticamente à consulta.
-                    </p>
-                  )}
-                  <Card>
-                    <CardContent className="py-6">
-                      {form.linkedFormTemplateIds.length === 0 && publicFormTemplates.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center">
-                          Nenhum formulário vinculado a esta consulta.
-                        </p>
-                      ) : (
-                        <ul className="space-y-2">
-                          {form.linkedFormTemplateIds.map((id) => {
-                            const ft = formTemplates.find((t) => t.id === id);
-                            return (
-                              <li
-                                key={id}
-                                className="flex items-center justify-between rounded-md border border-border p-3"
-                              >
-                                <span className="font-medium">{ft?.name ?? id}</span>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-destructive hover:text-destructive"
-                                  onClick={() =>
-                                    setForm((f) => ({
-                                      ...f,
-                                      linkedFormTemplateIds: f.linkedFormTemplateIds.filter((x) => x !== id),
-                                    }))
-                                  }
-                                >
-                                  Desvincular
-                                </Button>
-                              </li>
-                            );
-                          })}
-                          {publicFormTemplates.map((ft) => (
-                            <li
-                              key={ft.id}
-                              className="flex items-center justify-between rounded-md border border-border border-green-200 bg-green-50/50 dark:border-green-900/50 dark:bg-green-950/20 p-3"
-                            >
-                              <span className="font-medium">{ft.name}</span>
-                              <Badge variant="secondary" className="shrink-0">
-                                Vinculado automaticamente (formulário público)
-                              </Badge>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Observações</Label>
-                <Textarea
-                  value={form.notes}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, notes: e.target.value }))
-                  }
-                  rows={2}
-                  placeholder="Opcional"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Button type="submit" disabled={loading}>
-                  {loading ? "Agendando..." : "Agendar"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowForm(false)}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+      <AgendaAppointmentModal
+        open={appointmentModalOpen}
+        onOpenChange={handleModalOpenChange}
+        mode={appointmentModalMode}
+        appointmentId={editingAppointmentId}
+        onSuccess={() => router.refresh()}
+        initialForm={modalInitialForm}
+        patients={patients}
+        doctors={doctors}
+        appointmentTypes={appointmentTypes}
+        procedures={procedures}
+        formTemplates={formTemplates}
+        services={services}
+        pricingDimensions={pricingDimensions}
+        pricingDimensionValues={pricingDimensionValues}
+        servicePriceRules={servicePriceRules}
+        doctorProcedures={doctorProcedures}
+      />
 
       {/* Conteúdo da visão */}
       <DndContext
@@ -1437,6 +995,7 @@ export function AgendaClient({
           granularity={timelineGranularity}
           getEventStyle={getEventStyle}
           getAccentColor={getAccentColor}
+          onEditAppointment={openEditModal}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "week" && (
@@ -1447,6 +1006,7 @@ export function AgendaClient({
           hourSlots={getHourSlots(agendaStartHour, agendaEndHour)}
           getEventStyle={getEventStyle}
           getAccentColor={getAccentColor}
+          onEditAppointment={openEditModal}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "month" && (
@@ -1456,6 +1016,7 @@ export function AgendaClient({
           today={today}
           getEventStyle={getEventStyle}
           getAccentColor={getAccentColor}
+          onEditAppointment={openEditModal}
           onSelectDay={(day) => {
             setDateInicio(toYMD(day));
             setDateFim(toYMD(day));
@@ -1485,6 +1046,7 @@ function TimelineListView({
   granularity,
   getEventStyle,
   getAccentColor,
+  onEditAppointment,
 }: {
   appointments: AppointmentRow[];
   allAppointmentsForDrag: AppointmentRow[];
@@ -1494,6 +1056,7 @@ function TimelineListView({
   granularity: TimelineGranularity;
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
   getAccentColor: (appointment: AppointmentRow) => string;
+  onEditAppointment?: (appointmentId: string) => void;
 }) {
   // Usar appointments filtrados para exibir, mas todos para drag and drop
   const byDay = useMemo(() => {
@@ -1571,6 +1134,7 @@ function TimelineListView({
                       dayId={dayId}
                       getEventStyle={getEventStyle}
                       getAccentColor={getAccentColor}
+                      onEdit={onEditAppointment}
                     />
                   ))}
                 </ul>
@@ -1643,6 +1207,7 @@ function TimelineListView({
                               dayId={dayId}
                               getEventStyle={getEventStyle}
                               getAccentColor={getAccentColor}
+                              onEdit={onEditAppointment}
                             />
                           ))}
                         </ul>
@@ -1731,6 +1296,7 @@ function TimelineListView({
                                     dayId={dayId}
                                     getEventStyle={getEventStyle}
                                     getAccentColor={getAccentColor}
+                                    onEdit={onEditAppointment}
                                   />
                                 ))}
                               </ul>
@@ -1761,6 +1327,7 @@ function CalendarWeekView({
   hourSlots,
   getEventStyle,
   getAccentColor,
+  onEditAppointment,
 }: {
   appointments: AppointmentRow[];
   currentDate: Date;
@@ -1768,6 +1335,7 @@ function CalendarWeekView({
   hourSlots: number[];
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
   getAccentColor: (appointment: AppointmentRow) => string;
+  onEditAppointment?: (appointmentId: string) => void;
 }) {
   const weekDays = useMemo(() => getWeekDates(currentDate), [currentDate]);
   const [isMobile, setIsMobile] = useState(false);
@@ -1985,7 +1553,8 @@ function CalendarWeekView({
                                 dayId={dayId}
                                 compact
                                 getEventStyle={getEventStyle}
-                      getAccentColor={getAccentColor}
+                                getAccentColor={getAccentColor}
+                                onEdit={onEditAppointment}
                               />
                             ))}
                           </div>
@@ -2013,6 +1582,7 @@ function CalendarMonthView({
   getEventStyle,
   getAccentColor,
   onSelectDay,
+  onEditAppointment,
 }: {
   appointments: AppointmentRow[];
   currentDate: Date;
@@ -2020,6 +1590,7 @@ function CalendarMonthView({
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
   getAccentColor: (appointment: AppointmentRow) => string;
   onSelectDay: (d: Date) => void;
+  onEditAppointment?: (appointmentId: string) => void;
 }) {
   const grid = getMonthCalendarGrid(currentDate);
   const [isMobile, setIsMobile] = useState(false);
@@ -2144,6 +1715,7 @@ function CalendarMonthView({
                                     compact
                                     getEventStyle={getEventStyle}
                                     getAccentColor={getAccentColor}
+                                    onEdit={onEditAppointment}
                                   />
                                 </div>
                               );
@@ -2206,7 +1778,14 @@ function CalendarMonthView({
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
+                        {(a.procedures?.length || a.procedure) &&
+                          ` · ${(a.procedures ?? (a.procedure ? [a.procedure] : [])).map((p) => p.name).join(", ")}`}
                       </p>
+                      {(a.service_name || a.valor != null) && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {[a.service_name, a.valor != null ? a.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : null].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
                     </div>
                     <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
                       {STATUS_LABEL[a.status] ?? a.status}
@@ -2261,12 +1840,14 @@ function DraggableAppointmentItem({
   compact,
   getEventStyle,
   getAccentColor,
+  onEdit,
 }: {
   appointment: AppointmentRow;
   dayId: string;
   compact?: boolean;
   getEventStyle?: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
   getAccentColor?: (appointment: AppointmentRow) => string;
+  onEdit?: (appointmentId: string) => void;
 }) {
   const {
     attributes,
@@ -2308,19 +1889,38 @@ function DraggableAppointmentItem({
         >
           <GripVertical className="h-3 w-3" />
         </button>
+        {onEdit && (
+          <button
+            type="button"
+            className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground"
+            title="Editar consulta"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onEdit(appointment.id);
+            }}
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+        )}
         <Link
           href={`/dashboard/agenda/consulta/${appointment.id}`}
           className="flex-1 truncate text-xs font-semibold"
-          title={`${new Date(appointment.scheduled_at).toLocaleTimeString("pt-BR", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })} ${appointment.patient.full_name}`}
+          title={formatAppointmentTooltip(appointment)}
         >
           {new Date(appointment.scheduled_at).toLocaleTimeString("pt-BR", {
             hour: "2-digit",
             minute: "2-digit",
           })}{" "}
           {appointment.patient.full_name}
+          {appointment.procedures?.length || appointment.procedure ? (
+            <span className="text-muted-foreground font-normal">
+              {" "}
+              · {(appointment.procedures ?? (appointment.procedure ? [appointment.procedure] : []))
+                .map((p) => p.name)
+                .join(", ")}
+            </span>
+          ) : null}
         </Link>
       </div>
     );
@@ -2356,15 +1956,41 @@ function DraggableAppointmentItem({
             })}
           </span>
           <span className="truncate">{appointment.patient.full_name}</span>
-          {(appointment.appointment_type || appointment.procedure) && (
+          {(appointment.appointment_type || appointment.procedure || appointment.procedures?.length || appointment.service_name || appointment.valor != null) && (
             <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
-              · {[appointment.appointment_type?.name, appointment.procedure?.name]
+              ·{" "}
+              {[
+                appointment.appointment_type?.name,
+                (appointment.procedures ?? (appointment.procedure ? [appointment.procedure] : []))
+                  .map((p) => p.name)
+                  .join(", ") || null,
+                appointment.service_name,
+                appointment.valor != null
+                  ? appointment.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                  : null,
+              ]
                 .filter(Boolean)
                 .join(" · ")}
             </span>
           )}
         </Link>
         <div className="flex items-center gap-2 shrink-0">
+          {onEdit && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+              title="Editar consulta"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onEdit(appointment.id);
+              }}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
           {(appointment.form_instances?.filter((f) => f.status === "pendente").length ?? 0) > 0 && (
             <Badge variant="secondary" className="text-xs">
               {appointment.form_instances?.filter((f) => f.status === "pendente").length ?? 0} form.

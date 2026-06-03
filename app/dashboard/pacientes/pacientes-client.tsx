@@ -1106,10 +1106,20 @@ export function PacientesClient({
                         size="sm"
                         onClick={() => {
                           setSelectedPatient(null);
+                          router.push(`/dashboard/pacientes/${selectedPatient.id}`);
+                        }}
+                      >
+                        Ver perfil completo
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedPatient(null);
                           router.push(`/dashboard/consulta?filterPatientId=${selectedPatient.id}`);
                         }}
                       >
-                        Ver tudo em consultas
+                        Ver consultas
                       </Button>
                     </div>
                   </div>

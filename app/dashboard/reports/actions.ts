@@ -1213,6 +1213,18 @@ export async function getFinanceiroData(clinicId: string, period: Period = "30d"
     receitaPorServicoMap.set(serviceLabel, (receitaPorServicoMap.get(serviceLabel) ?? 0) + valor);
   }
 
+  const { data: paymentsInPeriod } = await supabase
+    .from("patient_payments")
+    .select("amount, paid_at")
+    .eq("clinic_id", clinicId)
+    .gte("paid_at", startIso)
+    .lte("paid_at", endIso);
+
+  const receitaCaixaReal = (paymentsInPeriod ?? []).reduce(
+    (acc, p) => acc + Math.max(0, Number(p.amount)),
+    0
+  );
+
   const ticketMedio = receitaTotal > 0 && realizadas > 0 ? receitaTotal / realizadas : 0;
   const receitaPerdidaFaltas = faltas.reduce((acc, a) => acc + Math.max(0, Number(a.valor ?? 0)), 0);
   const receitaPerdidaCancelamentos = canceladas.reduce((acc, a) => acc + Math.max(0, Number(a.valor ?? 0)), 0);
@@ -1350,6 +1362,7 @@ export async function getFinanceiroData(clinicId: string, period: Period = "30d"
   return {
     data: {
       receitaTotal: Number(receitaTotal.toFixed(2)),
+      receitaCaixaReal: Number(receitaCaixaReal.toFixed(2)),
       receitaPerdidaTotal: Number(receitaPerdidaTotal.toFixed(2)),
       receitaPerdidaFaltas: Number((receitaPerdidaFaltas + faltasSemValor * ticketMedio).toFixed(2)),
       receitaPerdidaCancelamentos: Number((receitaPerdidaCancelamentos + canceladasSemValor * ticketMedio).toFixed(2)),

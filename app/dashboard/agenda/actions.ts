@@ -50,6 +50,13 @@ export async function getPublicFormTemplatesForPatient(patientId: string) {
 
 import { slugify } from "@/lib/form-slug";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
+import {
+  syncAppointmentProcedures,
+  buildConsumptionFromProcedures,
+  commitStockForAppointment,
+  releaseStockForAppointment,
+  consumeStockForAppointment,
+} from "@/lib/clinic-operations";
 
 /** Vincula conversa(s) WhatsApp do paciente à secretária que agendou (para ela ver no pool). */
 async function linkWhatsAppConversationToSecretary(
@@ -178,8 +185,16 @@ export async function createAppointment(
   linkedFormTemplateIds?: string[],
   serviceId?: string | null,
   valor?: number | null,
-  dimensionValueIds?: string[]
+  dimensionValueIds?: string[],
+  procedureIds?: string[]
 ) {
+  const allProcedureIds =
+    procedureIds?.length
+      ? procedureIds
+      : procedureId
+        ? [procedureId]
+        : [];
+  const primaryProcedureId = allProcedureIds[0] ?? procedureId ?? null;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Não autorizado." };
@@ -220,7 +235,7 @@ export async function createAppointment(
       patient_id: patientId,
       doctor_id: doctorId,
       appointment_type_id: appointmentTypeId || null,
-      procedure_id: procedureId || null,
+      procedure_id: primaryProcedureId,
       service_id: serviceId || null,
       valor: valor ?? null,
       scheduled_at: scheduledAt,
@@ -238,6 +253,16 @@ export async function createAppointment(
 
   if (insertErr) return { error: insertErr.message };
   if (!appointment) return { error: "Erro ao criar consulta." };
+
+  if (allProcedureIds.length) {
+    await syncAppointmentProcedures(supabase, appointment.id, allProcedureIds);
+    await buildConsumptionFromProcedures(supabase, appointment.id, allProcedureIds);
+    try {
+      await commitStockForAppointment(supabase, profile.clinic_id, appointment.id, user.id);
+    } catch (e) {
+      console.error("[createAppointment] stock commit:", e);
+    }
+  }
 
   if (dimensionValueIds?.length && appointment.id) {
     await supabase.from("appointment_dimension_values").insert(
@@ -361,12 +386,12 @@ export async function createAppointment(
     }
   }
 
-  // Formulários vinculados ao procedimento (evitar duplicar se já veio do tipo)
-  if (procedureId) {
+  // Formulários vinculados ao(s) procedimento(s)
+  for (const procId of allProcedureIds) {
     const { data: procLinks, error: procLinksError } = await supabase
       .from("form_template_procedures")
       .select("form_template_id")
-      .eq("procedure_id", procedureId);
+      .eq("procedure_id", procId);
     if (procLinksError) {
       console.error("[createAppointment] form_template_procedures select:", procLinksError);
     }
@@ -684,6 +709,111 @@ async function checkAppointmentConflict(
   return null;
 }
 
+export type AppointmentEditData = {
+  patientId: string;
+  doctorId: string;
+  appointmentTypeId: string;
+  procedureIds: string[];
+  serviceId: string;
+  dimensionSelections: Record<string, string>;
+  date: string;
+  time: string;
+  notes: string;
+  recommendations: string;
+  requiresFasting: boolean;
+  requiresMedicationStop: boolean;
+  specialInstructions: string;
+  preparationNotes: string;
+  valor: number | null;
+};
+
+/** Carrega dados da consulta para o modal de edição (abas). */
+export async function getAppointmentForEdit(appointmentId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: null };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", data: null };
+
+  const { data: appt, error } = await supabase
+    .from("appointments")
+    .select(
+      `
+      id,
+      patient_id,
+      doctor_id,
+      appointment_type_id,
+      procedure_id,
+      service_id,
+      valor,
+      scheduled_at,
+      notes,
+      recommendations,
+      requires_fasting,
+      requires_medication_stop,
+      special_instructions,
+      preparation_notes,
+      status,
+      appointment_procedures ( procedure_id, sort_order ),
+      appointment_dimension_values ( dimension_value_id, dimension_values ( dimension_id ) )
+    `
+    )
+    .eq("id", appointmentId)
+    .eq("clinic_id", profile.clinic_id)
+    .single();
+
+  if (error || !appt) return { error: error?.message ?? "Consulta não encontrada.", data: null };
+
+  const scheduled = new Date(appt.scheduled_at as string);
+  const procedureIds = (appt.appointment_procedures as { procedure_id: string; sort_order: number }[] | null)
+    ?.sort((a, b) => a.sort_order - b.sort_order)
+    .map((r) => r.procedure_id) ?? [];
+  const finalProcedureIds =
+    procedureIds.length > 0
+      ? procedureIds
+      : appt.procedure_id
+        ? [appt.procedure_id as string]
+        : [];
+
+  const dimensionSelections: Record<string, string> = {};
+  for (const row of (appt.appointment_dimension_values as {
+    dimension_value_id: string;
+    dimension_values: { dimension_id: string } | { dimension_id: string }[];
+  }[]) ?? []) {
+    const dv = Array.isArray(row.dimension_values) ? row.dimension_values[0] : row.dimension_values;
+    if (dv?.dimension_id) dimensionSelections[dv.dimension_id] = row.dimension_value_id;
+  }
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const date = `${scheduled.getFullYear()}-${pad(scheduled.getMonth() + 1)}-${pad(scheduled.getDate())}`;
+  const time = `${pad(scheduled.getHours())}:${pad(scheduled.getMinutes())}`;
+
+  const data: AppointmentEditData = {
+    patientId: appt.patient_id as string,
+    doctorId: appt.doctor_id as string,
+    appointmentTypeId: (appt.appointment_type_id as string) ?? "",
+    procedureIds: finalProcedureIds,
+    serviceId: (appt.service_id as string) ?? "",
+    dimensionSelections,
+    date,
+    time,
+    notes: (appt.notes as string) ?? "",
+    recommendations: (appt.recommendations as string) ?? "",
+    requiresFasting: !!appt.requires_fasting,
+    requiresMedicationStop: !!appt.requires_medication_stop,
+    specialInstructions: (appt.special_instructions as string) ?? "",
+    preparationNotes: (appt.preparation_notes as string) ?? "",
+    valor: appt.valor != null ? Number(appt.valor) : null,
+  };
+
+  return { error: null, data, status: appt.status as string };
+}
+
 export async function updateAppointment(
   id: string,
   data: {
@@ -691,6 +821,9 @@ export async function updateAppointment(
     doctor_id?: string;
     appointment_type_id?: string | null;
     procedure_id?: string | null;
+    procedure_ids?: string[];
+    service_id?: string | null;
+    valor?: number | null;
     scheduled_at?: string;
     status?: string;
     notes?: string | null;
@@ -699,6 +832,7 @@ export async function updateAppointment(
     requires_medication_stop?: boolean;
     special_instructions?: string | null;
     preparation_notes?: string | null;
+    dimension_value_ids?: string[];
   }
 ) {
   const supabase = await createClient();
@@ -737,10 +871,22 @@ export async function updateAppointment(
     .eq("id", id)
     .single();
 
+  const procedureIds = data.procedure_ids;
+  const dimensionValueIds = data.dimension_value_ids;
+  const {
+    procedure_ids: _pids,
+    dimension_value_ids: _dvids,
+    ...appointmentFields
+  } = data;
+
   const updatePayload: Record<string, unknown> = {
-    ...data,
+    ...appointmentFields,
     updated_at: new Date().toISOString(),
   };
+
+  if (procedureIds !== undefined) {
+    updatePayload.procedure_id = procedureIds[0] ?? null;
+  }
 
   if (data.status === "realizada" && currentRow?.started_at) {
     const startedAt = new Date(currentRow.started_at as string).getTime();
@@ -754,6 +900,60 @@ export async function updateAppointment(
     .update(updatePayload)
     .eq("id", id);
   if (error) return { error: error.message };
+
+  if (currentRow?.clinic_id) {
+    if (procedureIds !== undefined) {
+      const ids = procedureIds;
+      const status = currentRow.status as string;
+      const canAdjustStock = status !== "realizada" && status !== "cancelada" && status !== "falta";
+      if (canAdjustStock) {
+        try {
+          await releaseStockForAppointment(supabase, currentRow.clinic_id, id, user.id);
+        } catch (e) {
+          console.error("[updateAppointment] stock release (procedures):", e);
+        }
+      }
+      await syncAppointmentProcedures(supabase, id, ids);
+      await buildConsumptionFromProcedures(supabase, id, ids);
+      if (canAdjustStock) {
+        try {
+          await commitStockForAppointment(supabase, currentRow.clinic_id, id, user.id);
+        } catch (e) {
+          console.error("[updateAppointment] stock commit (procedures):", e);
+        }
+      }
+    }
+    if (dimensionValueIds !== undefined) {
+      await supabase.from("appointment_dimension_values").delete().eq("appointment_id", id);
+      if (dimensionValueIds.length) {
+        await supabase.from("appointment_dimension_values").insert(
+          dimensionValueIds.map((dimension_value_id) => ({
+            appointment_id: id,
+            dimension_value_id,
+          }))
+        );
+      }
+    }
+    const prevStatus = currentRow.status as string;
+    if (data.status === "realizada" && prevStatus !== "realizada") {
+      try {
+        await consumeStockForAppointment(supabase, currentRow.clinic_id, id, user.id);
+      } catch (e) {
+        console.error("[updateAppointment] stock consume:", e);
+      }
+    }
+    if (
+      (data.status === "cancelada" || data.status === "falta") &&
+      prevStatus !== data.status &&
+      prevStatus !== "realizada"
+    ) {
+      try {
+        await releaseStockForAppointment(supabase, currentRow.clinic_id, id, user.id);
+      } catch (e) {
+        console.error("[updateAppointment] stock release:", e);
+      }
+    }
+  }
 
   try {
     if (currentRow?.clinic_id) {

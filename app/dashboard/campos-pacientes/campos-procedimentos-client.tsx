@@ -17,7 +17,10 @@ import {
   updateProcedure,
   deleteProcedure,
   syncDoctorProcedures,
+  syncProcedureProducts,
+  getProcedureProducts,
   type ProcedureRow,
+  type ProcedureProductRow,
 } from "./actions";
 import { CamposPacientesClient, type CustomFieldRow } from "./campos-pacientes-client";
 import { Plus, Pencil, Check, UserCircle, Trash2 } from "lucide-react";
@@ -40,12 +43,16 @@ export function CamposProcedimentosClient({
   procedures,
   doctors,
   doctorIdsByProcedureId,
+  services,
+  products,
 }: {
   initialFields: CustomFieldRow[];
   appointmentTypes: AppointmentTypeRow[];
   procedures: ProcedureRow[];
   doctors: DoctorOption[];
   doctorIdsByProcedureId: Record<string, string[]>;
+  services: { id: string; nome: string }[];
+  products: { id: string; name: string; unit: string }[];
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("paciente");
@@ -97,6 +104,9 @@ export function CamposProcedimentosClient({
             initialProcedures={procedures}
             doctors={doctors}
             doctorIdsByProcedureId={doctorIdsByProcedureId}
+            appointmentTypes={appointmentTypes}
+            services={services}
+            products={products}
             onMutate={() => router.refresh()}
           />
         )}
@@ -327,11 +337,17 @@ function ProcedimentosSection({
   initialProcedures,
   doctors,
   doctorIdsByProcedureId,
+  appointmentTypes,
+  services,
+  products,
   onMutate,
 }: {
   initialProcedures: ProcedureRow[];
   doctors: DoctorOption[];
   doctorIdsByProcedureId: Record<string, string[]>;
+  appointmentTypes: AppointmentTypeRow[];
+  services: { id: string; nome: string }[];
+  products: { id: string; name: string; unit: string }[];
   onMutate: () => void;
 }) {
   const [procedures, setProcedures] = useState<ProcedureRow[]>(initialProcedures);
@@ -344,6 +360,11 @@ function ProcedimentosSection({
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [recommendations, setRecommendations] = useState("");
+  const [defaultServiceId, setDefaultServiceId] = useState("");
+  const [defaultAppointmentTypeId, setDefaultAppointmentTypeId] = useState("");
+  const [bomItems, setBomItems] = useState<{ product_id: string; quantity_per_procedure: number }[]>([]);
+  const [bomProductId, setBomProductId] = useState("");
+  const [bomQty, setBomQty] = useState("1");
   const [selectedDoctorIds, setSelectedDoctorIds] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [procedureToDelete, setProcedureToDelete] = useState<ProcedureRow | null>(null);
@@ -355,16 +376,30 @@ function ProcedimentosSection({
     setIsNew(true);
     setName("");
     setRecommendations("");
+    setDefaultServiceId("");
+    setDefaultAppointmentTypeId("");
+    setBomItems([]);
     setSelectedDoctorIds(new Set());
     setError(null);
   }
 
-  function openEdit(p: ProcedureRow) {
+  async function openEdit(p: ProcedureRow) {
     setIsNew(false);
     setEditingId(p.id);
     setName(p.name);
     setRecommendations(p.recommendations || "");
+    setDefaultServiceId(p.default_service_id ?? "");
+    setDefaultAppointmentTypeId(p.default_appointment_type_id ?? "");
     setSelectedDoctorIds(new Set(doctorIdsByProcedureId[p.id] ?? []));
+    const bomRes = await getProcedureProducts(p.id);
+    if (!bomRes.error) {
+      setBomItems(
+        bomRes.data.map((row: ProcedureProductRow) => ({
+          product_id: row.product_id,
+          quantity_per_procedure: row.quantity_per_procedure,
+        }))
+      );
+    }
     setError(null);
   }
 
@@ -388,16 +423,24 @@ function ProcedimentosSection({
     setError(null);
     setLoading(true);
     if (isNew) {
-      const res = await createProcedure(name, recommendations || null);
+      const res = await createProcedure(name, recommendations || null, {
+        default_service_id: defaultServiceId || null,
+        default_appointment_type_id: defaultAppointmentTypeId || null,
+      });
       if (res.error) {
         setError(res.error);
         setLoading(false);
         return;
       }
       const procedureId = (res as { procedureId?: string }).procedureId;
-      if (procedureId && selectedDoctorIds.size > 0) {
-        const syncRes = await syncDoctorProcedures(procedureId, [...selectedDoctorIds]);
-        if (syncRes.error) setError(syncRes.error);
+      if (procedureId) {
+        if (selectedDoctorIds.size > 0) {
+          const syncRes = await syncDoctorProcedures(procedureId, [...selectedDoctorIds]);
+          if (syncRes.error) setError(syncRes.error);
+        }
+        if (bomItems.length) {
+          await syncProcedureProducts(procedureId, bomItems);
+        }
       }
       cancelForm();
       onMutate();
@@ -408,6 +451,8 @@ function ProcedimentosSection({
       const res = await updateProcedure(editingId, {
         name: name.trim(),
         recommendations: recommendations.trim() || null,
+        default_service_id: defaultServiceId || null,
+        default_appointment_type_id: defaultAppointmentTypeId || null,
       });
       if (res.error) {
         setError(res.error);
@@ -420,6 +465,7 @@ function ProcedimentosSection({
         setLoading(false);
         return;
       }
+      await syncProcedureProducts(editingId, bomItems);
       setProcedures((prev) =>
         prev.map((p) =>
           p.id === editingId
@@ -484,6 +530,83 @@ function ProcedimentosSection({
                 Será usado em e-mails e mensagens; ao agendar com este procedimento, o campo de recomendações já virá preenchido.
               </p>
             </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Serviço padrão (cobrança)</Label>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                  value={defaultServiceId}
+                  onChange={(e) => setDefaultServiceId(e.target.value)}
+                >
+                  <option value="">Nenhum</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nome}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo de consulta padrão</Label>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                  value={defaultAppointmentTypeId}
+                  onChange={(e) => setDefaultAppointmentTypeId(e.target.value)}
+                >
+                  <option value="">Nenhum</option>
+                  {appointmentTypes.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {products.length > 0 && (
+              <div className="space-y-2">
+                <Label>Insumos do procedimento (BOM)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Materiais reservados no estoque ao agendar consultas com este procedimento.
+                </p>
+                {bomItems.length > 0 && (
+                  <ul className="text-sm space-y-1 border rounded-md p-2">
+                    {bomItems.map((item, idx) => {
+                      const prod = products.find((p) => p.id === item.product_id);
+                      return (
+                        <li key={idx} className="flex justify-between items-center">
+                          <span>{prod?.name ?? item.product_id} — {item.quantity_per_procedure} {prod?.unit}</span>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setBomItems((prev) => prev.filter((_, i) => i !== idx))}>Remover</Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <div className="flex gap-2">
+                  <select
+                    className="h-9 flex-1 rounded-md border px-2 text-sm"
+                    value={bomProductId}
+                    onChange={(e) => setBomProductId(e.target.value)}
+                  >
+                    <option value="">Produto…</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  <Input className="w-20 h-9" value={bomQty} onChange={(e) => setBomQty(e.target.value)} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (!bomProductId) return;
+                      setBomItems((prev) => [
+                        ...prev.filter((i) => i.product_id !== bomProductId),
+                        { product_id: bomProductId, quantity_per_procedure: parseFloat(bomQty) || 1 },
+                      ]);
+                      setBomProductId("");
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
             {doctors.length > 0 && (
               <div className="space-y-2">
                 <Label>Profissionais que realizam este procedimento</Label>

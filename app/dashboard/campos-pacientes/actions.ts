@@ -163,11 +163,19 @@ export async function deleteCustomField(id: string) {
 }
 
 // ========== PROCEDIMENTOS (ex.: endoscopia — nome + recomendações) ==========
+export type ProcedureProductRow = {
+  product_id: string;
+  product_name: string;
+  quantity_per_procedure: number;
+};
+
 export type ProcedureRow = {
   id: string;
   name: string;
   recommendations: string | null;
   display_order: number;
+  default_service_id: string | null;
+  default_appointment_type_id: string | null;
 };
 
 export async function listProcedures(): Promise<{ error: string | null; data: ProcedureRow[] }> {
@@ -185,15 +193,140 @@ export async function listProcedures(): Promise<{ error: string | null; data: Pr
 
   const { data, error } = await supabase
     .from("procedures")
-    .select("id, name, recommendations, display_order")
+    .select("id, name, recommendations, display_order, default_service_id, default_appointment_type_id")
     .eq("clinic_id", profile.clinic_id)
     .order("display_order", { ascending: true });
 
   if (error) return { error: error.message, data: [] };
-  return { error: null, data: (data ?? []).map((p) => ({ ...p, display_order: p.display_order ?? 0 })) };
+  return {
+    error: null,
+    data: (data ?? []).map((p) => ({
+      ...p,
+      display_order: p.display_order ?? 0,
+      default_service_id: p.default_service_id ?? null,
+      default_appointment_type_id: p.default_appointment_type_id ?? null,
+    })),
+  };
 }
 
-export async function createProcedure(name: string, recommendations: string | null) {
+export async function listProductsForClinic(): Promise<{
+  error: string | null;
+  data: { id: string; name: string; unit: string }[];
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: [] };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", data: [] };
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, name, unit")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("active", true)
+    .order("name");
+
+  if (error) return { error: error.message, data: [] };
+  return { error: null, data: data ?? [] };
+}
+
+export async function listServicesForClinic(): Promise<{
+  error: string | null;
+  data: { id: string; nome: string }[];
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: [] };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", data: [] };
+
+  const { data, error } = await supabase
+    .from("services")
+    .select("id, nome")
+    .eq("clinic_id", profile.clinic_id)
+    .order("nome");
+
+  if (error) return { error: error.message, data: [] };
+  return { error: null, data: data ?? [] };
+}
+
+export async function getProcedureProducts(procedureId: string): Promise<{
+  error: string | null;
+  data: ProcedureProductRow[];
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: [] };
+
+  const { data, error } = await supabase
+    .from("procedure_products")
+    .select("product_id, quantity_per_procedure, products(name)")
+    .eq("procedure_id", procedureId);
+
+  if (error) return { error: error.message, data: [] };
+
+  const rows: ProcedureProductRow[] = (data ?? []).map((r: Record<string, unknown>) => {
+    const prod = Array.isArray(r.products) ? r.products[0] : r.products;
+    return {
+      product_id: String(r.product_id),
+      product_name: String((prod as { name?: string })?.name ?? ""),
+      quantity_per_procedure: Number(r.quantity_per_procedure) || 1,
+    };
+  });
+  return { error: null, data: rows };
+}
+
+export async function syncProcedureProducts(
+  procedureId: string,
+  items: { product_id: string; quantity_per_procedure: number }[]
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") return { error: "Apenas administradores." };
+
+  await supabase.from("procedure_products").delete().eq("procedure_id", procedureId);
+
+  if (items.length) {
+    const { error } = await supabase.from("procedure_products").insert(
+      items.map((i) => ({
+        procedure_id: procedureId,
+        product_id: i.product_id,
+        quantity_per_procedure: i.quantity_per_procedure,
+      }))
+    );
+    if (error) return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/campos-pacientes");
+  return { error: null };
+}
+
+export async function createProcedure(
+  name: string,
+  recommendations: string | null,
+  opts?: {
+    default_service_id?: string | null;
+    default_appointment_type_id?: string | null;
+  }
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Não autorizado." };
@@ -222,6 +355,8 @@ export async function createProcedure(name: string, recommendations: string | nu
     name: name.trim(),
     recommendations: recommendations?.trim() || null,
     display_order,
+    default_service_id: opts?.default_service_id || null,
+    default_appointment_type_id: opts?.default_appointment_type_id || null,
   }).select("id").single();
   if (error) return { error: error.message };
   revalidatePath("/dashboard/campos-pacientes");
@@ -230,7 +365,12 @@ export async function createProcedure(name: string, recommendations: string | nu
 
 export async function updateProcedure(
   id: string,
-  data: { name: string; recommendations: string | null }
+  data: {
+    name: string;
+    recommendations: string | null;
+    default_service_id?: string | null;
+    default_appointment_type_id?: string | null;
+  }
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -249,6 +389,8 @@ export async function updateProcedure(
     .update({
       name: data.name.trim(),
       recommendations: data.recommendations?.trim() || null,
+      default_service_id: data.default_service_id ?? null,
+      default_appointment_type_id: data.default_appointment_type_id ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)

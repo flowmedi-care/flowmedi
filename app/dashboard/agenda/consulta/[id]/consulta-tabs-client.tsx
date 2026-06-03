@@ -8,14 +8,16 @@ import { ConsultaDetalheClient } from "./consulta-detalhe-client";
 import { ExamesClient } from "../../../exames/exames-client";
 import { FormulariosConsultaClient } from "./formularios-consulta-client";
 import { ClinicalDocumentsClient } from "../../../clinical-documents/clinical-documents-client";
+import { AtendimentoClient } from "./atendimento-client";
 import { formatPhoneBr } from "@/lib/format-phone";
 import { cn } from "@/lib/utils";
 import type { FormInstanceItem } from "./page";
 
-type Tab = "consulta" | "paciente" | "formularios" | "exames" | "receitas" | "pedidos";
+type Tab = "consulta" | "atendimento" | "paciente" | "formularios" | "exames" | "receitas" | "pedidos";
 
 export function ConsultaTabsClient({
   appointmentId,
+  appointmentValor,
   appointmentStatus,
   appointmentScheduledAt,
   startedAt,
@@ -31,6 +33,7 @@ export function ConsultaTabsClient({
   currentUserId,
 }: {
   appointmentId: string;
+  appointmentValor: number | null;
   appointmentStatus: string;
   appointmentScheduledAt: string;
   startedAt: string | null;
@@ -60,6 +63,7 @@ export function ConsultaTabsClient({
       tab === "paciente" ||
       tab === "exames" ||
       tab === "consulta" ||
+      tab === "atendimento" ||
       tab === "receitas" ||
       tab === "pedidos"
     ) {
@@ -69,6 +73,7 @@ export function ConsultaTabsClient({
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "consulta", label: "Consulta" },
+    { id: "atendimento", label: "Atendimento" },
     { id: "paciente", label: "Paciente" },
     { id: "formularios", label: "Formulários" },
     { id: "exames", label: "Arquivos" },
@@ -117,6 +122,39 @@ export function ConsultaTabsClient({
             isDoctor={isDoctor}
             currentUserId={currentUserId}
           />
+        )}
+
+        {activeTab === "atendimento" && (
+          <div className="space-y-6">
+            <AtendimentoClient
+              appointmentId={appointmentId}
+              appointmentValor={appointmentValor}
+              canEdit={canEdit || isDoctor}
+            />
+            <FormulariosConsultaClient
+              appointmentId={appointmentId}
+              formInstances={formInstances}
+              isDoctor={isDoctor}
+              canEdit={canEdit}
+            />
+            {isDoctor && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <ClinicalDocumentsClient
+                  type="prescription"
+                  patientId={patientId}
+                  appointmentId={appointmentId}
+                  isDoctor={isDoctor}
+                />
+                <ClinicalDocumentsClient
+                  type="exam_request"
+                  patientId={patientId}
+                  appointmentId={appointmentId}
+                  isDoctor={isDoctor}
+                />
+              </div>
+            )}
+            <ExamesClient patientId={patientId} appointmentId={appointmentId} canEdit={canEdit} />
+          </div>
         )}
 
         {activeTab === "paciente" && (

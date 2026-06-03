@@ -17,7 +17,7 @@ export default async function CamposPacientesPage() {
     redirect("/dashboard");
   }
 
-  const [fieldsRes, typesRes, proceduresRes, doctorsRes, doctorProceduresRes] = await Promise.all([
+  const [fieldsRes, typesRes, proceduresRes, doctorsRes, doctorProceduresRes, servicesRes, productsRes] = await Promise.all([
     supabase
       .from("patient_custom_fields")
       .select("id, field_name, field_type, field_label, required, options, display_order, include_in_public_form")
@@ -30,7 +30,7 @@ export default async function CamposPacientesPage() {
       .order("name"),
     supabase
       .from("procedures")
-      .select("id, name, recommendations, display_order")
+      .select("id, name, recommendations, display_order, default_service_id, default_appointment_type_id")
       .eq("clinic_id", profile.clinic_id)
       .order("display_order", { ascending: true }),
     supabase
@@ -43,6 +43,8 @@ export default async function CamposPacientesPage() {
       .from("doctor_procedures")
       .select("procedure_id, doctor_id")
       .eq("clinic_id", profile.clinic_id),
+    supabase.from("services").select("id, nome").eq("clinic_id", profile.clinic_id).order("nome"),
+    supabase.from("products").select("id, name, unit").eq("clinic_id", profile.clinic_id).eq("active", true).order("name"),
   ]);
 
   const fields = fieldsRes.data ?? [];
@@ -56,7 +58,11 @@ export default async function CamposPacientesPage() {
     name: p.name,
     recommendations: p.recommendations ?? null,
     display_order: p.display_order ?? 0,
+    default_service_id: p.default_service_id ?? null,
+    default_appointment_type_id: p.default_appointment_type_id ?? null,
   }));
+  const services = (servicesRes.data ?? []).map((s) => ({ id: s.id, nome: s.nome }));
+  const products = (productsRes.data ?? []).map((p) => ({ id: p.id, name: p.name, unit: p.unit }));
 
   const doctors = (doctorsRes.data ?? []).map((d) => ({
     id: d.id,
@@ -76,6 +82,8 @@ export default async function CamposPacientesPage() {
       procedures={procedures}
       doctors={doctors}
       doctorIdsByProcedureId={doctorIdsByProcedureId}
+      services={services}
+      products={products}
     />
   );
 }

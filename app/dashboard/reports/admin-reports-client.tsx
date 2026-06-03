@@ -214,6 +214,7 @@ type PorAtendente = {
 };
 type Financeiro = {
   receitaTotal: number;
+  receitaCaixaReal?: number;
   receitaPerdidaTotal: number;
   receitaPerdidaFaltas: number;
   receitaPerdidaCancelamentos: number;
@@ -775,6 +776,11 @@ export function AdminReportsClient({
                 <div>
                   <p className="text-sm text-muted-foreground">Receita total</p>
                   <p className="text-2xl font-bold">{formatCurrency(financeiro.receitaTotal)}</p>
+                  {financeiro.receitaCaixaReal != null && financeiro.receitaCaixaReal > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Caixa (pagamentos): {formatCurrency(financeiro.receitaCaixaReal)}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Ticket médio</p>
