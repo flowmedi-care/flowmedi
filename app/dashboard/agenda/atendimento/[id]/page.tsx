@@ -10,6 +10,7 @@ import { getAppointmentChargePreview } from "../../actions";
 import { getStatusBadgeClassName } from "../../status-utils";
 import { cn } from "@/lib/utils";
 import { ExternalLink, Stethoscope } from "lucide-react";
+import { loadAppointmentProcedures, loadServiceName } from "@/lib/appointment-procedures";
 
 const STATUS_LABEL: Record<string, string> = {
   agendada: "Agendada",
@@ -53,8 +54,6 @@ export default async function AtendimentoPage({
       service_id,
       patient:patients ( id, full_name ),
       doctor:profiles!doctor_id ( full_name ),
-      services ( nome ),
-      appointment_procedures ( procedures ( id, name ) ),
       procedure:procedures ( id, name )
     `
     )
@@ -64,22 +63,7 @@ export default async function AtendimentoPage({
 
   if (error || !appointment) notFound();
 
-  const apProcs = Array.isArray(appointment.appointment_procedures)
-    ? appointment.appointment_procedures
-    : [];
-  const procedures = apProcs.length
-    ? apProcs.map((row: Record<string, unknown>) => {
-        const pr = Array.isArray(row.procedures) ? row.procedures[0] : row.procedures;
-        return { id: String((pr as { id: string }).id), name: String((pr as { name: string }).name) };
-      })
-    : appointment.procedure
-      ? (() => {
-          const procRaw = Array.isArray(appointment.procedure)
-            ? appointment.procedure[0]
-            : appointment.procedure;
-          return [{ id: String((procRaw as { id: string }).id), name: String((procRaw as { name: string }).name) }];
-        })()
-      : [];
+  const procedures = await loadAppointmentProcedures(supabase, id, appointment.procedure);
 
   const { data: dimRows } = await supabase
     .from("appointment_dimension_values")
@@ -101,7 +85,8 @@ export default async function AtendimentoPage({
     .eq("appointment_id", id)
     .maybeSingle();
 
-  const { data: comanda } = await supabase
+  let comanda: { id: string; status: string; total_amount: number; paid_amount: number } | null = null;
+  const { data: comandaRow, error: comandaErr } = await supabase
     .from("comandas")
     .select("id, status, total_amount, paid_amount")
     .eq("appointment_id", id)
@@ -109,6 +94,7 @@ export default async function AtendimentoPage({
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (!comandaErr && comandaRow) comanda = comandaRow;
 
   const patient = Array.isArray(appointment.patient)
     ? appointment.patient[0]
@@ -116,9 +102,7 @@ export default async function AtendimentoPage({
   const doctor = Array.isArray(appointment.doctor)
     ? appointment.doctor[0]
     : appointment.doctor;
-  const svc = Array.isArray(appointment.services)
-    ? appointment.services[0]
-    : appointment.services;
+  const serviceName = await loadServiceName(supabase, appointment.service_id as string | null);
 
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const canEdit = profile.role === "admin" || profile.role === "secretaria" || profile.role === "medico";
@@ -200,9 +184,9 @@ export default async function AtendimentoPage({
               </ul>
             )}
             <div className="rounded-lg border p-3 space-y-1 bg-muted/30">
-              {svc?.nome && charge && (
+              {serviceName && charge && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Serviço — {svc.nome}</span>
+                  <span className="text-muted-foreground">Serviço — {serviceName}</span>
                   <span>{fmt(charge.serviceAmount)}</span>
                 </div>
               )}

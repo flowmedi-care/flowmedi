@@ -56,6 +56,7 @@ import {
   commitStockForAppointment,
   releaseStockForAppointment,
 } from "@/lib/clinic-operations";
+import { loadAppointmentProcedures, loadServiceName } from "@/lib/appointment-procedures";
 
 /** Vincula conversa(s) WhatsApp do paciente à secretária que agendou (para ela ver no pool). */
 async function linkWhatsAppConversationToSecretary(
@@ -329,8 +330,6 @@ export async function getAppointmentEventSummary(
       patient:patients ( id, full_name, phone ),
       doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( name ),
-      services ( nome ),
-      appointment_procedures ( procedures ( id, name ) ),
       procedure:procedures ( id, name )
     `
     )
@@ -340,22 +339,7 @@ export async function getAppointmentEventSummary(
 
   if (apptErr || !appt) return { error: "Consulta não encontrada.", data: null };
 
-  const apProcs = Array.isArray(appt.appointment_procedures) ? appt.appointment_procedures : [];
-  const procedures = apProcs.length
-    ? apProcs.map((row: Record<string, unknown>) => {
-        const pr = Array.isArray(row.procedures) ? row.procedures[0] : row.procedures;
-        return { id: String((pr as { id: string }).id), name: String((pr as { name: string }).name) };
-      })
-    : appt.procedure
-      ? [
-          {
-            id: String((Array.isArray(appt.procedure) ? appt.procedure[0] : appt.procedure as { id: string }).id),
-            name: String((Array.isArray(appt.procedure) ? appt.procedure[0] : appt.procedure as { name: string }).name),
-          },
-        ]
-      : [];
-
-  const procedureIds = procedures.map((p) => p.id);
+  const procedures = await loadAppointmentProcedures(supabase, appointmentId, appt.procedure);
   const { data: dimRows } = await supabase
     .from("appointment_dimension_values")
     .select("dimension_value_id")
@@ -363,7 +347,7 @@ export async function getAppointmentEventSummary(
   const dimensionValueIds = (dimRows ?? []).map((r) => r.dimension_value_id as string);
 
   const chargeRes = await getAppointmentChargePreview(
-    procedureIds,
+    procedures.map((p) => p.id),
     appt.doctor_id as string,
     appt.service_id as string | null,
     dimensionValueIds
@@ -392,7 +376,7 @@ export async function getAppointmentEventSummary(
   const patient = Array.isArray(appt.patient) ? appt.patient[0] : appt.patient;
   const doctor = Array.isArray(appt.doctor) ? appt.doctor[0] : appt.doctor;
   const at = Array.isArray(appt.appointment_type) ? appt.appointment_type[0] : appt.appointment_type;
-  const svc = Array.isArray(appt.services) ? appt.services[0] : appt.services;
+  const service_name = await loadServiceName(supabase, appt.service_id as string | null);
 
   const charge = chargeRes.data ?? {
     serviceAmount: Number(appt.valor) || 0,
@@ -423,7 +407,7 @@ export async function getAppointmentEventSummary(
           }
         : null,
       appointment_type_name: (at as { name?: string })?.name ?? null,
-      service_name: (svc as { nome?: string })?.nome ?? null,
+      service_name,
       procedures,
       charge: {
         serviceAmount: charge.serviceAmount,

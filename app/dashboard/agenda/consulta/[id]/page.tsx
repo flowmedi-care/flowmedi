@@ -12,6 +12,7 @@ import { formatPhoneBr } from "@/lib/format-phone";
 import { cn } from "@/lib/utils";
 import { getAppointmentChargePreview } from "../../actions";
 import { Package } from "lucide-react";
+import { loadAppointmentProcedures, loadServiceName } from "@/lib/appointment-procedures";
 
 export type FormInstanceItem = {
   id: string;
@@ -40,7 +41,7 @@ export default async function ConsultaDetalhePage({
     .single();
   if (!profile?.clinic_id) redirect("/dashboard");
 
-  // Primeiro busca só colunas base (funciona mesmo sem migrations de started_at/duration_minutes)
+  // Colunas base — sem joins que dependem de migration-procedure-hub-operations
   const { data: appointment, error: appointmentError } = await supabase
     .from("appointments")
     .select(
@@ -51,12 +52,10 @@ export default async function ConsultaDetalhePage({
       notes,
       valor,
       doctor_id,
+      service_id,
       patient:patients ( id, full_name, email, phone, birth_date, cpf ),
       doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( id, name ),
-      service_id,
-      services ( nome ),
-      appointment_procedures ( procedures ( id, name ) ),
       procedure:procedures ( id, name )
     `
     )
@@ -141,22 +140,8 @@ export default async function ConsultaDetalhePage({
     };
   });
 
-  const apProcs = Array.isArray(appointment.appointment_procedures)
-    ? appointment.appointment_procedures
-    : [];
-  const procedures = apProcs.length
-    ? apProcs.map((row: Record<string, unknown>) => {
-        const pr = Array.isArray(row.procedures) ? row.procedures[0] : row.procedures;
-        return { id: String((pr as { id: string }).id), name: String((pr as { name: string }).name) };
-      })
-    : appointment.procedure
-      ? (() => {
-          const procRaw = Array.isArray(appointment.procedure)
-            ? appointment.procedure[0]
-            : appointment.procedure;
-          return [{ id: String((procRaw as { id: string }).id), name: String((procRaw as { name: string }).name) }];
-        })()
-      : [];
+  const apProcs = await loadAppointmentProcedures(supabase, id, appointment.procedure);
+  const procedures = apProcs;
 
   const { data: dimRows } = await supabase
     .from("appointment_dimension_values")
@@ -171,7 +156,7 @@ export default async function ConsultaDetalhePage({
     dimensionValueIds
   );
   const charge = chargeRes.data;
-  const svc = Array.isArray(appointment.services) ? appointment.services[0] : appointment.services;
+  const serviceName = await loadServiceName(supabase, appointment.service_id as string | null);
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   return (
@@ -252,9 +237,9 @@ export default async function ConsultaDetalhePage({
             )}
             {charge && (
               <div className="rounded-lg border p-3 space-y-1 bg-muted/30 mt-2">
-                {svc?.nome && (
+                {serviceName && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Serviço — {svc.nome}</span>
+                    <span className="text-muted-foreground">Serviço — {serviceName}</span>
                     <span>{fmt(charge.serviceAmount)}</span>
                   </div>
                 )}

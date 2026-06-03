@@ -24,6 +24,7 @@ import {
   CircleDollarSign,
   Package,
   Wallet,
+  ClipboardList,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -107,6 +108,7 @@ export function DashboardNav({
     { href: "/dashboard", label: "Início", icon: <LayoutDashboard className="h-4 w-4" /> },
     { href: "/dashboard/agenda", label: "Agenda", icon: <Calendar className="h-4 w-4" /> },
     { href: "/dashboard/consulta", label: "Consultas", icon: <CalendarDays className="h-4 w-4" />, roles: ["admin", "secretaria", "medico"] },
+    { href: "/dashboard/atendimento", label: "Atendimento", icon: <ClipboardList className="h-4 w-4" />, roles: ["admin", "secretaria", "medico"] },
     { href: "/dashboard/pacientes", label: "Pacientes", icon: <Users className="h-4 w-4" /> },
     { href: "/dashboard/formularios", label: "Formulários", icon: <FileText className="h-4 w-4" /> },
     { href: "/dashboard/eventos", label: "Eventos", icon: <Bell className="h-4 w-4" />, roles: ["admin", "secretaria"] },
@@ -147,13 +149,17 @@ export function DashboardNav({
           const show = !item.roles || item.roles.includes(profile?.role ?? "");
           if (!show) return null;
           const hasBadge = item.badge !== undefined && item.badge > 0;
+          const isActive =
+            pathname === item.href ||
+            (item.href === "/dashboard/atendimento" &&
+              pathname.startsWith("/dashboard/agenda/atendimento"));
           return (
             <Link key={item.href} href={item.href}>
               <Button
-                variant={pathname === item.href ? "secondary" : "ghost"}
+                variant={isActive ? "secondary" : "ghost"}
                 className={cn(
                   "w-full justify-start relative",
-                  pathname === item.href && "bg-primary/10 text-primary",
+                  isActive && "bg-primary/10 text-primary",
                   isCollapsed && "justify-center px-0",
                   isCollapsed && hasBadge && "text-destructive"
                 )}
