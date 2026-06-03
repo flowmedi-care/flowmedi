@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { FinanceiroClient } from "./financeiro-client";
 import { listFinancialEntries, getFinancialSummary } from "./actions";
+import { listOpenComandas } from "../agenda/encounter-actions";
 
 export default async function FinanceiroPage() {
   const supabase = await createClient();
@@ -16,9 +17,10 @@ export default async function FinanceiroPage() {
 
   if (!profile || profile.role === "medico") redirect("/dashboard");
 
-  const [{ data: entries, error }, { summary }] = await Promise.all([
+  const [{ data: entries, error }, { summary }, { data: openComandas }] = await Promise.all([
     listFinancialEntries(),
     getFinancialSummary(),
+    listOpenComandas(),
   ]);
 
   return (
@@ -33,6 +35,7 @@ export default async function FinanceiroPage() {
       <FinanceiroClient
         initialEntries={entries ?? []}
         summary={summary ?? { recebido: 0, aReceber: 0, pago: 0, aPagar: 0 }}
+        openComandas={openComandas ?? []}
         canManage={profile.role === "admin" || profile.role === "secretaria"}
       />
     </div>

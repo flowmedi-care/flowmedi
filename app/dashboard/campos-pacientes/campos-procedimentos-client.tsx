@@ -392,7 +392,10 @@ function ProcedimentosSection({
     setDefaultAppointmentTypeId(p.default_appointment_type_id ?? "");
     setSelectedDoctorIds(new Set(doctorIdsByProcedureId[p.id] ?? []));
     const bomRes = await getProcedureProducts(p.id);
-    if (!bomRes.error) {
+    if (bomRes.error) {
+      setError(bomRes.error);
+      setBomItems([]);
+    } else {
       setBomItems(
         bomRes.data.map((row: ProcedureProductRow) => ({
           product_id: row.product_id,
@@ -407,6 +410,9 @@ function ProcedimentosSection({
     setEditingId(null);
     setIsNew(false);
     setError(null);
+    setBomItems([]);
+    setBomProductId("");
+    setBomQty("1");
   }
 
   const toggleDoctor = (doctorId: string) => {
@@ -434,12 +440,20 @@ function ProcedimentosSection({
       }
       const procedureId = (res as { procedureId?: string }).procedureId;
       if (procedureId) {
-        if (selectedDoctorIds.size > 0) {
-          const syncRes = await syncDoctorProcedures(procedureId, [...selectedDoctorIds]);
-          if (syncRes.error) setError(syncRes.error);
+        const doctorSync =
+          selectedDoctorIds.size > 0
+            ? await syncDoctorProcedures(procedureId, [...selectedDoctorIds])
+            : { error: null as string | null };
+        const bomSync = await syncProcedureProducts(procedureId, bomItems);
+        if (bomSync.error) {
+          setError(bomSync.error);
+          setLoading(false);
+          return;
         }
-        if (bomItems.length) {
-          await syncProcedureProducts(procedureId, bomItems);
+        if (doctorSync.error) {
+          setError(`Procedimento salvo, mas vínculo com médicos falhou: ${doctorSync.error}`);
+          setLoading(false);
+          return;
         }
       }
       cancelForm();
@@ -459,13 +473,20 @@ function ProcedimentosSection({
         setLoading(false);
         return;
       }
-      const syncRes = await syncDoctorProcedures(editingId, [...selectedDoctorIds]);
-      if (syncRes.error) {
-        setError(syncRes.error);
+      const [doctorSync, bomSync] = await Promise.all([
+        syncDoctorProcedures(editingId, [...selectedDoctorIds]),
+        syncProcedureProducts(editingId, bomItems),
+      ]);
+      if (bomSync.error) {
+        setError(bomSync.error);
         setLoading(false);
         return;
       }
-      await syncProcedureProducts(editingId, bomItems);
+      if (doctorSync.error) {
+        setError(`Insumos salvos, mas vínculo com médicos falhou: ${doctorSync.error}`);
+        setLoading(false);
+        return;
+      }
       setProcedures((prev) =>
         prev.map((p) =>
           p.id === editingId

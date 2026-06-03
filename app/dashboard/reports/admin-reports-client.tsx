@@ -215,6 +215,8 @@ type PorAtendente = {
 type Financeiro = {
   receitaTotal: number;
   receitaCaixaReal?: number;
+  despesasPagas?: number;
+  despesasPendentes?: number;
   receitaPerdidaTotal: number;
   receitaPerdidaFaltas: number;
   receitaPerdidaCancelamentos: number;
@@ -779,6 +781,13 @@ export function AdminReportsClient({
                   {financeiro.receitaCaixaReal != null && financeiro.receitaCaixaReal > 0 && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Caixa (pagamentos): {formatCurrency(financeiro.receitaCaixaReal)}
+                    </p>
+                  )}
+                  {(financeiro.despesasPagas != null || financeiro.despesasPendentes != null) && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Despesas: {formatCurrency(financeiro.despesasPagas ?? 0)} pagas
+                      {(financeiro.despesasPendentes ?? 0) > 0 &&
+                        ` · ${formatCurrency(financeiro.despesasPendentes ?? 0)} pendentes`}
                     </p>
                   )}
                 </div>

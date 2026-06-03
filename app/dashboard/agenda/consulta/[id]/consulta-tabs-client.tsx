@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConsultaDetalheClient } from "./consulta-detalhe-client";
@@ -107,6 +109,15 @@ export function ConsultaTabsClient({
 
       {/* Conteúdo das Abas */}
       <div className="min-h-[400px]">
+        <div className="mb-4 rounded-lg border bg-muted/30 p-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            Consumo de material, comanda e cobrança estão na página de Atendimento.
+          </p>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/dashboard/agenda/atendimento/${appointmentId}`}>Ir para Atendimento</Link>
+          </Button>
+        </div>
+
         {activeTab === "consulta" && (
           <ConsultaDetalheClient
             appointmentId={appointmentId}

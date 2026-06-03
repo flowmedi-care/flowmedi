@@ -2,7 +2,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { ensureEncounter, computeBillingFromLines } from "@/lib/clinic-operations";
+import {
+  ensureEncounter,
+  computeBillingFromLines,
+  consumeStockForAppointment,
+  hasStockBeenConsumed,
+} from "@/lib/clinic-operations";
 import { resolveAppointmentPrice } from "./actions";
 
 export type BillingPreview = {
@@ -20,6 +25,34 @@ export type ConsumptionLine = {
   quantity: number;
   source: string;
   locked_at: string | null;
+  stock_on_hand?: number;
+  stock_committed?: number;
+  stock_available?: number;
+  unit?: string;
+  unit_price?: number;
+};
+
+export type ComandaDetail = {
+  id: string;
+  status: string;
+  total_amount: number;
+  paid_amount: number;
+  remainder: number;
+  created_at: string;
+  items: {
+    id: string;
+    item_type: string;
+    description: string;
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+  }[];
+  payments: {
+    id: string;
+    amount: number;
+    paid_at: string;
+    payment_method: string | null;
+  }[];
 };
 
 export async function getAppointmentConsumption(appointmentId: string) {
@@ -29,19 +62,29 @@ export async function getAppointmentConsumption(appointmentId: string) {
 
   const { data: lines, error } = await supabase
     .from("appointment_consumption_lines")
-    .select("id, product_id, quantity, source, locked_at, products(name)")
+    .select(
+      "id, product_id, quantity, source, locked_at, products(name, unit, cost, sale_price, stock_balances(quantity_on_hand, quantity_committed))"
+    )
     .eq("appointment_id", appointmentId);
 
   if (error) return { error: error.message, data: [], encounter: null };
 
   const { data: encounter } = await supabase
     .from("encounters")
-    .select("id, status")
+    .select("id, status, stock_consumed_at")
     .eq("appointment_id", appointmentId)
     .maybeSingle();
 
   const data: ConsumptionLine[] = (lines ?? []).map((r: Record<string, unknown>) => {
     const prod = Array.isArray(r.products) ? r.products[0] : r.products;
+    const balRaw = (prod as { stock_balances?: unknown })?.stock_balances;
+    const bal = Array.isArray(balRaw) ? balRaw[0] : balRaw;
+    const onHand = Number((bal as { quantity_on_hand?: number })?.quantity_on_hand) || 0;
+    const committed = Number((bal as { quantity_committed?: number })?.quantity_committed) || 0;
+    const cost = Number((prod as { cost?: number })?.cost) || 0;
+    const sale = (prod as { sale_price?: number | null })?.sale_price;
+    const unitPrice =
+      sale != null && Number(sale) > 0 ? Number(sale) : cost > 0 ? cost : 0;
     return {
       id: String(r.id),
       product_id: String(r.product_id),
@@ -49,6 +92,11 @@ export async function getAppointmentConsumption(appointmentId: string) {
       quantity: Number(r.quantity),
       source: String(r.source),
       locked_at: r.locked_at != null ? String(r.locked_at) : null,
+      stock_on_hand: onHand,
+      stock_committed: committed,
+      stock_available: onHand - committed,
+      unit: String((prod as { unit?: string })?.unit ?? "un"),
+      unit_price: unitPrice,
     };
   });
 
@@ -76,6 +124,7 @@ export async function addConsumptionLine(appointmentId: string, productId: strin
 
   if (error) return { error: error.message };
   revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
+  revalidatePath(`/dashboard/agenda/atendimento/${appointmentId}`);
   return { error: null };
 }
 
@@ -98,7 +147,10 @@ export async function updateConsumptionQuantity(lineId: string, quantity: number
     .eq("id", lineId);
 
   if (error) return { error: error.message };
-  if (line?.appointment_id) revalidatePath(`/dashboard/agenda/consulta/${line.appointment_id}`);
+  if (line?.appointment_id) {
+    revalidatePath(`/dashboard/agenda/consulta/${line.appointment_id}`);
+    revalidatePath(`/dashboard/agenda/atendimento/${line.appointment_id}`);
+  }
   return { error: null };
 }
 
@@ -117,7 +169,10 @@ export async function removeConsumptionLine(lineId: string) {
 
   const { error } = await supabase.from("appointment_consumption_lines").delete().eq("id", lineId);
   if (error) return { error: error.message };
-  if (line?.appointment_id) revalidatePath(`/dashboard/agenda/consulta/${line.appointment_id}`);
+  if (line?.appointment_id) {
+    revalidatePath(`/dashboard/agenda/consulta/${line.appointment_id}`);
+    revalidatePath(`/dashboard/agenda/atendimento/${line.appointment_id}`);
+  }
   return { error: null };
 }
 
@@ -211,10 +266,139 @@ export async function getBillingPreview(appointmentId: string) {
   };
 }
 
+export async function getComandaDetail(comandaId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: null };
+
+  const { data: cmd, error } = await supabase
+    .from("comandas")
+    .select("id, status, total_amount, paid_amount, created_at, clinic_id")
+    .eq("id", comandaId)
+    .single();
+
+  if (error || !cmd) return { error: "Comanda não encontrada.", data: null };
+
+  const { data: items } = await supabase
+    .from("comanda_items")
+    .select("id, item_type, description, quantity, unit_price, total_price")
+    .eq("comanda_id", comandaId);
+
+  const { data: payments } = await supabase
+    .from("patient_payments")
+    .select("id, amount, paid_at, payment_method")
+    .eq("comanda_id", comandaId)
+    .order("paid_at", { ascending: false });
+
+  const total = Number(cmd.total_amount);
+  const paid = Number(cmd.paid_amount);
+
+  return {
+    error: null,
+    data: {
+      id: cmd.id,
+      status: cmd.status as string,
+      total_amount: total,
+      paid_amount: paid,
+      remainder: Math.max(0, total - paid),
+      created_at: cmd.created_at as string,
+      items: (items ?? []).map((i) => ({
+        id: i.id,
+        item_type: i.item_type,
+        description: i.description,
+        quantity: Number(i.quantity),
+        unit_price: Number(i.unit_price),
+        total_price: Number(i.total_price),
+      })),
+      payments: (payments ?? []).map((p) => ({
+        id: p.id,
+        amount: Number(p.amount),
+        paid_at: p.paid_at as string,
+        payment_method: p.payment_method != null ? String(p.payment_method) : null,
+      })),
+    } satisfies ComandaDetail,
+  };
+}
+
+export async function registerComandaPayment(
+  comandaId: string,
+  amount: number,
+  paymentMethod?: string
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+  if (profile.role !== "admin" && profile.role !== "secretaria") {
+    return { error: "Sem permissão." };
+  }
+
+  const { data: cmd } = await supabase
+    .from("comandas")
+    .select("id, clinic_id, patient_id, appointment_id, total_amount, paid_amount, status")
+    .eq("id", comandaId)
+    .single();
+
+  if (!cmd || cmd.status === "cancelada") return { error: "Comanda inválida." };
+
+  const newPaid = Number(cmd.paid_amount) + amount;
+  const total = Number(cmd.total_amount);
+  const newStatus =
+    newPaid >= total && total > 0 ? "paga" : newPaid > 0 ? "parcial" : cmd.status;
+
+  const { error: updErr } = await supabase
+    .from("comandas")
+    .update({
+      paid_amount: newPaid,
+      status: newStatus,
+      closed_at: newStatus === "paga" ? new Date().toISOString() : undefined,
+    })
+    .eq("id", comandaId);
+
+  if (updErr) return { error: updErr.message };
+
+  await supabase.from("patient_payments").insert({
+    clinic_id: profile.clinic_id,
+    comanda_id: comandaId,
+    patient_id: cmd.patient_id,
+    amount,
+    payment_method: paymentMethod ?? null,
+    created_by: user.id,
+  });
+
+  await supabase.from("financial_entries").insert({
+    clinic_id: profile.clinic_id,
+    entry_type: "receita",
+    origin: "patient",
+    description: "Pagamento comanda",
+    amount,
+    paid_at: new Date().toISOString(),
+    status: "pago",
+    patient_id: cmd.patient_id,
+    comanda_id: comandaId,
+    created_by: user.id,
+  });
+
+  revalidatePath("/dashboard/financeiro");
+  if (cmd.appointment_id) {
+    revalidatePath(`/dashboard/agenda/atendimento/${cmd.appointment_id}`);
+    revalidatePath(`/dashboard/agenda/consulta/${cmd.appointment_id}`);
+  }
+  revalidatePath(`/dashboard/pacientes/${cmd.patient_id}`);
+  return { error: null };
+}
+
 export async function finalizeBilling(
   appointmentId: string,
   paymentAmount: number,
-  paymentMethod?: string
+  paymentMethod?: string,
+  options?: { consumeStock?: boolean }
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -227,9 +411,20 @@ export async function finalizeBilling(
     .single();
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
 
+  const { data: existingComanda } = await supabase
+    .from("comandas")
+    .select("id, status")
+    .eq("appointment_id", appointmentId)
+    .neq("status", "cancelada")
+    .maybeSingle();
+
+  if (existingComanda) {
+    return { error: "Já existe comanda para esta consulta.", comandaId: existingComanda.id };
+  }
+
   const { data: appt } = await supabase
     .from("appointments")
-    .select("id, patient_id, service_id, valor, clinic_id")
+    .select("id, patient_id, service_id, valor, clinic_id, status")
     .eq("id", appointmentId)
     .single();
 
@@ -237,6 +432,26 @@ export async function finalizeBilling(
 
   const encounter = await ensureEncounter(supabase, profile.clinic_id, appointmentId);
   if (!encounter) return { error: "Erro ao criar atendimento." };
+
+  const shouldConsume = options?.consumeStock !== false;
+  if (shouldConsume) {
+    const already = await hasStockBeenConsumed(supabase, appointmentId);
+    if (!already) {
+      try {
+        await consumeStockForAppointment(supabase, profile.clinic_id, appointmentId, user.id);
+        await supabase
+          .from("encounters")
+          .update({
+            stock_consumed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("appointment_id", appointmentId);
+      } catch (e) {
+        console.error("[finalizeBilling] stock consume:", e);
+        return { error: "Erro ao lançar consumo de material no estoque." };
+      }
+    }
+  }
 
   const previewRes = await getBillingPreview(appointmentId);
   const billing = previewRes.data;
@@ -301,7 +516,11 @@ export async function finalizeBilling(
 
   await supabase
     .from("appointments")
-    .update({ valor: totalAmount, updated_at: new Date().toISOString() })
+    .update({
+      valor: totalAmount,
+      status: appt.status === "agendada" || appt.status === "confirmada" ? "realizada" : appt.status,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", appointmentId);
 
   await supabase
@@ -340,9 +559,13 @@ export async function finalizeBilling(
   }
 
   revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
+  revalidatePath(`/dashboard/agenda/atendimento/${appointmentId}`);
   revalidatePath("/dashboard/financeiro");
+  revalidatePath("/dashboard/agenda");
   revalidatePath(`/dashboard/pacientes/${appt.patient_id}`);
-  return { error: null, comandaId: comanda?.id };
+
+  const detail = await getComandaDetail(comanda!.id);
+  return { error: null, comandaId: comanda?.id, comanda: detail.data, billing: previewRes.data };
 }
 
 export async function startEncounter(appointmentId: string) {
@@ -359,5 +582,59 @@ export async function startEncounter(appointmentId: string) {
 
   await ensureEncounter(supabase, profile.clinic_id, appointmentId);
   revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
+  revalidatePath(`/dashboard/agenda/atendimento/${appointmentId}`);
   return { error: null };
+}
+
+export async function listOpenComandas() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: [] };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", data: [] };
+  if (profile.role === "medico") return { error: "Sem permissão.", data: [] };
+
+  const { data, error } = await supabase
+    .from("comandas")
+    .select(
+      `
+      id,
+      status,
+      total_amount,
+      paid_amount,
+      created_at,
+      patient:patients ( full_name ),
+      appointment:appointments ( scheduled_at )
+    `
+    )
+    .eq("clinic_id", profile.clinic_id)
+    .in("status", ["aberta", "parcial"])
+    .order("created_at", { ascending: false });
+
+  if (error) return { error: error.message, data: [] };
+
+  return {
+    error: null,
+    data: (data ?? []).map((c: Record<string, unknown>) => {
+      const patient = Array.isArray(c.patient) ? c.patient[0] : c.patient;
+      const appt = Array.isArray(c.appointment) ? c.appointment[0] : c.appointment;
+      const total = Number(c.total_amount);
+      const paid = Number(c.paid_amount);
+      return {
+        id: String(c.id),
+        status: String(c.status),
+        total_amount: total,
+        paid_amount: paid,
+        remainder: Math.max(0, total - paid),
+        created_at: String(c.created_at),
+        patient_name: (patient as { full_name?: string })?.full_name ?? "—",
+        scheduled_at: appt ? String((appt as { scheduled_at: string }).scheduled_at) : null,
+      };
+    }),
+  };
 }

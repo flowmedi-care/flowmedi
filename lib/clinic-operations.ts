@@ -239,6 +239,15 @@ export async function ensureEncounter(supabase: Db, clinicId: string, appointmen
   return created;
 }
 
+export async function hasStockBeenConsumed(supabase: Db, appointmentId: string): Promise<boolean> {
+  const { count } = await supabase
+    .from("stock_movements")
+    .select("id", { count: "exact", head: true })
+    .eq("appointment_id", appointmentId)
+    .eq("movement_type", "consumed");
+  return (count ?? 0) > 0;
+}
+
 export async function resolveMultiProcedurePrice(
   supabase: Db,
   clinicId: string,

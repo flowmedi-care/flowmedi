@@ -11,6 +11,8 @@ import { formatPhoneBr } from "@/lib/format-phone";
 import { toast } from "@/components/ui/toast";
 import { ExamesClient } from "../../exames/exames-client";
 import { uploadPatientPhoto } from "../profile-actions";
+import { getComandaDetail, type ComandaDetail } from "../../agenda/encounter-actions";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { calcPatientAge, type PatientProfileBundle } from "../profile-types";
 import {
   ChevronLeft,
@@ -123,10 +125,26 @@ export function PacientePerfilClient({
   const [activeTab, setActiveTab] = useState<TabId>("informacoes");
   const [photoUrl, setPhotoUrl] = useState(patient.photo_url);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [comandaDetail, setComandaDetail] = useState<ComandaDetail | null>(null);
+  const [comandaDetailOpen, setComandaDetailOpen] = useState(false);
+  const [loadingComanda, setLoadingComanda] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const age = calcPatientAge(patient.birth_date);
   const wa = whatsAppUrl(patient.phone);
+
+  async function openComandaDetail(comandaId: string) {
+    setLoadingComanda(true);
+    setComandaDetailOpen(true);
+    const res = await getComandaDetail(comandaId);
+    setLoadingComanda(false);
+    if (res.error || !res.data) {
+      toast(res.error ?? "Erro ao carregar comanda.", "error");
+      setComandaDetailOpen(false);
+      return;
+    }
+    setComandaDetail(res.data);
+  }
 
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -487,21 +505,26 @@ export function PacientePerfilClient({
                         {comandas.map((c) => {
                           const restante = Math.max(0, c.total_amount - c.paid_amount);
                           return (
-                            <li key={c.id} className="py-2 flex flex-wrap justify-between gap-2">
+                            <li key={c.id} className="py-2 flex flex-wrap justify-between gap-2 items-center">
                               <span>
                                 {new Date(c.created_at).toLocaleDateString("pt-BR")} ·{" "}
                                 {COMANDA_STATUS[c.status] ?? c.status}
                               </span>
-                              <span>
-                                {c.paid_amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                                {" / "}
-                                {c.total_amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                                {restante > 0 && c.status !== "paga" && c.status !== "cancelada" && (
-                                  <span className="text-amber-600 dark:text-amber-400 ml-1">
-                                    (falta {restante.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})
-                                  </span>
-                                )}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span>
+                                  {c.paid_amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                  {" / "}
+                                  {c.total_amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                  {restante > 0 && c.status !== "paga" && c.status !== "cancelada" && (
+                                    <span className="text-amber-600 dark:text-amber-400 ml-1">
+                                      (falta {restante.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})
+                                    </span>
+                                  )}
+                                </span>
+                                <Button variant="outline" size="sm" onClick={() => openComandaDetail(c.id)}>
+                                  Ver itens
+                                </Button>
+                              </div>
                             </li>
                           );
                         })}
@@ -616,6 +639,51 @@ export function PacientePerfilClient({
           </Card>
         </div>
       </div>
+
+      <Dialog open={comandaDetailOpen} onOpenChange={setComandaDetailOpen}>
+        <DialogContent title="Detalhes da comanda" onClose={() => setComandaDetailOpen(false)} className="max-w-md">
+          {loadingComanda ? (
+            <p className="text-sm text-muted-foreground">Carregando…</p>
+          ) : comandaDetail ? (
+            <div className="space-y-4">
+              <p className="text-sm">
+                Status: <span className="font-medium">{COMANDA_STATUS[comandaDetail.status] ?? comandaDetail.status}</span>
+              </p>
+              <ul className="divide-y text-sm">
+                {comandaDetail.items.map((item) => (
+                  <li key={item.id} className="flex justify-between py-2">
+                    <span>
+                      {item.description} × {item.quantity}
+                    </span>
+                    <span>
+                      {item.total_price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex justify-between font-semibold pt-2 border-t">
+                <span>Total</span>
+                <span>
+                  {comandaDetail.total_amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                </span>
+              </div>
+              {comandaDetail.payments.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Pagamentos</p>
+                  <ul className="text-sm space-y-1">
+                    {comandaDetail.payments.map((p) => (
+                      <li key={p.id} className="flex justify-between">
+                        <span>{new Date(p.paid_at).toLocaleDateString("pt-BR")}</span>
+                        <span>{p.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

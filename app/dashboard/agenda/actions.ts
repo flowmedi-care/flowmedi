@@ -55,7 +55,6 @@ import {
   buildConsumptionFromProcedures,
   commitStockForAppointment,
   releaseStockForAppointment,
-  consumeStockForAppointment,
 } from "@/lib/clinic-operations";
 
 /** Vincula conversa(s) WhatsApp do paciente à secretária que agendou (para ela ver no pool). */
@@ -270,6 +269,183 @@ export async function getAppointmentChargePreview(
       linkedServiceId,
       linkedServiceName,
       warnings,
+    },
+  };
+}
+
+export type AppointmentEventSummary = {
+  id: string;
+  scheduled_at: string;
+  status: string;
+  valor: number | null;
+  patient: { id: string; full_name: string; phone: string | null };
+  doctor: { id: string; full_name: string | null } | null;
+  appointment_type_name: string | null;
+  service_name: string | null;
+  procedures: { id: string; name: string }[];
+  charge: {
+    serviceAmount: number;
+    materialsAmount: number;
+    totalAmount: number;
+    materialLines: { product_name: string; quantity: number; line_total: number }[];
+  };
+  stockCommittedUnits: number;
+  encounterStatus: string | null;
+  comanda: {
+    id: string;
+    status: string;
+    total_amount: number;
+    paid_amount: number;
+    remainder: number;
+  } | null;
+};
+
+export async function getAppointmentEventSummary(
+  appointmentId: string
+): Promise<{ error: string | null; data: AppointmentEventSummary | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: null };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", data: null };
+
+  const { data: appt, error: apptErr } = await supabase
+    .from("appointments")
+    .select(
+      `
+      id,
+      scheduled_at,
+      status,
+      valor,
+      doctor_id,
+      service_id,
+      patient:patients ( id, full_name, phone ),
+      doctor:profiles!doctor_id ( id, full_name ),
+      appointment_type:appointment_types ( name ),
+      services ( nome ),
+      appointment_procedures ( procedures ( id, name ) ),
+      procedure:procedures ( id, name )
+    `
+    )
+    .eq("id", appointmentId)
+    .eq("clinic_id", profile.clinic_id)
+    .single();
+
+  if (apptErr || !appt) return { error: "Consulta não encontrada.", data: null };
+
+  const apProcs = Array.isArray(appt.appointment_procedures) ? appt.appointment_procedures : [];
+  const procedures = apProcs.length
+    ? apProcs.map((row: Record<string, unknown>) => {
+        const pr = Array.isArray(row.procedures) ? row.procedures[0] : row.procedures;
+        return { id: String((pr as { id: string }).id), name: String((pr as { name: string }).name) };
+      })
+    : appt.procedure
+      ? [
+          {
+            id: String((Array.isArray(appt.procedure) ? appt.procedure[0] : appt.procedure as { id: string }).id),
+            name: String((Array.isArray(appt.procedure) ? appt.procedure[0] : appt.procedure as { name: string }).name),
+          },
+        ]
+      : [];
+
+  const procedureIds = procedures.map((p) => p.id);
+  const { data: dimRows } = await supabase
+    .from("appointment_dimension_values")
+    .select("dimension_value_id")
+    .eq("appointment_id", appointmentId);
+  const dimensionValueIds = (dimRows ?? []).map((r) => r.dimension_value_id as string);
+
+  const chargeRes = await getAppointmentChargePreview(
+    procedureIds,
+    appt.doctor_id as string,
+    appt.service_id as string | null,
+    dimensionValueIds
+  );
+
+  const { data: consumption } = await supabase
+    .from("appointment_consumption_lines")
+    .select("quantity")
+    .eq("appointment_id", appointmentId);
+  const stockCommittedUnits = (consumption ?? []).reduce((s, l) => s + Number(l.quantity), 0);
+
+  const { data: encounter } = await supabase
+    .from("encounters")
+    .select("status")
+    .eq("appointment_id", appointmentId)
+    .maybeSingle();
+
+  const { data: comandaRow } = await supabase
+    .from("comandas")
+    .select("id, status, total_amount, paid_amount")
+    .eq("appointment_id", appointmentId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const patient = Array.isArray(appt.patient) ? appt.patient[0] : appt.patient;
+  const doctor = Array.isArray(appt.doctor) ? appt.doctor[0] : appt.doctor;
+  const at = Array.isArray(appt.appointment_type) ? appt.appointment_type[0] : appt.appointment_type;
+  const svc = Array.isArray(appt.services) ? appt.services[0] : appt.services;
+
+  const charge = chargeRes.data ?? {
+    serviceAmount: Number(appt.valor) || 0,
+    materialsAmount: 0,
+    totalAmount: Number(appt.valor) || 0,
+    materialLines: [],
+    linkedServiceId: null,
+    linkedServiceName: null,
+    warnings: [],
+  };
+
+  return {
+    error: null,
+    data: {
+      id: appt.id as string,
+      scheduled_at: appt.scheduled_at as string,
+      status: appt.status as string,
+      valor: appt.valor != null ? Number(appt.valor) : null,
+      patient: {
+        id: String((patient as { id: string }).id),
+        full_name: String((patient as { full_name: string }).full_name),
+        phone: (patient as { phone?: string | null }).phone ?? null,
+      },
+      doctor: doctor
+        ? {
+            id: String((doctor as { id: string }).id),
+            full_name: (doctor as { full_name?: string | null }).full_name ?? null,
+          }
+        : null,
+      appointment_type_name: (at as { name?: string })?.name ?? null,
+      service_name: (svc as { nome?: string })?.nome ?? null,
+      procedures,
+      charge: {
+        serviceAmount: charge.serviceAmount,
+        materialsAmount: charge.materialsAmount,
+        totalAmount: charge.totalAmount,
+        materialLines: charge.materialLines.map((l) => ({
+          product_name: l.product_name,
+          quantity: l.quantity,
+          line_total: l.line_total,
+        })),
+      },
+      stockCommittedUnits,
+      encounterStatus: encounter?.status ?? null,
+      comanda: comandaRow
+        ? {
+            id: comandaRow.id,
+            status: comandaRow.status as string,
+            total_amount: Number(comandaRow.total_amount),
+            paid_amount: Number(comandaRow.paid_amount),
+            remainder: Math.max(0, Number(comandaRow.total_amount) - Number(comandaRow.paid_amount)),
+          }
+        : null,
     },
   };
 }
@@ -1164,13 +1340,7 @@ export async function updateAppointment(
       }
     }
     const prevStatus = currentRow.status as string;
-    if (data.status === "realizada" && prevStatus !== "realizada") {
-      try {
-        await consumeStockForAppointment(supabase, currentRow.clinic_id, id, user.id);
-      } catch (e) {
-        console.error("[updateAppointment] stock consume:", e);
-      }
-    }
+    // Baixa de estoque ocorre na finalização da comanda (atendimento), não ao marcar realizada.
     if (
       (data.status === "cancelada" || data.status === "falta") &&
       prevStatus !== data.status &&

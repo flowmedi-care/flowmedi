@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { updateAppointment, updateUserPreferences } from "./actions";
 import { AgendaAppointmentModal } from "./agenda-appointment-modal";
+import { AgendaEventDetailsModal } from "./agenda-event-details-modal";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
 import {
@@ -25,6 +26,7 @@ import {
   CalendarDays,
   Rows3,
   Pencil,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -261,6 +263,18 @@ export function AgendaClient({
     setEditingAppointmentId(appointmentId);
     setModalInitialForm({});
     setAppointmentModalOpen(true);
+  }
+
+  const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
+  const [eventDetailsId, setEventDetailsId] = useState<string | null>(null);
+
+  function openEventDetails(appointmentId: string) {
+    setEventDetailsId(appointmentId);
+    setEventDetailsOpen(true);
+  }
+
+  function openFinalizeFromDetails(appointmentId: string) {
+    router.push(`/dashboard/agenda/atendimento/${appointmentId}?finalize=1`);
   }
 
   function handleModalOpenChange(open: boolean) {
@@ -998,6 +1012,20 @@ export function AgendaClient({
         doctorProcedures={doctorProcedures}
       />
 
+      <AgendaEventDetailsModal
+        appointmentId={eventDetailsId}
+        open={eventDetailsOpen}
+        onOpenChange={(open) => {
+          setEventDetailsOpen(open);
+          if (!open) setEventDetailsId(null);
+        }}
+        onEdit={(id) => {
+          setEventDetailsOpen(false);
+          openEditModal(id);
+        }}
+        onFinalize={openFinalizeFromDetails}
+      />
+
       {/* Conteúdo da visão */}
       <DndContext
         sensors={sensors}
@@ -1016,6 +1044,7 @@ export function AgendaClient({
           getEventStyle={getEventStyle}
           getAccentColor={getAccentColor}
           onEditAppointment={openEditModal}
+          onOpenDetails={openEventDetails}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "week" && (
@@ -1027,6 +1056,7 @@ export function AgendaClient({
           getEventStyle={getEventStyle}
           getAccentColor={getAccentColor}
           onEditAppointment={openEditModal}
+          onOpenDetails={openEventDetails}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "month" && (
@@ -1037,6 +1067,7 @@ export function AgendaClient({
           getEventStyle={getEventStyle}
           getAccentColor={getAccentColor}
           onEditAppointment={openEditModal}
+          onOpenDetails={openEventDetails}
           onSelectDay={(day) => {
             setDateInicio(toYMD(day));
             setDateFim(toYMD(day));
@@ -1047,7 +1078,7 @@ export function AgendaClient({
         <DragOverlay>
           {draggedAppointment ? (
             <div className="opacity-50">
-              <AppointmentListItem appointment={draggedAppointment} />
+              <AppointmentListItem appointment={draggedAppointment} onOpenDetails={openEventDetails} />
             </div>
           ) : null}
         </DragOverlay>
@@ -1067,6 +1098,7 @@ function TimelineListView({
   getEventStyle,
   getAccentColor,
   onEditAppointment,
+  onOpenDetails,
 }: {
   appointments: AppointmentRow[];
   allAppointmentsForDrag: AppointmentRow[];
@@ -1077,6 +1109,7 @@ function TimelineListView({
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
   getAccentColor: (appointment: AppointmentRow) => string;
   onEditAppointment?: (appointmentId: string) => void;
+  onOpenDetails?: (appointmentId: string) => void;
 }) {
   // Usar appointments filtrados para exibir, mas todos para drag and drop
   const byDay = useMemo(() => {
@@ -1155,6 +1188,7 @@ function TimelineListView({
                       getEventStyle={getEventStyle}
                       getAccentColor={getAccentColor}
                       onEdit={onEditAppointment}
+                      onOpenDetails={onOpenDetails}
                     />
                   ))}
                 </ul>
@@ -1228,6 +1262,7 @@ function TimelineListView({
                               getEventStyle={getEventStyle}
                               getAccentColor={getAccentColor}
                               onEdit={onEditAppointment}
+                      onOpenDetails={onOpenDetails}
                             />
                           ))}
                         </ul>
@@ -1317,6 +1352,7 @@ function TimelineListView({
                                     getEventStyle={getEventStyle}
                                     getAccentColor={getAccentColor}
                                     onEdit={onEditAppointment}
+                      onOpenDetails={onOpenDetails}
                                   />
                                 ))}
                               </ul>
@@ -1348,6 +1384,7 @@ function CalendarWeekView({
   getEventStyle,
   getAccentColor,
   onEditAppointment,
+  onOpenDetails,
 }: {
   appointments: AppointmentRow[];
   currentDate: Date;
@@ -1356,6 +1393,7 @@ function CalendarWeekView({
   getEventStyle: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
   getAccentColor: (appointment: AppointmentRow) => string;
   onEditAppointment?: (appointmentId: string) => void;
+  onOpenDetails?: (appointmentId: string) => void;
 }) {
   const weekDays = useMemo(() => getWeekDates(currentDate), [currentDate]);
   const [isMobile, setIsMobile] = useState(false);
@@ -1473,10 +1511,11 @@ function CalendarWeekView({
               ) : (
                 <div className="space-y-2">
                   {selectedDayList.map((a) => (
-                    <Link
+                    <button
                       key={a.id}
-                      href={`/dashboard/agenda/consulta/${a.id}`}
-                      className="flex items-center justify-between gap-3 rounded-md border border-border border-l-2 px-3 py-2 hover:bg-muted/40"
+                      type="button"
+                      onClick={() => onOpenDetails?.(a.id)}
+                      className="w-full flex items-center justify-between gap-3 rounded-md border border-border border-l-2 px-3 py-2 hover:bg-muted/40 text-left"
                       style={{ borderLeftColor: getAccentColor(a) }}
                     >
                       <div className="min-w-0">
@@ -1491,7 +1530,7 @@ function CalendarWeekView({
                       <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
                         {STATUS_LABEL[a.status] ?? a.status}
                       </Badge>
-                    </Link>
+                    </button>
                   ))}
                 </div>
               )}
@@ -1580,6 +1619,7 @@ function CalendarWeekView({
                                 getEventStyle={getEventStyle}
                                 getAccentColor={getAccentColor}
                                 onEdit={onEditAppointment}
+                      onOpenDetails={onOpenDetails}
                               />
                             ))}
                           </div>
@@ -1609,6 +1649,7 @@ function CalendarMonthView({
   getAccentColor,
   onSelectDay,
   onEditAppointment,
+  onOpenDetails,
 }: {
   appointments: AppointmentRow[];
   currentDate: Date;
@@ -1617,6 +1658,7 @@ function CalendarMonthView({
   getAccentColor: (appointment: AppointmentRow) => string;
   onSelectDay: (d: Date) => void;
   onEditAppointment?: (appointmentId: string) => void;
+  onOpenDetails?: (appointmentId: string) => void;
 }) {
   const grid = getMonthCalendarGrid(currentDate);
   const [isMobile, setIsMobile] = useState(false);
@@ -1742,6 +1784,7 @@ function CalendarMonthView({
                                     getEventStyle={getEventStyle}
                                     getAccentColor={getAccentColor}
                                     onEdit={onEditAppointment}
+                      onOpenDetails={onOpenDetails}
                                   />
                                 </div>
                               );
@@ -1790,12 +1833,15 @@ function CalendarMonthView({
                     new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
                 )
                 .map((a) => (
-                  <Link
+                  <button
                     key={a.id}
-                    href={`/dashboard/agenda/consulta/${a.id}`}
-                    className="flex items-center justify-between gap-3 rounded-md border border-border border-l-2 px-3 py-2 hover:bg-muted/40"
+                    type="button"
+                    onClick={() => {
+                      setSelectedDayYmd(null);
+                      onOpenDetails?.(a.id);
+                    }}
+                    className="w-full flex items-center justify-between gap-3 rounded-md border border-border border-l-2 px-3 py-2 hover:bg-muted/40 text-left"
                     style={{ borderLeftColor: getAccentColor(a) }}
-                    onClick={() => setSelectedDayYmd(null)}
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{a.patient.full_name}</p>
@@ -1816,7 +1862,7 @@ function CalendarMonthView({
                     <Badge variant={STATUS_VARIANT[a.status] ?? "secondary"}>
                       {STATUS_LABEL[a.status] ?? a.status}
                     </Badge>
-                  </Link>
+                  </button>
                 ))
             )}
           </div>
@@ -1873,6 +1919,7 @@ function DraggableAppointmentItem({
   getEventStyle,
   getAccentColor,
   onEdit,
+  onOpenDetails,
 }: {
   appointment: AppointmentRow;
   dayId: string;
@@ -1880,6 +1927,7 @@ function DraggableAppointmentItem({
   getEventStyle?: (appointment: AppointmentRow) => { className?: string; style?: React.CSSProperties };
   getAccentColor?: (appointment: AppointmentRow) => string;
   onEdit?: (appointmentId: string) => void;
+  onOpenDetails?: (appointmentId: string) => void;
 }) {
   const {
     attributes,
@@ -1935,9 +1983,10 @@ function DraggableAppointmentItem({
             <Pencil className="h-3 w-3" />
           </button>
         )}
-        <Link
-          href={`/dashboard/agenda/consulta/${appointment.id}`}
-          className="flex-1 truncate text-xs font-semibold"
+        <button
+          type="button"
+          onClick={() => onOpenDetails?.(appointment.id)}
+          className="flex-1 truncate text-xs font-semibold text-left hover:underline"
           title={formatAppointmentTooltip(appointment)}
         >
           {new Date(appointment.scheduled_at).toLocaleTimeString("pt-BR", {
@@ -1953,6 +2002,14 @@ function DraggableAppointmentItem({
                 .join(", ")}
             </span>
           ) : null}
+        </button>
+        <Link
+          href={`/dashboard/agenda/consulta/${appointment.id}`}
+          className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground"
+          title="Abrir consulta"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ExternalLink className="h-3 w-3" />
         </Link>
       </div>
     );
@@ -1976,9 +2033,10 @@ function DraggableAppointmentItem({
         >
           <GripVertical className="h-4 w-4" />
         </button>
-        <Link
-          href={`/dashboard/agenda/consulta/${appointment.id}`}
-          className="flex-1 flex items-center gap-1.5 min-w-0"
+        <button
+          type="button"
+          onClick={() => onOpenDetails?.(appointment.id)}
+          className="flex-1 flex items-center gap-1.5 min-w-0 text-left hover:underline"
         >
           <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="font-medium tabular-nums shrink-0">
@@ -2005,6 +2063,14 @@ function DraggableAppointmentItem({
                 .join(" · ")}
             </span>
           )}
+        </button>
+        <Link
+          href={`/dashboard/agenda/consulta/${appointment.id}`}
+          className="shrink-0 p-1 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Abrir consulta"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
         </Link>
         <div className="flex items-center gap-2 shrink-0">
           {onEdit && (
@@ -2199,9 +2265,11 @@ function AppointmentContent({ appointment: a }: { appointment: AppointmentRow })
 function AppointmentListItem({
   appointment: a,
   compact,
+  onOpenDetails,
 }: {
   appointment: AppointmentRow;
   compact?: boolean;
+  onOpenDetails?: (appointmentId: string) => void;
 }) {
   const time = new Date(a.scheduled_at).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
@@ -2242,23 +2310,25 @@ function AppointmentListItem({
 
   if (compact) {
     return (
-      <Link
-        href={`/dashboard/agenda/consulta/${a.id}`}
-        className="block text-xs rounded border border-border bg-card px-1.5 py-1 hover:bg-muted/50 mb-0.5 flex items-center justify-between gap-2"
+      <button
+        type="button"
+        onClick={() => onOpenDetails?.(a.id)}
+        className="block w-full text-xs rounded border border-border bg-card px-1.5 py-1 hover:bg-muted/50 mb-0.5 flex items-center justify-between gap-2 text-left"
       >
         {content}
-      </Link>
+      </button>
     );
   }
 
   return (
     <li className="py-3 first:pt-0">
-      <Link
-        href={`/dashboard/agenda/consulta/${a.id}`}
-        className="flex items-center justify-between gap-4 hover:bg-muted/50 -mx-2 px-2 py-1 rounded min-w-0"
+      <button
+        type="button"
+        onClick={() => onOpenDetails?.(a.id)}
+        className="w-full flex items-center justify-between gap-4 hover:bg-muted/50 -mx-2 px-2 py-1 rounded min-w-0 text-left"
       >
         {content}
-      </Link>
+      </button>
     </li>
   );
 }

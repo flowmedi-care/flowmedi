@@ -1225,6 +1225,22 @@ export async function getFinanceiroData(clinicId: string, period: Period = "30d"
     0
   );
 
+  const { data: financialInPeriod } = await supabase
+    .from("financial_entries")
+    .select("entry_type, amount, status")
+    .eq("clinic_id", clinicId)
+    .gte("created_at", startIso)
+    .lte("created_at", endIso);
+
+  let despesasPagas = 0;
+  let despesasPendentes = 0;
+  for (const e of financialInPeriod ?? []) {
+    if (e.entry_type !== "despesa") continue;
+    const amt = Number(e.amount);
+    if (e.status === "pago") despesasPagas += amt;
+    else despesasPendentes += amt;
+  }
+
   const ticketMedio = receitaTotal > 0 && realizadas > 0 ? receitaTotal / realizadas : 0;
   const receitaPerdidaFaltas = faltas.reduce((acc, a) => acc + Math.max(0, Number(a.valor ?? 0)), 0);
   const receitaPerdidaCancelamentos = canceladas.reduce((acc, a) => acc + Math.max(0, Number(a.valor ?? 0)), 0);
@@ -1363,6 +1379,8 @@ export async function getFinanceiroData(clinicId: string, period: Period = "30d"
     data: {
       receitaTotal: Number(receitaTotal.toFixed(2)),
       receitaCaixaReal: Number(receitaCaixaReal.toFixed(2)),
+      despesasPagas: Number(despesasPagas.toFixed(2)),
+      despesasPendentes: Number(despesasPendentes.toFixed(2)),
       receitaPerdidaTotal: Number(receitaPerdidaTotal.toFixed(2)),
       receitaPerdidaFaltas: Number((receitaPerdidaFaltas + faltasSemValor * ticketMedio).toFixed(2)),
       receitaPerdidaCancelamentos: Number((receitaPerdidaCancelamentos + canceladasSemValor * ticketMedio).toFixed(2)),

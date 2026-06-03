@@ -10,6 +10,8 @@ import { BackButton } from "./back-button";
 import { getStatusBadgeClassName } from "../../status-utils";
 import { formatPhoneBr } from "@/lib/format-phone";
 import { cn } from "@/lib/utils";
+import { getAppointmentChargePreview } from "../../actions";
+import { Package } from "lucide-react";
 
 export type FormInstanceItem = {
   id: string;
@@ -51,7 +53,11 @@ export default async function ConsultaDetalhePage({
       doctor_id,
       patient:patients ( id, full_name, email, phone, birth_date, cpf ),
       doctor:profiles!doctor_id ( id, full_name ),
-      appointment_type:appointment_types ( id, name )
+      appointment_type:appointment_types ( id, name ),
+      service_id,
+      services ( nome ),
+      appointment_procedures ( procedures ( id, name ) ),
+      procedure:procedures ( id, name )
     `
     )
     .eq("id", id)
@@ -135,11 +141,44 @@ export default async function ConsultaDetalhePage({
     };
   });
 
+  const apProcs = Array.isArray(appointment.appointment_procedures)
+    ? appointment.appointment_procedures
+    : [];
+  const procedures = apProcs.length
+    ? apProcs.map((row: Record<string, unknown>) => {
+        const pr = Array.isArray(row.procedures) ? row.procedures[0] : row.procedures;
+        return { id: String((pr as { id: string }).id), name: String((pr as { name: string }).name) };
+      })
+    : appointment.procedure
+      ? (() => {
+          const procRaw = Array.isArray(appointment.procedure)
+            ? appointment.procedure[0]
+            : appointment.procedure;
+          return [{ id: String((procRaw as { id: string }).id), name: String((procRaw as { name: string }).name) }];
+        })()
+      : [];
+
+  const { data: dimRows } = await supabase
+    .from("appointment_dimension_values")
+    .select("dimension_value_id")
+    .eq("appointment_id", id);
+  const dimensionValueIds = (dimRows ?? []).map((r) => r.dimension_value_id as string);
+
+  const chargeRes = await getAppointmentChargePreview(
+    procedures.map((p) => p.id),
+    appointment.doctor_id as string,
+    appointment.service_id as string | null,
+    dimensionValueIds
+  );
+  const charge = chargeRes.data;
+  const svc = Array.isArray(appointment.services) ? appointment.services[0] : appointment.services;
+  const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
   return (
     <div className="space-y-6">
       <BackButton />
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <h2 className="font-semibold">Consulta</h2>
@@ -187,6 +226,51 @@ export default async function ConsultaDetalhePage({
                 <span className="text-muted-foreground">Observações:</span>{" "}
                 {appointment.notes}
               </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <h2 className="font-semibold">Procedimentos e valor</h2>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/dashboard/agenda/atendimento/${id}`}>
+                <Package className="h-4 w-4 mr-1" />
+                Atendimento
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {procedures.length === 0 ? (
+              <p className="text-muted-foreground">Nenhum procedimento.</p>
+            ) : (
+              <ul className="space-y-1">
+                {procedures.map((p) => (
+                  <li key={p.id}>{p.name}</li>
+                ))}
+              </ul>
+            )}
+            {charge && (
+              <div className="rounded-lg border p-3 space-y-1 bg-muted/30 mt-2">
+                {svc?.nome && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Serviço — {svc.nome}</span>
+                    <span>{fmt(charge.serviceAmount)}</span>
+                  </div>
+                )}
+                {charge.materialLines.map((l, i) => (
+                  <div key={i} className="flex justify-between gap-2">
+                    <span className="text-muted-foreground truncate">
+                      {l.product_name} × {l.quantity}
+                    </span>
+                    <span>{fmt(l.line_total)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between font-semibold pt-2 border-t">
+                  <span>Total</span>
+                  <span>{fmt(charge.totalAmount)}</span>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

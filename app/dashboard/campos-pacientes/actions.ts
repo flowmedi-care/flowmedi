@@ -302,7 +302,17 @@ export async function syncProcedureProducts(
 
   if (!profile || profile.role !== "admin") return { error: "Apenas administradores." };
 
-  await supabase.from("procedure_products").delete().eq("procedure_id", procedureId);
+  const { error: deleteErr } = await supabase
+    .from("procedure_products")
+    .delete()
+    .eq("procedure_id", procedureId);
+
+  if (deleteErr) {
+    const msg = deleteErr.message.includes("does not exist")
+      ? "Tabela procedure_products não encontrada. Aplique a migration migration-procedure-hub-operations.sql no Supabase."
+      : deleteErr.message;
+    return { error: msg };
+  }
 
   if (items.length) {
     const { error } = await supabase.from("procedure_products").insert(
@@ -312,7 +322,12 @@ export async function syncProcedureProducts(
         quantity_per_procedure: i.quantity_per_procedure,
       }))
     );
-    if (error) return { error: error.message };
+    if (error) {
+      const msg = error.message.includes("does not exist")
+        ? "Tabela procedure_products não encontrada. Aplique a migration migration-procedure-hub-operations.sql no Supabase."
+        : error.message;
+      return { error: msg };
+    }
   }
 
   revalidatePath("/dashboard/campos-pacientes");
