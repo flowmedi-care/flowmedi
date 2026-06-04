@@ -108,12 +108,14 @@ export function DashboardNav({
         onMobileOpenChange={setMobileOpen}
         railExpanded={railExpanded}
         onRailExpandedChange={setRailExpanded}
-        subPanelOpen={subPanelOpen}
-        onSubPanelToggle={() => setSubPanelOpen((v) => !v)}
-        hasSubPanel={hasSubPanel}
       />
-      {activeGroup && (
-        <DashboardNavSub group={activeGroup} role={role} open={subPanelOpen} />
+      {activeGroup && hasSubPanel && (
+        <DashboardNavSub
+          group={activeGroup}
+          role={role}
+          open={subPanelOpen}
+          onToggle={() => setSubPanelOpen((v) => !v)}
+        />
       )}
     </div>
   );

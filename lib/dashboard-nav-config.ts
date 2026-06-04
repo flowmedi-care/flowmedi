@@ -99,13 +99,6 @@ export const DASHBOARD_TOP_NAV: NavTopItem[] = [
   DASHBOARD_AGENDA_GROUP,
   {
     type: "link",
-    href: "/dashboard/atendimento",
-    label: "Fila operacional",
-    icon: "clipboard-list",
-    roles: ["admin", "secretaria", "medico"],
-  },
-  {
-    type: "link",
     href: "/dashboard/eventos",
     label: "Central de Eventos",
     icon: "bell",
@@ -145,13 +138,13 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
   },
   {
     type: "group",
-    id: "atendimentos",
-    label: "Documentos clínicos",
+    id: "atendimento",
+    label: "Atendimento",
     icon: "stethoscope",
-    prefix: "/dashboard/atendimentos",
+    prefix: "/dashboard/atendimento",
     roles: ["admin", "secretaria", "medico"],
     children: [
-      { href: "/dashboard/atendimentos", label: "Visão geral" },
+      { href: "/dashboard/atendimento", label: "Fila operacional" },
       { href: "/dashboard/atendimentos/prescricoes", label: "Prescrições" },
       { href: "/dashboard/atendimentos/pedidos-exame", label: "Pedidos de exame" },
       { href: "/dashboard/atendimentos/atestados", label: "Atestados" },
@@ -268,6 +261,13 @@ function isAgendaGroupPath(pathname: string): boolean {
   return false;
 }
 
+function isAtendimentoGroupPath(pathname: string): boolean {
+  if (pathname === "/dashboard/atendimento") return true;
+  if (pathname.startsWith("/dashboard/atendimentos")) return true;
+  if (pathname.startsWith("/dashboard/agenda/atendimento")) return true;
+  return false;
+}
+
 function isComunicacaoGroupPath(pathname: string): boolean {
   return (
     pathname === "/dashboard/whatsapp" ||
@@ -289,6 +289,9 @@ export function getActiveNavGroupId(pathname: string): string | null {
   }
   if (isAgendaGroupPath(pathname)) {
     return "agenda";
+  }
+  if (isAtendimentoGroupPath(pathname)) {
+    return "atendimento";
   }
   for (const group of DASHBOARD_MIDDLE_NAV_GROUPS) {
     if (pathname === group.prefix || pathname.startsWith(`${group.prefix}/`)) {
@@ -350,12 +353,11 @@ export function isLinkActive(pathname: string, href: string): boolean {
   if (href === "/dashboard/mensagens/pendentes") {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
-  if (
-    href === "/dashboard/financeiro" ||
-    href === "/dashboard/vendas" ||
-    href === "/dashboard/atendimentos"
-  ) {
+  if (href === "/dashboard/financeiro" || href === "/dashboard/vendas") {
     return pathname === href;
+  }
+  if (href.startsWith("/dashboard/atendimentos/")) {
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
   if (href === "/dashboard/configuracoes/campos-personalizados") {
     return (

@@ -56,7 +56,7 @@ const ICON_MAP: Record<NavIconName, LucideIcon> = {
 
 export function DashboardNavIcon({
   name,
-  className = "h-4 w-4",
+  className = "h-5 w-5",
 }: {
   name: NavIconName;
   className?: string;

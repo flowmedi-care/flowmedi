@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { type User } from "@supabase/supabase-js";
-import { LogOut, Menu, ChevronRight } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { FlowmediLogo } from "@/components/flowmedi-logo";
@@ -34,8 +34,8 @@ type Profile = {
 
 function navItemClass(active: boolean, expanded: boolean) {
   return cn(
-    "relative flex items-center transition-colors rounded-lg",
-    expanded ? "w-full gap-3 px-3 h-10 text-sm" : "h-11 w-11 justify-center",
+    "relative flex items-center transition-colors rounded-lg shrink-0",
+    expanded ? "w-full gap-3 px-3 h-10 text-sm" : "h-10 w-10 justify-center",
     active
       ? "bg-primary/10 text-primary"
       : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
@@ -63,7 +63,7 @@ function RailNavItem({
 
   const inner = (
     <>
-      <span className="relative flex shrink-0 items-center justify-center">
+      <span className="relative flex h-5 w-5 shrink-0 items-center justify-center [&_svg]:h-5 [&_svg]:w-5">
         {children}
         {badge && (
           <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
@@ -101,9 +101,6 @@ export function DashboardNavRail({
   onMobileOpenChange,
   railExpanded,
   onRailExpandedChange,
-  subPanelOpen,
-  onSubPanelToggle,
-  hasSubPanel,
 }: {
   user: User;
   profile: Profile;
@@ -116,9 +113,6 @@ export function DashboardNavRail({
   onMobileOpenChange: (open: boolean) => void;
   railExpanded: boolean;
   onRailExpandedChange: (expanded: boolean) => void;
-  subPanelOpen: boolean;
-  onSubPanelToggle: () => void;
-  hasSubPanel: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -231,7 +225,7 @@ export function DashboardNavRail({
         expanded={showLabels}
         onClick={() => onMobileOpenChange(false)}
       >
-        <DashboardNavIcon name={item.icon} className="h-5 w-5 shrink-0" />
+        <DashboardNavIcon name={item.icon} />
       </RailNavItem>
     );
   }
@@ -254,7 +248,7 @@ export function DashboardNavRail({
           expanded={showLabels}
           onClick={() => handleGroupClick(group)}
         >
-          <DashboardNavIcon name={group.icon} className="h-5 w-5 shrink-0" />
+          <DashboardNavIcon name={group.icon} />
         </RailNavItem>
         {renderGroupChildLinks(group)}
       </div>
@@ -268,7 +262,7 @@ export function DashboardNavRail({
 
   const dividerClass = cn(
     "bg-border/80 shrink-0",
-    showLabels ? "my-2 h-px w-full mx-1" : "my-2 h-px w-7"
+    showLabels ? "my-1.5 h-px w-full mx-1" : "my-1 h-px w-8"
   );
 
   return (
@@ -329,8 +323,10 @@ export function DashboardNavRail({
 
         <nav
           className={cn(
-            "flex-1 py-2 gap-0.5 overflow-y-auto overflow-x-hidden",
-            showLabels ? "px-2 flex flex-col" : "flex flex-col items-center px-1"
+            "flex-1 min-h-0 py-1.5 gap-0.5 overflow-x-hidden flex flex-col",
+            "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            showLabels ? "px-2" : "items-center px-1.5",
+            "overflow-y-auto"
           )}
         >
           {topNav.map(renderTopItem)}
@@ -342,29 +338,16 @@ export function DashboardNavRail({
 
         <div
           className={cn(
-            "flex-shrink-0 border-t border-border/60 py-2 gap-0.5",
-            showLabels ? "px-2 flex flex-col" : "flex flex-col items-center px-1"
+            "flex-shrink-0 border-t border-border/60 py-1.5 gap-0.5",
+            showLabels ? "px-2 flex flex-col" : "flex flex-col items-center px-1.5"
           )}
         >
           {showConfig && renderGroup(DASHBOARD_CONFIG_GROUP)}
           <RailNavItem active={false} label="Sair" expanded={showLabels} onClick={handleSignOut}>
-            <LogOut className="h-5 w-5 shrink-0" />
+            <LogOut className="h-5 w-5" />
           </RailNavItem>
         </div>
 
-        {hasSubPanel && (
-          <button
-            type="button"
-            onClick={onSubPanelToggle}
-            className={cn(
-              "hidden md:flex absolute -right-3 top-1/2 z-50 h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card shadow-sm text-muted-foreground hover:text-foreground transition-transform",
-              !subPanelOpen && "rotate-180"
-            )}
-            aria-label={subPanelOpen ? "Recolher submenu" : "Expandir submenu"}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        )}
       </aside>
 
       {mobileOpen && (
