@@ -39,19 +39,51 @@ export type NavGroupItem = {
   icon: NavIconName;
   roles?: string[];
   prefix: string;
+  badgeKey?: "whatsapp";
   children: { href: string; label: string; roles?: string[] }[];
 };
 
-export const DASHBOARD_TOP_NAV: NavLinkItem[] = [
+export type NavTopItem = NavLinkItem | NavGroupItem;
+
+export const DASHBOARD_AGENDA_GROUP: NavGroupItem = {
+  type: "group",
+  id: "agenda",
+  label: "Agenda",
+  icon: "calendar",
+  prefix: "/dashboard/agenda",
+  children: [
+    { href: "/dashboard/agenda", label: "Calendário" },
+    {
+      href: "/dashboard/consulta",
+      label: "Lista de consultas",
+      roles: ["admin", "secretaria", "medico"],
+    },
+  ],
+};
+
+export const DASHBOARD_COMUNICACAO_GROUP: NavGroupItem = {
+  type: "group",
+  id: "comunicacao",
+  label: "Comunicação",
+  icon: "message-square",
+  prefix: "/dashboard/whatsapp",
+  badgeKey: "whatsapp",
+  children: [
+    { href: "/dashboard/whatsapp", label: "WhatsApp" },
+    { href: "/dashboard/mensagens", label: "Histórico", roles: ["admin"] },
+    {
+      href: "/dashboard/mensagens/pendentes",
+      label: "Pendentes",
+      roles: ["admin", "secretaria"],
+    },
+    { href: "/dashboard/mensagens/templates", label: "Templates", roles: ["admin"] },
+    { href: "/dashboard/mensagens/email", label: "E-mail", roles: ["admin"] },
+  ],
+};
+
+export const DASHBOARD_TOP_NAV: NavTopItem[] = [
   { type: "link", href: "/dashboard", label: "Início", icon: "layout-dashboard" },
-  { type: "link", href: "/dashboard/agenda", label: "Agenda", icon: "calendar" },
-  {
-    type: "link",
-    href: "/dashboard/consulta",
-    label: "Consultas",
-    icon: "calendar-days",
-    roles: ["admin", "secretaria", "medico"],
-  },
+  DASHBOARD_AGENDA_GROUP,
   {
     type: "link",
     href: "/dashboard/atendimento",
@@ -60,14 +92,7 @@ export const DASHBOARD_TOP_NAV: NavLinkItem[] = [
     roles: ["admin", "secretaria", "medico"],
   },
   { type: "link", href: "/dashboard/eventos", label: "Eventos", icon: "bell", roles: ["admin", "secretaria"] },
-  { type: "link", href: "/dashboard/mensagens", label: "Mensagens", icon: "mail", roles: ["admin"] },
-  {
-    type: "link",
-    href: "/dashboard/whatsapp",
-    label: "WhatsApp",
-    icon: "message-square",
-    badgeKey: "whatsapp",
-  },
+  DASHBOARD_COMUNICACAO_GROUP,
 ];
 
 export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
@@ -102,7 +127,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
   {
     type: "group",
     id: "atendimentos",
-    label: "Atendimentos",
+    label: "Documentos clínicos",
     icon: "stethoscope",
     prefix: "/dashboard/atendimentos",
     roles: ["admin", "secretaria", "medico"],
@@ -211,12 +236,40 @@ export const LEGACY_PATH_PREFIXES: Record<string, string> = {
   "/dashboard/plano": "configuracoes",
 };
 
+const TOP_NAV_GROUPS = [DASHBOARD_AGENDA_GROUP, DASHBOARD_COMUNICACAO_GROUP];
+
+function isAgendaGroupPath(pathname: string): boolean {
+  if (pathname === "/dashboard/consulta" || pathname.startsWith("/dashboard/consulta/")) {
+    return true;
+  }
+  if (pathname === "/dashboard/agenda" || pathname.startsWith("/dashboard/agenda/")) {
+    if (pathname.startsWith("/dashboard/agenda/atendimento")) return false;
+    return true;
+  }
+  return false;
+}
+
+function isComunicacaoGroupPath(pathname: string): boolean {
+  return (
+    pathname === "/dashboard/whatsapp" ||
+    pathname.startsWith("/dashboard/whatsapp/") ||
+    pathname === "/dashboard/mensagens" ||
+    pathname.startsWith("/dashboard/mensagens/")
+  );
+}
+
 export function getActiveNavGroupId(pathname: string): string | null {
   if (
     pathname === DASHBOARD_CONFIG_GROUP.prefix ||
     pathname.startsWith(`${DASHBOARD_CONFIG_GROUP.prefix}/`)
   ) {
     return "configuracoes";
+  }
+  if (isComunicacaoGroupPath(pathname)) {
+    return "comunicacao";
+  }
+  if (isAgendaGroupPath(pathname)) {
+    return "agenda";
   }
   for (const group of DASHBOARD_MIDDLE_NAV_GROUPS) {
     if (pathname === group.prefix || pathname.startsWith(`${group.prefix}/`)) {
@@ -238,6 +291,16 @@ export function filterNavByRole<T extends { roles?: string[] }>(
   return items.filter((item) => !item.roles || item.roles.includes(role));
 }
 
+export function filterTopNavByRole(items: NavTopItem[], role: string): NavTopItem[] {
+  return items.filter((item) => {
+    if (item.type === "link") {
+      return !item.roles || item.roles.includes(role);
+    }
+    if (item.roles && !item.roles.includes(role)) return false;
+    return filterGroupChildren(item, role).length > 0;
+  });
+}
+
 export function filterGroupChildren(
   group: NavGroupItem,
   role: string
@@ -252,6 +315,21 @@ export function isLinkActive(pathname: string, href: string): boolean {
       pathname === href ||
       pathname.startsWith("/dashboard/agenda/atendimento")
     );
+  }
+  if (href === "/dashboard/agenda") {
+    return pathname === "/dashboard/agenda";
+  }
+  if (href === "/dashboard/consulta") {
+    return (
+      pathname === "/dashboard/consulta" ||
+      pathname.startsWith("/dashboard/agenda/consulta/")
+    );
+  }
+  if (href === "/dashboard/mensagens") {
+    return pathname === "/dashboard/mensagens";
+  }
+  if (href === "/dashboard/mensagens/pendentes") {
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
   if (
     href === "/dashboard/financeiro" ||
@@ -272,5 +350,7 @@ export function isLinkActive(pathname: string, href: string): boolean {
 
 export function getNavGroupById(id: string): NavGroupItem | undefined {
   if (id === "configuracoes") return DASHBOARD_CONFIG_GROUP;
+  const topGroup = TOP_NAV_GROUPS.find((g) => g.id === id);
+  if (topGroup) return topGroup;
   return DASHBOARD_MIDDLE_NAV_GROUPS.find((g) => g.id === id);
 }

@@ -12,8 +12,8 @@ const links = [
   },
   {
     href: "/dashboard/consulta",
-    label: "Consultas",
-    desc: "Todas as consultas agendadas",
+    label: "Lista de consultas",
+    desc: "Todas as consultas agendadas (Agenda → Lista de consultas)",
     icon: CalendarDays,
   },
   {
@@ -46,9 +46,11 @@ export default function AtendimentosHubPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">Atendimentos</h1>
+        <h1 className="text-2xl font-semibold">Documentos clínicos</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Central de listagens e documentos clínicos. Agenda e atendimento operacional continuam no menu principal.
+          Central de documentos emitidos nos atendimentos. Para agendar ou ver consultas, use{" "}
+          <strong>Agenda</strong> no menu; para a fila operacional do dia, use{" "}
+          <strong>Atendimento</strong>.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">

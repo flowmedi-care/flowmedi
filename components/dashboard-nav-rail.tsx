@@ -14,11 +14,13 @@ import {
   DASHBOARD_MIDDLE_NAV_GROUPS,
   DASHBOARD_CONFIG_GROUP,
   filterNavByRole,
+  filterTopNavByRole,
   filterGroupChildren,
   getActiveNavGroupId,
   isLinkActive,
   type NavGroupItem,
   type NavLinkItem,
+  type NavTopItem,
 } from "@/lib/dashboard-nav-config";
 
 type Profile = {
@@ -146,7 +148,7 @@ export function DashboardNavRail({
     onRailExpandedChange(!railExpanded);
   }
 
-  const topNav = filterNavByRole(DASHBOARD_TOP_NAV, role);
+  const topNav = filterTopNavByRole(DASHBOARD_TOP_NAV, role);
 
   const utilityNav = filterNavByRole(DASHBOARD_UTILITY_NAV, role).filter((item) => {
     if (item.href === "/dashboard/auditoria" && !canAccessAudit) return false;
@@ -166,9 +168,6 @@ export function DashboardNavRail({
   const middleGroups = filterNavByRole(DASHBOARD_MIDDLE_NAV_GROUPS, role);
 
   function renderLink(item: NavLinkItem) {
-    const isWhatsapp = item.href === "/dashboard/whatsapp";
-    const label = isWhatsapp && !canUseWhatsApp ? "WhatsApp (Pro)" : item.label;
-    const hasBadge = isWhatsapp && hasWhatsAppConnected && whatsappUnreadCount > 0;
     const active = isLinkActive(pathname, item.href);
 
     return (
@@ -176,8 +175,7 @@ export function DashboardNavRail({
         key={item.href}
         href={item.href}
         active={active}
-        label={label}
-        badge={hasBadge}
+        label={item.label}
         expanded={showLabels}
         onClick={() => onMobileOpenChange(false)}
       >
@@ -188,17 +186,30 @@ export function DashboardNavRail({
 
   function renderGroup(group: NavGroupItem) {
     const active = activeGroupId === group.id;
+    const hasBadge =
+      group.badgeKey === "whatsapp" && hasWhatsAppConnected && whatsappUnreadCount > 0;
+    const label =
+      group.id === "comunicacao" && !canUseWhatsApp
+        ? `${group.label} (Pro)`
+        : group.label;
+
     return (
       <RailNavItem
         key={group.id}
         active={active}
-        label={group.label}
+        label={label}
+        badge={hasBadge}
         expanded={showLabels}
         onClick={() => handleGroupClick(group)}
       >
         <DashboardNavIcon name={group.icon} className="h-5 w-5 shrink-0" />
       </RailNavItem>
     );
+  }
+
+  function renderTopItem(item: NavTopItem) {
+    if (item.type === "link") return renderLink(item);
+    return renderGroup(item);
   }
 
   const dividerClass = cn(
@@ -268,7 +279,7 @@ export function DashboardNavRail({
             showLabels ? "px-2 flex flex-col" : "flex flex-col items-center px-1"
           )}
         >
-          {topNav.map(renderLink)}
+          {topNav.map(renderTopItem)}
           {middleGroups.length > 0 && <div className={dividerClass} aria-hidden />}
           {middleGroups.map(renderGroup)}
           {utilityNav.length > 0 && <div className={dividerClass} aria-hidden />}
