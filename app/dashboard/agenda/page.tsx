@@ -308,6 +308,7 @@ export default async function AgendaPage() {
           doctorId: String((dp as { doctor_id?: unknown }).doctor_id ?? ""),
           procedureId: String((dp as { procedure_id?: unknown }).procedure_id ?? ""),
         }))}
+        userRole={profile.role ?? "secretaria"}
         initialPreferences={{
           viewMode: (preferences.agenda_view_mode as "timeline" | "calendar") || "timeline",
           timelineGranularity: (preferences.agenda_timeline_granularity as "day" | "week" | "month") || "day",

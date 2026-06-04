@@ -434,6 +434,16 @@ export async function getAppointmentEventSummary(
   };
 }
 
+export type CreateAppointmentOptions = {
+  /** RECORRÊNCIA v1 — não bloqueia por conflito de horário (avisar na UI). */
+  skipConflictCheck?: boolean;
+  recurrence_group_id?: string;
+  session_number?: number;
+  treatment_plan_id?: string | null;
+  /** Evita revalidação a cada sessão em lote. */
+  skipRevalidate?: boolean;
+};
+
 export async function createAppointment(
   patientId: string,
   doctorId: string,
@@ -450,7 +460,8 @@ export async function createAppointment(
   serviceId?: string | null,
   valor?: number | null,
   dimensionValueIds?: string[],
-  procedureIds?: string[]
+  procedureIds?: string[],
+  options?: CreateAppointmentOptions
 ) {
   const allProcedureIds =
     procedureIds?.length
@@ -483,35 +494,48 @@ export async function createAppointment(
 
   // Verificar conflito de horário (mesmo médico, considerando duração do tipo de consulta)
   const durationMinutes = await getDurationMinutes(supabase, appointmentTypeId, profile.clinic_id);
-  const conflictError = await checkAppointmentConflict(supabase, {
-    clinicId: profile.clinic_id,
-    doctorId,
-    scheduledAt,
-    durationMinutes,
-    excludeAppointmentId: null,
-  });
-  if (conflictError) return { error: conflictError };
+  if (!options?.skipConflictCheck) {
+    const conflictError = await checkAppointmentConflict(supabase, {
+      clinicId: profile.clinic_id,
+      doctorId,
+      scheduledAt,
+      durationMinutes,
+      excludeAppointmentId: null,
+    });
+    if (conflictError) return { error: conflictError };
+  }
+
+  const insertRow: Record<string, unknown> = {
+    clinic_id: profile.clinic_id,
+    patient_id: patientId,
+    doctor_id: doctorId,
+    appointment_type_id: appointmentTypeId || null,
+    procedure_id: primaryProcedureId,
+    service_id: serviceId || null,
+    valor: valor ?? null,
+    scheduled_at: scheduledAt,
+    status: "agendada",
+    notes: notes || null,
+    recommendations: recommendations || null,
+    requires_fasting: requiresFasting || false,
+    requires_medication_stop: requiresMedicationStop || false,
+    special_instructions: specialInstructions || null,
+    preparation_notes: preparationNotes || null,
+    created_by: user.id,
+  };
+  if (options?.recurrence_group_id) {
+    insertRow.recurrence_group_id = options.recurrence_group_id;
+  }
+  if (options?.session_number != null) {
+    insertRow.session_number = options.session_number;
+  }
+  if (options?.treatment_plan_id) {
+    insertRow.treatment_plan_id = options.treatment_plan_id;
+  }
 
   const { data: appointment, error: insertErr } = await supabase
     .from("appointments")
-    .insert({
-      clinic_id: profile.clinic_id,
-      patient_id: patientId,
-      doctor_id: doctorId,
-      appointment_type_id: appointmentTypeId || null,
-      procedure_id: primaryProcedureId,
-      service_id: serviceId || null,
-      valor: valor ?? null,
-      scheduled_at: scheduledAt,
-      status: "agendada",
-      notes: notes || null,
-      recommendations: recommendations || null,
-      requires_fasting: requiresFasting || false,
-      requires_medication_stop: requiresMedicationStop || false,
-      special_instructions: specialInstructions || null,
-      preparation_notes: preparationNotes || null,
-      created_by: user.id,
-    })
+    .insert(insertRow)
     .select("id")
     .single();
 
@@ -913,10 +937,52 @@ export async function createAppointment(
       .in("id", formLinkedEventIds);
   }
 
-  revalidatePath("/dashboard/agenda");
-  revalidatePath("/dashboard/eventos");
-  revalidatePath("/dashboard");
+  if (!options?.skipRevalidate) {
+    revalidatePath("/dashboard/agenda");
+    revalidatePath("/dashboard/eventos");
+    revalidatePath("/dashboard");
+  }
   return { data: { id: appointment.id }, error: null };
+}
+
+// RECORRÊNCIA v1 — Verifica conflitos por slot (não bloqueia salvamento).
+// Contrato: FLUXO-OPERACIONAL-COMPLETO.md § Parte 3 (recorrência)
+export async function checkRecurrenceSlotsConflicts(
+  doctorId: string,
+  appointmentTypeId: string | null,
+  scheduledAtList: string[]
+): Promise<{ error: string | null; conflicts: boolean[] }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", conflicts: [] };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", conflicts: [] };
+
+  const durationMinutes = await getDurationMinutes(
+    supabase,
+    appointmentTypeId,
+    profile.clinic_id
+  );
+
+  const conflicts: boolean[] = [];
+  for (const scheduledAt of scheduledAtList) {
+    const msg = await checkAppointmentConflict(supabase, {
+      clinicId: profile.clinic_id,
+      doctorId,
+      scheduledAt,
+      durationMinutes,
+      excludeAppointmentId: null,
+    });
+    conflicts.push(!!msg);
+  }
+  return { error: null, conflicts };
 }
 
 async function getDurationMinutes(

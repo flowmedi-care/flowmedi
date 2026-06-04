@@ -218,6 +218,7 @@ export function AgendaClient({
   pricingDimensionValues = [],
   servicePriceRules = [],
   doctorProcedures = [],
+  userRole = "secretaria",
   initialPreferences,
 }: {
   appointments: AppointmentRow[];
@@ -233,6 +234,7 @@ export function AgendaClient({
   pricingDimensionValues?: PricingDimensionValueOption[];
   servicePriceRules?: ServicePriceRuleOption[];
   doctorProcedures?: DoctorProcedureLink[];
+  userRole?: string;
   initialPreferences?: {
     viewMode: ViewMode;
     timelineGranularity: TimelineGranularity;
@@ -1010,6 +1012,7 @@ export function AgendaClient({
         pricingDimensionValues={pricingDimensionValues}
         servicePriceRules={servicePriceRules}
         doctorProcedures={doctorProcedures}
+        userRole={userRole}
       />
 
       <AgendaEventDetailsModal

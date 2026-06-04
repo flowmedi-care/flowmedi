@@ -10,12 +10,20 @@ import { cn } from "@/lib/utils";
 import {
   createAppointment,
   updateAppointment,
-  resolveAppointmentPrice,
   getPublicFormTemplatesForPatient,
   getAppointmentForEdit,
   getAppointmentChargePreview,
   type AppointmentChargePreview,
 } from "./actions";
+import { createRecurringAppointments } from "./recurrence-actions";
+import {
+  AppointmentDateTimeRecurrence,
+  defaultRecurrenceForm,
+  type RecurrenceFormState,
+} from "./appointment-datetime-recurrence";
+import { buildRecurrenceSessionSlots } from "@/lib/recurrence-schedule";
+import { toast } from "@/components/ui/toast";
+import { useRouter } from "next/navigation";
 import type {
   PatientOption,
   DoctorOption,
@@ -73,6 +81,7 @@ export function AgendaAppointmentModal({
   pricingDimensionValues,
   servicePriceRules,
   doctorProcedures,
+  userRole = "secretaria",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -90,8 +99,12 @@ export function AgendaAppointmentModal({
   pricingDimensionValues: PricingDimensionValueOption[];
   servicePriceRules: ServicePriceRuleOption[];
   doctorProcedures: DoctorProcedureLink[];
+  userRole?: string;
 }) {
+  const router = useRouter();
   const isEdit = mode === "edit" && !!appointmentId;
+  const showRecurrenceBilling =
+    userRole === "admin" || userRole === "secretaria";
   const [tab, setTab] = useState<TabId>("dados");
   const [loading, setLoading] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(false);
@@ -101,6 +114,7 @@ export function AgendaAppointmentModal({
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [publicFormTemplates, setPublicFormTemplates] = useState<{ id: string; name: string }[]>([]);
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState("");
+  const [recurrence, setRecurrence] = useState<RecurrenceFormState>(defaultRecurrenceForm);
 
   const defaultForm = (): AppointmentFormState => ({
     patientId: "",
@@ -160,6 +174,7 @@ export function AgendaAppointmentModal({
 
     setForm({ ...defaultForm(), ...initialForm });
     setResolvedValor(null);
+    setRecurrence(defaultRecurrenceForm());
   }, [open, initialForm, isEdit, appointmentId]);
 
   const doctorProceduresByDoctor = useMemo(() => {
@@ -300,7 +315,13 @@ export function AgendaAppointmentModal({
     );
     const effectiveServiceId =
       form.serviceId || previewRes.data?.linkedServiceId || null;
-    if (!effectiveServiceId) {
+    const recurrenceActive = !isEdit && recurrence.enabled;
+    const needsService =
+      !recurrenceActive ||
+      recurrence.billingModel === "independent" ||
+      recurrence.billingModel === "treatment_plan";
+
+    if (needsService && !effectiveServiceId) {
       setError(
         "Configure o serviço padrão no procedimento (Campos & Procedimentos) ou escolha o serviço na aba Financeiro."
       );
@@ -310,6 +331,71 @@ export function AgendaAppointmentModal({
     const finalValor = previewRes.data?.totalAmount ?? resolvedValor ?? null;
 
     setLoading(true);
+
+    if (!isEdit && recurrence.enabled) {
+      const sessionCount = Math.min(52, Math.max(2, recurrence.sessionCount));
+      const slots = buildRecurrenceSessionSlots(
+        form.date,
+        form.time,
+        sessionCount,
+        recurrence.frequency,
+        recurrence.overrides
+      );
+      const procedureName =
+        procedures.find((p) => form.procedureIds.includes(p.id))?.name ?? "Procedimento";
+
+      let valorPerSession: number | null = null;
+      let planTotal: number | null = null;
+      if (recurrence.billingModel === "independent") {
+        valorPerSession =
+          parseFloat(recurrence.valorPerSession.replace(",", ".")) ||
+          finalValor;
+      } else if (recurrence.billingModel === "treatment_plan") {
+        planTotal = parseFloat(recurrence.planTotalAmount.replace(",", ".")) || 0;
+      }
+
+      const res = await createRecurringAppointments({
+        patientId: form.patientId,
+        doctorId: form.doctorId,
+        appointmentTypeId: form.appointmentTypeId || null,
+        procedureIds: form.procedureIds,
+        serviceId: effectiveServiceId,
+        dimensionValueIds,
+        scheduledAtList: slots.map((s) => s.scheduledAt),
+        notes: form.notes || null,
+        recommendations: form.recommendations || null,
+        requiresFasting: form.requiresFasting,
+        requiresMedicationStop: form.requiresMedicationStop,
+        specialInstructions: form.specialInstructions || null,
+        preparationNotes: form.preparationNotes || null,
+        linkedFormTemplateIds: form.linkedFormTemplateIds.length
+          ? form.linkedFormTemplateIds
+          : undefined,
+        billingModel: recurrence.billingModel,
+        valorPerSession,
+        planTotalAmount: planTotal,
+        procedureNameForPlan: procedureName,
+      });
+
+      setLoading(false);
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+      if (res.treatmentPlanId) {
+        toast(
+          "Plano de tratamento criado. Configure o pagamento em Planos de tratamento.",
+          "success"
+        );
+        router.push(`/dashboard/planos-tratamento/${res.treatmentPlanId}`);
+      } else {
+        toast(`${res.ids.length} consultas agendadas.`, "success");
+      }
+      onOpenChange(false);
+      onSuccess();
+      return;
+    }
+
     const localDate = new Date(`${form.date}T${form.time}:00`);
     const scheduledAt = localDate.toISOString();
 
@@ -566,18 +652,48 @@ export function AgendaAppointmentModal({
         {tab === "data" && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Data e hora *</Label>
+              <Label>
+                Data e hora da consulta <span className="text-destructive">*</span>
+              </Label>
               <div className="flex gap-2">
-                <Input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} required />
+                <Input
+                  type="date"
+                  className="flex-1"
+                  value={form.date}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      date: e.target.value,
+                    }))
+                  }
+                  required
+                />
                 <Input
                   type="time"
+                  className="flex-1 max-w-[140px]"
                   step={60}
                   value={form.time}
                   onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
                   required
                 />
               </div>
+              <p className="text-xs text-muted-foreground">Fuso horário da clínica</p>
             </div>
+
+            <AppointmentDateTimeRecurrence
+              date={form.date}
+              time={form.time}
+              doctorId={form.doctorId}
+              appointmentTypeId={form.appointmentTypeId}
+              recurrence={recurrence}
+              onRecurrenceChange={(patch) =>
+                setRecurrence((r) => ({ ...r, ...patch }))
+              }
+              showBilling={showRecurrenceBilling}
+              defaultValorPerSession={chargePreview?.totalAmount ?? resolvedValor}
+              isEdit={isEdit}
+            />
+
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.requiresFasting} onChange={(e) => setForm((f) => ({ ...f, requiresFasting: e.target.checked }))} />
               Jejum

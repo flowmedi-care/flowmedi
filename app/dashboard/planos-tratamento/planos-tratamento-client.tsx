@@ -18,6 +18,7 @@ import {
 } from "@/lib/financeiro/plan-schedule";
 import { toast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { fmtCurrency } from "@/lib/financeiro/format";
 
 export function PlanosTratamentoClient({ initialPlans }: { initialPlans: TreatmentPlanRow[] }) {
@@ -147,6 +148,9 @@ export function PlanosTratamentoClient({ initialPlans }: { initialPlans: Treatme
                     <p className="text-xs text-muted-foreground mt-1">
                       Sessões: {p.sessions_used}/{p.sessions_total}
                     </p>
+                    <p className="text-xs text-muted-foreground">
+                      Recebido: {fmtCurrency(p.paid_amount)} / {fmtCurrency(p.total_amount)}
+                    </p>
                   </div>
                   <div className="text-right space-y-1">
                     <Badge variant="outline">{p.status}</Badge>
@@ -157,14 +161,18 @@ export function PlanosTratamentoClient({ initialPlans }: { initialPlans: Treatme
                     <p className="text-xs text-muted-foreground">
                       Sessão: {fmtCurrency(p.total_amount / Math.max(1, p.sessions_total))}
                     </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      onClick={() => setSchedulePlanId(p.id)}
-                    >
-                      Gerar sessões na agenda
-                    </Button>
+                    <div className="flex flex-col gap-1 mt-2">
+                      <Button variant="link" size="sm" className="h-auto p-0 justify-end" asChild>
+                        <Link href={`/dashboard/planos-tratamento/${p.id}`}>Ver plano</Link>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSchedulePlanId(p.id)}
+                      >
+                        Gerar sessões na agenda
+                      </Button>
+                    </div>
                   </div>
                 </li>
               ))}

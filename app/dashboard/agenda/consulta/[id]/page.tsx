@@ -13,6 +13,7 @@ import { AppointmentEncounterNav } from "@/components/appointment-encounter-nav"
 import { loadAppointmentProcedures, loadServiceName, type LegacyProcedureRow } from "@/lib/appointment-procedures";
 import { loadAppointmentGate } from "@/lib/appointment-gate";
 import { SchemaErrorBanner } from "../../schema-error-banner";
+import { RecurrenceSeriesButton } from "./recurrence-series-button";
 
 export type FormInstanceItem = {
   id: string;
@@ -75,6 +76,17 @@ export default async function ConsultaDetalhePage({
     started_at = timingRow.started_at ?? null;
     completed_at = timingRow.completed_at ?? null;
     duration_minutes = timingRow.duration_minutes ?? null;
+  }
+
+  let recurrence_group_id: string | null = null;
+  const { data: recurrenceRow } = await supabase
+    .from("appointments")
+    .select("recurrence_group_id")
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id)
+    .maybeSingle();
+  if (recurrenceRow?.recurrence_group_id) {
+    recurrence_group_id = String(recurrenceRow.recurrence_group_id);
   }
 
   const { data: appointmentTypes } = await supabase
@@ -170,13 +182,24 @@ export default async function ConsultaDetalhePage({
             <h2 className="font-semibold">Consulta</h2>
           </CardHeader>
           <CardContent className="space-y-2">
-            <DataHoraReagendar
-              scheduledAt={scheduledAt}
-              appointmentId={id}
-              canEdit={profile.role === "admin" || profile.role === "secretaria"}
-              isAgendarRetorno={appointmentStatus === "realizada"}
-              retornoTypeId={retornoType?.id ?? null}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <DataHoraReagendar
+                scheduledAt={scheduledAt}
+                appointmentId={id}
+                canEdit={profile.role === "admin" || profile.role === "secretaria"}
+                isAgendarRetorno={appointmentStatus === "realizada"}
+                retornoTypeId={retornoType?.id ?? null}
+              />
+              {recurrence_group_id && (
+                <RecurrenceSeriesButton
+                  recurrenceGroupId={recurrence_group_id}
+                  appointmentId={id}
+                  canManage={
+                    profile.role === "admin" || profile.role === "secretaria"
+                  }
+                />
+              )}
+            </div>
             <p>
               <span className="text-muted-foreground">Paciente:</span>{" "}
               {patient?.full_name}
