@@ -44,7 +44,11 @@ export default async function CamposPacientesPage() {
       .from("doctor_procedures")
       .select("procedure_id, doctor_id")
       .eq("clinic_id", profile.clinic_id),
-    supabase.from("services").select("id, nome").eq("clinic_id", profile.clinic_id).order("nome"),
+    supabase
+      .from("services")
+      .select("id, nome, recurrence_billing_mode")
+      .eq("clinic_id", profile.clinic_id)
+      .order("nome"),
     supabase.from("products").select("id, name, unit").eq("clinic_id", profile.clinic_id).eq("active", true).order("name"),
   ]);
 
@@ -62,7 +66,15 @@ export default async function CamposPacientesPage() {
     default_service_id: p.default_service_id ?? null,
     default_appointment_type_id: p.default_appointment_type_id ?? null,
   }));
-  const services = (servicesRes.data ?? []).map((s) => ({ id: s.id, nome: s.nome }));
+  const services = (servicesRes.data ?? []).map((s) => ({
+    id: s.id,
+    nome: s.nome,
+    recurrence_billing_mode:
+      s.recurrence_billing_mode === "per_session" ||
+      s.recurrence_billing_mode === "treatment_plan"
+        ? s.recurrence_billing_mode
+        : null,
+  }));
   const products = (productsRes.data ?? []).map((p) => ({ id: p.id, name: p.name, unit: p.unit }));
 
   const doctors = (doctorsRes.data ?? []).map((d) => ({

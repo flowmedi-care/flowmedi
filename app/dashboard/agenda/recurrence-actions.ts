@@ -2,8 +2,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { createAppointment } from "./actions";
+import { createAppointment, getAppointmentChargePreview } from "./actions";
 import type { RecurrenceFrequency } from "@/lib/recurrence-schedule";
+import {
+  serviceModeToRecurrenceBilling,
+  type ServiceRecurrenceBillingMode,
+} from "@/lib/recurrence-billing";
 
 export type RecurrenceBillingModel = "independent" | "treatment_plan" | null;
 
@@ -27,14 +31,9 @@ export async function createRecurringAppointments(input: {
   scheduledAtList: string[];
   notes?: string | null;
   recommendations?: string | null;
-  requiresFasting?: boolean;
-  requiresMedicationStop?: boolean;
   specialInstructions?: string | null;
   preparationNotes?: string | null;
   linkedFormTemplateIds?: string[];
-  billingModel: RecurrenceBillingModel;
-  valorPerSession?: number | null;
-  planTotalAmount?: number | null;
   procedureNameForPlan?: string;
 }) {
   const sessionCount = input.scheduledAtList.length;
@@ -59,23 +58,53 @@ export async function createRecurringAppointments(input: {
     return { error: "Clínica não encontrada.", ids: [], treatmentPlanId: null };
   }
 
+  let serviceBillingMode: ServiceRecurrenceBillingMode = null;
+  if (input.serviceId) {
+    const { data: svc } = await supabase
+      .from("services")
+      .select("recurrence_billing_mode")
+      .eq("id", input.serviceId)
+      .eq("clinic_id", profile.clinic_id)
+      .maybeSingle();
+
+    if (svc?.recurrence_billing_mode === "per_session" || svc?.recurrence_billing_mode === "treatment_plan") {
+      serviceBillingMode = svc.recurrence_billing_mode;
+    }
+  }
+
+  const billingModel = serviceModeToRecurrenceBilling(serviceBillingMode);
+
   if (
-    input.billingModel &&
+    billingModel &&
     profile.role !== "admin" &&
     profile.role !== "secretaria"
   ) {
-    return { error: "Sem permissão para definir cobrança.", ids: [], treatmentPlanId: null };
+    return { error: "Sem permissão para cobrança em série.", ids: [], treatmentPlanId: null };
+  }
+
+  const previewRes = await getAppointmentChargePreview(
+    input.procedureIds,
+    input.doctorId,
+    input.serviceId,
+    input.dimensionValueIds
+  );
+  const previewTotal = previewRes.data?.totalAmount ?? null;
+
+  if (billingModel && (previewTotal == null || previewTotal <= 0)) {
+    return {
+      error:
+        "Configure regras de preço em Serviços e Valores para este serviço/procedimento.",
+      ids: [],
+      treatmentPlanId: null,
+    };
   }
 
   const recurrenceGroupId = crypto.randomUUID();
   let treatmentPlanId: string | null = null;
-  let valorPerSession: number | null = input.valorPerSession ?? null;
+  let valorPerSession: number | null = null;
 
-  if (input.billingModel === "treatment_plan") {
-    const total = input.planTotalAmount ?? 0;
-    if (total <= 0) {
-      return { error: "Informe o valor total do plano.", ids: [], treatmentPlanId: null };
-    }
+  if (billingModel === "treatment_plan") {
+    const total = (previewTotal ?? 0) * sessionCount;
     const planName =
       input.procedureNameForPlan?.trim() ||
       `Plano — ${sessionCount} sessões`;
@@ -107,12 +136,8 @@ export async function createRecurringAppointments(input: {
     }
     treatmentPlanId = String(plan.id);
     valorPerSession = total / sessionCount;
-  } else if (input.billingModel === "independent") {
-    if (valorPerSession == null || valorPerSession < 0) {
-      return { error: "Informe o valor por sessão.", ids: [], treatmentPlanId: null };
-    }
-  } else {
-    valorPerSession = null;
+  } else if (billingModel === "independent") {
+    valorPerSession = previewTotal;
   }
 
   const ids: string[] = [];
@@ -128,8 +153,8 @@ export async function createRecurringAppointments(input: {
       input.notes ?? null,
       input.recommendations ?? null,
       primaryProcedureId,
-      input.requiresFasting,
-      input.requiresMedicationStop,
+      false,
+      false,
       input.specialInstructions ?? null,
       input.preparationNotes ?? null,
       i === 0 ? input.linkedFormTemplateIds : undefined,

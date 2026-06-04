@@ -28,31 +28,104 @@ async function getClinicAndRole() {
   return { supabase, clinicId: profile.clinic_id, userId: user.id, role: profile.role };
 }
 
+import type { ServiceRecurrenceBillingMode } from "@/lib/recurrence-billing";
+
+function normalizeRecurrenceBillingMode(
+  mode: string | null | undefined
+): ServiceRecurrenceBillingMode {
+  if (mode === "per_session" || mode === "treatment_plan") return mode;
+  return null;
+}
+
 // ——— Serviços ———
-export async function createService(nome: string, categoria: string) {
+export async function createService(
+  nome: string,
+  categoria: string,
+  recurrenceBillingMode?: ServiceRecurrenceBillingMode
+) {
   const ctx = await getClinicAndRole();
   if ("error" in ctx) return { error: ctx.error };
   const { error } = await ctx.supabase.from("services").insert({
     clinic_id: ctx.clinicId,
     nome: nome.trim(),
     categoria: categoria.trim() || null,
+    recurrence_billing_mode: normalizeRecurrenceBillingMode(recurrenceBillingMode),
   });
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/campos-pacientes");
   return { ok: true };
 }
 
-export async function updateService(id: string, nome: string, categoria: string) {
+export async function updateService(
+  id: string,
+  nome: string,
+  categoria: string,
+  recurrenceBillingMode?: ServiceRecurrenceBillingMode
+) {
   const ctx = await getClinicAndRole();
   if ("error" in ctx) return { error: ctx.error };
   const { error } = await ctx.supabase
     .from("services")
-    .update({ nome: nome.trim(), categoria: categoria.trim() || null, updated_at: new Date().toISOString() })
+    .update({
+      nome: nome.trim(),
+      categoria: categoria.trim() || null,
+      recurrence_billing_mode: normalizeRecurrenceBillingMode(recurrenceBillingMode),
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id)
     .eq("clinic_id", ctx.clinicId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/campos-pacientes");
   return { ok: true };
+}
+
+// RECORRÊNCIA v1 — Modo de cobrança da série definido no serviço.
+export async function getServiceRecurrenceBilling(serviceId: string): Promise<{
+  error: string | null;
+  mode: ServiceRecurrenceBillingMode;
+  serviceName: string | null;
+}> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", mode: null, serviceName: null };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) {
+    return { error: "Clínica não encontrada.", mode: null, serviceName: null };
+  }
+
+  const { data, error } = await supabase
+    .from("services")
+    .select("nome, recurrence_billing_mode")
+    .eq("id", serviceId)
+    .eq("clinic_id", profile.clinic_id)
+    .maybeSingle();
+
+  if (error) {
+    if (error.message.includes("recurrence_billing_mode")) {
+      return {
+        error: "Migration migration-service-recurrence-billing não aplicada.",
+        mode: null,
+        serviceName: null,
+      };
+    }
+    return { error: error.message, mode: null, serviceName: null };
+  }
+  if (!data) return { error: "Serviço não encontrado.", mode: null, serviceName: null };
+
+  return {
+    error: null,
+    mode: normalizeRecurrenceBillingMode(data.recurrence_billing_mode as string | null),
+    serviceName: data.nome != null ? String(data.nome) : null,
+  };
 }
 
 export async function deleteService(id: string) {

@@ -33,6 +33,7 @@ import { Plus, Pencil, Check, UserCircle, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { FormulariosListClient } from "@/app/dashboard/formularios/formularios-list-client";
 import { cn } from "@/lib/utils";
+import { recurrenceBillingModeLabel } from "@/lib/recurrence-billing";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type AppointmentTypeRow = {
@@ -70,7 +71,11 @@ export function CamposProcedimentosClient({
   procedures: ProcedureRow[];
   doctors: DoctorOption[];
   doctorIdsByProcedureId: Record<string, string[]>;
-  services: { id: string; nome: string }[];
+  services: {
+    id: string;
+    nome: string;
+    recurrence_billing_mode: "per_session" | "treatment_plan" | null;
+  }[];
   products: { id: string; name: string; unit: string }[];
   fichaTemplates: ClinicalFichaTemplateRow[];
   formTemplates?: FormTemplateRow[];
@@ -399,7 +404,11 @@ function ProcedimentosSection({
   doctors: DoctorOption[];
   doctorIdsByProcedureId: Record<string, string[]>;
   appointmentTypes: AppointmentTypeRow[];
-  services: { id: string; nome: string }[];
+  services: {
+    id: string;
+    nome: string;
+    recurrence_billing_mode: "per_session" | "treatment_plan" | null;
+  }[];
   products: { id: string; name: string; unit: string }[];
   fichaTemplates: ClinicalFichaTemplateRow[];
   onMutate: () => void;
@@ -644,6 +653,20 @@ function ProcedimentosSection({
                 <p className="text-xs text-muted-foreground">
                   Vincula o procedimento ao preço em Serviços e Valores. Obrigatório para cobrança unificada na agenda.
                 </p>
+                {defaultServiceId && (
+                  <p className="text-xs text-muted-foreground rounded-md bg-muted/40 px-2 py-1.5">
+                    Recorrência:{" "}
+                    <span className="font-medium text-foreground">
+                      {recurrenceBillingModeLabel(
+                        services.find((s) => s.id === defaultServiceId)
+                          ?.recurrence_billing_mode ?? null
+                      )}
+                    </span>
+                    <span className="block mt-0.5">
+                      Definido no serviço em Serviços e Valores.
+                    </span>
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Tipo de consulta padrão</Label>

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   buildRecurrenceSessionSlots,
   formatRecurrenceSessionLine,
@@ -12,16 +11,12 @@ import {
   type RecurrenceFrequency,
 } from "@/lib/recurrence-schedule";
 import { checkRecurrenceSlotsConflicts } from "./actions";
-import type { RecurrenceBillingModel } from "./recurrence-actions";
 
 export type RecurrenceFormState = {
   enabled: boolean;
   frequency: RecurrenceFrequency;
   sessionCount: number;
   overrides: Record<number, { date: string; time: string }>;
-  billingModel: RecurrenceBillingModel;
-  valorPerSession: string;
-  planTotalAmount: string;
 };
 
 export const defaultRecurrenceForm = (): RecurrenceFormState => ({
@@ -29,9 +24,6 @@ export const defaultRecurrenceForm = (): RecurrenceFormState => ({
   frequency: "semanal",
   sessionCount: 4,
   overrides: {},
-  billingModel: null,
-  valorPerSession: "",
-  planTotalAmount: "",
 });
 
 type Props = {
@@ -41,8 +33,6 @@ type Props = {
   appointmentTypeId: string;
   recurrence: RecurrenceFormState;
   onRecurrenceChange: (patch: Partial<RecurrenceFormState>) => void;
-  showBilling: boolean;
-  defaultValorPerSession?: number | null;
   isEdit: boolean;
 };
 
@@ -53,8 +43,6 @@ export function AppointmentDateTimeRecurrence({
   appointmentTypeId,
   recurrence,
   onRecurrenceChange,
-  showBilling,
-  defaultValorPerSession,
   isEdit,
 }: Props) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -100,11 +88,6 @@ export function AppointmentDateTimeRecurrence({
   }, [recurrence.enabled, doctorId, appointmentTypeId, slots]);
 
   const weekdayLabel = date ? weekdayLabelFromDate(date) : "—";
-  const planPerSession =
-    recurrence.billingModel === "treatment_plan" && recurrence.planTotalAmount
-      ? (parseFloat(recurrence.planTotalAmount.replace(",", ".")) || 0) /
-        Math.max(2, Math.min(52, recurrence.sessionCount))
-      : null;
 
   function startEdit(index: number) {
     const slot = slots[index];
@@ -134,16 +117,7 @@ export function AppointmentDateTimeRecurrence({
         <input
           type="checkbox"
           checked={recurrence.enabled}
-          onChange={(e) =>
-            onRecurrenceChange({
-              enabled: e.target.checked,
-              ...(e.target.checked &&
-              defaultValorPerSession != null &&
-              !recurrence.valorPerSession
-                ? { valorPerSession: String(defaultValorPerSession) }
-                : {}),
-            })
-          }
+          onChange={(e) => onRecurrenceChange({ enabled: e.target.checked })}
         />
         Repetir consulta (recorrência)
       </label>
@@ -262,101 +236,6 @@ export function AppointmentDateTimeRecurrence({
               })}
             </ul>
           </div>
-
-          {showBilling && (
-            <div className="border-t pt-3 space-y-3">
-              <p className="text-sm font-medium">Cobrança</p>
-              <p className="text-xs text-muted-foreground">Como será cobrado?</p>
-
-              <label
-                className={cn(
-                  "flex gap-3 rounded-md border p-3 cursor-pointer",
-                  recurrence.billingModel === "independent" && "border-primary bg-primary/5"
-                )}
-              >
-                <input
-                  type="radio"
-                  name="billingModel"
-                  checked={recurrence.billingModel === "independent"}
-                  onChange={() =>
-                    onRecurrenceChange({
-                      billingModel: "independent",
-                      valorPerSession:
-                        recurrence.valorPerSession ||
-                        (defaultValorPerSession != null
-                          ? String(defaultValorPerSession)
-                          : ""),
-                    })
-                  }
-                  className="mt-1"
-                />
-                <div className="space-y-2 flex-1">
-                  <span className="font-medium text-sm">Consultas independentes</span>
-                  <p className="text-xs text-muted-foreground">
-                    Cada sessão tem seu próprio valor e cupom separado.
-                  </p>
-                  {recurrence.billingModel === "independent" && (
-                    <div className="space-y-1">
-                      <Label className="text-xs">Valor por sessão (R$)</Label>
-                      <Input
-                        value={recurrence.valorPerSession}
-                        onChange={(e) =>
-                          onRecurrenceChange({ valorPerSession: e.target.value })
-                        }
-                        placeholder="400,00"
-                      />
-                    </div>
-                  )}
-                </div>
-              </label>
-
-              <label
-                className={cn(
-                  "flex gap-3 rounded-md border p-3 cursor-pointer",
-                  recurrence.billingModel === "treatment_plan" && "border-primary bg-primary/5"
-                )}
-              >
-                <input
-                  type="radio"
-                  name="billingModel"
-                  checked={recurrence.billingModel === "treatment_plan"}
-                  onChange={() => onRecurrenceChange({ billingModel: "treatment_plan" })}
-                  className="mt-1"
-                />
-                <div className="space-y-2 flex-1">
-                  <span className="font-medium text-sm">Plano de tratamento</span>
-                  <p className="text-xs text-muted-foreground">
-                    Valor total único para todas as sessões.
-                  </p>
-                  {recurrence.billingModel === "treatment_plan" && (
-                    <>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Valor total do plano (R$)</Label>
-                        <Input
-                          value={recurrence.planTotalAmount}
-                          onChange={(e) =>
-                            onRecurrenceChange({ planTotalAmount: e.target.value })
-                          }
-                          placeholder="1200,00"
-                        />
-                      </div>
-                      {planPerSession != null && (
-                        <p className="text-xs text-muted-foreground">
-                          Valor por sessão:{" "}
-                          <span className="font-medium text-foreground">
-                            {planPerSession.toLocaleString("pt-BR", {
-                              style: "currency",
-                              currency: "BRL",
-                            })}
-                          </span>
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-              </label>
-            </div>
-          )}
         </div>
       )}
     </>

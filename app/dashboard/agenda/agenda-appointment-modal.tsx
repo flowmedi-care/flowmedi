@@ -22,6 +22,8 @@ import {
   type RecurrenceFormState,
 } from "./appointment-datetime-recurrence";
 import { buildRecurrenceSessionSlots } from "@/lib/recurrence-schedule";
+import { recurrenceBillingModeLabel, type ServiceRecurrenceBillingMode } from "@/lib/recurrence-billing";
+import { getServiceRecurrenceBilling } from "@/app/dashboard/servicos-valores/actions";
 import { toast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
 import type {
@@ -103,7 +105,7 @@ export function AgendaAppointmentModal({
 }) {
   const router = useRouter();
   const isEdit = mode === "edit" && !!appointmentId;
-  const showRecurrenceBilling =
+  const canSeeRecurrenceBilling =
     userRole === "admin" || userRole === "secretaria";
   const [tab, setTab] = useState<TabId>("dados");
   const [loading, setLoading] = useState(false);
@@ -115,6 +117,9 @@ export function AgendaAppointmentModal({
   const [publicFormTemplates, setPublicFormTemplates] = useState<{ id: string; name: string }[]>([]);
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState("");
   const [recurrence, setRecurrence] = useState<RecurrenceFormState>(defaultRecurrenceForm);
+  const [serviceRecurrenceMode, setServiceRecurrenceMode] =
+    useState<ServiceRecurrenceBillingMode>(null);
+  const [serviceRecurrenceName, setServiceRecurrenceName] = useState<string | null>(null);
 
   const defaultForm = (): AppointmentFormState => ({
     patientId: "",
@@ -135,6 +140,16 @@ export function AgendaAppointmentModal({
   });
 
   const [form, setForm] = useState<AppointmentFormState>(defaultForm);
+
+  const effectiveServiceId = useMemo(
+    () => form.serviceId || chargePreview?.linkedServiceId || null,
+    [form.serviceId, chargePreview?.linkedServiceId]
+  );
+
+  const recurrenceSessionCount = Math.min(
+    52,
+    Math.max(2, recurrence.sessionCount)
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -267,6 +282,25 @@ export function AgendaAppointmentModal({
     };
   }, [open, form.procedureIds, form.serviceId, form.doctorId, form.dimensionSelections]);
 
+  useEffect(() => {
+    if (!open || !recurrence.enabled || !effectiveServiceId || !canSeeRecurrenceBilling) {
+      setServiceRecurrenceMode(null);
+      setServiceRecurrenceName(null);
+      return;
+    }
+    let cancelled = false;
+    getServiceRecurrenceBilling(effectiveServiceId).then((res) => {
+      if (cancelled) return;
+      if (!res.error) {
+        setServiceRecurrenceMode(res.mode);
+        setServiceRecurrenceName(res.serviceName);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, recurrence.enabled, effectiveServiceId, canSeeRecurrenceBilling]);
+
   const toggleProcedure = (id: string) => {
     setForm((f) => {
       const has = f.procedureIds.includes(id);
@@ -313,15 +347,26 @@ export function AgendaAppointmentModal({
       form.serviceId || null,
       dimensionValueIds
     );
-    const effectiveServiceId =
+    const effectiveServiceIdSubmit =
       form.serviceId || previewRes.data?.linkedServiceId || null;
     const recurrenceActive = !isEdit && recurrence.enabled;
+
+    let billingModeForRecurrence: ServiceRecurrenceBillingMode = null;
+    if (recurrenceActive && effectiveServiceIdSubmit) {
+      const svcRes = await getServiceRecurrenceBilling(effectiveServiceIdSubmit);
+      if (svcRes.error) {
+        setError(svcRes.error);
+        return;
+      }
+      billingModeForRecurrence = svcRes.mode;
+    }
+
     const needsService =
       !recurrenceActive ||
-      recurrence.billingModel === "independent" ||
-      recurrence.billingModel === "treatment_plan";
+      billingModeForRecurrence === "per_session" ||
+      billingModeForRecurrence === "treatment_plan";
 
-    if (needsService && !effectiveServiceId) {
+    if (needsService && !effectiveServiceIdSubmit) {
       setError(
         "Configure o serviço padrão no procedimento (Campos & Procedimentos) ou escolha o serviço na aba Financeiro."
       );
@@ -344,36 +389,21 @@ export function AgendaAppointmentModal({
       const procedureName =
         procedures.find((p) => form.procedureIds.includes(p.id))?.name ?? "Procedimento";
 
-      let valorPerSession: number | null = null;
-      let planTotal: number | null = null;
-      if (recurrence.billingModel === "independent") {
-        valorPerSession =
-          parseFloat(recurrence.valorPerSession.replace(",", ".")) ||
-          finalValor;
-      } else if (recurrence.billingModel === "treatment_plan") {
-        planTotal = parseFloat(recurrence.planTotalAmount.replace(",", ".")) || 0;
-      }
-
       const res = await createRecurringAppointments({
         patientId: form.patientId,
         doctorId: form.doctorId,
         appointmentTypeId: form.appointmentTypeId || null,
         procedureIds: form.procedureIds,
-        serviceId: effectiveServiceId,
+        serviceId: effectiveServiceIdSubmit,
         dimensionValueIds,
         scheduledAtList: slots.map((s) => s.scheduledAt),
         notes: form.notes || null,
         recommendations: form.recommendations || null,
-        requiresFasting: form.requiresFasting,
-        requiresMedicationStop: form.requiresMedicationStop,
         specialInstructions: form.specialInstructions || null,
         preparationNotes: form.preparationNotes || null,
         linkedFormTemplateIds: form.linkedFormTemplateIds.length
           ? form.linkedFormTemplateIds
           : undefined,
-        billingModel: recurrence.billingModel,
-        valorPerSession,
-        planTotalAmount: planTotal,
         procedureNameForPlan: procedureName,
       });
 
@@ -406,13 +436,13 @@ export function AgendaAppointmentModal({
         appointment_type_id: form.appointmentTypeId || null,
         procedure_id: form.procedureIds[0] || null,
         procedure_ids: form.procedureIds,
-        service_id: effectiveServiceId,
+        service_id: effectiveServiceIdSubmit,
         valor: finalValor,
         scheduled_at: scheduledAt,
         notes: form.notes || null,
         recommendations: form.recommendations || null,
-        requires_fasting: form.requiresFasting,
-        requires_medication_stop: form.requiresMedicationStop,
+        requires_fasting: false,
+        requires_medication_stop: false,
         special_instructions: form.specialInstructions || null,
         preparation_notes: form.preparationNotes || null,
         dimension_value_ids: dimensionValueIds,
@@ -431,12 +461,12 @@ export function AgendaAppointmentModal({
         form.notes || null,
         form.recommendations || null,
         form.procedureIds[0] || null,
-        form.requiresFasting,
-        form.requiresMedicationStop,
+        false,
+        false,
         form.specialInstructions || null,
         form.preparationNotes || null,
         form.linkedFormTemplateIds.length ? form.linkedFormTemplateIds : undefined,
-        effectiveServiceId,
+        effectiveServiceIdSubmit,
         finalValor,
         dimensionValueIds.length ? dimensionValueIds : undefined,
         form.procedureIds
@@ -689,19 +719,8 @@ export function AgendaAppointmentModal({
               onRecurrenceChange={(patch) =>
                 setRecurrence((r) => ({ ...r, ...patch }))
               }
-              showBilling={showRecurrenceBilling}
-              defaultValorPerSession={chargePreview?.totalAmount ?? resolvedValor}
               isEdit={isEdit}
             />
-
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={form.requiresFasting} onChange={(e) => setForm((f) => ({ ...f, requiresFasting: e.target.checked }))} />
-              Jejum
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={form.requiresMedicationStop} onChange={(e) => setForm((f) => ({ ...f, requiresMedicationStop: e.target.checked }))} />
-              Suspender medicação
-            </label>
           </div>
         )}
 
@@ -752,12 +771,70 @@ export function AgendaAppointmentModal({
                 </div>
               );
             })}
+            {recurrence.enabled && !isEdit && canSeeRecurrenceBilling && (
+              <div className="rounded-lg border p-4 space-y-2 bg-muted/30">
+                <p className="text-sm font-semibold">Cobrança da série (definida no serviço)</p>
+                {!effectiveServiceId ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Selecione ou detecte o serviço acima para ver o modelo de cobrança.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Serviço:</span>{" "}
+                      {serviceRecurrenceName ?? "—"}
+                    </p>
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Modelo:</span>{" "}
+                      {recurrenceBillingModeLabel(serviceRecurrenceMode)}
+                    </p>
+                    {serviceRecurrenceMode == null && (
+                      <p className="text-xs text-muted-foreground">
+                        Configure o modelo em Serviços e Valores ou a série será agendada sem
+                        valor automático.
+                      </p>
+                    )}
+                    {chargePreview && serviceRecurrenceMode != null && (
+                      <>
+                        <p className="text-sm flex justify-between">
+                          <span className="text-muted-foreground">Valor por sessão</span>
+                          <span className="font-medium">
+                            {(chargePreview.totalAmount).toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })}
+                          </span>
+                        </p>
+                        {serviceRecurrenceMode === "treatment_plan" && (
+                          <p className="text-sm flex justify-between">
+                            <span className="text-muted-foreground">
+                              Valor total do plano ({recurrenceSessionCount} sessões)
+                            </span>
+                            <span className="font-medium">
+                              {(chargePreview.totalAmount * recurrenceSessionCount).toLocaleString(
+                                "pt-BR",
+                                { style: "currency", currency: "BRL" }
+                              )}
+                            </span>
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             {loadingPreview && (
               <p className="text-sm text-muted-foreground">Calculando valores…</p>
             )}
             {chargePreview && !loadingPreview && (
               <div className="rounded-lg border p-4 space-y-2 bg-primary/5">
-                <p className="text-sm font-semibold">Resumo da cobrança</p>
+                <p className="text-sm font-semibold">
+                  {recurrence.enabled && !isEdit
+                    ? "Resumo por sessão (Serviços e Valores)"
+                    : "Resumo da cobrança"}
+                </p>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Serviço</span>
                   <span>

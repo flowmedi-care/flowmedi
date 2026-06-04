@@ -26,7 +26,17 @@ import {
 import { Plus, Pencil, Trash2, Loader2, Briefcase, Sliders, ListChecks, Calculator, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type ServiceRow = { id: string; nome: string; categoria: string | null };
+import {
+  recurrenceBillingModeLabel,
+  type ServiceRecurrenceBillingMode,
+} from "@/lib/recurrence-billing";
+
+type ServiceRow = {
+  id: string;
+  nome: string;
+  categoria: string | null;
+  recurrence_billing_mode: ServiceRecurrenceBillingMode;
+};
 type DimensionRow = { id: string; nome: string; ativo: boolean };
 type DimensionValueRow = { id: string; dimension_id: string; nome: string; ativo: boolean; cor?: string | null };
 type ServicePriceRow = { id: string; service_id: string; professional_id: string | null; valor: number; ativo: boolean };
@@ -164,6 +174,8 @@ function ServicosSection({
   const [isNew, setIsNew] = useState(false);
   const [nome, setNome] = useState("");
   const [categoria, setCategoria] = useState("");
+  const [recurrenceBillingMode, setRecurrenceBillingMode] =
+    useState<ServiceRecurrenceBillingMode>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nome: string } | null>(null);
@@ -175,7 +187,7 @@ function ServicosSection({
     setError(null);
     setLoading(true);
     if (isNew) {
-      const res = await createService(nome, categoria);
+      const res = await createService(nome, categoria, recurrenceBillingMode);
       if (res.error) setError(res.error);
       else {
         setIsNew(false);
@@ -185,7 +197,7 @@ function ServicosSection({
         onMutate();
       }
     } else if (editingId) {
-      const res = await updateService(editingId, nome, categoria);
+      const res = await updateService(editingId, nome, categoria, recurrenceBillingMode);
       if (res.error) setError(res.error);
       else {
         setEditingId(null);
@@ -227,6 +239,7 @@ function ServicosSection({
             setEditingId(null);
             setNome("");
             setCategoria("");
+            setRecurrenceBillingMode(null);
           }}
           disabled={isNew}
         >
@@ -255,6 +268,26 @@ function ServicosSection({
                 />
               </div>
             </div>
+            <div className="space-y-2 max-w-xl">
+              <Label className="text-sm font-medium">Cobrança em série recorrente</Label>
+              <select
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                value={recurrenceBillingMode ?? ""}
+                onChange={(e) =>
+                  setRecurrenceBillingMode(
+                    (e.target.value || null) as ServiceRecurrenceBillingMode
+                  )
+                }
+              >
+                <option value="">Não definir / só agenda</option>
+                <option value="per_session">Por consulta (independente)</option>
+                <option value="treatment_plan">Plano de tratamento (pacote)</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Usado quando a secretária agenda várias sessões de uma vez com procedimento que aponta
+                para este serviço. Valores vêm das regras de preço abaixo, não digitados na agenda.
+              </p>
+            </div>
             <div className="flex gap-2">
               <Button onClick={handleSave} disabled={loading || !nome.trim()}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -267,6 +300,7 @@ function ServicosSection({
                   setEditingId(null);
                   setNome("");
                   setCategoria("");
+                  setRecurrenceBillingMode(null);
                 }}
               >
                 Cancelar
@@ -281,7 +315,12 @@ function ServicosSection({
             title="Nenhum serviço cadastrado"
             description="Cadastre os serviços oferecidos pela clínica para configurar preços e usar na agenda."
             actionLabel="Adicionar primeiro serviço"
-            onAction={() => { setIsNew(true); setNome(""); setCategoria(""); }}
+            onAction={() => {
+              setIsNew(true);
+              setNome("");
+              setCategoria("");
+              setRecurrenceBillingMode(null);
+            }}
           />
         ) : (
           <div className="overflow-x-auto rounded-lg border">
@@ -290,6 +329,7 @@ function ServicosSection({
                 <tr className="bg-muted/40">
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Nome</th>
                   <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Categoria</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Recorrência</th>
                   <th className="w-[100px] py-3 px-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Ações</th>
                 </tr>
               </thead>
@@ -314,6 +354,9 @@ function ServicosSection({
                       <>
                         <td className="py-3 px-4 font-medium">{s.nome}</td>
                         <td className="py-3 px-4 text-muted-foreground">{s.categoria ?? "-"}</td>
+                        <td className="py-3 px-4 text-muted-foreground text-xs">
+                          {recurrenceBillingModeLabel(s.recurrence_billing_mode ?? null)}
+                        </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex justify-end gap-1">
                             <Button
@@ -325,6 +368,7 @@ function ServicosSection({
                                 setIsNew(false);
                                 setNome(s.nome);
                                 setCategoria(s.categoria ?? "");
+                                setRecurrenceBillingMode(s.recurrence_billing_mode ?? null);
                               }}
                               title="Editar"
                             >

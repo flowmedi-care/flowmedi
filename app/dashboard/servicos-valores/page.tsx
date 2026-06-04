@@ -36,7 +36,11 @@ export default async function ServicosValoresPage() {
     servicePricesRes,
     doctorsRes,
   ] = await Promise.all([
-    supabase.from("services").select("id, nome, categoria").eq("clinic_id", clinicId).order("nome"),
+    supabase
+      .from("services")
+      .select("id, nome, categoria, recurrence_billing_mode")
+      .eq("clinic_id", clinicId)
+      .order("nome"),
     supabase.from("price_dimensions").select("id, nome, ativo").eq("clinic_id", clinicId).order("nome"),
     supabase.from("dimension_values").select("id, dimension_id, nome, ativo, cor").eq("clinic_id", clinicId).order("nome"),
     supabase
@@ -46,7 +50,16 @@ export default async function ServicosValoresPage() {
     supabase.from("profiles").select("id, full_name").eq("clinic_id", clinicId).eq("role", "medico").order("full_name"),
   ]);
 
-  const services = servicesRes.data ?? [];
+  const services = (servicesRes.data ?? []).map((s) => ({
+    id: s.id,
+    nome: s.nome,
+    categoria: s.categoria ?? null,
+    recurrence_billing_mode:
+      s.recurrence_billing_mode === "per_session" ||
+      s.recurrence_billing_mode === "treatment_plan"
+        ? s.recurrence_billing_mode
+        : null,
+  }));
   const dimensions = dimensionsRes.data ?? [];
   const dimensionValues = dimensionValuesRes.data ?? [];
   const allServicePrices = servicePricesRes.data ?? [];

@@ -57,7 +57,11 @@ export default async function CamposPersonalizadosPage({
       .from("doctor_procedures")
       .select("procedure_id, doctor_id")
       .eq("clinic_id", profile.clinic_id),
-    supabase.from("services").select("id, nome").eq("clinic_id", profile.clinic_id).order("nome"),
+    supabase
+      .from("services")
+      .select("id, nome, recurrence_billing_mode")
+      .eq("clinic_id", profile.clinic_id)
+      .order("nome"),
     supabase
       .from("products")
       .select("id, name, unit")
@@ -135,7 +139,15 @@ export default async function CamposPersonalizadosPage({
       procedures={procedures}
       doctors={doctors}
       doctorIdsByProcedureId={doctorIdsByProcedureId}
-      services={(servicesRes.data ?? []).map((s) => ({ id: s.id, nome: s.nome }))}
+      services={(servicesRes.data ?? []).map((s) => ({
+        id: s.id,
+        nome: s.nome,
+        recurrence_billing_mode:
+          s.recurrence_billing_mode === "per_session" ||
+          s.recurrence_billing_mode === "treatment_plan"
+            ? s.recurrence_billing_mode
+            : null,
+      }))}
       products={(productsRes.data ?? []).map((p) => ({ id: p.id, name: p.name, unit: p.unit }))}
       fichaTemplates={fichaRes.data ?? []}
       formTemplates={formTemplates}
