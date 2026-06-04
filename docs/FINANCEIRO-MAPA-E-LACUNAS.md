@@ -2,7 +2,7 @@
 
 Documento de referência para entender como o Flowmedi trata o **dinheiro da clínica** (pacientes, fornecedores, comandas, relatórios). Destina-se a admin/secretaria da clínica, produto e desenvolvimento.
 
-> **Fluxo operacional (agenda → estoque → atendimento → cupom → caixa):** ver companion [`FLUXO-OPERACIONAL-COMPLETO.md`](FLUXO-OPERACIONAL-COMPLETO.md).
+> **Fluxo operacional (agenda → estoque → atendimento → cupom → caixa):** [`FLUXO-OPERACIONAL-COMPLETO.md`](FLUXO-OPERACIONAL-COMPLETO.md) · **Status v2:** [`FLUXO-OPERACIONAL-V2-STATUS.md`](FLUXO-OPERACIONAL-V2-STATUS.md)
 
 > **Fora de escopo:** cobrança da assinatura Flowmedi (Stripe), faturamento Meta/WhatsApp e limites de plano SaaS. Isso é outro domínio (“clínica paga o Flowmedi”), não o financeiro operacional descrito aqui.
 

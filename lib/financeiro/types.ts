@@ -7,6 +7,7 @@ export type ExpenseCategory =
   | "laboratorio"
   | "equipamentos"
   | "marketing"
+  | "taxas_bancarias"
   | "outros";
 
 export type PaymentMethod =
@@ -34,6 +35,7 @@ export type FinancialEntryRow = {
   comanda_id: string | null;
   category: ExpenseCategory | null;
   payment_method: string | null;
+  bank_account_id?: string | null;
   created_at: string;
   lens: FinancialLens;
 };

@@ -25,10 +25,12 @@ export function FinanceiroReceberClient({
   openComandas,
   manualReceitas,
   canManage,
+  userRole,
 }: {
   openComandas: OpenComandaRow[];
   manualReceitas: FinancialEntryRow[];
   canManage: boolean;
+  userRole?: string;
 }) {
   const router = useRouter();
   const [payComanda, setPayComanda] = useState<{ id: string; remainder: number } | null>(null);
@@ -47,15 +49,15 @@ export function FinanceiroReceberClient({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <h2 className="font-semibold">Saldo de comandas abertas</h2>
+          <h2 className="font-semibold">Saldo de cupons abertos</h2>
           <p className="text-sm text-muted-foreground">
-            Fonte primária de contas a receber — pacientes com comanda aberta ou parcial.
+            Fonte primária de contas a receber — pacientes com cupom aberto ou parcial.
           </p>
         </CardHeader>
         <CardContent>
           {openComandas.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">
-              Nenhuma comanda aguardando pagamento.
+              Nenhum cupom aguardando pagamento.
             </p>
           ) : (
             <>
@@ -144,7 +146,7 @@ export function FinanceiroReceberClient({
         <CardHeader>
           <h2 className="font-semibold">Receitas manuais pendentes</h2>
           <p className="text-sm text-muted-foreground">
-            Lançamentos manuais ainda não recebidos — separados do saldo de comandas.
+            Lançamentos manuais ainda não recebidos — separados do saldo de cupons.
           </p>
         </CardHeader>
         <CardContent>
@@ -200,9 +202,11 @@ export function FinanceiroReceberClient({
                     patient_name: cancelTarget.patient_name,
                     total_amount: cancelTarget.total_amount,
                     paid_amount: cancelTarget.paid_amount,
+                    status: cancelTarget.status,
                   }
                 : null
             }
+            userRole={userRole}
             onClose={() => setCancelTarget(null)}
           />
         </>

@@ -13,7 +13,12 @@ export default async function ReciboPrintPage({
   if (error || !data) notFound();
 
   return (
-    <div className="max-w-lg mx-auto py-10 px-4 space-y-6 print:py-4">
+    <div className="max-w-lg mx-auto py-10 px-4 space-y-6 print:py-4 relative">
+      {data.voided_at && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none print:block">
+          <p className="text-4xl font-bold text-destructive/30 rotate-[-20deg]">CANCELADO</p>
+        </div>
+      )}
       <div className="text-center space-y-1 border-b pb-4">
         <h1 className="text-xl font-semibold">Recibo de pagamento</h1>
         <p className="text-sm text-muted-foreground">{data.receipt_number}</p>
@@ -27,6 +32,12 @@ export default async function ReciboPrintPage({
           <dt className="text-muted-foreground">Valor recebido</dt>
           <dd className="font-semibold text-lg">{fmtCurrency(data.amount)}</dd>
         </div>
+        {data.credit_applied != null && data.credit_applied > 0 && (
+          <div className="flex justify-between">
+            <dt className="text-muted-foreground">Crédito aplicado</dt>
+            <dd className="text-green-700">-{fmtCurrency(data.credit_applied)}</dd>
+          </div>
+        )}
         {data.payment_method && (
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Forma</dt>
@@ -45,7 +56,7 @@ export default async function ReciboPrintPage({
       <p className="text-xs text-muted-foreground text-center pt-4">
         Documento gerado pelo Flowmedi — comprovante interno, não substitui NF-e/NFC-e.
       </p>
-      <ReciboPrintActions />
+      <ReciboPrintActions receiptId={id} pdfUrl={data.pdf_url} />
     </div>
   );
 }

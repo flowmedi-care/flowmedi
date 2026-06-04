@@ -27,6 +27,7 @@ export default async function FinanceiroPage({
           openComandas={data.openComandas}
           suppliers={data.suppliers}
           canManage={data.canManage}
+          userRole={data.userRole}
         />
       </Suspense>
     </div>

@@ -26,6 +26,14 @@ export default async function PacientePerfilPage({
   if (error || !bundle) notFound();
 
   const canEdit = profile.role === "admin" || profile.role === "secretaria" || profile.role === "medico";
+  const canCancelCupom = profile.role === "admin" || profile.role === "secretaria";
 
-  return <PacientePerfilClient bundle={bundle} canEdit={canEdit} />;
+  return (
+    <PacientePerfilClient
+      bundle={bundle}
+      canEdit={canEdit}
+      canCancelCupom={canCancelCupom}
+      userRole={profile.role}
+    />
+  );
 }

@@ -176,26 +176,41 @@ export async function resolvePaymentFee(
   options?: { card_brand?: string | null; installments?: number }
 ) {
   const supabase = await createClient();
-  if (paymentMethod !== "cartao") {
+  const method = paymentMethod === "credit" || paymentMethod === "debit" ? "cartao" : paymentMethod;
+  if (method !== "cartao") {
     return { feePercent: 0, ...calculatePaymentFee(grossAmount, 0) };
   }
 
   const installments = options?.installments ?? 1;
   const brand = options?.card_brand?.trim() || null;
 
-  let query = supabase
-    .from("payment_fee_rules")
-    .select("fee_percent")
-    .eq("clinic_id", clinicId)
-    .eq("payment_method", "cartao")
-    .eq("installments", installments)
-    .eq("active", true);
-
-  if (brand) {
-    query = query.eq("card_brand", brand);
+  async function lookupFee(cardBrand: string | null) {
+    let query = supabase
+      .from("payment_fee_rules")
+      .select("fee_percent")
+      .eq("clinic_id", clinicId)
+      .eq("payment_method", "cartao")
+      .eq("installments", installments)
+      .eq("active", true);
+    if (cardBrand) {
+      query = query.eq("card_brand", cardBrand);
+    } else {
+      query = query.is("card_brand", null);
+    }
+    const { data: rules } = await query.limit(1);
+    return rules?.[0] ? Number(rules[0].fee_percent) : null;
   }
 
-  const { data: rules } = await query.limit(1);
-  const feePercent = rules?.[0] ? Number(rules[0].fee_percent) : 0;
+  let feePercent = brand ? await lookupFee(brand) : null;
+  if (feePercent == null && brand) {
+    feePercent = await lookupFee(null);
+  }
+  if (feePercent == null) {
+    feePercent = 0;
+    console.warn(
+      `[resolvePaymentFee] Taxa não configurada — clinic=${clinicId} brand=${brand ?? "any"} installments=${installments}; fee=0`
+    );
+  }
+
   return { feePercent, ...calculatePaymentFee(grossAmount, feePercent) };
 }

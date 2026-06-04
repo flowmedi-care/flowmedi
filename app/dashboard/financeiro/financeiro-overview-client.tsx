@@ -23,6 +23,7 @@ export function FinanceiroOverviewClient({
   openComandas,
   suppliers,
   canManage,
+  userRole,
 }: {
   year: number;
   month: number;
@@ -30,6 +31,7 @@ export function FinanceiroOverviewClient({
   openComandas: OpenComandaRow[];
   suppliers: SupplierOption[];
   canManage: boolean;
+  userRole?: string;
 }) {
   const [showForm, setShowForm] = useState(false);
   const [payComanda, setPayComanda] = useState<{ id: string; remainder: number } | null>(null);
@@ -52,7 +54,7 @@ export function FinanceiroOverviewClient({
           title="Receita Faturada (Competência)"
           lens="Competência"
           value={fmtCurrency(metrics.receitaFaturada)}
-          subtitle="Valor cobrado aos pacientes, por data de fechamento da comanda."
+          subtitle="Valor cobrado aos pacientes, por emissão do cupom."
         />
         <MetricCard
           title="Entradas no Caixa"
@@ -64,7 +66,7 @@ export function FinanceiroOverviewClient({
           title="A Receber"
           lens="AR"
           value={fmtCurrency(metrics.aReceber)}
-          subtitle="Comandas abertas aguardando pagamento."
+          subtitle="Cupons abertos aguardando pagamento."
         />
       </div>
 
@@ -97,7 +99,7 @@ export function FinanceiroOverviewClient({
 
       <Card>
         <CardHeader>
-          <h2 className="font-semibold">Comandas em aberto</h2>
+          <h2 className="font-semibold">Cupons em aberto</h2>
           <p className="text-sm text-muted-foreground">
             Contas a receber — saldo pendente de pacientes.
           </p>
@@ -105,7 +107,7 @@ export function FinanceiroOverviewClient({
         <CardContent>
           {openComandas.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">
-              Nenhuma comanda em aberto.
+              Nenhum cupom em aberto.
             </p>
           ) : (
             <>
@@ -213,9 +215,11 @@ export function FinanceiroOverviewClient({
                     patient_name: cancelTarget.patient_name,
                     total_amount: cancelTarget.total_amount,
                     paid_amount: cancelTarget.paid_amount,
+                    status: cancelTarget.status,
                   }
                 : null
             }
+            userRole={userRole}
             onClose={() => setCancelTarget(null)}
           />
         </>

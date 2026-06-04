@@ -1256,7 +1256,7 @@ export async function updateAppointment(
 
   const { data: currentRow } = await supabase
     .from("appointments")
-    .select("clinic_id, status, scheduled_at, doctor_id, patient_id, started_at")
+    .select("clinic_id, status, scheduled_at, doctor_id, patient_id, started_at, treatment_plan_id")
     .eq("id", id)
     .single();
 
@@ -1334,6 +1334,14 @@ export async function updateAppointment(
         await releaseStockForAppointment(supabase, currentRow.clinic_id, id, user.id);
       } catch (e) {
         console.error("[updateAppointment] stock release:", e);
+      }
+      if (currentRow.treatment_plan_id) {
+        try {
+          const { recalcTreatmentPlanSessionsUsed } = await import("./treatment-plan-actions");
+          await recalcTreatmentPlanSessionsUsed(String(currentRow.treatment_plan_id));
+        } catch (e) {
+          console.error("[updateAppointment] plan sessions recalc:", e);
+        }
       }
     }
   }

@@ -108,10 +108,11 @@ export async function getDashboardMetrics(year: number, month: number) {
       .neq("status", "cancelada"),
     supabase
       .from("patient_payments")
-      .select("amount, paid_at")
+      .select("amount, gross_amount, paid_at, plan_prepaid, refunded_at, payment_method")
       .eq("clinic_id", profile.clinic_id)
       .gte("paid_at", startIso)
-      .lte("paid_at", endIso),
+      .lte("paid_at", endIso)
+      .is("refunded_at", null),
     supabase
       .from("comandas")
       .select("total_amount, paid_amount")
@@ -140,7 +141,11 @@ export async function getDashboardMetrics(year: number, month: number) {
     }
   }
 
-  const entradasCaixa = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
+  const entradasCaixa = (payments ?? []).reduce((s, p) => {
+    if (p.plan_prepaid) return s;
+    if (p.payment_method === "credito_interno") return s;
+    return s + Number(p.gross_amount ?? p.amount);
+  }, 0);
   const saidasCaixa = (paidExpenses ?? []).reduce((s, e) => s + Number(e.amount), 0);
 
   let aReceber = 0;

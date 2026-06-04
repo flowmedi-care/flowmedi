@@ -7,7 +7,9 @@ import {
   computeBillingFromLines,
   consumeStockForAppointment,
   hasStockBeenConsumed,
+  releaseStockForAppointment,
 } from "@/lib/clinic-operations";
+import { recordPaymentAccounting, recordRefundAccounting } from "@/lib/financeiro/payment-accounting";
 import { resolveAppointmentPrice } from "./actions";
 import { provisionAppointmentFichas } from "@/lib/clinical-fichas-provision";
 
@@ -33,6 +35,10 @@ export type EmitComandaOptions = {
   paymentAmount?: number;
   paymentMethod?: string;
   paidAt?: string;
+  bank_account_id?: string;
+  card_brand?: string;
+  installments?: number;
+  generate_receipt?: boolean;
 };
 
 export type AppointmentComandaSummary = {
@@ -450,6 +456,37 @@ export async function getComandaDetail(comandaId: string) {
   };
 }
 
+export async function getComandaPaymentContext(comandaId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: null };
+
+  const { data: cmd } = await supabase
+    .from("comandas")
+    .select("id, patient_id, total_amount, paid_amount, status, patient:patients(full_name)")
+    .eq("id", comandaId)
+    .single();
+
+  if (!cmd) return { error: "Cupom não encontrado.", data: null };
+
+  const patient = Array.isArray(cmd.patient) ? cmd.patient[0] : cmd.patient;
+  const total = Number(cmd.total_amount);
+  const paid = Number(cmd.paid_amount);
+
+  return {
+    error: null,
+    data: {
+      comanda_id: String(cmd.id),
+      patient_id: String(cmd.patient_id),
+      patient_name: (patient as { full_name?: string })?.full_name ?? "—",
+      remainder: Math.max(0, total - paid),
+      status: String(cmd.status),
+    },
+  };
+}
+
 export async function registerComandaPayment(
   comandaId: string,
   amount: number,
@@ -460,6 +497,8 @@ export async function registerComandaPayment(
     card_brand?: string;
     installments?: number;
     generate_receipt?: boolean;
+    credit_amount?: number;
+    credit_id?: string;
   }
 ) {
   const supabase = await createClient();
@@ -472,8 +511,24 @@ export async function registerComandaPayment(
     .eq("id", user.id)
     .single();
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
-  if (profile.role !== "admin" && profile.role !== "secretaria") {
+  if (
+    profile.role !== "admin" &&
+    profile.role !== "secretaria" &&
+    profile.role !== "medico"
+  ) {
     return { error: "Sem permissão." };
+  }
+
+  const cashAmount = Math.max(0, Number(amount));
+  const creditAmount = Math.max(0, Number(options?.credit_amount ?? 0));
+  if (cashAmount <= 0 && creditAmount <= 0) {
+    return { error: "Informe valor em dinheiro ou crédito." };
+  }
+  if (cashAmount > 0 && !options?.bank_account_id) {
+    return { error: "Selecione a conta bancária do recebimento." };
+  }
+  if (creditAmount > 0 && !options?.credit_id) {
+    return { error: "Crédito inválido." };
   }
 
   const { data: cmd } = await supabase
@@ -488,13 +543,88 @@ export async function registerComandaPayment(
     0,
     Number(cmd.total_amount) - Number(cmd.paid_amount)
   );
-  if (amount > remainder + 0.009) {
+  const totalPay = cashAmount + creditAmount;
+  if (totalPay > remainder + 0.009) {
     return {
       error: `Valor máximo a receber: R$ ${remainder.toFixed(2).replace(".", ",")}.`,
     };
   }
 
-  const newPaid = Number(cmd.paid_amount) + amount;
+  const paymentTimestamp = paidAt
+    ? new Date(paidAt + (paidAt.length <= 10 ? "T12:00:00" : "")).toISOString()
+    : new Date().toISOString();
+
+  let creditPayRow: { id: string } | null = null;
+
+  if (creditAmount > 0 && options?.credit_id) {
+    const { applyPatientCredit } = await import("../financeiro/patient-credit-actions");
+    const creditRes = await applyPatientCredit({
+      creditId: options.credit_id,
+      patientId: cmd.patient_id,
+      amount: creditAmount,
+      comandaId,
+    });
+    if (creditRes.error) return { error: creditRes.error };
+
+    const { data: insertedCreditPay } = await supabase
+      .from("patient_payments")
+      .insert({
+        clinic_id: profile.clinic_id,
+        comanda_id: comandaId,
+        patient_id: cmd.patient_id,
+        amount: creditAmount,
+        gross_amount: creditAmount,
+        fee_amount: 0,
+        net_amount: creditAmount,
+        payment_method: "credito_interno",
+        plan_prepaid: false,
+        paid_at: paymentTimestamp,
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
+    creditPayRow = insertedCreditPay;
+  }
+
+  if (cashAmount <= 0) {
+    const newPaid = Number(cmd.paid_amount) + creditAmount;
+    const total = Number(cmd.total_amount);
+    const newStatus =
+      newPaid >= total && total > 0 ? "paga" : newPaid > 0 ? "parcial" : cmd.status;
+
+    await supabase
+      .from("comandas")
+      .update({
+        paid_amount: newPaid,
+        status: newStatus,
+        closed_at: newStatus === "paga" ? paymentTimestamp : undefined,
+      })
+      .eq("id", comandaId);
+
+    if (newStatus === "paga" && cmd.appointment_id) {
+      await supabase
+        .from("encounters")
+        .update({ status: "cobrado", updated_at: paymentTimestamp })
+        .eq("appointment_id", cmd.appointment_id);
+    }
+
+    let receiptNumber: string | null = null;
+    let receiptId: string | null = null;
+    if (options?.generate_receipt !== false && creditPayRow?.id) {
+      const { generateReceiptForPayment } = await import("../financeiro/receipt-actions");
+      const rec = await generateReceiptForPayment(String(creditPayRow.id));
+      if (!rec.error) {
+        receiptNumber = rec.receiptNumber ?? null;
+        receiptId = rec.receiptId ?? null;
+      }
+    }
+
+    revalidatePath("/dashboard/financeiro");
+    revalidatePath(`/dashboard/pacientes/${cmd.patient_id}`);
+    return { error: null, receiptId, receiptNumber, paymentId: creditPayRow?.id ? String(creditPayRow.id) : null };
+  }
+
+  const newPaid = Number(cmd.paid_amount) + creditAmount + cashAmount;
   const total = Number(cmd.total_amount);
   const newStatus =
     newPaid >= total && total > 0 ? "paga" : newPaid > 0 ? "parcial" : cmd.status;
@@ -504,7 +634,7 @@ export async function registerComandaPayment(
     .update({
       paid_amount: newPaid,
       status: newStatus,
-      closed_at: newStatus === "paga" ? new Date().toISOString() : undefined,
+      closed_at: newStatus === "paga" ? paymentTimestamp : undefined,
     })
     .eq("id", comandaId);
 
@@ -513,19 +643,15 @@ export async function registerComandaPayment(
   if (newStatus === "paga" && cmd.appointment_id) {
     await supabase
       .from("encounters")
-      .update({ status: "cobrado", updated_at: new Date().toISOString() })
+      .update({ status: "cobrado", updated_at: paymentTimestamp })
       .eq("appointment_id", cmd.appointment_id);
   }
-
-  const paymentTimestamp = paidAt
-    ? new Date(paidAt + (paidAt.length <= 10 ? "T12:00:00" : "")).toISOString()
-    : new Date().toISOString();
 
   const { resolvePaymentFee } = await import("../financeiro/bank-account-actions");
   const feeCalc = await resolvePaymentFee(
     profile.clinic_id,
     paymentMethod ?? "pix",
-    amount,
+    cashAmount,
     { card_brand: options?.card_brand, installments: options?.installments }
   );
   const netAmount = feeCalc.netAmount;
@@ -536,8 +662,8 @@ export async function registerComandaPayment(
       clinic_id: profile.clinic_id,
       comanda_id: comandaId,
       patient_id: cmd.patient_id,
-      amount,
-      gross_amount: amount,
+      amount: cashAmount,
+      gross_amount: cashAmount,
       fee_amount: feeCalc.feeAmount,
       net_amount: netAmount,
       bank_account_id: options?.bank_account_id ?? null,
@@ -552,18 +678,20 @@ export async function registerComandaPayment(
 
   if (payErr) return { error: payErr.message };
 
-  await supabase.from("financial_entries").insert({
-    clinic_id: profile.clinic_id,
-    entry_type: "receita",
-    origin: "patient",
-    description: "Pagamento comanda",
-    amount: netAmount,
-    paid_at: paymentTimestamp,
-    status: "pago",
-    patient_id: cmd.patient_id,
-    comanda_id: comandaId,
-    created_by: user.id,
+  const accountingRes = await recordPaymentAccounting(supabase, {
+    clinicId: profile.clinic_id,
+    patientId: cmd.patient_id,
+    comandaId,
+    grossAmount: cashAmount,
+    feeAmount: feeCalc.feeAmount,
+    bankAccountId: options?.bank_account_id,
+    paymentMethod: paymentMethod ?? null,
+    cardBrand: options?.card_brand,
+    installments: options?.installments,
+    paidAt: paymentTimestamp,
+    createdBy: user.id,
   });
+  if (accountingRes.error) return { error: accountingRes.error };
 
   let receiptNumber: string | null = null;
   let receiptId: string | null = null;
@@ -702,26 +830,37 @@ export async function emitComanda(appointmentId: string, options?: EmitComandaOp
     .maybeSingle();
 
   if (existingComanda) {
-    return { error: "Já existe comanda para esta consulta.", comandaId: existingComanda.id };
-  }
-
-  const { data: enc } = await supabase
-    .from("encounters")
-    .select("id, status")
-    .eq("appointment_id", appointmentId)
-    .maybeSingle();
-
-  if (!enc || enc.status !== "finalizado_aguardando_cobranca") {
-    return { error: "Encerre o atendimento clínico antes de emitir a comanda." };
+    return { error: "Já existe cupom para esta consulta.", comandaId: existingComanda.id };
   }
 
   const { data: appt } = await supabase
     .from("appointments")
-    .select("id, patient_id, service_id, valor, clinic_id, status")
+    .select(
+      "id, patient_id, service_id, valor, clinic_id, status, payment_policy, treatment_plan_id, session_number"
+    )
     .eq("id", appointmentId)
     .single();
 
   if (!appt) return { error: "Consulta não encontrada." };
+
+  const policy = appt.payment_policy as PaymentPolicy | null;
+  const earlyEmit = policy === "antecipado" || policy === "no_dia";
+
+  let enc = await supabase
+    .from("encounters")
+    .select("id, status")
+    .eq("appointment_id", appointmentId)
+    .maybeSingle()
+    .then((r) => r.data);
+
+  if (!enc) {
+    enc = await ensureEncounter(supabase, profile.clinic_id, appointmentId);
+  }
+  if (!enc) return { error: "Erro ao preparar atendimento." };
+
+  if (!earlyEmit && enc.status !== "finalizado_aguardando_cobranca") {
+    return { error: "Encerre o atendimento clínico antes de emitir o cupom." };
+  }
 
   const chargeMaterialsSeparately = options?.chargeMaterialsSeparately !== false;
   const previewRes = await buildBillingPreviewData(supabase, appointmentId, {
@@ -734,9 +873,44 @@ export async function emitComanda(appointmentId: string, options?: EmitComandaOp
   }
 
   const billing = previewRes.data;
-  const totalAmount = billing.totalAmount;
-  const serviceAmount = billing.serviceAmount;
-  const paymentAmount = Math.max(0, options?.paymentAmount ?? 0);
+  let totalAmount = billing.totalAmount;
+  let serviceAmount = billing.serviceAmount;
+  let sessionRevenueAmount: number | null = null;
+  let treatmentPlanId: string | null = null;
+  let planPrepaid = false;
+  let prepaidPaidAmount = 0;
+
+  if (appt.treatment_plan_id) {
+    const { data: plan } = await supabase
+      .from("treatment_plans")
+      .select("id, total_amount, sessions_total, paid_amount, payment_policy")
+      .eq("id", appt.treatment_plan_id)
+      .single();
+
+    if (plan && plan.sessions_total > 0) {
+      sessionRevenueAmount = Number(
+        (Number(plan.total_amount) / Number(plan.sessions_total)).toFixed(2)
+      );
+      totalAmount = sessionRevenueAmount;
+      serviceAmount = sessionRevenueAmount;
+      treatmentPlanId = String(plan.id);
+
+      if (
+        (plan.payment_policy === "antecipado" ||
+          (plan.payment_policy as string) === "a_vista") &&
+        Number(plan.paid_amount) >= Number(plan.total_amount)
+      ) {
+        planPrepaid = true;
+        prepaidPaidAmount = sessionRevenueAmount;
+      }
+    }
+  }
+
+  let paymentAmount = Math.max(0, options?.paymentAmount ?? 0);
+  if (planPrepaid) {
+    paymentAmount = prepaidPaidAmount;
+  }
+
   const issuedAt = new Date().toISOString();
 
   const comandaStatus =
@@ -746,25 +920,31 @@ export async function emitComanda(appointmentId: string, options?: EmitComandaOp
         ? "parcial"
         : "aberta";
 
+  const comandaInsert: Record<string, unknown> = {
+    clinic_id: profile.clinic_id,
+    appointment_id: appointmentId,
+    patient_id: appt.patient_id,
+    encounter_id: enc.id,
+    subtotal_amount: planPrepaid ? totalAmount : billing.subtotalAmount,
+    discount_amount: planPrepaid ? 0 : billing.discountAmount,
+    discount_percent: planPrepaid ? null : (options?.discountPercent ?? null),
+    charge_materials_separately: chargeMaterialsSeparately,
+    total_amount: totalAmount,
+    paid_amount: paymentAmount,
+    status: comandaStatus,
+    issued_at: issuedAt,
+    closed_at: comandaStatus === "paga" ? issuedAt : null,
+    notes: options?.notes?.trim() || null,
+    created_by: user.id,
+  };
+  if (treatmentPlanId) {
+    comandaInsert.treatment_plan_id = treatmentPlanId;
+    comandaInsert.session_revenue_amount = sessionRevenueAmount;
+  }
+
   const { data: comanda, error: comandaErr } = await supabase
     .from("comandas")
-    .insert({
-      clinic_id: profile.clinic_id,
-      appointment_id: appointmentId,
-      patient_id: appt.patient_id,
-      encounter_id: enc.id,
-      subtotal_amount: billing.subtotalAmount,
-      discount_amount: billing.discountAmount,
-      discount_percent: options?.discountPercent ?? null,
-      charge_materials_separately: chargeMaterialsSeparately,
-      total_amount: totalAmount,
-      paid_amount: paymentAmount,
-      status: comandaStatus,
-      issued_at: issuedAt,
-      closed_at: comandaStatus === "paga" ? issuedAt : null,
-      notes: options?.notes?.trim() || null,
-      created_by: user.id,
-    })
+    .insert(comandaInsert)
     .select("id")
     .single();
 
@@ -776,18 +956,32 @@ export async function emitComanda(appointmentId: string, options?: EmitComandaOp
       .select("nome")
       .eq("id", appt.service_id)
       .single();
+    const desc =
+      treatmentPlanId && appt.session_number
+        ? `${svc?.nome ?? "Sessão"} — sessão ${appt.session_number}`
+        : svc?.nome ?? "Serviço";
     await supabase.from("comanda_items").insert({
       comanda_id: comanda!.id,
       item_type: "service",
-      description: svc?.nome ?? "Serviço",
+      description: desc,
       quantity: 1,
       unit_price: serviceAmount,
       total_price: serviceAmount,
       reference_id: appt.service_id,
     });
+  } else if (treatmentPlanId && serviceAmount > 0) {
+    await supabase.from("comanda_items").insert({
+      comanda_id: comanda!.id,
+      item_type: "service",
+      description: `Sessão ${appt.session_number ?? "—"} do plano`,
+      quantity: 1,
+      unit_price: serviceAmount,
+      total_price: serviceAmount,
+      reference_id: null,
+    });
   }
 
-  if (chargeMaterialsSeparately) {
+  if (chargeMaterialsSeparately && !planPrepaid) {
     const { data: consumption } = await supabase
       .from("appointment_consumption_lines")
       .select("id, product_id, quantity, products(name, cost, sale_price)")
@@ -819,6 +1013,11 @@ export async function emitComanda(appointmentId: string, options?: EmitComandaOp
     .update({ valor: totalAmount, updated_at: issuedAt })
     .eq("id", appointmentId);
 
+  if (treatmentPlanId && appt.session_number) {
+    const { recalcTreatmentPlanSessionsUsed } = await import("./treatment-plan-actions");
+    await recalcTreatmentPlanSessionsUsed(treatmentPlanId);
+  }
+
   if (comandaStatus === "paga") {
     await supabase
       .from("encounters")
@@ -826,35 +1025,86 @@ export async function emitComanda(appointmentId: string, options?: EmitComandaOp
       .eq("appointment_id", appointmentId);
   }
 
-  if (paymentAmount > 0 && comanda) {
+  let receiptId: string | null = null;
+  let receiptNumber: string | null = null;
+
+  if (planPrepaid && comanda) {
+    await supabase.from("patient_payments").insert({
+      clinic_id: profile.clinic_id,
+      comanda_id: comanda.id,
+      patient_id: appt.patient_id,
+      amount: prepaidPaidAmount,
+      gross_amount: prepaidPaidAmount,
+      fee_amount: 0,
+      net_amount: prepaidPaidAmount,
+      plan_prepaid: true,
+      paid_at: issuedAt,
+      created_by: user.id,
+    });
+  } else if (paymentAmount > 0 && comanda) {
     const paymentTimestamp = options?.paidAt
       ? new Date(
           options.paidAt + (options.paidAt.length <= 10 ? "T12:00:00" : "")
         ).toISOString()
       : issuedAt;
 
-    await supabase.from("patient_payments").insert({
-      clinic_id: profile.clinic_id,
-      comanda_id: comanda.id,
-      patient_id: appt.patient_id,
-      amount: paymentAmount,
-      payment_method: options?.paymentMethod ?? null,
-      paid_at: paymentTimestamp,
-      created_by: user.id,
-    });
+    if (!options?.bank_account_id) {
+      return { error: "Selecione a conta bancária para registrar o pagamento." };
+    }
 
-    await supabase.from("financial_entries").insert({
-      clinic_id: profile.clinic_id,
-      entry_type: "receita",
-      origin: "patient",
-      description: "Pagamento comanda",
-      amount: paymentAmount,
-      paid_at: paymentTimestamp,
-      status: "pago",
-      patient_id: appt.patient_id,
-      comanda_id: comanda.id,
-      created_by: user.id,
+    const { resolvePaymentFee } = await import("../financeiro/bank-account-actions");
+    const feeCalc = await resolvePaymentFee(
+      profile.clinic_id,
+      options?.paymentMethod ?? "pix",
+      paymentAmount,
+      { card_brand: options?.card_brand, installments: options?.installments }
+    );
+
+    const { data: paymentRow, error: payErr } = await supabase
+      .from("patient_payments")
+      .insert({
+        clinic_id: profile.clinic_id,
+        comanda_id: comanda.id,
+        patient_id: appt.patient_id,
+        amount: paymentAmount,
+        gross_amount: paymentAmount,
+        fee_amount: feeCalc.feeAmount,
+        net_amount: feeCalc.netAmount,
+        bank_account_id: options.bank_account_id,
+        installments: options?.installments ?? 1,
+        card_brand: options?.card_brand ?? null,
+        payment_method: options?.paymentMethod ?? null,
+        paid_at: paymentTimestamp,
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
+
+    if (payErr) return { error: payErr.message };
+
+    const accountingRes = await recordPaymentAccounting(supabase, {
+      clinicId: profile.clinic_id,
+      patientId: appt.patient_id,
+      comandaId: String(comanda.id),
+      grossAmount: paymentAmount,
+      feeAmount: feeCalc.feeAmount,
+      bankAccountId: options.bank_account_id,
+      paymentMethod: options?.paymentMethod ?? null,
+      cardBrand: options?.card_brand,
+      installments: options?.installments,
+      paidAt: paymentTimestamp,
+      createdBy: user.id,
     });
+    if (accountingRes.error) return { error: accountingRes.error };
+
+    if (options?.generate_receipt !== false && paymentRow?.id) {
+      const { generateReceiptForPayment } = await import("../financeiro/receipt-actions");
+      const rec = await generateReceiptForPayment(String(paymentRow.id), String(comanda.id));
+      if (!rec.error) {
+        receiptNumber = rec.receiptNumber ?? null;
+        receiptId = rec.receiptId ?? null;
+      }
+    }
   }
 
   revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
@@ -867,7 +1117,14 @@ export async function emitComanda(appointmentId: string, options?: EmitComandaOp
   revalidatePath(`/dashboard/pacientes/${appt.patient_id}`);
 
   const detail = await getComandaDetail(comanda!.id);
-  return { error: null, comandaId: comanda?.id, comanda: detail.data, billing: previewRes.data };
+  return {
+    error: null,
+    comandaId: comanda?.id,
+    comanda: detail.data,
+    billing: previewRes.data,
+    receiptId,
+    receiptNumber,
+  };
 }
 
 export async function finalizeBilling(
@@ -1054,8 +1311,14 @@ export async function listOpenComandas() {
   };
 }
 
-// FINANCEIRO FASE 1 — ITEM 5: cancelamento de comanda
-export async function cancelComanda(comandaId: string, reason?: string) {
+// FINANCEIRO FASE 1 — ITEM 5: cancelamento de cupom (com estorno/crédito/perda)
+
+export type CancellationType = "estorno" | "credito" | "perda";
+
+export async function cancelComanda(
+  comandaId: string,
+  options?: { reason?: string; cancellationType?: CancellationType }
+) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -1074,21 +1337,97 @@ export async function cancelComanda(comandaId: string, reason?: string) {
 
   const { data: cmd } = await supabase
     .from("comandas")
-    .select("id, status, patient_id, appointment_id, total_amount, paid_amount")
+    .select(
+      "id, status, patient_id, appointment_id, total_amount, paid_amount, treatment_plan_id"
+    )
     .eq("id", comandaId)
     .eq("clinic_id", profile.clinic_id)
     .single();
 
-  if (!cmd) return { error: "Comanda não encontrada." };
-  if (cmd.status === "cancelada") return { error: "Comanda já cancelada." };
+  if (!cmd) return { error: "Cupom não encontrado." };
+  if (cmd.status === "cancelada") return { error: "Cupom já cancelado." };
+
+  const paidAmount = Number(cmd.paid_amount);
+  const cancellationType = options?.cancellationType;
+
+  if (paidAmount > 0 && !cancellationType) {
+    return {
+      error: "Informe como tratar o valor já recebido: estorno, crédito ou perda.",
+    };
+  }
+
+  if (cancellationType === "estorno" && profile.role !== "admin") {
+    return { error: "Somente administrador pode registrar estorno no caixa." };
+  }
 
   const now = new Date().toISOString();
+
+  if (paidAmount > 0 && cancellationType === "estorno") {
+    const { data: payments } = await supabase
+      .from("patient_payments")
+      .select("id, amount, gross_amount, bank_account_id, plan_prepaid, payment_method")
+      .eq("comanda_id", comandaId)
+      .eq("plan_prepaid", false);
+
+    let refundTotal = 0;
+    for (const p of payments ?? []) {
+      if (p.plan_prepaid) continue;
+      if (p.payment_method === "credito_interno") continue;
+      const gross = Number(p.gross_amount ?? p.amount);
+      refundTotal += gross;
+      const bankId = p.bank_account_id ? String(p.bank_account_id) : null;
+      const refundRes = await recordRefundAccounting(supabase, {
+        clinicId: profile.clinic_id,
+        patientId: cmd.patient_id,
+        comandaId,
+        amount: gross,
+        bankAccountId: bankId,
+        paidAt: now,
+        createdBy: user.id,
+        description: "Estorno cupom cancelado",
+      });
+      if (refundRes.error) return { error: refundRes.error };
+
+      await supabase
+        .from("patient_payments")
+        .update({ refunded_at: now })
+        .eq("id", p.id);
+
+      const { voidReceiptsForPayment } = await import("../financeiro/receipt-actions");
+      await voidReceiptsForPayment(String(p.id));
+    }
+
+    if (refundTotal <= 0 && paidAmount > 0) {
+      await recordRefundAccounting(supabase, {
+        clinicId: profile.clinic_id,
+        patientId: cmd.patient_id,
+        comandaId,
+        amount: paidAmount,
+        paidAt: now,
+        createdBy: user.id,
+        description: "Estorno cupom cancelado",
+      });
+    }
+  }
+
+  if (paidAmount > 0 && cancellationType === "credito") {
+    const { createPatientCredit } = await import("../financeiro/patient-credit-actions");
+    const creditRes = await createPatientCredit({
+      patientId: cmd.patient_id,
+      amount: paidAmount,
+      originComandaId: comandaId,
+      notes: options?.reason?.trim() || "Crédito por cancelamento de cupom",
+    });
+    if (creditRes.error) return { error: creditRes.error };
+  }
+
   const { error: updErr } = await supabase
     .from("comandas")
     .update({
       status: "cancelada",
       cancelled_at: now,
-      cancelled_reason: reason?.trim() || null,
+      cancelled_reason: options?.reason?.trim() || null,
+      cancellation_type: cancellationType ?? null,
     })
     .eq("id", comandaId);
 
@@ -1099,6 +1438,27 @@ export async function cancelComanda(comandaId: string, reason?: string) {
     .update({ status: "cancelado" })
     .eq("comanda_id", comandaId)
     .neq("status", "cancelado");
+
+  if (cmd.appointment_id) {
+    const consumed = await hasStockBeenConsumed(supabase, cmd.appointment_id);
+    if (!consumed) {
+      try {
+        await releaseStockForAppointment(
+          supabase,
+          profile.clinic_id,
+          cmd.appointment_id,
+          user.id
+        );
+      } catch (e) {
+        console.error("[cancelComanda] stock release:", e);
+      }
+    }
+  }
+
+  if (cmd.treatment_plan_id) {
+    const { recalcTreatmentPlanSessionsUsed } = await import("./treatment-plan-actions");
+    await recalcTreatmentPlanSessionsUsed(String(cmd.treatment_plan_id));
+  }
 
   revalidatePath("/dashboard/financeiro");
   revalidatePath("/dashboard/financeiro/receber");
@@ -1111,7 +1471,7 @@ export async function cancelComanda(comandaId: string, reason?: string) {
 
   return {
     error: null,
-    paidAmount: Number(cmd.paid_amount),
+    paidAmount,
     totalAmount: Number(cmd.total_amount),
   };
 }

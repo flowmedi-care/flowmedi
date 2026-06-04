@@ -4,6 +4,8 @@ Documento de referência para **agenda → estoque → atendimento → cupom →
 
 Complementa [`FINANCEIRO-MAPA-E-LACUNAS.md`](FINANCEIRO-MAPA-E-LACUNAS.md) (lentes Previsto / Faturado / Caixa) com a **jornada operacional** ponta a ponta.
 
+**Status v2.0:** [`FLUXO-OPERACIONAL-V2-STATUS.md`](FLUXO-OPERACIONAL-V2-STATUS.md) — lacunas fechadas, decisões D1–D8 e pendências N-01+.
+
 > **Fora de escopo:** assinatura Flowmedi (Stripe), NFS-e/NF-e fiscal completa, conciliação bancária automática (OFX/PIX webhook).
 
 ---
@@ -226,21 +228,21 @@ Componente: [`components/appointment-encounter-nav.tsx`](../components/appointme
 
 | ID | Lacuna | Direção |
 |----|--------|---------|
-| L-UI | Operacional não na recepção | Tab Operacional + fila → consulta |
-| L-START | `startAppointmentConsultation` ≠ `startEncounter` | `beginAppointmentCare` |
-| L-PAY | Sem política antecipado/posterior | `appointments.payment_policy` |
-| L-PLAN | Sem plano de tratamento | `treatment_plans` Fase 3 |
-| L-BANK | Pagamentos sem conta bancária | `bank_accounts` Fase 2 |
-| L-CARD | Sem MDR por bandeira/parcelas | `payment_fee_rules` Fase 2 |
-| L-LOT | Estoque agregado | `stock_lots` Fase 4 |
-| L-DOC | Termo “comanda” na UI | Renomear Cupom / Recibo |
-| L-CMV | CMV não na DRE | Fase 5 |
+| L-UI | Operacional na recepção | **Fechado** — tab Operacional + fila |
+| L-START | Dois inícios de atendimento | **Fechado** — `beginAppointmentCare` |
+| L-PAY | Política antecipado/posterior | **Fechado** — check-in + gate `emitComanda` |
+| L-PLAN | Plano multi-sessão | **Parcial** — rateio OK; recorrência N-01 |
+| L-BANK | Conta bancária | **Fechado** |
+| L-CARD | MDR + despesa D4 | **Fechado** |
+| L-LOT | FEFO lotes | **Fechado** |
+| L-DOC | Labels Cupom/Recibo | **Fechado** |
+| L-CMV | CMV na DRE | **Pendente** Fase 5 |
 
 ---
 
 ## 11. Modelo de dados (extensões)
 
-Migration: [`supabase/migration-operational-flow-extensions.sql`](../supabase/migration-operational-flow-extensions.sql)
+Migration: [`migration-operational-flow-extensions.sql`](../supabase/migration-operational-flow-extensions.sql) + [`migration-operational-flow-v2-gaps.sql`](../supabase/migration-operational-flow-v2-gaps.sql)
 
 | Entidade | Campos principais | Fase |
 |----------|-------------------|------|
@@ -260,27 +262,16 @@ Migration: [`supabase/migration-operational-flow-extensions.sql`](../supabase/mi
 
 | Fase | Escopo | Status |
 |------|--------|--------|
-| **0** | UI operacional na recepção; `beginAppointmentCare`; fila → consulta; labels Cupom | Implementado |
-| **1** | Check-in com política de pagamento | Implementado |
-| **2** | Contas bancárias, taxas cartão, recibo | Implementado (base) |
-| **3** | Plano de tratamento + sessões filhas | Implementado (base) |
-| **4** | Lotes, validade, campos customizados produto | Implementado (base) |
-| **5** | CMV automático, passivo formal na DRE | Pendente validação §13 |
+| **0–4** | UI, check-in, caixa, planos, lotes | Ver [`FLUXO-OPERACIONAL-V2-STATUS.md`](FLUXO-OPERACIONAL-V2-STATUS.md) |
+| **5** | CMV automático, passivo formal na DRE | Pendente |
 
 ---
 
-## 13. Decisões pendentes (validação com a clínica)
+## 13. Decisões de produto (v2.0)
 
-Responda antes de fechar Fase 5 e integrações fiscais:
+Decisões **fechadas** — ver matriz D1–D8 em [`FLUXO-OPERACIONAL-V2-STATUS.md`](FLUXO-OPERACIONAL-V2-STATUS.md).
 
-1. **Competência de receita:** emissão do cupom, realização do serviço, ou configurável por clínica?
-2. **Cupom obrigatório na agenda?** Toda consulta gera cupom no agendamento ou só no check-in?
-3. **Pacote:** sessão não usada → crédito, reembolso ou perda?
-4. **Parcelamento:** lançamentos manuais ou gateway (Stone/Cielo)?
-5. **Recibo:** numeração fiscal (NFC-e) ou recibo interno?
-6. **Médico** pode receber pagamento na ponta ou só secretaria/admin?
-7. **Taxa cartão:** descontar do caixa na hora ou despesa financeira separada?
-8. **Lote obrigatório** para quais categorias de produto?
+Pendências evolutivas (N-01 a N-08 no status doc): recorrência de agenda, uso de créditos no pagamento, PDF recibo no Storage, CMV/DRE, fiscal.
 
 ---
 

@@ -7,6 +7,187 @@ import {
 
 type Db = SupabaseClient;
 
+async function pickFefoLots(
+  supabase: Db,
+  clinicId: string,
+  productId: string,
+  qtyNeeded: number
+): Promise<{ lotId: string; qty: number; expiry_date: string | null }[]> {
+  const { data: lots } = await supabase
+    .from("stock_lots")
+    .select("id, quantity_on_hand, quantity_committed, expiry_date")
+    .eq("clinic_id", clinicId)
+    .eq("product_id", productId)
+    .gt("quantity_on_hand", 0)
+    .order("expiry_date", { ascending: true, nullsFirst: false });
+
+  const allocations: { lotId: string; qty: number; expiry_date: string | null }[] = [];
+  let remaining = qtyNeeded;
+
+  for (const lot of lots ?? []) {
+    if (remaining <= 0) break;
+    const available =
+      Number(lot.quantity_on_hand) - Number(lot.quantity_committed ?? 0);
+    if (available <= 0) continue;
+    const take = Math.min(remaining, available);
+    allocations.push({
+      lotId: String(lot.id),
+      qty: take,
+      expiry_date: lot.expiry_date ? String(lot.expiry_date) : null,
+    });
+    remaining -= take;
+  }
+
+  return allocations;
+}
+
+async function commitLotAllocations(
+  supabase: Db,
+  clinicId: string,
+  appointmentId: string,
+  productId: string,
+  qty: number,
+  userId?: string
+) {
+  const allocations = await pickFefoLots(supabase, clinicId, productId, qty);
+  if (!allocations.length) return;
+
+  for (const alloc of allocations) {
+    const { data: lot } = await supabase
+      .from("stock_lots")
+      .select("quantity_committed")
+      .eq("id", alloc.lotId)
+      .single();
+
+    if (lot) {
+      await supabase
+        .from("stock_lots")
+        .update({
+          quantity_committed: Number(lot.quantity_committed ?? 0) + alloc.qty,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", alloc.lotId);
+    }
+
+    await supabase.from("appointment_stock_lots").upsert(
+      {
+        appointment_id: appointmentId,
+        product_id: productId,
+        stock_lot_id: alloc.lotId,
+        quantity: alloc.qty,
+      },
+      { onConflict: "appointment_id,product_id,stock_lot_id" }
+    );
+
+    await supabase.from("stock_movements").insert({
+      clinic_id: clinicId,
+      product_id: productId,
+      appointment_id: appointmentId,
+      stock_lot_id: alloc.lotId,
+      movement_type: "committed",
+      quantity: alloc.qty,
+      created_by: userId ?? null,
+    });
+  }
+}
+
+async function releaseLotAllocations(
+  supabase: Db,
+  clinicId: string,
+  appointmentId: string,
+  userId?: string
+) {
+  const { data: rows } = await supabase
+    .from("appointment_stock_lots")
+    .select("product_id, stock_lot_id, quantity")
+    .eq("appointment_id", appointmentId);
+
+  for (const row of rows ?? []) {
+    const qty = Number(row.quantity);
+    const { data: lot } = await supabase
+      .from("stock_lots")
+      .select("quantity_committed")
+      .eq("id", row.stock_lot_id)
+      .single();
+
+    if (lot) {
+      await supabase
+        .from("stock_lots")
+        .update({
+          quantity_committed: Math.max(0, Number(lot.quantity_committed ?? 0) - qty),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", row.stock_lot_id);
+    }
+
+    await supabase.from("stock_movements").insert({
+      clinic_id: clinicId,
+      product_id: row.product_id,
+      appointment_id: appointmentId,
+      stock_lot_id: row.stock_lot_id,
+      movement_type: "released",
+      quantity: qty,
+      created_by: userId ?? null,
+    });
+  }
+
+  if (rows?.length) {
+    await supabase.from("appointment_stock_lots").delete().eq("appointment_id", appointmentId);
+  }
+}
+
+async function consumeLotAllocations(
+  supabase: Db,
+  clinicId: string,
+  appointmentId: string,
+  userId?: string
+) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: rows } = await supabase
+    .from("appointment_stock_lots")
+    .select("product_id, stock_lot_id, quantity, stock_lots(expiry_date)")
+    .eq("appointment_id", appointmentId);
+
+  for (const row of rows ?? []) {
+    const qty = Number(row.quantity);
+    const lotMeta = Array.isArray(row.stock_lots) ? row.stock_lots[0] : row.stock_lots;
+    const expiry = (lotMeta as { expiry_date?: string | null })?.expiry_date;
+    const expired = expiry != null && expiry < today;
+
+    const { data: lot } = await supabase
+      .from("stock_lots")
+      .select("quantity_on_hand, quantity_committed")
+      .eq("id", row.stock_lot_id)
+      .single();
+
+    if (lot) {
+      await supabase
+        .from("stock_lots")
+        .update({
+          quantity_on_hand: Math.max(0, Number(lot.quantity_on_hand) - qty),
+          quantity_committed: Math.max(0, Number(lot.quantity_committed ?? 0) - qty),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", row.stock_lot_id);
+    }
+
+    await supabase.from("stock_movements").insert({
+      clinic_id: clinicId,
+      product_id: row.product_id,
+      appointment_id: appointmentId,
+      stock_lot_id: row.stock_lot_id,
+      movement_type: "consumed",
+      quantity: qty,
+      expired_at_consumption: expired,
+      created_by: userId ?? null,
+    });
+  }
+
+  if (rows?.length) {
+    await supabase.from("appointment_stock_lots").delete().eq("appointment_id", appointmentId);
+  }
+}
+
 export type { BomLineEstimate } from "@/lib/appointment-charge";
 export { sumBomLines, productChargeUnitPrice } from "@/lib/appointment-charge";
 
@@ -139,10 +320,29 @@ export async function commitStockForAppointment(supabase: Db, clinicId: string, 
       quantity: qty,
       created_by: userId ?? null,
     });
+
+    try {
+      await commitLotAllocations(
+        supabase,
+        clinicId,
+        appointmentId,
+        line.product_id,
+        qty,
+        userId
+      );
+    } catch (e) {
+      console.error("[commitStock] lot FEFO:", e);
+    }
   }
 }
 
 export async function releaseStockForAppointment(supabase: Db, clinicId: string, appointmentId: string, userId?: string) {
+  try {
+    await releaseLotAllocations(supabase, clinicId, appointmentId, userId);
+  } catch (e) {
+    console.error("[releaseStock] lot FEFO:", e);
+  }
+
   const { data: movements } = await supabase
     .from("stock_movements")
     .select("product_id, quantity")
@@ -179,6 +379,12 @@ export async function releaseStockForAppointment(supabase: Db, clinicId: string,
 }
 
 export async function consumeStockForAppointment(supabase: Db, clinicId: string, appointmentId: string, userId?: string) {
+  try {
+    await consumeLotAllocations(supabase, clinicId, appointmentId, userId);
+  } catch (e) {
+    console.error("[consumeStock] lot FEFO:", e);
+  }
+
   const { data: lines } = await supabase
     .from("appointment_consumption_lines")
     .select("product_id, quantity")

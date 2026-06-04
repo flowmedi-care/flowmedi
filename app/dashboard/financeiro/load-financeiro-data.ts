@@ -28,11 +28,12 @@ export async function loadFinanceiroAuth() {
 
   return {
     canManage: profile.role === "admin" || profile.role === "secretaria",
+    userRole: profile.role as string,
   };
 }
 
 export async function loadFinanceiroOverview(searchParams: { year?: string; month?: string }) {
-  const { canManage } = await loadFinanceiroAuth();
+  const { canManage, userRole } = await loadFinanceiroAuth();
   const { year, month } = parseMonthYear(searchParams);
 
   const [
@@ -68,6 +69,7 @@ export async function loadFinanceiroOverview(searchParams: { year?: string; mont
     suppliers: suppliers ?? [],
     alerts: alerts ?? { comandasVencidas: 0, contasVencerHojeAmanha: 0, contasVencidas: 0 },
     canManage,
+    userRole,
   };
 }
 
@@ -87,7 +89,7 @@ export async function loadFinanceiroPagar() {
 }
 
 export async function loadFinanceiroReceber() {
-  const { canManage } = await loadFinanceiroAuth();
+  const { canManage, userRole } = await loadFinanceiroAuth();
   const [{ data: openComandas }, { data: manualReceitas }, { alerts }] = await Promise.all([
     listOpenComandasDetailed(),
     listPendingManualReceitas(),
@@ -98,6 +100,7 @@ export async function loadFinanceiroReceber() {
     manualReceitas: manualReceitas ?? [],
     alerts: alerts ?? { comandasVencidas: 0, contasVencerHojeAmanha: 0, contasVencidas: 0 },
     canManage,
+    userRole,
   };
 }
 
