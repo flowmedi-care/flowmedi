@@ -61,6 +61,9 @@ export function CamposProcedimentosClient({
   services,
   products,
   fichaTemplates,
+  formTemplates,
+  formPatients,
+  initialTab,
 }: {
   initialFields: CustomFieldRow[];
   appointmentTypes: AppointmentTypeRow[];
