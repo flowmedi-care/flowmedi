@@ -65,7 +65,12 @@ export async function getCashFlowDaily(days = 30) {
 export async function getCashFlowMonthly(months = 12) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Não autorizado.", data: [] as { month: string; inflow: number; outflow: number }[] };
+  if (!user) {
+    return {
+      error: "Não autorizado.",
+      data: [] as { month: string; label: string; inflow: number; outflow: number }[],
+    };
+  }
 
   const { data: profile } = await supabase
     .from("profiles")

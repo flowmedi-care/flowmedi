@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ClinicInfoTabs } from "@/components/clinic-info/clinic-info-tabs";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canUseCustomLogo } from "@/lib/plan-gates";
 
 export default async function ConfiguracoesClinicaPage() {
   const supabase = await createClient();
@@ -23,6 +25,12 @@ export default async function ConfiguracoesClinicaPage() {
     .eq("id", profile.clinic_id)
     .single();
 
+  const planData = await getClinicPlanData();
+  const canUseCustomLogoByPlan = Boolean(
+    planData &&
+      canUseCustomLogo(planData.limits, planData.planSlug, planData.subscriptionStatus)
+  );
+
   return (
     <div className="space-y-4">
       <div>
@@ -32,18 +40,22 @@ export default async function ConfiguracoesClinicaPage() {
         </p>
       </div>
       <ClinicInfoTabs
-        clinicName={clinic?.name ?? null}
-        clinicLogoUrl={clinic?.logo_url ?? null}
-        clinicLogoScale={clinic?.logo_scale ?? 100}
-        clinicAgendaWorkStart={clinic?.agenda_work_start ?? "07:00:00"}
-        clinicAgendaWorkEnd={clinic?.agenda_work_end ?? "20:00:00"}
-        clinicAgendaMaxConcurrent={clinic?.agenda_max_concurrent ?? null}
-        clinicPhone={clinic?.phone ?? null}
-        clinicEmail={clinic?.email ?? null}
-        clinicAddress={clinic?.address ?? null}
-        clinicWhatsappUrl={clinic?.whatsapp_url ?? null}
-        clinicFacebookUrl={clinic?.facebook_url ?? null}
-        clinicInstagramUrl={clinic?.instagram_url ?? null}
+        clinicId={profile.clinic_id}
+        canUseCustomLogo={canUseCustomLogoByPlan}
+        initialData={{
+          name: clinic?.name ?? null,
+          logoUrl: clinic?.logo_url ?? null,
+          logoScale: clinic?.logo_scale ?? 100,
+          agendaWorkStart: clinic?.agenda_work_start ?? "07:00:00",
+          agendaWorkEnd: clinic?.agenda_work_end ?? "20:00:00",
+          agendaMaxConcurrent: clinic?.agenda_max_concurrent ?? null,
+          phone: clinic?.phone ?? null,
+          email: clinic?.email ?? null,
+          address: clinic?.address ?? null,
+          whatsappUrl: clinic?.whatsapp_url ?? null,
+          facebookUrl: clinic?.facebook_url ?? null,
+          instagramUrl: clinic?.instagram_url ?? null,
+        }}
       />
     </div>
   );
