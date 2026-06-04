@@ -8,8 +8,8 @@ export default async function FinanceiroFluxoDiarioPage() {
     <>
       {error && <p className="text-sm text-destructive mb-4">{error}</p>}
       <FinanceiroReportClient
-        title="Fluxo de caixa diário"
-        subtitle="Entradas (pagamentos de pacientes) e saídas (despesas pagas) por dia — últimos 30 dias."
+        title="Fluxo de Caixa — Movimento Real (diário)"
+        subtitle="Entradas no caixa e saídas por dia — últimos 30 dias."
         rows={(data ?? []).map((r) => ({
           data: new Date(r.date + "T12:00:00").toLocaleDateString("pt-BR"),
           entradas: r.inflow,

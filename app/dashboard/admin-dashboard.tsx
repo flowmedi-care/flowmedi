@@ -14,6 +14,7 @@ import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canAccessReportTab } from "@/lib/plan-gates";
 import { getOrSetMemoryCache } from "@/lib/server-memory-cache";
 import { AdminTodayStrip } from "./admin-today-strip";
+import { FinanceAlertsPanelServer } from "./financeiro/finance-alerts-panel-server";
 
 export type ReportTab = "visao-geral" | "profissional" | "atendente" | "financeiro" | "operacional";
 
@@ -127,6 +128,8 @@ export default async function AdminDashboard({
       </div>
 
       <AdminTodayStrip clinicId={clinicId} />
+
+      <FinanceAlertsPanelServer />
 
       <AdminReportsClient
         activeTab={activeTab}

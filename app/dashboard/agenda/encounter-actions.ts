@@ -324,7 +324,8 @@ export async function getComandaDetail(comandaId: string) {
 export async function registerComandaPayment(
   comandaId: string,
   amount: number,
-  paymentMethod?: string
+  paymentMethod?: string,
+  paidAt?: string
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -374,12 +375,17 @@ export async function registerComandaPayment(
 
   if (updErr) return { error: updErr.message };
 
+  const paymentTimestamp = paidAt
+    ? new Date(paidAt + (paidAt.length <= 10 ? "T12:00:00" : "")).toISOString()
+    : new Date().toISOString();
+
   await supabase.from("patient_payments").insert({
     clinic_id: profile.clinic_id,
     comanda_id: comandaId,
     patient_id: cmd.patient_id,
     amount,
     payment_method: paymentMethod ?? null,
+    paid_at: paymentTimestamp,
     created_by: user.id,
   });
 
@@ -389,7 +395,7 @@ export async function registerComandaPayment(
     origin: "patient",
     description: "Pagamento comanda",
     amount,
-    paid_at: new Date().toISOString(),
+    paid_at: paymentTimestamp,
     status: "pago",
     patient_id: cmd.patient_id,
     comanda_id: comandaId,
@@ -669,5 +675,67 @@ export async function listOpenComandas() {
         scheduled_at: appt ? String((appt as { scheduled_at: string }).scheduled_at) : null,
       };
     }),
+  };
+}
+
+// FINANCEIRO FASE 1 — ITEM 5: cancelamento de comanda
+export async function cancelComanda(comandaId: string, reason?: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+  if (profile.role !== "admin" && profile.role !== "secretaria") {
+    return { error: "Sem permissão." };
+  }
+
+  const { data: cmd } = await supabase
+    .from("comandas")
+    .select("id, status, patient_id, appointment_id, total_amount, paid_amount")
+    .eq("id", comandaId)
+    .eq("clinic_id", profile.clinic_id)
+    .single();
+
+  if (!cmd) return { error: "Comanda não encontrada." };
+  if (cmd.status === "cancelada") return { error: "Comanda já cancelada." };
+
+  const now = new Date().toISOString();
+  const { error: updErr } = await supabase
+    .from("comandas")
+    .update({
+      status: "cancelada",
+      cancelled_at: now,
+      cancelled_reason: reason?.trim() || null,
+    })
+    .eq("id", comandaId);
+
+  if (updErr) return { error: updErr.message };
+
+  await supabase
+    .from("financial_entries")
+    .update({ status: "cancelado" })
+    .eq("comanda_id", comandaId)
+    .neq("status", "cancelado");
+
+  revalidatePath("/dashboard/financeiro");
+  revalidatePath("/dashboard/financeiro/receber");
+  if (cmd.appointment_id) {
+    revalidatePath(`/dashboard/agenda/atendimento/${cmd.appointment_id}`);
+    revalidatePath(`/dashboard/agenda/consulta/${cmd.appointment_id}`);
+  }
+  revalidatePath(`/dashboard/pacientes/${cmd.patient_id}`);
+  revalidatePath(`/dashboard/contatos/pacientes/${cmd.patient_id}`);
+
+  return {
+    error: null,
+    paidAmount: Number(cmd.paid_amount),
+    totalAmount: Number(cmd.total_amount),
   };
 }

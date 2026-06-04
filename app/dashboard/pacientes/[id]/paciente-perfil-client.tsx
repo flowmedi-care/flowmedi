@@ -13,6 +13,7 @@ import { ExamesClient } from "../../exames/exames-client";
 import { ProntuarioFichasSection } from "./prontuario-fichas-section";
 import { uploadPatientPhoto } from "../profile-actions";
 import { getComandaDetail, type ComandaDetail } from "../../agenda/encounter-actions";
+import { CancelComandaDialog } from "../../financeiro/components/cancel-comanda-dialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { calcPatientAge, type PatientProfileBundle } from "../profile-types";
 import {
@@ -129,6 +130,11 @@ export function PacientePerfilClient({
   const [comandaDetail, setComandaDetail] = useState<ComandaDetail | null>(null);
   const [comandaDetailOpen, setComandaDetailOpen] = useState(false);
   const [loadingComanda, setLoadingComanda] = useState(false);
+  const [cancelComanda, setCancelComanda] = useState<{
+    id: string;
+    total_amount: number;
+    paid_amount: number;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const age = calcPatientAge(patient.birth_date);
@@ -529,6 +535,23 @@ export function PacientePerfilClient({
                                 <Button variant="outline" size="sm" onClick={() => openComandaDetail(c.id)}>
                                   Ver itens
                                 </Button>
+                                {canEdit &&
+                                  (c.status === "aberta" || c.status === "parcial") && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-destructive"
+                                      onClick={() =>
+                                        setCancelComanda({
+                                          id: c.id,
+                                          total_amount: c.total_amount,
+                                          paid_amount: c.paid_amount,
+                                        })
+                                      }
+                                    >
+                                      Cancelar
+                                    </Button>
+                                  )}
                               </div>
                             </li>
                           );
@@ -689,6 +712,20 @@ export function PacientePerfilClient({
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <CancelComandaDialog
+        comanda={
+          cancelComanda
+            ? {
+                id: cancelComanda.id,
+                patient_name: patient.full_name,
+                total_amount: cancelComanda.total_amount,
+                paid_amount: cancelComanda.paid_amount,
+              }
+            : null
+        }
+        onClose={() => setCancelComanda(null)}
+      />
     </div>
   );
 }

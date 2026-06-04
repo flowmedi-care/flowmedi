@@ -8,8 +8,8 @@ export default async function FinanceiroFluxoMensalPage() {
     <>
       {error && <p className="text-sm text-destructive mb-4">{error}</p>}
       <FinanceiroReportClient
-        title="Fluxo de caixa mensal"
-        subtitle="Consolidado mensal de entradas e saídas em caixa."
+        title="Fluxo de Caixa — Movimento Real (mensal)"
+        subtitle="Entradas no caixa (pagamentos de pacientes) e saídas (despesas pagas)."
         rows={(data ?? []).map((r) => ({
           mes: r.label,
           entradas: r.inflow,

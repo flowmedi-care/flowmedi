@@ -214,6 +214,7 @@ type PorAtendente = {
 };
 type Financeiro = {
   receitaTotal: number;
+  receitaFaturada?: number;
   receitaCaixaReal?: number;
   despesasPagas?: number;
   despesasPendentes?: number;
@@ -775,33 +776,45 @@ export function AdminReportsClient({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Receita total</p>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Receita faturada</p>
+                  <p className="text-xs text-muted-foreground mb-1">Competência · comandas</p>
+                  <p className="text-2xl font-bold">
+                    {formatCurrency(financeiro.receitaFaturada ?? 0)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Entradas no caixa</p>
+                  <p className="text-xs text-muted-foreground mb-1">Movimento real · pagamentos</p>
+                  <p className="text-2xl font-bold">
+                    {formatCurrency(financeiro.receitaCaixaReal ?? 0)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-sm text-muted-foreground">Valor previsto na agenda</p>
+                  <p className="text-xs text-muted-foreground mb-1">Consultas realizadas</p>
                   <p className="text-2xl font-bold">{formatCurrency(financeiro.receitaTotal)}</p>
-                  {financeiro.receitaCaixaReal != null && financeiro.receitaCaixaReal > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Caixa (pagamentos): {formatCurrency(financeiro.receitaCaixaReal)}
-                    </p>
-                  )}
-                  {(financeiro.despesasPagas != null || financeiro.despesasPendentes != null) && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Despesas: {formatCurrency(financeiro.despesasPagas ?? 0)} pagas
-                      {(financeiro.despesasPendentes ?? 0) > 0 &&
-                        ` · ${formatCurrency(financeiro.despesasPendentes ?? 0)} pendentes`}
-                    </p>
-                  )}
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Ticket médio</p>
                   <p className="text-2xl font-bold">{formatCurrency(financeiro.ticketMedio)}</p>
                 </div>
+              </div>
+              {(financeiro.despesasPagas != null || financeiro.despesasPendentes != null) && (
+                <p className="text-xs text-muted-foreground">
+                  Despesas: {formatCurrency(financeiro.despesasPagas ?? 0)} pagas
+                  {(financeiro.despesasPendentes ?? 0) > 0 &&
+                    ` · ${formatCurrency(financeiro.despesasPendentes ?? 0)} pendentes`}
+                </p>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-sm text-muted-foreground">Consultas realizadas (período)</p>
-                  <p className="text-2xl font-bold">{financeiro.consultasRealizadas}</p>
+                  <p className="text-xl font-bold">{financeiro.consultasRealizadas}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">LTV aproximado (12m)</p>
-                  <p className="text-2xl font-bold">{formatCurrency(financeiro.ltvAproximado)}</p>
+                  <p className="text-xl font-bold">{formatCurrency(financeiro.ltvAproximado)}</p>
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

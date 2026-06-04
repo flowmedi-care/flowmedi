@@ -1162,6 +1162,21 @@ export async function getFinanceiroData(clinicId: string, period: Period = "30d"
   const startIso = start.toISOString();
   const endIso = end.toISOString();
 
+  const { isComandaInPeriod } = await import("@/lib/financeiro/comanda-rules");
+
+  const { data: comandasPeriod } = await supabase
+    .from("comandas")
+    .select("total_amount, status, closed_at, created_at")
+    .eq("clinic_id", clinicId)
+    .neq("status", "cancelada");
+
+  let receitaFaturada = 0;
+  for (const c of comandasPeriod ?? []) {
+    if (isComandaInPeriod(c, startIso, endIso)) {
+      receitaFaturada += Number(c.total_amount);
+    }
+  }
+
   const { data: appointments } = await supabase
     .from("appointments")
     .select("id, status, doctor_id, valor, patient_id, service_id, appointment_type_id, scheduled_at")
@@ -1378,6 +1393,7 @@ export async function getFinanceiroData(clinicId: string, period: Period = "30d"
   return {
     data: {
       receitaTotal: Number(receitaTotal.toFixed(2)),
+      receitaFaturada: Number(receitaFaturada.toFixed(2)),
       receitaCaixaReal: Number(receitaCaixaReal.toFixed(2)),
       despesasPagas: Number(despesasPagas.toFixed(2)),
       despesasPendentes: Number(despesasPendentes.toFixed(2)),

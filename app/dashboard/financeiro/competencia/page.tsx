@@ -9,14 +9,14 @@ export default async function FinanceiroCompetenciaPage() {
       {error && <p className="text-sm text-destructive mb-4">{error}</p>}
       <FinanceiroReportClient
         title="Relatório de competência"
-        subtitle="Receita reconhecida por mês com base nas comandas (valor total faturado)."
+        subtitle="Receita faturada por mês — comandas fechadas ou pagas (lente Competência)."
         rows={(data ?? []).map((r) => ({
           periodo: r.label,
           receita: r.revenue,
         }))}
         columns={[
           { key: "periodo", label: "Período" },
-          { key: "receita", label: "Receita", format: "currency" },
+          { key: "receita", label: "Receita faturada", format: "currency" },
         ]}
       />
     </>

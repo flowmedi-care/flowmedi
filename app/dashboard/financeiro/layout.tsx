@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { FinanceAlertsPanelServer } from "./finance-alerts-panel-server";
 
 export default async function FinanceiroLayout({
   children,
@@ -18,5 +19,10 @@ export default async function FinanceiroLayout({
 
   if (!profile || profile.role === "medico") redirect("/dashboard");
 
-  return <>{children}</>;
+  return (
+    <div className="space-y-4">
+      <FinanceAlertsPanelServer />
+      {children}
+    </div>
+  );
 }

@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SecretariaDashboardClient } from "./secretaria-dashboard-client";
+import { FinanceAlertsPanelServer } from "./financeiro/finance-alerts-panel-server";
 import { getDashboardPreferences } from "./preferences/actions";
 import { getPipeline, syncNonRegisteredToPipeline } from "./pipeline/actions";
 
@@ -288,7 +289,9 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
   }
 
   return (
-    <SecretariaDashboardClient
+    <div className="space-y-6">
+      <FinanceAlertsPanelServer />
+      <SecretariaDashboardClient
       complianceAppointments={complianceAppointments}
       complianceDays={complianceDays}
       metrics={metrics}
@@ -297,5 +300,6 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
       preferences={preferences}
       ongoingConsultations={ongoingConsultations}
     />
+    </div>
   );
 }
