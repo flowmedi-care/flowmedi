@@ -23,13 +23,13 @@ export async function GET(request: NextRequest) {
     // Verificar se houve erro no OAuth
     if (error) {
       return NextResponse.redirect(
-        new URL(`/dashboard/configuracoes?error=oauth_error&message=${error}`, request.url)
+        new URL(`/dashboard/configuracoes/integracoes?error=oauth_error&message=${error}`, request.url)
       );
     }
 
     if (!code || !state) {
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=oauth_failed", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=oauth_failed", request.url)
       );
     }
 
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       stateData = JSON.parse(state);
     } catch {
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=invalid_state", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=invalid_state", request.url)
       );
     }
 
@@ -52,13 +52,13 @@ export async function GET(request: NextRequest) {
 
     if (!profile || profile.role !== "admin" || profile.clinic_id !== stateData.clinicId) {
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=unauthorized", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=unauthorized", request.url)
       );
     }
     const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
     if (!whatsappAccess.allowed) {
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=plan_whatsapp_blocked", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=plan_whatsapp_blocked", request.url)
       );
     }
 
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
 
     if (!appId || !appSecret) {
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=config_missing", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=config_missing", request.url)
       );
     }
 
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok || !tokenData.access_token) {
       console.error("❌ [WhatsApp Callback] Erro ao obter token:", tokenData);
       return NextResponse.redirect(
-        new URL(`/dashboard/configuracoes?error=token_failed&debug=${encodeURIComponent(JSON.stringify({ error: tokenData.error }))}`, request.url)
+        new URL(`/dashboard/configuracoes/integracoes?error=token_failed&debug=${encodeURIComponent(JSON.stringify({ error: tokenData.error }))}`, request.url)
       );
     }
 
@@ -442,7 +442,7 @@ export async function GET(request: NextRequest) {
     if (upsertError) {
       console.error("❌ [WhatsApp Callback] Erro ao salvar integração:", upsertError);
       return NextResponse.redirect(
-        new URL(`/dashboard/configuracoes?error=save_failed&debug=${encodeURIComponent(JSON.stringify({ error: upsertError.message }))}`, request.url)
+        new URL(`/dashboard/configuracoes/integracoes?error=save_failed&debug=${encodeURIComponent(JSON.stringify({ error: upsertError.message }))}`, request.url)
       );
     }
 
@@ -478,7 +478,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Redirecionar para página de configurações com sucesso e debug info
-    const redirectUrl = new URL("/dashboard/configuracoes", request.url);
+    const redirectUrl = new URL("/dashboard/configuracoes/integracoes", request.url);
     redirectUrl.searchParams.set("integration", "whatsapp");
     redirectUrl.searchParams.set("status", integrationStatus);
     redirectUrl.searchParams.set("debug", encodeURIComponent(JSON.stringify(clientDebugInfo)));
@@ -487,7 +487,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Erro no callback OAuth Meta:", error);
     return NextResponse.redirect(
-      new URL("/dashboard/configuracoes?error=callback_failed", request.url)
+      new URL("/dashboard/configuracoes/integracoes?error=callback_failed", request.url)
     );
   }
 }

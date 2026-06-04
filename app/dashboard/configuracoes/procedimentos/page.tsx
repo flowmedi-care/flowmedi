@@ -1,1 +1,1 @@
-export { default } from "../../campos-pacientes/page";
+export { default } from "../campos-personalizados/page";

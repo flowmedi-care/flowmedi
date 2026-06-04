@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     if (!code || !state) {
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=oauth_failed", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=oauth_failed", request.url)
       );
     }
 
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       stateData = JSON.parse(state);
     } catch {
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=invalid_state", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=invalid_state", request.url)
       );
     }
 
@@ -45,13 +45,13 @@ export async function GET(request: NextRequest) {
 
     if (!profile || profile.role !== "admin" || profile.clinic_id !== stateData.clinicId) {
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=unauthorized", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=unauthorized", request.url)
       );
     }
     const emailAccess = await assertEmailFeatureAccessForCurrentClinic();
     if (!emailAccess.allowed) {
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=plan_email_blocked", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=plan_email_blocked", request.url)
       );
     }
 
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
     
     if (!tokens.access_token) {
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=no_token", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=no_token", request.url)
       );
     }
 
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     if (!email) {
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=no_email", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=no_email", request.url)
       );
     }
 
@@ -111,18 +111,18 @@ export async function GET(request: NextRequest) {
     if (upsertError) {
       console.error("Erro ao salvar integração:", upsertError);
       return NextResponse.redirect(
-        new URL("/dashboard/configuracoes?error=save_failed", request.url)
+        new URL("/dashboard/configuracoes/integracoes?error=save_failed", request.url)
       );
     }
 
     // Redirecionar para página de configurações com sucesso
     return NextResponse.redirect(
-      new URL("/dashboard/configuracoes?integration=email&status=connected", request.url)
+      new URL("/dashboard/configuracoes/integracoes?integration=email&status=connected", request.url)
     );
   } catch (error) {
     console.error("Erro no callback OAuth Google:", error);
     return NextResponse.redirect(
-      new URL("/dashboard/configuracoes?error=callback_failed", request.url)
+      new URL("/dashboard/configuracoes/integracoes?error=callback_failed", request.url)
     );
   }
 }

@@ -42,7 +42,7 @@ export default async function CrmCaptacaoPage() {
             Formulários públicos que geram leads no pipeline.
           </p>
         </div>
-        <Link href="/dashboard/formularios">
+        <Link href="/dashboard/configuracoes/campos-personalizados?tab=formularios">
           <Button variant="outline">Gerenciar formulários</Button>
         </Link>
       </div>

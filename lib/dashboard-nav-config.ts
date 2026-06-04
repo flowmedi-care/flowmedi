@@ -20,7 +20,8 @@ export type NavIconName =
   | "cake"
   | "truck"
   | "contact"
-  | "file-edit";
+  | "file-edit"
+  | "plug";
 
 export type NavLinkItem = {
   type: "link";
@@ -41,8 +42,6 @@ export type NavGroupItem = {
   children: { href: string; label: string; roles?: string[] }[];
 };
 
-export type NavItem = NavLinkItem | NavGroupItem;
-
 export const DASHBOARD_TOP_NAV: NavLinkItem[] = [
   { type: "link", href: "/dashboard", label: "Início", icon: "layout-dashboard" },
   { type: "link", href: "/dashboard/agenda", label: "Agenda", icon: "calendar" },
@@ -60,7 +59,6 @@ export const DASHBOARD_TOP_NAV: NavLinkItem[] = [
     icon: "clipboard-list",
     roles: ["admin", "secretaria", "medico"],
   },
-  { type: "link", href: "/dashboard/formularios", label: "Formulários", icon: "file-text" },
   { type: "link", href: "/dashboard/eventos", label: "Eventos", icon: "bell", roles: ["admin", "secretaria"] },
   { type: "link", href: "/dashboard/mensagens", label: "Mensagens", icon: "mail", roles: ["admin"] },
   {
@@ -72,38 +70,7 @@ export const DASHBOARD_TOP_NAV: NavLinkItem[] = [
   },
 ];
 
-export const DASHBOARD_UTILITY_NAV: NavLinkItem[] = [
-  {
-    type: "link",
-    href: "/dashboard/estoque",
-    label: "Estoque",
-    icon: "package",
-    roles: ["admin", "secretaria"],
-  },
-  {
-    type: "link",
-    href: "/dashboard/servicos-valores",
-    label: "Serviços e Valores",
-    icon: "circle-dollar-sign",
-    roles: ["admin", "medico"],
-  },
-  {
-    type: "link",
-    href: "/dashboard/perfil",
-    label: "Meu Perfil",
-    icon: "users",
-    roles: ["medico"],
-  },
-  {
-    type: "link",
-    href: "/dashboard/auditoria",
-    label: "Auditoria",
-    icon: "shield-check",
-    roles: ["admin"],
-  },
-];
-
-export const DASHBOARD_NAV_GROUPS: NavGroupItem[] = [
+export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
   {
     type: "group",
     id: "contatos",
@@ -180,34 +147,78 @@ export const DASHBOARD_NAV_GROUPS: NavGroupItem[] = [
       { href: "/dashboard/financeiro/dre", label: "DRE" },
     ],
   },
+];
+
+export const DASHBOARD_CONFIG_GROUP: NavGroupItem = {
+  type: "group",
+  id: "configuracoes",
+  label: "Configurações",
+  icon: "settings",
+  prefix: "/dashboard/configuracoes",
+  roles: ["admin"],
+  children: [
+    { href: "/dashboard/configuracoes/preferencias", label: "Preferências do sistema" },
+    { href: "/dashboard/configuracoes/clinica", label: "Dados da clínica" },
+    { href: "/dashboard/configuracoes/integracoes", label: "Integrações" },
+    { href: "/dashboard/configuracoes/campos-personalizados", label: "Campos personalizados" },
+    { href: "/dashboard/configuracoes/assinatura", label: "Assinatura" },
+    { href: "/dashboard/configuracoes/site", label: "Site da clínica" },
+  ],
+};
+
+/** @deprecated Use DASHBOARD_MIDDLE_NAV_GROUPS + DASHBOARD_CONFIG_GROUP */
+export const DASHBOARD_NAV_GROUPS: NavGroupItem[] = [
+  ...DASHBOARD_MIDDLE_NAV_GROUPS,
+  DASHBOARD_CONFIG_GROUP,
+];
+
+export const DASHBOARD_UTILITY_NAV: NavLinkItem[] = [
   {
-    type: "group",
-    id: "configuracoes",
-    label: "Configurações",
-    icon: "settings",
-    prefix: "/dashboard/configuracoes",
+    type: "link",
+    href: "/dashboard/estoque",
+    label: "Estoque",
+    icon: "package",
+    roles: ["admin", "secretaria"],
+  },
+  {
+    type: "link",
+    href: "/dashboard/servicos-valores",
+    label: "Serviços e Valores",
+    icon: "circle-dollar-sign",
+    roles: ["admin", "medico"],
+  },
+  {
+    type: "link",
+    href: "/dashboard/perfil",
+    label: "Meu Perfil",
+    icon: "users",
+    roles: ["medico"],
+  },
+  {
+    type: "link",
+    href: "/dashboard/auditoria",
+    label: "Auditoria",
+    icon: "shield-check",
     roles: ["admin"],
-    children: [
-      { href: "/dashboard/configuracoes/preferencias", label: "Preferências do sistema" },
-      { href: "/dashboard/configuracoes/clinica", label: "Dados da clínica" },
-      { href: "/dashboard/configuracoes/assinatura", label: "Assinatura" },
-      { href: "/dashboard/configuracoes/site", label: "Site da clínica" },
-      { href: "/dashboard/configuracoes/procedimentos", label: "Procedimentos" },
-      { href: "/dashboard/configuracoes/catalogo-clinico", label: "Catálogo clínico" },
-    ],
   },
 ];
 
-/** Legacy paths that belong to a nav group (for redirects / active state). */
 export const LEGACY_PATH_PREFIXES: Record<string, string> = {
   "/dashboard/pacientes": "contatos",
   "/dashboard/equipe": "contatos",
   "/dashboard/campos-pacientes": "configuracoes",
+  "/dashboard/formularios": "configuracoes",
   "/dashboard/plano": "configuracoes",
 };
 
 export function getActiveNavGroupId(pathname: string): string | null {
-  for (const group of DASHBOARD_NAV_GROUPS) {
+  if (
+    pathname === DASHBOARD_CONFIG_GROUP.prefix ||
+    pathname.startsWith(`${DASHBOARD_CONFIG_GROUP.prefix}/`)
+  ) {
+    return "configuracoes";
+  }
+  for (const group of DASHBOARD_MIDDLE_NAV_GROUPS) {
     if (pathname === group.prefix || pathname.startsWith(`${group.prefix}/`)) {
       return group.id;
     }
@@ -217,12 +228,6 @@ export function getActiveNavGroupId(pathname: string): string | null {
       return groupId;
     }
   }
-  if (pathname.startsWith("/dashboard/financeiro")) return "financeiro";
-  if (pathname.startsWith("/dashboard/vendas")) return "vendas";
-  if (pathname.startsWith("/dashboard/crm")) return "crm";
-  if (pathname.startsWith("/dashboard/atendimentos")) return "atendimentos";
-  if (pathname.startsWith("/dashboard/contatos")) return "contatos";
-  if (pathname.startsWith("/dashboard/configuracoes")) return "configuracoes";
   return null;
 }
 
@@ -248,8 +253,24 @@ export function isLinkActive(pathname: string, href: string): boolean {
       pathname.startsWith("/dashboard/agenda/atendimento")
     );
   }
-  if (href === "/dashboard/financeiro" || href === "/dashboard/vendas" || href === "/dashboard/atendimentos") {
+  if (
+    href === "/dashboard/financeiro" ||
+    href === "/dashboard/vendas" ||
+    href === "/dashboard/atendimentos"
+  ) {
     return pathname === href;
   }
+  if (href === "/dashboard/configuracoes/campos-personalizados") {
+    return (
+      pathname === href ||
+      pathname.startsWith("/dashboard/formularios") ||
+      pathname.startsWith("/dashboard/campos-pacientes")
+    );
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function getNavGroupById(id: string): NavGroupItem | undefined {
+  if (id === "configuracoes") return DASHBOARD_CONFIG_GROUP;
+  return DASHBOARD_MIDDLE_NAV_GROUPS.find((g) => g.id === id);
 }

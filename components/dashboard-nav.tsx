@@ -6,10 +6,9 @@ import { useState, useEffect } from "react";
 import { DashboardNavRail } from "@/components/dashboard-nav-rail";
 import { DashboardNavSub } from "@/components/dashboard-nav-sub";
 import {
-  DASHBOARD_NAV_GROUPS,
-  filterNavByRole,
   filterGroupChildren,
   getActiveNavGroupId,
+  getNavGroupById,
 } from "@/lib/dashboard-nav-config";
 
 type Profile = {
@@ -38,13 +37,12 @@ export function DashboardNav({
   const pathname = usePathname();
   const [whatsappUnreadCount, setWhatsappUnreadCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [subPanelOpen, setSubPanelOpen] = useState(true);
   const role = profile?.role ?? "";
   const activeGroupId = getActiveNavGroupId(pathname);
-  const activeGroup = DASHBOARD_NAV_GROUPS.find((g) => g.id === activeGroupId);
-  const visibleGroup =
-    activeGroup && filterGroupChildren(activeGroup, role).length > 0
-      ? activeGroup
-      : null;
+  const activeGroup = activeGroupId ? getNavGroupById(activeGroupId) : undefined;
+  const hasSubPanel =
+    !!activeGroup && filterGroupChildren(activeGroup, role).length > 0;
 
   useEffect(() => {
     if (!hasWhatsAppConnected) return;
@@ -78,6 +76,10 @@ export function DashboardNav({
     setMobileOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (hasSubPanel) setSubPanelOpen(true);
+  }, [activeGroupId, hasSubPanel]);
+
   return (
     <div className="flex h-full flex-shrink-0">
       <DashboardNavRail
@@ -90,9 +92,16 @@ export function DashboardNav({
         whatsappUnreadCount={whatsappUnreadCount}
         mobileOpen={mobileOpen}
         onMobileOpenChange={setMobileOpen}
+        subPanelOpen={subPanelOpen}
+        onSubPanelToggle={() => setSubPanelOpen((v) => !v)}
+        hasSubPanel={hasSubPanel}
       />
-      {visibleGroup && (
-        <DashboardNavSub group={visibleGroup} role={role} />
+      {activeGroup && (
+        <DashboardNavSub
+          group={activeGroup}
+          role={role}
+          open={subPanelOpen}
+        />
       )}
     </div>
   );

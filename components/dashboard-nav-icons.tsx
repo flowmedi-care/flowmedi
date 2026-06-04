@@ -23,6 +23,7 @@ import {
   Truck,
   Contact,
   FileEdit,
+  Plug,
   type LucideIcon,
 } from "lucide-react";
 import type { NavIconName } from "@/lib/dashboard-nav-config";
@@ -50,6 +51,7 @@ const ICON_MAP: Record<NavIconName, LucideIcon> = {
   truck: Truck,
   contact: Contact,
   "file-edit": FileEdit,
+  plug: Plug,
 };
 
 export function DashboardNavIcon({

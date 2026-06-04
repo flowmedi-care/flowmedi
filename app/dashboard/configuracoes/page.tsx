@@ -2,8 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ConfiguracoesClient } from "./configuracoes-client";
-import { getClinicPlanData } from "@/lib/plan-helpers";
-import { canUseCustomLogo, canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 
 export default async function ConfiguracoesPage() {
   const supabase = await createClient();
@@ -33,33 +31,9 @@ export default async function ConfiguracoesPage() {
     .eq("clinic_id", profile.clinic_id)
     .maybeSingle();
 
-  const planData = await getClinicPlanData();
-  const canUseWhatsAppByPlan = Boolean(
-    planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
-  );
-  const canUseCustomLogoByPlan = Boolean(
-    planData &&
-      canUseCustomLogo(planData.limits, planData.planSlug, planData.subscriptionStatus)
-  );
-  const canUseEmailByPlan = Boolean(
-    planData && canUseEmail(planData.limits, planData.planSlug, planData.subscriptionStatus)
-  );
-
   return (
     <Suspense fallback={<div>Carregando...</div>}>
       <ConfiguracoesClient
-        clinicName={clinic?.name ?? null}
-        clinicLogoUrl={clinic?.logo_url ?? null}
-        clinicLogoScale={clinic?.logo_scale ?? 100}
-        clinicAgendaWorkStart={clinic?.agenda_work_start ?? "07:00:00"}
-        clinicAgendaWorkEnd={clinic?.agenda_work_end ?? "20:00:00"}
-        clinicAgendaMaxConcurrent={clinic?.agenda_max_concurrent ?? null}
-        clinicPhone={clinic?.phone ?? null}
-        clinicEmail={clinic?.email ?? null}
-        clinicAddress={clinic?.address ?? null}
-        clinicWhatsappUrl={clinic?.whatsapp_url ?? null}
-        clinicFacebookUrl={clinic?.facebook_url ?? null}
-        clinicInstagramUrl={clinic?.instagram_url ?? null}
         complianceConfirmationDays={clinic?.compliance_confirmation_days ?? null}
         complianceFormDays={clinic?.compliance_form_days ?? null}
         whatsappMonthlyPost24hLimit={clinic?.whatsapp_monthly_post24h_limit ?? null}
@@ -80,9 +54,6 @@ export default async function ConfiguracoesPage() {
           workingHoursEnd: reportGoals?.working_hours_end ?? 18,
         }}
         clinicId={profile.clinic_id}
-        canUseWhatsApp={canUseWhatsAppByPlan}
-        canUseEmail={canUseEmailByPlan}
-        canUseCustomLogo={canUseCustomLogoByPlan}
       />
     </Suspense>
   );

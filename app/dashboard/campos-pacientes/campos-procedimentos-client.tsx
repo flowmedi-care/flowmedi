@@ -30,6 +30,8 @@ import {
   syncProcedureClinicalFichas,
 } from "./clinical-fichas-actions";
 import { Plus, Pencil, Check, UserCircle, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { FormulariosListClient } from "@/app/dashboard/formularios/formularios-list-client";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -39,7 +41,14 @@ type AppointmentTypeRow = {
   duration_minutes: number;
 };
 
-type Tab = "paciente" | "tipos" | "procedimentos" | "fichas";
+type Tab = "paciente" | "tipos" | "procedimentos" | "fichas" | "formularios";
+
+type FormTemplateRow = {
+  id: string;
+  name: string;
+  appointment_type_name: string | null;
+  is_public: boolean;
+};
 
 type DoctorOption = { id: string; full_name: string };
 
@@ -61,23 +70,27 @@ export function CamposProcedimentosClient({
   services: { id: string; nome: string }[];
   products: { id: string; name: string; unit: string }[];
   fichaTemplates: ClinicalFichaTemplateRow[];
+  formTemplates?: FormTemplateRow[];
+  formPatients?: { id: string; full_name: string }[];
+  initialTab?: Tab;
 }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>("paciente");
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? "paciente");
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "paciente", label: "Campos de paciente" },
     { id: "tipos", label: "Tipos de atendimento" },
     { id: "procedimentos", label: "Procedimentos" },
     { id: "fichas", label: "Fichas de atendimento" },
+    { id: "formularios", label: "Formulários" },
   ];
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Catálogo clínico</h1>
+        <h1 className="text-xl font-semibold text-foreground">Campos personalizados</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Campos do paciente, tipos de atendimento, procedimentos e fichas clínicas.
+          Campos do paciente, tipos de atendimento, procedimentos, fichas e formulários da clínica.
         </p>
       </div>
 
@@ -122,6 +135,29 @@ export function CamposProcedimentosClient({
         )}
         {activeTab === "fichas" && (
           <ClinicalFichasConfigClient initialTemplates={fichaTemplates} />
+        )}
+        {activeTab === "formularios" && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                Formulários de pré-consulta e captação vinculados aos atendimentos.
+              </p>
+              <Link href="/dashboard/formularios/novo">
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo formulário
+                </Button>
+              </Link>
+            </div>
+            {formTemplates && formPatients ? (
+              <FormulariosListClient
+                templates={formTemplates}
+                patients={formPatients}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Carregando formulários…</p>
+            )}
+          </div>
         )}
       </div>
     </div>

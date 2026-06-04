@@ -13,8 +13,6 @@ import {
   updateClinicServicesPricingMode,
   upsertClinicReportGoals,
 } from "./actions";
-import { IntegrationsSection } from "./integrations-section";
-import { ClinicInfoTabs } from "@/components/clinic-info/clinic-info-tabs";
 import { ClinicalTemplatesSection } from "../clinical-documents/clinical-templates-section";
 import { ClinicalCatalogSection } from "../clinical-documents/clinical-catalog-section";
 
@@ -27,18 +25,6 @@ const BRAZIL_TIMEZONE_OPTIONS = [
 ];
 
 export function ConfiguracoesClient({
-  clinicName,
-  clinicLogoUrl,
-  clinicLogoScale,
-  clinicAgendaWorkStart,
-  clinicAgendaWorkEnd,
-  clinicAgendaMaxConcurrent,
-  clinicPhone,
-  clinicEmail,
-  clinicAddress,
-  clinicWhatsappUrl,
-  clinicFacebookUrl,
-  clinicInstagramUrl,
   complianceConfirmationDays,
   complianceFormDays,
   whatsappMonthlyPost24hLimit,
@@ -52,18 +38,6 @@ export function ConfiguracoesClient({
   canUseEmail,
   canUseCustomLogo,
 }: {
-  clinicName: string | null;
-  clinicLogoUrl: string | null;
-  clinicLogoScale: number;
-  clinicAgendaWorkStart: string;
-  clinicAgendaWorkEnd: string;
-  clinicAgendaMaxConcurrent: number | null;
-  clinicPhone: string | null;
-  clinicEmail: string | null;
-  clinicAddress: string | null;
-  clinicWhatsappUrl: string | null;
-  clinicFacebookUrl: string | null;
-  clinicInstagramUrl: string | null;
   complianceConfirmationDays: number | null;
   complianceFormDays: number | null;
   whatsappMonthlyPost24hLimit: number | null;
@@ -82,9 +56,6 @@ export function ConfiguracoesClient({
     workingHoursEnd: number;
   };
   clinicId: string;
-  canUseWhatsApp: boolean;
-  canUseEmail: boolean;
-  canUseCustomLogo: boolean;
 }) {
   const [complianceDays, setComplianceDays] = useState<string>(
     complianceConfirmationDays !== null ? String(complianceConfirmationDays) : ""
@@ -152,36 +123,11 @@ export function ConfiguracoesClient({
   return (
     <div className="space-y-6 pb-20 min-w-0">
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold sm:text-2xl truncate">Configurações</h1>
+        <h1 className="text-xl font-semibold sm:text-2xl truncate">Preferências do sistema</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Gerencie as configurações gerais da clínica
+          Regras operacionais, metas de relatórios e catálogos clínicos compartilhados.
         </p>
       </div>
-
-      <ClinicInfoTabs
-        clinicId={clinicId}
-        canUseCustomLogo={canUseCustomLogo}
-        initialData={{
-          name: clinicName,
-          logoUrl: clinicLogoUrl,
-          logoScale: clinicLogoScale,
-          agendaWorkStart: clinicAgendaWorkStart,
-          agendaWorkEnd: clinicAgendaWorkEnd,
-          agendaMaxConcurrent: clinicAgendaMaxConcurrent,
-          phone: clinicPhone,
-          email: clinicEmail,
-          address: clinicAddress,
-          whatsappUrl: clinicWhatsappUrl,
-          facebookUrl: clinicFacebookUrl,
-          instagramUrl: clinicInstagramUrl,
-        }}
-      />
-
-      <IntegrationsSection
-        clinicId={clinicId}
-        canUseWhatsApp={canUseWhatsApp}
-        canUseEmail={canUseEmail}
-      />
 
       <Card>
         <CardHeader className="space-y-1">
