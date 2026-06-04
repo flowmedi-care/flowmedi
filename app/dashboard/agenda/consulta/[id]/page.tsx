@@ -1,7 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConsultaTabsClient } from "./consulta-tabs-client";
@@ -11,7 +9,7 @@ import { getStatusBadgeClassName } from "../../status-utils";
 import { formatPhoneBr } from "@/lib/format-phone";
 import { cn } from "@/lib/utils";
 import { getAppointmentChargePreview } from "../../actions";
-import { Package } from "lucide-react";
+import { AppointmentEncounterNav } from "@/components/appointment-encounter-nav";
 import { loadAppointmentProcedures, loadServiceName, type LegacyProcedureRow } from "@/lib/appointment-procedures";
 import { loadAppointmentGate } from "@/lib/appointment-gate";
 import { SchemaErrorBanner } from "../../schema-error-banner";
@@ -164,6 +162,7 @@ export default async function ConsultaDetalhePage({
   return (
     <div className="space-y-6">
       <BackButton />
+      <AppointmentEncounterNav appointmentId={id} activeView="recepcao" />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
@@ -218,14 +217,8 @@ export default async function ConsultaDetalhePage({
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader>
             <h2 className="font-semibold">Procedimentos e valor</h2>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/dashboard/agenda/atendimento/${id}`}>
-                <Package className="h-4 w-4 mr-1" />
-                Atendimento
-              </Link>
-            </Button>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {procedures.length === 0 ? (

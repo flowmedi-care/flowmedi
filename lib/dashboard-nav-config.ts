@@ -70,7 +70,7 @@ export const DASHBOARD_COMUNICACAO_GROUP: NavGroupItem = {
   badgeKey: "whatsapp",
   children: [
     { href: "/dashboard/whatsapp", label: "WhatsApp" },
-    { href: "/dashboard/mensagens", label: "Histórico", roles: ["admin"] },
+    { href: "/dashboard/mensagens", label: "Mensagens enviadas", roles: ["admin"] },
     {
       href: "/dashboard/mensagens/pendentes",
       label: "Pendentes",
@@ -82,16 +82,35 @@ export const DASHBOARD_COMUNICACAO_GROUP: NavGroupItem = {
 };
 
 export const DASHBOARD_TOP_NAV: NavTopItem[] = [
-  { type: "link", href: "/dashboard", label: "Início", icon: "layout-dashboard" },
+  {
+    type: "link",
+    href: "/dashboard",
+    label: "Relatórios",
+    icon: "layout-dashboard",
+    roles: ["admin"],
+  },
+  {
+    type: "link",
+    href: "/dashboard",
+    label: "Início",
+    icon: "layout-dashboard",
+    roles: ["secretaria", "medico"],
+  },
   DASHBOARD_AGENDA_GROUP,
   {
     type: "link",
     href: "/dashboard/atendimento",
-    label: "Atendimento",
+    label: "Fila operacional",
     icon: "clipboard-list",
     roles: ["admin", "secretaria", "medico"],
   },
-  { type: "link", href: "/dashboard/eventos", label: "Eventos", icon: "bell", roles: ["admin", "secretaria"] },
+  {
+    type: "link",
+    href: "/dashboard/eventos",
+    label: "Central de Eventos",
+    icon: "bell",
+    roles: ["admin", "secretaria"],
+  },
   DASHBOARD_COMUNICACAO_GROUP,
 ];
 

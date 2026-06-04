@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { AtendimentoListClient } from "./atendimento-list-client";
 
 export type AtendimentoListRow = {
@@ -117,11 +118,19 @@ export default async function AtendimentoListPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Atendimento</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Consumo de material, comanda e cobrança. Consultas dos últimos 7 e próximos 14 dias.
-        </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Fila operacional</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Consumo de material, comanda e cobrança. Consultas dos últimos 7 e próximos 14 dias.
+          </p>
+        </div>
+        <Link
+          href="/dashboard/consulta?preset=operacional"
+          className="text-sm font-medium text-primary hover:underline shrink-0"
+        >
+          Ver na lista de consultas
+        </Link>
       </div>
       <AtendimentoListClient rows={rows} />
     </div>

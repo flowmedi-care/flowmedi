@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { type User } from "@supabase/supabase-js";
 import { LogOut, Menu, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -121,6 +122,7 @@ export function DashboardNavRail({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [mobileExpandedGroupId, setMobileExpandedGroupId] = useState<string | null>(null);
   const role = profile?.role ?? "";
   const isMedico = role === "medico";
   const activeGroupId = getActiveNavGroupId(pathname);
@@ -136,12 +138,62 @@ export function DashboardNavRail({
     router.push("/");
   }
 
+  useEffect(() => {
+    if (activeGroupId) {
+      setMobileExpandedGroupId(activeGroupId);
+    }
+  }, [activeGroupId, pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) setMobileExpandedGroupId(null);
+  }, [mobileOpen]);
+
   function handleGroupClick(group: NavGroupItem) {
     const children = filterGroupChildren(group, role);
-    if (children.length > 0) {
-      router.push(children[0].href);
+    if (children.length === 0) return;
+
+    const isMobileDrawer =
+      mobileOpen &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 767px)").matches;
+
+    if (isMobileDrawer && children.length > 1) {
+      setMobileExpandedGroupId((prev) => (prev === group.id ? null : group.id));
+      return;
     }
+
+    router.push(children[0].href);
     onMobileOpenChange(false);
+  }
+
+  function renderGroupChildLinks(group: NavGroupItem) {
+    const children = filterGroupChildren(group, role);
+    if (!mobileOpen || mobileExpandedGroupId !== group.id || children.length <= 1) {
+      return null;
+    }
+
+    return (
+      <div className="flex flex-col gap-0.5 pl-3 pb-1 md:hidden">
+        {children.map((child) => {
+          const active = isLinkActive(pathname, child.href);
+          return (
+            <Link
+              key={child.href}
+              href={child.href}
+              onClick={() => onMobileOpenChange(false)}
+              className={cn(
+                "rounded-md px-3 py-2 text-sm transition-colors",
+                active
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+              )}
+            >
+              {child.label}
+            </Link>
+          );
+        })}
+      </div>
+    );
   }
 
   function toggleRail() {
@@ -194,16 +246,18 @@ export function DashboardNavRail({
         : group.label;
 
     return (
-      <RailNavItem
-        key={group.id}
-        active={active}
-        label={label}
-        badge={hasBadge}
-        expanded={showLabels}
-        onClick={() => handleGroupClick(group)}
-      >
-        <DashboardNavIcon name={group.icon} className="h-5 w-5 shrink-0" />
-      </RailNavItem>
+      <div key={group.id} className={showLabels ? "w-full" : "flex flex-col items-center"}>
+        <RailNavItem
+          active={active}
+          label={label}
+          badge={hasBadge}
+          expanded={showLabels}
+          onClick={() => handleGroupClick(group)}
+        >
+          <DashboardNavIcon name={group.icon} className="h-5 w-5 shrink-0" />
+        </RailNavItem>
+        {renderGroupChildLinks(group)}
+      </div>
     );
   }
 
@@ -281,7 +335,7 @@ export function DashboardNavRail({
         >
           {topNav.map(renderTopItem)}
           {middleGroups.length > 0 && <div className={dividerClass} aria-hidden />}
-          {middleGroups.map(renderGroup)}
+          {middleGroups.map((group) => renderGroup(group))}
           {utilityNav.length > 0 && <div className={dividerClass} aria-hidden />}
           {utilityNav.map(renderLink)}
         </nav>

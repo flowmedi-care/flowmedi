@@ -28,10 +28,23 @@ const STATUS_OPTIONS = [
 
 const PERIOD_OPTIONS = [
   { value: "hoje", label: "Hoje" },
+  { value: "operacional", label: "Operacional (21 dias)" },
   { value: "7dias", label: "7 dias" },
   { value: "mes", label: "Mês" },
   { value: "personalizado", label: "Personalizado" },
 ] as const;
+
+/** Mesmo recorte da fila em /dashboard/atendimento: −7d até +14d */
+function getOperacionalRange() {
+  const now = new Date();
+  const start = new Date(now);
+  start.setDate(start.getDate() - 7);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(now);
+  end.setDate(end.getDate() + 14);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
 
 function toYMD(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -79,6 +92,15 @@ export function ConsultaClient({
       router.replace(`/dashboard/agenda?${params.toString()}`, { scroll: false });
     }
   }, [searchParams, router]);
+
+  useEffect(() => {
+    if (searchParams.get("preset") === "operacional") {
+      setPeriod("operacional");
+      const { start, end } = getOperacionalRange();
+      setCustomFrom(toYMD(start));
+      setCustomTo(toYMD(end));
+    }
+  }, [searchParams]);
 
   const filteredPatientId = searchParams.get("filterPatientId") ?? "";
   const filteredPatient = patients.find((p) => p.id === filteredPatientId) ?? null;
@@ -136,6 +158,10 @@ export function ConsultaClient({
       const today = toYMD(now);
       start = startOfDay(today);
       end = endOfDay(today);
+    } else if (period === "operacional") {
+      const range = getOperacionalRange();
+      start = range.start;
+      end = range.end;
     } else if (period === "7dias") {
       start = startOfDay(toYMD(now));
       end = new Date(now);
@@ -224,7 +250,7 @@ export function ConsultaClient({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Consulta</h1>
+        <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Lista de consultas</h1>
         <div className="flex items-center gap-2 shrink-0">
           <Button
             size="icon"
@@ -262,6 +288,18 @@ export function ConsultaClient({
       </div>
 
       {/* Formulário unificado na Agenda — ambos os botões "Nova consulta" levam à mesma tela */}
+
+      {period === "operacional" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+          <span className="text-muted-foreground">
+            Período alinhado à <strong className="text-foreground">Fila operacional</strong> (−7 a +14
+            dias). Para ações rápidas de comanda e atender, use a fila dedicada.
+          </span>
+          <Button variant="outline" size="sm" asChild className="shrink-0">
+            <Link href="/dashboard/atendimento">Abrir fila operacional</Link>
+          </Button>
+        </div>
+      )}
 
       {filteredPatientId && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">

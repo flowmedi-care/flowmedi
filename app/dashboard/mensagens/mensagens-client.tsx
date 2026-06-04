@@ -8,8 +8,7 @@ import {
   getMessageLogById,
   type MessageLogEntry,
 } from "./actions";
-import { Mail, MessageSquare, Plus, FileText, Eye } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Mail, MessageSquare, Eye } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -70,7 +69,6 @@ function WhatsAppPreviewBubble({ body, sentAt }: { body: string; sentAt?: string
 }
 
 export function MensagensClient() {
-  const router = useRouter();
   const [recentLog, setRecentLog] = useState<MessageLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -123,72 +121,21 @@ export function MensagensClient() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:justify-between sm:items-center">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-foreground sm:text-2xl truncate">Mensagens</h1>
-          <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-none">
-            Configurações rápidas e histórico de mensagens enviadas
-          </p>
-        </div>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap shrink-0">
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto min-h-[44px] touch-manipulation"
-            onClick={() => router.push("/dashboard/mensagens/pendentes")}
-          >
-            Mensagens Pendentes
-          </Button>
-          <Button
-            className="w-full sm:w-auto min-h-[44px] touch-manipulation"
-            onClick={() => router.push("/dashboard/mensagens/templates/novo")}
-          >
-            <Plus className="h-4 w-4 mr-2 shrink-0" />
-            Criar Template
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:gap-6 grid-cols-1 xl:grid-cols-2">
-        <Card className="p-4 sm:p-5">
-          <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-2 sm:text-lg">
-            <Mail className="h-5 w-5 shrink-0" />
-            Configurações de email
-          </h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Configure envio de teste, cabeçalho e rodapé em uma página dedicada.
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => router.push("/dashboard/mensagens/email")}
-            className="w-full sm:w-auto min-h-[44px] touch-manipulation"
-          >
-            Abrir configurações de email
-          </Button>
-        </Card>
-
-        <Card className="p-4 sm:p-5">
-          <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-2 sm:text-lg">
-            <FileText className="h-5 w-5 shrink-0" />
-            Templates
-          </h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Crie e edite templates em Mensagens/Templates.
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => router.push("/dashboard/mensagens/templates")}
-            className="w-full sm:w-auto min-h-[44px] touch-manipulation"
-          >
-            Ir para mensagens/templates
-          </Button>
-        </Card>
+      <div className="min-w-0">
+        <h1 className="text-xl font-semibold text-foreground sm:text-2xl truncate">
+          Mensagens enviadas
+        </h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Histórico de mensagens automáticas e manuais (e-mail e WhatsApp). Use o menu
+          Comunicação para inbox, pendentes e templates.
+        </p>
       </div>
 
       <Card className="p-4 sm:p-5 overflow-hidden">
         <div className="flex items-center justify-between mb-4 min-w-0">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2 truncate sm:text-lg">
             <Mail className="h-5 w-5 shrink-0" />
-            <span className="truncate">Histórico de mensagens enviadas</span>
+            <span className="truncate">Registro de envios</span>
           </h2>
           <Button
             variant="outline"

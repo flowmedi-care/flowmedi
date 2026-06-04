@@ -25,12 +25,12 @@ import { ClinicalDocumentsClient } from "@/app/dashboard/clinical-documents/clin
 import { AtendimentoClient } from "../consulta/[id]/atendimento-client";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
+import { AppointmentEncounterNav } from "@/components/appointment-encounter-nav";
 import {
   ArrowLeft,
   ClipboardList,
   Clock,
   CreditCard,
-  ExternalLink,
   FileText,
   User,
 } from "lucide-react";
@@ -182,12 +182,6 @@ export function AtendimentoClinicoClient({
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/dashboard/agenda/consulta/${appointmentId}`}>
-              <ExternalLink className="h-4 w-4 mr-1" />
-              Consulta
-            </Link>
-          </Button>
           {canEdit && (
             <Button size="sm" onClick={() => setComandaOpen(true)}>
               <CreditCard className="h-4 w-4 mr-1" />
@@ -195,6 +189,10 @@ export function AtendimentoClinicoClient({
             </Button>
           )}
         </div>
+      </div>
+
+      <div className="px-4 bg-card border-b">
+        <AppointmentEncounterNav appointmentId={appointmentId} activeView="clinico" />
       </div>
 
       <div className="flex flex-1 min-h-0 flex-col md:flex-row">

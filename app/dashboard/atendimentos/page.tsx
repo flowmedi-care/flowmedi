@@ -1,21 +1,9 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, ClipboardList, FileText, Pill, FlaskConical } from "lucide-react";
+import { FileText, Pill, FlaskConical } from "lucide-react";
 
 const links = [
-  {
-    href: "/dashboard/atendimento",
-    label: "Lista operacional",
-    desc: "Atendimentos recentes, comandas e cobrança",
-    icon: ClipboardList,
-  },
-  {
-    href: "/dashboard/consulta",
-    label: "Lista de consultas",
-    desc: "Todas as consultas agendadas (Agenda → Lista de consultas)",
-    icon: CalendarDays,
-  },
   {
     href: "/dashboard/atendimentos/prescricoes",
     label: "Prescrições",
@@ -50,7 +38,7 @@ export default function AtendimentosHubPage() {
         <p className="text-sm text-muted-foreground mt-1">
           Central de documentos emitidos nos atendimentos. Para agendar ou ver consultas, use{" "}
           <strong>Agenda</strong> no menu; para a fila operacional do dia, use{" "}
-          <strong>Atendimento</strong>.
+          <strong>Fila operacional</strong>.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
