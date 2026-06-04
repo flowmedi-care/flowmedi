@@ -35,8 +35,6 @@ export function ConfiguracoesClient({
   reportGoals,
   clinicId,
   canUseWhatsApp,
-  canUseEmail,
-  canUseCustomLogo,
 }: {
   complianceConfirmationDays: number | null;
   complianceFormDays: number | null;
@@ -56,6 +54,7 @@ export function ConfiguracoesClient({
     workingHoursEnd: number;
   };
   clinicId: string;
+  canUseWhatsApp: boolean;
 }) {
   const [complianceDays, setComplianceDays] = useState<string>(
     complianceConfirmationDays !== null ? String(complianceConfirmationDays) : ""

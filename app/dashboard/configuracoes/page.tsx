@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ConfiguracoesClient } from "./configuracoes-client";
+import { getClinicPlanData } from "@/lib/plan-helpers";
+import { canUseWhatsApp } from "@/lib/plan-gates";
 
 export default async function ConfiguracoesPage() {
   const supabase = await createClient();
@@ -31,6 +33,11 @@ export default async function ConfiguracoesPage() {
     .eq("clinic_id", profile.clinic_id)
     .maybeSingle();
 
+  const planData = await getClinicPlanData();
+  const canUseWhatsAppByPlan = Boolean(
+    planData && canUseWhatsApp(planData.planSlug, planData.subscriptionStatus)
+  );
+
   return (
     <Suspense fallback={<div>Carregando...</div>}>
       <ConfiguracoesClient
@@ -54,6 +61,7 @@ export default async function ConfiguracoesPage() {
           workingHoursEnd: reportGoals?.working_hours_end ?? 18,
         }}
         clinicId={profile.clinic_id}
+        canUseWhatsApp={canUseWhatsAppByPlan}
       />
     </Suspense>
   );
