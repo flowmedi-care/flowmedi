@@ -156,7 +156,7 @@ export async function getCompetenceByMonth(months = 6) {
 
   const { data: comandas } = await supabase
     .from("comandas")
-    .select("total_amount, closed_at, created_at, status")
+    .select("total_amount, closed_at, created_at, issued_at, status")
     .eq("clinic_id", profile.clinic_id)
     .neq("status", "cancelada")
     .gte("created_at", start.toISOString());
@@ -205,7 +205,7 @@ export async function getSimpleDre(months = 1) {
   const [{ data: comandas }, { data: expenses }] = await Promise.all([
     supabase
       .from("comandas")
-      .select("total_amount, status, closed_at, created_at")
+      .select("total_amount, status, closed_at, created_at, issued_at")
       .eq("clinic_id", profile.clinic_id)
       .neq("status", "cancelada")
       .gte("created_at", start.toISOString()),
@@ -257,7 +257,7 @@ export async function getDetailedDre(year: number, month: number) {
   const [{ data: comandas }, { data: cancelled }, { data: expenses }] = await Promise.all([
     supabase
       .from("comandas")
-      .select("id, total_amount, status, closed_at, created_at")
+      .select("id, total_amount, status, closed_at, created_at, issued_at")
       .eq("clinic_id", profile.clinic_id)
       .neq("status", "cancelada"),
     supabase

@@ -331,20 +331,48 @@ export async function getBomEstimateForProcedures(
   });
 }
 
+export type BillingTotalsOptions = {
+  includeMaterials?: boolean;
+  discountAmount?: number;
+  discountPercent?: number;
+};
+
 /** Totais de cobrança a partir do serviço resolvido e linhas de consumo. */
 export function computeBillingFromLines(
   serviceAmount: number,
-  consumption: { quantity: number; sale_price?: number | null; cost?: number }[]
-): { serviceAmount: number; materialsAmount: number; totalAmount: number } {
+  consumption: { quantity: number; sale_price?: number | null; cost?: number }[],
+  options?: BillingTotalsOptions
+): {
+  serviceAmount: number;
+  materialsAmount: number;
+  subtotalAmount: number;
+  discountAmount: number;
+  totalAmount: number;
+} {
   const materialsAmount = consumption.reduce((s, line) => {
     const unit = productChargeUnitPrice(line.sale_price, Number(line.cost) || 0);
     return s + Number(line.quantity) * unit;
   }, 0);
   const materialsRounded = Number(materialsAmount.toFixed(2));
   const serviceRounded = Number(Math.max(0, serviceAmount).toFixed(2));
+  const includeMaterials = options?.includeMaterials !== false;
+  const subtotalAmount = Number(
+    (serviceRounded + (includeMaterials ? materialsRounded : 0)).toFixed(2)
+  );
+
+  let discountAmount = 0;
+  if (options?.discountPercent != null && options.discountPercent > 0) {
+    discountAmount = Number(((subtotalAmount * options.discountPercent) / 100).toFixed(2));
+  } else if (options?.discountAmount != null && options.discountAmount > 0) {
+    discountAmount = Number(options.discountAmount.toFixed(2));
+  }
+  discountAmount = Math.min(discountAmount, subtotalAmount);
+
   return {
     serviceAmount: serviceRounded,
     materialsAmount: materialsRounded,
-    totalAmount: Number((serviceRounded + materialsRounded).toFixed(2)),
+    subtotalAmount,
+    discountAmount,
+    totalAmount: Number((subtotalAmount - discountAmount).toFixed(2)),
   };
 }

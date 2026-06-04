@@ -23,6 +23,7 @@ import {
 } from "./atendimento-relatorio-panel";
 import { ClinicalDocumentsClient } from "@/app/dashboard/clinical-documents/clinical-documents-client";
 import { AtendimentoClient } from "../consulta/[id]/atendimento-client";
+import { getAppointmentConsumption } from "../encounter-actions";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import { AppointmentEncounterNav } from "@/components/appointment-encounter-nav";
@@ -78,6 +79,7 @@ export function AtendimentoClinicoClient({
   const [loadingRelatorios, setLoadingRelatorios] = useState(true);
   const [active, setActive] = useState<ActivePanel>(null);
   const [comandaOpen, setComandaOpen] = useState(false);
+  const [encounterStatus, setEncounterStatus] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [finalizing, setFinalizing] = useState(false);
 
@@ -120,6 +122,12 @@ export function AtendimentoClinicoClient({
   }, [autoFinalize]);
 
   useEffect(() => {
+    getAppointmentConsumption(appointmentId).then((res) => {
+      if (!res.error) setEncounterStatus(res.encounter?.status ?? null);
+    });
+  }, [appointmentId, comandaOpen, finalizing]);
+
+  useEffect(() => {
     const t0 = Date.now();
     const iv = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
     return () => clearInterval(iv);
@@ -151,6 +159,7 @@ export function AtendimentoClinicoClient({
     if (res.error) toast(res.error, "error");
     else {
       toast("Atendimento clínico finalizado.", "success");
+      setEncounterStatus("finalizado_aguardando_cobranca");
       router.refresh();
     }
   }
@@ -182,10 +191,10 @@ export function AtendimentoClinicoClient({
           </div>
         </div>
         <div className="flex gap-2">
-          {canEdit && (
-            <Button size="sm" onClick={() => setComandaOpen(true)}>
+          {canEdit && encounterStatus === "finalizado_aguardando_cobranca" && (
+            <Button size="sm" variant="outline" onClick={() => setComandaOpen(true)}>
               <CreditCard className="h-4 w-4 mr-1" />
-              Finalizar comanda
+              Emitir comanda
             </Button>
           )}
         </div>
@@ -373,9 +382,9 @@ export function AtendimentoClinicoClient({
           {fmtTime(elapsed)}
         </div>
         <div className="flex gap-2">
-          {canEdit && isDoctor && (
+          {canEdit && isDoctor && encounterStatus === "em_andamento" && (
             <Button variant="default" onClick={handleFinalizeClinical} disabled={finalizing}>
-              {finalizing ? "Finalizando…" : "Finalizar atendimento"}
+              {finalizing ? "Encerrando…" : "Encerrar atendimento clínico"}
             </Button>
           )}
         </div>
@@ -383,7 +392,7 @@ export function AtendimentoClinicoClient({
 
       <Dialog open={comandaOpen} onOpenChange={setComandaOpen}>
         <DialogContent
-          title="Comanda e cobrança"
+          title="Emitir comanda"
           onClose={() => setComandaOpen(false)}
           className="max-w-lg max-h-[90vh] overflow-y-auto"
         >
@@ -392,6 +401,7 @@ export function AtendimentoClinicoClient({
             appointmentValor={appointmentValor}
             canEdit={canEdit}
             autoFinalize={autoFinalize}
+            mode="billing-only"
           />
         </DialogContent>
       </Dialog>

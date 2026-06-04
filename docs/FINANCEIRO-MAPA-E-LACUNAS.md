@@ -183,7 +183,11 @@ erDiagram
 
 **`encounters.status`**
 
-Após `finalizeBilling`, o encounter vai para `cobrado`, indicando que a etapa de cobrança foi registrada.
+| Status | Significado |
+|--------|-------------|
+| `em_andamento` | Atendimento clínico em curso |
+| `finalizado_aguardando_cobranca` | Clínico encerrado (estoque consumido); comanda ainda não emitida ou não quitada |
+| `cobrado` | Comanda quitada (`comandas.status = paga`) |
 
 ---
 
@@ -197,25 +201,42 @@ Fluxo operacional que o time da clínica deve internalizar — da agenda ao rela
 |---|--------|----------------|-----------------|
 | 1 | **Agendar** | Serviço + dimensões → `resolveAppointmentPrice` grava `appointments.valor` | Agenda / modal de consulta |
 | 2 | **Atender** | `startEncounter` cria `encounters`; consumo de materiais e fichas clínicas | Consulta, Atendimento clínico, Fila de atendimento |
-| 3 | **Prévia de cobrança** | `getBillingPreview`: serviço (regras ou `valor`) + materiais (`sale_price` ou `cost`) | Dialog “Finalizar comanda” na consulta/atendimento |
-| 4 | **Finalizar comanda** | `finalizeBilling`: cria comanda + itens; pagamento opcional; lançamentos receita; encounter `cobrado`; pode consumir estoque; alinha `appointments.valor` | Consulta `[id]`, Atendimento `[id]` |
-| 5 | **Receber depois** | `registerComandaPayment` em comanda aberta/parcial → novo `patient_payments` + `financial_entries` receita | Financeiro → Contas a receber; perfil do paciente |
-| 6 | **Despesas** | `createFinancialEntry` (despesa, origem `supplier`) → AP; `markEntryPaid` quando paga | Financeiro → Contas a pagar / Visão geral |
-| 7 | **Consultar** | Relatórios por lente (AR, AP, extrato, competência, fluxo, DRE, vendas) | `/dashboard/financeiro/*`, `/dashboard/vendas/*` |
+| 3 | **Encerrar clínico** | `finishClinicalEncounter`: consome estoque, trava consumo, `encounters.status = finalizado_aguardando_cobranca`; **sem comanda** | Consulta / Atendimento — botão “Encerrar atendimento clínico” |
+| 4 | **Prévia / emitir comanda** | `getBillingPreview` + `emitComanda`: subtotal, desconto, checkbox insumos; pagamento opcional; `issued_at` na emissão | Modal “Emitir comanda” |
+| 5 | **Receber depois** | `registerComandaPayment` → `patient_payments` + `financial_entries`; ao quitar, encounter `cobrado` | Financeiro → Contas a receber |
+| 6 | **Despesas** | `createFinancialEntry` (despesa) → AP; `markEntryPaid` quando paga | Financeiro → Contas a pagar |
+| 7 | **Consultar** | Relatórios por lente (AR, AP, extrato, competência, fluxo, DRE) | `/dashboard/financeiro/*` |
 
-### O que `finalizeBilling` faz (detalhe)
+### O que `finishClinicalEncounter` + `emitComanda` fazem
 
 Referência: `app/dashboard/agenda/encounter-actions.ts`.
 
-1. Impede segunda comanda ativa na mesma consulta.
-2. Garante `encounter` e, se configurado, consome estoque (`consumeStockForAppointment`).
-3. Calcula total via prévia de cobrança (serviço + linhas de consumo).
-4. Insere `comandas` com status `aberta`, `parcial` ou `paga` conforme valor pago na hora.
-5. Insere `comanda_items` (serviço + produtos com preço de venda ou custo).
-6. Atualiza `appointments.valor` para o total faturado; pode marcar consulta como `realizada`.
-7. Trava linhas de consumo (`locked_at`).
-8. Marca encounter `cobrado`.
-9. Se `paymentAmount > 0`: cria `patient_payments` e `financial_entries` (receita, `pago`, origem `patient`).
+**Encerrar clínico (`finishClinicalEncounter`):**
+
+1. Valida encounter `em_andamento`.
+2. Consome estoque (`consumeStockForAppointment`) e trava linhas (`locked_at`).
+3. Marca encounter `finalizado_aguardando_cobranca` + `completed_at`.
+4. Marca consulta `realizada` e fichas `concluida`.
+5. **Não** cria comanda nem movimenta caixa.
+
+**Emitir comanda (`emitComanda`):**
+
+1. Exige encounter `finalizado_aguardando_cobranca`; impede segunda comanda ativa.
+2. Calcula subtotal (serviço ± insumos conforme checkbox), desconto e `total_amount`.
+3. Insere `comandas` com `issued_at`, `subtotal_amount`, `discount_amount`, status `aberta`/`parcial`/`paga`.
+4. Insere `comanda_items` (serviço; produtos só se `charge_materials_separately`).
+5. Atualiza `appointments.valor` para o total faturado.
+6. Pagamento opcional na emissão; encounter só vai a `cobrado` quando comanda quitada.
+
+**Compatibilidade:** `finalizeBilling` chama os dois passos em sequência (fluxo legado “tudo de uma vez”).
+
+### Competência de receita
+
+Comandas entram na competência na **emissão** (`issued_at`), não no pagamento. Comandas `aberta` sem `issued_at` (legado) continuam usando `closed_at` ou exclusão conforme regras em `lib/financeiro/comanda-rules.ts`.
+
+### CMV / insumos não faturados
+
+Materiais consumidos no estoque mas **não** cobrados na comanda (checkbox desmarcado) entram como custo operacional via movimentação de estoque, não como linha de receita na comanda.
 
 ### Onde o usuário clica (cobrança)
 
@@ -257,7 +278,7 @@ Acesso: **admin** e **secretaria** (`layout.tsx` bloqueia **médico**).
 | `.../receber` | Contas a receber — comandas em aberto + receitas manuais pendentes; registrar pagamento | Comandas + `financial_entries` (manual, pendente) |
 | `.../pagar` | Contas a pagar — despesas pendentes; marcar como paga | `financial_entries` despesa `pendente` |
 | `.../extrato` | Extrato — todos os lançamentos com filtros | `listFinancialEntries` |
-| `.../competencia` | Receita por mês (comandas não canceladas; mês = `closed_at` ou `created_at`) | `getCompetenceByMonth` |
+| `.../competencia` | Receita por mês (comandas emitidas; mês = `issued_at` ou fallback `closed_at`/`created_at`) | `getCompetenceByMonth` |
 | `.../fluxo-diario` | Entradas (`patient_payments`) vs saídas (despesas pagas) por dia | `getCashFlowDaily` |
 | `.../fluxo-mensal` | Mesmo, agregado por mês | `getCashFlowMonthly` |
 | `.../dre` | DRE simplificada — último mês: comandas − despesas pagas | `getSimpleDre` |

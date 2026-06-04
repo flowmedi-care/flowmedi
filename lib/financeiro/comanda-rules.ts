@@ -1,21 +1,24 @@
-// FINANCEIRO FASE 1 — regras de competência de comandas (decisão 13.4)
+// Regras de competência de comandas
 
 type ComandaCompetenceInput = {
   status: string;
   closed_at: string | null;
   created_at: string;
+  issued_at?: string | null;
 };
 
-/** Comanda entra na receita de competência se fechada ou paga; aberta/parcial sem closed_at não entra. */
+/** Comanda emitida entra na competência; cancelada e sem emissão não entram. */
 export function isComandaCompetenceEligible(c: ComandaCompetenceInput): boolean {
-  if (c.status === "cancelada" || c.status === "aberta") return false;
+  if (c.status === "cancelada") return false;
+  if (c.issued_at) return true;
+  if (c.status === "aberta") return false;
   if (c.status === "paga") return true;
   if (c.closed_at) return true;
   return false;
 }
 
 export function comandaCompetenceDate(c: ComandaCompetenceInput): string {
-  return c.closed_at ?? c.created_at;
+  return c.issued_at ?? c.closed_at ?? c.created_at;
 }
 
 export function isComandaInPeriod(

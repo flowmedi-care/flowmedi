@@ -14,9 +14,34 @@ import { provisionAppointmentFichas } from "@/lib/clinical-fichas-provision";
 export type BillingPreview = {
   serviceAmount: number;
   materialsAmount: number;
+  subtotalAmount: number;
+  subtotalWithMaterials: number;
+  subtotalWithoutMaterials: number;
+  discountAmount: number;
   totalAmount: number;
   serviceName: string | null;
   materialLines: { name: string; quantity: number; unit_price: number; line_total: number }[];
+};
+
+export type EmitComandaOptions = {
+  chargeMaterialsSeparately?: boolean;
+  discountAmount?: number;
+  discountPercent?: number;
+  notes?: string | null;
+  paymentAmount?: number;
+  paymentMethod?: string;
+  paidAt?: string;
+};
+
+export type AppointmentComandaSummary = {
+  id: string;
+  status: string;
+  total_amount: number;
+  paid_amount: number;
+  remainder: number;
+  subtotal_amount: number | null;
+  discount_amount: number;
+  issued_at: string | null;
 };
 
 export type ConsumptionLine = {
@@ -72,8 +97,15 @@ export async function getAppointmentConsumption(appointmentId: string) {
 
   const { data: encounter } = await supabase
     .from("encounters")
-    .select("id, status, stock_consumed_at")
+    .select("id, status, stock_consumed_at, completed_at")
     .eq("appointment_id", appointmentId)
+    .maybeSingle();
+
+  const { data: comanda } = await supabase
+    .from("comandas")
+    .select("id, status, total_amount, paid_amount, subtotal_amount, discount_amount, issued_at")
+    .eq("appointment_id", appointmentId)
+    .neq("status", "cancelada")
     .maybeSingle();
 
   const data: ConsumptionLine[] = (lines ?? []).map((r: Record<string, unknown>) => {
@@ -101,7 +133,24 @@ export async function getAppointmentConsumption(appointmentId: string) {
     };
   });
 
-  return { error: null, data, encounter };
+  return {
+    error: null,
+    data,
+    encounter,
+    comanda: comanda
+      ? {
+          id: String(comanda.id),
+          status: String(comanda.status),
+          total_amount: Number(comanda.total_amount),
+          paid_amount: Number(comanda.paid_amount),
+          remainder: Math.max(0, Number(comanda.total_amount) - Number(comanda.paid_amount)),
+          subtotal_amount:
+            comanda.subtotal_amount != null ? Number(comanda.subtotal_amount) : null,
+          discount_amount: Number(comanda.discount_amount ?? 0),
+          issued_at: comanda.issued_at != null ? String(comanda.issued_at) : null,
+        }
+      : null,
+  };
 }
 
 export async function addConsumptionLine(appointmentId: string, productId: string, quantity: number) {
@@ -115,6 +164,9 @@ export async function addConsumptionLine(appointmentId: string, productId: strin
     .eq("appointment_id", appointmentId)
     .maybeSingle();
   if (enc?.status === "cobrado") return { error: "Consumo já foi fechado na cobrança." };
+  if (enc?.status === "finalizado_aguardando_cobranca") {
+    return { error: "Atendimento clínico encerrado — consumo bloqueado." };
+  }
 
   const { error } = await supabase.from("appointment_consumption_lines").insert({
     appointment_id: appointmentId,
@@ -140,7 +192,7 @@ export async function updateConsumptionQuantity(lineId: string, quantity: number
     .eq("id", lineId)
     .single();
 
-  if (line?.locked_at) return { error: "Linha bloqueada após cobrança." };
+  if (line?.locked_at) return { error: "Linha bloqueada após encerramento clínico." };
 
   const { error } = await supabase
     .from("appointment_consumption_lines")
@@ -166,7 +218,7 @@ export async function removeConsumptionLine(lineId: string) {
     .eq("id", lineId)
     .single();
 
-  if (line?.locked_at) return { error: "Linha bloqueada após cobrança." };
+  if (line?.locked_at) return { error: "Linha bloqueada após encerramento clínico." };
 
   const { error } = await supabase.from("appointment_consumption_lines").delete().eq("id", lineId);
   if (error) return { error: error.message };
@@ -177,20 +229,48 @@ export async function removeConsumptionLine(lineId: string) {
   return { error: null };
 }
 
-export async function getBillingPreview(appointmentId: string) {
+export async function getClinicBillingDefaults() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "Não autorizado.", data: null };
+  if (!user) return { error: "Não autorizado.", chargeMaterialsSeparately: true };
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", chargeMaterialsSeparately: true };
+
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("charge_materials_by_default")
+    .eq("id", profile.clinic_id)
+    .maybeSingle();
+
+  return {
+    error: null,
+    chargeMaterialsSeparately: clinic?.charge_materials_by_default !== false,
+  };
+}
+
+async function buildBillingPreviewData(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  appointmentId: string,
+  options?: {
+    chargeMaterialsSeparately?: boolean;
+    discountAmount?: number;
+    discountPercent?: number;
+  }
+) {
   const { data: appt } = await supabase
     .from("appointments")
     .select("id, service_id, valor, doctor_id, services(nome)")
     .eq("id", appointmentId)
     .single();
 
-  if (!appt) return { error: "Consulta não encontrada.", data: null };
+  if (!appt) return { error: "Consulta não encontrada.", data: null as BillingPreview | null };
 
   const { data: dimRows } = await supabase
     .from("appointment_dimension_values")
@@ -241,13 +321,39 @@ export async function getBillingPreview(appointmentId: string) {
     };
   });
 
+  const withMaterials = computeBillingFromLines(
+    serviceAmount,
+    materialLines.map((l) => ({
+      quantity: l.quantity,
+      sale_price: l.sale_price,
+      cost: l.cost,
+    })),
+    { includeMaterials: true }
+  );
+
+  const withoutMaterials = computeBillingFromLines(
+    serviceAmount,
+    materialLines.map((l) => ({
+      quantity: l.quantity,
+      sale_price: l.sale_price,
+      cost: l.cost,
+    })),
+    { includeMaterials: false }
+  );
+
+  const includeMaterials = options?.chargeMaterialsSeparately !== false;
   const totals = computeBillingFromLines(
     serviceAmount,
     materialLines.map((l) => ({
       quantity: l.quantity,
       sale_price: l.sale_price,
       cost: l.cost,
-    }))
+    })),
+    {
+      includeMaterials,
+      discountAmount: options?.discountAmount,
+      discountPercent: options?.discountPercent,
+    }
   );
 
   return {
@@ -255,6 +361,10 @@ export async function getBillingPreview(appointmentId: string) {
     data: {
       serviceAmount: totals.serviceAmount,
       materialsAmount: totals.materialsAmount,
+      subtotalAmount: totals.subtotalAmount,
+      subtotalWithMaterials: withMaterials.subtotalAmount,
+      subtotalWithoutMaterials: withoutMaterials.subtotalAmount,
+      discountAmount: totals.discountAmount,
       totalAmount: totals.totalAmount,
       serviceName,
       materialLines: materialLines.map(({ name, quantity, unit_price, line_total }) => ({
@@ -265,6 +375,23 @@ export async function getBillingPreview(appointmentId: string) {
       })),
     } satisfies BillingPreview,
   };
+}
+
+export async function getBillingPreview(
+  appointmentId: string,
+  options?: {
+    chargeMaterialsSeparately?: boolean;
+    discountAmount?: number;
+    discountPercent?: number;
+  }
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: null };
+
+  return buildBillingPreviewData(supabase, appointmentId, options);
 }
 
 export async function getComandaDetail(comandaId: string) {
@@ -375,6 +502,13 @@ export async function registerComandaPayment(
 
   if (updErr) return { error: updErr.message };
 
+  if (newStatus === "paga" && cmd.appointment_id) {
+    await supabase
+      .from("encounters")
+      .update({ status: "cobrado", updated_at: new Date().toISOString() })
+      .eq("appointment_id", cmd.appointment_id);
+  }
+
   const paymentTimestamp = paidAt
     ? new Date(paidAt + (paidAt.length <= 10 ? "T12:00:00" : "")).toISOString()
     : new Date().toISOString();
@@ -412,14 +546,105 @@ export async function registerComandaPayment(
   return { error: null };
 }
 
-export async function finalizeBilling(
-  appointmentId: string,
-  paymentAmount: number,
-  paymentMethod?: string,
-  options?: { consumeStock?: boolean }
-) {
+export async function finishClinicalEncounter(appointmentId: string) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+
+  const encounter = await ensureEncounter(supabase, profile.clinic_id, appointmentId);
+  if (!encounter) return { error: "Erro ao criar atendimento." };
+
+  if (encounter.status === "cobrado") {
+    return { error: "Atendimento já quitado." };
+  }
+
+  if (encounter.status === "finalizado_aguardando_cobranca") {
+    return { error: null, alreadyFinished: true };
+  }
+
+  if (encounter.status !== "em_andamento") {
+    return { error: "Atendimento não está em andamento." };
+  }
+
+  const already = await hasStockBeenConsumed(supabase, appointmentId);
+  if (!already) {
+    try {
+      await consumeStockForAppointment(supabase, profile.clinic_id, appointmentId, user.id);
+      await supabase
+        .from("encounters")
+        .update({
+          stock_consumed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("appointment_id", appointmentId);
+    } catch (e) {
+      console.error("[finishClinicalEncounter] stock consume:", e);
+      return { error: "Erro ao lançar consumo de material no estoque." };
+    }
+  }
+
+  const now = new Date().toISOString();
+
+  await supabase
+    .from("appointment_consumption_lines")
+    .update({ locked_at: now })
+    .eq("appointment_id", appointmentId)
+    .is("locked_at", null);
+
+  await supabase
+    .from("encounters")
+    .update({
+      status: "finalizado_aguardando_cobranca",
+      completed_at: now,
+      updated_at: now,
+    })
+    .eq("appointment_id", appointmentId);
+
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("id, patient_id, status")
+    .eq("id", appointmentId)
+    .single();
+
+  if (appt && (appt.status === "agendada" || appt.status === "confirmada")) {
+    await supabase
+      .from("appointments")
+      .update({ status: "realizada", updated_at: now })
+      .eq("id", appointmentId);
+  }
+
+  await supabase
+    .from("appointment_ficha_instances")
+    .update({ status: "concluida", updated_at: now })
+    .eq("appointment_id", appointmentId)
+    .neq("status", "concluida");
+
+  revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
+  revalidatePath(`/dashboard/agenda/atendimento/${appointmentId}`);
+  revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard/atendimento");
+  if (appt?.patient_id) {
+    revalidatePath(`/dashboard/contatos/pacientes/${appt.patient_id}`);
+    revalidatePath(`/dashboard/pacientes/${appt.patient_id}`);
+  }
+
+  return { error: null };
+}
+
+export async function emitComanda(appointmentId: string, options?: EmitComandaOptions) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Não autorizado." };
 
   const { data: profile } = await supabase
@@ -440,6 +665,16 @@ export async function finalizeBilling(
     return { error: "Já existe comanda para esta consulta.", comandaId: existingComanda.id };
   }
 
+  const { data: enc } = await supabase
+    .from("encounters")
+    .select("id, status")
+    .eq("appointment_id", appointmentId)
+    .maybeSingle();
+
+  if (!enc || enc.status !== "finalizado_aguardando_cobranca") {
+    return { error: "Encerre o atendimento clínico antes de emitir a comanda." };
+  }
+
   const { data: appt } = await supabase
     .from("appointments")
     .select("id, patient_id, service_id, valor, clinic_id, status")
@@ -448,33 +683,21 @@ export async function finalizeBilling(
 
   if (!appt) return { error: "Consulta não encontrada." };
 
-  const encounter = await ensureEncounter(supabase, profile.clinic_id, appointmentId);
-  if (!encounter) return { error: "Erro ao criar atendimento." };
-
-  const shouldConsume = options?.consumeStock !== false;
-  if (shouldConsume) {
-    const already = await hasStockBeenConsumed(supabase, appointmentId);
-    if (!already) {
-      try {
-        await consumeStockForAppointment(supabase, profile.clinic_id, appointmentId, user.id);
-        await supabase
-          .from("encounters")
-          .update({
-            stock_consumed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("appointment_id", appointmentId);
-      } catch (e) {
-        console.error("[finalizeBilling] stock consume:", e);
-        return { error: "Erro ao lançar consumo de material no estoque." };
-      }
-    }
+  const chargeMaterialsSeparately = options?.chargeMaterialsSeparately !== false;
+  const previewRes = await buildBillingPreviewData(supabase, appointmentId, {
+    chargeMaterialsSeparately,
+    discountAmount: options?.discountAmount,
+    discountPercent: options?.discountPercent,
+  });
+  if (previewRes.error || !previewRes.data) {
+    return { error: previewRes.error ?? "Erro ao calcular totais." };
   }
 
-  const previewRes = await getBillingPreview(appointmentId);
   const billing = previewRes.data;
-  const totalAmount = billing?.totalAmount ?? (Number(appt.valor) || 0);
-  const serviceAmount = billing?.serviceAmount ?? 0;
+  const totalAmount = billing.totalAmount;
+  const serviceAmount = billing.serviceAmount;
+  const paymentAmount = Math.max(0, options?.paymentAmount ?? 0);
+  const issuedAt = new Date().toISOString();
 
   const comandaStatus =
     paymentAmount >= totalAmount && totalAmount > 0
@@ -489,11 +712,17 @@ export async function finalizeBilling(
       clinic_id: profile.clinic_id,
       appointment_id: appointmentId,
       patient_id: appt.patient_id,
-      encounter_id: encounter.id,
+      encounter_id: enc.id,
+      subtotal_amount: billing.subtotalAmount,
+      discount_amount: billing.discountAmount,
+      discount_percent: options?.discountPercent ?? null,
+      charge_materials_separately: chargeMaterialsSeparately,
       total_amount: totalAmount,
       paid_amount: paymentAmount,
       status: comandaStatus,
-      closed_at: comandaStatus === "paga" ? new Date().toISOString() : null,
+      issued_at: issuedAt,
+      closed_at: comandaStatus === "paga" ? issuedAt : null,
+      notes: options?.notes?.trim() || null,
       created_by: user.id,
     })
     .select("id")
@@ -502,7 +731,11 @@ export async function finalizeBilling(
   if (comandaErr) return { error: comandaErr.message };
 
   if (appt.service_id && serviceAmount > 0) {
-    const { data: svc } = await supabase.from("services").select("nome").eq("id", appt.service_id).single();
+    const { data: svc } = await supabase
+      .from("services")
+      .select("nome")
+      .eq("id", appt.service_id)
+      .single();
     await supabase.from("comanda_items").insert({
       comanda_id: comanda!.id,
       item_type: "service",
@@ -514,58 +747,59 @@ export async function finalizeBilling(
     });
   }
 
-  const { data: consumption } = await supabase
-    .from("appointment_consumption_lines")
-    .select("id, product_id, quantity, products(name, cost, sale_price)")
-    .eq("appointment_id", appointmentId);
+  if (chargeMaterialsSeparately) {
+    const { data: consumption } = await supabase
+      .from("appointment_consumption_lines")
+      .select("id, product_id, quantity, products(name, cost, sale_price)")
+      .eq("appointment_id", appointmentId);
 
-  for (const line of consumption ?? []) {
-    const prod = Array.isArray(line.products) ? line.products[0] : line.products;
-    const cost = Number((prod as { cost?: number })?.cost) || 0;
-    const sale = (prod as { sale_price?: number | null })?.sale_price;
-    const unitPrice =
-      sale != null && Number(sale) > 0 ? Number(sale) : cost > 0 ? cost : 0;
-    const qty = Number(line.quantity);
-    if (qty > 0 && unitPrice > 0) {
-      await supabase.from("comanda_items").insert({
-        comanda_id: comanda!.id,
-        item_type: "product",
-        description: (prod as { name?: string })?.name ?? "Material",
-        quantity: qty,
-        unit_price: unitPrice,
-        total_price: Number((qty * unitPrice).toFixed(2)),
-        reference_id: line.product_id,
-      });
+    for (const line of consumption ?? []) {
+      const prod = Array.isArray(line.products) ? line.products[0] : line.products;
+      const cost = Number((prod as { cost?: number })?.cost) || 0;
+      const sale = (prod as { sale_price?: number | null })?.sale_price;
+      const unitPrice =
+        sale != null && Number(sale) > 0 ? Number(sale) : cost > 0 ? cost : 0;
+      const qty = Number(line.quantity);
+      if (qty > 0 && unitPrice > 0) {
+        await supabase.from("comanda_items").insert({
+          comanda_id: comanda!.id,
+          item_type: "product",
+          description: (prod as { name?: string })?.name ?? "Material",
+          quantity: qty,
+          unit_price: unitPrice,
+          total_price: Number((qty * unitPrice).toFixed(2)),
+          reference_id: line.product_id,
+        });
+      }
     }
   }
 
   await supabase
     .from("appointments")
-    .update({
-      valor: totalAmount,
-      status: appt.status === "agendada" || appt.status === "confirmada" ? "realizada" : appt.status,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ valor: totalAmount, updated_at: issuedAt })
     .eq("id", appointmentId);
 
-  await supabase
-    .from("appointment_consumption_lines")
-    .update({ locked_at: new Date().toISOString() })
-    .eq("appointment_id", appointmentId)
-    .is("locked_at", null);
-
-  await supabase
-    .from("encounters")
-    .update({ status: "cobrado", updated_at: new Date().toISOString() })
-    .eq("appointment_id", appointmentId);
+  if (comandaStatus === "paga") {
+    await supabase
+      .from("encounters")
+      .update({ status: "cobrado", updated_at: issuedAt })
+      .eq("appointment_id", appointmentId);
+  }
 
   if (paymentAmount > 0 && comanda) {
+    const paymentTimestamp = options?.paidAt
+      ? new Date(
+          options.paidAt + (options.paidAt.length <= 10 ? "T12:00:00" : "")
+        ).toISOString()
+      : issuedAt;
+
     await supabase.from("patient_payments").insert({
       clinic_id: profile.clinic_id,
       comanda_id: comanda.id,
       patient_id: appt.patient_id,
       amount: paymentAmount,
-      payment_method: paymentMethod ?? null,
+      payment_method: options?.paymentMethod ?? null,
+      paid_at: paymentTimestamp,
       created_by: user.id,
     });
 
@@ -573,9 +807,9 @@ export async function finalizeBilling(
       clinic_id: profile.clinic_id,
       entry_type: "receita",
       origin: "patient",
-      description: `Pagamento consulta`,
+      description: "Pagamento comanda",
       amount: paymentAmount,
-      paid_at: new Date().toISOString(),
+      paid_at: paymentTimestamp,
       status: "pago",
       patient_id: appt.patient_id,
       comanda_id: comanda.id,
@@ -586,12 +820,44 @@ export async function finalizeBilling(
   revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
   revalidatePath(`/dashboard/agenda/atendimento/${appointmentId}`);
   revalidatePath("/dashboard/financeiro");
+  revalidatePath("/dashboard/financeiro/receber");
   revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard/atendimento");
   revalidatePath(`/dashboard/contatos/pacientes/${appt.patient_id}`);
   revalidatePath(`/dashboard/pacientes/${appt.patient_id}`);
 
   const detail = await getComandaDetail(comanda!.id);
   return { error: null, comandaId: comanda?.id, comanda: detail.data, billing: previewRes.data };
+}
+
+export async function finalizeBilling(
+  appointmentId: string,
+  paymentAmount: number,
+  paymentMethod?: string,
+  options?: { consumeStock?: boolean }
+) {
+  if (options?.consumeStock === false) {
+    const emitOnly = await emitComanda(appointmentId, {
+      paymentAmount,
+      paymentMethod,
+      chargeMaterialsSeparately: true,
+    });
+    if (emitOnly.error && !emitOnly.error.includes("Encerre o atendimento")) {
+      return emitOnly;
+    }
+    if (!emitOnly.error) return emitOnly;
+  }
+
+  const clinicalRes = await finishClinicalEncounter(appointmentId);
+  if (clinicalRes.error && !clinicalRes.alreadyFinished) {
+    return { error: clinicalRes.error };
+  }
+
+  return emitComanda(appointmentId, {
+    paymentAmount,
+    paymentMethod,
+    chargeMaterialsSeparately: true,
+  });
 }
 
 export async function startEncounter(appointmentId: string) {

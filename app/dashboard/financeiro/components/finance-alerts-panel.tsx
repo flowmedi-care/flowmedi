@@ -8,6 +8,14 @@ import type { FinanceAlerts } from "@/lib/financeiro/types";
 export function FinanceAlertsPanel({ alerts }: { alerts: FinanceAlerts }) {
   const items: { label: string; count: number; href: string; tone: "default" | "warning" | "danger" }[] = [];
 
+  if (alerts.aguardandoEmissaoComanda > 0) {
+    items.push({
+      label: "Atendimentos aguardando emissão de comanda",
+      count: alerts.aguardandoEmissaoComanda,
+      href: "/dashboard/atendimento",
+      tone: "warning",
+    });
+  }
   if (alerts.comandasVencidas > 0) {
     items.push({
       label: "Comandas vencidas (+30 dias)",

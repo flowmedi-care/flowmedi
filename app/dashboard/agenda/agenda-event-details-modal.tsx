@@ -65,7 +65,10 @@ export function AgendaEventDetailsModal({
     });
   }, [open, appointmentId]);
 
-  const isBilled = data?.encounterStatus === "cobrado" || !!data?.comanda;
+  const isBilled = data?.encounterStatus === "cobrado";
+  const awaitingComanda =
+    data?.encounterStatus === "finalizado_aguardando_cobranca" && !data?.comanda;
+  const canEmitComanda = awaitingComanda || (data?.encounterStatus === "em_andamento" && !data?.comanda);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -162,6 +165,19 @@ export function AgendaEventDetailsModal({
               </p>
             )}
 
+            {data.encounterStatus && (
+              <p className="text-xs text-muted-foreground">
+                Atendimento:{" "}
+                {data.encounterStatus === "finalizado_aguardando_cobranca"
+                  ? "Aguardando comanda"
+                  : data.encounterStatus === "em_andamento"
+                    ? "Em andamento"
+                    : data.encounterStatus === "cobrado"
+                      ? "Quitado"
+                      : data.encounterStatus}
+              </p>
+            )}
+
             {data.comanda && (
               <div className="rounded-md border border-green-200 bg-green-50/50 dark:bg-green-950/20 p-3 text-sm space-y-1">
                 <p className="font-medium flex items-center gap-1">
@@ -199,7 +215,7 @@ export function AgendaEventDetailsModal({
             </div>
 
             <div className="flex flex-col gap-2">
-              {!isBilled && onFinalize && (
+              {canEmitComanda && onFinalize && (
                 <Button
                   className="w-full"
                   onClick={() => {
@@ -207,13 +223,13 @@ export function AgendaEventDetailsModal({
                     onFinalize(data.id);
                   }}
                 >
-                  Finalizar comanda
+                  {awaitingComanda ? "Emitir comanda" : "Encerrar clínico / emitir comanda"}
                 </Button>
               )}
               {!isBilled && (
                 <Button variant="secondary" className="w-full" asChild>
                   <Link href={`/dashboard/agenda/atendimento/${data.id}`}>
-                    Editar consumo de material
+                    {awaitingComanda ? "Emitir comanda na consulta" : "Gerenciar atendimento"}
                   </Link>
                 </Button>
               )}

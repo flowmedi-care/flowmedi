@@ -103,7 +103,7 @@ export async function getDashboardMetrics(year: number, month: number) {
   ] = await Promise.all([
     supabase
       .from("comandas")
-      .select("total_amount, status, closed_at, created_at")
+      .select("total_amount, status, closed_at, created_at, issued_at")
       .eq("clinic_id", profile.clinic_id)
       .neq("status", "cancelada"),
     supabase
@@ -587,7 +587,7 @@ export async function getFinanceAlerts(): Promise<{ error: string | null; alerts
   if (ctx.error || !ctx.profile) {
     return {
       error: ctx.error,
-      alerts: { comandasVencidas: 0, contasVencerHojeAmanha: 0, contasVencidas: 0 },
+      alerts: { comandasVencidas: 0, aguardandoEmissaoComanda: 0, contasVencerHojeAmanha: 0, contasVencidas: 0 },
     };
   }
 
@@ -595,7 +595,7 @@ export async function getFinanceAlerts(): Promise<{ error: string | null; alerts
   const today = todayDateOnly();
   const tomorrow = addDaysDateOnly(today, 1);
 
-  const [{ data: comandas }, { data: expenses }] = await Promise.all([
+  const [{ data: comandas }, { data: expenses }, { data: awaitingEncounters }] = await Promise.all([
     supabase
       .from("comandas")
       .select("id, created_at, updated_at")
@@ -607,12 +607,24 @@ export async function getFinanceAlerts(): Promise<{ error: string | null; alerts
       .eq("clinic_id", profile.clinic_id)
       .eq("entry_type", "despesa")
       .eq("status", "pendente"),
+    supabase
+      .from("encounters")
+      .select("appointment_id, comandas(id, status)")
+      .eq("clinic_id", profile.clinic_id)
+      .eq("status", "finalizado_aguardando_cobranca"),
   ]);
 
   let comandasVencidas = 0;
   for (const c of comandas ?? []) {
     const ref = (c.updated_at as string) ?? (c.created_at as string);
     if (daysOpenSince(ref) > 30) comandasVencidas++;
+  }
+
+  let aguardandoEmissaoComanda = 0;
+  for (const e of awaitingEncounters ?? []) {
+    const cmds = Array.isArray(e.comandas) ? e.comandas : e.comandas ? [e.comandas] : [];
+    const hasActive = cmds.some((c: { status?: string }) => c.status !== "cancelada");
+    if (!hasActive) aguardandoEmissaoComanda++;
   }
 
   let contasVencerHojeAmanha = 0;
@@ -626,7 +638,7 @@ export async function getFinanceAlerts(): Promise<{ error: string | null; alerts
 
   return {
     error: null,
-    alerts: { comandasVencidas, contasVencerHojeAmanha, contasVencidas },
+    alerts: { comandasVencidas, aguardandoEmissaoComanda, contasVencerHojeAmanha, contasVencidas },
   };
 }
 

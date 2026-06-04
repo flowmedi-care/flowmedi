@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { provisionAppointmentFichas } from "@/lib/clinical-fichas-provision";
 import type { AppointmentFichaInstance, AppointmentFichaSummary, ClinicalFichaTemplate } from "@/lib/clinical-ficha-types";
 import type { FormFieldDefinition } from "@/lib/form-types";
+import { finishClinicalEncounter } from "./encounter-actions";
 
 function mapTemplate(row: Record<string, unknown>): ClinicalFichaTemplate {
   const def = row.definition;
@@ -165,59 +166,7 @@ export async function saveFichaResponses(
 }
 
 export async function finalizeClinicalEncounter(appointmentId: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Não autorizado." };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("clinic_id")
-    .eq("id", user.id)
-    .single();
-  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
-
-  const { data: enc } = await supabase
-    .from("encounters")
-    .select("id, status")
-    .eq("appointment_id", appointmentId)
-    .maybeSingle();
-
-  if (enc) {
-    if (enc.status === "cobrado") {
-      return { error: "Atendimento já foi cobrado." };
-    }
-    await supabase
-      .from("encounters")
-      .update({
-        status: "finalizado_aguardando_cobranca",
-        completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("appointment_id", appointmentId);
-  } else {
-    await supabase.from("encounters").insert({
-      clinic_id: profile.clinic_id,
-      appointment_id: appointmentId,
-      status: "finalizado_aguardando_cobranca",
-      started_at: new Date().toISOString(),
-      completed_at: new Date().toISOString(),
-    });
-  }
-
-  await supabase
-    .from("appointment_ficha_instances")
-    .update({
-      status: "concluida",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("appointment_id", appointmentId)
-    .neq("status", "concluida");
-
-  revalidatePath(`/dashboard/agenda/atendimento/${appointmentId}`);
-  revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
-  return { error: null };
+  return finishClinicalEncounter(appointmentId);
 }
 
 export async function getPatientFichasSummary(patientId: string) {

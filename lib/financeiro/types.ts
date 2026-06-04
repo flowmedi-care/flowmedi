@@ -83,6 +83,7 @@ export type PendingExpenseRow = {
 
 export type FinanceAlerts = {
   comandasVencidas: number;
+  aguardandoEmissaoComanda: number;
   contasVencerHojeAmanha: number;
   contasVencidas: number;
 };

@@ -13,6 +13,37 @@ const STATUS: Record<string, string> = {
   realizada: "Realizada",
 };
 
+const ENCOUNTER_BADGE: Record<string, { label: string; className?: string }> = {
+  em_andamento: { label: "Em atendimento" },
+  finalizado_aguardando_cobranca: {
+    label: "Aguardando comanda",
+    className: "border-amber-300 text-amber-800 dark:text-amber-300",
+  },
+  cobrado: { label: "Quitado", className: "border-green-300 text-green-800 dark:text-green-300" },
+};
+
+const COMANDA_BADGE: Record<string, string> = {
+  aberta: "Comanda aberta",
+  parcial: "Comanda parcial",
+  paga: "Quitada",
+};
+
+function resolveOperationalBadge(row: AtendimentoListRow) {
+  if (row.comanda_status === "paga" || row.encounter_status === "cobrado") {
+    return { label: "Quitada", className: "border-green-300 text-green-800 dark:text-green-300" };
+  }
+  if (row.comanda_status === "aberta" || row.comanda_status === "parcial") {
+    return { label: COMANDA_BADGE[row.comanda_status] ?? row.comanda_status };
+  }
+  if (row.encounter_status === "finalizado_aguardando_cobranca") {
+    return ENCOUNTER_BADGE.finalizado_aguardando_cobranca;
+  }
+  if (row.encounter_status) {
+    return ENCOUNTER_BADGE[row.encounter_status] ?? { label: row.encounter_status };
+  }
+  return null;
+}
+
 export function AtendimentoListClient({ rows }: { rows: AtendimentoListRow[] }) {
   if (rows.length === 0) {
     return (
@@ -28,46 +59,48 @@ export function AtendimentoListClient({ rows }: { rows: AtendimentoListRow[] }) 
     <Card>
       <CardContent className="p-0">
         <ul className="divide-y">
-          {rows.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-              <div className="min-w-0">
-                <p className="font-medium truncate">{r.patient_name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {new Date(r.scheduled_at).toLocaleString("pt-BR", {
-                    weekday: "short",
-                    day: "2-digit",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                  {r.doctor_name && ` · ${r.doctor_name}`}
-                </p>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  <Badge variant="outline">{STATUS[r.status] ?? r.status}</Badge>
-                  {r.encounter_status && (
-                    <Badge variant="secondary">Atend. {r.encounter_status}</Badge>
-                  )}
-                  {r.comanda_status && (
-                    <Badge variant="secondary">Comanda {r.comanda_status}</Badge>
-                  )}
+          {rows.map((r) => {
+            const opBadge = resolveOperationalBadge(r);
+            return (
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{r.patient_name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(r.scheduled_at).toLocaleString("pt-BR", {
+                      weekday: "short",
+                      day: "2-digit",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    {r.doctor_name && ` · ${r.doctor_name}`}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    <Badge variant="outline">{STATUS[r.status] ?? r.status}</Badge>
+                    {opBadge && (
+                      <Badge variant="outline" className={opBadge.className}>
+                        {opBadge.label}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/dashboard/agenda/consulta/${r.id}`}>
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    Consulta
-                  </Link>
-                </Button>
-                <Button size="sm" asChild>
-                  <Link href={`/dashboard/agenda/atendimento/${r.id}`}>
-                    <Package className="h-4 w-4 mr-1" />
-                    Atender
-                  </Link>
-                </Button>
-              </div>
-            </li>
-          ))}
+                <div className="flex gap-2 shrink-0">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/dashboard/agenda/consulta/${r.id}`}>
+                      <ExternalLink className="h-4 w-4 mr-1" />
+                      Consulta
+                    </Link>
+                  </Button>
+                  <Button size="sm" asChild>
+                    <Link href={`/dashboard/agenda/atendimento/${r.id}`}>
+                      <Package className="h-4 w-4 mr-1" />
+                      Atender
+                    </Link>
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </CardContent>
     </Card>
