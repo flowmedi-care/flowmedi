@@ -11,6 +11,8 @@ import {
   getNavGroupById,
 } from "@/lib/dashboard-nav-config";
 
+const SIDEBAR_EXPANDED_KEY = "flowmedi-sidebar-expanded";
+
 type Profile = {
   id: string;
   full_name: string | null;
@@ -37,12 +39,24 @@ export function DashboardNav({
   const pathname = usePathname();
   const [whatsappUnreadCount, setWhatsappUnreadCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [railExpanded, setRailExpanded] = useState(false);
   const [subPanelOpen, setSubPanelOpen] = useState(true);
   const role = profile?.role ?? "";
   const activeGroupId = getActiveNavGroupId(pathname);
   const activeGroup = activeGroupId ? getNavGroupById(activeGroupId) : undefined;
   const hasSubPanel =
     !!activeGroup && filterGroupChildren(activeGroup, role).length > 0;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem(SIDEBAR_EXPANDED_KEY);
+    if (stored === "true") setRailExpanded(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(SIDEBAR_EXPANDED_KEY, String(railExpanded));
+  }, [railExpanded]);
 
   useEffect(() => {
     if (!hasWhatsAppConnected) return;
@@ -92,16 +106,14 @@ export function DashboardNav({
         whatsappUnreadCount={whatsappUnreadCount}
         mobileOpen={mobileOpen}
         onMobileOpenChange={setMobileOpen}
+        railExpanded={railExpanded}
+        onRailExpandedChange={setRailExpanded}
         subPanelOpen={subPanelOpen}
         onSubPanelToggle={() => setSubPanelOpen((v) => !v)}
         hasSubPanel={hasSubPanel}
       />
       {activeGroup && (
-        <DashboardNavSub
-          group={activeGroup}
-          role={role}
-          open={subPanelOpen}
-        />
+        <DashboardNavSub group={activeGroup} role={role} open={subPanelOpen} />
       )}
     </div>
   );

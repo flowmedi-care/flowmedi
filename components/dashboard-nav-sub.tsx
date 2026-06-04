@@ -24,13 +24,11 @@ export function DashboardNavSub({
   if (!open) return null;
 
   return (
-    <aside className="hidden md:flex w-56 flex-col border-r border-border/80 bg-background h-full flex-shrink-0">
-      <div className="px-4 py-4 border-b border-border/60">
-        <h2 className="text-[15px] font-semibold text-foreground tracking-tight">
-          {group.label}
-        </h2>
+    <aside className="hidden md:flex w-52 flex-col border-r border-border/80 bg-muted/30 h-full flex-shrink-0">
+      <div className="px-4 py-3.5 border-b border-border/60">
+        <h2 className="text-sm font-semibold text-foreground">{group.label}</h2>
       </div>
-      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
         {children.map((child) => {
           const active = isLinkActive(pathname, child.href);
           return (
@@ -38,10 +36,10 @@ export function DashboardNavSub({
               key={child.href}
               href={child.href}
               className={cn(
-                "flex items-center rounded-lg px-3 py-2.5 text-sm transition-colors",
+                "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
                 active
-                  ? "bg-violet-50 text-violet-700 font-medium dark:bg-violet-950/40 dark:text-violet-300"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:bg-background/80 hover:text-foreground"
               )}
             >
               {child.label}
