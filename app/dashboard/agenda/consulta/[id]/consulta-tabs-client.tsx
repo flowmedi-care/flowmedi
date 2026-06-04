@@ -8,14 +8,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ConsultaDetalheClient } from "./consulta-detalhe-client";
 import { ExamesClient } from "../../../exames/exames-client";
 import { FormulariosConsultaClient } from "./formularios-consulta-client";
+import { AtendimentoClient } from "./atendimento-client";
+import { CheckInPaymentPolicy } from "./check-in-payment-policy";
 import { formatPhoneBr } from "@/lib/format-phone";
 import { cn } from "@/lib/utils";
 import type { FormInstanceItem } from "./page";
 
-type Tab = "consulta" | "paciente" | "formularios" | "exames";
+type Tab = "operacional" | "consulta" | "paciente" | "formularios" | "exames";
 
 export function ConsultaTabsClient({
   appointmentId,
+  appointmentValor,
   appointmentStatus,
   appointmentScheduledAt,
   startedAt,
@@ -27,6 +30,7 @@ export function ConsultaTabsClient({
   formInstances,
   baseUrl,
   canEdit,
+  canEditOperacional,
   isDoctor,
   currentUserId,
 }: {
@@ -48,6 +52,7 @@ export function ConsultaTabsClient({
   formInstances: FormInstanceItem[];
   baseUrl: string;
   canEdit: boolean;
+  canEditOperacional: boolean;
   isDoctor: boolean;
   currentUserId: string | null;
 }) {
@@ -57,16 +62,18 @@ export function ConsultaTabsClient({
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (
+      tab === "operacional" ||
       tab === "formularios" ||
       tab === "paciente" ||
       tab === "exames" ||
       tab === "consulta"
     ) {
-      setActiveTab(tab);
+      setActiveTab(tab as Tab);
     }
   }, [searchParams]);
 
   const tabs: { id: Tab; label: string }[] = [
+    { id: "operacional", label: "Operacional" },
     { id: "consulta", label: "Consulta" },
     { id: "paciente", label: "Paciente" },
     { id: "formularios", label: "Formulários" },
@@ -93,17 +100,35 @@ export function ConsultaTabsClient({
       </div>
 
       <div className="min-h-[400px]">
-        <div className="mb-4 rounded-lg border bg-primary/5 p-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm">
-            Anamnese, evolução, receita e pedidos de exame estão na página de{" "}
-            <strong>Atendimento</strong> clínico.
-          </p>
-          <Button size="sm" asChild>
-            <Link href={`/dashboard/agenda/atendimento/${appointmentId}`}>
-              Ir para Atendimento
-            </Link>
-          </Button>
-        </div>
+        {activeTab === "operacional" && (
+          <div className="space-y-4">
+            <CheckInPaymentPolicy
+              appointmentId={appointmentId}
+              canEdit={canEdit && !isDoctor}
+            />
+            <AtendimentoClient
+              appointmentId={appointmentId}
+              appointmentValor={appointmentValor}
+              canEdit={canEditOperacional}
+              autoFinalize={searchParams.get("operacional") === "1"}
+              mode="full"
+            />
+          </div>
+        )}
+
+        {activeTab !== "operacional" && (
+          <div className="mb-4 rounded-lg border bg-primary/5 p-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm">
+              Anamnese, evolução, receita e pedidos de exame estão na página de{" "}
+              <strong>Atendimento</strong> clínico.
+            </p>
+            <Button size="sm" asChild>
+              <Link href={`/dashboard/agenda/atendimento/${appointmentId}`}>
+                Ir para Atendimento clínico
+              </Link>
+            </Button>
+          </div>
+        )}
 
         {activeTab === "consulta" && (
           <ConsultaDetalheClient

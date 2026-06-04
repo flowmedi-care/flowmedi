@@ -22,11 +22,23 @@ export default async function EstoquePage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Controle de estoque</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Cadastre insumos e materiais. O estoque comprometido é reservado ao agendar consultas com procedimentos vinculados.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-semibold">Controle de estoque</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Cadastre insumos e materiais. O estoque comprometido é reservado ao agendar consultas com procedimentos vinculados.
+          </p>
+        </div>
+        <div className="flex gap-3 text-sm">
+          <a href="/dashboard/estoque/lotes" className="text-primary hover:underline">
+            Lotes e validade
+          </a>
+          {profile.role === "admin" && (
+            <a href="/dashboard/estoque/campos-produto" className="text-primary hover:underline">
+              Campos de produto
+            </a>
+          )}
+        </div>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <EstoqueClient initialProducts={products ?? []} isAdmin={profile.role === "admin"} />

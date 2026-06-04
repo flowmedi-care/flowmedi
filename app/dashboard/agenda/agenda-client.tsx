@@ -274,7 +274,7 @@ export function AgendaClient({
   }
 
   function openFinalizeFromDetails(appointmentId: string) {
-    router.push(`/dashboard/agenda/atendimento/${appointmentId}?finalize=1`);
+    router.push(`/dashboard/agenda/consulta/${appointmentId}?tab=operacional&operacional=1`);
   }
 
   function handleModalOpenChange(open: boolean) {

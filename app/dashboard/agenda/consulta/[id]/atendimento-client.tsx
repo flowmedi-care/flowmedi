@@ -17,7 +17,7 @@ import {
   emitComanda,
   getBillingPreview,
   getClinicBillingDefaults,
-  startEncounter,
+  beginAppointmentCare,
   type ConsumptionLine,
   type BillingPreview,
   type ComandaDetail,
@@ -31,7 +31,7 @@ const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", curren
 
 const ENCOUNTER_LABEL: Record<string, string> = {
   em_andamento: "Em atendimento",
-  finalizado_aguardando_cobranca: "Aguardando comanda",
+  finalizado_aguardando_cobranca: "Aguardando cupom",
   cobrado: "Quitado",
 };
 
@@ -111,10 +111,10 @@ export function AtendimentoClient({
   const committedUnits = lines.reduce((s, l) => s + l.quantity, 0);
 
   async function handleStartEncounter() {
-    const res = await startEncounter(appointmentId);
+    const res = await beginAppointmentCare(appointmentId);
     if (res.error) toast(res.error, "error");
     else {
-      toast("Atendimento iniciado.", "success");
+      toast("Consulta iniciada — paciente em atendimento.", "success");
       load();
     }
   }
@@ -236,8 +236,8 @@ export function AtendimentoClient({
       toast(res.error, "error");
       return;
     }
-    toast(
-      payment > 0 ? "Comanda emitida e pagamento registrado." : "Comanda emitida.",
+      toast(
+      payment > 0 ? "Cupom emitido e pagamento registrado." : "Cupom emitido.",
       "success"
     );
     setEmitOpen(false);
@@ -256,7 +256,7 @@ export function AtendimentoClient({
   return (
     <div className="space-y-4">
       {showConsumption && !encounterStatus && canEdit && (
-        <Button onClick={handleStartEncounter}>Iniciar atendimento</Button>
+        <Button onClick={handleStartEncounter}>Atender (iniciar consulta)</Button>
       )}
 
       {showConsumption && encounterStatus && (
@@ -264,7 +264,7 @@ export function AtendimentoClient({
           <Badge variant="outline">{ENCOUNTER_LABEL[encounterStatus] ?? encounterStatus}</Badge>
           {comanda && (
             <Badge variant="secondary">
-              Comanda {comanda.status}
+              Cupom {comanda.status}
               {comanda.remainder > 0 && ` · falta ${fmt(comanda.remainder)}`}
             </Badge>
           )}
@@ -298,14 +298,14 @@ export function AtendimentoClient({
             {encounterStatus === "finalizado_aguardando_cobranca" && !comanda && (
               <p className="text-amber-700 dark:text-amber-400 flex items-center gap-1">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                Atendimento encerrado — aguardando emissão de comanda.
+                Atendimento encerrado — aguardando emissão de cupom.
                 {stockConsumed && " Estoque consumido."}
               </p>
             )}
             {isFullyPaid && (
               <p className="text-green-700 dark:text-green-400 flex items-center gap-1">
                 <CheckCircle2 className="h-4 w-4" />
-                Comanda quitada.
+                Cupom quitado.
               </p>
             )}
           </CardContent>
@@ -321,14 +321,14 @@ export function AtendimentoClient({
             </h3>
             {canEmitComanda && (
               <Button variant="default" size="sm" onClick={openEmitModal}>
-                Emitir comanda
+                Emitir cupom
               </Button>
             )}
           </CardHeader>
           <CardContent className="text-sm space-y-2">
             {!canEmitComanda && !comanda && encounterStatus !== "finalizado_aguardando_cobranca" && (
               <p className="text-muted-foreground">
-                Encerre o atendimento clínico antes de emitir a comanda.
+                Encerre o atendimento clínico antes de emitir o cupom.
               </p>
             )}
             {comanda && (
@@ -533,7 +533,7 @@ export function AtendimentoClient({
       </Dialog>
 
       <Dialog open={emitOpen} onOpenChange={setEmitOpen}>
-        <DialogContent title="Emitir comanda" onClose={() => setEmitOpen(false)} className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent title="Emitir cupom" onClose={() => setEmitOpen(false)} className="max-w-lg max-h-[90vh] overflow-y-auto">
           <div className="space-y-4">
             {loadingBilling ? (
               <p className="text-sm text-muted-foreground">Calculando totais…</p>
@@ -571,7 +571,7 @@ export function AtendimentoClient({
                   </div>
                 )}
                 <div className="flex justify-between font-semibold pt-2 border-t">
-                  <span>Total da comanda</span>
+                  <span>Total do cupom</span>
                   <span>{fmt(billingPreview.totalAmount)}</span>
                 </div>
               </div>
@@ -659,7 +659,7 @@ export function AtendimentoClient({
                 disabled={emitting}
                 variant="outline"
               >
-                {emitting ? "Emitindo…" : "Emitir comanda"}
+                {emitting ? "Emitindo…" : "Emitir cupom"}
               </Button>
               {paymentExpanded && (
                 <Button
@@ -676,7 +676,7 @@ export function AtendimentoClient({
       </Dialog>
 
       <Dialog open={summaryOpen} onOpenChange={setSummaryOpen}>
-        <DialogContent title="Comanda emitida" onClose={() => setSummaryOpen(false)} className="max-w-md">
+        <DialogContent title="Cupom emitido" onClose={() => setSummaryOpen(false)} className="max-w-md">
           {savedComanda && (
             <div className="space-y-4">
               <div className="flex items-center gap-2">

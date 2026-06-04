@@ -91,12 +91,12 @@ export function AtendimentoListClient({ rows }: { rows: AtendimentoListRow[] }) 
                       Consulta
                     </Link>
                   </Button>
-                  <Button size="sm" asChild>
-                    <Link href={`/dashboard/agenda/atendimento/${r.id}`}>
-                      <Package className="h-4 w-4 mr-1" />
-                      Atender
-                    </Link>
-                  </Button>
+                <Button size="sm" asChild>
+                  <Link href={`/dashboard/agenda/consulta/${r.id}?tab=operacional`}>
+                    <Package className="h-4 w-4 mr-1" />
+                    Atender
+                  </Link>
+                </Button>
                 </div>
               </li>
             );

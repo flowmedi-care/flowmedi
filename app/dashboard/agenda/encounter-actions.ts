@@ -11,6 +11,8 @@ import {
 import { resolveAppointmentPrice } from "./actions";
 import { provisionAppointmentFichas } from "@/lib/clinical-fichas-provision";
 
+export type PaymentPolicy = "antecipado" | "no_dia" | "pos_atendimento";
+
 export type BillingPreview = {
   serviceAmount: number;
   materialsAmount: number;
@@ -452,7 +454,13 @@ export async function registerComandaPayment(
   comandaId: string,
   amount: number,
   paymentMethod?: string,
-  paidAt?: string
+  paidAt?: string,
+  options?: {
+    bank_account_id?: string;
+    card_brand?: string;
+    installments?: number;
+    generate_receipt?: boolean;
+  }
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -513,28 +521,60 @@ export async function registerComandaPayment(
     ? new Date(paidAt + (paidAt.length <= 10 ? "T12:00:00" : "")).toISOString()
     : new Date().toISOString();
 
-  await supabase.from("patient_payments").insert({
-    clinic_id: profile.clinic_id,
-    comanda_id: comandaId,
-    patient_id: cmd.patient_id,
+  const { resolvePaymentFee } = await import("../financeiro/bank-account-actions");
+  const feeCalc = await resolvePaymentFee(
+    profile.clinic_id,
+    paymentMethod ?? "pix",
     amount,
-    payment_method: paymentMethod ?? null,
-    paid_at: paymentTimestamp,
-    created_by: user.id,
-  });
+    { card_brand: options?.card_brand, installments: options?.installments }
+  );
+  const netAmount = feeCalc.netAmount;
+
+  const { data: paymentRow, error: payErr } = await supabase
+    .from("patient_payments")
+    .insert({
+      clinic_id: profile.clinic_id,
+      comanda_id: comandaId,
+      patient_id: cmd.patient_id,
+      amount,
+      gross_amount: amount,
+      fee_amount: feeCalc.feeAmount,
+      net_amount: netAmount,
+      bank_account_id: options?.bank_account_id ?? null,
+      installments: options?.installments ?? 1,
+      card_brand: options?.card_brand ?? null,
+      payment_method: paymentMethod ?? null,
+      paid_at: paymentTimestamp,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+
+  if (payErr) return { error: payErr.message };
 
   await supabase.from("financial_entries").insert({
     clinic_id: profile.clinic_id,
     entry_type: "receita",
     origin: "patient",
     description: "Pagamento comanda",
-    amount,
+    amount: netAmount,
     paid_at: paymentTimestamp,
     status: "pago",
     patient_id: cmd.patient_id,
     comanda_id: comandaId,
     created_by: user.id,
   });
+
+  let receiptNumber: string | null = null;
+  let receiptId: string | null = null;
+  if (options?.generate_receipt !== false && paymentRow?.id) {
+    const { generateReceiptForPayment } = await import("../financeiro/receipt-actions");
+    const rec = await generateReceiptForPayment(String(paymentRow.id));
+    if (!rec.error) {
+      receiptNumber = rec.receiptNumber ?? null;
+      receiptId = rec.receiptId ?? null;
+    }
+  }
 
   revalidatePath("/dashboard/financeiro");
   if (cmd.appointment_id) {
@@ -543,7 +583,7 @@ export async function registerComandaPayment(
   }
   revalidatePath(`/dashboard/contatos/pacientes/${cmd.patient_id}`);
   revalidatePath(`/dashboard/pacientes/${cmd.patient_id}`);
-  return { error: null };
+  return { error: null, receiptNumber, receiptId, paymentId: paymentRow?.id ? String(paymentRow.id) : null };
 }
 
 export async function finishClinicalEncounter(appointmentId: string) {
@@ -888,6 +928,76 @@ export async function startEncounter(appointmentId: string) {
 
   revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
   revalidatePath(`/dashboard/agenda/atendimento/${appointmentId}`);
+  return { error: null };
+}
+
+/** Inicia consulta (timer) + encounter clínico em uma ação — botão Atender. */
+export async function beginAppointmentCare(appointmentId: string) {
+  const { startAppointmentConsultation } = await import("./actions");
+  const apptRes = await startAppointmentConsultation(appointmentId);
+  if (apptRes.error && !apptRes.error.includes("já foi iniciada")) {
+    return apptRes;
+  }
+  return startEncounter(appointmentId);
+}
+
+export async function getAppointmentPaymentPolicy(appointmentId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", policy: null as PaymentPolicy | null };
+
+  const { data: appt, error } = await supabase
+    .from("appointments")
+    .select("payment_policy")
+    .eq("id", appointmentId)
+    .maybeSingle();
+
+  if (error) {
+    if (error.message.includes("payment_policy")) {
+      return { error: null, policy: null };
+    }
+    return { error: error.message, policy: null };
+  }
+
+  const p = appt?.payment_policy as PaymentPolicy | null | undefined;
+  return { error: null, policy: p ?? null };
+}
+
+export async function setAppointmentPaymentPolicy(
+  appointmentId: string,
+  policy: PaymentPolicy
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+  if (profile.role === "medico") return { error: "Sem permissão." };
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({ payment_policy: policy, updated_at: new Date().toISOString() })
+    .eq("id", appointmentId)
+    .eq("clinic_id", profile.clinic_id);
+
+  if (error) {
+    if (error.message.includes("payment_policy")) {
+      return { error: "Migration operational-flow-extensions não aplicada." };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
+  revalidatePath("/dashboard/atendimento");
   return { error: null };
 }
 

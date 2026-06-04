@@ -145,6 +145,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     roles: ["admin", "secretaria", "medico"],
     children: [
       { href: "/dashboard/atendimento", label: "Fila operacional" },
+      { href: "/dashboard/planos-tratamento", label: "Planos de tratamento" },
       { href: "/dashboard/atendimentos/prescricoes", label: "Prescrições" },
       { href: "/dashboard/atendimentos/pedidos-exame", label: "Pedidos de exame" },
       { href: "/dashboard/atendimentos/atestados", label: "Atestados" },
@@ -198,6 +199,7 @@ export const DASHBOARD_CONFIG_GROUP: NavGroupItem = {
     { href: "/dashboard/configuracoes/clinica", label: "Dados da clínica" },
     { href: "/dashboard/configuracoes/integracoes", label: "Integrações" },
     { href: "/dashboard/configuracoes/campos-personalizados", label: "Campos personalizados" },
+    { href: "/dashboard/configuracoes/contas-bancarias", label: "Contas bancárias" },
     { href: "/dashboard/configuracoes/assinatura", label: "Assinatura" },
     { href: "/dashboard/configuracoes/site", label: "Site da clínica" },
   ],

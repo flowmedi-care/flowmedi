@@ -194,7 +194,7 @@ export function AtendimentoClinicoClient({
           {canEdit && encounterStatus === "finalizado_aguardando_cobranca" && (
             <Button size="sm" variant="outline" onClick={() => setComandaOpen(true)}>
               <CreditCard className="h-4 w-4 mr-1" />
-              Emitir comanda
+              Emitir cupom
             </Button>
           )}
         </div>
@@ -392,7 +392,7 @@ export function AtendimentoClinicoClient({
 
       <Dialog open={comandaOpen} onOpenChange={setComandaOpen}>
         <DialogContent
-          title="Emitir comanda"
+          title="Emitir cupom"
           onClose={() => setComandaOpen(false)}
           className="max-w-lg max-h-[90vh] overflow-y-auto"
         >

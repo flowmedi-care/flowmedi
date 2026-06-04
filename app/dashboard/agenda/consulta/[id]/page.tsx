@@ -296,6 +296,11 @@ export default async function ConsultaDetalhePage({
         formInstances={formInstances}
         baseUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
         canEdit={profile.role === "admin" || profile.role === "secretaria"}
+        canEditOperacional={
+          profile.role === "admin" ||
+          profile.role === "secretaria" ||
+          (profile.role === "medico" && doctorId === user.id)
+        }
         isDoctor={profile.role === "medico"}
         currentUserId={user?.id ?? null}
       />
