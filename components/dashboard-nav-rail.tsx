@@ -251,19 +251,14 @@ export function DashboardNavRail({
               </button>
             </div>
           ) : (
-            <>
-              <button
-                type="button"
-                onClick={toggleRail}
-                className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/70 hover:text-foreground"
-                aria-label="Expandir menu"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
-              <Link href="/dashboard" className="flex items-center justify-center" title="Flowmedi">
-                <FlowmediLogo href="/dashboard" showText={false} size="sm" />
-              </Link>
-            </>
+            <button
+              type="button"
+              onClick={toggleRail}
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+              aria-label="Expandir menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
           )}
         </div>
 
