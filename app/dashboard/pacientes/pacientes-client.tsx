@@ -772,7 +772,7 @@ export function PacientesClient({
                             <Card
                               key={p.id}
                               className="cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => router.push(`/dashboard/pacientes/${p.id}`)}
+                              onClick={() => router.push(`/dashboard/contatos/pacientes/${p.id}`)}
                             >
                               <CardContent className="py-3 px-3">
                                 <div className="flex items-center gap-3 min-w-0">
@@ -844,13 +844,13 @@ export function PacientesClient({
                             >
                               <div
                                 className="min-w-0 flex-1 cursor-pointer"
-                                onClick={() => router.push(`/dashboard/pacientes/${p.id}`)}
+                                onClick={() => router.push(`/dashboard/contatos/pacientes/${p.id}`)}
                                 role="link"
                                 tabIndex={0}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter" || e.key === " ") {
                                     e.preventDefault();
-                                    router.push(`/dashboard/pacientes/${p.id}`);
+                                    router.push(`/dashboard/contatos/pacientes/${p.id}`);
                                   }
                                 }}
                               >
@@ -864,7 +864,7 @@ export function PacientesClient({
                                   variant="ghost"
                                   size="sm"
                                   title="Ver perfil"
-                                  onClick={() => router.push(`/dashboard/pacientes/${p.id}`)}
+                                  onClick={() => router.push(`/dashboard/contatos/pacientes/${p.id}`)}
                                 >
                                   <ExternalLink className="h-4 w-4" />
                                 </Button>

@@ -616,6 +616,9 @@ export async function registerPatientFromPipeline(pipelineId: string) {
   }
 
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/contatos/pacientes");
+  revalidatePath("/dashboard/contatos/leads");
+  revalidatePath("/dashboard/crm/pipeline");
   revalidatePath("/dashboard/pacientes");
   return { error: null, patientId };
 }

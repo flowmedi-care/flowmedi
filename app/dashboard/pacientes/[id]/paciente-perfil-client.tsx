@@ -168,7 +168,7 @@ export function PacientePerfilClient({
   return (
     <div className="space-y-4">
       <nav className="text-sm text-muted-foreground flex flex-wrap items-center gap-1">
-        <Link href="/dashboard/pacientes" className="hover:text-foreground">
+        <Link href="/dashboard/contatos/pacientes" className="hover:text-foreground">
           Pacientes
         </Link>
         <span>/</span>
@@ -179,7 +179,7 @@ export function PacientePerfilClient({
 
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/pacientes">
+          <Link href="/dashboard/contatos/pacientes">
             <ChevronLeft className="h-4 w-4" />
           </Link>
         </Button>
@@ -256,7 +256,7 @@ export function PacientePerfilClient({
               </Button>
               {canEdit && (
                 <Button variant="outline" className="w-full" asChild>
-                  <Link href={`/dashboard/pacientes?edit=${patient.id}`}>
+                  <Link href={`/dashboard/contatos/pacientes?edit=${patient.id}`}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Editar cadastro
                   </Link>

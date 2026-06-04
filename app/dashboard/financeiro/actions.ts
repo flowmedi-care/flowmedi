@@ -87,6 +87,9 @@ export async function createFinancialEntry(data: {
 
   if (error) return { error: error.message };
   revalidatePath("/dashboard/financeiro");
+  revalidatePath("/dashboard/financeiro/receber");
+  revalidatePath("/dashboard/financeiro/pagar");
+  revalidatePath("/dashboard/financeiro/extrato");
   return { error: null };
 }
 
@@ -105,6 +108,9 @@ export async function markEntryPaid(id: string) {
 
   if (error) return { error: error.message };
   revalidatePath("/dashboard/financeiro");
+  revalidatePath("/dashboard/financeiro/receber");
+  revalidatePath("/dashboard/financeiro/pagar");
+  revalidatePath("/dashboard/financeiro/extrato");
   return { error: null };
 }
 
@@ -135,7 +141,6 @@ export async function getFinancialSummary() {
     const amt = Number(e.amount);
     if (e.entry_type === "receita") {
       if (e.status === "pago") recebido += amt;
-      else aReceber += amt;
     } else {
       if (e.status === "pago") pago += amt;
       else aPagar += amt;
@@ -150,6 +155,18 @@ export async function getFinancialSummary() {
 
   for (const c of comandas ?? []) {
     aReceber += Math.max(0, Number(c.total_amount) - Number(c.paid_amount));
+  }
+
+  const { data: pendingManualReceitas } = await supabase
+    .from("financial_entries")
+    .select("amount")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("entry_type", "receita")
+    .eq("origin", "manual")
+    .neq("status", "pago");
+
+  for (const r of pendingManualReceitas ?? []) {
+    aReceber += Number(r.amount);
   }
 
   return {

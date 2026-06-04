@@ -360,7 +360,7 @@ export function WhatsAppContactSidebar({
                 </div>
                 <div className="flex gap-2 pt-4">
                   <Button variant="outline" className="flex-1" asChild>
-                    <a href="/dashboard/pacientes">
+                    <a href="/dashboard/contatos/pacientes">
                       <Pencil className="h-4 w-4 mr-2" />
                       Ver em Pacientes
                     </a>

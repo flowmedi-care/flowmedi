@@ -88,7 +88,8 @@ export async function createPatient(data: PatientInsert) {
     // Não falha o cadastro se o evento não for criado
   }
 
-  revalidatePath("/dashboard/pacientes");
+  revalidatePath("/dashboard/contatos/pacientes");
+revalidatePath("/dashboard/pacientes");
   revalidatePath("/dashboard/eventos");
   return { error: null, patientId: newPatient.id };
 }
@@ -113,7 +114,8 @@ export async function updatePatient(id: string, data: PatientUpdate) {
     .eq("id", id);
 
   if (error) return { error: error.message };
-  revalidatePath("/dashboard/pacientes");
+  revalidatePath("/dashboard/contatos/pacientes");
+revalidatePath("/dashboard/pacientes");
   return { error: null };
 }
 
@@ -147,7 +149,8 @@ export async function deletePatient(id: string) {
       { onConflict: "clinic_id,email" }
     );
   }
-  revalidatePath("/dashboard/pacientes");
+  revalidatePath("/dashboard/contatos/pacientes");
+revalidatePath("/dashboard/pacientes");
   return { error: null };
 }
 
@@ -290,7 +293,8 @@ export async function registerPatientFromPublicForm(
       .eq("clinic_id", profile.clinic_id);
   }
 
-  revalidatePath("/dashboard/pacientes");
+  revalidatePath("/dashboard/contatos/pacientes");
+revalidatePath("/dashboard/pacientes");
   revalidatePath("/dashboard/eventos");
   return { error: null, patientId };
 }

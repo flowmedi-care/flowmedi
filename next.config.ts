@@ -1,5 +1,16 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {};
+const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      { source: "/dashboard/pacientes", destination: "/dashboard/contatos/pacientes", permanent: true },
+      { source: "/dashboard/pacientes/:path*", destination: "/dashboard/contatos/pacientes/:path*", permanent: true },
+      { source: "/dashboard/equipe", destination: "/dashboard/contatos/profissionais", permanent: true },
+      { source: "/dashboard/campos-pacientes", destination: "/dashboard/configuracoes/catalogo-clinico", permanent: true },
+      { source: "/dashboard/plano", destination: "/dashboard/configuracoes/assinatura", permanent: true },
+      { source: "/dashboard/configuracoes", destination: "/dashboard/configuracoes/preferencias", permanent: false },
+    ];
+  },
+};
 
 export default nextConfig;

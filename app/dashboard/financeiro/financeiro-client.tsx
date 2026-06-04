@@ -27,16 +27,24 @@ type OpenComanda = {
   scheduled_at: string | null;
 };
 
+export type FinanceiroSection =
+  | "overview"
+  | "receber"
+  | "pagar"
+  | "extrato";
+
 export function FinanceiroClient({
   initialEntries,
   summary,
   openComandas,
   canManage,
+  section = "overview",
 }: {
   initialEntries: FinancialEntryRow[];
   summary: { recebido: number; aReceber: number; pago: number; aPagar: number };
   openComandas: OpenComanda[];
   canManage: boolean;
+  section?: FinanceiroSection;
 }) {
   const router = useRouter();
   const [entries, setEntries] = useState(initialEntries);
@@ -105,14 +113,26 @@ export function FinanceiroClient({
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   const filteredEntries = entries.filter((e) => {
+    if (section === "pagar") return e.entry_type === "despesa";
+    if (section === "extrato") {
+      if (entryFilter === "receita") return e.entry_type === "receita";
+      if (entryFilter === "despesa") return e.entry_type === "despesa";
+      if (entryFilter === "pendente") return e.status === "pendente";
+      return true;
+    }
     if (entryFilter === "receita") return e.entry_type === "receita";
     if (entryFilter === "despesa") return e.entry_type === "despesa";
     if (entryFilter === "pendente") return e.status === "pendente";
     return true;
   });
 
+  const showSummary = section === "overview" || section === "receber" || section === "pagar";
+  const showComandas = section === "overview" || section === "receber";
+  const showLancamentos = section === "overview" || section === "pagar" || section === "extrato";
+
   return (
     <div className="space-y-4">
+      {showSummary && (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-4">
@@ -139,8 +159,9 @@ export function FinanceiroClient({
           </CardContent>
         </Card>
       </div>
+      )}
 
-      {openComandas.length > 0 && (
+      {showComandas && openComandas.length > 0 && (
         <Card>
           <CardHeader>
             <h2 className="font-semibold">Contas a receber (comandas)</h2>
@@ -188,9 +209,12 @@ export function FinanceiroClient({
         </Card>
       )}
 
+      {showLancamentos && (
       <Card>
         <CardHeader className="flex flex-row justify-between items-center flex-wrap gap-2">
-          <h2 className="font-semibold">Lançamentos</h2>
+          <h2 className="font-semibold">
+            {section === "pagar" ? "Contas a pagar" : section === "extrato" ? "Extrato" : "Lançamentos"}
+          </h2>
           <div className="flex gap-2 flex-wrap">
             <select
               className="h-9 rounded-md border px-2 text-sm"
@@ -271,6 +295,7 @@ export function FinanceiroClient({
           )}
         </CardContent>
       </Card>
+      )}
 
       <Dialog open={!!paymentComandaId} onOpenChange={(o) => !o && setPaymentComandaId(null)}>
         <DialogContent title="Registrar pagamento" onClose={() => setPaymentComandaId(null)}>

@@ -340,7 +340,9 @@ export async function uploadPatientPhoto(patientId: string, formData: FormData) 
 
   if (updateErr) return { error: updateErr.message };
 
+  revalidatePath(`/dashboard/contatos/pacientes/${patientId}`);
   revalidatePath(`/dashboard/pacientes/${patientId}`);
+  revalidatePath("/dashboard/contatos/pacientes");
   revalidatePath("/dashboard/pacientes");
   return { error: null, photoUrl: urlData.publicUrl };
 }

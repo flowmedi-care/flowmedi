@@ -75,9 +75,9 @@ export function CamposProcedimentosClient({
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Cadastro clínico</h1>
+        <h1 className="text-xl font-semibold text-foreground">Catálogo clínico</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Campos do paciente, tipos de atendimento (ex.: retorno, reagendada) e procedimentos (ex.: endoscopia), com recomendações e vínculo a formulários.
+          Campos do paciente, tipos de atendimento, procedimentos e fichas clínicas.
         </p>
       </div>
 

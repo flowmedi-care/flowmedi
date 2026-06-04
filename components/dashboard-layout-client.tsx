@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation";
 import { type User } from "@supabase/supabase-js";
 import { DashboardNav } from "./dashboard-nav";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react";
 
 type Profile = {
   id: string;
@@ -34,14 +32,13 @@ export function DashboardLayoutClient({
   servicesPricingMode,
 }: DashboardLayoutClientProps) {
   const pathname = usePathname();
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [hasWhatsAppConnected, setHasWhatsAppConnected] = useState(false);
   const isWhatsAppPage = pathname === "/dashboard/whatsapp";
 
   useEffect(() => {
     async function checkWhatsAppIntegration() {
       if (!profile?.clinic_id) return;
-      
+
       try {
         const supabase = createClient();
         const { data } = await supabase
@@ -51,42 +48,21 @@ export function DashboardLayoutClient({
           .eq("integration_type", "whatsapp_meta")
           .eq("status", "connected")
           .limit(1);
-        
+
         setHasWhatsAppConnected((data?.length ?? 0) > 0);
-      } catch (error) {
-        // Ignorar erro
+      } catch {
+        // ignore
       }
     }
 
     checkWhatsAppIntegration();
   }, [profile?.clinic_id]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.innerWidth < 768) {
-      setIsCollapsed(true);
-    }
-  }, [pathname]);
-
   return (
     <div className="flex h-screen overflow-hidden">
-      {isCollapsed && (
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          onClick={() => setIsCollapsed(false)}
-          className="md:hidden fixed top-3 left-4 z-50 h-10 w-10 rounded-full bg-background/95 shadow-sm"
-          aria-label="Abrir navegação"
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-      )}
       <DashboardNav
         user={user}
         profile={profile}
-        isCollapsed={isCollapsed}
-        onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
         hasWhatsAppConnected={hasWhatsAppConnected}
         canAccessAudit={canAccessAudit}
         canUseWhatsApp={canUseWhatsApp}
@@ -95,7 +71,7 @@ export function DashboardLayoutClient({
       <main
         className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-background ${
           !isWhatsAppPage ? "overflow-y-auto" : ""
-        } ${isCollapsed ? "pt-14 md:pt-0" : "pt-0"}`}
+        } pt-14 md:pt-0 pl-0 md:pl-0`}
       >
         {isWhatsAppPage ? (
           <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">

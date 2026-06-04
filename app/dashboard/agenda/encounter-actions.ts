@@ -348,6 +348,16 @@ export async function registerComandaPayment(
 
   if (!cmd || cmd.status === "cancelada") return { error: "Comanda inválida." };
 
+  const remainder = Math.max(
+    0,
+    Number(cmd.total_amount) - Number(cmd.paid_amount)
+  );
+  if (amount > remainder + 0.009) {
+    return {
+      error: `Valor máximo a receber: R$ ${remainder.toFixed(2).replace(".", ",")}.`,
+    };
+  }
+
   const newPaid = Number(cmd.paid_amount) + amount;
   const total = Number(cmd.total_amount);
   const newStatus =
@@ -391,6 +401,7 @@ export async function registerComandaPayment(
     revalidatePath(`/dashboard/agenda/atendimento/${cmd.appointment_id}`);
     revalidatePath(`/dashboard/agenda/consulta/${cmd.appointment_id}`);
   }
+  revalidatePath(`/dashboard/contatos/pacientes/${cmd.patient_id}`);
   revalidatePath(`/dashboard/pacientes/${cmd.patient_id}`);
   return { error: null };
 }
@@ -459,6 +470,13 @@ export async function finalizeBilling(
   const totalAmount = billing?.totalAmount ?? (Number(appt.valor) || 0);
   const serviceAmount = billing?.serviceAmount ?? 0;
 
+  const comandaStatus =
+    paymentAmount >= totalAmount && totalAmount > 0
+      ? "paga"
+      : paymentAmount > 0
+        ? "parcial"
+        : "aberta";
+
   const { data: comanda, error: comandaErr } = await supabase
     .from("comandas")
     .insert({
@@ -468,8 +486,8 @@ export async function finalizeBilling(
       encounter_id: encounter.id,
       total_amount: totalAmount,
       paid_amount: paymentAmount,
-      status: paymentAmount >= totalAmount && totalAmount > 0 ? "paga" : paymentAmount > 0 ? "parcial" : "aberta",
-      closed_at: new Date().toISOString(),
+      status: comandaStatus,
+      closed_at: comandaStatus === "paga" ? new Date().toISOString() : null,
       created_by: user.id,
     })
     .select("id")
@@ -563,6 +581,7 @@ export async function finalizeBilling(
   revalidatePath(`/dashboard/agenda/atendimento/${appointmentId}`);
   revalidatePath("/dashboard/financeiro");
   revalidatePath("/dashboard/agenda");
+  revalidatePath(`/dashboard/contatos/pacientes/${appt.patient_id}`);
   revalidatePath(`/dashboard/pacientes/${appt.patient_id}`);
 
   const detail = await getComandaDetail(comanda!.id);
