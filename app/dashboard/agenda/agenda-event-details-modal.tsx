@@ -66,9 +66,11 @@ export function AgendaEventDetailsModal({
   }, [open, appointmentId]);
 
   const isBilled = data?.encounterStatus === "cobrado";
+  const isComandaFinalized = !!data?.comanda_issued_at;
   const awaitingComanda =
-    data?.encounterStatus === "finalizado_aguardando_cobranca" && !data?.comanda;
-  const canEmitComanda = awaitingComanda || (data?.encounterStatus === "em_andamento" && !data?.comanda);
+    data?.encounterStatus === "finalizado_aguardando_cobranca" && !isComandaFinalized;
+  const canEmitComanda =
+    awaitingComanda || (data?.encounterStatus === "em_andamento" && !isComandaFinalized);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -178,7 +180,7 @@ export function AgendaEventDetailsModal({
               </p>
             )}
 
-            {data.comanda && (
+            {data.comanda && isComandaFinalized && (
               <div className="rounded-md border border-green-200 bg-green-50/50 dark:bg-green-950/20 p-3 text-sm space-y-1">
                 <p className="font-medium flex items-center gap-1">
                   <CreditCard className="h-4 w-4" />
@@ -223,13 +225,13 @@ export function AgendaEventDetailsModal({
                     onFinalize(data.id);
                   }}
                 >
-                  {awaitingComanda ? "Emitir comanda" : "Encerrar clínico / emitir comanda"}
+                  {awaitingComanda ? "Finalizar comanda" : "Encerrar clínico / finalizar comanda"}
                 </Button>
               )}
               {!isBilled && (
                 <Button variant="secondary" className="w-full" asChild>
                   <Link href={`/dashboard/agenda/atendimento/${data.id}`}>
-                    {awaitingComanda ? "Emitir comanda na consulta" : "Gerenciar atendimento"}
+                    {awaitingComanda ? "Finalizar comanda na consulta" : "Gerenciar atendimento"}
                   </Link>
                 </Button>
               )}

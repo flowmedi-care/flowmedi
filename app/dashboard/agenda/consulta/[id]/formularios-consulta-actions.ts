@@ -314,6 +314,62 @@ export async function linkFormToAppointment(
   return { error: null };
 }
 
+// COMANDA v1 — Reenvia links de formulários pendentes vinculados ao agendamento.
+export async function sendPreAppointmentForms(
+  appointmentId: string
+): Promise<{ error: string | null; sent: number }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", sent: 0 };
+
+  const { data: appointment } = await supabase
+    .from("appointments")
+    .select("clinic_id, patient_id")
+    .eq("id", appointmentId)
+    .single();
+
+  if (!appointment?.clinic_id || !appointment?.patient_id) {
+    return { error: "Consulta não encontrada.", sent: 0 };
+  }
+
+  const { data: pending } = await supabase
+    .from("form_instances")
+    .select("id")
+    .eq("appointment_id", appointmentId)
+    .eq("status", "pendente");
+
+  if (!pending?.length) return { error: null, sent: 0 };
+
+  const { runAutoSendForEvent } = await import("@/lib/event-send-logic-server");
+  let sent = 0;
+
+  for (const inst of pending) {
+    try {
+      const { data: eventId, error: eventErr } = await supabase.rpc("create_event_timeline", {
+        p_clinic_id: appointment.clinic_id,
+        p_event_code: "form_linked",
+        p_patient_id: appointment.patient_id,
+        p_appointment_id: appointmentId,
+        p_form_instance_id: inst.id,
+        p_origin: "user",
+      });
+      if (!eventErr && eventId) {
+        await runAutoSendForEvent(eventId, appointment.clinic_id, "form_linked", supabase);
+        sent++;
+      }
+    } catch (e) {
+      console.error("[sendPreAppointmentForms] form_linked event:", e);
+    }
+  }
+
+  revalidateConsultaAndAtendimento(appointmentId);
+  revalidatePath("/dashboard/eventos");
+  revalidatePath("/dashboard/agenda");
+  return { error: null, sent };
+}
+
 export async function unlinkFormFromAppointment(
   formInstanceId: string
 ): Promise<{ error: string | null }> {

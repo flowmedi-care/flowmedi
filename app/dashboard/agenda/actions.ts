@@ -299,6 +299,9 @@ export type AppointmentEventSummary = {
     paid_amount: number;
     remainder: number;
   } | null;
+  comanda_items: { description: string; quantity: number; total_price: number }[];
+  comanda_issued_at: string | null;
+  forms: { id: string; template_name: string; status: string }[];
 };
 
 export async function getAppointmentEventSummary(
@@ -367,11 +370,40 @@ export async function getAppointmentEventSummary(
 
   const { data: comandaRow } = await supabase
     .from("comandas")
-    .select("id, status, total_amount, paid_amount")
+    .select("id, status, total_amount, paid_amount, issued_at")
     .eq("appointment_id", appointmentId)
+    .neq("status", "cancelada")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  let comandaItems: { description: string; quantity: number; total_price: number }[] = [];
+  if (comandaRow) {
+    const { data: itemRows } = await supabase
+      .from("comanda_items")
+      .select("description, quantity, total_price")
+      .eq("comanda_id", comandaRow.id)
+      .order("created_at", { ascending: true });
+    comandaItems = (itemRows ?? []).map((row) => ({
+      description: String(row.description),
+      quantity: Number(row.quantity),
+      total_price: Number(row.total_price),
+    }));
+  }
+
+  const { data: formRows } = await supabase
+    .from("form_instances")
+    .select("id, status, form_templates(name)")
+    .eq("appointment_id", appointmentId);
+
+  const forms = (formRows ?? []).map((row) => {
+    const tpl = Array.isArray(row.form_templates) ? row.form_templates[0] : row.form_templates;
+    return {
+      id: String(row.id),
+      template_name: String((tpl as { name?: string })?.name ?? "Formulário"),
+      status: String(row.status),
+    };
+  });
 
   const patient = Array.isArray(appt.patient) ? appt.patient[0] : appt.patient;
   const doctor = Array.isArray(appt.doctor) ? appt.doctor[0] : appt.doctor;
@@ -430,6 +462,9 @@ export async function getAppointmentEventSummary(
             remainder: Math.max(0, Number(comandaRow.total_amount) - Number(comandaRow.paid_amount)),
           }
         : null,
+      comanda_items: comandaItems,
+      comanda_issued_at: comandaRow?.issued_at != null ? String(comandaRow.issued_at) : null,
+      forms,
     },
   };
 }
@@ -935,6 +970,13 @@ export async function createAppointment(
       .from("event_timeline")
       .update({ sent_channels: appointmentCreatedSentChannels })
       .in("id", formLinkedEventIds);
+  }
+
+  try {
+    const { createScheduleComanda } = await import("./encounter-actions");
+    await createScheduleComanda(appointment.id);
+  } catch (e) {
+    console.error("[createAppointment] schedule comanda:", e);
   }
 
   if (!options?.skipRevalidate) {

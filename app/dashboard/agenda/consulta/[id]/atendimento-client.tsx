@@ -31,7 +31,7 @@ const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", curren
 
 const ENCOUNTER_LABEL: Record<string, string> = {
   em_andamento: "Em atendimento",
-  finalizado_aguardando_cobranca: "Aguardando cupom",
+  finalizado_aguardando_cobranca: "Aguardando comanda",
   cobrado: "Quitado",
 };
 
@@ -95,7 +95,7 @@ export function AtendimentoClient({
   useEffect(() => {
     if (!autoFinalize || loading || !canEdit) return;
     if (mode === "billing-only" || encounterStatus === "finalizado_aguardando_cobranca") {
-      if (!comanda) openEmitModal();
+      if (!comanda?.issued_at) openEmitModal();
     } else if (encounterStatus !== "cobrado") {
       setClinicalAttentionOpen(true);
     }
@@ -106,8 +106,9 @@ export function AtendimentoClient({
   const isFullyPaid = encounterStatus === "cobrado";
   const canEditConsumption = canEdit && !isClinicalLocked;
   const canFinishClinical = canEdit && encounterStatus === "em_andamento";
+  const isComandaFinalized = !!comanda?.issued_at;
   const canEmitComanda =
-    canEdit && encounterStatus === "finalizado_aguardando_cobranca" && !comanda;
+    canEdit && encounterStatus === "finalizado_aguardando_cobranca" && !isComandaFinalized;
   const committedUnits = lines.reduce((s, l) => s + l.quantity, 0);
 
   async function handleStartEncounter() {
@@ -264,7 +265,7 @@ export function AtendimentoClient({
           <Badge variant="outline">{ENCOUNTER_LABEL[encounterStatus] ?? encounterStatus}</Badge>
           {comanda && (
             <Badge variant="secondary">
-              Cupom {comanda.status}
+              Comanda {comanda.issued_at ? comanda.status : "provisória"}
               {comanda.remainder > 0 && ` · falta ${fmt(comanda.remainder)}`}
             </Badge>
           )}
@@ -295,10 +296,10 @@ export function AtendimentoClient({
                 estoque.
               </p>
             )}
-            {encounterStatus === "finalizado_aguardando_cobranca" && !comanda && (
+            {encounterStatus === "finalizado_aguardando_cobranca" && !isComandaFinalized && (
               <p className="text-amber-700 dark:text-amber-400 flex items-center gap-1">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                Atendimento encerrado — aguardando emissão de cupom.
+                Atendimento encerrado — aguardando finalização da comanda.
                 {stockConsumed && " Estoque consumido."}
               </p>
             )}
@@ -321,14 +322,14 @@ export function AtendimentoClient({
             </h3>
             {canEmitComanda && (
               <Button variant="default" size="sm" onClick={openEmitModal}>
-                Emitir cupom
+                Finalizar comanda
               </Button>
             )}
           </CardHeader>
           <CardContent className="text-sm space-y-2">
-            {!canEmitComanda && !comanda && encounterStatus !== "finalizado_aguardando_cobranca" && (
+            {!canEmitComanda && !isComandaFinalized && encounterStatus !== "finalizado_aguardando_cobranca" && (
               <p className="text-muted-foreground">
-                Encerre o atendimento clínico antes de emitir o cupom.
+                Encerre o atendimento clínico antes de finalizar a comanda.
               </p>
             )}
             {comanda && (
@@ -533,7 +534,7 @@ export function AtendimentoClient({
       </Dialog>
 
       <Dialog open={emitOpen} onOpenChange={setEmitOpen}>
-        <DialogContent title="Emitir cupom" onClose={() => setEmitOpen(false)} className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent title="Finalizar comanda" onClose={() => setEmitOpen(false)} className="max-w-lg max-h-[90vh] overflow-y-auto">
           <div className="space-y-4">
             {loadingBilling ? (
               <p className="text-sm text-muted-foreground">Calculando totais…</p>
@@ -571,7 +572,7 @@ export function AtendimentoClient({
                   </div>
                 )}
                 <div className="flex justify-between font-semibold pt-2 border-t">
-                  <span>Total do cupom</span>
+                  <span>Total da comanda</span>
                   <span>{fmt(billingPreview.totalAmount)}</span>
                 </div>
               </div>
@@ -659,7 +660,7 @@ export function AtendimentoClient({
                 disabled={emitting}
                 variant="outline"
               >
-                {emitting ? "Emitindo…" : "Emitir cupom"}
+                {emitting ? "Finalizando…" : "Finalizar comanda"}
               </Button>
               {paymentExpanded && (
                 <Button

@@ -184,8 +184,10 @@ export async function addConsumptionLine(appointmentId: string, productId: strin
   });
 
   if (error) return { error: error.message };
+  await syncComandaAfterConsumptionChange(appointmentId);
   revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
   revalidatePath(`/dashboard/agenda/atendimento/${appointmentId}`);
+  revalidatePath("/dashboard/agenda");
   return { error: null };
 }
 
@@ -209,8 +211,10 @@ export async function updateConsumptionQuantity(lineId: string, quantity: number
 
   if (error) return { error: error.message };
   if (line?.appointment_id) {
+    await syncComandaAfterConsumptionChange(line.appointment_id);
     revalidatePath(`/dashboard/agenda/consulta/${line.appointment_id}`);
     revalidatePath(`/dashboard/agenda/atendimento/${line.appointment_id}`);
+    revalidatePath("/dashboard/agenda");
   }
   return { error: null };
 }
@@ -231,8 +235,10 @@ export async function removeConsumptionLine(lineId: string) {
   const { error } = await supabase.from("appointment_consumption_lines").delete().eq("id", lineId);
   if (error) return { error: error.message };
   if (line?.appointment_id) {
+    await syncComandaAfterConsumptionChange(line.appointment_id);
     revalidatePath(`/dashboard/agenda/consulta/${line.appointment_id}`);
     revalidatePath(`/dashboard/agenda/atendimento/${line.appointment_id}`);
+    revalidatePath("/dashboard/agenda");
   }
   return { error: null };
 }
@@ -808,75 +814,32 @@ export async function finishClinicalEncounter(appointmentId: string) {
   return { error: null };
 }
 
-export async function emitComanda(appointmentId: string, options?: EmitComandaOptions) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Não autorizado." };
+type ApptBillingContext = {
+  id: string;
+  patient_id: string;
+  service_id: string | null;
+  valor: number | null;
+  treatment_plan_id: string | null;
+  session_number: number | null;
+};
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("clinic_id")
-    .eq("id", user.id)
-    .single();
-  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
-
-  const { data: existingComanda } = await supabase
-    .from("comandas")
-    .select("id, status")
-    .eq("appointment_id", appointmentId)
-    .neq("status", "cancelada")
-    .maybeSingle();
-
-  if (existingComanda) {
-    return { error: "Já existe cupom para esta consulta.", comandaId: existingComanda.id };
-  }
-
-  const { data: appt } = await supabase
-    .from("appointments")
-    .select(
-      "id, patient_id, service_id, valor, clinic_id, status, payment_policy, treatment_plan_id, session_number"
-    )
-    .eq("id", appointmentId)
-    .single();
-
-  if (!appt) return { error: "Consulta não encontrada." };
-
-  const policy = appt.payment_policy as PaymentPolicy | null;
-  const earlyEmit = policy === "antecipado" || policy === "no_dia";
-
-  let enc = await supabase
-    .from("encounters")
-    .select("id, status")
-    .eq("appointment_id", appointmentId)
-    .maybeSingle()
-    .then((r) => r.data);
-
-  if (!enc) {
-    enc = await ensureEncounter(supabase, profile.clinic_id, appointmentId);
-  }
-  if (!enc) return { error: "Erro ao preparar atendimento." };
-
-  if (!earlyEmit && enc.status !== "finalizado_aguardando_cobranca") {
-    return { error: "Encerre o atendimento clínico antes de emitir o cupom." };
-  }
-
-  const chargeMaterialsSeparately = options?.chargeMaterialsSeparately !== false;
-  const previewRes = await buildBillingPreviewData(supabase, appointmentId, {
-    chargeMaterialsSeparately,
-    discountAmount: options?.discountAmount,
-    discountPercent: options?.discountPercent,
-  });
-  if (previewRes.error || !previewRes.data) {
-    return { error: previewRes.error ?? "Erro ao calcular totais." };
-  }
-
-  const billing = previewRes.data;
+// COMANDA v1 — Calcula totais de serviço considerando plano de tratamento.
+async function resolveServiceAmountsForAppt(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  appt: ApptBillingContext,
+  billing: BillingPreview
+): Promise<{
+  totalAmount: number;
+  serviceAmount: number;
+  treatmentPlanId: string | null;
+  sessionRevenueAmount: number | null;
+  planPrepaid: boolean;
+  prepaidPaidAmount: number;
+}> {
   let totalAmount = billing.totalAmount;
   let serviceAmount = billing.serviceAmount;
-  let sessionRevenueAmount: number | null = null;
   let treatmentPlanId: string | null = null;
+  let sessionRevenueAmount: number | null = null;
   let planPrepaid = false;
   let prepaidPaidAmount = 0;
 
@@ -905,6 +868,339 @@ export async function emitComanda(appointmentId: string, options?: EmitComandaOp
       }
     }
   }
+
+  return {
+    totalAmount,
+    serviceAmount,
+    treatmentPlanId,
+    sessionRevenueAmount,
+    planPrepaid,
+    prepaidPaidAmount,
+  };
+}
+
+// COMANDA v1 — Popula comanda_items a partir do preview de cobrança.
+async function populateComandaItems(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  comandaId: string,
+  appt: ApptBillingContext,
+  billing: BillingPreview,
+  opts: {
+    chargeMaterialsSeparately: boolean;
+    planPrepaid: boolean;
+    treatmentPlanId: string | null;
+    serviceAmount: number;
+  }
+) {
+  await supabase.from("comanda_items").delete().eq("comanda_id", comandaId);
+
+  if (appt.service_id && opts.serviceAmount > 0) {
+    const { data: svc } = await supabase
+      .from("services")
+      .select("nome")
+      .eq("id", appt.service_id)
+      .single();
+    const desc =
+      opts.treatmentPlanId && appt.session_number
+        ? `${svc?.nome ?? "Sessão"} — sessão ${appt.session_number}`
+        : svc?.nome ?? "Serviço";
+    await supabase.from("comanda_items").insert({
+      comanda_id: comandaId,
+      item_type: "service",
+      description: desc,
+      quantity: 1,
+      unit_price: opts.serviceAmount,
+      total_price: opts.serviceAmount,
+      reference_id: appt.service_id,
+    });
+  } else if (opts.treatmentPlanId && opts.serviceAmount > 0) {
+    await supabase.from("comanda_items").insert({
+      comanda_id: comandaId,
+      item_type: "service",
+      description: `Sessão ${appt.session_number ?? "—"} do plano`,
+      quantity: 1,
+      unit_price: opts.serviceAmount,
+      total_price: opts.serviceAmount,
+      reference_id: null,
+    });
+  }
+
+  if (opts.chargeMaterialsSeparately && !opts.planPrepaid) {
+    const { data: consumption } = await supabase
+      .from("appointment_consumption_lines")
+      .select("id, product_id, quantity, products(name, cost, sale_price)")
+      .eq("appointment_id", appt.id);
+
+    for (const line of consumption ?? []) {
+      const prod = Array.isArray(line.products) ? line.products[0] : line.products;
+      const cost = Number((prod as { cost?: number })?.cost) || 0;
+      const sale = (prod as { sale_price?: number | null })?.sale_price;
+      const unitPrice =
+        sale != null && Number(sale) > 0 ? Number(sale) : cost > 0 ? cost : 0;
+      const qty = Number(line.quantity);
+      if (qty > 0 && unitPrice > 0) {
+        await supabase.from("comanda_items").insert({
+          comanda_id: comandaId,
+          item_type: "product",
+          description: (prod as { name?: string })?.name ?? "Material",
+          quantity: qty,
+          unit_price: unitPrice,
+          total_price: Number((qty * unitPrice).toFixed(2)),
+          reference_id: line.product_id,
+        });
+      }
+    }
+  }
+}
+
+// COMANDA v1 — Comanda provisória no agendamento (issued_at null, sem AR).
+export async function createScheduleComanda(
+  appointmentId: string
+): Promise<{ error: string | null; comandaId: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", comandaId: null };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", comandaId: null };
+
+  const { data: existing } = await supabase
+    .from("comandas")
+    .select("id, issued_at")
+    .eq("appointment_id", appointmentId)
+    .neq("status", "cancelada")
+    .maybeSingle();
+
+  if (existing) {
+    return { error: null, comandaId: String(existing.id) };
+  }
+
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select(
+      "id, patient_id, service_id, valor, clinic_id, treatment_plan_id, session_number"
+    )
+    .eq("id", appointmentId)
+    .single();
+
+  if (!appt) return { error: "Consulta não encontrada.", comandaId: null };
+  if (!appt.service_id && (appt.valor == null || Number(appt.valor) <= 0)) {
+    return { error: null, comandaId: null };
+  }
+
+  const defaults = await getClinicBillingDefaults();
+  const chargeMaterialsSeparately = defaults.chargeMaterialsSeparately !== false;
+
+  const previewRes = await buildBillingPreviewData(supabase, appointmentId, {
+    chargeMaterialsSeparately,
+  });
+  if (previewRes.error || !previewRes.data) {
+    return { error: previewRes.error ?? "Erro ao calcular comanda.", comandaId: null };
+  }
+
+  const billing = previewRes.data;
+  const amounts = await resolveServiceAmountsForAppt(supabase, appt as ApptBillingContext, billing);
+  const totalAmount = amounts.planPrepaid ? amounts.totalAmount : billing.totalAmount;
+
+  const enc = await ensureEncounter(supabase, profile.clinic_id, appointmentId);
+  if (!enc) return { error: "Erro ao preparar atendimento.", comandaId: null };
+
+  const comandaInsert: Record<string, unknown> = {
+    clinic_id: profile.clinic_id,
+    appointment_id: appointmentId,
+    patient_id: appt.patient_id,
+    encounter_id: enc.id,
+    subtotal_amount: amounts.planPrepaid ? totalAmount : billing.subtotalAmount,
+    discount_amount: 0,
+    discount_percent: null,
+    charge_materials_separately: chargeMaterialsSeparately,
+    total_amount: totalAmount,
+    paid_amount: 0,
+    status: "aberta",
+    issued_at: null,
+    created_by: user.id,
+  };
+  if (amounts.treatmentPlanId) {
+    comandaInsert.treatment_plan_id = amounts.treatmentPlanId;
+    comandaInsert.session_revenue_amount = amounts.sessionRevenueAmount;
+  }
+
+  const { data: comanda, error: comandaErr } = await supabase
+    .from("comandas")
+    .insert(comandaInsert)
+    .select("id")
+    .single();
+
+  if (comandaErr) return { error: comandaErr.message, comandaId: null };
+
+  await populateComandaItems(supabase, String(comanda.id), appt as ApptBillingContext, billing, {
+    chargeMaterialsSeparately,
+    planPrepaid: amounts.planPrepaid,
+    treatmentPlanId: amounts.treatmentPlanId,
+    serviceAmount: amounts.serviceAmount,
+  });
+
+  await supabase
+    .from("appointments")
+    .update({ valor: totalAmount, updated_at: new Date().toISOString() })
+    .eq("id", appointmentId);
+
+  revalidatePath("/dashboard/agenda");
+  revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
+  return { error: null, comandaId: String(comanda.id) };
+}
+
+// COMANDA v1 — Sincroniza itens da comanda provisória após alterar insumos.
+export async function syncScheduleComandaFromAppointment(appointmentId: string) {
+  const supabase = await createClient();
+  const { data: comanda } = await supabase
+    .from("comandas")
+    .select("id, issued_at, charge_materials_separately")
+    .eq("appointment_id", appointmentId)
+    .neq("status", "cancelada")
+    .maybeSingle();
+
+  if (!comanda || comanda.issued_at) return { error: null };
+
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("id, patient_id, service_id, valor, treatment_plan_id, session_number")
+    .eq("id", appointmentId)
+    .single();
+
+  if (!appt) return { error: "Consulta não encontrada." };
+
+  const previewRes = await buildBillingPreviewData(supabase, appointmentId, {
+    chargeMaterialsSeparately: comanda.charge_materials_separately !== false,
+  });
+  if (previewRes.error || !previewRes.data) {
+    return { error: previewRes.error ?? "Erro ao recalcular comanda." };
+  }
+
+  const billing = previewRes.data;
+  const amounts = await resolveServiceAmountsForAppt(supabase, appt as ApptBillingContext, billing);
+  const totalAmount = amounts.planPrepaid ? amounts.totalAmount : billing.totalAmount;
+
+  await supabase
+    .from("comandas")
+    .update({
+      subtotal_amount: amounts.planPrepaid ? totalAmount : billing.subtotalAmount,
+      total_amount: totalAmount,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", comanda.id);
+
+  await populateComandaItems(supabase, String(comanda.id), appt as ApptBillingContext, billing, {
+    chargeMaterialsSeparately: comanda.charge_materials_separately !== false,
+    planPrepaid: amounts.planPrepaid,
+    treatmentPlanId: amounts.treatmentPlanId,
+    serviceAmount: amounts.serviceAmount,
+  });
+
+  await supabase
+    .from("appointments")
+    .update({ valor: totalAmount, updated_at: new Date().toISOString() })
+    .eq("id", appointmentId);
+
+  revalidatePath("/dashboard/agenda");
+  revalidatePath(`/dashboard/agenda/consulta/${appointmentId}`);
+  return { error: null };
+}
+
+async function syncComandaAfterConsumptionChange(appointmentId: string | undefined) {
+  if (!appointmentId) return;
+  try {
+    await syncScheduleComandaFromAppointment(appointmentId);
+  } catch {
+    // não bloquear edição de consumo
+  }
+}
+
+export async function emitComanda(appointmentId: string, options?: EmitComandaOptions) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+
+  const { data: existingComanda } = await supabase
+    .from("comandas")
+    .select("id, status, issued_at")
+    .eq("appointment_id", appointmentId)
+    .neq("status", "cancelada")
+    .maybeSingle();
+
+  if (existingComanda?.issued_at) {
+    return {
+      error: "Já existe comanda finalizada para esta consulta.",
+      comandaId: existingComanda.id,
+    };
+  }
+
+  const draftComandaId = existingComanda && !existingComanda.issued_at ? existingComanda.id : null;
+
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select(
+      "id, patient_id, service_id, valor, clinic_id, status, payment_policy, treatment_plan_id, session_number"
+    )
+    .eq("id", appointmentId)
+    .single();
+
+  if (!appt) return { error: "Consulta não encontrada." };
+
+  const policy = appt.payment_policy as PaymentPolicy | null;
+  const earlyEmit = policy === "antecipado" || policy === "no_dia";
+
+  let enc = await supabase
+    .from("encounters")
+    .select("id, status")
+    .eq("appointment_id", appointmentId)
+    .maybeSingle()
+    .then((r) => r.data);
+
+  if (!enc) {
+    enc = await ensureEncounter(supabase, profile.clinic_id, appointmentId);
+  }
+  if (!enc) return { error: "Erro ao preparar atendimento." };
+
+  if (!earlyEmit && enc.status !== "finalizado_aguardando_cobranca") {
+    return { error: "Encerre o atendimento clínico antes de finalizar a comanda." };
+  }
+
+  const chargeMaterialsSeparately = options?.chargeMaterialsSeparately !== false;
+  const previewRes = await buildBillingPreviewData(supabase, appointmentId, {
+    chargeMaterialsSeparately,
+    discountAmount: options?.discountAmount,
+    discountPercent: options?.discountPercent,
+  });
+  if (previewRes.error || !previewRes.data) {
+    return { error: previewRes.error ?? "Erro ao calcular totais." };
+  }
+
+  const billing = previewRes.data;
+  const amounts = await resolveServiceAmountsForAppt(supabase, appt as ApptBillingContext, billing);
+  const totalAmount = amounts.planPrepaid ? amounts.totalAmount : billing.totalAmount;
+  const {
+    serviceAmount,
+    sessionRevenueAmount,
+    treatmentPlanId,
+    planPrepaid,
+    prepaidPaidAmount,
+  } = amounts;
 
   let paymentAmount = Math.max(0, options?.paymentAmount ?? 0);
   if (planPrepaid) {
@@ -942,71 +1238,32 @@ export async function emitComanda(appointmentId: string, options?: EmitComandaOp
     comandaInsert.session_revenue_amount = sessionRevenueAmount;
   }
 
-  const { data: comanda, error: comandaErr } = await supabase
-    .from("comandas")
-    .insert(comandaInsert)
-    .select("id")
-    .single();
-
-  if (comandaErr) return { error: comandaErr.message };
-
-  if (appt.service_id && serviceAmount > 0) {
-    const { data: svc } = await supabase
-      .from("services")
-      .select("nome")
-      .eq("id", appt.service_id)
+  let comanda: { id: string } | null = null;
+  if (draftComandaId) {
+    const { data: updated, error: comandaErr } = await supabase
+      .from("comandas")
+      .update(comandaInsert)
+      .eq("id", draftComandaId)
+      .select("id")
       .single();
-    const desc =
-      treatmentPlanId && appt.session_number
-        ? `${svc?.nome ?? "Sessão"} — sessão ${appt.session_number}`
-        : svc?.nome ?? "Serviço";
-    await supabase.from("comanda_items").insert({
-      comanda_id: comanda!.id,
-      item_type: "service",
-      description: desc,
-      quantity: 1,
-      unit_price: serviceAmount,
-      total_price: serviceAmount,
-      reference_id: appt.service_id,
-    });
-  } else if (treatmentPlanId && serviceAmount > 0) {
-    await supabase.from("comanda_items").insert({
-      comanda_id: comanda!.id,
-      item_type: "service",
-      description: `Sessão ${appt.session_number ?? "—"} do plano`,
-      quantity: 1,
-      unit_price: serviceAmount,
-      total_price: serviceAmount,
-      reference_id: null,
-    });
+    if (comandaErr) return { error: comandaErr.message };
+    comanda = updated;
+  } else {
+    const { data: inserted, error: comandaErr } = await supabase
+      .from("comandas")
+      .insert(comandaInsert)
+      .select("id")
+      .single();
+    if (comandaErr) return { error: comandaErr.message };
+    comanda = inserted;
   }
 
-  if (chargeMaterialsSeparately && !planPrepaid) {
-    const { data: consumption } = await supabase
-      .from("appointment_consumption_lines")
-      .select("id, product_id, quantity, products(name, cost, sale_price)")
-      .eq("appointment_id", appointmentId);
-
-    for (const line of consumption ?? []) {
-      const prod = Array.isArray(line.products) ? line.products[0] : line.products;
-      const cost = Number((prod as { cost?: number })?.cost) || 0;
-      const sale = (prod as { sale_price?: number | null })?.sale_price;
-      const unitPrice =
-        sale != null && Number(sale) > 0 ? Number(sale) : cost > 0 ? cost : 0;
-      const qty = Number(line.quantity);
-      if (qty > 0 && unitPrice > 0) {
-        await supabase.from("comanda_items").insert({
-          comanda_id: comanda!.id,
-          item_type: "product",
-          description: (prod as { name?: string })?.name ?? "Material",
-          quantity: qty,
-          unit_price: unitPrice,
-          total_price: Number((qty * unitPrice).toFixed(2)),
-          reference_id: line.product_id,
-        });
-      }
-    }
-  }
+  await populateComandaItems(supabase, String(comanda!.id), appt as ApptBillingContext, billing, {
+    chargeMaterialsSeparately,
+    planPrepaid,
+    treatmentPlanId,
+    serviceAmount,
+  });
 
   await supabase
     .from("appointments")

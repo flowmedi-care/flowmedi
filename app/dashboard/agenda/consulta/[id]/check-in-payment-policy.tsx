@@ -19,9 +19,9 @@ const POLICY_LABEL: Record<PaymentPolicy, string> = {
 };
 
 const POLICY_HINT: Record<PaymentPolicy, string> = {
-  antecipado: "Emitir cupom e receber antes ou no momento do check-in.",
+  antecipado: "Finalizar comanda e receber antes ou no momento do check-in.",
   no_dia: "Receber na recepção antes de encaminhar ao médico.",
-  pos_atendimento: "Emitir cupom após o atendimento clínico; saldo em contas a receber.",
+  pos_atendimento: "Finalizar comanda após o atendimento clínico; saldo em contas a receber.",
 };
 
 export function CheckInPaymentPolicy({

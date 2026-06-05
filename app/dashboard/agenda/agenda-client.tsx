@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { updateAppointment, updateUserPreferences } from "./actions";
 import { AgendaAppointmentModal } from "./agenda-appointment-modal";
-import { AgendaEventDetailsModal } from "./agenda-event-details-modal";
+import { AgendaEventDetailsSidebar } from "./agenda-event-details-sidebar";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
 import {
@@ -704,7 +704,8 @@ export function AgendaClient({
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 min-w-0">
+    <div className="flex gap-0 min-w-0 -mx-4 sm:-mx-6 lg:-mx-0">
+    <div className="flex-1 min-w-0 space-y-4 sm:space-y-6 px-4 sm:px-6 lg:px-0">
       {/* Header: título + ação principal */}
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground sm:text-2xl truncate">Agenda</h1>
@@ -1000,7 +1001,10 @@ export function AgendaClient({
         onOpenChange={handleModalOpenChange}
         mode={appointmentModalMode}
         appointmentId={editingAppointmentId}
-        onSuccess={() => router.refresh()}
+        onSuccess={(appointmentId) => {
+          router.refresh();
+          if (appointmentId) openEventDetails(appointmentId);
+        }}
         initialForm={modalInitialForm}
         patients={patients}
         doctors={doctors}
@@ -1015,12 +1019,13 @@ export function AgendaClient({
         userRole={userRole}
       />
 
-      <AgendaEventDetailsModal
+      <AgendaEventDetailsSidebar
         appointmentId={eventDetailsId}
         open={eventDetailsOpen}
-        onOpenChange={(open) => {
-          setEventDetailsOpen(open);
-          if (!open) setEventDetailsId(null);
+        variant="overlay"
+        onClose={() => {
+          setEventDetailsOpen(false);
+          setEventDetailsId(null);
         }}
         onEdit={(id) => {
           setEventDetailsOpen(false);
@@ -1086,6 +1091,26 @@ export function AgendaClient({
           ) : null}
         </DragOverlay>
       </DndContext>
+    </div>
+
+    {eventDetailsOpen && eventDetailsId && (
+      <div className="hidden lg:flex w-[400px] shrink-0 sticky top-4 self-start h-[calc(100vh-6rem)] min-h-0">
+        <AgendaEventDetailsSidebar
+          appointmentId={eventDetailsId}
+          open={eventDetailsOpen}
+          variant="inline"
+          onClose={() => {
+            setEventDetailsOpen(false);
+            setEventDetailsId(null);
+          }}
+          onEdit={(id) => {
+            setEventDetailsOpen(false);
+            openEditModal(id);
+          }}
+          onFinalize={openFinalizeFromDetails}
+        />
+      </div>
+    )}
     </div>
   );
 }

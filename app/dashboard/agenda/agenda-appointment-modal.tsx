@@ -87,7 +87,7 @@ export function AgendaAppointmentModal({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess: (appointmentId?: string) => void;
   mode?: "create" | "edit";
   appointmentId?: string | null;
   initialForm?: Partial<AppointmentFormState>;
@@ -422,12 +422,14 @@ export function AgendaAppointmentModal({
         toast(`${res.ids.length} consultas agendadas.`, "success");
       }
       onOpenChange(false);
-      onSuccess();
+      onSuccess(res.ids[0]);
       return;
     }
 
     const localDate = new Date(`${form.date}T${form.time}:00`);
     const scheduledAt = localDate.toISOString();
+
+    let createdOrEditedId: string | undefined;
 
     if (isEdit && appointmentId) {
       const res = await updateAppointment(appointmentId, {
@@ -452,6 +454,7 @@ export function AgendaAppointmentModal({
         setLoading(false);
         return;
       }
+      createdOrEditedId = appointmentId;
     } else {
       const res = await createAppointment(
         form.patientId,
@@ -476,11 +479,12 @@ export function AgendaAppointmentModal({
         setLoading(false);
         return;
       }
+      createdOrEditedId = res.data?.id ? String(res.data.id) : undefined;
     }
 
     setLoading(false);
     onOpenChange(false);
-    onSuccess();
+    onSuccess(createdOrEditedId);
   }
 
   return (
