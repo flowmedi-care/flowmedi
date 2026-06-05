@@ -184,8 +184,11 @@ export function ClinicInfoTabs({ clinicId, canUseCustomLogo, initialData }: Clin
                 onChange={(e) => setAgendaMaxConcurrent(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Ex.: 2 para duas salas. Médicos diferentes podem agendar no mesmo horário até esse limite.
-                Deixe vazio para não limitar a clínica inteira.
+                Limite global de consultas simultâneas (legado). Com salas cadastradas em{" "}
+                <a href="/dashboard/configuracoes/salas" className="underline">
+                  Salas e consultórios
+                </a>
+                , o conflito passa a ser por sala; este campo fica opcional.
               </p>
             </div>
             <Button className="w-full sm:w-auto" onClick={handleSaveInfo} disabled={saving || !name.trim()}>

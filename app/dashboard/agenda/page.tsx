@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AgendaClient, type AppointmentRow } from "./agenda-client";
 import { SchemaErrorBanner } from "./schema-error-banner";
 import { loadAppointmentProcedures } from "@/lib/appointment-procedures";
+import { listRooms } from "@/app/dashboard/configuracoes/room-actions";
 
 export default async function AgendaPage() {
   const supabase = await createClient();
@@ -67,6 +68,8 @@ export default async function AgendaPage() {
       `
       id,
       scheduled_at,
+      scheduled_end_at,
+      room_id,
       status,
       notes,
       service_id,
@@ -131,9 +134,12 @@ export default async function AgendaPage() {
 
   const { data: appointmentTypes } = await supabase
     .from("appointment_types")
-    .select("id, name")
+    .select("id, name, duration_minutes")
     .eq("clinic_id", clinicId)
     .order("name");
+
+  const { rooms: roomsList } = await listRooms(true);
+  const roomNameById = new Map(roomsList.map((r) => [r.id, r.name] as const));
 
   const { data: procedures } = await supabase
     .from("procedures")
@@ -229,6 +235,11 @@ export default async function AgendaPage() {
     return {
       id: appointmentId,
       scheduled_at: String(a.scheduled_at ?? ""),
+      scheduled_end_at:
+        a.scheduled_end_at != null ? String(a.scheduled_end_at) : null,
+      room_id: a.room_id != null ? String(a.room_id) : null,
+      room_name:
+        a.room_id != null ? roomNameById.get(String(a.room_id)) ?? null : null,
       status: String(a.status ?? ""),
       notes: a.notes != null ? String(a.notes) : null,
       service_id: svcId,
@@ -285,7 +296,10 @@ export default async function AgendaPage() {
         appointmentTypes={(appointmentTypes ?? []).map((t) => ({
           id: t.id,
           name: t.name,
+          duration_minutes: t.duration_minutes ?? 30,
         }))}
+        rooms={roomsList.map((r) => ({ id: r.id, name: r.name }))}
+        roomsRequired={roomsList.length > 0}
         procedures={(procedures ?? []).map((p) => ({
           id: p.id,
           name: p.name,

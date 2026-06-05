@@ -2,13 +2,21 @@ import {
   buildPlanSessionDates,
   type PlanScheduleFrequency,
 } from "@/lib/financeiro/plan-schedule";
+import { buildScheduledEndFromDuration } from "@/lib/appointment-scheduling";
 
 export type RecurrenceFrequency = Exclude<PlanScheduleFrequency, "manual">;
 
 export type RecurrenceSessionSlot = {
   index: number;
   scheduledAt: string;
+  scheduledEndAt: string;
   customized: boolean;
+};
+
+export type RecurrenceOverride = {
+  date: string;
+  time: string;
+  endTime?: string;
 };
 
 const WEEKDAY_NAMES = [
@@ -27,22 +35,37 @@ const WEEKDAY_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 export function buildRecurrenceSessionSlots(
   firstDate: string,
   time: string,
+  endTime: string,
   sessionCount: number,
   frequency: RecurrenceFrequency,
-  overrides?: Record<number, { date: string; time: string }>
+  overrides?: Record<number, RecurrenceOverride>
 ): RecurrenceSessionSlot[] {
+  const baseStart = new Date(`${firstDate}T${time}:00`);
+  const baseEnd = new Date(`${firstDate}T${endTime}:00`);
+  const durationMs = Math.max(15 * 60000, baseEnd.getTime() - baseStart.getTime());
+
   const baseIsoList = buildPlanSessionDates(firstDate, time, sessionCount, frequency);
   return baseIsoList.map((scheduledAt, index) => {
     const ov = overrides?.[index];
     if (ov?.date && ov?.time) {
-      const local = new Date(`${ov.date}T${ov.time}:00`);
+      const localStart = new Date(`${ov.date}T${ov.time}:00`);
+      const localEnd = ov.endTime
+        ? new Date(`${ov.date}T${ov.endTime}:00`)
+        : new Date(localStart.getTime() + durationMs);
       return {
         index,
-        scheduledAt: local.toISOString(),
+        scheduledAt: localStart.toISOString(),
+        scheduledEndAt: localEnd.toISOString(),
         customized: true,
       };
     }
-    return { index, scheduledAt, customized: false };
+    const startMs = new Date(scheduledAt).getTime();
+    return {
+      index,
+      scheduledAt,
+      scheduledEndAt: new Date(startMs + durationMs).toISOString(),
+      customized: false,
+    };
   });
 }
 

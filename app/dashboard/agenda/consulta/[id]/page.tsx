@@ -66,9 +66,13 @@ export default async function ConsultaDetalhePage({
   let started_at: string | null = null;
   let completed_at: string | null = null;
   let duration_minutes: number | null = null;
+  let scheduled_end_at: string | null = null;
+  let planned_duration_minutes: number | null = null;
   const { data: timingRow } = await supabase
     .from("appointments")
-    .select("started_at, completed_at, duration_minutes")
+    .select(
+      "started_at, completed_at, duration_minutes, scheduled_end_at, planned_duration_minutes"
+    )
     .eq("id", id)
     .eq("clinic_id", profile.clinic_id)
     .maybeSingle();
@@ -76,6 +80,11 @@ export default async function ConsultaDetalhePage({
     started_at = timingRow.started_at ?? null;
     completed_at = timingRow.completed_at ?? null;
     duration_minutes = timingRow.duration_minutes ?? null;
+    scheduled_end_at = timingRow.scheduled_end_at ?? null;
+    planned_duration_minutes =
+      timingRow.planned_duration_minutes != null
+        ? Number(timingRow.planned_duration_minutes)
+        : null;
   }
 
   let recurrence_group_id: string | null = null;
@@ -185,6 +194,7 @@ export default async function ConsultaDetalhePage({
             <div className="flex flex-wrap items-center gap-2">
               <DataHoraReagendar
                 scheduledAt={scheduledAt}
+                scheduledEndAt={scheduled_end_at}
                 appointmentId={id}
                 canEdit={profile.role === "admin" || profile.role === "secretaria"}
                 isAgendarRetorno={appointmentStatus === "realizada"}
@@ -230,6 +240,27 @@ export default async function ConsultaDetalhePage({
                           : appointmentStatus}
               </Badge>
             </p>
+            {(planned_duration_minutes != null || duration_minutes != null) && (
+              <p className="text-sm">
+                <span className="text-muted-foreground">Duração:</span>{" "}
+                {planned_duration_minutes != null && (
+                  <span>Previsto {planned_duration_minutes} min</span>
+                )}
+                {duration_minutes != null && (
+                  <span>
+                    {planned_duration_minutes != null ? " · " : ""}
+                    Real {duration_minutes} min
+                    {planned_duration_minutes != null &&
+                      duration_minutes > planned_duration_minutes * 1.2 && (
+                        <span className="text-amber-600 dark:text-amber-400">
+                          {" "}
+                          (+{duration_minutes - planned_duration_minutes} min)
+                        </span>
+                      )}
+                  </span>
+                )}
+              </p>
+            )}
             {appointmentNotes && (
               <p>
                 <span className="text-muted-foreground">Observações:</span>{" "}

@@ -356,7 +356,14 @@ export async function listClinicDoctors() {
 
 export async function generatePlanAppointments(
   planId: string,
-  slots: { scheduled_at: string; doctor_id?: string; service_id?: string }[]
+  slots: {
+    scheduled_at: string;
+    scheduled_end_at?: string;
+    doctor_id: string;
+    service_id?: string;
+    room_id?: string;
+    procedure_ids?: string[];
+  }[]
 ) {
   const supabase = await createClient();
   const {
@@ -399,29 +406,51 @@ export async function generatePlanAppointments(
     plan.payment_policy != null ? String(plan.payment_policy) : null
   );
 
+  const { createAppointment } = await import("./actions");
+  const { buildScheduledEndFromDuration } = await import("@/lib/appointment-scheduling");
+
   const ids: string[] = [];
   const startSession = (existingSessions ?? 0) + 1;
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i];
+    if (!slot.doctor_id) {
+      return { error: "Informe o médico para cada sessão.", ids };
+    }
     const sessionNumber = startSession + i;
-    const { data: appt, error } = await supabase
-      .from("appointments")
-      .insert({
-        clinic_id: plan.clinic_id,
-        patient_id: plan.patient_id,
-        doctor_id: slot.doctor_id ?? null,
-        service_id: slot.service_id ?? null,
-        scheduled_at: slot.scheduled_at,
-        status: "agendada",
+    const scheduledEndAt =
+      slot.scheduled_end_at ??
+      buildScheduledEndFromDuration(slot.scheduled_at, 30);
+    const procedureIds = slot.procedure_ids ?? [];
+
+    const res = await createAppointment(
+      String(plan.patient_id),
+      slot.doctor_id,
+      null,
+      slot.scheduled_at,
+      null,
+      null,
+      procedureIds[0] ?? null,
+      false,
+      false,
+      null,
+      null,
+      undefined,
+      slot.service_id ?? null,
+      null,
+      undefined,
+      procedureIds.length ? procedureIds : undefined,
+      {
         treatment_plan_id: planId,
         session_number: sessionNumber,
+        scheduledEndAt,
+        roomId: slot.room_id ?? null,
         payment_policy: appointmentPolicy,
-      })
-      .select("id")
-      .single();
+        skipRevalidate: i < slots.length - 1,
+      }
+    );
 
-    if (error) return { error: error.message, ids };
-    ids.push(String(appt.id));
+    if (res.error) return { error: res.error, ids };
+    if (res.data?.id) ids.push(String(res.data.id));
   }
 
   await recalcTreatmentPlanSessionsUsed(planId);

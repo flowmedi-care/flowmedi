@@ -12,10 +12,8 @@ import {
   listClinicDoctors,
   type TreatmentPlanRow,
 } from "@/app/dashboard/agenda/treatment-plan-actions";
-import {
-  buildPlanSessionDates,
-  type PlanScheduleFrequency,
-} from "@/lib/financeiro/plan-schedule";
+import { buildPlanSessionDates, type PlanScheduleFrequency } from "@/lib/financeiro/plan-schedule";
+import { buildScheduledEndFromDuration } from "@/lib/appointment-scheduling";
 import { toast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -84,7 +82,16 @@ export function PlanosTratamentoClient({ initialPlans }: { initialPlans: Treatme
   }
 
   async function handleSchedule(plan: TreatmentPlanRow) {
-    let slots: { scheduled_at: string; doctor_id?: string }[] = [];
+    if (!doctorId) {
+      toast("Selecione o profissional responsável.", "error");
+      return;
+    }
+
+    let slots: {
+      scheduled_at: string;
+      scheduled_end_at: string;
+      doctor_id: string;
+    }[] = [];
 
     if (frequency === "manual") {
       const lines = scheduleDates
@@ -95,10 +102,14 @@ export function PlanosTratamentoClient({ initialPlans }: { initialPlans: Treatme
         toast("Informe uma data/hora por linha.", "error");
         return;
       }
-      slots = lines.map((scheduled_at) => ({
-        scheduled_at: new Date(scheduled_at).toISOString(),
-        doctor_id: doctorId || undefined,
-      }));
+      slots = lines.map((scheduled_at) => {
+        const iso = new Date(scheduled_at).toISOString();
+        return {
+          scheduled_at: iso,
+          scheduled_end_at: buildScheduledEndFromDuration(iso, 30),
+          doctor_id: doctorId,
+        };
+      });
     } else {
       if (!firstDate) {
         toast("Informe a data da primeira sessão.", "error");
@@ -110,7 +121,8 @@ export function PlanosTratamentoClient({ initialPlans }: { initialPlans: Treatme
       }
       slots = previewDates.map((scheduled_at) => ({
         scheduled_at,
-        doctor_id: doctorId || undefined,
+        scheduled_end_at: buildScheduledEndFromDuration(scheduled_at, 30),
+        doctor_id: doctorId,
       }));
     }
 
@@ -227,13 +239,14 @@ export function PlanosTratamentoClient({ initialPlans }: { initialPlans: Treatme
                 </div>
                 {doctors.length > 0 && (
                   <div className="space-y-1">
-                    <Label>Profissional responsável</Label>
+                    <Label>Profissional responsável *</Label>
                     <select
                       className="h-9 w-full rounded-md border px-2 text-sm"
                       value={doctorId}
                       onChange={(e) => setDoctorId(e.target.value)}
+                      required
                     >
-                      <option value="">— Opcional —</option>
+                      <option value="">Selecione</option>
                       {doctors.map((d) => (
                         <option key={d.id} value={d.id}>
                           {d.name}
@@ -260,13 +273,14 @@ export function PlanosTratamentoClient({ initialPlans }: { initialPlans: Treatme
               <>
                 {doctors.length > 0 && (
                   <div className="space-y-1">
-                    <Label>Profissional responsável</Label>
+                    <Label>Profissional responsável *</Label>
                     <select
                       className="h-9 w-full rounded-md border px-2 text-sm"
                       value={doctorId}
                       onChange={(e) => setDoctorId(e.target.value)}
+                      required
                     >
-                      <option value="">— Opcional —</option>
+                      <option value="">Selecione</option>
                       {doctors.map((d) => (
                         <option key={d.id} value={d.id}>
                           {d.name}

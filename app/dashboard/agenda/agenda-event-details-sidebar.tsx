@@ -18,6 +18,7 @@ import {
 import { sendPreAppointmentForms } from "./consulta/[id]/formularios-consulta-actions";
 import { listProductsForClinic } from "@/app/dashboard/campos-pacientes/actions";
 import { formatPhoneBr } from "@/lib/format-phone";
+import { formatAppointmentTimeRange } from "@/lib/appointment-scheduling";
 import { toast } from "@/components/ui/toast";
 import {
   User,
@@ -335,7 +336,7 @@ export function AgendaEventDetailsSidebar({
                 <div className="space-y-3">
                   <div>
                     <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Agendamento
+                      Horário
                     </p>
                     <p className="text-sm font-medium capitalize leading-snug">
                       {new Date(data.scheduled_at).toLocaleDateString("pt-BR", {
@@ -344,12 +345,24 @@ export function AgendaEventDetailsSidebar({
                         month: "long",
                         year: "numeric",
                       })}
-                      {" · "}
-                      {new Date(data.scheduled_at).toLocaleTimeString("pt-BR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
                     </p>
+                    <p className="text-sm">
+                      {formatAppointmentTimeRange(
+                        data.scheduled_at,
+                        data.scheduled_end_at ?? data.scheduled_at
+                      )}
+                      {data.planned_duration_minutes != null && (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          · {data.planned_duration_minutes} min previstos
+                        </span>
+                      )}
+                    </p>
+                    {data.room_name && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Sala: {data.room_name}
+                      </p>
+                    )}
                     <Badge variant="outline" className="mt-1.5 h-5 text-[10px]">
                       {STATUS_LABEL[data.status] ?? data.status}
                     </Badge>

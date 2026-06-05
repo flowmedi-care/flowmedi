@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateAppointment } from "../../actions";
+import { buildScheduledEndAt, formatAppointmentTimeRange } from "@/lib/appointment-scheduling";
+import { toast } from "@/components/ui/toast";
 import { Calendar, X } from "lucide-react";
 
 function toLocalDateInput(iso: string): string {
@@ -20,12 +22,14 @@ function toLocalTimeInput(iso: string): string {
 
 export function DataHoraReagendar({
   scheduledAt,
+  scheduledEndAt,
   appointmentId,
   canEdit,
   isAgendarRetorno,
   retornoTypeId,
 }: {
   scheduledAt: string;
+  scheduledEndAt?: string | null;
   appointmentId: string;
   canEdit: boolean;
   isAgendarRetorno?: boolean;
@@ -35,12 +39,12 @@ export function DataHoraReagendar({
   const [showPopup, setShowPopup] = useState(false);
   const [date, setDate] = useState(() => toLocalDateInput(scheduledAt));
   const [time, setTime] = useState(() => toLocalTimeInput(scheduledAt));
+  const [endTime, setEndTime] = useState(() =>
+    scheduledEndAt ? toLocalTimeInput(scheduledEndAt) : toLocalTimeInput(scheduledAt)
+  );
   const [updating, setUpdating] = useState(false);
 
-  const formatted = new Date(scheduledAt).toLocaleString("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  const formatted = formatAppointmentTimeRange(scheduledAt, scheduledEndAt);
 
   const buttonLabel = isAgendarRetorno ? "Agendar retorno" : "Reagendar";
   const popupTitle = isAgendarRetorno ? "Agendar retorno" : "Reagendar";
@@ -48,9 +52,16 @@ export function DataHoraReagendar({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setUpdating(true);
-    const localDate = new Date(`${date}T${time}:00`);
-    const updateData: { scheduled_at: string; appointment_type_id?: string | null } = {
-      scheduled_at: localDate.toISOString(),
+    const localStart = new Date(`${date}T${time}:00`);
+    const scheduled_at = localStart.toISOString();
+    const scheduled_end_at = buildScheduledEndAt(date, endTime, scheduled_at);
+    const updateData: {
+      scheduled_at: string;
+      scheduled_end_at: string;
+      appointment_type_id?: string | null;
+    } = {
+      scheduled_at,
+      scheduled_end_at,
     };
     if (isAgendarRetorno && retornoTypeId) {
       updateData.appointment_type_id = retornoTypeId;
@@ -60,6 +71,12 @@ export function DataHoraReagendar({
     if (!res.error) {
       setShowPopup(false);
       router.refresh();
+      if (res.waitlistMatches?.length) {
+        toast(
+          `Vaga liberada — ${res.waitlistMatches.length} paciente(s) na fila de espera.`,
+          "success"
+        );
+      }
     }
   }
 
@@ -67,7 +84,7 @@ export function DataHoraReagendar({
     <>
       <p className="flex flex-wrap items-center justify-between gap-2">
         <span>
-          <span className="text-muted-foreground">Data/hora:</span>{" "}
+          <span className="text-muted-foreground">Horário:</span>{" "}
           <span>{formatted}</span>
         </span>
         {canEdit && (
@@ -99,7 +116,7 @@ export function DataHoraReagendar({
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-gray-900">Nova data</Label>
+                <Label className="text-gray-900">Data</Label>
                 <Input
                   type="date"
                   value={date}
@@ -109,12 +126,23 @@ export function DataHoraReagendar({
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-gray-900">Novo horário</Label>
+                <Label className="text-gray-900">Início</Label>
                 <Input
                   type="time"
                   step={60}
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
+                  required
+                  className="bg-white text-gray-900 border-gray-300"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-gray-900">Término</Label>
+                <Input
+                  type="time"
+                  step={60}
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
                   required
                   className="bg-white text-gray-900 border-gray-300"
                 />

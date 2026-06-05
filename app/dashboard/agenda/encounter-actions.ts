@@ -768,6 +768,25 @@ export async function finishClinicalEncounter(appointmentId: string) {
 
   const now = new Date().toISOString();
 
+  const { data: apptTiming } = await supabase
+    .from("appointments")
+    .select("started_at, duration_minutes")
+    .eq("id", appointmentId)
+    .single();
+
+  if (apptTiming?.started_at && apptTiming.duration_minutes == null) {
+    const startedAt = new Date(apptTiming.started_at as string).getTime();
+    const durationMinutes = Math.round((Date.now() - startedAt) / 60000);
+    await supabase
+      .from("appointments")
+      .update({
+        duration_minutes: durationMinutes,
+        completed_at: now,
+        updated_at: now,
+      })
+      .eq("id", appointmentId);
+  }
+
   await supabase
     .from("appointment_consumption_lines")
     .update({ locked_at: now })

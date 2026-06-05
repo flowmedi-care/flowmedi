@@ -197,6 +197,7 @@ export const DASHBOARD_CONFIG_GROUP: NavGroupItem = {
   children: [
     { href: "/dashboard/configuracoes/preferencias", label: "Preferências do sistema" },
     { href: "/dashboard/configuracoes/clinica", label: "Dados da clínica" },
+    { href: "/dashboard/configuracoes/salas", label: "Salas e consultórios" },
     { href: "/dashboard/configuracoes/integracoes", label: "Integrações" },
     { href: "/dashboard/configuracoes/campos-personalizados", label: "Campos personalizados" },
     { href: "/dashboard/configuracoes/contas-bancarias", label: "Contas bancárias" },

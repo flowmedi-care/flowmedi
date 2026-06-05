@@ -161,6 +161,8 @@ type PorProfissional = {
     taxaNoShow: number;
     taxaRetorno: number;
     tempoMedioMin: number | null;
+    tempoMedioPrevistoMin: number | null;
+    desvioMedioMin: number | null;
     status: "ok" | "warning" | "critical";
     acaoRecomendada: string;
   }[];
@@ -174,6 +176,14 @@ type PorProfissional = {
     full_name: string;
     taxaNoShow: number;
     acaoRecomendada: string;
+  }[];
+  durationByProcedure: {
+    procedureId: string;
+    name: string;
+    count: number;
+    avgPlannedMin: number | null;
+    avgRealMin: number | null;
+    avgDeltaMin: number | null;
   }[];
   metas: {
     comparecimento: number;
@@ -601,6 +611,9 @@ export function AdminReportsClient({
                       <th className={`text-right ${thClass}`}>Comparecimento</th>
                       <th className={`text-right ${thClass}`}>No-show</th>
                       <th className={`text-right ${thClass}`}>Retorno</th>
+                      <th className={`text-right ${thClass}`}>Previsto</th>
+                      <th className={`text-right ${thClass}`}>Real</th>
+                      <th className={`text-right ${thClass}`}>Δ médio</th>
                       <th className={`text-right ${thClass}`}>Status</th>
                     </tr>
                   </thead>
@@ -613,6 +626,26 @@ export function AdminReportsClient({
                         <td className={`text-right ${tdClass}`}>{row.taxaComparecimento}%</td>
                         <td className={`text-right ${tdClass}`}>{row.taxaNoShow}%</td>
                         <td className={`text-right ${tdClass}`}>{row.taxaRetorno}%</td>
+                        <td className={`text-right ${tdClass}`}>
+                          {row.tempoMedioPrevistoMin != null ? `${row.tempoMedioPrevistoMin} min` : "—"}
+                        </td>
+                        <td className={`text-right ${tdClass}`}>
+                          {row.tempoMedioMin != null ? `${row.tempoMedioMin} min` : "—"}
+                        </td>
+                        <td className={`text-right ${tdClass}`}>
+                          {row.desvioMedioMin != null ? (
+                            <span
+                              className={cn(
+                                row.desvioMedioMin > 0 && "text-amber-700 dark:text-amber-400"
+                              )}
+                            >
+                              {row.desvioMedioMin > 0 ? "+" : ""}
+                              {row.desvioMedioMin} min
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                         <td className={`text-right ${tdClass}`}>
                           <span className={cn("rounded px-2 py-1 text-xs font-medium", statusClass(row.status))}>
                             {row.status}
@@ -628,6 +661,59 @@ export function AdminReportsClient({
               </div>
             </CardContent>
           </Card>
+          {porProfissional.durationByProcedure.length > 0 && (
+            <Card>
+              <CardHeader className="space-y-1">
+                <span className={sectionTitleClass}>Duração prevista vs real (por procedimento)</span>
+                <p className={sectionDescClass}>
+                  Consultas realizadas com duração prevista e real registradas.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className={tableClass}>
+                    <thead>
+                      <tr className="border-b border-border text-left text-muted-foreground">
+                        <th className={thClass}>Procedimento</th>
+                        <th className={`text-right ${thClass}`}>Consultas</th>
+                        <th className={`text-right ${thClass}`}>Previsto</th>
+                        <th className={`text-right ${thClass}`}>Real</th>
+                        <th className={`text-right ${thClass}`}>Δ médio</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {porProfissional.durationByProcedure.map((row) => (
+                        <tr key={row.procedureId} className="border-b border-border/50">
+                          <td className={`${tdClass} font-medium`}>{row.name}</td>
+                          <td className={`text-right ${tdClass}`}>{row.count}</td>
+                          <td className={`text-right ${tdClass}`}>
+                            {row.avgPlannedMin != null ? `${row.avgPlannedMin} min` : "—"}
+                          </td>
+                          <td className={`text-right ${tdClass}`}>
+                            {row.avgRealMin != null ? `${row.avgRealMin} min` : "—"}
+                          </td>
+                          <td className={`text-right ${tdClass}`}>
+                            {row.avgDeltaMin != null ? (
+                              <span
+                                className={cn(
+                                  row.avgDeltaMin > 0 && "text-amber-700 dark:text-amber-400"
+                                )}
+                              >
+                                {row.avgDeltaMin > 0 ? "+" : ""}
+                                {row.avgDeltaMin} min
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>

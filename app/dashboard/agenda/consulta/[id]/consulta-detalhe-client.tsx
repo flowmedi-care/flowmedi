@@ -120,7 +120,15 @@ export function ConsultaDetalheClient({
           )
         );
       }
+      if (res.waitlistMatches?.length) {
+        toast(
+          `Vaga liberada — ${res.waitlistMatches.length} paciente(s) na fila de espera.`,
+          "success"
+        );
+      }
       if (newStatus === "realizada") router.refresh();
+    } else {
+      toast(res.error, "error");
     }
     setUpdating(false);
   }

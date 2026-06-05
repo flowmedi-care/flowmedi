@@ -62,6 +62,7 @@ import {
   formatAgendaSlotLabel,
   agendaSlotKey,
   getAgendaSlotForScheduledAt,
+  getAppointmentSlotSpan,
   parseDropSlotFromId,
   type AgendaTimeSlot,
   getWeekOfMonthLabel,
@@ -69,6 +70,8 @@ import {
   getWeekStartForPeriod,
   localDateToISO,
 } from "./agenda-date-utils";
+import { formatAppointmentTimeRange, shiftIntervalPreservingDuration } from "@/lib/appointment-scheduling";
+import { AgendaWaitlistPanel } from "./agenda-waitlist-panel";
 import { getStatusBackgroundColor, getStatusTextColor } from "./status-utils";
 
 /** Retorna className (statuss) ou style (dimensão) para o evento na agenda */
@@ -124,6 +127,9 @@ function getAppointmentAccentColor(
 export type AppointmentRow = {
   id: string;
   scheduled_at: string;
+  scheduled_end_at?: string | null;
+  room_id?: string | null;
+  room_name?: string | null;
   status: string;
   notes: string | null;
   service_id?: string | null;
@@ -140,7 +146,12 @@ export type AppointmentRow = {
 
 export type PatientOption = { id: string; full_name: string; email?: string };
 export type DoctorOption = { id: string; full_name: string | null };
-export type AppointmentTypeOption = { id: string; name: string };
+export type AppointmentTypeOption = {
+  id: string;
+  name: string;
+  duration_minutes?: number;
+};
+export type RoomOption = { id: string; name: string };
 export type ProcedureOption = {
   id: string;
   name: string;
@@ -180,10 +191,10 @@ function todayYMD() {
 }
 
 function formatAppointmentTooltip(appointment: AppointmentRow): string {
-  const time = new Date(appointment.scheduled_at).toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const time = formatAppointmentTimeRange(
+    appointment.scheduled_at,
+    appointment.scheduled_end_at
+  );
   const procs = (appointment.procedures ?? (appointment.procedure ? [appointment.procedure] : []))
     .map((p) => p.name)
     .join(", ");
@@ -191,6 +202,7 @@ function formatAppointmentTooltip(appointment: AppointmentRow): string {
   const formsPending = forms.filter((f) => f.status !== "respondido").length;
   const parts = [
     `${time} — ${appointment.patient.full_name}`,
+    appointment.room_name && `Sala: ${appointment.room_name}`,
     procs && `Procedimento(s): ${procs}`,
     appointment.service_name && `Serviço: ${appointment.service_name}`,
     appointment.valor != null &&
@@ -218,6 +230,8 @@ export function AgendaClient({
   pricingDimensionValues = [],
   servicePriceRules = [],
   doctorProcedures = [],
+  rooms = [],
+  roomsRequired = false,
   userRole = "secretaria",
   initialPreferences,
 }: {
@@ -234,6 +248,8 @@ export function AgendaClient({
   pricingDimensionValues?: PricingDimensionValueOption[];
   servicePriceRules?: ServicePriceRuleOption[];
   doctorProcedures?: DoctorProcedureLink[];
+  rooms?: RoomOption[];
+  roomsRequired?: boolean;
   userRole?: string;
   initialPreferences?: {
     viewMode: ViewMode;
@@ -337,6 +353,7 @@ export function AgendaClient({
   const [filterByServiceId, setFilterByServiceId] = useState<string>(
     initialPreferences?.filterByServiceId ?? ""
   );
+  const [filterByRoomId, setFilterByRoomId] = useState<string>("");
   const [colorBy, setColorBy] = useState<"status" | "dimension">(
     initialPreferences?.colorBy ?? "status"
   );
@@ -461,6 +478,11 @@ export function AgendaClient({
         return false;
       }
 
+      // Filtro por sala
+      if (filterByRoomId && a.room_id !== filterByRoomId) {
+        return false;
+      }
+
       // Filtro por status (se nenhum selecionado, mostra todos)
       if (statusFilter.length > 0 && !statusFilter.includes(a.status)) {
         return false;
@@ -504,6 +526,7 @@ export function AgendaClient({
     statusFilter,
     formFilter,
     filterByServiceId,
+    filterByRoomId,
   ]);
 
   const getEventStyle = useCallback(
@@ -577,6 +600,7 @@ export function AgendaClient({
     statusFilter.length > 0,
     formFilter !== null,
     filterByServiceId !== "",
+    filterByRoomId !== "",
     colorBy === "dimension" && colorByDimensionId !== "",
   ].filter(Boolean).length;
 
@@ -682,13 +706,24 @@ export function AgendaClient({
     if (dateChanged || timeChanged) {
       // Converter para ISO string preservando a data local (evita problemas de timezone)
       const isoString = localDateToISO(year, month, day, newHour, newMinute);
+      const shifted = shiftIntervalPreservingDuration(
+        draggedAppointment.scheduled_at,
+        draggedAppointment.scheduled_end_at,
+        isoString
+      );
       const res = await updateAppointment(draggedAppointment.id, {
-        scheduled_at: isoString,
+        scheduled_at: shifted.scheduled_at,
+        scheduled_end_at: shifted.scheduled_end_at,
       });
 
       if (!res.error) {
-        // Usar router.refresh() para atualizar dados sem perder estado
         router.refresh();
+        if (res.waitlistMatches?.length) {
+          toast(
+            `Vaga liberada — ${res.waitlistMatches.length} paciente(s) na fila de espera.`,
+            "success"
+          );
+        }
       } else {
         toast(res.error, "error");
       }
@@ -907,6 +942,21 @@ export function AgendaClient({
                 </select>
               </div>
             )}
+            {rooms.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sala</Label>
+                <select
+                  value={filterByRoomId}
+                  onChange={(e) => setFilterByRoomId(e.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Todas</option>
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             {(services.length > 0 || pricingDimensions.length > 0) && (
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Critério de cor</Label>
@@ -942,6 +992,7 @@ export function AgendaClient({
                   setStatusFilter([]);
                   setFormFilter(null);
                   setFilterByServiceId("");
+                  setFilterByRoomId("");
                   setColorBy("status");
                   setColorByDimensionId("");
                   updateUserPreferences({
@@ -1015,8 +1066,14 @@ export function AgendaClient({
         pricingDimensionValues={pricingDimensionValues}
         servicePriceRules={servicePriceRules}
         doctorProcedures={doctorProcedures}
+        rooms={rooms}
+        roomsRequired={roomsRequired}
         userRole={userRole}
       />
+
+      {(userRole === "admin" || userRole === "secretaria") && (
+        <AgendaWaitlistPanel defaultDate={dateInicio} doctors={doctors} />
+      )}
 
       {/* Conteúdo da visão */}
       <DndContext
@@ -1957,12 +2014,24 @@ function DraggableAppointmentItem({
     opacity: isDragging ? 0.5 : 1,
   };
   const accentColor = getAccentColor?.(appointment);
+  const slotSpan = getAppointmentSlotSpan(
+    appointment.scheduled_at,
+    appointment.scheduled_end_at
+  );
+  const timeLabel = formatAppointmentTimeRange(
+    appointment.scheduled_at,
+    appointment.scheduled_end_at
+  );
 
   if (compact) {
     return (
       <div
         ref={setNodeRef}
-        style={{ ...baseStyle, borderLeftColor: accentColor }}
+        style={{
+          ...baseStyle,
+          borderLeftColor: accentColor,
+          minHeight: `${Math.max(1, slotSpan) * 34}px`,
+        }}
         className={cn(
           "flex items-center gap-1 rounded border border-border border-l-2 bg-background px-1.5 py-0.5 text-foreground hover:bg-muted/40 transition-colors"
         )}
@@ -1995,10 +2064,7 @@ function DraggableAppointmentItem({
           className="flex-1 truncate text-xs font-semibold text-left hover:underline"
           title={formatAppointmentTooltip(appointment)}
         >
-          {new Date(appointment.scheduled_at).toLocaleTimeString("pt-BR", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}{" "}
+          {timeLabel}{" "}
           {appointment.patient.full_name}
           {appointment.procedures?.length || appointment.procedure ? (
             <span className="text-muted-foreground font-normal">
@@ -2046,10 +2112,7 @@ function DraggableAppointmentItem({
         >
           <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="font-medium tabular-nums shrink-0">
-            {new Date(appointment.scheduled_at).toLocaleTimeString("pt-BR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            {timeLabel}
           </span>
           <span className="truncate">{appointment.patient.full_name}</span>
           {(appointment.appointment_type || appointment.procedure || appointment.procedures?.length || appointment.service_name || appointment.valor != null) && (

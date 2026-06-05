@@ -110,8 +110,19 @@ type ProfissionalRow = {
   taxaNoShow: number;
   taxaRetorno: number;
   tempoMedioMin: number | null;
+  tempoMedioPrevistoMin: number | null;
+  desvioMedioMin: number | null;
   status: GoalStatusLevel;
   acaoRecomendada: string;
+};
+
+type DurationByProcedureRow = {
+  procedureId: string;
+  name: string;
+  count: number;
+  avgPlannedMin: number | null;
+  avgRealMin: number | null;
+  avgDeltaMin: number | null;
 };
 
 type AtendenteRow = {
@@ -758,7 +769,7 @@ export async function getPorProfissionalData(clinicId: string, period: Period = 
 
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, status, doctor_id, duration_minutes, started_at, completed_at, patient_id, scheduled_at")
+    .select("id, status, doctor_id, duration_minutes, planned_duration_minutes, started_at, completed_at, patient_id, scheduled_at")
     .eq("clinic_id", clinicId)
     .gte("scheduled_at", start.toISOString())
     .lte("scheduled_at", end.toISOString());
@@ -773,6 +784,10 @@ export async function getPorProfissionalData(clinicId: string, period: Period = 
     tempoMedioMin: number | null;
     totalDurationMin: number;
     countWithDuration: number;
+    totalPlannedMin: number;
+    countWithPlanned: number;
+    totalDeltaMin: number;
+    countWithBoth: number;
     retornoAgendado: number;
     realizadasAppointments: Array<{ id: string; patient_id: string; scheduled_at: string }>;
   }> = {};
@@ -788,11 +803,16 @@ export async function getPorProfissionalData(clinicId: string, period: Period = 
       tempoMedioMin: null,
       totalDurationMin: 0,
       countWithDuration: 0,
+      totalPlannedMin: 0,
+      countWithPlanned: 0,
+      totalDeltaMin: 0,
+      countWithBoth: 0,
       retornoAgendado: 0,
       realizadasAppointments: [],
     };
   });
 
+  const realizadaIds: string[] = [];
   const patientIdsForReturns = new Set<string>();
   appointments?.forEach((a) => {
     const doc = byDoctor[a.doctor_id];
@@ -805,6 +825,18 @@ export async function getPorProfissionalData(clinicId: string, period: Period = 
         doc.totalDurationMin += a.duration_minutes;
         doc.countWithDuration++;
       }
+      if (a.planned_duration_minutes != null) {
+        doc.totalPlannedMin += a.planned_duration_minutes;
+        doc.countWithPlanned++;
+      }
+      if (
+        a.duration_minutes != null &&
+        a.planned_duration_minutes != null
+      ) {
+        doc.totalDeltaMin += a.duration_minutes - a.planned_duration_minutes;
+        doc.countWithBoth++;
+      }
+      realizadaIds.push(a.id);
       if (a.patient_id) {
         doc.realizadasAppointments.push({ id: a.id, patient_id: a.patient_id, scheduled_at: a.scheduled_at });
         patientIdsForReturns.add(a.patient_id);
@@ -850,6 +882,10 @@ export async function getPorProfissionalData(clinicId: string, period: Period = 
     const taxaNoShow = pct(d.faltas, d.total);
     const taxaRetorno = pct(d.retornoAgendado, d.realizadas);
     const tempoMedio = d.countWithDuration > 0 ? Math.round(d.totalDurationMin / d.countWithDuration) : null;
+    const tempoMedioPrevisto =
+      d.countWithPlanned > 0 ? Math.round(d.totalPlannedMin / d.countWithPlanned) : null;
+    const desvioMedio =
+      d.countWithBoth > 0 ? Math.round(d.totalDeltaMin / d.countWithBoth) : null;
     const statusNoShow = calcGoalStatus(taxaNoShow, goalsConfig.targetNoShowPct, false);
     const statusComparecimento = calcGoalStatus(taxaComparecimento, goalsConfig.targetAttendancePct, true);
     const status: GoalStatusLevel =
@@ -870,6 +906,8 @@ export async function getPorProfissionalData(clinicId: string, period: Period = 
       taxaNoShow,
       taxaRetorno,
       tempoMedioMin: tempoMedio,
+      tempoMedioPrevistoMin: tempoMedioPrevisto,
+      desvioMedioMin: desvioMedio,
       status,
       acaoRecomendada:
         status === "critical"
@@ -886,11 +924,63 @@ export async function getPorProfissionalData(clinicId: string, period: Period = 
     .sort((a, b) => b.taxaNoShow - a.taxaNoShow)
     .slice(0, 5);
 
+  const durationByProcedure: DurationByProcedureRow[] = [];
+  if (realizadaIds.length > 0) {
+    const apptById = new Map(
+      (appointments ?? [])
+        .filter((a) => a.status === "realizada")
+        .map((a) => [a.id, a])
+    );
+    const { data: procLinks } = await supabase
+      .from("appointment_procedures")
+      .select("appointment_id, procedure_id, procedures(id, name)")
+      .in("appointment_id", realizadaIds);
+
+    const byProcedure: Record<
+      string,
+      { name: string; totalPlanned: number; totalReal: number; totalDelta: number; count: number }
+    > = {};
+
+    (procLinks ?? []).forEach((link) => {
+      const appt = apptById.get(link.appointment_id as string);
+      if (!appt?.duration_minutes || appt.planned_duration_minutes == null) return;
+      const procRaw = link.procedures;
+      const proc = Array.isArray(procRaw) ? procRaw[0] : procRaw;
+      const pid = String(link.procedure_id);
+      if (!byProcedure[pid]) {
+        byProcedure[pid] = {
+          name: String((proc as { name?: string })?.name ?? "Procedimento"),
+          totalPlanned: 0,
+          totalReal: 0,
+          totalDelta: 0,
+          count: 0,
+        };
+      }
+      byProcedure[pid].totalPlanned += appt.planned_duration_minutes;
+      byProcedure[pid].totalReal += appt.duration_minutes;
+      byProcedure[pid].totalDelta += appt.duration_minutes - appt.planned_duration_minutes;
+      byProcedure[pid].count++;
+    });
+
+    for (const [procedureId, p] of Object.entries(byProcedure)) {
+      durationByProcedure.push({
+        procedureId,
+        name: p.name,
+        count: p.count,
+        avgPlannedMin: Math.round(p.totalPlanned / p.count),
+        avgRealMin: Math.round(p.totalReal / p.count),
+        avgDeltaMin: Math.round(p.totalDelta / p.count),
+      });
+    }
+    durationByProcedure.sort((a, b) => b.count - a.count);
+  }
+
   return {
     data: {
       rows,
       topPerformance,
       pontosAtencao,
+      durationByProcedure,
       metas: {
         comparecimento: goalsConfig.targetAttendancePct,
         noShow: goalsConfig.targetNoShowPct,

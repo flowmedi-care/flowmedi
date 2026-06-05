@@ -2,8 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { createAppointment, getAppointmentChargePreview } from "./actions";
-import type { RecurrenceFrequency } from "@/lib/recurrence-schedule";
+import { createAppointment, getAppointmentChargePreview, checkRecurrenceSlotsConflicts } from "./actions";
+import type { RecurrenceSessionSlot } from "@/lib/recurrence-schedule";
+import { getClinicPlanData, countMonthAppointments } from "@/lib/plan-helpers";
+import { canCreateAppointment } from "@/lib/plan-gates";
 import {
   serviceModeToRecurrenceBilling,
   type ServiceRecurrenceBillingMode,
@@ -28,17 +30,24 @@ export async function createRecurringAppointments(input: {
   procedureIds: string[];
   serviceId: string | null;
   dimensionValueIds: string[];
-  scheduledAtList: string[];
+  slots: RecurrenceSessionSlot[];
+  roomId?: string | null;
   notes?: string | null;
   recommendations?: string | null;
   specialInstructions?: string | null;
   preparationNotes?: string | null;
   linkedFormTemplateIds?: string[];
   procedureNameForPlan?: string;
+  forceConflict?: boolean;
 }) {
-  const sessionCount = input.scheduledAtList.length;
+  const sessionCount = input.slots.length;
   if (sessionCount < 2 || sessionCount > 52) {
-    return { error: "Número de sessões deve ser entre 2 e 52.", ids: [] as string[], treatmentPlanId: null as string | null };
+    return {
+      error: "Número de sessões deve ser entre 2 e 52.",
+      ids: [] as string[],
+      treatmentPlanId: null as string | null,
+      partialSeries: false,
+    };
   }
 
   const supabase = await createClient();
@@ -96,7 +105,51 @@ export async function createRecurringAppointments(input: {
         "Configure regras de preço em Serviços e Valores para este serviço/procedimento.",
       ids: [],
       treatmentPlanId: null,
+      partialSeries: false,
     };
+  }
+
+  const planData = await getClinicPlanData();
+  if (planData) {
+    const currentMonthCount = await countMonthAppointments(profile.clinic_id);
+    const projected = currentMonthCount + sessionCount;
+    const check = canCreateAppointment(planData.limits, projected - 1);
+    if (!check.allowed) {
+      return {
+        error: check.reason ?? "Limite de consultas/mês atingido.",
+        ids: [],
+        treatmentPlanId: null,
+        partialSeries: false,
+      };
+    }
+  }
+
+  if (input.forceConflict && profile.role !== "admin") {
+    return {
+      error: "Apenas administradores podem forçar agendamento com conflito.",
+      ids: [],
+      treatmentPlanId: null,
+      partialSeries: false,
+    };
+  }
+
+  if (!input.forceConflict) {
+    const conflictRes = await checkRecurrenceSlotsConflicts(
+      input.doctorId,
+      input.slots.map((s) => ({
+        scheduledAt: s.scheduledAt,
+        scheduledEndAt: s.scheduledEndAt,
+      })),
+      input.roomId
+    );
+    if (conflictRes.conflicts.some(Boolean)) {
+      return {
+        error: "Uma ou mais sessões estão em conflito de horário. Ajuste os horários ou use forçar agendamento (admin).",
+        ids: [],
+        treatmentPlanId: null,
+        partialSeries: false,
+      };
+    }
   }
 
   const recurrenceGroupId = crypto.randomUUID();
@@ -145,11 +198,12 @@ export async function createRecurringAppointments(input: {
 
   for (let i = 0; i < sessionCount; i++) {
     const sessionNumber = i + 1;
+    const slot = input.slots[i];
     const res = await createAppointment(
       input.patientId,
       input.doctorId,
       input.appointmentTypeId,
-      input.scheduledAtList[i],
+      slot.scheduledAt,
       input.notes ?? null,
       input.recommendations ?? null,
       primaryProcedureId,
@@ -163,11 +217,14 @@ export async function createRecurringAppointments(input: {
       input.dimensionValueIds,
       input.procedureIds,
       {
-        skipConflictCheck: true,
+        skipConflictCheck: !!input.forceConflict,
+        forceConflict: input.forceConflict,
         recurrence_group_id: recurrenceGroupId,
         session_number: sessionNumber,
         treatment_plan_id: treatmentPlanId,
         skipRevalidate: i < sessionCount - 1,
+        scheduledEndAt: slot.scheduledEndAt,
+        roomId: input.roomId ?? null,
       }
     );
 
@@ -176,6 +233,7 @@ export async function createRecurringAppointments(input: {
         error: res.error,
         ids,
         treatmentPlanId,
+        partialSeries: ids.length > 0,
       };
     }
     if (res.data?.id) ids.push(String(res.data.id));
@@ -189,7 +247,7 @@ export async function createRecurringAppointments(input: {
     revalidatePath(`/dashboard/planos-tratamento/${treatmentPlanId}`);
   }
 
-  return { error: null, ids, treatmentPlanId };
+  return { error: null, ids, treatmentPlanId, partialSeries: false };
 }
 
 // RECORRÊNCIA v1 — Lista consultas da mesma série.
@@ -370,7 +428,9 @@ export async function addRecurrenceSession(input: {
       special_instructions,
       preparation_notes,
       treatment_plan_id,
-      valor
+      valor,
+      scheduled_end_at,
+      room_id
     `
     )
     .eq("id", input.copyFromAppointmentId)
@@ -419,10 +479,13 @@ export async function addRecurrenceSession(input: {
     undefined,
     procedureIds,
     {
-      skipConflictCheck: true,
       recurrence_group_id: input.recurrenceGroupId,
       session_number: nextSession,
       treatment_plan_id: template.treatment_plan_id as string | null,
+      scheduledEndAt: template.scheduled_end_at
+        ? String(template.scheduled_end_at)
+        : undefined,
+      roomId: template.room_id as string | null,
     }
   );
 
@@ -431,4 +494,4 @@ export async function addRecurrenceSession(input: {
   return { error: null, id: res.data?.id ? String(res.data.id) : null };
 }
 
-export type { RecurrenceFrequency };
+export type { RecurrenceFrequency } from "@/lib/recurrence-schedule";

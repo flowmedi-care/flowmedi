@@ -24,12 +24,19 @@ import {
 import { buildRecurrenceSessionSlots } from "@/lib/recurrence-schedule";
 import { recurrenceBillingModeLabel, type ServiceRecurrenceBillingMode } from "@/lib/recurrence-billing";
 import { getServiceRecurrenceBilling } from "@/app/dashboard/servicos-valores/actions";
+import {
+  buildScheduledEndAt,
+  plannedDurationMinutes,
+  suggestDefaultEndTimeHm,
+} from "@/lib/appointment-scheduling";
+import { createWaitlistEntry } from "./waitlist-actions";
 import { toast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
 import type {
   PatientOption,
   DoctorOption,
   AppointmentTypeOption,
+  RoomOption,
   ProcedureOption,
   FormTemplateOption,
   ServiceOption,
@@ -51,6 +58,8 @@ export type AppointmentFormState = {
   linkedFormTemplateIds: string[];
   date: string;
   time: string;
+  endTime: string;
+  roomId: string;
   notes: string;
   recommendations: string;
   requiresFasting: boolean;
@@ -83,6 +92,8 @@ export function AgendaAppointmentModal({
   pricingDimensionValues,
   servicePriceRules,
   doctorProcedures,
+  rooms = [],
+  roomsRequired = false,
   userRole = "secretaria",
 }: {
   open: boolean;
@@ -101,6 +112,8 @@ export function AgendaAppointmentModal({
   pricingDimensionValues: PricingDimensionValueOption[];
   servicePriceRules: ServicePriceRuleOption[];
   doctorProcedures: DoctorProcedureLink[];
+  rooms?: RoomOption[];
+  roomsRequired?: boolean;
   userRole?: string;
 }) {
   const router = useRouter();
@@ -117,9 +130,11 @@ export function AgendaAppointmentModal({
   const [publicFormTemplates, setPublicFormTemplates] = useState<{ id: string; name: string }[]>([]);
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState("");
   const [recurrence, setRecurrence] = useState<RecurrenceFormState>(defaultRecurrenceForm);
+  const [recurrenceConflictCount, setRecurrenceConflictCount] = useState(0);
   const [serviceRecurrenceMode, setServiceRecurrenceMode] =
     useState<ServiceRecurrenceBillingMode>(null);
   const [serviceRecurrenceName, setServiceRecurrenceName] = useState<string | null>(null);
+  const [addingToWaitlist, setAddingToWaitlist] = useState(false);
 
   const defaultForm = (): AppointmentFormState => ({
     patientId: "",
@@ -131,6 +146,8 @@ export function AgendaAppointmentModal({
     linkedFormTemplateIds: [],
     date: new Date().toISOString().slice(0, 10),
     time: "09:00",
+    endTime: "09:30",
+    roomId: rooms.length === 1 ? rooms[0].id : "",
     notes: "",
     recommendations: "",
     requiresFasting: false,
@@ -175,6 +192,8 @@ export function AgendaAppointmentModal({
           dimensionSelections: d.dimensionSelections,
           date: d.date,
           time: d.time,
+          endTime: d.endTime,
+          roomId: d.roomId,
           notes: d.notes,
           recommendations: d.recommendations,
           requiresFasting: d.requiresFasting,
@@ -301,6 +320,46 @@ export function AgendaAppointmentModal({
     };
   }, [open, recurrence.enabled, effectiveServiceId, canSeeRecurrenceBilling]);
 
+  useEffect(() => {
+    if (isEdit || !form.appointmentTypeId) return;
+    const at = appointmentTypes.find((t) => t.id === form.appointmentTypeId);
+    const mins = at?.duration_minutes ?? 30;
+    setForm((f) => ({
+      ...f,
+      endTime: suggestDefaultEndTimeHm(f.time || "09:00", mins),
+    }));
+  }, [form.appointmentTypeId, form.time, appointmentTypes, isEdit]);
+
+  const plannedMinutesPreview = useMemo(() => {
+    if (!form.date || !form.time || !form.endTime) return null;
+    const start = new Date(`${form.date}T${form.time}:00`).toISOString();
+    const end = buildScheduledEndAt(form.date, form.endTime, start);
+    return plannedDurationMinutes(start, end);
+  }, [form.date, form.time, form.endTime]);
+
+  async function addToWaitlistFromForm() {
+    if (!form.patientId || !form.doctorId || !form.date) {
+      setError("Preencha paciente, profissional e data antes de entrar na fila.");
+      return;
+    }
+    setAddingToWaitlist(true);
+    const res = await createWaitlistEntry({
+      patientId: form.patientId,
+      doctorId: form.doctorId,
+      preferredDate: form.date,
+      preferredTimeStart: form.time || null,
+      preferredTimeEnd: form.endTime || null,
+      procedureId: form.procedureIds[0] ?? null,
+      roomId: form.roomId || null,
+    });
+    setAddingToWaitlist(false);
+    if (res.error) setError(res.error);
+    else {
+      toast("Paciente adicionado à fila de espera.", "success");
+      onOpenChange(false);
+    }
+  }
+
   const toggleProcedure = (id: string) => {
     setForm((f) => {
       const has = f.procedureIds.includes(id);
@@ -373,15 +432,36 @@ export function AgendaAppointmentModal({
       setTab("financeiro");
       return;
     }
+    if (roomsRequired && !form.roomId) {
+      setError("Selecione a sala/consultório (aba Dados).");
+      setTab("dados");
+      return;
+    }
+    if (!form.endTime) {
+      setError("Informe o horário de término.");
+      setTab("data");
+      return;
+    }
     const finalValor = previewRes.data?.totalAmount ?? resolvedValor ?? null;
 
     setLoading(true);
 
+    const localStart = new Date(`${form.date}T${form.time}:00`);
+    const scheduledAt = localStart.toISOString();
+    const scheduledEndAt = buildScheduledEndAt(form.date, form.endTime, scheduledAt);
+
     if (!isEdit && recurrence.enabled) {
+      if (recurrenceConflictCount > 0 && !recurrence.forceConflict) {
+        setError("Uma ou mais sessões estão em conflito. Ajuste os horários ou marque forçar agendamento (admin).");
+        setTab("data");
+        return;
+      }
+
       const sessionCount = Math.min(52, Math.max(2, recurrence.sessionCount));
       const slots = buildRecurrenceSessionSlots(
         form.date,
         form.time,
+        form.endTime,
         sessionCount,
         recurrence.frequency,
         recurrence.overrides
@@ -396,7 +476,8 @@ export function AgendaAppointmentModal({
         procedureIds: form.procedureIds,
         serviceId: effectiveServiceIdSubmit,
         dimensionValueIds,
-        scheduledAtList: slots.map((s) => s.scheduledAt),
+        slots,
+        roomId: form.roomId || null,
         notes: form.notes || null,
         recommendations: form.recommendations || null,
         specialInstructions: form.specialInstructions || null,
@@ -405,11 +486,18 @@ export function AgendaAppointmentModal({
           ? form.linkedFormTemplateIds
           : undefined,
         procedureNameForPlan: procedureName,
+        forceConflict: recurrence.forceConflict,
       });
 
       setLoading(false);
       if (res.error) {
         setError(res.error);
+        if (res.partialSeries && res.ids.length > 0) {
+          toast(
+            `Série incompleta: ${res.ids.length} consulta(s) criada(s). Revise conflitos ou cancele as sessões parciais.`,
+            "error"
+          );
+        }
         return;
       }
       if (res.treatmentPlanId) {
@@ -426,9 +514,6 @@ export function AgendaAppointmentModal({
       return;
     }
 
-    const localDate = new Date(`${form.date}T${form.time}:00`);
-    const scheduledAt = localDate.toISOString();
-
     let createdOrEditedId: string | undefined;
 
     if (isEdit && appointmentId) {
@@ -441,10 +526,12 @@ export function AgendaAppointmentModal({
         service_id: effectiveServiceIdSubmit,
         valor: finalValor,
         scheduled_at: scheduledAt,
+        scheduled_end_at: scheduledEndAt,
+        room_id: form.roomId || null,
         notes: form.notes || null,
         recommendations: form.recommendations || null,
-        requires_fasting: false,
-        requires_medication_stop: false,
+        requires_fasting: form.requiresFasting,
+        requires_medication_stop: form.requiresMedicationStop,
         special_instructions: form.specialInstructions || null,
         preparation_notes: form.preparationNotes || null,
         dimension_value_ids: dimensionValueIds,
@@ -464,15 +551,19 @@ export function AgendaAppointmentModal({
         form.notes || null,
         form.recommendations || null,
         form.procedureIds[0] || null,
-        false,
-        false,
+        form.requiresFasting,
+        form.requiresMedicationStop,
         form.specialInstructions || null,
         form.preparationNotes || null,
         form.linkedFormTemplateIds.length ? form.linkedFormTemplateIds : undefined,
         effectiveServiceIdSubmit,
         finalValor,
         dimensionValueIds.length ? dimensionValueIds : undefined,
-        form.procedureIds
+        form.procedureIds,
+        {
+          scheduledEndAt,
+          roomId: form.roomId || null,
+        }
       );
       if (res.error) {
         setError(res.error);
@@ -514,7 +605,23 @@ export function AgendaAppointmentModal({
         </div>
 
         {error && (
-          <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md mb-3">{error}</p>
+          <div className="text-sm text-destructive bg-destructive/10 p-2 rounded-md mb-3 space-y-2">
+            <p>{error}</p>
+            {!isEdit &&
+              (error.includes("já tem consulta") ||
+                error.includes("ocupada") ||
+                error.includes("simultânea")) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={addingToWaitlist}
+                  onClick={addToWaitlistFromForm}
+                >
+                  Adicionar à fila de espera
+                </Button>
+              )}
+          </div>
         )}
 
         {tab === "dados" && (
@@ -572,6 +679,23 @@ export function AgendaAppointmentModal({
                 ))}
               </select>
             </div>
+            {rooms.length > 0 && (
+              <div className="space-y-2">
+                <Label>
+                  Sala / consultório {roomsRequired && <span className="text-destructive">*</span>}
+                </Label>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                  value={form.roomId}
+                  onChange={(e) => setForm((f) => ({ ...f, roomId: e.target.value }))}
+                >
+                  <option value="">Selecione</option>
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Observações</Label>
               <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} />
@@ -687,7 +811,7 @@ export function AgendaAppointmentModal({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>
-                Data e hora da consulta <span className="text-destructive">*</span>
+                Início <span className="text-destructive">*</span>
               </Label>
               <div className="flex gap-2">
                 <Input
@@ -711,19 +835,41 @@ export function AgendaAppointmentModal({
                   required
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Término <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                type="time"
+                className="max-w-[140px]"
+                step={60}
+                value={form.endTime}
+                onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
+                required
+              />
+              {plannedMinutesPreview != null && plannedMinutesPreview > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Duração prevista: {plannedMinutesPreview} min
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">Fuso horário da clínica</p>
             </div>
 
             <AppointmentDateTimeRecurrence
               date={form.date}
               time={form.time}
+              endTime={form.endTime}
               doctorId={form.doctorId}
+              roomId={form.roomId || null}
               appointmentTypeId={form.appointmentTypeId}
               recurrence={recurrence}
               onRecurrenceChange={(patch) =>
                 setRecurrence((r) => ({ ...r, ...patch }))
               }
               isEdit={isEdit}
+              userRole={userRole}
+              onConflictCountChange={setRecurrenceConflictCount}
             />
           </div>
         )}

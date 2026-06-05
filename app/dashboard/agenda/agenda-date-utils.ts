@@ -202,7 +202,26 @@ export function getWeekStartForPeriod(start: Date): Date {
 }
 
 /** Converte data local para ISO string preservando o dia (evita problemas de timezone). */
-export function localDateToISO(year: number, month: number, day: number, hour: number, minute: number): string {
+export function getAppointmentSlotSpan(
+  scheduledAt: string,
+  scheduledEndAt: string | null | undefined,
+  stepMinutes = AGENDA_SLOT_STEP_MINUTES
+): number {
+  const start = new Date(scheduledAt).getTime();
+  const end = scheduledEndAt
+    ? new Date(scheduledEndAt).getTime()
+    : start + 30 * 60 * 1000;
+  const minutes = Math.max(stepMinutes, Math.round((end - start) / 60000));
+  return Math.max(1, Math.ceil(minutes / stepMinutes));
+}
+
+export function localDateToISO(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number
+): string {
   // Criar data local às 12:00 (meio-dia) para evitar problemas de timezone
   // Meio-dia raramente muda de dia quando convertido para UTC
   const localDate = new Date(year, month - 1, day, 12, 0, 0, 0);
