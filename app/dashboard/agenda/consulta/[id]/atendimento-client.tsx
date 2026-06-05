@@ -81,7 +81,9 @@ export function AtendimentoClient({
   const load = useCallback(async () => {
     setLoading(true);
     const res = await getAppointmentConsumption(appointmentId);
-    if (!res.error) {
+    if (res.error) {
+      toast(res.error, "error");
+    } else {
       setLines(res.data);
       setEncounterStatus(res.encounter?.status ?? null);
       setStockConsumed(!!res.encounter?.stock_consumed_at);

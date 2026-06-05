@@ -268,7 +268,80 @@ export async function buildConsumptionFromProcedures(
   if (!lines.length) return;
 
   await supabase.from("appointment_consumption_lines").delete().eq("appointment_id", appointmentId);
-  await supabase.from("appointment_consumption_lines").insert(lines);
+  const { error } = await supabase.from("appointment_consumption_lines").insert(lines);
+  if (error) {
+    console.error("[buildConsumptionFromProcedures] insert:", error.message);
+    throw new Error(error.message);
+  }
+}
+
+/** Garante linhas de consumo a partir do BOM do procedimento (consultas antigas ou falha no agendamento). */
+export async function ensureAppointmentConsumptionLines(
+  supabase: Db,
+  clinicId: string,
+  appointmentId: string,
+  userId?: string
+) {
+  const { count, error: countErr } = await supabase
+    .from("appointment_consumption_lines")
+    .select("id", { count: "exact", head: true })
+    .eq("appointment_id", appointmentId);
+
+  if (countErr) {
+    console.error("[ensureAppointmentConsumptionLines] count:", countErr.message);
+    return;
+  }
+  if (count && count > 0) return;
+
+  const { data: apProcs } = await supabase
+    .from("appointment_procedures")
+    .select("procedure_id")
+    .eq("appointment_id", appointmentId)
+    .order("sort_order");
+
+  let procedureIds = (apProcs ?? []).map((r) => r.procedure_id as string);
+
+  if (!procedureIds.length) {
+    const { data: appt } = await supabase
+      .from("appointments")
+      .select("procedure_id")
+      .eq("id", appointmentId)
+      .maybeSingle();
+    if (appt?.procedure_id) procedureIds = [appt.procedure_id as string];
+  }
+
+  if (!procedureIds.length) return;
+
+  try {
+    await buildConsumptionFromProcedures(supabase, appointmentId, procedureIds);
+  } catch (e) {
+    console.error("[ensureAppointmentConsumptionLines] build:", e);
+    return;
+  }
+
+  const { data: apptStatus } = await supabase
+    .from("appointments")
+    .select("status")
+    .eq("id", appointmentId)
+    .maybeSingle();
+
+  const status = apptStatus?.status as string | undefined;
+  if (status === "cancelada" || status === "falta") return;
+
+  const { data: committed } = await supabase
+    .from("stock_movements")
+    .select("id")
+    .eq("appointment_id", appointmentId)
+    .eq("movement_type", "committed")
+    .limit(1);
+
+  if (committed?.length) return;
+
+  try {
+    await commitStockForAppointment(supabase, clinicId, appointmentId, userId);
+  } catch (e) {
+    console.error("[ensureAppointmentConsumptionLines] stock commit:", e);
+  }
 }
 
 export async function commitStockForAppointment(supabase: Db, clinicId: string, appointmentId: string, userId?: string) {

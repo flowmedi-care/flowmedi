@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import {
   ensureEncounter,
+  ensureAppointmentConsumptionLines,
   computeBillingFromLines,
   consumeStockForAppointment,
   hasStockBeenConsumed,
@@ -93,6 +94,21 @@ export async function getAppointmentConsumption(appointmentId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Não autorizado.", data: [], encounter: null };
+
+  const { data: apptRow } = await supabase
+    .from("appointments")
+    .select("clinic_id")
+    .eq("id", appointmentId)
+    .maybeSingle();
+
+  if (apptRow?.clinic_id) {
+    await ensureAppointmentConsumptionLines(
+      supabase,
+      String(apptRow.clinic_id),
+      appointmentId,
+      user.id
+    );
+  }
 
   const { data: lines, error } = await supabase
     .from("appointment_consumption_lines")
@@ -1446,6 +1462,12 @@ export async function startEncounter(appointmentId: string) {
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
 
   await ensureEncounter(supabase, profile.clinic_id, appointmentId);
+  await ensureAppointmentConsumptionLines(
+    supabase,
+    profile.clinic_id,
+    appointmentId,
+    user.id
+  );
 
   const { data: appt } = await supabase
     .from("appointments")
