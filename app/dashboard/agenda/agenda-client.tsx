@@ -61,7 +61,6 @@ import {
   getAgendaTimeSlots,
   formatAgendaSlotLabel,
   agendaSlotKey,
-  getAgendaSlotForScheduledAt,
   getAppointmentSlotSpan,
   parseDropSlotFromId,
   type AgendaTimeSlot,
@@ -71,6 +70,12 @@ import {
   localDateToISO,
 } from "./agenda-date-utils";
 import { formatAppointmentTimeRange, shiftIntervalPreservingDuration } from "@/lib/appointment-scheduling";
+import {
+  AGENDA_SLOT_HEIGHT_PX,
+  getGridTotalHeightPx,
+  layoutOverlappingEvents,
+} from "@/lib/agenda-week-layout";
+import { WeekCalendarDayColumn } from "./agenda-week-event-block";
 import { AgendaWaitlistPanel } from "./agenda-waitlist-panel";
 import { getStatusBackgroundColor, getStatusTextColor } from "./status-utils";
 
@@ -1495,29 +1500,23 @@ function CalendarWeekView({
   }, [appointments]);
 
   // Sempre calcular para manter ordem de hooks estável entre mobile/desktop
-  const byDaySlot = useMemo(() => {
-    const map: Record<string, Record<string, AppointmentRow[]>> = {};
+  const gridStartHour = timeSlots[0]?.hour ?? 7;
+  const gridEndHour = timeSlots[timeSlots.length - 1]?.hour ?? 20;
+  const gridTotalHeightPx = getGridTotalHeightPx(timeSlots.length);
+
+  const layoutsByDay = useMemo(() => {
+    const map: Record<string, ReturnType<typeof layoutOverlappingEvents>> = {};
     weekDays.forEach((d) => {
-      map[toYMD(d)] = {};
-      timeSlots.forEach((slot) => {
-        map[toYMD(d)][agendaSlotKey(slot)] = [];
-      });
-    });
-    appointments.forEach((a) => {
-      const key = a.scheduled_at.slice(0, 10);
-      const slot = getAgendaSlotForScheduledAt(a.scheduled_at);
-      const slotKey = agendaSlotKey(slot);
-      if (map[key] && map[key][slotKey] !== undefined) map[key][slotKey].push(a);
-    });
-    Object.keys(map).forEach((dayKey) => {
-      Object.keys(map[dayKey]).forEach((sk) => {
-        map[dayKey][sk].sort(
-          (x, y) => new Date(x.scheduled_at).getTime() - new Date(y.scheduled_at).getTime()
-        );
-      });
+      const dayId = toYMD(d);
+      const items = (byDay[dayId] ?? []).map((a) => ({
+        id: a.id,
+        scheduledAt: a.scheduled_at,
+        scheduledEndAt: a.scheduled_end_at,
+      }));
+      map[dayId] = layoutOverlappingEvents(items, gridStartHour, gridEndHour);
     });
     return map;
-  }, [appointments, weekDays, timeSlots]);
+  }, [byDay, weekDays, gridStartHour, gridEndHour]);
 
   if (isMobile) {
     const selectedDayDate = weekDays.find((d) => toYMD(d) === selectedDayYmd) ?? weekDays[0] ?? today;
@@ -1639,65 +1638,49 @@ function CalendarWeekView({
               ))}
             </div>
           </div>
-          {timeSlots.map((slot) => {
-            const slotKey = agendaSlotKey(slot);
-            const showLabel = slot.minute === 0;
-            return (
+          <div className="grid grid-cols-[56px_1fr]">
             <div
-              key={slotKey}
-              className="grid grid-cols-[56px_1fr] border-b border-border min-h-[36px]"
+              className="relative border-r border-border bg-muted/30"
+              style={{ height: gridTotalHeightPx }}
             >
-              <div className="border-r border-border bg-muted/30 py-0.5 pr-2 text-right text-[10px] text-muted-foreground">
-                {showLabel ? formatAgendaSlotLabel(slot) : ""}
-              </div>
-              <div className="grid grid-cols-7 border-border">
-                {weekDays.map((d) => {
-                  const dayId = toYMD(d);
-                  const slotAppointments = byDaySlot[dayId]?.[slotKey] ?? [];
-                  const uniqueDropId = `${dayId}-${slot.hour}-${slot.minute}`;
-                  return (
-                    <DroppableDay
-                      key={uniqueDropId}
-                      dayId={dayId}
-                      uniqueId={uniqueDropId}
-                      slotHour={slot.hour}
-                      slotMinute={slot.minute}
-                      className={cn(
-                        "p-0.5 border-r border-border last:border-r-0 min-h-[36px] relative flex flex-col",
-                        isSameDay(d, today) && "bg-primary/5"
-                      )}
-                    >
-                      {slotAppointments.length > 0 ? (
-                        <SortableContext
-                          items={slotAppointments.map((a) => a.id)}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          <div className="flex flex-col gap-0.5">
-                            {slotAppointments.map((a) => (
-                              <DraggableAppointmentItem
-                                key={a.id}
-                                appointment={a}
-                                dayId={dayId}
-                                compact
-                                getEventStyle={getEventStyle}
-                                getAccentColor={getAccentColor}
-                                onEdit={onEditAppointment}
-                      onOpenDetails={onOpenDetails}
-                              />
-                            ))}
-                          </div>
-                        </SortableContext>
-                      ) : (
-                        // Célula vazia também é drop zone - precisa ter conteúdo mínimo
-                        <div className="min-h-[20px] w-full flex-1" />
-                      )}
-                    </DroppableDay>
-                  );
-                })}
-              </div>
+              {timeSlots.map((slot, slotIndex) => {
+                const showLabel = slot.minute === 0 || slot.minute === 30;
+                if (!showLabel) return null;
+                return (
+                  <div
+                    key={agendaSlotKey(slot)}
+                    className={cn(
+                      "absolute right-1 pr-1 text-right text-[10px] text-muted-foreground -translate-y-1/2",
+                      slot.minute === 30 && "opacity-70"
+                    )}
+                    style={{ top: slotIndex * AGENDA_SLOT_HEIGHT_PX + AGENDA_SLOT_HEIGHT_PX / 2 }}
+                  >
+                    {formatAgendaSlotLabel(slot)}
+                  </div>
+                );
+              })}
             </div>
-          );
-          })}
+            <div className="grid grid-cols-7">
+              {weekDays.map((d) => {
+                const dayId = toYMD(d);
+                return (
+                  <WeekCalendarDayColumn
+                    key={dayId}
+                    dayId={dayId}
+                    isToday={isSameDay(d, today)}
+                    timeSlots={timeSlots}
+                    gridTotalHeightPx={gridTotalHeightPx}
+                    appointments={byDay[dayId] ?? []}
+                    layouts={layoutsByDay[dayId] ?? []}
+                    getAccentColor={getAccentColor}
+                    onEditAppointment={onEditAppointment}
+                    onOpenDetails={onOpenDetails}
+                    formatTooltip={formatAppointmentTooltip}
+                  />
+                );
+              })}
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
