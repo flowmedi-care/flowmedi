@@ -54,7 +54,7 @@ export function FinanceiroOverviewClient({
           title="Receita Faturada (Competência)"
           lens="Competência"
           value={fmtCurrency(metrics.receitaFaturada)}
-          subtitle="Valor cobrado aos pacientes, por emissão do cupom."
+          subtitle="Valor cobrado aos pacientes, por emissão da comanda."
         />
         <MetricCard
           title="Entradas no Caixa"
@@ -66,7 +66,7 @@ export function FinanceiroOverviewClient({
           title="A Receber"
           lens="AR"
           value={fmtCurrency(metrics.aReceber)}
-          subtitle="Cupons abertos aguardando pagamento."
+          subtitle="Comandas abertas aguardando pagamento."
         />
       </div>
 
@@ -99,7 +99,7 @@ export function FinanceiroOverviewClient({
 
       <Card>
         <CardHeader>
-          <h2 className="font-semibold">Cupons em aberto</h2>
+          <h2 className="font-semibold">Comandas em aberto</h2>
           <p className="text-sm text-muted-foreground">
             Contas a receber — saldo pendente de pacientes.
           </p>
@@ -107,7 +107,7 @@ export function FinanceiroOverviewClient({
         <CardContent>
           {openComandas.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">
-              Nenhum cupom em aberto.
+              Nenhuma comanda em aberto.
             </p>
           ) : (
             <>

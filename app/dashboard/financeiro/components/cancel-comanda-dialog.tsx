@@ -50,7 +50,7 @@ export function CancelComandaDialog({
     setSaving(false);
     if (res.error) toast(res.error, "error");
     else {
-      toast("Cupom cancelado.", "success");
+      toast("Comanda cancelada.", "success");
       onClose();
       router.refresh();
     }
@@ -61,7 +61,7 @@ export function CancelComandaDialog({
 
   return (
     <Dialog open={!!comanda} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title="Cancelar cupom" onClose={onClose}>
+      <DialogContent title="Cancelar comanda" onClose={onClose}>
         {comanda && (
           <div className="space-y-4">
             <div className="text-sm space-y-1">
@@ -80,7 +80,7 @@ export function CancelComandaDialog({
 
             {isPaidComanda && (
               <p className="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md p-3">
-                Este cupom está quitado. Confirme apenas se deseja cancelar mesmo assim.
+                Esta comanda está quitada. Confirme apenas se deseja cancelar mesmo assim.
               </p>
             )}
 

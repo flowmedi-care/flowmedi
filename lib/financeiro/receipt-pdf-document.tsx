@@ -88,7 +88,7 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
 
         {data.comanda_total != null && (
           <View style={styles.row}>
-            <Text style={styles.label}>Total do cupom</Text>
+            <Text style={styles.label}>Total da comanda</Text>
             <Text>{fmtBrl(data.comanda_total)}</Text>
           </View>
         )}

@@ -270,7 +270,7 @@ export function AtendimentoClient({
       return;
     }
       toast(
-      payment > 0 ? "Cupom emitido e pagamento registrado." : "Cupom emitido.",
+      payment > 0 ? "Comanda emitida e pagamento registrado." : "Comanda emitida.",
       "success"
     );
     setEmitOpen(false);
@@ -341,7 +341,7 @@ export function AtendimentoClient({
             {isFullyPaid && (
               <p className="text-green-700 dark:text-green-400 flex items-center gap-1">
                 <CheckCircle2 className="h-4 w-4" />
-                Cupom quitado.
+                Comanda quitada.
               </p>
             )}
           </CardContent>
@@ -712,7 +712,7 @@ export function AtendimentoClient({
       </Dialog>
 
       <Dialog open={summaryOpen} onOpenChange={setSummaryOpen}>
-        <DialogContent title="Cupom emitido" onClose={() => setSummaryOpen(false)} className="max-w-md">
+        <DialogContent title="Comanda emitida" onClose={() => setSummaryOpen(false)} className="max-w-md">
           {savedComanda && (
             <div className="space-y-4">
               <div className="flex items-center gap-2">

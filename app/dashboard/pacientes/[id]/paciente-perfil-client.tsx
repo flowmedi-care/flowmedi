@@ -117,12 +117,12 @@ function InfoRow({
 export function PacientePerfilClient({
   bundle,
   canEdit,
-  canCancelCupom = false,
+  canCancelComanda = false,
   userRole,
 }: {
   bundle: PatientProfileBundle;
   canEdit: boolean;
-  canCancelCupom?: boolean;
+  canCancelComanda?: boolean;
   userRole?: string;
 }) {
   const router = useRouter();
@@ -484,7 +484,7 @@ export function PacientePerfilClient({
                       </p>
                     </div>
                     <div className="rounded-lg border p-4">
-                      <p className="text-xs text-muted-foreground">Total faturado (cupons)</p>
+                      <p className="text-xs text-muted-foreground">Total faturado (comandas)</p>
                       <p className="text-xl font-semibold">
                         {financial.totalBilled.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </p>
@@ -513,9 +513,9 @@ export function PacientePerfilClient({
                   </div>
 
                   <div>
-                    <h4 className="font-medium mb-2">Cupons</h4>
+                    <h4 className="font-medium mb-2">Comandas</h4>
                     {comandas.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Nenhum cupom.</p>
+                      <p className="text-sm text-muted-foreground">Nenhuma comanda.</p>
                     ) : (
                       <ul className="divide-y text-sm">
                         {comandas.map((c) => {
@@ -540,7 +540,7 @@ export function PacientePerfilClient({
                                 <Button variant="outline" size="sm" onClick={() => openComandaDetail(c.id)}>
                                   Ver itens
                                 </Button>
-                                {canCancelCupom &&
+                                {canCancelComanda &&
                                   (c.status === "aberta" || c.status === "parcial" || c.status === "paga") && (
                                     <Button
                                       variant="ghost"
@@ -555,7 +555,7 @@ export function PacientePerfilClient({
                                         })
                                       }
                                     >
-                                      Cancelar cupom
+                                      Cancelar comanda
                                     </Button>
                                   )}
                               </div>
@@ -675,7 +675,7 @@ export function PacientePerfilClient({
       </div>
 
       <Dialog open={comandaDetailOpen} onOpenChange={setComandaDetailOpen}>
-        <DialogContent title="Detalhes do cupom" onClose={() => setComandaDetailOpen(false)} className="max-w-md">
+        <DialogContent title="Detalhes da comanda" onClose={() => setComandaDetailOpen(false)} className="max-w-md">
           {loadingComanda ? (
             <p className="text-sm text-muted-foreground">Carregando…</p>
           ) : comandaDetail ? (

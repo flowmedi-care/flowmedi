@@ -491,7 +491,7 @@ export async function getComandaPaymentContext(comandaId: string) {
     .eq("id", comandaId)
     .single();
 
-  if (!cmd) return { error: "Cupom não encontrado.", data: null };
+  if (!cmd) return { error: "Comanda não encontrada.", data: null };
 
   const patient = Array.isArray(cmd.patient) ? cmd.patient[0] : cmd.patient;
   const total = Number(cmd.total_amount);
@@ -1642,8 +1642,8 @@ export async function cancelComanda(
     .eq("clinic_id", profile.clinic_id)
     .single();
 
-  if (!cmd) return { error: "Cupom não encontrado." };
-  if (cmd.status === "cancelada") return { error: "Cupom já cancelado." };
+  if (!cmd) return { error: "Comanda não encontrada." };
+  if (cmd.status === "cancelada") return { error: "Comanda já cancelada." };
 
   const paidAmount = Number(cmd.paid_amount);
   const cancellationType = options?.cancellationType;
@@ -1682,7 +1682,7 @@ export async function cancelComanda(
         bankAccountId: bankId,
         paidAt: now,
         createdBy: user.id,
-        description: "Estorno cupom cancelado",
+        description: "Estorno comanda cancelada",
       });
       if (refundRes.error) return { error: refundRes.error };
 
@@ -1703,7 +1703,7 @@ export async function cancelComanda(
         amount: paidAmount,
         paidAt: now,
         createdBy: user.id,
-        description: "Estorno cupom cancelado",
+        description: "Estorno comanda cancelada",
       });
     }
   }
@@ -1714,7 +1714,7 @@ export async function cancelComanda(
       patientId: cmd.patient_id,
       amount: paidAmount,
       originComandaId: comandaId,
-      notes: options?.reason?.trim() || "Crédito por cancelamento de cupom",
+      notes: options?.reason?.trim() || "Crédito por cancelamento de comanda",
     });
     if (creditRes.error) return { error: creditRes.error };
   }

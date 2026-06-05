@@ -22,7 +22,7 @@ export async function recordPaymentAccounting(
 ): Promise<{ error: string | null }> {
   const gross = Number(input.grossAmount.toFixed(2));
   const fee = Number(Math.max(0, input.feeAmount).toFixed(2));
-  const desc = input.description ?? "Pagamento cupom";
+  const desc = input.description ?? "Pagamento comanda";
 
   const { error: receitaErr } = await supabase.from("financial_entries").insert({
     clinic_id: input.clinicId,
@@ -88,7 +88,7 @@ export async function recordRefundAccounting(
     clinic_id: input.clinicId,
     entry_type: "despesa",
     origin: "refund",
-    description: input.description ?? "Estorno cupom",
+    description: input.description ?? "Estorno comanda",
     amount,
     paid_at: input.paidAt,
     status: "pago",

@@ -49,15 +49,15 @@ export function FinanceiroReceberClient({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <h2 className="font-semibold">Saldo de cupons abertos</h2>
+          <h2 className="font-semibold">Saldo de comandas abertas</h2>
           <p className="text-sm text-muted-foreground">
-            Fonte primária de contas a receber — pacientes com cupom aberto ou parcial.
+            Fonte primária de contas a receber — pacientes com comanda aberta ou parcial.
           </p>
         </CardHeader>
         <CardContent>
           {openComandas.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">
-              Nenhum cupom aguardando pagamento.
+              Nenhuma comanda aguardando pagamento.
             </p>
           ) : (
             <>
@@ -146,7 +146,7 @@ export function FinanceiroReceberClient({
         <CardHeader>
           <h2 className="font-semibold">Receitas manuais pendentes</h2>
           <p className="text-sm text-muted-foreground">
-            Lançamentos manuais ainda não recebidos — separados do saldo de cupons.
+            Lançamentos manuais ainda não recebidos — separados do saldo de comandas.
           </p>
         </CardHeader>
         <CardContent>

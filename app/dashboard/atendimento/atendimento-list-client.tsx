@@ -16,15 +16,15 @@ const STATUS: Record<string, string> = {
 const ENCOUNTER_BADGE: Record<string, { label: string; className?: string }> = {
   em_andamento: { label: "Em atendimento" },
   finalizado_aguardando_cobranca: {
-    label: "Aguardando cupom",
+    label: "Aguardando comanda",
     className: "border-amber-300 text-amber-800 dark:text-amber-300",
   },
   cobrado: { label: "Quitado", className: "border-green-300 text-green-800 dark:text-green-300" },
 };
 
 const COMANDA_BADGE: Record<string, string> = {
-  aberta: "Cupom aberto",
-  parcial: "Cupom parcial",
+  aberta: "Comanda aberta",
+  parcial: "Comanda parcial",
   paga: "Quitado",
 };
 
