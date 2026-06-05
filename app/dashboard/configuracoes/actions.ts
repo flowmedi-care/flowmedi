@@ -508,6 +508,7 @@ export async function updateClinicServicesPricingMode(
   if (error) return { error: error.message };
   revalidatePath("/dashboard/configuracoes");
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
   revalidatePath("/dashboard");
   return { error: null };
 }

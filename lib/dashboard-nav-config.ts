@@ -187,6 +187,19 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
   },
 ];
 
+export const DASHBOARD_SERVICOS_VALORES_GROUP: NavGroupItem = {
+  type: "group",
+  id: "servicos-valores",
+  label: "Serviços e Valores",
+  icon: "circle-dollar-sign",
+  prefix: "/dashboard/servicos-valores",
+  roles: ["admin", "medico"],
+  children: [
+    { href: "/dashboard/servicos-valores/servicos", label: "Serviços e valores" },
+    { href: "/dashboard/servicos-valores/procedimentos", label: "Procedimentos", roles: ["admin"] },
+  ],
+};
+
 export const DASHBOARD_CONFIG_GROUP: NavGroupItem = {
   type: "group",
   id: "configuracoes",
@@ -222,13 +235,6 @@ export const DASHBOARD_UTILITY_NAV: NavLinkItem[] = [
   },
   {
     type: "link",
-    href: "/dashboard/servicos-valores",
-    label: "Serviços e Valores",
-    icon: "circle-dollar-sign",
-    roles: ["admin", "medico"],
-  },
-  {
-    type: "link",
     href: "/dashboard/perfil",
     label: "Meu Perfil",
     icon: "users",
@@ -242,6 +248,15 @@ export const DASHBOARD_UTILITY_NAV: NavLinkItem[] = [
     roles: ["admin"],
   },
 ];
+
+export function canAccessServicosValoresNav(
+  role: string,
+  servicesPricingMode: "centralizado" | "descentralizado"
+) {
+  if (role === "medico" && servicesPricingMode !== "descentralizado") return false;
+  if (role !== "medico" && role !== "admin") return false;
+  return true;
+}
 
 export const LEGACY_PATH_PREFIXES: Record<string, string> = {
   "/dashboard/pacientes": "contatos",
@@ -286,6 +301,12 @@ export function getActiveNavGroupId(pathname: string): string | null {
     pathname.startsWith(`${DASHBOARD_CONFIG_GROUP.prefix}/`)
   ) {
     return "configuracoes";
+  }
+  if (
+    pathname === DASHBOARD_SERVICOS_VALORES_GROUP.prefix ||
+    pathname.startsWith(`${DASHBOARD_SERVICOS_VALORES_GROUP.prefix}/`)
+  ) {
+    return "servicos-valores";
   }
   if (isComunicacaoGroupPath(pathname)) {
     return "comunicacao";
@@ -374,6 +395,7 @@ export function isLinkActive(pathname: string, href: string): boolean {
 
 export function getNavGroupById(id: string): NavGroupItem | undefined {
   if (id === "configuracoes") return DASHBOARD_CONFIG_GROUP;
+  if (id === "servicos-valores") return DASHBOARD_SERVICOS_VALORES_GROUP;
   const topGroup = TOP_NAV_GROUPS.find((g) => g.id === id);
   if (topGroup) return topGroup;
   return DASHBOARD_MIDDLE_NAV_GROUPS.find((g) => g.id === id);

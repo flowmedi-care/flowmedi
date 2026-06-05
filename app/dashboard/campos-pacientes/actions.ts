@@ -332,6 +332,7 @@ export async function syncProcedureProducts(
 
   revalidatePath("/dashboard/campos-pacientes");
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { error: null };
 }
 
@@ -377,6 +378,7 @@ export async function createProcedure(
   if (error) return { error: error.message };
   revalidatePath("/dashboard/campos-pacientes");
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { error: null, procedureId: inserted?.id };
 }
 
@@ -415,6 +417,7 @@ export async function updateProcedure(
   if (error) return { error: error.message };
   revalidatePath("/dashboard/campos-pacientes");
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { error: null };
 }
 
@@ -450,6 +453,7 @@ export async function syncDoctorProcedures(procedureId: string, doctorIds: strin
   }
   revalidatePath("/dashboard/campos-pacientes");
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { error: null };
 }
 
@@ -497,5 +501,6 @@ export async function deleteProcedure(id: string) {
   if (error) return { error: error.message };
   revalidatePath("/dashboard/campos-pacientes");
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { error: null };
 }

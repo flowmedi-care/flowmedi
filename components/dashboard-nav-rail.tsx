@@ -14,11 +14,13 @@ import {
   DASHBOARD_UTILITY_NAV,
   DASHBOARD_MIDDLE_NAV_GROUPS,
   DASHBOARD_CONFIG_GROUP,
+  DASHBOARD_SERVICOS_VALORES_GROUP,
   filterNavByRole,
   filterTopNavByRole,
   filterGroupChildren,
   getActiveNavGroupId,
   isLinkActive,
+  canAccessServicosValoresNav,
   type NavGroupItem,
   type NavLinkItem,
   type NavTopItem,
@@ -118,10 +120,10 @@ export function DashboardNavRail({
   const router = useRouter();
   const [mobileExpandedGroupId, setMobileExpandedGroupId] = useState<string | null>(null);
   const role = profile?.role ?? "";
-  const isMedico = role === "medico";
   const activeGroupId = getActiveNavGroupId(pathname);
   const showConfig =
     !DASHBOARD_CONFIG_GROUP.roles || DASHBOARD_CONFIG_GROUP.roles.includes(role);
+  const showServicosValores = canAccessServicosValoresNav(role, servicesPricingMode);
 
   const showLabels = railExpanded || mobileOpen;
 
@@ -198,16 +200,6 @@ export function DashboardNavRail({
 
   const utilityNav = filterNavByRole(DASHBOARD_UTILITY_NAV, role).filter((item) => {
     if (item.href === "/dashboard/auditoria" && !canAccessAudit) return false;
-    if (
-      item.href === "/dashboard/servicos-valores" &&
-      isMedico &&
-      servicesPricingMode !== "descentralizado"
-    ) {
-      return false;
-    }
-    if (item.href === "/dashboard/servicos-valores" && !isMedico && role !== "admin") {
-      return false;
-    }
     return true;
   });
 
@@ -334,6 +326,7 @@ export function DashboardNavRail({
           {middleGroups.map((group) => renderGroup(group))}
           {utilityNav.length > 0 && <div className={dividerClass} aria-hidden />}
           {utilityNav.map(renderLink)}
+          {showServicosValores && renderGroup(DASHBOARD_SERVICOS_VALORES_GROUP)}
         </nav>
 
         <div

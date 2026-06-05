@@ -23,11 +23,8 @@ import {
   updateServicePrice,
   deleteServicePrice,
 } from "./actions";
-import { Plus, Pencil, Trash2, Loader2, Briefcase, Sliders, ListChecks, Calculator, Inbox, Stethoscope } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Briefcase, Sliders, ListChecks, Calculator, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ProcedimentosSection } from "./procedimentos-section";
-import type { ProcedureRow } from "@/app/dashboard/campos-pacientes/actions";
-import type { ClinicalFichaTemplateRow } from "@/app/dashboard/campos-pacientes/clinical-fichas-actions";
 
 import {
   recurrenceBillingModeLabel,
@@ -46,13 +43,6 @@ type ServicePriceRow = { id: string; service_id: string; professional_id: string
 type DoctorRow = { id: string; full_name: string | null };
 
 type Tab = "servicos" | "dimensoes" | "valores" | "regras";
-type MainTab = "procedimentos" | "servicos-valores";
-
-type AppointmentTypeRow = {
-  id: string;
-  name: string;
-  duration_minutes: number;
-};
 
 function EmptyState({
   icon: Icon,
@@ -89,13 +79,6 @@ export function ServicosValoresClient({
   doctors,
   currentUserId,
   currentUserRole,
-  showProcedimentosTab = false,
-  initialMainTab,
-  procedures = [],
-  appointmentTypes = [],
-  doctorIdsByProcedureId = {},
-  products = [],
-  fichaTemplates = [],
 }: {
   services: ServiceRow[];
   dimensions: DimensionRow[];
@@ -105,22 +88,9 @@ export function ServicosValoresClient({
   doctors: DoctorRow[];
   currentUserId: string;
   currentUserRole: string;
-  showProcedimentosTab?: boolean;
-  initialMainTab?: MainTab;
-  procedures?: ProcedureRow[];
-  appointmentTypes?: AppointmentTypeRow[];
-  doctorIdsByProcedureId?: Record<string, string[]>;
-  products?: { id: string; name: string; unit: string }[];
-  fichaTemplates?: ClinicalFichaTemplateRow[];
 }) {
   const router = useRouter();
-  const [mainTab, setMainTab] = useState<MainTab>(initialMainTab ?? "servicos-valores");
   const [activeTab, setActiveTab] = useState<Tab>("servicos");
-
-  const mainTabs: { id: MainTab; label: string; icon: React.ElementType }[] = [
-    { id: "procedimentos", label: "Procedimentos", icon: Stethoscope },
-    { id: "servicos-valores", label: "Serviços e valores", icon: Briefcase },
-  ];
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "servicos", label: "Serviços", icon: Briefcase },
@@ -131,48 +101,6 @@ export function ServicosValoresClient({
 
   return (
     <div className="space-y-6">
-      {showProcedimentosTab && (
-        <div className="border-b border-border">
-          <nav className="flex gap-1 overflow-x-auto scrollbar-thin" aria-label="Seções">
-            {mainTabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setMainTab(tab.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px",
-                    mainTab === tab.id
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted"
-                  )}
-                >
-                  <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-      )}
-
-      {mainTab === "procedimentos" && showProcedimentosTab ? (
-        <ProcedimentosSection
-          initialProcedures={procedures}
-          doctors={doctors.map((d) => ({ id: d.id, full_name: d.full_name ?? "" }))}
-          doctorIdsByProcedureId={doctorIdsByProcedureId}
-          appointmentTypes={appointmentTypes}
-          services={initialServices.map((s) => ({
-            id: s.id,
-            nome: s.nome,
-            recurrence_billing_mode: s.recurrence_billing_mode,
-          }))}
-          products={products}
-          fichaTemplates={fichaTemplates}
-          onMutate={() => router.refresh()}
-        />
-      ) : (
-        <>
       <div className="border-b border-border">
         <nav className="flex gap-1 overflow-x-auto scrollbar-thin" aria-label="Abas">
           {tabs.map((tab) => {
@@ -230,8 +158,6 @@ export function ServicosValoresClient({
           />
         )}
       </div>
-        </>
-      )}
     </div>
   );
 }

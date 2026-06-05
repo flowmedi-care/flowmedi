@@ -23,7 +23,13 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/dashboard/configuracoes/procedimentos",
-        destination: "/dashboard/servicos-valores?tab=procedimentos",
+        destination: "/dashboard/servicos-valores/procedimentos",
+        permanent: true,
+      },
+      {
+        source: "/dashboard/servicos-valores",
+        has: [{ type: "query", key: "tab", value: "procedimentos" }],
+        destination: "/dashboard/servicos-valores/procedimentos",
         permanent: true,
       },
       { source: "/dashboard/plano", destination: "/dashboard/configuracoes/assinatura", permanent: true },

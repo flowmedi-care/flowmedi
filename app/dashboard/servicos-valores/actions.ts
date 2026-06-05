@@ -53,6 +53,8 @@ export async function createService(
   });
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   revalidatePath("/dashboard/campos-pacientes");
   return { ok: true };
 }
@@ -77,6 +79,8 @@ export async function updateService(
     .eq("clinic_id", ctx.clinicId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   revalidatePath("/dashboard/campos-pacientes");
   return { ok: true };
 }
@@ -134,6 +138,8 @@ export async function deleteService(id: string) {
   const { error } = await ctx.supabase.from("services").delete().eq("id", id).eq("clinic_id", ctx.clinicId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { ok: true };
 }
 
@@ -148,6 +154,8 @@ export async function createDimension(nome: string) {
   });
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { ok: true };
 }
 
@@ -161,6 +169,8 @@ export async function updateDimension(id: string, nome: string, ativo: boolean) 
     .eq("clinic_id", ctx.clinicId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { ok: true };
 }
 
@@ -170,6 +180,8 @@ export async function deleteDimension(id: string) {
   const { error } = await ctx.supabase.from("price_dimensions").delete().eq("id", id).eq("clinic_id", ctx.clinicId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { ok: true };
 }
 
@@ -187,6 +199,8 @@ export async function createDimensionValue(dimensionId: string, nome: string, co
   });
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { ok: true };
 }
 
@@ -201,6 +215,8 @@ export async function updateDimensionValue(id: string, nome: string, ativo: bool
     .eq("clinic_id", ctx.clinicId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { ok: true };
 }
 
@@ -210,6 +226,8 @@ export async function deleteDimensionValue(id: string) {
   const { error } = await ctx.supabase.from("dimension_values").delete().eq("id", id).eq("clinic_id", ctx.clinicId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { ok: true };
 }
 
@@ -243,6 +261,8 @@ export async function createServicePrice(
     if (pivotErr) return { error: pivotErr.message };
   }
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { ok: true };
 }
 
@@ -286,6 +306,8 @@ export async function updateServicePrice(
     );
   }
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { ok: true };
 }
 
@@ -305,5 +327,7 @@ export async function deleteServicePrice(id: string) {
   const { error } = await ctx.supabase.from("service_prices").delete().eq("id", id).eq("clinic_id", ctx.clinicId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/servicos-valores");
+  revalidatePath("/dashboard/servicos-valores/servicos");
+  revalidatePath("/dashboard/servicos-valores/procedimentos");
   return { ok: true };
 }

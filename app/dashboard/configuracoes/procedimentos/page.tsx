@@ -1,1 +1,1 @@
-export { default } from "../../servicos-valores/page";
+export { default } from "../../servicos-valores/procedimentos/page";
