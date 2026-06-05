@@ -65,7 +65,7 @@ export function WeekCalendarEventBlock({
     <div
       ref={setNodeRef}
       className={cn(
-        "absolute z-10 overflow-hidden rounded-md border border-border/80 shadow-sm",
+        "absolute z-10 overflow-hidden rounded-md border border-border bg-background shadow-sm",
         "hover:shadow-md transition-shadow",
         isDragging && "opacity-60 ring-2 ring-primary z-20"
       )}
@@ -78,7 +78,6 @@ export function WeekCalendarEventBlock({
         transition,
         borderLeftWidth: 3,
         borderLeftColor: accentColor,
-        backgroundColor: `${accentColor}18`,
       }}
       title={formatTooltip(appointment)}
     >
