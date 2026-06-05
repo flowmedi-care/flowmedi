@@ -102,7 +102,7 @@ export function ServicosValoresClient({
   return (
     <div className="space-y-6">
       <div className="border-b border-border">
-        <nav className="flex gap-1 overflow-x-auto scrollbar-thin" aria-label="Abas">
+        <nav className="flex flex-wrap gap-1" aria-label="Abas">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
