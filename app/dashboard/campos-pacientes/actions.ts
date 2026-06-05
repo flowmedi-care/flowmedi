@@ -331,6 +331,7 @@ export async function syncProcedureProducts(
   }
 
   revalidatePath("/dashboard/campos-pacientes");
+  revalidatePath("/dashboard/servicos-valores");
   return { error: null };
 }
 
@@ -375,6 +376,7 @@ export async function createProcedure(
   }).select("id").single();
   if (error) return { error: error.message };
   revalidatePath("/dashboard/campos-pacientes");
+  revalidatePath("/dashboard/servicos-valores");
   return { error: null, procedureId: inserted?.id };
 }
 
@@ -412,6 +414,7 @@ export async function updateProcedure(
     .eq("clinic_id", profile.clinic_id);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/campos-pacientes");
+  revalidatePath("/dashboard/servicos-valores");
   return { error: null };
 }
 
@@ -446,6 +449,7 @@ export async function syncDoctorProcedures(procedureId: string, doctorIds: strin
     if (insErr) return { error: insErr.message };
   }
   revalidatePath("/dashboard/campos-pacientes");
+  revalidatePath("/dashboard/servicos-valores");
   return { error: null };
 }
 
@@ -492,5 +496,6 @@ export async function deleteProcedure(id: string) {
     .eq("clinic_id", profile.clinic_id);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/campos-pacientes");
+  revalidatePath("/dashboard/servicos-valores");
   return { error: null };
 }

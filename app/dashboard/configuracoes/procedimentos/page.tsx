@@ -1,1 +1,1 @@
-export { default } from "../campos-personalizados/page";
+export { default } from "../../servicos-valores/page";

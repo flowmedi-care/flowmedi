@@ -1,8 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ServicosValoresClient } from "./servicos-valores-client";
+import { listClinicalFichaTemplates } from "@/app/dashboard/campos-pacientes/clinical-fichas-actions";
 
-export default async function ServicosValoresPage() {
+export default async function ServicosValoresPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const params = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/entrar");
@@ -18,6 +24,7 @@ export default async function ServicosValoresPage() {
   }
 
   const clinicId = profile.clinic_id;
+  const isAdmin = profile.role === "admin";
   const { data: clinic } = await supabase
     .from("clinics")
     .select("services_pricing_mode")
@@ -35,6 +42,10 @@ export default async function ServicosValoresPage() {
     dimensionValuesRes,
     servicePricesRes,
     doctorsRes,
+    typesRes,
+    proceduresRes,
+    doctorProceduresRes,
+    productsRes,
   ] = await Promise.all([
     supabase
       .from("services")
@@ -48,6 +59,34 @@ export default async function ServicosValoresPage() {
       .select("id, service_id, professional_id, valor, ativo")
       .eq("clinic_id", clinicId),
     supabase.from("profiles").select("id, full_name").eq("clinic_id", clinicId).eq("role", "medico").order("full_name"),
+    isAdmin
+      ? supabase
+          .from("appointment_types")
+          .select("id, name, duration_minutes")
+          .eq("clinic_id", clinicId)
+          .order("name")
+      : Promise.resolve({ data: [] as { id: string; name: string; duration_minutes: number | null }[] }),
+    isAdmin
+      ? supabase
+          .from("procedures")
+          .select("id, name, recommendations, display_order, default_service_id, default_appointment_type_id")
+          .eq("clinic_id", clinicId)
+          .order("display_order", { ascending: true })
+      : Promise.resolve({ data: [] as { id: string; name: string; recommendations: string | null; display_order: number | null; default_service_id: string | null; default_appointment_type_id: string | null }[] }),
+    isAdmin
+      ? supabase
+          .from("doctor_procedures")
+          .select("procedure_id, doctor_id")
+          .eq("clinic_id", clinicId)
+      : Promise.resolve({ data: [] as { procedure_id: string; doctor_id: string }[] }),
+    isAdmin
+      ? supabase
+          .from("products")
+          .select("id, name, unit")
+          .eq("clinic_id", clinicId)
+          .eq("active", true)
+          .order("name")
+      : Promise.resolve({ data: [] as { id: string; name: string; unit: string }[] }),
   ]);
 
   const services = (servicesRes.data ?? []).map((s) => ({
@@ -86,12 +125,46 @@ export default async function ServicosValoresPage() {
     dimensionValuesByPrice[row.service_price_id].push(row.dimension_value_id);
   }
 
+  const appointmentTypes = (typesRes.data ?? []).map((t) => ({
+    id: t.id,
+    name: t.name,
+    duration_minutes: t.duration_minutes ?? 30,
+  }));
+
+  const procedures = (proceduresRes.data ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    recommendations: p.recommendations ?? null,
+    display_order: p.display_order ?? 0,
+    default_service_id: p.default_service_id ?? null,
+    default_appointment_type_id: p.default_appointment_type_id ?? null,
+  }));
+
+  const doctorIdsByProcedureId: Record<string, string[]> = {};
+  for (const row of doctorProceduresRes.data ?? []) {
+    if (!doctorIdsByProcedureId[row.procedure_id]) {
+      doctorIdsByProcedureId[row.procedure_id] = [];
+    }
+    doctorIdsByProcedureId[row.procedure_id].push(row.doctor_id);
+  }
+
+  const products = (productsRes.data ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    unit: p.unit,
+  }));
+
+  const fichaRes = isAdmin ? await listClinicalFichaTemplates() : { data: [] };
+  const initialMainTab = params.tab === "procedimentos" ? "procedimentos" as const : undefined;
+
   return (
     <div className="space-y-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Serviços e Valores</h1>
         <p className="text-muted-foreground max-w-2xl">
-          Configure serviços, dimensões de preço (convênio, cidade, turno, campanha) e regras de valor. Na agenda, o Secretário(a) escolhe serviço e dimensões para definir o preço da consulta de forma padronizada.
+          {isAdmin
+            ? "Cadastre procedimentos clínicos e configure serviços, dimensões de preço (convênio, cidade, turno, campanha) e regras de valor. Na agenda, o Secretário(a) escolhe procedimento, serviço e dimensões para definir o preço da consulta de forma padronizada."
+            : "Configure serviços, dimensões de preço (convênio, cidade, turno, campanha) e regras de valor. Na agenda, o Secretário(a) escolhe serviço e dimensões para definir o preço da consulta de forma padronizada."}
         </p>
       </header>
       <ServicosValoresClient
@@ -103,6 +176,13 @@ export default async function ServicosValoresPage() {
         doctors={doctors}
         currentUserId={user.id}
         currentUserRole={profile.role}
+        showProcedimentosTab={isAdmin}
+        initialMainTab={initialMainTab}
+        procedures={procedures}
+        appointmentTypes={appointmentTypes}
+        doctorIdsByProcedureId={doctorIdsByProcedureId}
+        products={products}
+        fichaTemplates={fichaRes.data ?? []}
       />
     </div>
   );

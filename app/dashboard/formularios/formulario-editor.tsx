@@ -163,7 +163,7 @@ export function FormularioEditor({
                 })}
                 {procedures.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    Nenhum procedimento cadastrado. Crie em Campos e procedimentos.
+                    Nenhum procedimento cadastrado. Crie em Serviços e Valores.
                   </p>
                 )}
               </div>

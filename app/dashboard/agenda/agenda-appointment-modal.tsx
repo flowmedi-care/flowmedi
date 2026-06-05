@@ -368,7 +368,7 @@ export function AgendaAppointmentModal({
 
     if (needsService && !effectiveServiceIdSubmit) {
       setError(
-        "Configure o serviço padrão no procedimento (Campos & Procedimentos) ou escolha o serviço na aba Financeiro."
+        "Configure o serviço padrão no procedimento (Serviços e Valores) ou escolha o serviço na aba Financeiro."
       );
       setTab("financeiro");
       return;
@@ -591,7 +591,7 @@ export function AgendaAppointmentModal({
             )}
             {doctorProcedureFilterActive && (
               <p className="text-xs text-muted-foreground">
-                Exibindo apenas procedimentos vinculados a este profissional em Campos &amp; Procedimentos.
+                Exibindo apenas procedimentos vinculados a este profissional em Serviços e Valores.
               </p>
             )}
             <ul className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">

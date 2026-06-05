@@ -215,7 +215,7 @@ export function ClinicalFichasConfigClient({
             <h2 className="text-lg font-semibold">Fichas de atendimento</h2>
             <p className="text-sm text-muted-foreground mt-1">
               Configure as fichas exibidas na sidebar do atendimento clínico (anamnese, evolução, receita, etc.).
-              Vincule-as aos procedimentos na aba Procedimentos.
+              Vincule-as aos procedimentos em Serviços e Valores.
             </p>
           </div>
           {!showForm && (

@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/dashboard/configuracoes/procedimentos",
-        destination: "/dashboard/configuracoes/campos-personalizados",
+        destination: "/dashboard/servicos-valores?tab=procedimentos",
         permanent: true,
       },
       { source: "/dashboard/plano", destination: "/dashboard/configuracoes/assinatura", permanent: true },
