@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConsultaTabsClient } from "./consulta-tabs-client";
+import { AppointmentStatusBar } from "./appointment-status-bar";
 import { DataHoraReagendar } from "./data-hora-reagendar";
 import { BackButton } from "./back-button";
 import { getStatusBadgeClassName } from "../../status-utils";
@@ -14,16 +15,8 @@ import { loadAppointmentProcedures, loadServiceName, type LegacyProcedureRow } f
 import { loadAppointmentGate } from "@/lib/appointment-gate";
 import { SchemaErrorBanner } from "../../schema-error-banner";
 import { RecurrenceSeriesButton } from "./recurrence-series-button";
-
-export type FormInstanceItem = {
-  id: string;
-  status: string;
-  link_token: string | null;
-  slug: string | null;
-  responses: Record<string, unknown>;
-  template_name: string;
-  definition: (import("@/lib/form-types").FormFieldDefinition & { id: string })[];
-};
+import { POLICY_LABEL } from "./check-in-payment-policy";
+import type { PaymentPolicy } from "../../encounter-actions";
 
 export default async function ConsultaDetalhePage({
   params,
@@ -87,6 +80,17 @@ export default async function ConsultaDetalhePage({
         : null;
   }
 
+  let payment_policy: PaymentPolicy | null = null;
+  const { data: policyRow } = await supabase
+    .from("appointments")
+    .select("payment_policy")
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id)
+    .maybeSingle();
+  if (policyRow?.payment_policy) {
+    payment_policy = policyRow.payment_policy as PaymentPolicy;
+  }
+
   let recurrence_group_id: string | null = null;
   const { data: recurrenceRow } = await supabase
     .from("appointments")
@@ -124,38 +128,12 @@ export default async function ConsultaDetalhePage({
     }
   }
 
-  const { data: instances } = await supabase
-    .from("form_instances")
-    .select(`
-      id,
-      status,
-      link_token,
-      slug,
-      responses,
-      form_template:form_templates ( name, definition )
-    `)
-    .eq("appointment_id", id);
-
   const doctor = Array.isArray(appointment.doctor)
     ? appointment.doctor[0]
     : appointment.doctor;
   const appointmentType = Array.isArray(appointment.appointment_type)
     ? appointment.appointment_type[0]
     : appointment.appointment_type;
-
-  const formInstances: FormInstanceItem[] = (instances ?? []).map((fi: Record<string, unknown>) => {
-    const ft = Array.isArray(fi.form_template) ? fi.form_template[0] : fi.form_template;
-    const ftObj = ft as { name?: string; definition?: unknown } | null;
-    return {
-      id: String(fi.id ?? ""),
-      status: String(fi.status ?? ""),
-      link_token: fi.link_token != null ? String(fi.link_token) : null,
-      slug: fi.slug != null ? String(fi.slug) : null,
-      responses: (fi.responses as Record<string, unknown>) ?? {},
-      template_name: ftObj?.name ?? "",
-      definition: (Array.isArray(ftObj?.definition) ? ftObj.definition : []) as FormInstanceItem["definition"],
-    };
-  });
 
   const apProcs = await loadAppointmentProcedures(
     supabase,
@@ -239,6 +217,16 @@ export default async function ConsultaDetalhePage({
                           ? "Cancelada"
                           : appointmentStatus}
               </Badge>
+            </p>
+            <p>
+              <span className="text-muted-foreground">Pagamento:</span>{" "}
+              {payment_policy ? (
+                <Badge variant="outline">{POLICY_LABEL[payment_policy]}</Badge>
+              ) : (
+                <span className="text-sm text-amber-600 dark:text-amber-400">
+                  Não definido — edite a consulta
+                </span>
+              )}
             </p>
             {(planned_duration_minutes != null || duration_minutes != null) && (
               <p className="text-sm">
@@ -331,32 +319,23 @@ export default async function ConsultaDetalhePage({
         </Card>
       </div>
 
+      <AppointmentStatusBar
+        appointmentId={id}
+        appointmentStatus={appointmentStatus}
+        startedAt={started_at}
+        durationMinutes={duration_minutes}
+        canEdit={profile.role === "admin" || profile.role === "secretaria"}
+        isDoctor={profile.role === "medico"}
+      />
+
       <ConsultaTabsClient
         appointmentId={id}
         appointmentValor={appointmentValor}
-        appointmentStatus={appointmentStatus}
-        appointmentScheduledAt={scheduledAt}
-        startedAt={started_at}
-        completedAt={completed_at}
-        durationMinutes={duration_minutes}
-        doctorId={doctorId}
-        patientId={patient?.id ?? ""}
-        patientData={{
-          full_name: patient?.full_name ?? "",
-          email: patient?.email ?? null,
-          phone: patient?.phone ?? null,
-          birth_date: patient?.birth_date ?? null,
-        }}
-        formInstances={formInstances}
-        baseUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
-        canEdit={profile.role === "admin" || profile.role === "secretaria"}
         canEditOperacional={
           profile.role === "admin" ||
           profile.role === "secretaria" ||
           (profile.role === "medico" && doctorId === user.id)
         }
-        isDoctor={profile.role === "medico"}
-        currentUserId={user?.id ?? null}
       />
     </div>
   );

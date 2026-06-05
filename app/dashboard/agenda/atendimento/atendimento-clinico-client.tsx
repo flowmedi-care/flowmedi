@@ -27,18 +27,24 @@ import { getAppointmentConsumption } from "../encounter-actions";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import { AppointmentEncounterNav } from "@/components/appointment-encounter-nav";
+import { ConsultationNotesClient } from "../consulta/[id]/consultation-notes-client";
+import { ExamesClient } from "@/app/dashboard/exames/exames-client";
 import {
   ArrowLeft,
   ClipboardList,
   Clock,
   CreditCard,
   FileText,
+  FolderOpen,
+  MessageSquare,
   User,
 } from "lucide-react";
 
 type ActivePanel =
   | { kind: "ficha"; id: string }
   | { kind: "relatorio"; id: string }
+  | { kind: "notas" }
+  | { kind: "arquivos" }
   | null;
 
 const RELATORIO_STATUS: Record<string, string> = {
@@ -58,6 +64,7 @@ export function AtendimentoClinicoClient({
   appointmentValor,
   canEdit,
   isDoctor,
+  currentUserId,
   autoFinalize,
 }: {
   appointmentId: string;
@@ -70,6 +77,7 @@ export function AtendimentoClinicoClient({
   appointmentValor: number | null;
   canEdit: boolean;
   isDoctor: boolean;
+  currentUserId: string | null;
   autoFinalize?: boolean;
 }) {
   const router = useRouter();
@@ -308,6 +316,40 @@ export function AtendimentoClinicoClient({
                 ))}
               </div>
             </div>
+
+            <div>
+              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <MessageSquare className="h-3 w-3" />
+                Registro
+              </p>
+              <div className="space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => setActive({ kind: "notas" })}
+                  className={cn(
+                    "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
+                    active?.kind === "notas"
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted/60"
+                  )}
+                >
+                  Notas da consulta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActive({ kind: "arquivos" })}
+                  className={cn(
+                    "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2",
+                    active?.kind === "arquivos"
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted/60"
+                  )}
+                >
+                  <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                  Arquivos
+                </button>
+              </div>
+            </div>
           </nav>
 
           {(canEdit || isDoctor) && (
@@ -366,6 +408,29 @@ export function AtendimentoClinicoClient({
               isDoctor={isDoctor}
               onUpdated={loadRelatorios}
             />
+          )}
+
+          {active?.kind === "notas" && (
+            <div className="space-y-4">
+              <h2 className="font-semibold text-lg">Registro da consulta</h2>
+              <ConsultationNotesClient
+                appointmentId={appointmentId}
+                canAddPosts={isDoctor || canEdit}
+                canEditAnyNote={canEdit}
+                currentUserId={currentUserId}
+              />
+            </div>
+          )}
+
+          {active?.kind === "arquivos" && (
+            <div className="space-y-4">
+              <h2 className="font-semibold text-lg">Arquivos</h2>
+              <ExamesClient
+                patientId={patientId}
+                appointmentId={appointmentId}
+                canEdit={canEdit || isDoctor}
+              />
+            </div>
           )}
 
           {!active && !loadingFichas && !loadingRelatorios && (

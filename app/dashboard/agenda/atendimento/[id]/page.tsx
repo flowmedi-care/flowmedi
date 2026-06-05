@@ -79,6 +79,7 @@ export default async function AtendimentoPage({
       appointmentValor={appointmentValor}
       canEdit={canEdit}
       isDoctor={isDoctor}
+      currentUserId={user.id}
       autoFinalize={finalize === "1"}
     />
   );

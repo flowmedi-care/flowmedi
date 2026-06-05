@@ -590,7 +590,7 @@ export function PacientePerfilClient({
                             <Badge variant="outline">{FORM_STATUS[f.status] ?? f.status}</Badge>
                             {f.appointment_id && (
                               <Button variant="outline" size="sm" asChild>
-                                <Link href={`/dashboard/agenda/consulta/${f.appointment_id}?tab=formularios`}>
+                                <Link href={`/dashboard/agenda/atendimento/${f.appointment_id}`}>
                                   Ver
                                 </Link>
                               </Button>

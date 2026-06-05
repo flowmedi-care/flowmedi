@@ -32,6 +32,11 @@ import {
 import { createWaitlistEntry } from "./waitlist-actions";
 import { toast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
+import {
+  POLICY_HINT,
+  POLICY_LABEL,
+} from "./consulta/[id]/check-in-payment-policy";
+import type { PaymentPolicy } from "./encounter-actions";
 import type {
   PatientOption,
   DoctorOption,
@@ -66,6 +71,7 @@ export type AppointmentFormState = {
   requiresMedicationStop: boolean;
   specialInstructions: string;
   preparationNotes: string;
+  paymentPolicy: PaymentPolicy;
 };
 
 const TABS: { id: TabId; label: string }[] = [
@@ -135,6 +141,7 @@ export function AgendaAppointmentModal({
     useState<ServiceRecurrenceBillingMode>(null);
   const [serviceRecurrenceName, setServiceRecurrenceName] = useState<string | null>(null);
   const [addingToWaitlist, setAddingToWaitlist] = useState(false);
+  const [treatmentPlanId, setTreatmentPlanId] = useState<string | null>(null);
 
   const defaultForm = (): AppointmentFormState => ({
     patientId: "",
@@ -154,6 +161,7 @@ export function AgendaAppointmentModal({
     requiresMedicationStop: false,
     specialInstructions: "",
     preparationNotes: "",
+    paymentPolicy: "no_dia",
   });
 
   const [form, setForm] = useState<AppointmentFormState>(defaultForm);
@@ -200,12 +208,15 @@ export function AgendaAppointmentModal({
           requiresMedicationStop: d.requiresMedicationStop,
           specialInstructions: d.specialInstructions,
           preparationNotes: d.preparationNotes,
+          paymentPolicy: d.paymentPolicy ?? "no_dia",
         });
         setResolvedValor(d.valor);
+        setTreatmentPlanId(d.treatmentPlanId);
       });
       return;
     }
 
+    setTreatmentPlanId(null);
     setForm({ ...defaultForm(), ...initialForm });
     setResolvedValor(null);
     setRecurrence(defaultRecurrenceForm());
@@ -535,6 +546,7 @@ export function AgendaAppointmentModal({
         special_instructions: form.specialInstructions || null,
         preparation_notes: form.preparationNotes || null,
         dimension_value_ids: dimensionValueIds,
+        ...(!treatmentPlanId ? { payment_policy: form.paymentPolicy } : {}),
       });
       if (res.error) {
         setError(res.error);
@@ -563,6 +575,7 @@ export function AgendaAppointmentModal({
         {
           scheduledEndAt,
           roomId: form.roomId || null,
+          payment_policy: form.paymentPolicy,
         }
       );
       if (res.error) {
@@ -876,6 +889,37 @@ export function AgendaAppointmentModal({
 
         {tab === "financeiro" && (
           <div className="space-y-4">
+            {!treatmentPlanId && (
+              <div className="space-y-2">
+                <Label>Política de pagamento</Label>
+                <p className="text-xs text-muted-foreground">
+                  Defina como esta consulta será cobrada.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {(Object.keys(POLICY_LABEL) as PaymentPolicy[]).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, paymentPolicy: key }))}
+                      className={cn(
+                        "rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                        form.paymentPolicy === key
+                          ? "border-primary bg-primary/5"
+                          : "hover:bg-muted/50"
+                      )}
+                    >
+                      <span className="font-medium block">{POLICY_LABEL[key]}</span>
+                      <span className="text-xs text-muted-foreground">{POLICY_HINT[key]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {treatmentPlanId && (
+              <p className="text-sm text-muted-foreground rounded-lg border p-3 bg-muted/30">
+                Política de pagamento definida pelo plano de tratamento vinculado.
+              </p>
+            )}
             {chargePreview?.linkedServiceName && !form.serviceId && (
               <p className="text-sm text-muted-foreground">
                 Serviço sugerido pelo procedimento: <strong>{chargePreview.linkedServiceName}</strong>

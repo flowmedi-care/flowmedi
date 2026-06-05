@@ -492,7 +492,7 @@ export function EventosClient({
                     <strong>Ação recomendada:</strong> Vincular formulário a esta consulta
                   </span>
                   <Button asChild size="sm" variant="outline" className="shrink-0 border-amber-300 dark:border-amber-700">
-                    <Link href={`/dashboard/agenda/consulta/${event.appointment_id}?tab=formularios`}>
+                    <Link href={`/dashboard/agenda/atendimento/${event.appointment_id}`}>
                       <FileText className="h-4 w-4 mr-2" />
                       Vincular formulário
                     </Link>

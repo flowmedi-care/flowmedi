@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AtendimentoListRow } from "./page";
-import { Package, ExternalLink } from "lucide-react";
+import { Play, ExternalLink } from "lucide-react";
 
 const STATUS: Record<string, string> = {
   agendada: "Agendada",
@@ -92,9 +92,9 @@ export function AtendimentoListClient({ rows }: { rows: AtendimentoListRow[] }) 
                     </Link>
                   </Button>
                 <Button size="sm" asChild>
-                  <Link href={`/dashboard/agenda/consulta/${r.id}?tab=operacional`}>
-                    <Package className="h-4 w-4 mr-1" />
-                    Atender
+                  <Link href={`/dashboard/agenda/consulta/${r.id}?autostart=1`}>
+                    <Play className="h-4 w-4 mr-1" />
+                    Iniciar atendimento
                   </Link>
                 </Button>
                 </div>

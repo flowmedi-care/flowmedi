@@ -1258,6 +1258,8 @@ export type AppointmentEditData = {
   specialInstructions: string;
   preparationNotes: string;
   valor: number | null;
+  paymentPolicy: "antecipado" | "no_dia" | "pos_atendimento" | null;
+  treatmentPlanId: string | null;
 };
 
 /** Carrega dados da consulta para o modal de edição (abas). */
@@ -1294,6 +1296,8 @@ export async function getAppointmentForEdit(appointmentId: string) {
       special_instructions,
       preparation_notes,
       status,
+      payment_policy,
+      treatment_plan_id,
       appointment_procedures ( procedure_id, sort_order ),
       appointment_dimension_values ( dimension_value_id, dimension_values ( dimension_id ) )
     `
@@ -1350,6 +1354,8 @@ export async function getAppointmentForEdit(appointmentId: string) {
     specialInstructions: (appt.special_instructions as string) ?? "",
     preparationNotes: (appt.preparation_notes as string) ?? "",
     valor: appt.valor != null ? Number(appt.valor) : null,
+    paymentPolicy: (appt.payment_policy as AppointmentEditData["paymentPolicy"]) ?? null,
+    treatmentPlanId: (appt.treatment_plan_id as string) ?? null,
   };
 
   return { error: null, data, status: appt.status as string };
@@ -1381,6 +1387,7 @@ export async function updateAppointment(
     requires_medication_stop?: boolean;
     special_instructions?: string | null;
     preparation_notes?: string | null;
+    payment_policy?: "antecipado" | "no_dia" | "pos_atendimento" | null;
     dimension_value_ids?: string[];
     forceConflict?: boolean;
   }

@@ -12,8 +12,18 @@ import {
   submitFormPresentially,
   unlinkFormFromAppointment,
 } from "./formularios-consulta-actions";
-import type { FormInstanceItem } from "./page";
+import type { FormFieldDefinition } from "@/lib/form-types";
 import { Plus, Edit2, X } from "lucide-react";
+
+type FormInstanceItem = {
+  id: string;
+  status: string;
+  link_token: string | null;
+  slug: string | null;
+  responses: Record<string, unknown>;
+  template_name: string;
+  definition: (FormFieldDefinition & { id: string })[];
+};
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FormularioPreenchimentoPresencial } from "./formulario-preenchimento-presencial";
 

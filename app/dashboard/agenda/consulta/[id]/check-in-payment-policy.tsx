@@ -12,13 +12,13 @@ import {
 import { toast } from "@/components/ui/toast";
 import { ClipboardCheck } from "lucide-react";
 
-const POLICY_LABEL: Record<PaymentPolicy, string> = {
+export const POLICY_LABEL: Record<PaymentPolicy, string> = {
   antecipado: "Pagamento antecipado",
-  no_dia: "Pagamento no dia (check-in)",
+  no_dia: "Pagamento no dia",
   pos_atendimento: "Pagamento após atendimento",
 };
 
-const POLICY_HINT: Record<PaymentPolicy, string> = {
+export const POLICY_HINT: Record<PaymentPolicy, string> = {
   antecipado: "Finalizar comanda e receber antes ou no momento do check-in.",
   no_dia: "Receber na recepção antes de encaminhar ao médico.",
   pos_atendimento: "Finalizar comanda após o atendimento clínico; saldo em contas a receber.",

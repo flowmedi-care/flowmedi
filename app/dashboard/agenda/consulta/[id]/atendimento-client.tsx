@@ -40,12 +40,14 @@ export function AtendimentoClient({
   appointmentValor,
   canEdit,
   autoFinalize = false,
+  autoStart = false,
   mode = "full",
 }: {
   appointmentId: string;
   appointmentValor: number | null;
   canEdit: boolean;
   autoFinalize?: boolean;
+  autoStart?: boolean;
   mode?: "full" | "billing-only";
 }) {
   const router = useRouter();
@@ -73,6 +75,8 @@ export function AtendimentoClient({
   const [paymentMethod, setPaymentMethod] = useState("pix");
   const [addProductId, setAddProductId] = useState("");
   const [addQty, setAddQty] = useState("1");
+  const [autoStarting, setAutoStarting] = useState(false);
+  const [autoStartAttempted, setAutoStartAttempted] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,6 +95,32 @@ export function AtendimentoClient({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!autoStart || loading || !canEdit || autoStartAttempted) return;
+    if (encounterStatus) return;
+    setAutoStartAttempted(true);
+    setAutoStarting(true);
+    beginAppointmentCare(appointmentId).then((res) => {
+      setAutoStarting(false);
+      if (res.error && !res.error.includes("já foi iniciada")) {
+        toast(res.error, "error");
+      } else if (!res.error || res.error.includes("já foi iniciada")) {
+        toast("Atendimento iniciado.", "success");
+        load();
+        router.refresh();
+      }
+    });
+  }, [
+    autoStart,
+    loading,
+    canEdit,
+    encounterStatus,
+    autoStartAttempted,
+    appointmentId,
+    load,
+    router,
+  ]);
 
   useEffect(() => {
     if (!autoFinalize || loading || !canEdit) return;
@@ -115,7 +145,7 @@ export function AtendimentoClient({
     const res = await beginAppointmentCare(appointmentId);
     if (res.error) toast(res.error, "error");
     else {
-      toast("Consulta iniciada — paciente em atendimento.", "success");
+      toast("Atendimento iniciado.", "success");
       load();
     }
   }
@@ -256,8 +286,11 @@ export function AtendimentoClient({
 
   return (
     <div className="space-y-4">
-      {showConsumption && !encounterStatus && canEdit && (
-        <Button onClick={handleStartEncounter}>Atender (iniciar consulta)</Button>
+      {showConsumption && !encounterStatus && canEdit && !autoStart && (
+        <Button onClick={handleStartEncounter}>Iniciar atendimento</Button>
+      )}
+      {autoStarting && (
+        <p className="text-sm text-muted-foreground">Iniciando atendimento…</p>
       )}
 
       {showConsumption && encounterStatus && (
