@@ -33,6 +33,7 @@ import {
   Trash2,
   Plus,
 } from "lucide-react";
+
 const STATUS_LABEL: Record<string, string> = {
   agendada: "Agendada",
   confirmada: "Confirmada",
@@ -43,22 +44,18 @@ const STATUS_LABEL: Record<string, string> = {
 
 const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-type SidebarVariant = "inline" | "overlay";
-
 export function AgendaEventDetailsSidebar({
   appointmentId,
   open,
   onClose,
   onEdit,
   onFinalize,
-  variant = "overlay",
 }: {
   appointmentId: string | null;
   open: boolean;
   onClose: () => void;
   onEdit: (id: string) => void;
   onFinalize?: (id: string) => void;
-  variant?: SidebarVariant;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -95,6 +92,18 @@ export function AgendaEventDetailsSidebar({
     }
     loadSummary();
   }, [open, appointmentId, loadSummary]);
+
+  useEffect(() => {
+    if (!open) {
+      setMaterialsOpen(false);
+      return;
+    }
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
 
   async function loadConsumption() {
     if (!appointmentId) return;
@@ -185,190 +194,211 @@ export function AgendaEventDetailsSidebar({
     data?.valor ??
     0;
 
-  const panel = (
-    <div className="flex flex-col h-full bg-background">
-      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-        <h2 className="text-base font-semibold">Detalhes do evento</h2>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Fechar">
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {loading && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Carregando…
+  return (
+    <>
+      <div className="fixed inset-0 z-40 flex justify-end">
+        <div
+          className="absolute inset-0 bg-black/30"
+          onClick={onClose}
+          aria-hidden
+        />
+        <aside
+          className="relative z-10 flex h-dvh w-full max-w-[400px] flex-col bg-background border-l border-border shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
+            <h2 className="text-base font-semibold">Detalhes do evento</h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onClose}
+              aria-label="Fechar"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-        )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
 
-        {data && !loading && (
-          <>
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                Agendamento
-              </p>
-              <p className="font-medium capitalize">
-                {new Date(data.scheduled_at).toLocaleDateString("pt-BR", {
-                  weekday: "long",
-                  day: "2-digit",
-                  month: "long",
-                  year: "numeric",
-                })}
-                {" · "}
-                {new Date(data.scheduled_at).toLocaleTimeString("pt-BR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-              <Badge variant="outline" className="mt-2">
-                {STATUS_LABEL[data.status] ?? data.status}
-              </Badge>
-            </div>
-
-            <div className="space-y-2 text-sm">
-              {data.doctor?.full_name && (
-                <div className="flex items-center gap-2">
-                  <Stethoscope className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span>{data.doctor.full_name}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="font-medium">{data.patient.full_name}</span>
-              </div>
-              {data.patient.phone && (
-                <p className="pl-6 text-muted-foreground">{formatPhoneBr(data.patient.phone)}</p>
-              )}
-            </div>
-
-            {data.procedures.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Procedimentos
-                </p>
-                <ul className="text-sm space-y-0.5">
-                  {data.procedures.map((p) => (
-                    <li key={p.id}>{p.name}</li>
-                  ))}
-                </ul>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            {loading && (
+              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando…
               </div>
             )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
 
-            <div className="rounded-lg border p-3 space-y-2 text-sm bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                <CreditCard className="h-3.5 w-3.5" />
-                Comanda{isProvisional ? " (provisória)" : isFinalized ? "" : ""}
-              </p>
-              {data.service_name && !displayItems.some((i) => i.label.includes(data.service_name!)) && (
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground truncate">{data.service_name}</span>
-                  <span className="shrink-0">{fmt(data.charge.serviceAmount)}</span>
-                </div>
-              )}
-              {displayItems.map((item, i) => (
-                <div key={i} className="flex justify-between gap-2">
-                  <span className="text-muted-foreground truncate">
-                    {item.label}
-                    {item.quantity > 1 ? ` × ${item.quantity}` : ""}
-                  </span>
-                  <span className="shrink-0">{fmt(item.total)}</span>
-                </div>
-              ))}
-              {displayItems.length === 0 && !data.service_name && (
-                <p className="text-muted-foreground text-xs">Sem itens na comanda.</p>
-              )}
-              <div className="flex justify-between font-semibold pt-2 border-t">
-                <span>Total</span>
-                <span>{fmt(totalDisplay)}</span>
-              </div>
-              {data.comanda && isFinalized && (
-                <p className="text-xs text-muted-foreground pt-1">
-                  Pago: {fmt(data.comanda.paid_amount)} / {fmt(data.comanda.total_amount)}
-                  {data.comanda.remainder > 0 && (
-                    <span className="text-amber-700 dark:text-amber-400 ml-1">
-                      (falta {fmt(data.comanda.remainder)})
-                    </span>
-                  )}
-                </p>
-              )}
-            </div>
-
-            {data.stockCommittedUnits > 0 && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Package className="h-3.5 w-3.5" />
-                {data.stockCommittedUnits} un. de material reservadas
-              </p>
-            )}
-
-            <div className="space-y-1">
-              <button
-                type="button"
-                className="flex items-center gap-2 text-sm text-primary hover:underline w-full text-left py-1"
-                onClick={() => onEdit(data.id)}
-              >
-                <Pencil className="h-4 w-4" />
-                Editar agendamento
-              </button>
-            </div>
-
-            <div className="space-y-2 pt-2">
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2"
-                onClick={openMaterialsDialog}
-              >
-                <Package className="h-4 w-4" />
-                Editar consumo de material
-              </Button>
-              {pendingForms.length > 0 && (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start gap-2"
-                  onClick={handleSendForms}
-                  disabled={sendingForms}
-                >
-                  {sendingForms ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                  Enviar formulário de pré-atendimento
-                  <Badge variant="secondary" className="ml-auto">
-                    {pendingForms.length}
+            {data && !loading && (
+              <div className="space-y-4">
+                <div>
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Agendamento
+                  </p>
+                  <p className="font-medium capitalize">
+                    {new Date(data.scheduled_at).toLocaleDateString("pt-BR", {
+                      weekday: "long",
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                    {" · "}
+                    {new Date(data.scheduled_at).toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  <Badge variant="outline" className="mt-2">
+                    {STATUS_LABEL[data.status] ?? data.status}
                   </Badge>
-                </Button>
-              )}
-              {data.forms.length > 0 && pendingForms.length === 0 && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1 px-1">
-                  <ClipboardList className="h-3.5 w-3.5" />
-                  Formulários vinculados — nenhum pendente
-                </p>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+                </div>
 
-      {data && !loading && (
-        <div className="shrink-0 border-t p-4 space-y-2">
-          <Button variant="outline" className="w-full" asChild>
-            <Link href={`/dashboard/agenda/atendimento/${data.id}`}>
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Visualizar atendimento
-            </Link>
-          </Button>
-          <Button
-            className="w-full"
-            disabled={!data.comanda || isFinalized}
-            onClick={() => onFinalize?.(data.id)}
-          >
-            <CreditCard className="h-4 w-4 mr-2" />
-            {isFinalized ? "Comanda finalizada" : "Finalizar comanda"}
-          </Button>
-        </div>
-      )}
+                <div className="space-y-2 text-sm">
+                  {data.doctor?.full_name && (
+                    <div className="flex items-center gap-2">
+                      <Stethoscope className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span>{data.doctor.full_name}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="font-medium">{data.patient.full_name}</span>
+                  </div>
+                  {data.patient.phone && (
+                    <p className="pl-6 text-muted-foreground">{formatPhoneBr(data.patient.phone)}</p>
+                  )}
+                </div>
+
+                {data.procedures.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Procedimentos
+                    </p>
+                    <ul className="space-y-0.5 text-sm">
+                      {data.procedures.map((p) => (
+                        <li key={p.id}>{p.name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3 text-sm">
+                  <p className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <CreditCard className="h-3.5 w-3.5" />
+                    Comanda{isProvisional ? " (provisória)" : ""}
+                  </p>
+                  {data.service_name &&
+                    !displayItems.some((i) => i.label.includes(data.service_name!)) && (
+                      <div className="flex justify-between gap-2">
+                        <span className="truncate text-muted-foreground">{data.service_name}</span>
+                        <span className="shrink-0">{fmt(data.charge.serviceAmount)}</span>
+                      </div>
+                    )}
+                  {displayItems.map((item, i) => (
+                    <div key={i} className="flex justify-between gap-2">
+                      <span className="truncate text-muted-foreground">
+                        {item.label}
+                        {item.quantity > 1 ? ` × ${item.quantity}` : ""}
+                      </span>
+                      <span className="shrink-0">{fmt(item.total)}</span>
+                    </div>
+                  ))}
+                  {displayItems.length === 0 && !data.service_name && (
+                    <p className="text-xs text-muted-foreground">Sem itens na comanda.</p>
+                  )}
+                  <div className="flex justify-between border-t pt-2 font-semibold">
+                    <span>Total</span>
+                    <span>{fmt(totalDisplay)}</span>
+                  </div>
+                  {data.comanda && isFinalized && (
+                    <p className="pt-1 text-xs text-muted-foreground">
+                      Pago: {fmt(data.comanda.paid_amount)} / {fmt(data.comanda.total_amount)}
+                      {data.comanda.remainder > 0 && (
+                        <span className="ml-1 text-amber-700 dark:text-amber-400">
+                          (falta {fmt(data.comanda.remainder)})
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+
+                {data.stockCommittedUnits > 0 && (
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Package className="h-3.5 w-3.5" />
+                    {data.stockCommittedUnits} un. de material reservadas
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 py-1 text-left text-sm text-primary hover:underline"
+                  onClick={() => onEdit(data.id)}
+                >
+                  <Pencil className="h-4 w-4" />
+                  Editar agendamento
+                </button>
+
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={openMaterialsDialog}
+                  >
+                    <Package className="h-4 w-4" />
+                    Editar consumo de material
+                  </Button>
+                  {pendingForms.length > 0 && (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      onClick={handleSendForms}
+                      disabled={sendingForms}
+                    >
+                      {sendingForms ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                      Enviar formulário de pré-atendimento
+                      <Badge variant="secondary" className="ml-auto">
+                        {pendingForms.length}
+                      </Badge>
+                    </Button>
+                  )}
+                  {data.forms.length > 0 && pendingForms.length === 0 && (
+                    <p className="flex items-center gap-1 px-1 text-xs text-muted-foreground">
+                      <ClipboardList className="h-3.5 w-3.5" />
+                      Formulários vinculados — nenhum pendente
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 space-y-2 border-t bg-background p-4">
+            {data && !loading ? (
+              <>
+                <Button variant="outline" className="w-full" asChild>
+                  <Link href={`/dashboard/agenda/atendimento/${data.id}`}>
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Visualizar atendimento
+                  </Link>
+                </Button>
+                <Button
+                  className="w-full"
+                  disabled={!data.comanda || isFinalized}
+                  onClick={() => onFinalize?.(data.id)}
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  {isFinalized ? "Comanda finalizada" : "Finalizar comanda"}
+                </Button>
+              </>
+            ) : (
+              <div className="h-[88px]" aria-hidden />
+            )}
+          </div>
+        </aside>
+      </div>
 
       <Dialog open={materialsOpen} onOpenChange={setMaterialsOpen}>
         <DialogContent
@@ -377,7 +407,7 @@ export function AgendaEventDetailsSidebar({
           className="max-w-lg"
         >
           {loadingConsumption ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">Carregando…</p>
+            <p className="py-4 text-center text-sm text-muted-foreground">Carregando…</p>
           ) : (
             <div className="space-y-4">
               {consumptionLocked && (
@@ -388,19 +418,19 @@ export function AgendaEventDetailsSidebar({
               {consumptionLines.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum material na lista.</p>
               ) : (
-                <ul className="divide-y text-sm max-h-60 overflow-y-auto">
+                <ul className="max-h-60 divide-y overflow-y-auto text-sm">
                   {consumptionLines.map((line) => (
-                    <li key={line.id} className="flex justify-between items-center py-2 gap-2">
+                    <li key={line.id} className="flex items-center justify-between gap-2 py-2">
                       <div className="min-w-0">
                         <span className="font-medium">{line.product_name}</span>
                         <p className="text-xs text-muted-foreground">
                           Disp.: {line.stock_available ?? "—"} {line.unit}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex shrink-0 items-center gap-1">
                         <Input
                           type="number"
-                          className="w-20 h-8"
+                          className="h-8 w-20"
                           value={line.quantity}
                           disabled={consumptionLocked}
                           onChange={(e) => {
@@ -425,9 +455,9 @@ export function AgendaEventDetailsSidebar({
                 </ul>
               )}
               {!consumptionLocked && (
-                <div className="flex flex-wrap gap-2 pt-2 border-t">
+                <div className="flex flex-wrap gap-2 border-t pt-2">
                   <select
-                    className="h-9 rounded-md border px-2 text-sm flex-1 min-w-[140px]"
+                    className="h-9 min-w-[140px] flex-1 rounded-md border px-2 text-sm"
                     value={addProductId}
                     onChange={(e) => setAddProductId(e.target.value)}
                   >
@@ -439,7 +469,7 @@ export function AgendaEventDetailsSidebar({
                     ))}
                   </select>
                   <Input
-                    className="w-20 h-9"
+                    className="h-9 w-20"
                     value={addQty}
                     onChange={(e) => setAddQty(e.target.value)}
                   />
@@ -452,26 +482,6 @@ export function AgendaEventDetailsSidebar({
           )}
         </DialogContent>
       </Dialog>
-    </div>
-  );
-
-  if (variant === "inline") {
-    return (
-      <aside className="w-full h-full min-h-0 flex flex-col border-l border-border">
-        {panel}
-      </aside>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex lg:hidden">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} aria-hidden />
-      <div
-        className="relative z-10 ml-auto w-full max-w-md flex flex-col h-full shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {panel}
-      </div>
-    </div>
+    </>
   );
 }

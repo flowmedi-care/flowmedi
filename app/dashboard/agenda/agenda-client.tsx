@@ -704,8 +704,7 @@ export function AgendaClient({
   }
 
   return (
-    <div className="flex gap-0 min-w-0 -mx-4 sm:-mx-6 lg:-mx-0">
-    <div className="flex-1 min-w-0 space-y-4 sm:space-y-6 px-4 sm:px-6 lg:px-0">
+    <div className="space-y-4 sm:space-y-6 min-w-0">
       {/* Header: título + ação principal */}
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground sm:text-2xl truncate">Agenda</h1>
@@ -1019,21 +1018,6 @@ export function AgendaClient({
         userRole={userRole}
       />
 
-      <AgendaEventDetailsSidebar
-        appointmentId={eventDetailsId}
-        open={eventDetailsOpen}
-        variant="overlay"
-        onClose={() => {
-          setEventDetailsOpen(false);
-          setEventDetailsId(null);
-        }}
-        onEdit={(id) => {
-          setEventDetailsOpen(false);
-          openEditModal(id);
-        }}
-        onFinalize={openFinalizeFromDetails}
-      />
-
       {/* Conteúdo da visão */}
       <DndContext
         sensors={sensors}
@@ -1091,26 +1075,20 @@ export function AgendaClient({
           ) : null}
         </DragOverlay>
       </DndContext>
-    </div>
 
-    {eventDetailsOpen && eventDetailsId && (
-      <div className="hidden lg:flex w-[400px] shrink-0 sticky top-4 self-start h-[calc(100vh-6rem)] min-h-0">
-        <AgendaEventDetailsSidebar
-          appointmentId={eventDetailsId}
-          open={eventDetailsOpen}
-          variant="inline"
-          onClose={() => {
-            setEventDetailsOpen(false);
-            setEventDetailsId(null);
-          }}
-          onEdit={(id) => {
-            setEventDetailsOpen(false);
-            openEditModal(id);
-          }}
-          onFinalize={openFinalizeFromDetails}
-        />
-      </div>
-    )}
+      <AgendaEventDetailsSidebar
+        appointmentId={eventDetailsId}
+        open={eventDetailsOpen}
+        onClose={() => {
+          setEventDetailsOpen(false);
+          setEventDetailsId(null);
+        }}
+        onEdit={(id) => {
+          setEventDetailsOpen(false);
+          openEditModal(id);
+        }}
+        onFinalize={openFinalizeFromDetails}
+      />
     </div>
   );
 }
