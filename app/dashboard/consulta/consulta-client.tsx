@@ -62,7 +62,7 @@ export function ConsultaClient({
   consultas,
   patients,
   doctors,
-  appointmentTypes,
+  services,
   procedures,
   formTemplates,
   pricingDimensions,
@@ -71,7 +71,7 @@ export function ConsultaClient({
   consultas: ConsultaRow[];
   patients: { id: string; full_name: string }[];
   doctors: { id: string; full_name: string | null }[];
-  appointmentTypes: { id: string; name: string }[];
+  services: { id: string; nome: string }[];
   procedures: { id: string; name: string; recommendations: string | null }[];
   formTemplates: { id: string; name: string }[];
   pricingDimensions: { id: string; nome: string }[];
@@ -114,7 +114,7 @@ export function ConsultaClient({
     return toYMD(d);
   });
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const [typeFilter, setTypeFilter] = useState<string>("");
+  const [serviceFilter, setServiceFilter] = useState<string>("");
   const [doctorFilter, setDoctorFilter] = useState<string>("");
   const [dimensionFilter, setDimensionFilter] = useState<string>("");
   const [dimensionValueFilter, setDimensionValueFilter] = useState<string>("");
@@ -187,9 +187,9 @@ export function ConsultaClient({
       list = list.filter((c) => c.status === statusFilter);
     }
 
-    // Tipo
-    if (typeFilter) {
-      list = list.filter((c) => c.appointment_type?.id === typeFilter);
+    // Serviço
+    if (serviceFilter) {
+      list = list.filter((c) => c.service_id === serviceFilter);
     }
 
     // Profissional
@@ -227,7 +227,7 @@ export function ConsultaClient({
     customFrom,
     customTo,
     statusFilter,
-    typeFilter,
+    serviceFilter,
     doctorFilter,
     dimensionFilter,
     dimensionValueFilter,
@@ -238,7 +238,7 @@ export function ConsultaClient({
   const showDoctorFilter = doctors.length > 1;
   const activeFiltersCount = [
     statusFilter !== "",
-    typeFilter !== "",
+    serviceFilter !== "",
     doctorFilter !== "",
     dimensionFilter !== "",
     dimensionValueFilter !== "",
@@ -376,18 +376,18 @@ export function ConsultaClient({
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tipo</label>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Serviço</label>
                 <div className="flex items-center gap-2">
                   <Tags className="h-4 w-4 text-muted-foreground shrink-0" />
                   <select
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
+                    value={serviceFilter}
+                    onChange={(e) => setServiceFilter(e.target.value)}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
                     <option value="">Todos</option>
-                    {appointmentTypes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
+                    {services.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nome}
                       </option>
                     ))}
                   </select>
@@ -483,7 +483,7 @@ export function ConsultaClient({
                 size="sm"
                 onClick={() => {
                   setStatusFilter("");
-                  setTypeFilter("");
+                  setServiceFilter("");
                   setDoctorFilter("");
                   setDimensionFilter("");
                   setDimensionValueFilter("");
@@ -532,11 +532,11 @@ export function ConsultaClient({
                         <span className="text-sm text-muted-foreground truncate">{c.patient.phone}</span>
                       )}
                     </div>
-                    {((c.appointment_type || c.procedure) || (showDoctorFilter && c.doctor?.full_name)) && (
+                    {((c.procedure || c.service_name) || (showDoctorFilter && c.doctor?.full_name)) && (
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                        {(c.appointment_type || c.procedure) && (
+                        {(c.procedure || c.service_name) && (
                           <span className="shrink-0">
-                            {[c.appointment_type?.name, c.procedure?.name].filter(Boolean).join(" · ")}
+                            {[c.procedure?.name, c.service_name].filter(Boolean).join(" · ")}
                           </span>
                         )}
                         {showDoctorFilter && c.doctor?.full_name && (

@@ -245,6 +245,9 @@ export async function buildVariableContext(data: {
   appointmentType?: {
     name?: string | null;
   };
+  service?: {
+    nome?: string | null;
+  };
   procedure?: {
     name?: string | null;
   };
@@ -285,7 +288,11 @@ export async function buildVariableContext(data: {
       data_hora: data.appointment.scheduled_at || undefined,
       nome_medico: data.doctor?.full_name || undefined,
       nome_procedimento: data.procedure?.name || undefined,
-      tipo: data.appointmentType?.name || undefined,
+      tipo:
+        data.service?.nome ||
+        data.procedure?.name ||
+        data.appointmentType?.name ||
+        undefined,
       status: data.appointment.status || undefined,
       recomendacoes: data.appointment.recommendations || undefined,
       precisa_jejum: data.appointment.requires_fasting || false,

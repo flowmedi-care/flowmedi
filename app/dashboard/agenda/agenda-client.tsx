@@ -151,18 +151,13 @@ export type AppointmentRow = {
 
 export type PatientOption = { id: string; full_name: string; email?: string };
 export type DoctorOption = { id: string; full_name: string | null };
-export type AppointmentTypeOption = {
-  id: string;
-  name: string;
-  duration_minutes?: number;
-};
 export type RoomOption = { id: string; name: string };
 export type ProcedureOption = {
   id: string;
   name: string;
   recommendations: string | null;
   default_service_id?: string | null;
-  default_appointment_type_id?: string | null;
+  duration_minutes?: number;
 };
 export type FormTemplateOption = { id: string; name: string };
 export type ServicePriceRuleOption = { serviceId: string; professionalId: string | null };
@@ -227,7 +222,6 @@ export function AgendaClient({
   agendaEndHour = 20,
   patients,
   doctors,
-  appointmentTypes,
   procedures,
   formTemplates,
   services = [],
@@ -245,7 +239,6 @@ export function AgendaClient({
   agendaEndHour?: number;
   patients: PatientOption[];
   doctors: DoctorOption[];
-  appointmentTypes: AppointmentTypeOption[];
   procedures: ProcedureOption[];
   formTemplates: FormTemplateOption[];
   services?: ServiceOption[];
@@ -1063,7 +1056,6 @@ export function AgendaClient({
         initialForm={modalInitialForm}
         patients={patients}
         doctors={doctors}
-        appointmentTypes={appointmentTypes}
         procedures={procedures}
         formTemplates={formTemplates}
         services={services}
@@ -2098,11 +2090,10 @@ function DraggableAppointmentItem({
             {timeLabel}
           </span>
           <span className="truncate">{appointment.patient.full_name}</span>
-          {(appointment.appointment_type || appointment.procedure || appointment.procedures?.length || appointment.service_name || appointment.valor != null) && (
+          {(appointment.procedure || appointment.procedures?.length || appointment.service_name || appointment.valor != null) && (
             <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
               ·{" "}
               {[
-                appointment.appointment_type?.name,
                 (appointment.procedures ?? (appointment.procedure ? [appointment.procedure] : []))
                   .map((p) => p.name)
                   .join(", ") || null,
@@ -2291,9 +2282,16 @@ function AppointmentContent({ appointment: a }: { appointment: AppointmentRow })
         <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className="font-medium tabular-nums shrink-0">{time}</span>
         <span className="truncate">{a.patient.full_name}</span>
-        {(a.appointment_type || a.procedure) && (
+        {(a.procedure || a.procedures?.length || a.service_name) && (
           <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
-            · {[a.appointment_type?.name, a.procedure?.name].filter(Boolean).join(" · ")}
+            ·{" "}
+            {[
+              (a.procedures ?? (a.procedure ? [a.procedure] : [])).map((p) => p.name).join(", ") ||
+                null,
+              a.service_name,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </span>
         )}
       </div>
@@ -2338,9 +2336,16 @@ function AppointmentListItem({
         )}
         <span className="font-medium tabular-nums shrink-0">{time}</span>
         <span className="truncate">{a.patient.full_name}</span>
-        {(a.appointment_type || a.procedure) && (
+        {(a.procedure || a.procedures?.length || a.service_name) && (
           <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
-            · {[a.appointment_type?.name, a.procedure?.name].filter(Boolean).join(" · ")}
+            ·{" "}
+            {[
+              (a.procedures ?? (a.procedure ? [a.procedure] : [])).map((p) => p.name).join(", ") ||
+                null,
+              a.service_name,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </span>
         )}
       </div>

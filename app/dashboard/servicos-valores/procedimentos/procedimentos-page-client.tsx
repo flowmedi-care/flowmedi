@@ -5,17 +5,10 @@ import { ProcedimentosSection } from "../procedimentos-section";
 import type { ProcedureRow } from "@/app/dashboard/campos-pacientes/actions";
 import type { ClinicalFichaTemplateRow } from "@/app/dashboard/campos-pacientes/clinical-fichas-actions";
 
-type AppointmentTypeRow = {
-  id: string;
-  name: string;
-  duration_minutes: number;
-};
-
 export function ProcedimentosPageClient({
   procedures,
   doctors,
   doctorIdsByProcedureId,
-  appointmentTypes,
   services,
   products,
   fichaTemplates,
@@ -23,7 +16,6 @@ export function ProcedimentosPageClient({
   procedures: ProcedureRow[];
   doctors: { id: string; full_name: string }[];
   doctorIdsByProcedureId: Record<string, string[]>;
-  appointmentTypes: AppointmentTypeRow[];
   services: {
     id: string;
     nome: string;
@@ -39,7 +31,6 @@ export function ProcedimentosPageClient({
       initialProcedures={procedures}
       doctors={doctors}
       doctorIdsByProcedureId={doctorIdsByProcedureId}
-      appointmentTypes={appointmentTypes}
       services={services}
       products={products}
       fichaTemplates={fichaTemplates}

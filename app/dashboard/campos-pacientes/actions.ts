@@ -175,7 +175,7 @@ export type ProcedureRow = {
   recommendations: string | null;
   display_order: number;
   default_service_id: string | null;
-  default_appointment_type_id: string | null;
+  duration_minutes: number;
 };
 
 export async function listProcedures(): Promise<{ error: string | null; data: ProcedureRow[] }> {
@@ -193,7 +193,7 @@ export async function listProcedures(): Promise<{ error: string | null; data: Pr
 
   const { data, error } = await supabase
     .from("procedures")
-    .select("id, name, recommendations, display_order, default_service_id, default_appointment_type_id")
+    .select("id, name, recommendations, display_order, default_service_id, duration_minutes")
     .eq("clinic_id", profile.clinic_id)
     .order("display_order", { ascending: true });
 
@@ -204,7 +204,7 @@ export async function listProcedures(): Promise<{ error: string | null; data: Pr
       ...p,
       display_order: p.display_order ?? 0,
       default_service_id: p.default_service_id ?? null,
-      default_appointment_type_id: p.default_appointment_type_id ?? null,
+      duration_minutes: p.duration_minutes ?? 30,
     })),
   };
 }
@@ -341,7 +341,7 @@ export async function createProcedure(
   recommendations: string | null,
   opts?: {
     default_service_id?: string | null;
-    default_appointment_type_id?: string | null;
+    duration_minutes?: number;
   }
 ) {
   const supabase = await createClient();
@@ -373,7 +373,7 @@ export async function createProcedure(
     recommendations: recommendations?.trim() || null,
     display_order,
     default_service_id: opts?.default_service_id || null,
-    default_appointment_type_id: opts?.default_appointment_type_id || null,
+    duration_minutes: opts?.duration_minutes ?? 30,
   }).select("id").single();
   if (error) return { error: error.message };
   revalidatePath("/dashboard/campos-pacientes");
@@ -388,7 +388,7 @@ export async function updateProcedure(
     name: string;
     recommendations: string | null;
     default_service_id?: string | null;
-    default_appointment_type_id?: string | null;
+    duration_minutes?: number;
   }
 ) {
   const supabase = await createClient();
@@ -409,7 +409,7 @@ export async function updateProcedure(
       name: data.name.trim(),
       recommendations: data.recommendations?.trim() || null,
       default_service_id: data.default_service_id ?? null,
-      default_appointment_type_id: data.default_appointment_type_id ?? null,
+      duration_minutes: data.duration_minutes ?? 30,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)

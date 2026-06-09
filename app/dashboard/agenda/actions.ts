@@ -5,6 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { revalidatePath } from "next/cache";
 import { getClinicPlanData, countMonthAppointments } from "@/lib/plan-helpers";
 import { canCreateAppointment, getUpgradeMessage } from "@/lib/plan-gates";
+import { findRetornoProcedureForClinic } from "@/lib/procedure-scheduling";
 
 /** Formulários públicos preenchidos pelo paciente que serão vinculados automaticamente à consulta */
 export async function getPublicFormTemplatesForPatient(patientId: string) {
@@ -556,7 +557,11 @@ export async function createAppointment(
     }
   }
 
-  const durationMinutes = await getDurationMinutes(supabase, appointmentTypeId, profile.clinic_id);
+  const durationMinutes = await resolveDurationMinutes(supabase, {
+    clinicId: profile.clinic_id,
+    procedureIds: allProcedureIds,
+    appointmentTypeId,
+  });
   const scheduledEndAt =
     options?.scheduledEndAt ??
     buildScheduledEndFromDuration(scheduledAt, durationMinutes);
@@ -584,7 +589,7 @@ export async function createAppointment(
     clinic_id: profile.clinic_id,
     patient_id: patientId,
     doctor_id: doctorId,
-    appointment_type_id: appointmentTypeId || null,
+    appointment_type_id: null,
     procedure_id: primaryProcedureId,
     service_id: serviceId || null,
     valor: valor ?? null,
@@ -1074,19 +1079,34 @@ export async function checkRecurrenceSlotsConflicts(
   return { error: null, conflicts };
 }
 
-async function getDurationMinutes(
+async function resolveDurationMinutes(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  appointmentTypeId: string | null,
-  clinicId: string
+  opts: {
+    clinicId: string;
+    procedureIds?: string[];
+    appointmentTypeId?: string | null;
+  }
 ): Promise<number> {
-  if (!appointmentTypeId) return 30;
-  const { data: at } = await supabase
-    .from("appointment_types")
-    .select("duration_minutes")
-    .eq("id", appointmentTypeId)
-    .eq("clinic_id", clinicId)
-    .single();
-  return at?.duration_minutes ?? 30;
+  if (opts.procedureIds?.length) {
+    const { data } = await supabase
+      .from("procedures")
+      .select("duration_minutes")
+      .in("id", opts.procedureIds)
+      .eq("clinic_id", opts.clinicId);
+    if (data?.length) {
+      return Math.max(...data.map((p) => Number(p.duration_minutes) || 30));
+    }
+  }
+  if (opts.appointmentTypeId) {
+    const { data: at } = await supabase
+      .from("appointment_types")
+      .select("duration_minutes")
+      .eq("id", opts.appointmentTypeId)
+      .eq("clinic_id", opts.clinicId)
+      .single();
+    if (at?.duration_minutes) return Number(at.duration_minutes);
+  }
+  return 30;
 }
 
 async function clinicRequiresRoom(
@@ -1243,7 +1263,6 @@ async function checkAppointmentConflict(
 export type AppointmentEditData = {
   patientId: string;
   doctorId: string;
-  appointmentTypeId: string;
   procedureIds: string[];
   serviceId: string;
   dimensionSelections: Record<string, string>;
@@ -1339,7 +1358,6 @@ export async function getAppointmentForEdit(appointmentId: string) {
   const data: AppointmentEditData = {
     patientId: appt.patient_id as string,
     doctorId: appt.doctor_id as string,
-    appointmentTypeId: (appt.appointment_type_id as string) ?? "",
     procedureIds: finalProcedureIds,
     serviceId: (appt.service_id as string) ?? "",
     dimensionSelections,
@@ -1390,6 +1408,7 @@ export async function updateAppointment(
     payment_policy?: "antecipado" | "no_dia" | "pos_atendimento" | null;
     dimension_value_ids?: string[];
     forceConflict?: boolean;
+    apply_retorno?: boolean;
   }
 ): Promise<{ error: string | null; waitlistMatches?: WaitlistMatchAlert[] }> {
   const supabase = await createClient();
@@ -1404,6 +1423,28 @@ export async function updateAppointment(
     .eq("id", id)
     .single();
 
+  let procedureIds = data.procedure_ids;
+  const applyRetorno = data.apply_retorno === true;
+  const {
+    procedure_ids: _pids,
+    dimension_value_ids: dimensionValueIds,
+    apply_retorno: _applyRetorno,
+    ...appointmentFields
+  } = data;
+
+  if (applyRetorno && currentRow?.clinic_id) {
+    const retornoProc = await findRetornoProcedureForClinic(
+      supabase,
+      currentRow.clinic_id as string
+    );
+    if (retornoProc) {
+      procedureIds = [retornoProc.id];
+      appointmentFields.procedure_id = retornoProc.id;
+      appointmentFields.service_id = retornoProc.default_service_id;
+      appointmentFields.appointment_type_id = null;
+    }
+  }
+
   const changesTimeOrDoctor =
     data.scheduled_at != null ||
     data.scheduled_end_at != null ||
@@ -1415,11 +1456,13 @@ export async function updateAppointment(
     const scheduledAt = (data.scheduled_at ?? currentRow.scheduled_at) as string;
     let scheduledEndAt = (data.scheduled_end_at ?? currentRow.scheduled_end_at) as string | null;
     if (!scheduledEndAt) {
-      const durationMinutes = await getDurationMinutes(
-        supabase,
-        (data.appointment_type_id ?? currentRow.appointment_type_id) as string | null,
-        clinicId
-      );
+      const durationMinutes = await resolveDurationMinutes(supabase, {
+        clinicId,
+        procedureIds: procedureIds ?? undefined,
+        appointmentTypeId: (data.appointment_type_id ?? currentRow.appointment_type_id) as
+          | string
+          | null,
+      });
       scheduledEndAt = buildScheduledEndFromDuration(scheduledAt, durationMinutes);
     }
     const intervalCheck = validateScheduledInterval(scheduledAt, scheduledEndAt);
@@ -1438,14 +1481,6 @@ export async function updateAppointment(
     }
   }
 
-  const procedureIds = data.procedure_ids;
-  const dimensionValueIds = data.dimension_value_ids;
-  const {
-    procedure_ids: _pids,
-    dimension_value_ids: _dvids,
-    ...appointmentFields
-  } = data;
-
   const updatePayload: Record<string, unknown> = {
     ...appointmentFields,
     updated_at: new Date().toISOString(),
@@ -1455,11 +1490,13 @@ export async function updateAppointment(
     const scheduledAt = (data.scheduled_at ?? currentRow?.scheduled_at) as string;
     let scheduledEndAt = (data.scheduled_end_at ?? currentRow?.scheduled_end_at) as string | null;
     if (!scheduledEndAt && currentRow) {
-      const durationMinutes = await getDurationMinutes(
-        supabase,
-        (data.appointment_type_id ?? currentRow.appointment_type_id) as string | null,
-        currentRow.clinic_id as string
-      );
+      const durationMinutes = await resolveDurationMinutes(supabase, {
+        clinicId: currentRow.clinic_id as string,
+        procedureIds: procedureIds ?? undefined,
+        appointmentTypeId: (data.appointment_type_id ?? currentRow.appointment_type_id) as
+          | string
+          | null,
+      });
       scheduledEndAt = buildScheduledEndFromDuration(scheduledAt, durationMinutes);
     }
     if (scheduledEndAt) {

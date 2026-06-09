@@ -5,52 +5,35 @@ import { ProcedimentosPageClient } from "./procedimentos-page-client";
 export default async function ServicosValoresProcedimentosPage() {
   const { supabase, clinicId } = await requireProcedimentosPageAccess();
 
-  const [
-    typesRes,
-    proceduresRes,
-    doctorsRes,
-    doctorProceduresRes,
-    servicesRes,
-    productsRes,
-  ] = await Promise.all([
-    supabase
-      .from("appointment_types")
-      .select("id, name, duration_minutes")
-      .eq("clinic_id", clinicId)
-      .order("name"),
-    supabase
-      .from("procedures")
-      .select("id, name, recommendations, display_order, default_service_id, default_appointment_type_id")
-      .eq("clinic_id", clinicId)
-      .order("display_order", { ascending: true }),
-    supabase
-      .from("profiles")
-      .select("id, full_name")
-      .eq("clinic_id", clinicId)
-      .eq("role", "medico")
-      .order("full_name"),
-    supabase
-      .from("doctor_procedures")
-      .select("procedure_id, doctor_id")
-      .eq("clinic_id", clinicId),
-    supabase
-      .from("services")
-      .select("id, nome, recurrence_billing_mode")
-      .eq("clinic_id", clinicId)
-      .order("nome"),
-    supabase
-      .from("products")
-      .select("id, name, unit")
-      .eq("clinic_id", clinicId)
-      .eq("active", true)
-      .order("name"),
-  ]);
-
-  const appointmentTypes = (typesRes.data ?? []).map((t) => ({
-    id: t.id,
-    name: t.name,
-    duration_minutes: t.duration_minutes ?? 30,
-  }));
+  const [proceduresRes, doctorsRes, doctorProceduresRes, servicesRes, productsRes] =
+    await Promise.all([
+      supabase
+        .from("procedures")
+        .select("id, name, recommendations, display_order, default_service_id, duration_minutes")
+        .eq("clinic_id", clinicId)
+        .order("display_order", { ascending: true }),
+      supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("clinic_id", clinicId)
+        .eq("role", "medico")
+        .order("full_name"),
+      supabase
+        .from("doctor_procedures")
+        .select("procedure_id, doctor_id")
+        .eq("clinic_id", clinicId),
+      supabase
+        .from("services")
+        .select("id, nome, recurrence_billing_mode")
+        .eq("clinic_id", clinicId)
+        .order("nome"),
+      supabase
+        .from("products")
+        .select("id, name, unit")
+        .eq("clinic_id", clinicId)
+        .eq("active", true)
+        .order("name"),
+    ]);
 
   const procedures = (proceduresRes.data ?? []).map((p) => ({
     id: p.id,
@@ -58,7 +41,7 @@ export default async function ServicosValoresProcedimentosPage() {
     recommendations: p.recommendations ?? null,
     display_order: p.display_order ?? 0,
     default_service_id: p.default_service_id ?? null,
-    default_appointment_type_id: p.default_appointment_type_id ?? null,
+    duration_minutes: p.duration_minutes ?? 30,
   }));
 
   const doctors = (doctorsRes.data ?? []).map((d) => ({
@@ -105,7 +88,6 @@ export default async function ServicosValoresProcedimentosPage() {
         procedures={procedures}
         doctors={doctors}
         doctorIdsByProcedureId={doctorIdsByProcedureId}
-        appointmentTypes={appointmentTypes}
         services={services}
         products={products}
         fichaTemplates={fichaRes.data ?? []}

@@ -18,32 +18,17 @@ export default async function CamposPacientesPage() {
     redirect("/dashboard");
   }
 
-  const [fieldsRes, typesRes] = await Promise.all([
-    supabase
-      .from("patient_custom_fields")
-      .select("id, field_name, field_type, field_label, required, options, display_order, include_in_public_form")
-      .eq("clinic_id", profile.clinic_id)
-      .order("display_order"),
-    supabase
-      .from("appointment_types")
-      .select("id, name, duration_minutes")
-      .eq("clinic_id", profile.clinic_id)
-      .order("name"),
-  ]);
-
-  const fields = fieldsRes.data ?? [];
-  const appointmentTypes = (typesRes.data ?? []).map((t) => ({
-    id: t.id,
-    name: t.name,
-    duration_minutes: t.duration_minutes ?? 30,
-  }));
+  const { data: fields } = await supabase
+    .from("patient_custom_fields")
+    .select("id, field_name, field_type, field_label, required, options, display_order, include_in_public_form")
+    .eq("clinic_id", profile.clinic_id)
+    .order("display_order");
 
   const fichaRes = await listClinicalFichaTemplates();
 
   return (
     <CamposProcedimentosClient
-      initialFields={fields}
-      appointmentTypes={appointmentTypes}
+      initialFields={fields ?? []}
       fichaTemplates={fichaRes.data ?? []}
     />
   );

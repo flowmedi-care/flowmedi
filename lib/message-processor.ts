@@ -314,6 +314,7 @@ async function buildVariableContextFromIds(
   let appointment = null;
   let doctor = null;
   let appointmentType = null;
+  let service = null;
   let procedure = null;
   let formInstance = null;
 
@@ -329,8 +330,10 @@ async function buildVariableContextFromIds(
         special_instructions,
         preparation_notes,
         procedure_id,
+        service_id,
         doctor:profiles!appointments_doctor_id_fkey(full_name),
         appointment_type:appointment_types(name),
+        service:services(nome),
         procedure:procedures!procedure_id(name, recommendations)
       `)
       .eq("id", appointmentId)
@@ -364,6 +367,10 @@ async function buildVariableContextFromIds(
       appointmentType = Array.isArray(appointmentData.appointment_type)
         ? appointmentData.appointment_type[0]
         : appointmentData.appointment_type;
+
+      service = Array.isArray(appointmentData.service)
+        ? appointmentData.service[0]
+        : appointmentData.service;
     }
 
     if (appointmentData?.procedure) {
@@ -407,6 +414,7 @@ async function buildVariableContextFromIds(
     appointment: appointment || undefined,
     doctor: doctor || undefined,
     appointmentType: appointmentType || undefined,
+    service: service || undefined,
     procedure: procedure || undefined,
     clinic: clinic || undefined,
     formInstance: formInstance || undefined,

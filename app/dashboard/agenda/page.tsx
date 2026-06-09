@@ -132,18 +132,12 @@ export default async function AgendaPage() {
     doctors = doctors.filter((d) => d.id === user.id);
   }
 
-  const { data: appointmentTypes } = await supabase
-    .from("appointment_types")
-    .select("id, name, duration_minutes")
-    .eq("clinic_id", clinicId)
-    .order("name");
-
   const { rooms: roomsList } = await listRooms(true);
   const roomNameById = new Map(roomsList.map((r) => [r.id, r.name] as const));
 
   const { data: procedures } = await supabase
     .from("procedures")
-    .select("id, name, recommendations, default_service_id, default_appointment_type_id")
+    .select("id, name, recommendations, default_service_id, duration_minutes")
     .eq("clinic_id", clinicId)
     .order("display_order", { ascending: true });
 
@@ -293,11 +287,6 @@ export default async function AgendaPage() {
           id: d.id,
           full_name: d.full_name,
         }))}
-        appointmentTypes={(appointmentTypes ?? []).map((t) => ({
-          id: t.id,
-          name: t.name,
-          duration_minutes: t.duration_minutes ?? 30,
-        }))}
         rooms={roomsList.map((r) => ({ id: r.id, name: r.name }))}
         roomsRequired={roomsList.length > 0}
         procedures={(procedures ?? []).map((p) => ({
@@ -305,7 +294,7 @@ export default async function AgendaPage() {
           name: p.name,
           recommendations: p.recommendations ?? null,
           default_service_id: p.default_service_id ?? null,
-          default_appointment_type_id: p.default_appointment_type_id ?? null,
+          duration_minutes: p.duration_minutes ?? 30,
         }))}
         formTemplates={(formTemplates ?? []).map((f) => ({ id: f.id, name: f.name }))}
         services={(services ?? []).map((s) => ({ id: s.id, nome: s.nome }))}

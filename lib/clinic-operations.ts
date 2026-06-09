@@ -216,15 +216,15 @@ export async function getProcedureDefaults(
   procedureIds: string[]
 ): Promise<{
   defaultServiceId: string | null;
-  defaultAppointmentTypeId: string | null;
+  durationMinutes: number;
   mergedRecommendations: string;
 }> {
   if (!procedureIds.length) {
-    return { defaultServiceId: null, defaultAppointmentTypeId: null, mergedRecommendations: "" };
+    return { defaultServiceId: null, durationMinutes: 30, mergedRecommendations: "" };
   }
   const { data } = await supabase
     .from("procedures")
-    .select("id, default_service_id, default_appointment_type_id, recommendations, display_order")
+    .select("id, default_service_id, duration_minutes, recommendations, display_order")
     .in("id", procedureIds)
     .order("display_order", { ascending: true });
 
@@ -234,9 +234,12 @@ export async function getProcedureDefaults(
     .map((p) => p.recommendations?.trim())
     .filter(Boolean)
     .join("\n\n");
+  const durationMinutes = rows.length
+    ? Math.max(...rows.map((p) => Number(p.duration_minutes) || 30))
+    : 30;
   return {
     defaultServiceId: first?.default_service_id ?? null,
-    defaultAppointmentTypeId: first?.default_appointment_type_id ?? null,
+    durationMinutes,
     mergedRecommendations: recs,
   };
 }

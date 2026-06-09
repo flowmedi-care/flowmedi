@@ -26,19 +26,12 @@ import { cn } from "@/lib/utils";
 import { recurrenceBillingModeLabel } from "@/lib/recurrence-billing";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-type AppointmentTypeRow = {
-  id: string;
-  name: string;
-  duration_minutes: number;
-};
-
 type DoctorOption = { id: string; full_name: string };
 
 export function ProcedimentosSection({
   initialProcedures,
   doctors,
   doctorIdsByProcedureId,
-  appointmentTypes,
   services,
   products,
   fichaTemplates,
@@ -47,7 +40,6 @@ export function ProcedimentosSection({
   initialProcedures: ProcedureRow[];
   doctors: DoctorOption[];
   doctorIdsByProcedureId: Record<string, string[]>;
-  appointmentTypes: AppointmentTypeRow[];
   services: {
     id: string;
     nome: string;
@@ -68,7 +60,7 @@ export function ProcedimentosSection({
   const [name, setName] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [defaultServiceId, setDefaultServiceId] = useState("");
-  const [defaultAppointmentTypeId, setDefaultAppointmentTypeId] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(30);
   const [bomItems, setBomItems] = useState<{ product_id: string; quantity_per_procedure: number }[]>([]);
   const [bomProductId, setBomProductId] = useState("");
   const [bomQty, setBomQty] = useState("1");
@@ -85,7 +77,7 @@ export function ProcedimentosSection({
     setName("");
     setRecommendations("");
     setDefaultServiceId("");
-    setDefaultAppointmentTypeId("");
+    setDurationMinutes(30);
     setBomItems([]);
     setSelectedDoctorIds(new Set());
     setSelectedFichaIds([]);
@@ -98,7 +90,7 @@ export function ProcedimentosSection({
     setName(p.name);
     setRecommendations(p.recommendations || "");
     setDefaultServiceId(p.default_service_id ?? "");
-    setDefaultAppointmentTypeId(p.default_appointment_type_id ?? "");
+    setDurationMinutes(p.duration_minutes ?? 30);
     setSelectedDoctorIds(new Set(doctorIdsByProcedureId[p.id] ?? []));
     const bomRes = await getProcedureProducts(p.id);
     if (bomRes.error) {
@@ -149,7 +141,7 @@ export function ProcedimentosSection({
     if (isNew) {
       const res = await createProcedure(name, recommendations || null, {
         default_service_id: defaultServiceId || null,
-        default_appointment_type_id: defaultAppointmentTypeId || null,
+        duration_minutes: durationMinutes,
       });
       if (res.error) {
         setError(res.error);
@@ -190,7 +182,7 @@ export function ProcedimentosSection({
         name: name.trim(),
         recommendations: recommendations.trim() || null,
         default_service_id: defaultServiceId || null,
-        default_appointment_type_id: defaultAppointmentTypeId || null,
+        duration_minutes: durationMinutes,
       });
       if (res.error) {
         setError(res.error);
@@ -313,19 +305,19 @@ export function ProcedimentosSection({
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Tipo de consulta padrão</Label>
-                <select
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                  value={defaultAppointmentTypeId}
-                  onChange={(e) => setDefaultAppointmentTypeId(e.target.value)}
-                >
-                  <option value="">Nenhum</option>
-                  {appointmentTypes.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
+                <Label htmlFor="proc_duration">Duração padrão (minutos)</Label>
+                <Input
+                  id="proc_duration"
+                  type="number"
+                  min={5}
+                  max={480}
+                  value={durationMinutes}
+                  onChange={(e) =>
+                    setDurationMinutes(parseInt(e.target.value, 10) || 30)
+                  }
+                />
                 <p className="text-xs text-muted-foreground">
-                  Tipos de atendimento são configurados em Campos personalizados.
+                  Sugere o horário final na agenda. A secretária pode ajustar ao agendar.
                 </p>
               </div>
             </div>

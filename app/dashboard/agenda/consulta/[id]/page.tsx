@@ -102,12 +102,6 @@ export default async function ConsultaDetalhePage({
     recurrence_group_id = String(recurrenceRow.recurrence_group_id);
   }
 
-  const { data: appointmentTypes } = await supabase
-    .from("appointment_types")
-    .select("id, slug")
-    .eq("clinic_id", profile.clinic_id);
-  const retornoType = (appointmentTypes ?? []).find((t: { slug?: string }) => t.slug === "retorno");
-
   const patient = Array.isArray(appointment.patient)
     ? appointment.patient[0]
     : appointment.patient;
@@ -131,10 +125,6 @@ export default async function ConsultaDetalhePage({
   const doctor = Array.isArray(appointment.doctor)
     ? appointment.doctor[0]
     : appointment.doctor;
-  const appointmentType = Array.isArray(appointment.appointment_type)
-    ? appointment.appointment_type[0]
-    : appointment.appointment_type;
-
   const apProcs = await loadAppointmentProcedures(
     supabase,
     id,
@@ -176,7 +166,6 @@ export default async function ConsultaDetalhePage({
                 appointmentId={id}
                 canEdit={profile.role === "admin" || profile.role === "secretaria"}
                 isAgendarRetorno={appointmentStatus === "realizada"}
-                retornoTypeId={retornoType?.id ?? null}
               />
               {recurrence_group_id && (
                 <RecurrenceSeriesButton
@@ -196,10 +185,12 @@ export default async function ConsultaDetalhePage({
               <span className="text-muted-foreground">Profissional:</span>{" "}
               {doctor?.full_name ?? "—"}
             </p>
-            {appointmentType && (
+            {(serviceName || procedures.length > 0) && (
               <p>
-                <span className="text-muted-foreground">Tipo:</span>{" "}
-                {appointmentType.name}
+                <span className="text-muted-foreground">Atendimento:</span>{" "}
+                {[procedures.map((p) => p.name).join(", ") || null, serviceName]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             )}
             <p>

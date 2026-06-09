@@ -21,17 +21,12 @@ export default async function CamposPersonalizadosPage({
 
   if (!profile || profile.role !== "admin") redirect("/dashboard");
 
-  const [fieldsRes, typesRes, templatesRaw, patientsRes] = await Promise.all([
+  const [fieldsRes, templatesRaw, patientsRes] = await Promise.all([
     supabase
       .from("patient_custom_fields")
       .select("id, field_name, field_type, field_label, required, options, display_order, include_in_public_form")
       .eq("clinic_id", profile.clinic_id)
       .order("display_order"),
-    supabase
-      .from("appointment_types")
-      .select("id, name, duration_minutes")
-      .eq("clinic_id", profile.clinic_id)
-      .order("name"),
     supabase
       .from("form_templates")
       .select(`
@@ -49,12 +44,6 @@ export default async function CamposPersonalizadosPage({
       .eq("clinic_id", profile.clinic_id)
       .order("full_name"),
   ]);
-
-  const appointmentTypes = (typesRes.data ?? []).map((t) => ({
-    id: t.id,
-    name: t.name,
-    duration_minutes: t.duration_minutes ?? 30,
-  }));
 
   const formTemplates = (templatesRaw.data ?? []).map((t: Record<string, unknown>) => {
     const at = Array.isArray(t.appointment_types) ? t.appointment_types[0] : t.appointment_types;
@@ -77,7 +66,6 @@ export default async function CamposPersonalizadosPage({
   return (
     <CamposProcedimentosClient
       initialFields={fieldsRes.data ?? []}
-      appointmentTypes={appointmentTypes}
       fichaTemplates={fichaRes.data ?? []}
       formTemplates={formTemplates}
       formPatients={formPatients}

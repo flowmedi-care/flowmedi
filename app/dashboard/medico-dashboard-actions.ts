@@ -120,6 +120,8 @@ export async function getWeeklyAppointments(
       scheduled_at,
       status,
       patient:patients ( full_name ),
+      service:services ( nome ),
+      procedure:procedures!procedure_id ( name ),
       appointment_type:appointment_types ( name )
     `
     )
@@ -142,9 +144,19 @@ export async function getWeeklyAppointments(
         Array.isArray(a.patient) ? a.patient[0]?.full_name : a.patient?.full_name ?? ""
       ),
     },
-    appointment_type: Array.isArray(a.appointment_type)
-      ? a.appointment_type[0]
-      : a.appointment_type,
+    appointment_type: (() => {
+      const service = Array.isArray(a.service) ? a.service[0] : a.service;
+      const procedure = Array.isArray(a.procedure) ? a.procedure[0] : a.procedure;
+      const appointmentType = Array.isArray(a.appointment_type)
+        ? a.appointment_type[0]
+        : a.appointment_type;
+      const name =
+        service?.nome?.trim() ||
+        procedure?.name?.trim() ||
+        appointmentType?.name?.trim() ||
+        null;
+      return name ? { name } : null;
+    })(),
   }));
 
   return { data: processedAppointments, error: null };
@@ -205,6 +217,8 @@ export async function getMedicoDashboardData(
       status,
       notes,
       patient:patients ( id, full_name, email, phone, birth_date ),
+      service:services ( id, nome ),
+      procedure:procedures!procedure_id ( id, name ),
       appointment_type:appointment_types ( id, name )
     `
     )
@@ -244,6 +258,13 @@ export async function getMedicoDashboardData(
     const appointmentType = Array.isArray(a.appointment_type)
       ? a.appointment_type[0]
       : a.appointment_type;
+    const service = Array.isArray(a.service) ? a.service[0] : a.service;
+    const procedure = Array.isArray(a.procedure) ? a.procedure[0] : a.procedure;
+    const displayName =
+      service?.nome?.trim() ||
+      procedure?.name?.trim() ||
+      appointmentType?.name?.trim() ||
+      null;
     return {
       id: String(a.id),
       scheduled_at: String(a.scheduled_at),
@@ -256,8 +277,11 @@ export async function getMedicoDashboardData(
         phone: patient?.phone ?? null,
         birth_date: patient?.birth_date ?? null,
       },
-      appointment_type: appointmentType
-        ? { id: String(appointmentType.id), name: String(appointmentType.name) }
+      appointment_type: displayName
+        ? {
+            id: String(service?.id ?? procedure?.id ?? appointmentType?.id ?? "atendimento"),
+            name: String(displayName),
+          }
         : null,
     };
   });

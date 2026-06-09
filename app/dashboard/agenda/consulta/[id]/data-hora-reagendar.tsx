@@ -26,14 +26,12 @@ export function DataHoraReagendar({
   appointmentId,
   canEdit,
   isAgendarRetorno,
-  retornoTypeId,
 }: {
   scheduledAt: string;
   scheduledEndAt?: string | null;
   appointmentId: string;
   canEdit: boolean;
   isAgendarRetorno?: boolean;
-  retornoTypeId?: string | null;
 }) {
   const router = useRouter();
   const [showPopup, setShowPopup] = useState(false);
@@ -55,18 +53,11 @@ export function DataHoraReagendar({
     const localStart = new Date(`${date}T${time}:00`);
     const scheduled_at = localStart.toISOString();
     const scheduled_end_at = buildScheduledEndAt(date, endTime, scheduled_at);
-    const updateData: {
-      scheduled_at: string;
-      scheduled_end_at: string;
-      appointment_type_id?: string | null;
-    } = {
+    const res = await updateAppointment(appointmentId, {
       scheduled_at,
       scheduled_end_at,
-    };
-    if (isAgendarRetorno && retornoTypeId) {
-      updateData.appointment_type_id = retornoTypeId;
-    }
-    const res = await updateAppointment(appointmentId, updateData);
+      ...(isAgendarRetorno ? { apply_retorno: true } : {}),
+    });
     setUpdating(false);
     if (!res.error) {
       setShowPopup(false);

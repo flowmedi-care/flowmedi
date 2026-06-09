@@ -55,6 +55,8 @@ export async function getPatientProfileBundle(
       recommendations,
       valor,
       doctor:profiles!doctor_id ( full_name ),
+      service_id,
+      service:services ( nome ),
       appointment_type:appointment_types ( name ),
       procedure:procedures!procedure_id ( name ),
       appointment_procedures ( procedures!procedure_id ( name ) )
@@ -67,6 +69,7 @@ export async function getPatientProfileBundle(
   const consultations = (appointments ?? []).map((a: Record<string, unknown>) => {
     const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
     const at = Array.isArray(a.appointment_type) ? a.appointment_type[0] : a.appointment_type;
+    const svc = Array.isArray(a.service) ? a.service[0] : a.service;
     const proc = Array.isArray(a.procedure) ? a.procedure[0] : a.procedure;
     const apProcs = Array.isArray(a.appointment_procedures) ? a.appointment_procedures : [];
     const namesFromJunction = apProcs
@@ -87,7 +90,11 @@ export async function getPatientProfileBundle(
       scheduled_at: String(a.scheduled_at),
       status: String(a.status),
       professional_name: (doctor as { full_name?: string })?.full_name ?? null,
-      appointment_type_name: (at as { name?: string })?.name ?? null,
+      appointment_type_name:
+        (svc as { nome?: string })?.nome ??
+        procedure_names[0] ??
+        (at as { name?: string })?.name ??
+        null,
       procedure_names,
       valor: a.valor != null ? Number(a.valor) : null,
       notes: a.notes != null ? String(a.notes) : null,

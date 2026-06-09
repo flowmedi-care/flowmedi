@@ -7,12 +7,12 @@ export type ConsultaRow = {
   scheduled_at: string;
   status: string;
   notes: string | null;
-  service_id?: string | null;
   valor?: number | null;
   dimension_value_ids?: string[];
   patient: { id: string; full_name: string; phone: string | null };
   doctor: { id: string; full_name: string | null };
-  appointment_type: { id: string; name: string } | null;
+  service_id: string | null;
+  service_name: string | null;
   procedure: { id: string; name: string } | null;
 };
 
@@ -56,7 +56,7 @@ export default async function ConsultaPage() {
       notes,
       patient:patients ( id, full_name, phone ),
       doctor:profiles!doctor_id ( id, full_name ),
-      appointment_type:appointment_types ( id, name ),
+      service_id,
       procedure:procedures!procedure_id ( id, name )
     `
     )
@@ -110,11 +110,11 @@ export default async function ConsultaPage() {
     .eq("clinic_id", clinicId)
     .order("full_name");
 
-  const { data: appointmentTypes } = await supabase
-    .from("appointment_types")
-    .select("id, name")
+  const { data: services } = await supabase
+    .from("services")
+    .select("id, nome")
     .eq("clinic_id", clinicId)
-    .order("name");
+    .order("nome");
 
   const { data: procedures } = await supabase
     .from("procedures")
@@ -145,10 +145,8 @@ export default async function ConsultaPage() {
   const rows: ConsultaRow[] = (appointments ?? []).map((a: Record<string, unknown>) => {
     const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
     const doctor = Array.isArray(a.doctor) ? a.doctor[0] : a.doctor;
-    const appointmentType = Array.isArray(a.appointment_type)
-      ? a.appointment_type[0]
-      : a.appointment_type;
     const procedure = Array.isArray(a.procedure) ? a.procedure[0] : a.procedure;
+    const svcId = a.service_id != null ? String(a.service_id) : null;
     const p = patient as { id?: unknown; full_name?: unknown; phone?: unknown } | null;
     const appointmentId = String(a.id ?? "");
     return {
@@ -156,7 +154,10 @@ export default async function ConsultaPage() {
       scheduled_at: String(a.scheduled_at ?? ""),
       status: String(a.status ?? ""),
       notes: a.notes != null ? String(a.notes) : null,
-      service_id: a.service_id != null ? String(a.service_id) : null,
+      service_id: svcId,
+      service_name: svcId
+        ? (services ?? []).find((s) => s.id === svcId)?.nome ?? null
+        : null,
       valor: a.valor != null ? Number(a.valor) : null,
       dimension_value_ids: dimensionValueIdsByAppointment[appointmentId] ?? [],
       patient: {
@@ -170,12 +171,6 @@ export default async function ConsultaPage() {
           ? String((doctor as { full_name?: unknown }).full_name)
           : null,
       },
-      appointment_type: appointmentType
-        ? {
-            id: String((appointmentType as { id?: unknown })?.id ?? ""),
-            name: String((appointmentType as { name?: unknown })?.name ?? ""),
-          }
-        : null,
       procedure: procedure
         ? {
             id: String((procedure as { id?: unknown })?.id ?? ""),
@@ -197,9 +192,9 @@ export default async function ConsultaPage() {
           id: d.id,
           full_name: d.full_name,
         }))}
-        appointmentTypes={(appointmentTypes ?? []).map((t) => ({
-          id: t.id,
-          name: t.name,
+        services={(services ?? []).map((s) => ({
+          id: s.id,
+          nome: s.nome,
         }))}
         procedures={(procedures ?? []).map((p) => ({
           id: p.id,

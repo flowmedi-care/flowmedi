@@ -330,7 +330,7 @@ export async function getPatientConsultationHistory(patientId: string, limit = 3
   const { data, error } = await supabase
     .from("appointments")
     .select(
-      "id, scheduled_at, status, notes, doctor:profiles!doctor_id(full_name), appointment_type:appointment_types(name)"
+      "id, scheduled_at, status, notes, doctor:profiles!doctor_id(full_name), service:services(nome), procedure:procedures!procedure_id(name), appointment_type:appointment_types(name)"
     )
     .eq("clinic_id", profile.clinic_id)
     .eq("patient_id", patientId)
@@ -344,12 +344,17 @@ export async function getPatientConsultationHistory(patientId: string, limit = 3
     const appointmentType = Array.isArray(row.appointment_type)
       ? row.appointment_type[0]
       : row.appointment_type;
+    const service = Array.isArray(row.service) ? row.service[0] : row.service;
+    const procedure = Array.isArray(row.procedure) ? row.procedure[0] : row.procedure;
     return {
       id: String(row.id ?? ""),
       scheduled_at: String(row.scheduled_at ?? ""),
       status: String(row.status ?? ""),
       professional_name: doctor?.full_name ? String(doctor.full_name) : null,
-      appointment_type_name: appointmentType?.name ? String(appointmentType.name) : null,
+      appointment_type_name:
+        service?.nome?.trim() ||
+        procedure?.name?.trim() ||
+        (appointmentType?.name ? String(appointmentType.name) : null),
       notes: row.notes != null ? String(row.notes) : null,
     };
   });

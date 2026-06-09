@@ -230,7 +230,7 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
 
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, status, scheduled_at, doctor_id, patient_id, valor, created_by, appointment_type_id")
+    .select("id, status, scheduled_at, doctor_id, patient_id, valor, created_by, service_id, appointment_type_id")
     .eq("clinic_id", clinicId)
     .gte("scheduled_at", startStr)
     .lte("scheduled_at", endStr);
@@ -471,7 +471,10 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
   // Quebras por profissional, atendente e tipo de consulta.
   const doctorIds = Array.from(new Set((appointments ?? []).map((a) => a.doctor_id).filter(Boolean))) as string[];
   const secretaryIds = Array.from(new Set((appointments ?? []).map((a) => a.created_by).filter(Boolean))) as string[];
-  const typeIds = Array.from(new Set((appointments ?? []).map((a) => a.appointment_type_id).filter(Boolean))) as string[];
+  const serviceIds = Array.from(new Set((appointments ?? []).map((a) => a.service_id).filter(Boolean))) as string[];
+  const legacyTypeIds = Array.from(
+    new Set((appointments ?? []).map((a) => a.appointment_type_id).filter(Boolean))
+  ) as string[];
 
   const { data: doctorProfiles } =
     doctorIds.length > 0
@@ -481,14 +484,19 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
     secretaryIds.length > 0
       ? await supabase.from("profiles").select("id, full_name, role").in("id", secretaryIds)
       : { data: [] as Array<{ id: string; full_name: string | null; role: string }> };
+  const { data: services } =
+    serviceIds.length > 0
+      ? await supabase.from("services").select("id, nome").in("id", serviceIds)
+      : { data: [] as Array<{ id: string; nome: string | null }> };
   const { data: appointmentTypes } =
-    typeIds.length > 0
-      ? await supabase.from("appointment_types").select("id, name").in("id", typeIds)
+    legacyTypeIds.length > 0
+      ? await supabase.from("appointment_types").select("id, name").in("id", legacyTypeIds)
       : { data: [] as Array<{ id: string; name: string | null }> };
 
   const doctorNameById = new Map((doctorProfiles ?? []).map((p) => [p.id, p.full_name ?? "Profissional"]));
   const secretaryById = new Map((secretaryProfiles ?? []).map((p) => [p.id, { name: p.full_name ?? "Atendente", role: p.role }]));
-  const typeNameById = new Map((appointmentTypes ?? []).map((t) => [t.id, t.name ?? "Tipo não informado"]));
+  const serviceNameById = new Map((services ?? []).map((s) => [s.id, s.nome ?? "Serviço não informado"]));
+  const legacyTypeNameById = new Map((appointmentTypes ?? []).map((t) => [t.id, t.name ?? "Tipo não informado"]));
 
   function buildBreakdown(rows: Array<{ key: string; label: string; status: string; appointmentId: string }>): FunnelBreakdownRow[] {
     const grouped: Record<string, FunnelBreakdownRow> = {};
@@ -545,12 +553,19 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
     })
   );
   const porTipoConsulta = buildBreakdown(
-    (appointments ?? []).map((a) => ({
-      key: a.appointment_type_id ?? "sem-tipo",
-      label: typeNameById.get(a.appointment_type_id ?? "") ?? "Tipo não informado",
-      status: a.status,
-      appointmentId: a.id,
-    }))
+    (appointments ?? []).map((a) => {
+      const serviceKey = a.service_id ?? a.appointment_type_id ?? "sem-servico";
+      const label =
+        (a.service_id ? serviceNameById.get(a.service_id) : null) ??
+        (a.appointment_type_id ? legacyTypeNameById.get(a.appointment_type_id) : null) ??
+        "Serviço não informado";
+      return {
+        key: serviceKey,
+        label,
+        status: a.status,
+        appointmentId: a.id,
+      };
+    })
   );
   const porOrigem = buildBreakdown(
     (appointments ?? []).map((a) => {

@@ -37,10 +37,10 @@ import {
   POLICY_LABEL,
 } from "./consulta/[id]/check-in-payment-policy";
 import type { PaymentPolicy } from "./encounter-actions";
+import { suggestDurationMinutesFromProcedures } from "@/lib/procedure-scheduling";
 import type {
   PatientOption,
   DoctorOption,
-  AppointmentTypeOption,
   RoomOption,
   ProcedureOption,
   FormTemplateOption,
@@ -56,7 +56,6 @@ type TabId = "dados" | "procedimentos" | "data" | "financeiro";
 export type AppointmentFormState = {
   patientId: string;
   doctorId: string;
-  appointmentTypeId: string;
   procedureIds: string[];
   serviceId: string;
   dimensionSelections: Record<string, string>;
@@ -90,7 +89,6 @@ export function AgendaAppointmentModal({
   initialForm,
   patients,
   doctors,
-  appointmentTypes,
   procedures,
   formTemplates,
   services,
@@ -110,7 +108,6 @@ export function AgendaAppointmentModal({
   initialForm?: Partial<AppointmentFormState>;
   patients: PatientOption[];
   doctors: DoctorOption[];
-  appointmentTypes: AppointmentTypeOption[];
   procedures: ProcedureOption[];
   formTemplates: FormTemplateOption[];
   services: ServiceOption[];
@@ -146,7 +143,6 @@ export function AgendaAppointmentModal({
   const defaultForm = (): AppointmentFormState => ({
     patientId: "",
     doctorId: "",
-    appointmentTypeId: "",
     procedureIds: [],
     serviceId: "",
     dimensionSelections: {},
@@ -194,7 +190,6 @@ export function AgendaAppointmentModal({
           ...defaultForm(),
           patientId: d.patientId,
           doctorId: d.doctorId,
-          appointmentTypeId: d.appointmentTypeId,
           procedureIds: d.procedureIds,
           serviceId: d.serviceId,
           dimensionSelections: d.dimensionSelections,
@@ -332,14 +327,13 @@ export function AgendaAppointmentModal({
   }, [open, recurrence.enabled, effectiveServiceId, canSeeRecurrenceBilling]);
 
   useEffect(() => {
-    if (isEdit || !form.appointmentTypeId) return;
-    const at = appointmentTypes.find((t) => t.id === form.appointmentTypeId);
-    const mins = at?.duration_minutes ?? 30;
+    if (isEdit || !form.procedureIds.length) return;
+    const mins = suggestDurationMinutesFromProcedures(form.procedureIds, procedures);
     setForm((f) => ({
       ...f,
       endTime: suggestDefaultEndTimeHm(f.time || "09:00", mins),
     }));
-  }, [form.appointmentTypeId, form.time, appointmentTypes, isEdit]);
+  }, [form.procedureIds, form.time, procedures, isEdit]);
 
   const plannedMinutesPreview = useMemo(() => {
     if (!form.date || !form.time || !form.endTime) return null;
@@ -386,14 +380,13 @@ export function AgendaAppointmentModal({
       );
       const serviceId =
         procWithService?.default_service_id ?? first?.default_service_id ?? f.serviceId;
-      const appointmentTypeId =
-        first?.default_appointment_type_id ?? f.appointmentTypeId;
+      const mins = suggestDurationMinutesFromProcedures(procedureIds, procedures);
       return {
         ...f,
         procedureIds,
         recommendations: recommendations || f.recommendations,
         serviceId: serviceId || f.serviceId,
-        appointmentTypeId: appointmentTypeId || f.appointmentTypeId,
+        endTime: suggestDefaultEndTimeHm(f.time || "09:00", mins),
       };
     });
   };
@@ -483,7 +476,7 @@ export function AgendaAppointmentModal({
       const res = await createRecurringAppointments({
         patientId: form.patientId,
         doctorId: form.doctorId,
-        appointmentTypeId: form.appointmentTypeId || null,
+        appointmentTypeId: null,
         procedureIds: form.procedureIds,
         serviceId: effectiveServiceIdSubmit,
         dimensionValueIds,
@@ -531,7 +524,6 @@ export function AgendaAppointmentModal({
       const res = await updateAppointment(appointmentId, {
         patient_id: form.patientId,
         doctor_id: form.doctorId,
-        appointment_type_id: form.appointmentTypeId || null,
         procedure_id: form.procedureIds[0] || null,
         procedure_ids: form.procedureIds,
         service_id: effectiveServiceIdSubmit,
@@ -558,7 +550,7 @@ export function AgendaAppointmentModal({
       const res = await createAppointment(
         form.patientId,
         form.doctorId,
-        form.appointmentTypeId || null,
+        null,
         scheduledAt,
         form.notes || null,
         form.recommendations || null,
@@ -678,19 +670,6 @@ export function AgendaAppointmentModal({
                   ))}
                 </select>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo de consulta</Label>
-              <select
-                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                value={form.appointmentTypeId}
-                onChange={(e) => setForm((f) => ({ ...f, appointmentTypeId: e.target.value }))}
-              >
-                <option value="">Nenhum</option>
-                {appointmentTypes.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
             </div>
             {rooms.length > 0 && (
               <div className="space-y-2">
@@ -875,7 +854,6 @@ export function AgendaAppointmentModal({
               endTime={form.endTime}
               doctorId={form.doctorId}
               roomId={form.roomId || null}
-              appointmentTypeId={form.appointmentTypeId}
               recurrence={recurrence}
               onRecurrenceChange={(patch) =>
                 setRecurrence((r) => ({ ...r, ...patch }))

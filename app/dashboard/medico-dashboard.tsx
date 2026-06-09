@@ -23,6 +23,8 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
       status,
       notes,
       patient:patients ( id, full_name, email, phone, birth_date ),
+      service:services ( id, nome ),
+      procedure:procedures!procedure_id ( id, name ),
       appointment_type:appointment_types ( id, name )
     `
     )
@@ -65,6 +67,13 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
     const appointmentType = Array.isArray(a.appointment_type)
       ? a.appointment_type[0]
       : a.appointment_type;
+    const service = Array.isArray(a.service) ? a.service[0] : a.service;
+    const procedure = Array.isArray(a.procedure) ? a.procedure[0] : a.procedure;
+    const displayType =
+      service?.nome?.trim() ||
+      procedure?.name?.trim() ||
+      appointmentType?.name?.trim() ||
+      null;
     return {
       id: String(a.id),
       scheduled_at: String(a.scheduled_at),
@@ -77,10 +86,10 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
         phone: patient?.phone ?? null,
         birth_date: patient?.birth_date ?? null,
       },
-      appointment_type: appointmentType
+      appointment_type: displayType
         ? {
-            id: String(appointmentType.id),
-            name: String(appointmentType.name),
+            id: String(service?.id ?? procedure?.id ?? appointmentType?.id ?? "atendimento"),
+            name: String(displayType),
           }
         : null,
     };

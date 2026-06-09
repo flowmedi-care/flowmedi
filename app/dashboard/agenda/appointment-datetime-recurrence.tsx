@@ -35,7 +35,6 @@ type Props = {
   endTime: string;
   doctorId: string;
   roomId?: string | null;
-  appointmentTypeId: string;
   recurrence: RecurrenceFormState;
   onRecurrenceChange: (patch: Partial<RecurrenceFormState>) => void;
   isEdit: boolean;
@@ -49,7 +48,6 @@ export function AppointmentDateTimeRecurrence({
   endTime,
   doctorId,
   roomId,
-  appointmentTypeId,
   recurrence,
   onRecurrenceChange,
   isEdit,
