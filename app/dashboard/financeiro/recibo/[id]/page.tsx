@@ -28,6 +28,44 @@ export default async function ReciboPrintPage({
           <dt className="text-muted-foreground">Paciente</dt>
           <dd className="font-medium">{data.patient_name}</dd>
         </div>
+
+        {data.comanda_items && data.comanda_items.length > 0 && (
+          <div className="rounded-lg border p-3 space-y-2">
+            <dt className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+              Procedimentos e serviços
+            </dt>
+            {data.comanda_items.map((item, i) => (
+              <div key={i} className="flex justify-between gap-2">
+                <dd className="text-muted-foreground truncate">
+                  {item.label}
+                  {item.quantity > 1 ? ` × ${item.quantity}` : ""}
+                </dd>
+                <dd>{fmtCurrency(item.amount)}</dd>
+              </div>
+            ))}
+            {data.discount_amount != null && data.discount_amount > 0 && (
+              <>
+                {data.subtotal_amount != null && (
+                  <div className="flex justify-between gap-2 pt-1">
+                    <dd className="text-muted-foreground">Subtotal</dd>
+                    <dd>{fmtCurrency(data.subtotal_amount)}</dd>
+                  </div>
+                )}
+                <div className="flex justify-between gap-2 text-amber-700 dark:text-amber-400">
+                  <dd>Desconto</dd>
+                  <dd>-{fmtCurrency(data.discount_amount)}</dd>
+                </div>
+              </>
+            )}
+            {data.comanda_total != null && (
+              <div className="flex justify-between gap-2 font-semibold border-t pt-2">
+                <dd>Total da comanda</dd>
+                <dd>{fmtCurrency(data.comanda_total)}</dd>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex justify-between">
           <dt className="text-muted-foreground">Valor recebido</dt>
           <dd className="font-semibold text-lg">{fmtCurrency(data.amount)}</dd>
@@ -52,6 +90,12 @@ export default async function ReciboPrintPage({
               : new Date(data.issued_at).toLocaleString("pt-BR")}
           </dd>
         </div>
+        {data.comanda_remainder != null && data.comanda_remainder > 0 && (
+          <div className="flex justify-between text-amber-700 dark:text-amber-400">
+            <dt>Saldo restante</dt>
+            <dd>{fmtCurrency(data.comanda_remainder)}</dd>
+          </div>
+        )}
       </dl>
       <p className="text-xs text-muted-foreground text-center pt-4">
         Documento gerado pelo Flowmedi — comprovante interno, não substitui NF-e/NFC-e.

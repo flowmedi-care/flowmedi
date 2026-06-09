@@ -309,6 +309,8 @@ export type AppointmentEventSummary = {
   comanda: {
     id: string;
     status: string;
+    subtotal_amount: number;
+    discount_amount: number;
     total_amount: number;
     paid_amount: number;
     remainder: number;
@@ -388,7 +390,7 @@ export async function getAppointmentEventSummary(
 
   const { data: comandaRow } = await supabase
     .from("comandas")
-    .select("id, status, total_amount, paid_amount, issued_at")
+    .select("id, status, subtotal_amount, discount_amount, total_amount, paid_amount, issued_at")
     .eq("appointment_id", appointmentId)
     .neq("status", "cancelada")
     .order("created_at", { ascending: false })
@@ -482,6 +484,8 @@ export async function getAppointmentEventSummary(
         ? {
             id: comandaRow.id,
             status: comandaRow.status as string,
+            subtotal_amount: Number(comandaRow.subtotal_amount ?? comandaRow.total_amount),
+            discount_amount: Number(comandaRow.discount_amount ?? 0),
             total_amount: Number(comandaRow.total_amount),
             paid_amount: Number(comandaRow.paid_amount),
             remainder: Math.max(0, Number(comandaRow.total_amount) - Number(comandaRow.paid_amount)),

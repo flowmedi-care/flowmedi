@@ -555,11 +555,16 @@ export async function registerComandaPayment(
 
   const { data: cmd } = await supabase
     .from("comandas")
-    .select("id, clinic_id, patient_id, appointment_id, total_amount, paid_amount, status")
+    .select("id, clinic_id, patient_id, appointment_id, total_amount, paid_amount, status, issued_at")
     .eq("id", comandaId)
     .single();
 
   if (!cmd || cmd.status === "cancelada") return { error: "Comanda inválida." };
+  if (!cmd.issued_at) {
+    return {
+      error: "Finalize a comanda antes de registrar pagamento (aplique desconto na finalização, se houver).",
+    };
+  }
 
   const remainder = Math.max(
     0,
@@ -765,24 +770,33 @@ export async function finishClinicalEncounter(appointmentId: string) {
     return { error: "Atendimento não está em andamento." };
   }
 
+  const { data: consumptionLines } = await supabase
+    .from("appointment_consumption_lines")
+    .select("quantity")
+    .eq("appointment_id", appointmentId)
+    .gt("quantity", 0);
+
+  const hasConsumption = (consumptionLines ?? []).length > 0;
+  const now = new Date().toISOString();
+
   const already = await hasStockBeenConsumed(supabase, appointmentId);
   if (!already) {
-    try {
-      await consumeStockForAppointment(supabase, profile.clinic_id, appointmentId, user.id);
-      await supabase
-        .from("encounters")
-        .update({
-          stock_consumed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("appointment_id", appointmentId);
-    } catch (e) {
-      console.error("[finishClinicalEncounter] stock consume:", e);
-      return { error: "Erro ao lançar consumo de material no estoque." };
+    if (hasConsumption) {
+      try {
+        await consumeStockForAppointment(supabase, profile.clinic_id, appointmentId, user.id);
+      } catch (e) {
+        console.error("[finishClinicalEncounter] stock consume:", e);
+        return { error: "Erro ao lançar consumo de material no estoque." };
+      }
     }
+    await supabase
+      .from("encounters")
+      .update({
+        stock_consumed_at: now,
+        updated_at: now,
+      })
+      .eq("appointment_id", appointmentId);
   }
-
-  const now = new Date().toISOString();
 
   const { data: apptTiming } = await supabase
     .from("appointments")
@@ -1197,9 +1211,6 @@ export async function emitComanda(appointmentId: string, options?: EmitComandaOp
 
   if (!appt) return { error: "Consulta não encontrada." };
 
-  const policy = appt.payment_policy as PaymentPolicy | null;
-  const earlyEmit = policy === "antecipado" || policy === "no_dia";
-
   let enc = await supabase
     .from("encounters")
     .select("id, status")
@@ -1211,10 +1222,6 @@ export async function emitComanda(appointmentId: string, options?: EmitComandaOp
     enc = await ensureEncounter(supabase, profile.clinic_id, appointmentId);
   }
   if (!enc) return { error: "Erro ao preparar atendimento." };
-
-  if (!earlyEmit && enc.status !== "finalizado_aguardando_cobranca") {
-    return { error: "Encerre o atendimento clínico antes de finalizar a comanda." };
-  }
 
   const chargeMaterialsSeparately = options?.chargeMaterialsSeparately !== false;
   const previewRes = await buildBillingPreviewData(supabase, appointmentId, {
@@ -1425,21 +1432,11 @@ export async function finalizeBilling(
   paymentMethod?: string,
   options?: { consumeStock?: boolean }
 ) {
-  if (options?.consumeStock === false) {
-    const emitOnly = await emitComanda(appointmentId, {
-      paymentAmount,
-      paymentMethod,
-      chargeMaterialsSeparately: true,
-    });
-    if (emitOnly.error && !emitOnly.error.includes("Encerre o atendimento")) {
-      return emitOnly;
+  if (options?.consumeStock !== false) {
+    const clinicalRes = await finishClinicalEncounter(appointmentId);
+    if (clinicalRes.error && !clinicalRes.alreadyFinished) {
+      return { error: clinicalRes.error };
     }
-    if (!emitOnly.error) return emitOnly;
-  }
-
-  const clinicalRes = await finishClinicalEncounter(appointmentId);
-  if (clinicalRes.error && !clinicalRes.alreadyFinished) {
-    return { error: clinicalRes.error };
   }
 
   return emitComanda(appointmentId, {

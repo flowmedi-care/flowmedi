@@ -118,6 +118,7 @@ export function FinanceiroOverviewClient({
                       <th className="pb-2 pr-2">Paciente</th>
                       <th className="pb-2 pr-2">Data</th>
                       <th className="pb-2 pr-2 text-right">Total</th>
+                      <th className="pb-2 pr-2 text-right">Desconto</th>
                       <th className="pb-2 pr-2 text-right">Pago</th>
                       <th className="pb-2 pr-2 text-right">Saldo</th>
                       <th className="pb-2 pr-2 text-right">Dias</th>
@@ -134,6 +135,9 @@ export function FinanceiroOverviewClient({
                             : new Date(c.created_at).toLocaleDateString("pt-BR")}
                         </td>
                         <td className="py-3 pr-2 text-right">{fmtCurrency(c.total_amount)}</td>
+                        <td className="py-3 pr-2 text-right text-muted-foreground">
+                          {c.discount_amount > 0 ? `-${fmtCurrency(c.discount_amount)}` : "—"}
+                        </td>
                         <td className="py-3 pr-2 text-right">{fmtCurrency(c.paid_amount)}</td>
                         <td className="py-3 pr-2 text-right font-medium text-amber-700 dark:text-amber-400">
                           {fmtCurrency(c.remainder)}

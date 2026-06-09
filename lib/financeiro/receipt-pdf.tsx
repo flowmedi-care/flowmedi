@@ -2,10 +2,11 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import {
   ReceiptPdfDocument,
   type ReceiptPdfData,
+  type ReceiptPdfItem,
   type ReceiptPdfLine,
 } from "./receipt-pdf-document";
 
-export type { ReceiptPdfData, ReceiptPdfLine };
+export type { ReceiptPdfData, ReceiptPdfItem, ReceiptPdfLine };
 
 /** CORRIGIDO v2 — gera PDF binário do recibo para upload no Storage. */
 export async function renderReceiptPdfBuffer(data: ReceiptPdfData): Promise<Buffer> {

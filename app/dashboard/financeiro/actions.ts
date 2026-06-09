@@ -117,7 +117,8 @@ export async function getDashboardMetrics(year: number, month: number) {
       .from("comandas")
       .select("total_amount, paid_amount")
       .eq("clinic_id", profile.clinic_id)
-      .in("status", ["aberta", "parcial"]),
+      .in("status", ["aberta", "parcial"])
+      .not("issued_at", "is", null),
     supabase
       .from("financial_entries")
       .select("amount, paid_at")
@@ -190,13 +191,14 @@ export async function listOpenComandasDetailed() {
     .from("comandas")
     .select(
       `
-      id, status, total_amount, paid_amount, created_at,
+      id, status, subtotal_amount, discount_amount, total_amount, paid_amount, created_at,
       patient:patients ( full_name ),
       appointment:appointments ( scheduled_at )
     `
     )
     .eq("clinic_id", profile.clinic_id)
     .in("status", ["aberta", "parcial"])
+    .not("issued_at", "is", null)
     .order("created_at", { ascending: true });
 
   if (error) return { error: error.message, data: [] };
@@ -227,6 +229,8 @@ export async function listOpenComandasDetailed() {
     return {
       id: String(c.id),
       status: String(c.status),
+      subtotal_amount: Number(c.subtotal_amount ?? total),
+      discount_amount: Number(c.discount_amount ?? 0),
       total_amount: total,
       paid_amount: paid,
       remainder: Math.max(0, total - paid),

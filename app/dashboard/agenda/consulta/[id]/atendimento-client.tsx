@@ -126,12 +126,8 @@ export function AtendimentoClient({
 
   useEffect(() => {
     if (!autoFinalize || loading || !canEdit) return;
-    if (mode === "billing-only" || encounterStatus === "finalizado_aguardando_cobranca") {
-      if (!comanda?.issued_at) openEmitModal();
-    } else if (encounterStatus !== "cobrado") {
-      setClinicalAttentionOpen(true);
-    }
-  }, [autoFinalize, loading, canEdit, encounterStatus, comanda, mode]);
+    if (!comanda?.issued_at) openEmitModal();
+  }, [autoFinalize, loading, canEdit, comanda]);
 
   const isClinicalLocked =
     encounterStatus === "finalizado_aguardando_cobranca" || encounterStatus === "cobrado";
@@ -139,9 +135,9 @@ export function AtendimentoClient({
   const canEditConsumption = canEdit && !isClinicalLocked;
   const canFinishClinical = canEdit && encounterStatus === "em_andamento";
   const isComandaFinalized = !!comanda?.issued_at;
-  const canEmitComanda =
-    canEdit && encounterStatus === "finalizado_aguardando_cobranca" && !isComandaFinalized;
+  const canEmitComanda = canEdit && !!comanda && !isComandaFinalized;
   const committedUnits = lines.reduce((s, l) => s + l.quantity, 0);
+  const hasMaterials = lines.length > 0;
 
   async function handleStartEncounter() {
     const res = await beginAppointmentCare(appointmentId);
@@ -163,6 +159,10 @@ export function AtendimentoClient({
   }
 
   function startClinicalFinishFlow() {
+    if (!hasMaterials) {
+      void handleFinishClinical();
+      return;
+    }
     setClinicalAttentionOpen(true);
   }
 
@@ -178,7 +178,12 @@ export function AtendimentoClient({
     setMaterialsOpen(false);
     if (res.error) toast(res.error, "error");
     else {
-      toast("Atendimento clínico encerrado. Estoque consumido.", "success");
+      toast(
+        hasMaterials
+          ? "Atendimento clínico encerrado. Estoque consumido."
+          : "Atendimento clínico encerrado.",
+        "success"
+      );
       router.refresh();
       load();
     }
@@ -325,10 +330,15 @@ export function AtendimentoClient({
             )}
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {encounterStatus === "em_andamento" && (
+            {encounterStatus === "em_andamento" && hasMaterials && (
               <p className="text-muted-foreground">
                 Confirme materiais e fichas, depois encerre o atendimento clínico para baixar o
                 estoque.
+              </p>
+            )}
+            {encounterStatus === "em_andamento" && !hasMaterials && (
+              <p className="text-muted-foreground">
+                Nenhum insumo vinculado — encerre o atendimento clínico quando concluir a consulta.
               </p>
             )}
             {encounterStatus === "finalizado_aguardando_cobranca" && !isComandaFinalized && (
@@ -362,11 +372,6 @@ export function AtendimentoClient({
             )}
           </CardHeader>
           <CardContent className="text-sm space-y-2">
-            {!canEmitComanda && !isComandaFinalized && encounterStatus !== "finalizado_aguardando_cobranca" && (
-              <p className="text-muted-foreground">
-                Encerre o atendimento clínico antes de finalizar a comanda.
-              </p>
-            )}
             {comanda && (
               <div className="rounded-lg border p-3 space-y-1">
                 <div className="flex justify-between">
@@ -394,7 +399,7 @@ export function AtendimentoClient({
         </Card>
       )}
 
-      {showConsumption && (
+      {showConsumption && hasMaterials && (
         <Card>
           <CardHeader className="pb-2">
             <h3 className="font-semibold">Consumo de material</h3>

@@ -69,6 +69,7 @@ export function FinanceiroReceberClient({
                       <th className="pb-2 pr-2">Consulta</th>
                       <th className="pb-2 pr-2">Serviço</th>
                       <th className="pb-2 pr-2 text-right">Total</th>
+                      <th className="pb-2 pr-2 text-right">Desconto</th>
                       <th className="pb-2 pr-2 text-right">Pago</th>
                       <th className="pb-2 pr-2 text-right">Saldo</th>
                       <th className="pb-2 pr-2 text-right">Dias</th>
@@ -86,6 +87,9 @@ export function FinanceiroReceberClient({
                         </td>
                         <td className="py-3 pr-2">{c.service_name ?? "—"}</td>
                         <td className="py-3 pr-2 text-right">{fmtCurrency(c.total_amount)}</td>
+                        <td className="py-3 pr-2 text-right text-muted-foreground">
+                          {c.discount_amount > 0 ? `-${fmtCurrency(c.discount_amount)}` : "—"}
+                        </td>
                         <td className="py-3 pr-2 text-right">{fmtCurrency(c.paid_amount)}</td>
                         <td className="py-3 pr-2 text-right font-medium">{fmtCurrency(c.remainder)}</td>
                         <td className={cn("py-3 pr-2 text-right", riskClass(c.days_open))}>

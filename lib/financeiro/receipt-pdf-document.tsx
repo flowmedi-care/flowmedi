@@ -7,11 +7,20 @@ export type ReceiptPdfLine = {
   method?: string | null;
 };
 
+export type ReceiptPdfItem = {
+  label: string;
+  quantity: number;
+  amount: number;
+};
+
 export type ReceiptPdfData = {
   clinic_name: string;
   receipt_number: string;
   issued_at: string;
   patient_name: string;
+  comanda_items: ReceiptPdfItem[];
+  subtotal_amount: number | null;
+  discount_amount: number | null;
   lines: ReceiptPdfLine[];
   total_received: number;
   comanda_total: number | null;
@@ -71,6 +80,43 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
           </View>
         </View>
 
+        {data.comanda_items.length > 0 && (
+          <View style={{ marginBottom: 12 }}>
+            <Text style={[styles.label, { marginBottom: 6, fontWeight: "bold" }]}>
+              Procedimentos e serviços
+            </Text>
+            {data.comanda_items.map((item, i) => (
+              <View key={i} style={styles.row}>
+                <Text style={styles.label}>
+                  {item.label}
+                  {item.quantity > 1 ? ` × ${item.quantity}` : ""}
+                </Text>
+                <Text>{fmtBrl(item.amount)}</Text>
+              </View>
+            ))}
+            {data.discount_amount != null && data.discount_amount > 0 && (
+              <>
+                {data.subtotal_amount != null && (
+                  <View style={styles.row}>
+                    <Text style={styles.label}>Subtotal</Text>
+                    <Text>{fmtBrl(data.subtotal_amount)}</Text>
+                  </View>
+                )}
+                <View style={styles.row}>
+                  <Text style={styles.label}>Desconto</Text>
+                  <Text>-{fmtBrl(data.discount_amount)}</Text>
+                </View>
+              </>
+            )}
+            {data.comanda_total != null && (
+              <View style={[styles.row, { marginTop: 4 }]}>
+                <Text style={styles.value}>Total da comanda</Text>
+                <Text style={styles.value}>{fmtBrl(data.comanda_total)}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {data.lines.map((line, i) => (
           <View key={i} style={styles.row}>
             <Text style={styles.label}>
@@ -86,12 +132,6 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
           <Text style={styles.value}>{fmtBrl(data.total_received)}</Text>
         </View>
 
-        {data.comanda_total != null && (
-          <View style={styles.row}>
-            <Text style={styles.label}>Total da comanda</Text>
-            <Text>{fmtBrl(data.comanda_total)}</Text>
-          </View>
-        )}
         {data.comanda_remainder != null && data.comanda_remainder > 0 && (
           <View style={styles.row}>
             <Text style={styles.label}>Saldo restante</Text>

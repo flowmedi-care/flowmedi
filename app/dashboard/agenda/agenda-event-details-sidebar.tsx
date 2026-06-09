@@ -180,24 +180,29 @@ export function AgendaEventDetailsSidebar({
   const isProvisional = data?.comanda_issued_at == null && !!data?.comanda;
   const isFinalized = !!data?.comanda_issued_at;
   const pendingForms = data?.forms.filter((f) => f.status === "pendente") ?? [];
-  const displayItems =
-    data?.comanda_items.length
-      ? data.comanda_items.map((i) => ({
-          label: i.description,
-          quantity: i.quantity,
-          total: i.total_price,
-        }))
-      : data?.charge.materialLines.map((l) => ({
+  const hasComanda = !!data?.comanda;
+  const displayItems = hasComanda
+    ? (data?.comanda_items ?? []).map((i) => ({
+        label: i.description,
+        quantity: i.quantity,
+        total: i.total_price,
+      }))
+    : [
+        ...(data?.service_name
+          ? [{ label: data.service_name, quantity: 1, total: data.charge.serviceAmount }]
+          : []),
+        ...(data?.charge.materialLines.map((l) => ({
           label: l.product_name,
           quantity: l.quantity,
           total: l.line_total,
-        })) ?? [];
+        })) ?? []),
+      ];
 
-  const totalDisplay =
-    data?.comanda?.total_amount ??
-    data?.charge.totalAmount ??
-    data?.valor ??
-    0;
+  const totalDisplay = hasComanda
+    ? (data?.comanda?.total_amount ?? 0)
+    : (data?.charge.totalAmount ?? data?.valor ?? 0);
+  const subtotalDisplay = hasComanda ? (data?.comanda?.subtotal_amount ?? totalDisplay) : null;
+  const discountDisplay = hasComanda ? (data?.comanda?.discount_amount ?? 0) : 0;
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex justify-end">
@@ -400,13 +405,6 @@ export function AgendaEventDetailsSidebar({
                       <CreditCard className="h-3 w-3" />
                       Comanda{isProvisional ? " (provisória)" : ""}
                     </p>
-                    {data.service_name &&
-                      !displayItems.some((i) => i.label.includes(data.service_name!)) && (
-                        <div className="flex justify-between gap-2 text-xs">
-                          <span className="truncate text-muted-foreground">{data.service_name}</span>
-                          <span className="shrink-0">{fmt(data.charge.serviceAmount)}</span>
-                        </div>
-                      )}
                     {displayItems.map((item, i) => (
                       <div key={i} className="flex justify-between gap-2 text-xs">
                         <span className="truncate text-muted-foreground">
@@ -416,6 +414,18 @@ export function AgendaEventDetailsSidebar({
                         <span className="shrink-0">{fmt(item.total)}</span>
                       </div>
                     ))}
+                    {discountDisplay > 0 && subtotalDisplay != null && (
+                      <>
+                        <div className="flex justify-between gap-2 text-xs pt-1">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span>{fmt(subtotalDisplay)}</span>
+                        </div>
+                        <div className="flex justify-between gap-2 text-xs text-amber-700 dark:text-amber-400">
+                          <span>Desconto</span>
+                          <span>-{fmt(discountDisplay)}</span>
+                        </div>
+                      </>
+                    )}
                     <div className="flex justify-between border-t pt-1.5 text-sm font-semibold">
                       <span>Total</span>
                       <span>{fmt(totalDisplay)}</span>
@@ -441,15 +451,17 @@ export function AgendaEventDetailsSidebar({
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 justify-start gap-1.5 px-2 text-xs"
-                      onClick={openMaterialsPanel}
-                    >
-                      <Package className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">Materiais</span>
-                    </Button>
+                    {data.stockCommittedUnits > 0 ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 justify-start gap-1.5 px-2 text-xs"
+                        onClick={openMaterialsPanel}
+                      >
+                        <Package className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">Materiais</span>
+                      </Button>
+                    ) : null}
                     {pendingForms.length > 0 ? (
                       <Button
                         variant="outline"
