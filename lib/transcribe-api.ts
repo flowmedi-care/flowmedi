@@ -48,12 +48,28 @@ function getTimeoutMs(source: AudioSource): number {
 }
 
 async function parseErrorResponse(res: Response): Promise<string> {
+  const rawText = await res.text();
   try {
-    const body = (await res.json()) as { detail?: string; message?: string };
-    return body.detail ?? body.message ?? `Erro na API de transcrição (${res.status})`;
+    const body = JSON.parse(rawText) as {
+      detail?: string | Array<{ msg?: string; message?: string }>;
+      message?: string;
+      error?: string;
+    };
+
+    if (typeof body.detail === "string") return body.detail;
+    if (Array.isArray(body.detail)) {
+      const parts = body.detail
+        .map((item) => item.msg ?? item.message)
+        .filter(Boolean);
+      if (parts.length > 0) return parts.join("; ");
+    }
+    if (body.message) return body.message;
+    if (body.error) return body.error;
+    if (rawText.trim()) return rawText.slice(0, 500);
   } catch {
-    return `Erro na API de transcrição (${res.status})`;
+    if (rawText.trim()) return rawText.slice(0, 500);
   }
+  return `Erro na API de transcrição (${res.status})`;
 }
 
 function mapHttpError(status: number, detail: string): Error {
@@ -101,16 +117,32 @@ export async function createTranscriptionJob(
   audioBuffer: Buffer,
   filename: string,
   userId: string,
-  source: AudioSource = "other"
+  source: AudioSource = "other",
+  options?: { mimeType?: string; recordingDurationSeconds?: number }
 ): Promise<string> {
+  const mimeType = options?.mimeType ?? "application/octet-stream";
   const form = new FormData();
   const arrayBuffer = new ArrayBuffer(audioBuffer.byteLength);
   new Uint8Array(arrayBuffer).set(audioBuffer);
-  form.append("file", new Blob([arrayBuffer]), filename);
+  form.append("file", new Blob([arrayBuffer], { type: mimeType }), filename);
   form.append("user_id", userId);
   form.append("source", source);
+  if (options?.recordingDurationSeconds != null) {
+    form.append("recording_duration_seconds", String(options.recordingDurationSeconds));
+  }
 
-  const res = await fetchWithRetry(`${getApiUrl()}/v1/transcribe`, {
+  const url = `${getApiUrl()}/v1/transcribe`;
+  console.info("[Transcribe] create job request", {
+    url,
+    filename,
+    mimeType,
+    bytes: audioBuffer.byteLength,
+    userId,
+    source,
+    recordingDurationSeconds: options?.recordingDurationSeconds ?? null,
+  });
+
+  const res = await fetchWithRetry(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${getApiKey()}` },
     body: form,
@@ -118,13 +150,25 @@ export async function createTranscriptionJob(
 
   if (!res.ok) {
     const detail = await parseErrorResponse(res);
+    console.error("[Transcribe] create job failed", {
+      status: res.status,
+      detail,
+      filename,
+      bytes: audioBuffer.byteLength,
+    });
     throw mapHttpError(res.status, detail);
   }
 
-  const data = (await res.json()) as { job_id?: string };
+  const data = (await res.json()) as { job_id?: string; status?: string };
   if (!data.job_id) {
+    console.error("[Transcribe] create job invalid response", data);
     throw new Error("Resposta inválida da API de transcrição (sem job_id).");
   }
+
+  console.info("[Transcribe] create job ok", {
+    job_id: data.job_id,
+    status: data.status ?? null,
+  });
 
   return data.job_id;
 }
@@ -136,18 +180,20 @@ export async function getTranscriptionJob(jobId: string): Promise<TranscribeJob>
 
   if (!res.ok) {
     const detail = await parseErrorResponse(res);
+    console.error("[Transcribe] get job failed", { jobId, status: res.status, detail });
     throw mapHttpError(res.status, detail);
   }
 
   const job = (await res.json()) as TranscribeJob;
 
-  if (job.status === "completed") {
-    console.info("[Transcribe]", {
-      job_id: job.job_id,
-      duration_seconds: job.duration_seconds,
-      processing_time_seconds: job.processing_time_seconds,
-    });
-  }
+  console.info("[Transcribe] get job", {
+    job_id: job.job_id,
+    status: job.status,
+    duration_seconds: job.duration_seconds,
+    processing_time_seconds: job.processing_time_seconds,
+    has_text: Boolean(job.text?.trim()),
+    error_message: job.error_message ?? null,
+  });
 
   return job;
 }

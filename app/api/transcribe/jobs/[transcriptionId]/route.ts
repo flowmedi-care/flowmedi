@@ -60,6 +60,13 @@ export async function GET(
       const job = await getTranscriptionJob(row.external_job_id);
       const mappedStatus = mapExternalStatus(job.status);
 
+      console.info("[Transcribe] poll job", {
+        transcriptionId,
+        external_job_id: row.external_job_id,
+        status: job.status,
+        mappedStatus,
+      });
+
       if (mappedStatus === "completed") {
         const transcript = (job.text ?? "").trim();
         const updatePayload = {
