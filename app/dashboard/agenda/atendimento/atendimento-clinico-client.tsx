@@ -29,6 +29,7 @@ import { toast } from "@/components/ui/toast";
 import { AppointmentEncounterNav } from "@/components/appointment-encounter-nav";
 import { ConsultationNotesClient } from "../consulta/[id]/consultation-notes-client";
 import { ExamesClient } from "@/app/dashboard/exames/exames-client";
+import { ClinicalTranscriptionPanel } from "./clinical-transcription-panel";
 import {
   ArrowLeft,
   ClipboardList,
@@ -37,6 +38,7 @@ import {
   FileText,
   FolderOpen,
   MessageSquare,
+  Mic,
   User,
 } from "lucide-react";
 
@@ -44,6 +46,7 @@ type ActivePanel =
   | { kind: "ficha"; id: string }
   | { kind: "relatorio"; id: string }
   | { kind: "notas" }
+  | { kind: "transcricao" }
   | { kind: "arquivos" }
   | null;
 
@@ -337,6 +340,19 @@ export function AtendimentoClinicoClient({
                 </button>
                 <button
                   type="button"
+                  onClick={() => setActive({ kind: "transcricao" })}
+                  className={cn(
+                    "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2",
+                    active?.kind === "transcricao"
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted/60"
+                  )}
+                >
+                  <Mic className="h-3.5 w-3.5 shrink-0" />
+                  Transcrição de áudio
+                </button>
+                <button
+                  type="button"
                   onClick={() => setActive({ kind: "arquivos" })}
                   className={cn(
                     "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2",
@@ -420,6 +436,13 @@ export function AtendimentoClinicoClient({
                 currentUserId={currentUserId}
               />
             </div>
+          )}
+
+          {active?.kind === "transcricao" && (
+            <ClinicalTranscriptionPanel
+              appointmentId={appointmentId}
+              canRecord={canEdit || isDoctor}
+            />
           )}
 
           {active?.kind === "arquivos" && (

@@ -1,0 +1,132 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { requireClinicMemberWithRole } from "@/lib/auth-helpers";
+import { getTranscriptionJob, type JobStatus } from "@/lib/transcribe-api";
+
+function mapExternalStatus(status: JobStatus): JobStatus {
+  if (status === "queued") return "processing";
+  return status;
+}
+
+/**
+ * GET /api/transcribe/jobs/[transcriptionId]
+ * Consulta status da transcrição (poll externo + persistência no DB).
+ */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ transcriptionId: string }> }
+) {
+  try {
+    const { transcriptionId } = await params;
+    const { clinicId } = await requireClinicMemberWithRole();
+
+    const supabase = await createClient();
+    const { data: row, error } = await supabase
+      .from("appointment_transcriptions")
+      .select(
+        "id, clinic_id, external_job_id, status, transcript, error_message, duration_seconds, processing_time_seconds"
+      )
+      .eq("id", transcriptionId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[Transcribe] fetch row error:", error);
+      return NextResponse.json({ error: "Erro ao consultar transcrição." }, { status: 500 });
+    }
+
+    if (!row || row.clinic_id !== clinicId) {
+      return NextResponse.json({ error: "Transcrição não encontrada." }, { status: 404 });
+    }
+
+    if (row.status === "completed" || row.status === "failed") {
+      return NextResponse.json({
+        status: row.status,
+        transcript: row.transcript,
+        error_message: row.error_message,
+        duration_seconds: row.duration_seconds,
+        processing_time_seconds: row.processing_time_seconds,
+      });
+    }
+
+    if (!row.external_job_id) {
+      return NextResponse.json({
+        status: row.status,
+        transcript: null,
+        error_message: row.error_message,
+      });
+    }
+
+    try {
+      const job = await getTranscriptionJob(row.external_job_id);
+      const mappedStatus = mapExternalStatus(job.status);
+
+      if (mappedStatus === "completed") {
+        const transcript = (job.text ?? "").trim();
+        const updatePayload = {
+          status: transcript ? "completed" : "failed",
+          transcript: transcript || null,
+          error_message: transcript ? null : "Transcrição concluída, mas o texto está vazio.",
+          duration_seconds: job.duration_seconds ?? null,
+          processing_time_seconds: job.processing_time_seconds ?? null,
+          updated_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+        };
+
+        await supabase
+          .from("appointment_transcriptions")
+          .update(updatePayload)
+          .eq("id", transcriptionId);
+
+        return NextResponse.json({
+          status: updatePayload.status,
+          transcript: updatePayload.transcript,
+          error_message: updatePayload.error_message,
+          duration_seconds: updatePayload.duration_seconds,
+          processing_time_seconds: updatePayload.processing_time_seconds,
+        });
+      }
+
+      if (mappedStatus === "failed") {
+        const errorMessage = job.error_message || "Transcrição falhou.";
+        await supabase
+          .from("appointment_transcriptions")
+          .update({
+            status: "failed",
+            error_message: errorMessage,
+            updated_at: new Date().toISOString(),
+            completed_at: new Date().toISOString(),
+          })
+          .eq("id", transcriptionId);
+
+        return NextResponse.json({
+          status: "failed",
+          transcript: null,
+          error_message: errorMessage,
+        });
+      }
+
+      if (row.status !== mappedStatus) {
+        await supabase
+          .from("appointment_transcriptions")
+          .update({
+            status: mappedStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", transcriptionId);
+      }
+
+      return NextResponse.json({
+        status: mappedStatus,
+        transcript: null,
+        error_message: null,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro ao consultar transcrição.";
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro interno.";
+    const status = message === "Não autenticado" ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
+}
