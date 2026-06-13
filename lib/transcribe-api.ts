@@ -104,8 +104,9 @@ export async function createTranscriptionJob(
   source: AudioSource = "other"
 ): Promise<string> {
   const form = new FormData();
-  const bytes = new Uint8Array(audioBuffer.buffer, audioBuffer.byteOffset, audioBuffer.byteLength);
-  form.append("file", new Blob([bytes]), filename);
+  const arrayBuffer = new ArrayBuffer(audioBuffer.byteLength);
+  new Uint8Array(arrayBuffer).set(audioBuffer);
+  form.append("file", new Blob([arrayBuffer]), filename);
   form.append("user_id", userId);
   form.append("source", source);
 
