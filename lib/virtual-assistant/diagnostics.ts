@@ -8,8 +8,16 @@ export interface AssistantHealthCheck {
   cronSecretConfigured: boolean;
   pendingInboundCount: number;
   stuckDebounceCount: number;
+  blockedConversationCount: number;
   lastEventAt: string | null;
   lastEventStage: string | null;
+}
+
+export interface BlockedConversationRow {
+  id: string;
+  phone_number: string;
+  ai_handoff_at: string | null;
+  ai_enabled: boolean | null;
 }
 
 export interface AiEventRow {
@@ -37,6 +45,7 @@ export async function gatherAssistantDiagnostics(
   health: AssistantHealthCheck;
   events: AiEventRow[];
   toolLogs: AiToolLogRow[];
+  blockedConversations: BlockedConversationRow[];
 }> {
   const now = new Date().toISOString();
 
@@ -47,6 +56,7 @@ export async function gatherAssistantDiagnostics(
     lastEventResult,
     eventsResult,
     toolLogsResult,
+    blockedResult,
   ] = await Promise.all([
     supabase
       .from("clinic_virtual_assistant_settings")
@@ -85,6 +95,13 @@ export async function gatherAssistantDiagnostics(
       .eq("clinic_id", clinicId)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("whatsapp_conversations")
+      .select("id, phone_number, ai_handoff_at, ai_enabled")
+      .eq("clinic_id", clinicId)
+      .or("ai_handoff_at.not.is.null,ai_enabled.eq.false")
+      .order("updated_at", { ascending: false })
+      .limit(20),
   ]);
 
   const migrationOk = !settingsResult.error;
@@ -101,6 +118,7 @@ export async function gatherAssistantDiagnostics(
     cronSecretConfigured: Boolean(process.env.CRON_SECRET),
     pendingInboundCount: pendingResult.count ?? 0,
     stuckDebounceCount: stuckResult.count ?? 0,
+    blockedConversationCount: blockedResult.data?.length ?? 0,
     lastEventAt: lastEventResult.data?.created_at ?? null,
     lastEventStage: lastEventResult.data?.stage ?? null,
   };
@@ -116,6 +134,7 @@ export async function gatherAssistantDiagnostics(
     health,
     events: (eventsResult.data ?? []) as AiEventRow[],
     toolLogs: (toolLogsResult.data ?? []) as AiToolLogRow[],
+    blockedConversations: (blockedResult.data ?? []) as BlockedConversationRow[],
   };
 }
 

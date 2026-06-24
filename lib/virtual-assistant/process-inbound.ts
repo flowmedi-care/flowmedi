@@ -457,6 +457,44 @@ export async function scheduleAiDebounce(
   });
 }
 
+export async function reactivateAiOnPatientInbound(
+  supabase: SupabaseClient,
+  clinicId: string,
+  conversationId: string
+): Promise<boolean> {
+  const { active } = await isVirtualAssistantActive(supabase, clinicId);
+  if (!active) return false;
+
+  const { data: conv } = await supabase
+    .from("whatsapp_conversations")
+    .select("ai_handoff_at, ai_enabled")
+    .eq("id", conversationId)
+    .single();
+
+  if (!conv) return false;
+  if (!conv.ai_handoff_at && conv.ai_enabled !== false) return false;
+
+  await supabase
+    .from("whatsapp_conversations")
+    .update({
+      ai_handoff_at: null,
+      ai_enabled: true,
+    })
+    .eq("id", conversationId);
+
+  logAiEvent(supabase, {
+    clinicId,
+    conversationId,
+    stage: "ai_reactivated",
+    detail: {
+      hadHandoff: Boolean(conv.ai_handoff_at),
+      hadAiDisabled: conv.ai_enabled === false,
+    },
+  });
+
+  return true;
+}
+
 export async function shouldSkipMenuChatbot(
   supabase: SupabaseClient,
   clinicId: string,

@@ -10,6 +10,7 @@ import type {
   AiEventRow,
   AiToolLogRow,
   AssistantHealthCheck,
+  BlockedConversationRow,
 } from "@/lib/virtual-assistant/diagnostics";
 
 const STAGE_LABELS: Record<string, string> = {
@@ -23,6 +24,7 @@ const STAGE_LABELS: Record<string, string> = {
   openai_end: "Resposta OpenAI",
   reply_sent: "Resposta enviada",
   handoff: "Transferido para humano",
+  ai_reactivated: "IA reativada na conversa",
   cron_conversation_processed: "Processado pelo cron",
   simulate_inbound: "Simulação inbound",
   error: "Erro",
@@ -44,6 +46,7 @@ interface DiagnosticsResponse {
   health: AssistantHealthCheck;
   events: AiEventRow[];
   toolLogs: AiToolLogRow[];
+  blockedConversations: BlockedConversationRow[];
 }
 
 interface Props {
@@ -54,6 +57,7 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [simulating, setSimulating] = useState(false);
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
   const [data, setData] = useState<DiagnosticsResponse | null>(null);
   const [simulatePhone, setSimulatePhone] = useState("");
   const [simulateText, setSimulateText] = useState("Oi, quero agendar uma consulta");
@@ -142,6 +146,28 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
     }
   }
 
+  async function handleReactivate(conversationId: string) {
+    setReactivatingId(conversationId);
+    try {
+      const res = await fetch("/api/whatsapp/assistant/reactivate-conversation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      });
+      const json = (await res.json()) as DiagnosticsResponse & { error?: string };
+      if (!res.ok) {
+        toast(json.error ?? "Erro ao reativar IA", "error");
+        return;
+      }
+      setData(json);
+      toast("IA reativada nesta conversa.", "success");
+    } catch {
+      toast("Falha ao reativar IA", "error");
+    } finally {
+      setReactivatingId(null);
+    }
+  }
+
   const health = data?.health;
 
   return (
@@ -194,6 +220,11 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
               >
                 <strong>Fila debounce presa:</strong> {health.stuckDebounceCount}
               </div>
+              <div
+                className={`rounded-md border p-3 text-sm ${statusClass(health.blockedConversationCount === 0, health.blockedConversationCount > 0)}`}
+              >
+                <strong>Conversas bloqueadas (handoff/pausa):</strong> {health.blockedConversationCount}
+              </div>
             </div>
           ) : null}
 
@@ -205,6 +236,47 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
           )}
         </CardContent>
       </Card>
+
+      {data?.blockedConversations && data.blockedConversations.length > 0 && (
+        <Card className="border-amber-200">
+          <CardHeader>
+            <CardTitle>Conversas sem IA ativa</CardTitle>
+            <CardDescription>
+              Estas conversas estão em handoff humano ou com IA pausada (ex.: após resposta manual pela
+              equipe). Novas mensagens do paciente reativam a IA automaticamente após o deploy — ou use o
+              botão abaixo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {data.blockedConversations.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2"
+                >
+                  <span>
+                    <strong>{c.phone_number}</strong>
+                    {c.ai_handoff_at && (
+                      <span className="ml-2 text-amber-700">handoff humano</span>
+                    )}
+                    {c.ai_enabled === false && (
+                      <span className="ml-2 text-amber-700">IA pausada</span>
+                    )}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={reactivatingId === c.id}
+                    onClick={() => void handleReactivate(c.id)}
+                  >
+                    {reactivatingId === c.id ? "Reativando…" : "Reativar IA"}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

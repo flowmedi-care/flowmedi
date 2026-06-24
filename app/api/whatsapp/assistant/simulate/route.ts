@@ -5,6 +5,7 @@ import { gatherAssistantDiagnostics } from "@/lib/virtual-assistant/diagnostics"
 import { logAiEvent } from "@/lib/virtual-assistant/event-log";
 import {
   processConversationAi,
+  reactivateAiOnPatientInbound,
   scheduleAiDebounce,
 } from "@/lib/virtual-assistant/process-inbound";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
@@ -85,6 +86,8 @@ export async function POST(request: NextRequest) {
       stage: "simulate_inbound",
       detail: { phone, textPreview: text.slice(0, 80), tag: simulateTag },
     });
+
+    await reactivateAiOnPatientInbound(supabase, clinicId, conversationId);
 
     const { data: vaSettings } = await supabase
       .from("clinic_virtual_assistant_settings")

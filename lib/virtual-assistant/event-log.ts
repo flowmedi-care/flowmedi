@@ -14,6 +14,7 @@ export const AI_EVENT_STAGES = [
   "cron_batch_start",
   "cron_conversation_processed",
   "simulate_inbound",
+  "ai_reactivated",
   "error",
 ] as const;
 

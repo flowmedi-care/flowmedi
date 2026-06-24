@@ -11,6 +11,7 @@ import {
   sendChatbotReply,
 } from "@/lib/whatsapp-routing";
 import {
+  reactivateAiOnPatientInbound,
   scheduleAiDebounce,
   shouldSkipMenuChatbot,
 } from "@/lib/virtual-assistant/process-inbound";
@@ -289,6 +290,8 @@ export async function POST(request: NextRequest) {
               bodyPreview: (bodyText ?? "").slice(0, 80),
             },
           });
+
+          await reactivateAiOnPatientInbound(supabase, clinicId, conversationId);
 
           const routing = await shouldSkipMenuChatbot(supabase, clinicId, conversationId);
           console.info("[WhatsApp Webhook] roteamento pós-mensagem", {
