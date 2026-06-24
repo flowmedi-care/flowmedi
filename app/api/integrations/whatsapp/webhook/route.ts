@@ -279,6 +279,11 @@ export async function POST(request: NextRequest) {
               .eq("clinic_id", clinicId)
               .maybeSingle();
             const debounceSec = Number(vaSettings?.message_debounce_seconds) || 5;
+            console.info("[VirtualAssistant] mensagem recebida, agendando IA", {
+              clinicId,
+              conversationId,
+              debounceSec,
+            });
             await scheduleAiDebounce(supabase, conversationId, clinicId, debounceSec);
           } else {
             const chatbotResult = await handleChatbotMessage(

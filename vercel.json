@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/weekly-executive-briefing",
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/process-whatsapp-ai",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const supabase = createServiceRoleClient();
   const now = new Date().toISOString();
 
-  const { data: conversations } = await supabase
+  const { data: debounced } = await supabase
     .from("whatsapp_conversations")
     .select("id")
     .lte("ai_debounce_until", now)
@@ -26,15 +26,28 @@ export async function GET(request: NextRequest) {
     .neq("ai_enabled", false)
     .limit(50);
 
+  const { data: pendingRows } = await supabase
+    .from("whatsapp_messages")
+    .select("conversation_id")
+    .eq("direction", "inbound")
+    .is("ai_processed_at", null)
+    .limit(100);
+
+  const ids = new Set<string>();
+  for (const c of debounced ?? []) ids.add(c.id);
+  for (const row of pendingRows ?? []) {
+    if (row.conversation_id) ids.add(row.conversation_id);
+  }
+
   let processed = 0;
-  for (const conv of conversations ?? []) {
+  for (const conversationId of ids) {
     try {
-      await processConversationAi(supabase, conv.id);
+      await processConversationAi(supabase, conversationId);
       processed++;
     } catch (e) {
-      console.error("[cron/process-whatsapp-ai]", conv.id, e);
+      console.error("[cron/process-whatsapp-ai]", conversationId, e);
     }
   }
 
-  return NextResponse.json({ processed, total: conversations?.length ?? 0 });
+  return NextResponse.json({ processed, total: ids.size });
 }

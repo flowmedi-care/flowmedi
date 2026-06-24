@@ -316,32 +316,61 @@ export async function scheduleAiDebounce(
     .update({ ai_debounce_until: debounceUntil })
     .eq("id", conversationId);
 
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    console.warn("[VirtualAssistant] CRON_SECRET não configurado — use o cron /api/cron/process-whatsapp-ai");
+  const runProcessing = async () => {
+    await new Promise((r) => setTimeout(r, debounceSeconds * 1000));
+    const { createServiceRoleClient } = await import("@/lib/supabase/service-role");
+    await processConversationAi(createServiceRoleClient(), conversationId);
+  };
+
+  try {
+    const { waitUntil } = await import("@vercel/functions");
+    waitUntil(
+      runProcessing().catch((e) => {
+        console.error("[VirtualAssistant] waitUntil processing failed:", e);
+      })
+    );
+    console.info("[VirtualAssistant] agendado via waitUntil", {
+      conversationId,
+      debounceSeconds,
+    });
     return;
+  } catch {
+    // Ambiente sem @vercel/functions (dev local)
   }
 
+  const secret = process.env.CRON_SECRET;
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
 
-  if (!baseUrl) {
-    console.warn("[VirtualAssistant] NEXT_PUBLIC_APP_URL não configurado");
+  if (secret && baseUrl) {
+    const url = `${baseUrl.replace(/\/$/, "")}/api/internal/process-whatsapp-ai`;
+    void fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ conversationId }),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          console.error("[VirtualAssistant] internal API status:", res.status);
+        }
+      })
+      .catch((e) => {
+        console.error("[VirtualAssistant] falha ao disparar processamento:", e);
+      });
+    console.info("[VirtualAssistant] agendado via fetch interno", { conversationId });
     return;
   }
 
-  const url = `${baseUrl.replace(/\/$/, "")}/api/internal/process-whatsapp-ai`;
-
-  void fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${secret}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ conversationId }),
-  }).catch((e) => {
-    console.error("[VirtualAssistant] falha ao disparar processamento:", e);
+  console.warn(
+    "[VirtualAssistant] fallback local — processamento em background sem waitUntil",
+    { conversationId, hasSecret: Boolean(secret), hasBaseUrl: Boolean(baseUrl) }
+  );
+  void runProcessing().catch((e) => {
+    console.error("[VirtualAssistant] background processing failed:", e);
   });
 }
 
@@ -350,8 +379,14 @@ export async function shouldSkipMenuChatbot(
   clinicId: string,
   conversationId: string
 ): Promise<boolean> {
-  const { active } = await isVirtualAssistantActive(supabase, clinicId);
-  if (!active) return false;
+  const { active, settings } = await isVirtualAssistantActive(supabase, clinicId);
+  if (!active) {
+    console.info("[VirtualAssistant] inativo para clínica", {
+      clinicId,
+      enabled: settings?.enabled ?? false,
+    });
+    return false;
+  }
 
   const { data: conv } = await supabase
     .from("whatsapp_conversations")
@@ -359,7 +394,10 @@ export async function shouldSkipMenuChatbot(
     .eq("id", conversationId)
     .single();
 
-  if (conv?.ai_handoff_at || conv?.ai_enabled === false) return false;
+  if (conv?.ai_handoff_at || conv?.ai_enabled === false) {
+    console.info("[VirtualAssistant] conversa em handoff humano", { conversationId });
+    return false;
+  }
   return true;
 }
 
