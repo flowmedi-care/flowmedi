@@ -4,7 +4,7 @@ Objetivo: estabilizar o produto, reduzir risco comercial e melhorar percepcao de
 
 ## Ordem recomendada (do mais critico para o menos critico)
 
-## Fase 0 - Diagnostico rapido e baseline (1-2 dias)
+## Fase 0 - Diagnostico rapido e baseline (1-2 dias))
 
 1. Levantar tudo que quebra hoje em producao:
    - relatorios sem funcionar
