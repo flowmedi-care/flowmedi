@@ -29,6 +29,7 @@ const STAGE_LABELS: Record<string, string> = {
   audio_transcribe_ok: "Áudio transcrito",
   audio_transcribe_failed: "Falha na transcrição",
   audio_no_media: "Áudio sem mídia salva",
+  queue_cleared: "Fila da IA zerada",
   cron_conversation_processed: "Processado pelo cron",
   simulate_inbound: "Simulação inbound",
   error: "Erro",
@@ -60,6 +61,7 @@ interface Props {
 export function AssistenteVirtualDiagnostics({ active }: Props) {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [reactivatingId, setReactivatingId] = useState<string | null>(null);
   const [data, setData] = useState<DiagnosticsResponse | null>(null);
@@ -92,6 +94,48 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
     }, 10000);
     return () => clearInterval(interval);
   }, [active, load]);
+
+  async function handleClearQueue() {
+    const pending = data?.health.pendingInboundCount ?? 0;
+    const audios = data?.health.pendingAudioCount ?? 0;
+    const stuck = data?.health.stuckDebounceCount ?? 0;
+
+    const summary =
+      pending + audios + stuck > 0
+        ? `${pending} mensagem(ns) pendente(s), ${audios} áudio(s) e ${stuck} debounce(s) preso(s).`
+        : "Não há itens na fila no momento.";
+
+    if (
+      !confirm(
+        `Zerar fila da IA?\n\n${summary}\n\nAs mensagens antigas serão descartadas SEM resposta. O contexto da IA nas conversas será reiniciado. Mensagens novas (após zerar) serão atendidas normalmente quando o assistente estiver ativo.\n\nEsta ação não pode ser desfeita.`
+      )
+    ) {
+      return;
+    }
+
+    setClearing(true);
+    try {
+      const res = await fetch("/api/whatsapp/assistant/clear-queue", { method: "POST" });
+      const json = (await res.json()) as DiagnosticsResponse & {
+        error?: string;
+        messagesSkipped?: number;
+        transcriptionJobsCleared?: number;
+      };
+      if (!res.ok) {
+        toast(json.error ?? "Erro ao zerar fila", "error");
+        return;
+      }
+      setData(json);
+      toast(
+        `Fila zerada: ${json.messagesSkipped ?? 0} mensagem(ns) descartada(s), ${json.transcriptionJobsCleared ?? 0} transcrição(ões) cancelada(s).`,
+        "success"
+      );
+    } catch {
+      toast("Falha ao zerar fila", "error");
+    } finally {
+      setClearing(false);
+    }
+  }
 
   async function handleProcessNow() {
     setProcessing(true);
@@ -188,8 +232,17 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
             <Button variant="outline" size="sm" onClick={() => { setLoading(true); void load(); }} disabled={loading}>
               Atualizar
             </Button>
-            <Button size="sm" onClick={() => void handleProcessNow()} disabled={processing}>
+            <Button size="sm" onClick={() => void handleProcessNow()} disabled={processing || clearing}>
               {processing ? "Processando…" : "Processar fila agora"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-red-200 text-red-700 hover:bg-red-50"
+              onClick={() => void handleClearQueue()}
+              disabled={processing || clearing}
+            >
+              {clearing ? "Zerando…" : "Zerar fila da IA"}
             </Button>
           </div>
 
@@ -249,6 +302,10 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
               {new Date(health.lastEventAt).toLocaleString("pt-BR")}
             </p>
           )}
+          <p className="text-xs text-muted-foreground">
+            <strong>Reinício limpo:</strong> com o assistente desativado, use <em>Zerar fila da IA</em> antes
+            de ativar — descarta mensagens antigas sem responder e reinicia o contexto. Depois ative na aba Geral.
+          </p>
           <p className="text-xs text-muted-foreground">
             <strong>Teste de áudio:</strong> envie um áudio curto pelo WhatsApp. Na timeline, espere{" "}
             <em>Transcrição de áudio iniciada</em> → <em>Áudio transcrito</em> → <em>Resposta enviada</em>.
