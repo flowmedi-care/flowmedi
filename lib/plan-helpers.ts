@@ -112,6 +112,7 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
           productivity_team_enabled: false,
           operational_indicators_enabled: false,
           audit_log_enabled: false,
+          virtual_assistant_enabled: false,
         },
       };
     }
@@ -140,6 +141,8 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
         productivity_team_enabled: starterPlan.productivity_team_enabled ?? false,
         operational_indicators_enabled: starterPlan.operational_indicators_enabled ?? false,
         audit_log_enabled: starterPlan.audit_log_enabled ?? false,
+        virtual_assistant_enabled:
+          starterPlan.virtual_assistant_enabled ?? starterPlan.whatsapp_enabled ?? false,
       },
     };
   }
@@ -185,6 +188,8 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
         productivity_team_enabled: starterPlan.productivity_team_enabled ?? false,
         operational_indicators_enabled: starterPlan.operational_indicators_enabled ?? false,
         audit_log_enabled: starterPlan.audit_log_enabled ?? false,
+        virtual_assistant_enabled:
+          starterPlan.virtual_assistant_enabled ?? starterPlan.whatsapp_enabled ?? false,
       },
     };
   }
@@ -213,6 +218,8 @@ export async function getClinicPlanData(): Promise<ClinicPlanData | null> {
       productivity_team_enabled: plan.productivity_team_enabled ?? false,
       operational_indicators_enabled: plan.operational_indicators_enabled ?? false,
       audit_log_enabled: plan.audit_log_enabled ?? false,
+      virtual_assistant_enabled:
+        plan.virtual_assistant_enabled ?? plan.whatsapp_enabled ?? false,
     },
   };
 }

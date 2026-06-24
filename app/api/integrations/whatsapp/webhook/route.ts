@@ -10,6 +10,10 @@ import {
   handleChatbotMessage,
   sendChatbotReply,
 } from "@/lib/whatsapp-routing";
+import {
+  scheduleAiDebounce,
+  shouldSkipMenuChatbot,
+} from "@/lib/virtual-assistant/process-inbound";
 
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
@@ -267,15 +271,26 @@ export async function POST(request: NextRequest) {
             console.error("[WhatsApp Webhook] Erro ao inserir mensagem:", insertMsg.error);
           }
 
-          const chatbotResult = await handleChatbotMessage(
-            supabase,
-            clinicId,
-            conversationId,
-            from,
-            bodyText ?? ""
-          );
-          if (chatbotResult.reply) {
-            await sendChatbotReply(supabase, clinicId, conversationId, from, chatbotResult.reply);
+          const skipMenu = await shouldSkipMenuChatbot(supabase, clinicId, conversationId);
+          if (skipMenu) {
+            const { data: vaSettings } = await supabase
+              .from("clinic_virtual_assistant_settings")
+              .select("message_debounce_seconds")
+              .eq("clinic_id", clinicId)
+              .maybeSingle();
+            const debounceSec = Number(vaSettings?.message_debounce_seconds) || 5;
+            await scheduleAiDebounce(supabase, conversationId, clinicId, debounceSec);
+          } else {
+            const chatbotResult = await handleChatbotMessage(
+              supabase,
+              clinicId,
+              conversationId,
+              from,
+              bodyText ?? ""
+            );
+            if (chatbotResult.reply) {
+              await sendChatbotReply(supabase, clinicId, conversationId, from, chatbotResult.reply);
+            }
           }
         }
       }

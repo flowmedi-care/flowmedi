@@ -156,6 +156,11 @@ export async function POST(request: NextRequest) {
       sent_at: new Date().toISOString(),
     } as Record<string, unknown>);
 
+    try {
+      const { pauseAiOnManualReply } = await import("@/lib/virtual-assistant/process-inbound");
+      await pauseAiOnManualReply(supabase, conversationId);
+    } catch (_) {}
+
     // Primeira que responde assume: secretária envia em conversa em pool → atribui a ela
     if (role === "secretaria" && existing?.assigned_secretary_id == null) {
       await supabase

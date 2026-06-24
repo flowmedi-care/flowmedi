@@ -19,6 +19,7 @@ export interface PlanLimits {
   productivity_team_enabled?: boolean;
   operational_indicators_enabled?: boolean;
   audit_log_enabled?: boolean;
+  virtual_assistant_enabled?: boolean;
 }
 
 export interface PlanCheckResult {
@@ -181,6 +182,19 @@ export function canUploadFile(
  */
 export function canUseWhatsApp(planSlug: string | null, subscriptionStatus: string | null): boolean {
   return hasProAccess(planSlug, subscriptionStatus);
+}
+
+/**
+ * Verifica se pode usar o assistente virtual WhatsApp com IA
+ */
+export function canUseVirtualAssistant(
+  planLimits: PlanLimits,
+  planSlug: string | null,
+  subscriptionStatus: string | null
+): boolean {
+  const flag =
+    planLimits.virtual_assistant_enabled === true || planLimits.whatsapp_enabled === true;
+  return flag && hasProAccess(planSlug, subscriptionStatus);
 }
 
 /**
