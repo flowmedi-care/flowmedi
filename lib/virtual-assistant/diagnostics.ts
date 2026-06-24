@@ -1,4 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  buildMessageFlows,
+  type ConversationMeta,
+  type MessageFlowTrace,
+} from "./diagnostics-flow";
 
 export interface AssistantHealthCheck {
   assistantEnabled: boolean;
@@ -46,6 +51,8 @@ export async function gatherAssistantDiagnostics(
 ): Promise<{
   health: AssistantHealthCheck;
   events: AiEventRow[];
+  flows: MessageFlowTrace[];
+  conversationMeta: Record<string, ConversationMeta>;
   toolLogs: AiToolLogRow[];
   blockedConversations: BlockedConversationRow[];
 }> {
@@ -91,7 +98,7 @@ export async function gatherAssistantDiagnostics(
       .select("id, stage, level, detail, conversation_id, message_id, created_at")
       .eq("clinic_id", clinicId)
       .order("created_at", { ascending: false })
-      .limit(50),
+      .limit(100),
     supabase
       .from("whatsapp_ai_tool_log")
       .select("id, tool_name, success, result_summary, created_at")
@@ -142,9 +149,49 @@ export async function gatherAssistantDiagnostics(
       "Tabela whatsapp_ai_event_log não existe — rode migration-whatsapp-ai-events.sql";
   }
 
+  const events = (eventsResult.data ?? []) as AiEventRow[];
+  const conversationIds = [
+    ...new Set(events.map((e) => e.conversation_id).filter((id): id is string => Boolean(id))),
+  ];
+
+  const conversationMeta: Record<string, ConversationMeta> = {};
+  if (conversationIds.length > 0) {
+    const { data: convRows } = await supabase
+      .from("whatsapp_conversations")
+      .select("id, phone_number, patient_id")
+      .eq("clinic_id", clinicId)
+      .in("id", conversationIds);
+
+    const patientIds = [
+      ...new Set((convRows ?? []).map((c) => c.patient_id).filter((id): id is string => Boolean(id))),
+    ];
+
+    const patientNames = new Map<string, string>();
+    if (patientIds.length > 0) {
+      const { data: patients } = await supabase
+        .from("patients")
+        .select("id, name")
+        .in("id", patientIds);
+      for (const p of patients ?? []) {
+        if (p.name) patientNames.set(p.id, p.name);
+      }
+    }
+
+    for (const c of convRows ?? []) {
+      conversationMeta[c.id] = {
+        phone: c.phone_number ?? "",
+        patientName: c.patient_id ? patientNames.get(c.patient_id) ?? null : null,
+      };
+    }
+  }
+
+  const flows = buildMessageFlows(events, conversationMeta);
+
   return {
     health,
-    events: (eventsResult.data ?? []) as AiEventRow[],
+    events,
+    flows,
+    conversationMeta,
     toolLogs: (toolLogsResult.data ?? []) as AiToolLogRow[],
     blockedConversations: (blockedResult.data ?? []) as BlockedConversationRow[],
   };

@@ -1,10 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  Activity,
+  Bot,
+  Clock,
+  Mic,
+  MessageSquareWarning,
+  RefreshCw,
+  Server,
+  Shield,
+  Trash2,
+  Zap,
+} from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
 import type {
   AiEventRow,
@@ -12,50 +25,60 @@ import type {
   AssistantHealthCheck,
   BlockedConversationRow,
 } from "@/lib/virtual-assistant/diagnostics";
-
-const STAGE_LABELS: Record<string, string> = {
-  webhook_inbound: "Mensagem recebida (webhook)",
-  routing_decision: "Decisão de roteamento",
-  legacy_menu_no_reply: "Menu legado sem resposta",
-  debounce_scheduled: "IA agendada (debounce)",
-  processing_start: "Processamento iniciado",
-  pending_messages: "Mensagens pendentes",
-  openai_start: "Chamada OpenAI",
-  openai_end: "Resposta OpenAI",
-  reply_sent: "Resposta enviada",
-  handoff: "Transferido para humano",
-  ai_reactivated: "IA reativada na conversa",
-  audio_transcribe_start: "Transcrição de áudio iniciada",
-  audio_transcribe_ok: "Áudio transcrito",
-  audio_transcribe_failed: "Falha na transcrição",
-  audio_no_media: "Áudio sem mídia salva",
-  queue_cleared: "Fila da IA zerada",
-  cron_conversation_processed: "Processado pelo cron",
-  simulate_inbound: "Simulação inbound",
-  error: "Erro",
-};
-
-function statusClass(ok: boolean, warn = false): string {
-  if (ok) return "border-green-200 bg-green-50 text-green-900";
-  if (warn) return "border-amber-200 bg-amber-50 text-amber-900";
-  return "border-red-200 bg-red-50 text-red-900";
-}
-
-function levelDot(level: string): string {
-  if (level === "error") return "bg-red-500";
-  if (level === "warn") return "bg-amber-500";
-  return "bg-green-500";
-}
+import type { MessageFlowTrace } from "@/lib/virtual-assistant/diagnostics-flow";
+import { AssistenteVirtualFlowTimeline } from "./assistente-virtual-flow-timeline";
+import { cn } from "@/lib/utils";
 
 interface DiagnosticsResponse {
   health: AssistantHealthCheck;
   events: AiEventRow[];
+  flows: MessageFlowTrace[];
   toolLogs: AiToolLogRow[];
   blockedConversations: BlockedConversationRow[];
 }
 
 interface Props {
   active: boolean;
+}
+
+function HealthStat({
+  icon: Icon,
+  label,
+  value,
+  ok,
+  warn,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string | number;
+  ok: boolean;
+  warn?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-xl border p-3",
+        ok && "border-green-200/80 bg-green-50/50",
+        !ok && warn && "border-amber-200/80 bg-amber-50/50",
+        !ok && !warn && "border-red-200/80 bg-red-50/50"
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+          ok && "bg-green-100 text-green-700",
+          !ok && warn && "bg-amber-100 text-amber-700",
+          !ok && !warn && "bg-red-100 text-red-700"
+        )}
+      >
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="truncate text-sm font-semibold">{value}</p>
+      </div>
+    </div>
+  );
 }
 
 export function AssistenteVirtualDiagnostics({ active }: Props) {
@@ -67,7 +90,7 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
   const [data, setData] = useState<DiagnosticsResponse | null>(null);
   const [simulatePhone, setSimulatePhone] = useState("");
   const [simulateText, setSimulateText] = useState("Oi, quero agendar uma consulta");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showRawEvents, setShowRawEvents] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -181,9 +204,10 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
         return;
       }
       setData(json);
+      setShowRawEvents(false);
       toast(
         immediate
-          ? "Simulação processada. Veja a timeline abaixo."
+          ? "Simulação processada. Veja o fluxo abaixo."
           : "Mensagem simulada agendada. Aguarde o debounce ou use Processar fila.",
         "success"
       );
@@ -219,99 +243,157 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
   const health = data?.health;
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Status do assistente</CardTitle>
-          <CardDescription>
-            Atualiza automaticamente a cada 10 segundos enquanto esta aba estiver aberta.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => { setLoading(true); void load(); }} disabled={loading}>
-              Atualizar
-            </Button>
-            <Button size="sm" onClick={() => void handleProcessNow()} disabled={processing || clearing}>
-              {processing ? "Processando…" : "Processar fila agora"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-red-200 text-red-700 hover:bg-red-50"
-              onClick={() => void handleClearQueue()}
-              disabled={processing || clearing}
-            >
-              {clearing ? "Zerando…" : "Zerar fila da IA"}
-            </Button>
+    <div className="space-y-6">
+      <Card className="overflow-hidden border-0 shadow-md">
+        <div className="border-b bg-gradient-to-r from-slate-50 to-slate-100/80 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Activity className="h-5 w-5 text-primary" />
+                Status do assistente
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Atualiza a cada 10 segundos · acompanhe cada mensagem do recebimento ao envio
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setLoading(true);
+                  void load();
+                }}
+                disabled={loading}
+              >
+                <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", loading && "animate-spin")} />
+                Atualizar
+              </Button>
+              <Button size="sm" onClick={() => void handleProcessNow()} disabled={processing || clearing}>
+                <Zap className="mr-1.5 h-3.5 w-3.5" />
+                {processing ? "Processando…" : "Processar fila"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-red-200 text-red-700 hover:bg-red-50"
+                onClick={() => void handleClearQueue()}
+                disabled={processing || clearing}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                {clearing ? "Zerando…" : "Zerar fila"}
+              </Button>
+            </div>
           </div>
+        </div>
 
+        <CardContent className="space-y-4 p-6">
           {loading && !data ? (
             <p className="text-sm text-muted-foreground">Carregando diagnóstico…</p>
           ) : health ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className={`rounded-md border p-3 text-sm ${statusClass(health.assistantEnabled)}`}>
-                <strong>Assistente ativo:</strong> {health.assistantEnabled ? "Sim" : "Não — ative na aba Geral"}
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={health.assistantEnabled ? "success" : "destructive"}>
+                  <Bot className="mr-1 h-3 w-3" />
+                  {health.assistantEnabled ? "Assistente ativo" : "Assistente desativado"}
+                </Badge>
+                {health.pendingInboundCount > 0 && (
+                  <Badge variant="warning">
+                    {health.pendingInboundCount} na fila
+                  </Badge>
+                )}
+                {health.pendingAudioCount > 0 && (
+                  <Badge variant="outline" className="border-violet-300 text-violet-700">
+                    <Mic className="mr-1 h-3 w-3" />
+                    {health.pendingAudioCount} áudio(s)
+                  </Badge>
+                )}
               </div>
-              <div className={`rounded-md border p-3 text-sm ${statusClass(health.migrationOk)}`}>
-                <strong>Migration / banco:</strong>{" "}
-                {health.migrationOk ? "OK" : health.migrationError ?? "Erro"}
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <HealthStat
+                  icon={MessageSquareWarning}
+                  label="Mensagens pendentes"
+                  value={health.pendingInboundCount}
+                  ok={health.pendingInboundCount === 0}
+                  warn={health.pendingInboundCount > 0}
+                />
+                <HealthStat
+                  icon={Mic}
+                  label="Áudios aguardando"
+                  value={health.pendingAudioCount}
+                  ok={health.pendingAudioCount === 0}
+                  warn={health.pendingAudioCount > 0}
+                />
+                <HealthStat
+                  icon={Clock}
+                  label="Debounce preso"
+                  value={health.stuckDebounceCount}
+                  ok={health.stuckDebounceCount === 0}
+                  warn={health.stuckDebounceCount > 0}
+                />
+                <HealthStat
+                  icon={Shield}
+                  label="Conversas bloqueadas"
+                  value={health.blockedConversationCount}
+                  ok={health.blockedConversationCount === 0}
+                  warn={health.blockedConversationCount > 0}
+                />
               </div>
-              <div className={`rounded-md border p-3 text-sm ${statusClass(health.openaiConfigured)}`}>
-                <strong>OpenAI (servidor):</strong>{" "}
-                {health.openaiConfigured ? "Configurada" : "OPENAI_API_KEY ausente na Vercel"}
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <HealthStat
+                  icon={Server}
+                  label="OpenAI"
+                  value={health.openaiConfigured ? "Configurada" : "Ausente"}
+                  ok={health.openaiConfigured}
+                />
+                <HealthStat
+                  icon={Mic}
+                  label="Transcrição"
+                  value={health.transcribeConfigured ? "Configurada" : "Ausente"}
+                  ok={health.transcribeConfigured}
+                />
+                <HealthStat
+                  icon={Zap}
+                  label="Cron VPS"
+                  value={health.cronSecretConfigured ? "Configurado" : "Opcional"}
+                  ok={health.cronSecretConfigured}
+                  warn={!health.cronSecretConfigured}
+                />
               </div>
-              <div className={`rounded-md border p-3 text-sm ${statusClass(health.transcribeConfigured)}`}>
-                <strong>Transcrição (servidor):</strong>{" "}
-                {health.transcribeConfigured
-                  ? "TRANSCRIBE_API_KEY configurada"
-                  : "TRANSCRIBE_API_KEY ausente na Vercel"}
-              </div>
-              <div
-                className={`rounded-md border p-3 text-sm ${statusClass(health.cronSecretConfigured, !health.cronSecretConfigured)}`}
-              >
-                <strong>Cron VPS (fallback):</strong>{" "}
-                {health.cronSecretConfigured ? "CRON_SECRET configurado" : "Opcional — waitUntil é o caminho principal"}
-              </div>
-              <div
-                className={`rounded-md border p-3 text-sm ${statusClass(health.pendingInboundCount === 0, health.pendingInboundCount > 0)}`}
-              >
-                <strong>Mensagens pendentes IA:</strong> {health.pendingInboundCount}
-              </div>
-              <div
-                className={`rounded-md border p-3 text-sm ${statusClass(health.pendingAudioCount === 0, health.pendingAudioCount > 0)}`}
-              >
-                <strong>Áudios aguardando IA:</strong> {health.pendingAudioCount}
-              </div>
-              <div
-                className={`rounded-md border p-3 text-sm ${statusClass(health.stuckDebounceCount === 0, health.stuckDebounceCount > 0)}`}
-              >
-                <strong>Fila debounce presa:</strong> {health.stuckDebounceCount}
-              </div>
-              <div
-                className={`rounded-md border p-3 text-sm ${statusClass(health.blockedConversationCount === 0, health.blockedConversationCount > 0)}`}
-              >
-                <strong>Conversas bloqueadas (handoff/pausa):</strong> {health.blockedConversationCount}
-              </div>
-            </div>
+
+              {!health.migrationOk && (
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                  {health.migrationError ?? "Erro de migration no banco"}
+                </p>
+              )}
+            </>
           ) : null}
 
           {health?.lastEventAt && (
             <p className="text-xs text-muted-foreground">
-              Último evento: {STAGE_LABELS[health.lastEventStage ?? ""] ?? health.lastEventStage} em{" "}
-              {new Date(health.lastEventAt).toLocaleString("pt-BR")}
+              Último evento em {new Date(health.lastEventAt).toLocaleString("pt-BR")}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">
-            <strong>Reinício limpo:</strong> com o assistente desativado, use <em>Zerar fila da IA</em> antes
-            de ativar — descarta mensagens antigas sem responder e reinicia o contexto. Depois ative na aba Geral.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            <strong>Teste de áudio:</strong> envie um áudio curto pelo WhatsApp. Na timeline, espere{" "}
-            <em>Transcrição de áudio iniciada</em> → <em>Áudio transcrito</em> → <em>Resposta enviada</em>.
-            A transcrição roda de forma assíncrona (cron VPS ou botão Processar fila). Se parar em{" "}
-            <em>Falha na transcrição</em>, verifique TRANSCRIBE_API_KEY na Vercel.
-          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Passo a passo das mensagens</CardTitle>
+          <CardDescription>
+            Cada card mostra o caminho completo: recebimento → IA → resposta enviada. Áudios incluem
+            transcrição antes da OpenAI.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AssistenteVirtualFlowTimeline
+            flows={data?.flows ?? []}
+            events={data?.events ?? []}
+            showRaw={showRawEvents}
+            onToggleRaw={setShowRawEvents}
+          />
         </CardContent>
       </Card>
 
@@ -320,9 +402,7 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
           <CardHeader>
             <CardTitle>Conversas sem IA ativa</CardTitle>
             <CardDescription>
-              Estas conversas estão em handoff humano ou com IA pausada (ex.: após resposta manual pela
-              equipe). Novas mensagens do paciente reativam a IA automaticamente após o deploy — ou use o
-              botão abaixo.
+              Handoff humano ou IA pausada. Use Reativar IA ou aguarde nova mensagem do paciente.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -330,7 +410,7 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
               {data.blockedConversations.map((c) => (
                 <li
                   key={c.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
                 >
                   <span>
                     <strong>{c.phone_number}</strong>
@@ -360,7 +440,7 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
         <CardHeader>
           <CardTitle>Simular mensagem</CardTitle>
           <CardDescription>
-            Testa o pipeline sem depender do celular. Use um número de teste ou de uma conversa existente.
+            Testa o pipeline sem o celular. O fluxo aparece na timeline acima.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -394,62 +474,16 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Timeline de eventos</CardTitle>
-          <CardDescription>Últimos 50 eventos do assistente para esta clínica.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!data?.events?.length ? (
-            <p className="text-sm text-muted-foreground">
-              Nenhum evento ainda. Envie uma mensagem pelo WhatsApp ou use a simulação acima.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {data.events.map((ev) => (
-                <li key={ev.id} className="rounded-md border p-2 text-sm">
-                  <button
-                    type="button"
-                    className="flex w-full items-start gap-2 text-left"
-                    onClick={() => setExpandedId(expandedId === ev.id ? null : ev.id)}
-                  >
-                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${levelDot(ev.level)}`} />
-                    <span className="flex-1">
-                      <span className="font-medium">
-                        {STAGE_LABELS[ev.stage] ?? ev.stage}
-                      </span>
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {new Date(ev.created_at).toLocaleString("pt-BR")}
-                      </span>
-                      {ev.conversation_id && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          conv: {ev.conversation_id.slice(0, 8)}…
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                  {expandedId === ev.id && (
-                    <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted p-2 text-xs">
-                      {JSON.stringify(ev.detail, null, 2)}
-                    </pre>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
       {data?.toolLogs && data.toolLogs.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Ferramentas da IA</CardTitle>
-            <CardDescription>Últimas chamadas de tools (agendar, buscar paciente, etc.).</CardDescription>
+            <CardDescription>Agendar, buscar paciente, etc.</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="space-y-1 text-sm">
               {data.toolLogs.map((t) => (
-                <li key={t.id} className="flex justify-between gap-2 border-b py-1">
+                <li key={t.id} className="flex justify-between gap-2 border-b py-2 last:border-0">
                   <span>
                     {t.success ? "✓" : "✗"} {t.tool_name}
                     {t.result_summary ? ` — ${t.result_summary}` : ""}
