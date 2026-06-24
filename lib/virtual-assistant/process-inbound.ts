@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { waitUntil } from "@vercel/functions";
 import { transcribeAndWait } from "@/lib/transcribe-api";
 import { runVirtualAssistantAgent } from "./agent";
 import { sendAssistantReply } from "./send-reply";
@@ -32,41 +33,35 @@ function isInsideBotWindow(settings: Partial<VirtualAssistantSettings>): boolean
 export async function isVirtualAssistantActive(
   supabase: SupabaseClient,
   clinicId: string
-): Promise<{ active: boolean; settings: Partial<VirtualAssistantSettings> | null }> {
-  const { data } = await supabase
+): Promise<{ active: boolean; settings: Partial<VirtualAssistantSettings> | null; reason?: string }> {
+  const { data, error } = await supabase
     .from("clinic_virtual_assistant_settings")
     .select("*")
     .eq("clinic_id", clinicId)
     .maybeSingle();
 
-  if (!data?.enabled) return { active: false, settings: data };
-
-  const { data: clinicRow } = await supabase
-    .from("clinics")
-    .select("plan_id, subscription_status")
-    .eq("id", clinicId)
-    .single();
-
-  let planAllows = true;
-  if (clinicRow?.plan_id) {
-    const { data: plan, error: planError } = await supabase
-      .from("plans")
-      .select("virtual_assistant_enabled, whatsapp_enabled")
-      .eq("id", clinicRow.plan_id)
-      .maybeSingle();
-    if (!planError && plan) {
-      planAllows =
-        plan.virtual_assistant_enabled === true || plan.whatsapp_enabled === true;
-    }
+  if (error) {
+    console.error("[VirtualAssistant] erro ao ler settings:", error.message, { clinicId });
+    return {
+      active: false,
+      settings: null,
+      reason: error.message.includes("does not exist")
+        ? "Tabela clinic_virtual_assistant_settings não existe — rode a migration"
+        : error.message,
+    };
   }
 
-  const subscriptionOk =
-    !clinicRow?.subscription_status ||
-    clinicRow.subscription_status === "active" ||
-    clinicRow.subscription_status === "trialing";
+  if (!data?.enabled) {
+    return {
+      active: false,
+      settings: data as Partial<VirtualAssistantSettings> | null,
+      reason: data ? "enabled=false" : "sem registro de configuração",
+    };
+  }
 
+  // Se o admin ativou no painel, honrar em runtime (gate de plano só na UI)
   return {
-    active: Boolean(data?.enabled) && subscriptionOk && planAllows,
+    active: true,
     settings: data as Partial<VirtualAssistantSettings>,
   };
 }
@@ -311,10 +306,14 @@ export async function scheduleAiDebounce(
   debounceSeconds: number
 ): Promise<void> {
   const debounceUntil = new Date(Date.now() + debounceSeconds * 1000).toISOString();
-  await supabase
+  const { error: debounceError } = await supabase
     .from("whatsapp_conversations")
     .update({ ai_debounce_until: debounceUntil })
     .eq("id", conversationId);
+
+  if (debounceError) {
+    console.warn("[VirtualAssistant] ai_debounce_until não atualizado:", debounceError.message);
+  }
 
   const runProcessing = async () => {
     await new Promise((r) => setTimeout(r, debounceSeconds * 1000));
@@ -322,55 +321,14 @@ export async function scheduleAiDebounce(
     await processConversationAi(createServiceRoleClient(), conversationId);
   };
 
-  try {
-    const { waitUntil } = await import("@vercel/functions");
-    waitUntil(
-      runProcessing().catch((e) => {
-        console.error("[VirtualAssistant] waitUntil processing failed:", e);
-      })
-    );
-    console.info("[VirtualAssistant] agendado via waitUntil", {
-      conversationId,
-      debounceSeconds,
-    });
-    return;
-  } catch {
-    // Ambiente sem @vercel/functions (dev local)
-  }
+  const task = runProcessing().catch((e) => {
+    console.error("[VirtualAssistant] processamento falhou:", e);
+  });
 
-  const secret = process.env.CRON_SECRET;
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
-
-  if (secret && baseUrl) {
-    const url = `${baseUrl.replace(/\/$/, "")}/api/internal/process-whatsapp-ai`;
-    void fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${secret}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ conversationId }),
-    })
-      .then((res) => {
-        if (!res.ok) {
-          console.error("[VirtualAssistant] internal API status:", res.status);
-        }
-      })
-      .catch((e) => {
-        console.error("[VirtualAssistant] falha ao disparar processamento:", e);
-      });
-    console.info("[VirtualAssistant] agendado via fetch interno", { conversationId });
-    return;
-  }
-
-  console.warn(
-    "[VirtualAssistant] fallback local — processamento em background sem waitUntil",
-    { conversationId, hasSecret: Boolean(secret), hasBaseUrl: Boolean(baseUrl) }
-  );
-  void runProcessing().catch((e) => {
-    console.error("[VirtualAssistant] background processing failed:", e);
+  waitUntil(task);
+  console.info("[VirtualAssistant] agendado via waitUntil", {
+    conversationId,
+    debounceSeconds,
   });
 }
 
@@ -379,12 +337,9 @@ export async function shouldSkipMenuChatbot(
   clinicId: string,
   conversationId: string
 ): Promise<boolean> {
-  const { active, settings } = await isVirtualAssistantActive(supabase, clinicId);
+  const { active, reason } = await isVirtualAssistantActive(supabase, clinicId);
   if (!active) {
-    console.info("[VirtualAssistant] inativo para clínica", {
-      clinicId,
-      enabled: settings?.enabled ?? false,
-    });
+    console.info("[VirtualAssistant] inativo", { clinicId, reason });
     return false;
   }
 

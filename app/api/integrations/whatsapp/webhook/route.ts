@@ -272,6 +272,13 @@ export async function POST(request: NextRequest) {
           }
 
           const skipMenu = await shouldSkipMenuChatbot(supabase, clinicId, conversationId);
+          console.info("[WhatsApp Webhook] roteamento pós-mensagem", {
+            clinicId,
+            conversationId,
+            skipMenu,
+            bodyPreview: (bodyText ?? "").slice(0, 40),
+          });
+
           if (skipMenu) {
             const { data: vaSettings } = await supabase
               .from("clinic_virtual_assistant_settings")
@@ -295,6 +302,8 @@ export async function POST(request: NextRequest) {
             );
             if (chatbotResult.reply) {
               await sendChatbotReply(supabase, clinicId, conversationId, from, chatbotResult.reply);
+            } else {
+              console.info("[WhatsApp Webhook] menu legado sem resposta (routing != chatbot ou mensagem livre)");
             }
           }
         }
