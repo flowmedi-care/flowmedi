@@ -64,17 +64,85 @@ export async function fetchAndStoreWhatsAppMedia(
   }
 }
 
+const TRANSCRIBE_AUDIO_EXTENSIONS = new Set([
+  ".aac",
+  ".flac",
+  ".m4a",
+  ".mp3",
+  ".ogg",
+  ".opus",
+  ".wav",
+  ".webm",
+]);
+
+/** Remove parâmetros do MIME (ex.: "audio/ogg; codecs=opus" → "audio/ogg"). */
+export function normalizeMimeType(mime: string): string {
+  return mime.split(";")[0].trim().toLowerCase();
+}
+
 export function getExtensionFromMime(mime: string): string {
+  const base = normalizeMimeType(mime);
   const map: Record<string, string> = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
     "image/gif": ".gif",
     "image/webp": ".webp",
     "audio/ogg": ".ogg",
+    "audio/opus": ".opus",
+    "audio/aac": ".aac",
+    "audio/x-aac": ".aac",
     "audio/mpeg": ".mp3",
+    "audio/mp3": ".mp3",
     "audio/mp4": ".m4a",
+    "audio/m4a": ".m4a",
+    "audio/x-m4a": ".m4a",
     "audio/webm": ".webm",
-    "audio/amr": ".amr",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+    "audio/flac": ".flac",
+    // AMR não é aceito pela API de transcrição — tentar como ogg (Meta costuma ser opus/ogg)
+    "audio/amr": ".ogg",
+    "audio/3gpp": ".m4a",
   };
-  return map[mime] ?? ".bin";
+
+  if (map[base]) return map[base];
+  if (base.startsWith("audio/")) return ".ogg";
+  if (base.startsWith("video/")) return ".webm";
+  if (base.startsWith("image/")) return ".jpg";
+  return ".bin";
+}
+
+function extensionFromMediaUrl(mediaUrl: string): string | null {
+  const match = mediaUrl.match(/\.(aac|flac|m4a|mp3|ogg|opus|wav|webm)(\?|$)/i);
+  if (!match) return null;
+  const ext = `.${match[1].toLowerCase()}`;
+  return TRANSCRIBE_AUDIO_EXTENSIONS.has(ext) ? ext : null;
+}
+
+/** Nome e MIME para envio à API de transcrição (somente extensões permitidas). */
+export function getTranscribeAudioFile(
+  messageId: string,
+  mimeType: string | null | undefined,
+  mediaUrl?: string | null
+): { filename: string; mimeType: string } {
+  let normalized = normalizeMimeType(mimeType?.trim() || "audio/ogg");
+  let ext = getExtensionFromMime(normalized);
+
+  const urlExt = mediaUrl ? extensionFromMediaUrl(mediaUrl) : null;
+  if (urlExt) ext = urlExt;
+
+  if (!TRANSCRIBE_AUDIO_EXTENSIONS.has(ext)) {
+    ext = ".ogg";
+    normalized = "audio/ogg";
+  }
+
+  const mimeForBlob =
+    normalized.startsWith("audio/") && getExtensionFromMime(normalized) === ext
+      ? normalized
+      : `audio/${ext.slice(1)}`;
+
+  return {
+    filename: `whatsapp-${messageId}${ext}`,
+    mimeType: mimeForBlob,
+  };
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { setLastWebhookPayload } from "@/lib/whatsapp-webhook-debug";
-import { fetchAndStoreWhatsAppMedia } from "@/lib/whatsapp-media";
+import { fetchAndStoreWhatsAppMedia, normalizeMimeType } from "@/lib/whatsapp-media";
 
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 import {
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
           if (text?.body) {
             bodyText = String(text.body);
           } else if (image?.id && accessToken) {
-            mediaMimeType = image.mime_type ?? "image/jpeg";
+            mediaMimeType = normalizeMimeType(image.mime_type ?? "image/jpeg");
             mediaUrl = await fetchAndStoreWhatsAppMedia(
               image.id,
               accessToken,
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
             );
             bodyText = mediaUrl ? "" : "[image]";
           } else if (audio?.id && accessToken) {
-            mediaMimeType = audio.mime_type ?? "audio/ogg";
+            mediaMimeType = normalizeMimeType(audio.mime_type ?? "audio/ogg");
             mediaUrl = await fetchAndStoreWhatsAppMedia(
               audio.id,
               accessToken,
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
             );
             bodyText = mediaUrl ? "" : "[audio]";
           } else if (video?.id && accessToken) {
-            mediaMimeType = video.mime_type ?? "video/mp4";
+            mediaMimeType = normalizeMimeType(video.mime_type ?? "video/mp4");
             mediaUrl = await fetchAndStoreWhatsAppMedia(
               video.id,
               accessToken,
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
             );
             bodyText = mediaUrl ? "" : "[video]";
           } else if (document?.id && accessToken) {
-            mediaMimeType = document.mime_type ?? "application/octet-stream";
+            mediaMimeType = normalizeMimeType(document.mime_type ?? "application/octet-stream");
             mediaUrl = await fetchAndStoreWhatsAppMedia(
               document.id,
               accessToken,

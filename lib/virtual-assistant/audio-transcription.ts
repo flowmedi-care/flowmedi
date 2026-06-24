@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createTranscriptionJob, getTranscriptionJob } from "@/lib/transcribe-api";
-import { getExtensionFromMime } from "@/lib/whatsapp-media";
+import { getTranscribeAudioFile } from "@/lib/whatsapp-media";
 import { logAiEvent } from "./event-log";
 import type { AiConversationState, PendingTranscriptionJob } from "./types";
 
@@ -135,12 +135,15 @@ export async function resolveInboundTexts(
     }
 
     try {
-      const mimeType = msg.media_mime_type?.trim() || "audio/ogg";
-      const ext = getExtensionFromMime(mimeType);
+      const { filename, mimeType } = getTranscribeAudioFile(
+        msg.id,
+        msg.media_mime_type,
+        msg.media_url
+      );
       const buffer = await downloadMediaAsBuffer(msg.media_url);
       const jobId = await createTranscriptionJob(
         buffer,
-        `whatsapp-${msg.id}${ext}`,
+        filename,
         `clinic-${clinicId}`,
         "whatsapp",
         { mimeType }
@@ -150,7 +153,7 @@ export async function resolveInboundTexts(
         conversationId,
         messageId: msg.id,
         stage: "audio_transcribe_start",
-        detail: { jobId, mimeType, bytes: buffer.byteLength },
+        detail: { jobId, mimeType, filename, bytes: buffer.byteLength },
       });
       stillPending.push({ messageId: msg.id, jobId });
     } catch (e) {
