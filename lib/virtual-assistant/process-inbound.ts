@@ -451,7 +451,8 @@ export async function scheduleAiDebounce(
   supabase: SupabaseClient,
   conversationId: string,
   clinicId: string,
-  debounceSeconds: number
+  debounceSeconds: number,
+  messageId?: string
 ): Promise<void> {
   const debounceUntil = new Date(Date.now() + debounceSeconds * 1000).toISOString();
   const { error: debounceError } = await supabase
@@ -473,6 +474,7 @@ export async function scheduleAiDebounce(
   logAiEvent(supabase, {
     clinicId,
     conversationId,
+    messageId,
     stage: "debounce_scheduled",
     detail: { debounceSeconds, debounceUntil },
   });

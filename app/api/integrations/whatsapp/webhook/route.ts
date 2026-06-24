@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
               conversationId,
               debounceSec,
             });
-            await scheduleAiDebounce(supabase, conversationId, clinicId, debounceSec);
+            await scheduleAiDebounce(supabase, conversationId, clinicId, debounceSec, messageId);
           } else {
             if (messageId) {
               const inactive =

@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         .eq("id", conversationId);
       await processConversationAi(supabase, conversationId);
     } else {
-      await scheduleAiDebounce(supabase, conversationId, clinicId, debounceSec);
+      await scheduleAiDebounce(supabase, conversationId, clinicId, debounceSec, msg?.id);
     }
 
     const diagnostics = await gatherAssistantDiagnostics(supabase, clinicId);

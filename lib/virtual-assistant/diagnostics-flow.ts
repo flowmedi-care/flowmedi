@@ -252,6 +252,8 @@ function buildSteps(
     }
   }
 
+  inferRoutingFromLaterSteps(steps, events);
+
   if (hasReply) {
     const sendIdx = steps.findIndex((s) => s.key === "whatsapp_send");
     if (sendIdx >= 0) steps[sendIdx].status = "completed";
@@ -462,6 +464,86 @@ function buildSystemTrace(event: AiEventRow): MessageFlowTrace {
   };
 }
 
+function findAnchorForEvent(event: AiEventRow, anchors: AiEventRow[]): AiEventRow | undefined {
+  if (event.stage === "webhook_inbound" || event.stage === "simulate_inbound") {
+    return anchors.find((a) => a.id === event.id);
+  }
+
+  if (event.message_id) {
+    const byMessage = anchors.find((a) => a.message_id === event.message_id);
+    if (byMessage) return byMessage;
+  }
+
+  const convId = event.conversation_id;
+  if (!convId) return undefined;
+
+  const eventTime = new Date(event.created_at).getTime();
+  const convAnchors = anchors
+    .filter((a) => a.conversation_id === convId)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  for (let i = 0; i < convAnchors.length; i++) {
+    const anchor = convAnchors[i];
+    const anchorTime = new Date(anchor.created_at).getTime();
+    const nextTime =
+      i + 1 < convAnchors.length
+        ? new Date(convAnchors[i + 1].created_at).getTime()
+        : anchorTime + TRACE_WINDOW_MS;
+
+    if (eventTime >= anchorTime && eventTime < nextTime) {
+      return anchor;
+    }
+  }
+
+  return undefined;
+}
+
+function assignEventsToAnchors(
+  anchors: AiEventRow[],
+  sorted: AiEventRow[]
+): Map<string, AiEventRow[]> {
+  const byAnchor = new Map<string, AiEventRow[]>();
+  for (const anchor of anchors) {
+    byAnchor.set(anchor.id, [anchor]);
+  }
+
+  for (const event of sorted) {
+    if (event.stage === "webhook_inbound" || event.stage === "simulate_inbound") continue;
+
+    const anchor = findAnchorForEvent(event, anchors);
+    if (!anchor) continue;
+
+    const bucket = byAnchor.get(anchor.id);
+    if (bucket && !bucket.some((e) => e.id === event.id)) {
+      bucket.push(event);
+    }
+  }
+
+  for (const bucket of byAnchor.values()) {
+    bucket.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }
+
+  return byAnchor;
+}
+
+function inferRoutingFromLaterSteps(steps: FlowStep[], events: AiEventRow[]): void {
+  const routingIdx = steps.findIndex((s) => s.key === "routing");
+  if (routingIdx < 0 || steps[routingIdx].status !== "pending") return;
+
+  const debounce = events.find((e) => e.stage === "debounce_scheduled");
+  const processing = events.find((e) => e.stage === "processing_start");
+  const transcribe = events.find((e) => e.stage === "audio_transcribe_start");
+
+  if (debounce || processing || transcribe) {
+    steps[routingIdx] = {
+      ...steps[routingIdx],
+      status: "completed",
+      description: "Encaminhado para o assistente virtual",
+      at: debounce?.created_at ?? processing?.created_at ?? transcribe?.created_at,
+    };
+  }
+}
+
 /**
  * Agrupa eventos brutos em fluxos legíveis (texto, áudio ou sistema).
  */
@@ -480,66 +562,21 @@ export function buildMessageFlows(
     (e) => e.stage === "webhook_inbound" || e.stage === "simulate_inbound"
   );
 
-  const usedIds = new Set<string>();
+  const eventsByAnchor = assignEventsToAnchors(anchors, sorted);
+  const assignedIds = new Set<string>();
   const flows: MessageFlowTrace[] = [];
 
   for (const anchor of anchors) {
-    const anchorTime = new Date(anchor.created_at).getTime();
-    const convId = anchor.conversation_id;
-
-    const anchorMessageId = anchor.message_id;
-
-    const slice = sorted.filter((e) => {
-      if (usedIds.has(e.id)) return false;
-      if (e.id === anchor.id) return true;
-      if (anchorMessageId && e.message_id === anchorMessageId) return true;
-      if (
-        e.stage === "routing_decision" &&
-        anchorMessageId &&
-        e.message_id === anchorMessageId
-      ) {
-        return true;
-      }
-      if (convId && e.conversation_id !== convId) return false;
-      if (!convId && e.conversation_id) return false;
-      const t = new Date(e.created_at).getTime();
-      if (t < anchorTime) return false;
-      if (t - anchorTime > TRACE_WINDOW_MS) return false;
-      if (
-        e.stage === "flow_discarded" &&
-        convId &&
-        e.conversation_id === convId &&
-        t >= anchorTime
-      ) {
-        return true;
-      }
-      if (
-        e.stage === "queue_cleared" &&
-        convId &&
-        e.conversation_id === convId &&
-        t >= anchorTime
-      ) {
-        return true;
-      }
-      if (
-        e !== anchor &&
-        (e.stage === "webhook_inbound" || e.stage === "simulate_inbound") &&
-        e.id !== anchor.id
-      ) {
-        return false;
-      }
-      return true;
-    });
-
-    slice.forEach((e) => usedIds.add(e.id));
+    const slice = eventsByAnchor.get(anchor.id) ?? [anchor];
+    slice.forEach((e) => assignedIds.add(e.id));
     flows.push(buildAnchorTrace(anchor, slice, conversationMeta, processedMessageIds));
   }
 
   const systemStages = new Set(["queue_cleared", "ai_reactivated", "flow_discarded"]);
   for (const event of sorted) {
-    if (usedIds.has(event.id)) continue;
+    if (assignedIds.has(event.id)) continue;
     if (systemStages.has(event.stage)) {
-      usedIds.add(event.id);
+      assignedIds.add(event.id);
       flows.push(buildSystemTrace(event));
     }
   }
