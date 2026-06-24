@@ -77,6 +77,8 @@ export type AiConversationState = {
   patient_id?: string;
   pending_confirmation_appointment_id?: string;
   pending_transcription_jobs?: PendingTranscriptionJob[];
+  /** IDs de mensagens que já tiveram retry de transcrição após erro 500 */
+  audio_transcription_retried_message_ids?: string[];
 };
 
 export const DAY_LABELS: Record<DayKey, string> = {

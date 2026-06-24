@@ -37,10 +37,16 @@ export async function fetchAndStoreWhatsAppMedia(
       return null;
     }
     const arrayBuffer = await downloadRes.arrayBuffer();
-    const contentType = metaData.mime_type || downloadRes.headers.get("content-type") || "application/octet-stream";
+    const buffer = Buffer.from(arrayBuffer);
+    const rawContentType =
+      metaData.mime_type || downloadRes.headers.get("content-type") || "application/octet-stream";
+    const contentType = normalizeMimeType(rawContentType);
 
-    // 3. Gerar extensão e path
-    const ext = getExtensionFromMime(contentType);
+    const sniffed = sniffAudioFromBuffer(buffer);
+    const ext =
+      sniffed && !sniffed.unsupported
+        ? sniffed.ext
+        : getExtensionFromMime(contentType);
     const path = `${options.clinicId}/${options.mediaId.replace(/[^a-zA-Z0-9.-]/g, "_")}${ext}`;
 
     // 4. Upload para Supabase
@@ -75,6 +81,56 @@ const TRANSCRIBE_AUDIO_EXTENSIONS = new Set([
   ".webm",
 ]);
 
+export type SniffedAudioFormat = {
+  ext: string;
+  mimeType: string;
+  /** Formato reconhecido mas não aceito pela API de transcrição */
+  unsupported?: boolean;
+  unsupportedReason?: string;
+};
+
+/** Detecta formato real pelo conteúdo do arquivo (mais confiável que o MIME da Meta). */
+export function sniffAudioFromBuffer(buffer: Buffer): SniffedAudioFormat | null {
+  if (buffer.length < 12) return null;
+
+  const head4 = buffer.subarray(0, 4).toString("ascii");
+  const head5 = buffer.subarray(0, 5).toString("ascii");
+
+  if (head4 === "OggS") {
+    return { ext: ".ogg", mimeType: "audio/ogg" };
+  }
+  if (head5 === "#!AMR") {
+    return {
+      ext: ".amr",
+      mimeType: "audio/amr",
+      unsupported: true,
+      unsupportedReason:
+        "Áudio AMR não é suportado pela transcrição. Peça ao paciente para enviar por texto ou gravar novamente.",
+    };
+  }
+  if (head4 === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WAVE") {
+    return { ext: ".wav", mimeType: "audio/wav" };
+  }
+  if (head4 === "fLaC") {
+    return { ext: ".flac", mimeType: "audio/flac" };
+  }
+  if (buffer.subarray(4, 8).toString("ascii") === "ftyp") {
+    return { ext: ".m4a", mimeType: "audio/mp4" };
+  }
+  if (head4 === "ID3" || (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0)) {
+    return { ext: ".mp3", mimeType: "audio/mpeg" };
+  }
+  if (buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) {
+    return { ext: ".webm", mimeType: "audio/webm" };
+  }
+  return null;
+}
+
+function isLikelyHtmlBuffer(buffer: Buffer): boolean {
+  const start = buffer.subarray(0, 64).toString("utf8").trimStart().toLowerCase();
+  return start.startsWith("<!doctype") || start.startsWith("<html") || start.startsWith("<?xml");
+}
+
 /** Remove parâmetros do MIME (ex.: "audio/ogg; codecs=opus" → "audio/ogg"). */
 export function normalizeMimeType(mime: string): string {
   return mime.split(";")[0].trim().toLowerCase();
@@ -100,9 +156,8 @@ export function getExtensionFromMime(mime: string): string {
     "audio/wav": ".wav",
     "audio/x-wav": ".wav",
     "audio/flac": ".flac",
-    // AMR não é aceito pela API de transcrição — tentar como ogg (Meta costuma ser opus/ogg)
-    "audio/amr": ".ogg",
-    "audio/3gpp": ".m4a",
+    "audio/amr": ".amr",
+    "audio/3gpp": ".3gp",
   };
 
   if (map[base]) return map[base];
@@ -123,8 +178,42 @@ function extensionFromMediaUrl(mediaUrl: string): string | null {
 export function getTranscribeAudioFile(
   messageId: string,
   mimeType: string | null | undefined,
-  mediaUrl?: string | null
-): { filename: string; mimeType: string } {
+  mediaUrl?: string | null,
+  buffer?: Buffer | null
+): { filename: string; mimeType: string; unsupported?: string } {
+  if (buffer && buffer.length > 0) {
+    if (isLikelyHtmlBuffer(buffer)) {
+      return {
+        filename: `whatsapp-${messageId}.ogg`,
+        mimeType: "audio/ogg",
+        unsupported:
+          "Não foi possível baixar o áudio (resposta inválida do storage). Verifique se o bucket whatsapp-media é público.",
+      };
+    }
+    if (buffer.length < 100) {
+      return {
+        filename: `whatsapp-${messageId}.ogg`,
+        mimeType: "audio/ogg",
+        unsupported: `Arquivo de áudio muito pequeno (${buffer.length} bytes).`,
+      };
+    }
+
+    const sniffed = sniffAudioFromBuffer(buffer);
+    if (sniffed) {
+      if (sniffed.unsupported) {
+        return {
+          filename: `whatsapp-${messageId}${sniffed.ext}`,
+          mimeType: sniffed.mimeType,
+          unsupported: sniffed.unsupportedReason ?? "Formato de áudio não suportado.",
+        };
+      }
+      return {
+        filename: `whatsapp-${messageId}${sniffed.ext}`,
+        mimeType: sniffed.mimeType,
+      };
+    }
+  }
+
   let normalized = normalizeMimeType(mimeType?.trim() || "audio/ogg");
   let ext = getExtensionFromMime(normalized);
 

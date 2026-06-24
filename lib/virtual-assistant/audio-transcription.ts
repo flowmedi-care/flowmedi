@@ -24,9 +24,47 @@ export interface ResolveInboundTextsResult {
 
 async function downloadMediaAsBuffer(mediaUrl: string): Promise<Buffer> {
   const res = await fetch(mediaUrl);
-  if (!res.ok) throw new Error(`Falha ao baixar mídia (${res.status})`);
-  const arrayBuffer = await res.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+  if (!res.ok) {
+    throw new Error(`Falha ao baixar mídia (${res.status})`);
+  }
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length < 100) {
+    throw new Error(`Arquivo de áudio muito pequeno (${buffer.length} bytes)`);
+  }
+  if (buffer.subarray(0, 1).toString() === "<") {
+    throw new Error(
+      "Download retornou HTML em vez de áudio — verifique se o bucket whatsapp-media é público"
+    );
+  }
+  return buffer;
+}
+
+async function startTranscriptionJobForMessage(
+  supabase: SupabaseClient,
+  clinicId: string,
+  conversationId: string,
+  msg: InboundMessageRow
+): Promise<{ jobId: string } | { unsupported: string }> {
+  const buffer = await downloadMediaAsBuffer(msg.media_url!);
+  const file = getTranscribeAudioFile(msg.id, msg.media_mime_type, msg.media_url, buffer);
+  if (file.unsupported) {
+    return { unsupported: file.unsupported };
+  }
+  const jobId = await createTranscriptionJob(
+    buffer,
+    file.filename,
+    `clinic-${clinicId}`,
+    "whatsapp",
+    { mimeType: file.mimeType }
+  );
+  logAiEvent(supabase, {
+    clinicId,
+    conversationId,
+    messageId: msg.id,
+    stage: "audio_transcribe_start",
+    detail: { jobId, mimeType: file.mimeType, filename: file.filename, bytes: buffer.byteLength },
+  });
+  return { jobId };
 }
 
 function isUsableText(text: string): boolean {
@@ -47,6 +85,7 @@ export async function resolveInboundTexts(
   const jobMap = new Map(
     (aiState.pending_transcription_jobs ?? []).map((j) => [j.messageId, j.jobId])
   );
+  const retriedIds = new Set(aiState.audio_transcription_retried_message_ids ?? []);
 
   for (const msg of pending) {
     let text = String(msg.content ?? "").trim();
@@ -78,6 +117,8 @@ export async function resolveInboundTexts(
     }
 
     const existingJobId = jobMap.get(msg.id);
+    let shouldCreateJob = !existingJobId;
+
     if (existingJobId) {
       try {
         const job = await getTranscriptionJob(existingJobId);
@@ -105,15 +146,30 @@ export async function resolveInboundTexts(
             });
           }
         } else if (job.status === "failed") {
-          audioFailedIds.push(msg.id);
-          logAiEvent(supabase, {
-            clinicId,
-            conversationId,
-            messageId: msg.id,
-            stage: "audio_transcribe_failed",
-            level: "error",
-            detail: { jobId: existingJobId, reason: job.error_message ?? "falhou" },
-          });
+          const errMsg = job.error_message ?? "falhou";
+          const isServerError = /internal server error/i.test(errMsg);
+          if (isServerError && !retriedIds.has(msg.id)) {
+            retriedIds.add(msg.id);
+            shouldCreateJob = true;
+            logAiEvent(supabase, {
+              clinicId,
+              conversationId,
+              messageId: msg.id,
+              stage: "audio_transcribe_failed",
+              level: "warn",
+              detail: { jobId: existingJobId, reason: errMsg, retrying: true },
+            });
+          } else {
+            audioFailedIds.push(msg.id);
+            logAiEvent(supabase, {
+              clinicId,
+              conversationId,
+              messageId: msg.id,
+              stage: "audio_transcribe_failed",
+              level: "error",
+              detail: { jobId: existingJobId, reason: errMsg },
+            });
+          }
         } else {
           stillPending.push({ messageId: msg.id, jobId: existingJobId });
         }
@@ -131,46 +187,52 @@ export async function resolveInboundTexts(
           },
         });
       }
-      continue;
+
+      if (!shouldCreateJob) {
+        continue;
+      }
     }
 
-    try {
-      const { filename, mimeType } = getTranscribeAudioFile(
-        msg.id,
-        msg.media_mime_type,
-        msg.media_url
-      );
-      const buffer = await downloadMediaAsBuffer(msg.media_url);
-      const jobId = await createTranscriptionJob(
-        buffer,
-        filename,
-        `clinic-${clinicId}`,
-        "whatsapp",
-        { mimeType }
-      );
-      logAiEvent(supabase, {
-        clinicId,
-        conversationId,
-        messageId: msg.id,
-        stage: "audio_transcribe_start",
-        detail: { jobId, mimeType, filename, bytes: buffer.byteLength },
-      });
-      stillPending.push({ messageId: msg.id, jobId });
-    } catch (e) {
-      console.error("[VirtualAssistant] transcribe start:", e);
-      audioFailedIds.push(msg.id);
-      logAiEvent(supabase, {
-        clinicId,
-        conversationId,
-        messageId: msg.id,
-        stage: "audio_transcribe_failed",
-        level: "error",
-        detail: { reason: e instanceof Error ? e.message : String(e) },
-      });
+    if (shouldCreateJob) {
+      try {
+        const result = await startTranscriptionJobForMessage(
+          supabase,
+          clinicId,
+          conversationId,
+          msg
+        );
+        if ("unsupported" in result) {
+          audioFailedIds.push(msg.id);
+          logAiEvent(supabase, {
+            clinicId,
+            conversationId,
+            messageId: msg.id,
+            stage: "audio_transcribe_failed",
+            level: "warn",
+            detail: { reason: result.unsupported },
+          });
+          continue;
+        }
+        stillPending.push({ messageId: msg.id, jobId: result.jobId });
+      } catch (e) {
+        console.error("[VirtualAssistant] transcribe start:", e);
+        audioFailedIds.push(msg.id);
+        logAiEvent(supabase, {
+          clinicId,
+          conversationId,
+          messageId: msg.id,
+          stage: "audio_transcribe_failed",
+          level: "error",
+          detail: { reason: e instanceof Error ? e.message : String(e) },
+        });
+      }
     }
   }
 
   const nextState: AiConversationState = { ...aiState };
+  if (retriedIds.size > 0) {
+    nextState.audio_transcription_retried_message_ids = [...retriedIds];
+  }
   if (stillPending.length > 0) {
     nextState.pending_transcription_jobs = stillPending;
   } else {
