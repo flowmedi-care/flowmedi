@@ -49,20 +49,24 @@ export async function isVirtualAssistantActive(
 
   let planAllows = true;
   if (clinicRow?.plan_id) {
-    const { data: plan } = await supabase
+    const { data: plan, error: planError } = await supabase
       .from("plans")
       .select("virtual_assistant_enabled, whatsapp_enabled")
       .eq("id", clinicRow.plan_id)
       .maybeSingle();
-    planAllows =
-      plan?.virtual_assistant_enabled === true || plan?.whatsapp_enabled === true;
+    if (!planError && plan) {
+      planAllows =
+        plan.virtual_assistant_enabled === true || plan.whatsapp_enabled === true;
+    }
   }
 
   const subscriptionOk =
-    !clinicRow?.subscription_status || clinicRow.subscription_status === "active";
+    !clinicRow?.subscription_status ||
+    clinicRow.subscription_status === "active" ||
+    clinicRow.subscription_status === "trialing";
 
   return {
-    active: subscriptionOk && planAllows,
+    active: Boolean(data?.enabled) && subscriptionOk && planAllows,
     settings: data as Partial<VirtualAssistantSettings>,
   };
 }
@@ -144,6 +148,14 @@ export async function processConversationAi(
   if (!isInsideBotWindow(settings)) {
     const canAuto = await isInsideAutoMessageWindow(conv.clinic_id, supabase);
     if (!canAuto) {
+      const now = new Date().toISOString();
+      await supabase
+        .from("whatsapp_messages")
+        .update({ ai_processed_at: now })
+        .in(
+          "id",
+          pending.map((m) => m.id)
+        );
       await sendAssistantReply(
         supabase,
         conv.clinic_id,
@@ -151,6 +163,7 @@ export async function processConversationAi(
         conv.phone_number,
         "No momento estamos fora do horário de atendimento automático. Deixe sua mensagem que retornamos em breve!"
       );
+      return;
     }
   }
 
@@ -257,6 +270,13 @@ export async function processConversationAi(
     settings,
     aiState,
     history,
+  }).catch((e) => {
+    console.error("[VirtualAssistant] agent error:", e);
+    const msg =
+      e instanceof Error && e.message.includes("OPENAI_API_KEY")
+        ? "Desculpe, o assistente não está configurado no momento. Vou chamar alguém da equipe."
+        : "Desculpe, tive um problema técnico. Pode tentar de novo em instantes?";
+    return { reply: msg, handoff: false, statePatch: aiState };
   });
 
   const now = new Date().toISOString();
@@ -296,17 +316,33 @@ export async function scheduleAiDebounce(
     .update({ ai_debounce_until: debounceUntil })
     .eq("id", conversationId);
 
-  const waitMs = debounceSeconds * 1000;
-  void (async () => {
-    await new Promise((r) => setTimeout(r, waitMs));
-    try {
-      const { createServiceRoleClient } = await import("@/lib/supabase/service-role");
-      const serviceSupabase = createServiceRoleClient();
-      await processConversationAi(serviceSupabase, conversationId);
-    } catch (e) {
-      console.error("[VirtualAssistant] debounced processing failed:", e);
-    }
-  })();
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    console.warn("[VirtualAssistant] CRON_SECRET não configurado — use o cron /api/cron/process-whatsapp-ai");
+    return;
+  }
+
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+
+  if (!baseUrl) {
+    console.warn("[VirtualAssistant] NEXT_PUBLIC_APP_URL não configurado");
+    return;
+  }
+
+  const url = `${baseUrl.replace(/\/$/, "")}/api/internal/process-whatsapp-ai`;
+
+  void fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secret}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ conversationId }),
+  }).catch((e) => {
+    console.error("[VirtualAssistant] falha ao disparar processamento:", e);
+  });
 }
 
 export async function shouldSkipMenuChatbot(

@@ -134,6 +134,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const supabaseRef = useRef(createSupabaseBrowserClient());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottomRef = useRef(false);
+  const patientCacheRef = useRef<Record<string, Patient | null>>({});
+  const loadConversationsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchPatientByPhone = useCallback(async (phone: string): Promise<Patient | null> => {
     try {
@@ -211,12 +213,23 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         setConversations(data);
         const convos = data as Conversation[];
         const map: Record<string, Patient> = {};
+        const phonesToFetch = convos
+          .map((c) => c.phone_number)
+          .filter((phone) => patientCacheRef.current[phone] === undefined);
+
         await Promise.all(
-          convos.map(async (c) => {
-            const patient = await fetchPatientByPhone(c.phone_number);
-            if (patient) map[c.phone_number] = patient;
+          phonesToFetch.map(async (phone) => {
+            const patient = await fetchPatientByPhone(phone);
+            patientCacheRef.current[phone] = patient;
+            if (patient) map[phone] = patient;
           })
         );
+
+        for (const c of convos) {
+          const cached = patientCacheRef.current[c.phone_number];
+          if (cached) map[c.phone_number] = cached;
+        }
+
         setPatientByPhone((prev) => ({ ...prev, ...map }));
       } else {
         setConversations([]);
@@ -227,6 +240,18 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       if (showLoading) setLoading(false);
     }
   }, [conversationStatusFilter, fetchPatientByPhone]);
+
+  const scheduleLoadConversations = useCallback(
+    (showLoading = false) => {
+      if (loadConversationsTimerRef.current) {
+        clearTimeout(loadConversationsTimerRef.current);
+      }
+      loadConversationsTimerRef.current = setTimeout(() => {
+        void loadConversations(showLoading);
+      }, 400);
+    },
+    [loadConversations]
+  );
 
   const handleCompleteConversation = async (conversationId: string) => {
     setCompletingConversationId(conversationId);
@@ -328,7 +353,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           if (selectedId && conversationId === selectedId) {
             loadMessages(false, false);
           }
-          loadConversations(false);
+          scheduleLoadConversations(false);
           loadUnreadCounts();
         }
       )
@@ -336,7 +361,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         "postgres_changes",
         { event: "*", schema: "public", table: "whatsapp_conversations" },
         () => {
-          loadConversations(false);
+          scheduleLoadConversations(false);
         }
       )
       .subscribe((status) => {
@@ -347,18 +372,18 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       setRealtimeConnected(false);
       supabase.removeChannel(channel);
     };
-  }, [selectedId, loadConversations, loadUnreadCounts, loadMessages]);
+  }, [selectedId, scheduleLoadConversations, loadUnreadCounts, loadMessages]);
 
   // Fallback de polling curto quando socket estiver indisponível
   useEffect(() => {
     if (realtimeConnected) return;
     const interval = setInterval(() => {
-      loadConversations(false);
+      scheduleLoadConversations(false);
       loadUnreadCounts();
       if (selectedId) loadMessages(false, false);
     }, 4000);
     return () => clearInterval(interval);
-  }, [realtimeConnected, selectedId, loadConversations, loadUnreadCounts, loadMessages]);
+  }, [realtimeConnected, selectedId, scheduleLoadConversations, loadUnreadCounts, loadMessages]);
 
   useEffect(() => {
     fetch("/api/whatsapp/secretaries")
