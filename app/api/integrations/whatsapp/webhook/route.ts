@@ -141,6 +141,7 @@ export async function POST(request: NextRequest) {
 
           let bodyText: string | null = null;
           let mediaUrl: string | null = null;
+          let mediaMimeType: string | null = null;
           const text = (msg as { text?: { body?: string } }).text;
           const msgType = (msg as { type?: string }).type || "text";
           const image = (msg as { image?: { id?: string; mime_type?: string } }).image;
@@ -151,6 +152,7 @@ export async function POST(request: NextRequest) {
           if (text?.body) {
             bodyText = String(text.body);
           } else if (image?.id && accessToken) {
+            mediaMimeType = image.mime_type ?? "image/jpeg";
             mediaUrl = await fetchAndStoreWhatsAppMedia(
               image.id,
               accessToken,
@@ -159,6 +161,7 @@ export async function POST(request: NextRequest) {
             );
             bodyText = mediaUrl ? "" : "[image]";
           } else if (audio?.id && accessToken) {
+            mediaMimeType = audio.mime_type ?? "audio/ogg";
             mediaUrl = await fetchAndStoreWhatsAppMedia(
               audio.id,
               accessToken,
@@ -167,6 +170,7 @@ export async function POST(request: NextRequest) {
             );
             bodyText = mediaUrl ? "" : "[audio]";
           } else if (video?.id && accessToken) {
+            mediaMimeType = video.mime_type ?? "video/mp4";
             mediaUrl = await fetchAndStoreWhatsAppMedia(
               video.id,
               accessToken,
@@ -175,6 +179,7 @@ export async function POST(request: NextRequest) {
             );
             bodyText = mediaUrl ? "" : "[video]";
           } else if (document?.id && accessToken) {
+            mediaMimeType = document.mime_type ?? "application/octet-stream";
             mediaUrl = await fetchAndStoreWhatsAppMedia(
               document.id,
               accessToken,
@@ -268,6 +273,7 @@ export async function POST(request: NextRequest) {
               message_type: msgType,
               content: bodyText ?? "",
               media_url: mediaUrl ?? null,
+              media_mime_type: mediaMimeType,
               sent_at: new Date().toISOString(),
             } as Record<string, unknown>)
             .select("id")

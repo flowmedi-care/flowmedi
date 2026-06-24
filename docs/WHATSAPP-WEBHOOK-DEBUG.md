@@ -27,6 +27,14 @@ API (admin da clínica):
 
 O endpoint `/api/whatsapp/webhook/debug` também lista os últimos eventos de IA das últimas 24h.
 
+## Áudio inbound (assistente virtual)
+
+Fluxo: webhook salva áudio → job de transcrição assíncrono → cron/process-now faz poll → LLM responde em **texto**.
+
+Variáveis na Vercel: `TRANSCRIBE_API_KEY`, `TRANSCRIBE_API_URL` (opcional).
+
+Migration opcional: `supabase/migration-whatsapp-message-mime.sql` (coluna `media_mime_type`).
+
 ## Onde ver os logs no servidor (Vercel)
 
 O webhook faz `console.log` do payload. Para ver:

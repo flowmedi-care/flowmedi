@@ -203,12 +203,14 @@ export async function transcribeAndWait(
   filename: string,
   userId: string,
   source: AudioSource = "other",
-  options: TranscribeOptions = {}
+  options: TranscribeOptions & { mimeType?: string } = {}
 ): Promise<string> {
   const pollIntervalMs = options.pollIntervalMs ?? getPollIntervalMs();
   const timeoutMs = options.timeoutMs ?? getTimeoutMs(source);
 
-  const jobId = await createTranscriptionJob(audioBuffer, filename, userId, source);
+  const jobId = await createTranscriptionJob(audioBuffer, filename, userId, source, {
+    mimeType: options.mimeType,
+  });
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {

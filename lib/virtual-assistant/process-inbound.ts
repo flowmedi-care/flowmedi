@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { waitUntil } from "@vercel/functions";
-import { transcribeAndWait } from "@/lib/transcribe-api";
+import {
+  AUDIO_FALLBACK_MESSAGE,
+  resolveInboundTexts,
+  scheduleTranscriptionRetry,
+} from "./audio-transcription";
 import { runVirtualAssistantAgent } from "./agent";
 import { logAiEvent } from "./event-log";
 import { sendAssistantReply } from "./send-reply";
@@ -10,13 +14,6 @@ import { isInsideAutoMessageWindow } from "@/lib/whatsapp-ops-controls";
 export interface SkipMenuChatbotResult {
   skipMenu: boolean;
   reason?: string;
-}
-
-async function downloadMediaAsBuffer(mediaUrl: string): Promise<Buffer> {
-  const res = await fetch(mediaUrl);
-  if (!res.ok) throw new Error(`Falha ao baixar mídia (${res.status})`);
-  const arrayBuffer = await res.arrayBuffer();
-  return Buffer.from(arrayBuffer);
 }
 
 function parseTimeToMinutes(value: string | null | undefined, fallback: number): number {
@@ -141,7 +138,7 @@ async function processConversationAiInner(
 
   const { data: pending } = await supabase
     .from("whatsapp_messages")
-    .select("id, content, message_type, media_url, sent_at")
+    .select("id, content, message_type, media_url, media_mime_type, sent_at")
     .eq("conversation_id", conversationId)
     .eq("direction", "inbound")
     .is("ai_processed_at", null)
@@ -153,36 +150,40 @@ async function processConversationAiInner(
     clinicId: conv.clinic_id,
     conversationId,
     stage: "pending_messages",
-    detail: { count: pending.length, preview: pending.map((m) => String(m.content ?? "").slice(0, 40)) },
+    detail: {
+      count: pending.length,
+      preview: pending.map((m) => {
+        if (m.message_type === "audio") return "[audio]";
+        return String(m.content ?? "").slice(0, 40);
+      }),
+    },
   });
 
-  const userTexts: string[] = [];
-  for (const msg of pending) {
-    let text = String(msg.content ?? "").trim();
-    if (msg.message_type === "audio" && msg.media_url) {
-      try {
-        const buffer = await downloadMediaAsBuffer(msg.media_url);
-        text = await transcribeAndWait(
-          buffer,
-          `whatsapp-${msg.id}.ogg`,
-          `clinic-${conv.clinic_id}`,
-          "whatsapp"
-        );
-        await supabase
-          .from("whatsapp_messages")
-          .update({ content: text })
-          .eq("id", msg.id);
-      } catch (e) {
-        console.error("[VirtualAssistant] transcribe:", e);
-        text = "[áudio não transcrito]";
-      }
-    }
-    if (text && text !== "[audio]" && !text.startsWith("[")) {
-      userTexts.push(text);
-    } else if (msg.message_type === "image" || msg.message_type === "video") {
-      userTexts.push(`[Paciente enviou ${msg.message_type}]`);
-    }
+  let aiState = (conv.ai_state ?? {}) as AiConversationState;
+  const resolved = await resolveInboundTexts(
+    supabase,
+    conv.clinic_id,
+    conversationId,
+    pending,
+    aiState
+  );
+  aiState = resolved.aiState;
+
+  if (resolved.waitingForTranscription) {
+    await scheduleTranscriptionRetry(supabase, conversationId, aiState);
+    logAiEvent(supabase, {
+      clinicId: conv.clinic_id,
+      conversationId,
+      stage: "pending_messages",
+      detail: {
+        waitingForTranscription: true,
+        jobs: aiState.pending_transcription_jobs?.length ?? 0,
+      },
+    });
+    return;
   }
+
+  const userTexts = resolved.userTexts;
 
   if (!userTexts.length) {
     const now = new Date().toISOString();
@@ -193,6 +194,30 @@ async function processConversationAiInner(
         "id",
         pending.map((m) => m.id)
       );
+    await supabase
+      .from("whatsapp_conversations")
+      .update({
+        ai_state: aiState,
+        ai_debounce_until: null,
+      })
+      .eq("id", conversationId);
+
+    if (resolved.audioFailedIds.length > 0) {
+      await sendAssistantReply(
+        supabase,
+        conv.clinic_id,
+        conversationId,
+        conv.phone_number,
+        AUDIO_FALLBACK_MESSAGE
+      );
+      logAiEvent(supabase, {
+        clinicId: conv.clinic_id,
+        conversationId,
+        stage: "reply_sent",
+        level: "warn",
+        detail: { type: "audio_fallback", failedCount: resolved.audioFailedIds.length },
+      });
+    }
     return;
   }
 
@@ -240,8 +265,6 @@ async function processConversationAiInner(
       content: String(m.content ?? ""),
     }))
     .filter((m) => m.content.trim());
-
-  const aiState = (conv.ai_state ?? {}) as AiConversationState;
 
   const combinedText = userTexts.join(" ").toLowerCase();
   if (aiState.pending_confirmation_appointment_id && aiState.patient_id) {

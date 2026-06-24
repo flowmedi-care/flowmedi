@@ -37,10 +37,22 @@ export async function GET(request: NextRequest) {
     .is("ai_processed_at", null)
     .limit(100);
 
+  const { data: convsWithJobs } = await supabase
+    .from("whatsapp_conversations")
+    .select("id, ai_state")
+    .is("ai_handoff_at", null)
+    .neq("ai_enabled", false)
+    .limit(100);
+
   const ids = new Set<string>();
   for (const c of debounced ?? []) ids.add(c.id);
   for (const row of pendingRows ?? []) {
     if (row.conversation_id) ids.add(row.conversation_id);
+  }
+  for (const c of convsWithJobs ?? []) {
+    const jobs = (c.ai_state as { pending_transcription_jobs?: unknown[] } | null)
+      ?.pending_transcription_jobs;
+    if (Array.isArray(jobs) && jobs.length > 0) ids.add(c.id);
   }
 
   let processed = 0;

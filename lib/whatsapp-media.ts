@@ -64,7 +64,7 @@ export async function fetchAndStoreWhatsAppMedia(
   }
 }
 
-function getExtensionFromMime(mime: string): string {
+export function getExtensionFromMime(mime: string): string {
   const map: Record<string, string> = {
     "image/jpeg": ".jpg",
     "image/png": ".png",

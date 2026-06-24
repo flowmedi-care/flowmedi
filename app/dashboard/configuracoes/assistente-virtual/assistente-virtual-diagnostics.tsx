@@ -25,6 +25,10 @@ const STAGE_LABELS: Record<string, string> = {
   reply_sent: "Resposta enviada",
   handoff: "Transferido para humano",
   ai_reactivated: "IA reativada na conversa",
+  audio_transcribe_start: "Transcrição de áudio iniciada",
+  audio_transcribe_ok: "Áudio transcrito",
+  audio_transcribe_failed: "Falha na transcrição",
+  audio_no_media: "Áudio sem mídia salva",
   cron_conversation_processed: "Processado pelo cron",
   simulate_inbound: "Simulação inbound",
   error: "Erro",
@@ -204,6 +208,12 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
                 <strong>OpenAI (servidor):</strong>{" "}
                 {health.openaiConfigured ? "Configurada" : "OPENAI_API_KEY ausente na Vercel"}
               </div>
+              <div className={`rounded-md border p-3 text-sm ${statusClass(health.transcribeConfigured)}`}>
+                <strong>Transcrição (servidor):</strong>{" "}
+                {health.transcribeConfigured
+                  ? "TRANSCRIBE_API_KEY configurada"
+                  : "TRANSCRIBE_API_KEY ausente na Vercel"}
+              </div>
               <div
                 className={`rounded-md border p-3 text-sm ${statusClass(health.cronSecretConfigured, !health.cronSecretConfigured)}`}
               >
@@ -214,6 +224,11 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
                 className={`rounded-md border p-3 text-sm ${statusClass(health.pendingInboundCount === 0, health.pendingInboundCount > 0)}`}
               >
                 <strong>Mensagens pendentes IA:</strong> {health.pendingInboundCount}
+              </div>
+              <div
+                className={`rounded-md border p-3 text-sm ${statusClass(health.pendingAudioCount === 0, health.pendingAudioCount > 0)}`}
+              >
+                <strong>Áudios aguardando IA:</strong> {health.pendingAudioCount}
               </div>
               <div
                 className={`rounded-md border p-3 text-sm ${statusClass(health.stuckDebounceCount === 0, health.stuckDebounceCount > 0)}`}
@@ -234,6 +249,12 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
               {new Date(health.lastEventAt).toLocaleString("pt-BR")}
             </p>
           )}
+          <p className="text-xs text-muted-foreground">
+            <strong>Teste de áudio:</strong> envie um áudio curto pelo WhatsApp. Na timeline, espere{" "}
+            <em>Transcrição de áudio iniciada</em> → <em>Áudio transcrito</em> → <em>Resposta enviada</em>.
+            A transcrição roda de forma assíncrona (cron VPS ou botão Processar fila). Se parar em{" "}
+            <em>Falha na transcrição</em>, verifique TRANSCRIBE_API_KEY na Vercel.
+          </p>
         </CardContent>
       </Card>
 

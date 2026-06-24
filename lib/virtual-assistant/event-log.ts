@@ -15,6 +15,10 @@ export const AI_EVENT_STAGES = [
   "cron_conversation_processed",
   "simulate_inbound",
   "ai_reactivated",
+  "audio_transcribe_start",
+  "audio_transcribe_ok",
+  "audio_transcribe_failed",
+  "audio_no_media",
   "error",
 ] as const;
 

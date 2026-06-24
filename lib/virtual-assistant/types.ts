@@ -62,6 +62,11 @@ export type VirtualAssistantFaq = {
   display_order: number;
 };
 
+export type PendingTranscriptionJob = {
+  messageId: string;
+  jobId: string;
+};
+
 export type AiConversationState = {
   intent?: string;
   doctor_id?: string;
@@ -71,6 +76,7 @@ export type AiConversationState = {
   dimension_value_ids?: string[];
   patient_id?: string;
   pending_confirmation_appointment_id?: string;
+  pending_transcription_jobs?: PendingTranscriptionJob[];
 };
 
 export const DAY_LABELS: Record<DayKey, string> = {
