@@ -23,6 +23,7 @@ import {
   upsertVirtualAssistantFaq,
   upsertVirtualAssistantLocation,
 } from "./actions";
+import { AssistenteVirtualDiagnostics } from "./assistente-virtual-diagnostics";
 
 type TabId =
   | "geral"
@@ -32,7 +33,8 @@ type TabId =
   | "contato"
   | "politicas"
   | "faq"
-  | "comportamento";
+  | "comportamento"
+  | "diagnostico";
 
 interface Props {
   canUse: boolean;
@@ -110,6 +112,7 @@ export function AssistenteVirtualClient({
     { id: "politicas", label: "Políticas" },
     { id: "faq", label: "FAQ" },
     { id: "comportamento", label: "Comportamento" },
+    { id: "diagnostico", label: "Diagnóstico" },
   ];
 
   async function handleSave(partial?: Parameters<typeof saveVirtualAssistantSettings>[0]) {
@@ -576,6 +579,8 @@ export function AssistenteVirtualClient({
           </CardContent>
         </Card>
       )}
+
+      {tab === "diagnostico" && <AssistenteVirtualDiagnostics active={tab === "diagnostico"} />}
     </div>
   );
 }

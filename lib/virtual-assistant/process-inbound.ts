@@ -2,9 +2,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { waitUntil } from "@vercel/functions";
 import { transcribeAndWait } from "@/lib/transcribe-api";
 import { runVirtualAssistantAgent } from "./agent";
+import { logAiEvent } from "./event-log";
 import { sendAssistantReply } from "./send-reply";
 import type { AiConversationState, VirtualAssistantSettings } from "./types";
 import { isInsideAutoMessageWindow } from "@/lib/whatsapp-ops-controls";
+
+export interface SkipMenuChatbotResult {
+  skipMenu: boolean;
+  reason?: string;
+}
 
 async function downloadMediaAsBuffer(mediaUrl: string): Promise<Buffer> {
   const res = await fetch(mediaUrl);
@@ -70,6 +76,33 @@ export async function processConversationAi(
   supabase: SupabaseClient,
   conversationId: string
 ): Promise<void> {
+  try {
+    await processConversationAiInner(supabase, conversationId);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("[VirtualAssistant] processamento falhou:", e);
+    const { data: conv } = await supabase
+      .from("whatsapp_conversations")
+      .select("clinic_id")
+      .eq("id", conversationId)
+      .maybeSingle();
+    if (conv?.clinic_id) {
+      logAiEvent(supabase, {
+        clinicId: conv.clinic_id,
+        conversationId,
+        stage: "error",
+        level: "error",
+        detail: { message, source: "processConversationAi" },
+      });
+    }
+    throw e;
+  }
+}
+
+async function processConversationAiInner(
+  supabase: SupabaseClient,
+  conversationId: string
+): Promise<void> {
   const { data: conv } = await supabase
     .from("whatsapp_conversations")
     .select(
@@ -87,8 +120,24 @@ export async function processConversationAi(
     await new Promise((r) => setTimeout(r, waitMs));
   }
 
-  const { active, settings } = await isVirtualAssistantActive(supabase, conv.clinic_id);
-  if (!active || !settings) return;
+  const { active, settings, reason } = await isVirtualAssistantActive(supabase, conv.clinic_id);
+  if (!active || !settings) {
+    logAiEvent(supabase, {
+      clinicId: conv.clinic_id,
+      conversationId,
+      stage: "processing_start",
+      level: "warn",
+      detail: { skipped: true, reason: reason ?? "assistente inativo" },
+    });
+    return;
+  }
+
+  logAiEvent(supabase, {
+    clinicId: conv.clinic_id,
+    conversationId,
+    stage: "processing_start",
+    detail: { phone: conv.phone_number },
+  });
 
   const { data: pending } = await supabase
     .from("whatsapp_messages")
@@ -99,6 +148,13 @@ export async function processConversationAi(
     .order("sent_at", { ascending: true });
 
   if (!pending?.length) return;
+
+  logAiEvent(supabase, {
+    clinicId: conv.clinic_id,
+    conversationId,
+    stage: "pending_messages",
+    detail: { count: pending.length, preview: pending.map((m) => String(m.content ?? "").slice(0, 40)) },
+  });
 
   const userTexts: string[] = [];
   for (const msg of pending) {
@@ -158,6 +214,12 @@ export async function processConversationAi(
         conv.phone_number,
         "No momento estamos fora do horário de atendimento automático. Deixe sua mensagem que retornamos em breve!"
       );
+      logAiEvent(supabase, {
+        clinicId: conv.clinic_id,
+        conversationId,
+        stage: "reply_sent",
+        detail: { type: "outside_hours" },
+      });
       return;
     }
   }
@@ -220,6 +282,12 @@ export async function processConversationAi(
         msg += `\n\n📋 Recomendações:\n${res.recommendations}`;
       }
       await sendAssistantReply(supabase, conv.clinic_id, conversationId, conv.phone_number, msg);
+      logAiEvent(supabase, {
+        clinicId: conv.clinic_id,
+        conversationId,
+        stage: "reply_sent",
+        detail: { type: "confirmation_yes" },
+      });
       return;
     }
     if (reply === "no") {
@@ -252,9 +320,22 @@ export async function processConversationAi(
         conv.phone_number,
         "Entendido. Sua consulta foi cancelada. Se quiser remarcar, é só me avisar!"
       );
+      logAiEvent(supabase, {
+        clinicId: conv.clinic_id,
+        conversationId,
+        stage: "reply_sent",
+        detail: { type: "confirmation_no" },
+      });
       return;
     }
   }
+
+  logAiEvent(supabase, {
+    clinicId: conv.clinic_id,
+    conversationId,
+    stage: "openai_start",
+    detail: { messageCount: userTexts.length },
+  });
 
   const { reply, handoff, statePatch } = await runVirtualAssistantAgent({
     supabase,
@@ -271,7 +352,24 @@ export async function processConversationAi(
       e instanceof Error && e.message.includes("OPENAI_API_KEY")
         ? "Desculpe, o assistente não está configurado no momento. Vou chamar alguém da equipe."
         : "Desculpe, tive um problema técnico. Pode tentar de novo em instantes?";
+    logAiEvent(supabase, {
+      clinicId: conv.clinic_id,
+      conversationId,
+      stage: "error",
+      level: "error",
+      detail: {
+        source: "openai_agent",
+        message: e instanceof Error ? e.message : String(e),
+      },
+    });
     return { reply: msg, handoff: false, statePatch: aiState };
+  });
+
+  logAiEvent(supabase, {
+    clinicId: conv.clinic_id,
+    conversationId,
+    stage: "openai_end",
+    detail: { handoff, replyPreview: reply.slice(0, 80) },
   });
 
   const now = new Date().toISOString();
@@ -292,17 +390,19 @@ export async function processConversationAi(
     })
     .eq("id", conversationId);
 
-  if (!handoff) {
-    await sendAssistantReply(supabase, conv.clinic_id, conversationId, conv.phone_number, reply);
-  } else {
-    await sendAssistantReply(supabase, conv.clinic_id, conversationId, conv.phone_number, reply);
-  }
+  await sendAssistantReply(supabase, conv.clinic_id, conversationId, conv.phone_number, reply);
+  logAiEvent(supabase, {
+    clinicId: conv.clinic_id,
+    conversationId,
+    stage: handoff ? "handoff" : "reply_sent",
+    detail: { replyPreview: reply.slice(0, 80) },
+  });
 }
 
 export async function scheduleAiDebounce(
   supabase: SupabaseClient,
   conversationId: string,
-  _clinicId: string,
+  clinicId: string,
   debounceSeconds: number
 ): Promise<void> {
   const debounceUntil = new Date(Date.now() + debounceSeconds * 1000).toISOString();
@@ -313,7 +413,21 @@ export async function scheduleAiDebounce(
 
   if (debounceError) {
     console.warn("[VirtualAssistant] ai_debounce_until não atualizado:", debounceError.message);
+    logAiEvent(supabase, {
+      clinicId,
+      conversationId,
+      stage: "error",
+      level: "warn",
+      detail: { source: "debounce_update", message: debounceError.message },
+    });
   }
+
+  logAiEvent(supabase, {
+    clinicId,
+    conversationId,
+    stage: "debounce_scheduled",
+    detail: { debounceSeconds, debounceUntil },
+  });
 
   const runProcessing = async () => {
     await new Promise((r) => setTimeout(r, debounceSeconds * 1000));
@@ -323,6 +437,16 @@ export async function scheduleAiDebounce(
 
   const task = runProcessing().catch((e) => {
     console.error("[VirtualAssistant] processamento falhou:", e);
+    logAiEvent(supabase, {
+      clinicId,
+      conversationId,
+      stage: "error",
+      level: "error",
+      detail: {
+        source: "waitUntil",
+        message: e instanceof Error ? e.message : String(e),
+      },
+    });
   });
 
   // Processamento imediato no mesmo request do webhook (Vercel) — não depende de cron
@@ -337,11 +461,11 @@ export async function shouldSkipMenuChatbot(
   supabase: SupabaseClient,
   clinicId: string,
   conversationId: string
-): Promise<boolean> {
+): Promise<SkipMenuChatbotResult> {
   const { active, reason } = await isVirtualAssistantActive(supabase, clinicId);
   if (!active) {
     console.info("[VirtualAssistant] inativo", { clinicId, reason });
-    return false;
+    return { skipMenu: false, reason: reason ?? "assistente inativo" };
   }
 
   const { data: conv } = await supabase
@@ -350,11 +474,14 @@ export async function shouldSkipMenuChatbot(
     .eq("id", conversationId)
     .single();
 
-  if (conv?.ai_handoff_at || conv?.ai_enabled === false) {
+  if (conv?.ai_handoff_at) {
     console.info("[VirtualAssistant] conversa em handoff humano", { conversationId });
-    return false;
+    return { skipMenu: false, reason: "conversa em handoff humano" };
   }
-  return true;
+  if (conv?.ai_enabled === false) {
+    return { skipMenu: false, reason: "IA pausada nesta conversa (resposta manual)" };
+  }
+  return { skipMenu: true };
 }
 
 export async function pauseAiOnManualReply(

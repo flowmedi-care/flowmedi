@@ -1,0 +1,58 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+export const AI_EVENT_STAGES = [
+  "webhook_inbound",
+  "routing_decision",
+  "legacy_menu_no_reply",
+  "debounce_scheduled",
+  "processing_start",
+  "pending_messages",
+  "openai_start",
+  "openai_end",
+  "reply_sent",
+  "handoff",
+  "cron_batch_start",
+  "cron_conversation_processed",
+  "simulate_inbound",
+  "error",
+] as const;
+
+export type AiEventStage = (typeof AI_EVENT_STAGES)[number];
+export type AiEventLevel = "info" | "warn" | "error";
+
+export interface LogAiEventInput {
+  clinicId: string;
+  conversationId?: string | null;
+  messageId?: string | null;
+  stage: AiEventStage;
+  level?: AiEventLevel;
+  detail?: Record<string, unknown>;
+}
+
+/**
+ * Persiste evento de diagnóstico — fire-and-forget, não bloqueia o webhook.
+ */
+export function logAiEvent(
+  supabase: SupabaseClient,
+  input: LogAiEventInput
+): void {
+  const row = {
+    clinic_id: input.clinicId,
+    conversation_id: input.conversationId ?? null,
+    message_id: input.messageId ?? null,
+    stage: input.stage,
+    level: input.level ?? "info",
+    detail: input.detail ?? {},
+  };
+
+  void supabase
+    .from("whatsapp_ai_event_log")
+    .insert(row)
+    .then(({ error }) => {
+      if (error) {
+        console.warn("[VirtualAssistant] event log insert failed:", error.message, {
+          stage: input.stage,
+        });
+      }
+    });
+}

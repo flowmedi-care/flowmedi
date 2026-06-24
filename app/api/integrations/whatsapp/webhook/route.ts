@@ -14,6 +14,7 @@ import {
   scheduleAiDebounce,
   shouldSkipMenuChatbot,
 } from "@/lib/virtual-assistant/process-inbound";
+import { logAiEvent } from "@/lib/virtual-assistant/event-log";
 
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
@@ -257,29 +258,60 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          const insertMsg = await supabase.from("whatsapp_messages").insert({
-            conversation_id: conversationId,
-            clinic_id: clinicId,
-            direction: "inbound",
-            message_type: msgType,
-            content: bodyText ?? "",
-            media_url: mediaUrl ?? null,
-            sent_at: new Date().toISOString(),
-          } as Record<string, unknown>);
+          const insertMsg = await supabase
+            .from("whatsapp_messages")
+            .insert({
+              conversation_id: conversationId,
+              clinic_id: clinicId,
+              direction: "inbound",
+              message_type: msgType,
+              content: bodyText ?? "",
+              media_url: mediaUrl ?? null,
+              sent_at: new Date().toISOString(),
+            } as Record<string, unknown>)
+            .select("id")
+            .single();
 
           if (insertMsg.error) {
             console.error("[WhatsApp Webhook] Erro ao inserir mensagem:", insertMsg.error);
           }
 
-          const skipMenu = await shouldSkipMenuChatbot(supabase, clinicId, conversationId);
+          const messageId = insertMsg.data?.id ?? undefined;
+
+          logAiEvent(supabase, {
+            clinicId,
+            conversationId,
+            messageId: messageId || undefined,
+            stage: "webhook_inbound",
+            detail: {
+              from,
+              msgType,
+              bodyPreview: (bodyText ?? "").slice(0, 80),
+            },
+          });
+
+          const routing = await shouldSkipMenuChatbot(supabase, clinicId, conversationId);
           console.info("[WhatsApp Webhook] roteamento pós-mensagem", {
             clinicId,
             conversationId,
-            skipMenu,
+            skipMenu: routing.skipMenu,
+            reason: routing.reason,
             bodyPreview: (bodyText ?? "").slice(0, 40),
           });
 
-          if (skipMenu) {
+          logAiEvent(supabase, {
+            clinicId,
+            conversationId,
+            messageId: messageId || undefined,
+            stage: "routing_decision",
+            level: routing.skipMenu ? "info" : "warn",
+            detail: {
+              skipMenu: routing.skipMenu,
+              reason: routing.reason ?? null,
+            },
+          });
+
+          if (routing.skipMenu) {
             const { data: vaSettings } = await supabase
               .from("clinic_virtual_assistant_settings")
               .select("message_debounce_seconds")
@@ -304,6 +336,13 @@ export async function POST(request: NextRequest) {
               await sendChatbotReply(supabase, clinicId, conversationId, from, chatbotResult.reply);
             } else {
               console.info("[WhatsApp Webhook] menu legado sem resposta (routing != chatbot ou mensagem livre)");
+              logAiEvent(supabase, {
+                clinicId,
+                conversationId,
+                stage: "legacy_menu_no_reply",
+                level: "warn",
+                detail: { bodyPreview: (bodyText ?? "").slice(0, 80) },
+              });
             }
           }
         }
