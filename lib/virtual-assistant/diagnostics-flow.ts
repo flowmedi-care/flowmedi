@@ -2,7 +2,7 @@ import type { AiEventRow } from "./diagnostics";
 
 export type FlowStepStatus = "completed" | "in_progress" | "pending" | "failed" | "skipped";
 
-export type FlowTraceStatus = "completed" | "in_progress" | "failed" | "blocked" | "skipped";
+export type FlowTraceStatus = "completed" | "in_progress" | "failed" | "blocked" | "skipped" | "discarded";
 
 export interface ConversationMeta {
   phone: string;
@@ -304,8 +304,10 @@ function buildSteps(
 
 function traceStatus(
   steps: FlowStep[],
-  events: AiEventRow[]
+  events: AiEventRow[],
+  discarded: boolean
 ): FlowTraceStatus {
+  if (discarded) return "discarded";
   if (events.some((e) => e.stage === "reply_sent" || e.stage === "handoff")) return "completed";
   if (
     events.some(
@@ -331,13 +333,85 @@ function traceStatus(
   return "in_progress";
 }
 
+function isDiscardedTrace(events: AiEventRow[], anchorMessageProcessed: boolean): boolean {
+  if (events.some((e) => e.stage === "flow_discarded")) return true;
+  if (events.some((e) => e.stage === "queue_cleared")) return true;
+  if (
+    events.some(
+      (e) => e.stage === "processing_start" && e.detail?.skipped === true
+    )
+  ) {
+    return true;
+  }
+  const routing = events.find((e) => e.stage === "routing_decision");
+  if (routing?.detail?.skipMenu === false) {
+    const reason = typeof routing.detail?.reason === "string" ? routing.detail.reason : "";
+    if (
+      reason.includes("inativo") ||
+      reason.includes("enabled=false") ||
+      reason.includes("sem registro")
+    ) {
+      return true;
+    }
+  }
+  if (anchorMessageProcessed) {
+    const hasReply = events.some((e) => e.stage === "reply_sent" || e.stage === "handoff");
+    if (!hasReply) return true;
+  }
+  return false;
+}
+
+function discardReason(events: AiEventRow[]): string {
+  const discarded = events.find((e) => e.stage === "flow_discarded");
+  if (discarded && typeof discarded.detail?.reason === "string") {
+    return discarded.detail.reason;
+  }
+  const skipped = events.find(
+    (e) => e.stage === "processing_start" && e.detail?.skipped === true
+  );
+  if (skipped && typeof skipped.detail?.reason === "string") {
+    return `Assistente inativo: ${skipped.detail.reason}`;
+  }
+  const routing = events.find((e) => e.stage === "routing_decision");
+  if (routing?.detail?.skipMenu === false && typeof routing.detail?.reason === "string") {
+    return routing.detail.reason;
+  }
+  if (events.some((e) => e.stage === "queue_cleared")) {
+    return "Fila zerada — não receberá resposta da IA";
+  }
+  return "Descartado da fila — não receberá resposta da IA";
+}
+
+function applyDiscardedSteps(steps: FlowStep[], reason: string, at?: string): FlowStep[] {
+  const received = steps.find((s) => s.key === "received");
+  const result: FlowStep[] = received ? [received] : [];
+  result.push({
+    key: "discarded",
+    title: "Descartado — sem resposta da IA",
+    description: reason,
+    status: "completed",
+    at,
+  });
+  return result;
+}
+
 function buildAnchorTrace(
   anchor: AiEventRow,
   events: AiEventRow[],
-  meta: Record<string, ConversationMeta>
+  meta: Record<string, ConversationMeta>,
+  processedMessageIds: Set<string>
 ): MessageFlowTrace {
   const { preview, channel } = messagePreview(anchor);
-  const steps = buildSteps(events, channel);
+  const anchorProcessed = Boolean(anchor.message_id && processedMessageIds.has(anchor.message_id));
+  const discarded = isDiscardedTrace(events, anchorProcessed);
+  let steps = buildSteps(events, channel);
+  if (discarded) {
+    const discardAt =
+      events.find((e) => e.stage === "flow_discarded")?.created_at ??
+      events.find((e) => e.stage === "queue_cleared")?.created_at ??
+      events.find((e) => e.stage === "processing_start" && e.detail?.skipped)?.created_at;
+    steps = applyDiscardedSteps(steps, discardReason(events), discardAt);
+  }
   const finished = events.find((e) => e.stage === "reply_sent" || e.stage === "handoff");
 
   return {
@@ -347,8 +421,10 @@ function buildAnchorTrace(
     messagePreview: preview,
     channel,
     startedAt: anchor.created_at,
-    finishedAt: finished?.created_at,
-    status: traceStatus(steps, events),
+    finishedAt: discarded
+      ? events.find((e) => e.stage === "flow_discarded")?.created_at ?? anchor.created_at
+      : finished?.created_at,
+    status: traceStatus(steps, events, discarded),
     steps,
     eventIds: events.map((e) => e.id),
   };
@@ -357,6 +433,7 @@ function buildAnchorTrace(
 function buildSystemTrace(event: AiEventRow): MessageFlowTrace {
   const titles: Record<string, string> = {
     queue_cleared: "Fila da IA zerada manualmente",
+    flow_discarded: "Mensagem descartada da fila da IA",
     ai_reactivated: "IA reativada na conversa",
     cron_conversation_processed: "Conversa processada pelo cron",
   };
@@ -390,7 +467,8 @@ function buildSystemTrace(event: AiEventRow): MessageFlowTrace {
  */
 export function buildMessageFlows(
   events: AiEventRow[],
-  conversationMeta: Record<string, ConversationMeta>
+  conversationMeta: Record<string, ConversationMeta>,
+  processedMessageIds: Set<string> = new Set()
 ): MessageFlowTrace[] {
   if (!events.length) return [];
 
@@ -409,14 +487,40 @@ export function buildMessageFlows(
     const anchorTime = new Date(anchor.created_at).getTime();
     const convId = anchor.conversation_id;
 
+    const anchorMessageId = anchor.message_id;
+
     const slice = sorted.filter((e) => {
       if (usedIds.has(e.id)) return false;
       if (e.id === anchor.id) return true;
+      if (anchorMessageId && e.message_id === anchorMessageId) return true;
+      if (
+        e.stage === "routing_decision" &&
+        anchorMessageId &&
+        e.message_id === anchorMessageId
+      ) {
+        return true;
+      }
       if (convId && e.conversation_id !== convId) return false;
       if (!convId && e.conversation_id) return false;
       const t = new Date(e.created_at).getTime();
       if (t < anchorTime) return false;
       if (t - anchorTime > TRACE_WINDOW_MS) return false;
+      if (
+        e.stage === "flow_discarded" &&
+        convId &&
+        e.conversation_id === convId &&
+        t >= anchorTime
+      ) {
+        return true;
+      }
+      if (
+        e.stage === "queue_cleared" &&
+        convId &&
+        e.conversation_id === convId &&
+        t >= anchorTime
+      ) {
+        return true;
+      }
       if (
         e !== anchor &&
         (e.stage === "webhook_inbound" || e.stage === "simulate_inbound") &&
@@ -428,10 +532,10 @@ export function buildMessageFlows(
     });
 
     slice.forEach((e) => usedIds.add(e.id));
-    flows.push(buildAnchorTrace(anchor, slice, conversationMeta));
+    flows.push(buildAnchorTrace(anchor, slice, conversationMeta, processedMessageIds));
   }
 
-  const systemStages = new Set(["queue_cleared", "ai_reactivated"]);
+  const systemStages = new Set(["queue_cleared", "ai_reactivated", "flow_discarded"]);
   for (const event of sorted) {
     if (usedIds.has(event.id)) continue;
     if (systemStages.has(event.stage)) {

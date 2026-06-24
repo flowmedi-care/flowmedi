@@ -16,6 +16,7 @@ import {
   shouldSkipMenuChatbot,
 } from "@/lib/virtual-assistant/process-inbound";
 import { logAiEvent } from "@/lib/virtual-assistant/event-log";
+import { excludeInboundFromAiQueue } from "@/lib/virtual-assistant/exclude-from-ai-queue";
 
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
@@ -334,6 +335,19 @@ export async function POST(request: NextRequest) {
             });
             await scheduleAiDebounce(supabase, conversationId, clinicId, debounceSec);
           } else {
+            if (messageId) {
+              const inactive =
+                routing.reason?.includes("inativo") ||
+                routing.reason?.includes("enabled=false") ||
+                routing.reason?.includes("sem registro");
+              await excludeInboundFromAiQueue(supabase, {
+                clinicId,
+                conversationId,
+                messageId,
+                reason: routing.reason ?? "Não encaminhado para IA",
+                source: inactive ? "assistant_inactive" : "routing",
+              });
+            }
             const chatbotResult = await handleChatbotMessage(
               supabase,
               clinicId,

@@ -20,6 +20,7 @@ export const AI_EVENT_STAGES = [
   "audio_transcribe_failed",
   "audio_no_media",
   "queue_cleared",
+  "flow_discarded",
   "error",
 ] as const;
 

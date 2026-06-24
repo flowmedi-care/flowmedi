@@ -126,6 +126,31 @@ async function processConversationAiInner(
       level: "warn",
       detail: { skipped: true, reason: reason ?? "assistente inativo" },
     });
+
+    const inactive =
+      !reason ||
+      reason.includes("inativo") ||
+      reason.includes("enabled=false") ||
+      reason.includes("sem registro");
+    if (inactive) {
+      const now = new Date().toISOString();
+      await supabase
+        .from("whatsapp_messages")
+        .update({ ai_processed_at: now })
+        .eq("conversation_id", conversationId)
+        .eq("direction", "inbound")
+        .is("ai_processed_at", null);
+      logAiEvent(supabase, {
+        clinicId: conv.clinic_id,
+        conversationId,
+        stage: "flow_discarded",
+        level: "info",
+        detail: {
+          reason: reason ?? "assistente inativo",
+          source: "assistant_inactive",
+        },
+      });
+    }
     return;
   }
 

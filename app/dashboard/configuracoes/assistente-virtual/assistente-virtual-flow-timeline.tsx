@@ -29,6 +29,7 @@ const TRACE_STATUS: Record<
   failed: { label: "Falhou", variant: "destructive" },
   blocked: { label: "Bloqueado", variant: "secondary" },
   skipped: { label: "Ignorado", variant: "outline" },
+  discarded: { label: "Descartado", variant: "outline" },
 };
 
 function channelIcon(channel: MessageFlowTrace["channel"]) {
@@ -217,6 +218,7 @@ const STAGE_LABELS: Record<string, string> = {
   audio_transcribe_failed: "Falha na transcrição",
   audio_no_media: "Áudio sem mídia salva",
   queue_cleared: "Fila da IA zerada",
+  flow_discarded: "Descartado da fila",
   cron_conversation_processed: "Processado pelo cron",
   simulate_inbound: "Simulação inbound",
   error: "Erro",

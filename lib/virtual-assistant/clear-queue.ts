@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AiConversationState } from "./types";
+import { logAiEvent } from "./event-log";
 
 export interface ClearAssistantQueueResult {
   messagesSkipped: number;
@@ -34,6 +35,36 @@ export async function clearAssistantQueue(
     .is("ai_processed_at", null);
 
   if (msgErr) throw new Error(msgErr.message);
+
+  const { data: justCleared } = await supabase
+    .from("whatsapp_messages")
+    .select("id, conversation_id")
+    .eq("clinic_id", clinicId)
+    .eq("direction", "inbound")
+    .eq("ai_processed_at", now);
+
+  const clearedByConversation = new Map<string, number>();
+  for (const row of justCleared ?? []) {
+    if (!row.conversation_id) continue;
+    clearedByConversation.set(
+      row.conversation_id,
+      (clearedByConversation.get(row.conversation_id) ?? 0) + 1
+    );
+  }
+
+  for (const [conversationId, count] of clearedByConversation) {
+    logAiEvent(supabase, {
+      clinicId,
+      conversationId,
+      stage: "flow_discarded",
+      level: "info",
+      detail: {
+        reason: "Fila zerada manualmente — sem resposta da IA",
+        source: "clear_queue",
+        messagesDiscarded: count,
+      },
+    });
+  }
 
   const { data: convs, error: convFetchErr } = await supabase
     .from("whatsapp_conversations")

@@ -383,8 +383,9 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
         <CardHeader>
           <CardTitle>Passo a passo das mensagens</CardTitle>
           <CardDescription>
-            Cada card mostra o caminho completo: recebimento → IA → resposta enviada. Áudios incluem
-            transcrição antes da OpenAI.
+            Cada card mostra o caminho completo. Mensagens com badge{" "}
+            <strong>Descartado</strong> não receberão resposta da IA — use <em>Zerar fila</em> antes
+            de ativar o assistente para limpar o restante.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -154,6 +154,21 @@ export async function gatherAssistantDiagnostics(
     ...new Set(events.map((e) => e.conversation_id).filter((id): id is string => Boolean(id))),
   ];
 
+  const messageIds = [
+    ...new Set(events.map((e) => e.message_id).filter((id): id is string => Boolean(id))),
+  ];
+
+  const processedMessageIds = new Set<string>();
+  if (messageIds.length > 0) {
+    const { data: msgRows } = await supabase
+      .from("whatsapp_messages")
+      .select("id, ai_processed_at")
+      .in("id", messageIds);
+    for (const row of msgRows ?? []) {
+      if (row.ai_processed_at) processedMessageIds.add(row.id);
+    }
+  }
+
   const conversationMeta: Record<string, ConversationMeta> = {};
   if (conversationIds.length > 0) {
     const { data: convRows } = await supabase
@@ -185,7 +200,7 @@ export async function gatherAssistantDiagnostics(
     }
   }
 
-  const flows = buildMessageFlows(events, conversationMeta);
+  const flows = buildMessageFlows(events, conversationMeta, processedMessageIds);
 
   return {
     health,
