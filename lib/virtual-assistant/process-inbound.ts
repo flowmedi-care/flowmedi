@@ -325,8 +325,9 @@ export async function scheduleAiDebounce(
     console.error("[VirtualAssistant] processamento falhou:", e);
   });
 
+  // Processamento imediato no mesmo request do webhook (Vercel) — não depende de cron
   waitUntil(task);
-  console.info("[VirtualAssistant] agendado via waitUntil", {
+  console.info("[VirtualAssistant] agendado via waitUntil (VPS cron é só fallback)", {
     conversationId,
     debounceSeconds,
   });

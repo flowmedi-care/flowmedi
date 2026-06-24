@@ -3,8 +3,11 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { processConversationAi } from "@/lib/virtual-assistant/process-inbound";
 
 /**
- * Cron fallback: processa conversas com debounce expirado.
- * Authorization: Bearer CRON_SECRET
+ * Cron fallback: processa conversas com debounce expirado ou mensagens pendentes.
+ * Protegido por CRON_SECRET — chamar pela VPS, não pelo Vercel Cron.
+ *
+ * GET /api/cron/process-whatsapp-ai?secret=...
+ * ou Authorization: Bearer <CRON_SECRET>
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
