@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
-import { getSystemTemplatesForDisplay } from "../../actions";
+import { getMessageEvents, getSystemTemplatesForDisplay } from "../../actions";
 import { TemplatesListClient } from "../templates-list-client";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +27,12 @@ export default async function TemplatesSistemaPage() {
     redirect("/dashboard");
   }
 
-  const systemResult = await getSystemTemplatesForDisplay();
+  const [systemResult, eventsResult] = await Promise.all([
+    getSystemTemplatesForDisplay(),
+    getMessageEvents(),
+  ]);
   const systemTemplates = systemResult.data || [];
+  const events = eventsResult.data || [];
   const planData = await getClinicPlanData();
   const canUseEmailTemplates = Boolean(
     planData && canUseEmail(planData.limits, planData.planSlug, planData.subscriptionStatus)
@@ -63,6 +67,7 @@ export default async function TemplatesSistemaPage() {
         canCreateTemplates={canCreateTemplates}
         canUseEmailTemplates={canUseEmailTemplates}
         canUseWhatsAppTemplates={canUseWhatsAppTemplates}
+        events={events}
         mode="system"
       />
     </div>

@@ -251,6 +251,9 @@ export type EffectiveTemplateItem = {
   name: string;
   subject: string | null;
   body_preview: string;
+  body_html: string;
+  body_text: string | null;
+  whatsapp_meta_phrase?: string | null;
 };
 
 export async function getEffectiveTemplatesForDisplay(): Promise<{
@@ -271,14 +274,32 @@ export async function getEffectiveTemplatesForDisplay(): Promise<{
 
   const [eventsRes, systemRes, customRes] = await Promise.all([
     supabase.from("message_events").select("code, name").order("category").order("name"),
-    supabase.from("system_message_templates").select("id, event_code, channel, name, subject, body_html"),
-    supabase.from("message_templates").select("id, event_code, channel, name, subject, body_html").eq("clinic_id", profile.clinic_id).eq("is_active", true),
+    supabase.from("system_message_templates").select("id, event_code, channel, name, subject, body_html, body_text, whatsapp_meta_phrase"),
+    supabase.from("message_templates").select("id, event_code, channel, name, subject, body_html, body_text, whatsapp_meta_phrase").eq("clinic_id", profile.clinic_id).eq("is_active", true),
   ]);
 
   if (eventsRes.error) return { data: null, error: eventsRes.error.message };
   const events = (eventsRes.data ?? []) as { code: string; name: string }[];
-  const systemTemplates = (systemRes.data ?? []) as Array<{ id: string; event_code: string; channel: string; name: string; subject: string | null; body_html: string | null }>;
-  const customTemplates = (customRes.data ?? []) as Array<{ id: string; event_code: string; channel: string; name: string; subject: string | null; body_html: string }>;
+  const systemTemplates = (systemRes.data ?? []) as Array<{
+    id: string;
+    event_code: string;
+    channel: string;
+    name: string;
+    subject: string | null;
+    body_html: string | null;
+    body_text: string | null;
+    whatsapp_meta_phrase?: string | null;
+  }>;
+  const customTemplates = (customRes.data ?? []) as Array<{
+    id: string;
+    event_code: string;
+    channel: string;
+    name: string;
+    subject: string | null;
+    body_html: string;
+    body_text: string | null;
+    whatsapp_meta_phrase?: string | null;
+  }>;
 
   const customByKey = new Map<string, (typeof customTemplates)[0]>(
     customTemplates.map((t) => [`${t.event_code}:${t.channel}`, t])
@@ -310,6 +331,9 @@ export async function getEffectiveTemplatesForDisplay(): Promise<{
         name: template.name,
         subject: template.subject ?? null,
         body_preview: bodyPreview ? `${bodyPreview}${body.length > 80 ? "…" : ""}` : "(vazio)",
+        body_html: body,
+        body_text: template.body_text ?? null,
+        whatsapp_meta_phrase: template.whatsapp_meta_phrase ?? null,
       });
     }
   }
@@ -328,14 +352,23 @@ export async function getSystemTemplatesForDisplay(): Promise<{
 
   const [eventsRes, systemRes] = await Promise.all([
     supabase.from("message_events").select("code, name").order("category").order("name"),
-    supabase.from("system_message_templates").select("id, event_code, channel, name, subject, body_html"),
+    supabase.from("system_message_templates").select("id, event_code, channel, name, subject, body_html, body_text, whatsapp_meta_phrase"),
   ]);
 
   if (eventsRes.error) return { data: null, error: eventsRes.error.message };
   if (systemRes.error) return { data: null, error: systemRes.error.message };
 
   const events = (eventsRes.data ?? []) as { code: string; name: string }[];
-  const systemTemplates = (systemRes.data ?? []) as Array<{ id: string; event_code: string; channel: string; name: string; subject: string | null; body_html: string | null }>;
+  const systemTemplates = (systemRes.data ?? []) as Array<{
+    id: string;
+    event_code: string;
+    channel: string;
+    name: string;
+    subject: string | null;
+    body_html: string | null;
+    body_text: string | null;
+    whatsapp_meta_phrase?: string | null;
+  }>;
   const eventNames = new Map(events.map((e) => [e.code, e.name]));
   const result: EffectiveTemplateItem[] = systemTemplates.map((t) => {
     const body = t.body_html ?? "";
@@ -349,6 +382,9 @@ export async function getSystemTemplatesForDisplay(): Promise<{
       name: t.name,
       subject: t.subject ?? null,
       body_preview: bodyPreview ? `${bodyPreview}${body.length > 80 ? "…" : ""}` : "(vazio)",
+      body_html: body,
+      body_text: t.body_text ?? null,
+      whatsapp_meta_phrase: t.whatsapp_meta_phrase ?? null,
     };
   });
 

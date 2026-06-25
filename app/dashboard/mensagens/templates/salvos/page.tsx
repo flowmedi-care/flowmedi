@@ -5,13 +5,18 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
-import { getMessageEvents, getMessageTemplates } from "../../actions";
+import { getMessageEvents, getMessageTemplate, getMessageTemplates } from "../../actions";
 import { TemplatesListClient } from "../templates-list-client";
 import { NewTemplateWizardModal } from "../new-template-wizard-modal";
 
 export const dynamic = "force-dynamic";
 
-export default async function TemplatesSalvosPage() {
+export default async function TemplatesSalvosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ edit?: string }>;
+}) {
+  const { edit: editId } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -28,12 +33,19 @@ export default async function TemplatesSalvosPage() {
     redirect("/dashboard");
   }
 
-  const [savedResult, eventsResult] = await Promise.all([
+  const [savedResult, eventsResult, editTemplateResult] = await Promise.all([
     getMessageTemplates(),
     getMessageEvents(),
+    editId ? getMessageTemplate(editId) : Promise.resolve({ data: null, error: null }),
   ]);
   const savedTemplates = savedResult.data || [];
   const events = eventsResult.data || [];
+  const initialEditTemplate = editTemplateResult.data ?? null;
+
+  if (editId && !initialEditTemplate) {
+    redirect("/dashboard/mensagens/templates/salvos");
+  }
+
   const planData = await getClinicPlanData();
   const canUseEmailTemplates = Boolean(
     planData && canUseEmail(planData.limits, planData.planSlug, planData.subscriptionStatus)
@@ -78,7 +90,9 @@ export default async function TemplatesSalvosPage() {
         canCreateTemplates={canCreateTemplates}
         canUseEmailTemplates={canUseEmailTemplates}
         canUseWhatsAppTemplates={canUseWhatsAppTemplates}
+        events={events}
         mode="saved"
+        initialEditTemplate={initialEditTemplate}
       />
     </div>
   );
