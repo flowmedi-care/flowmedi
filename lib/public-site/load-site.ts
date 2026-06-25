@@ -125,7 +125,14 @@ export function getHeroSubtitle(site: PublicClinicSite): string | null {
 }
 
 export function getHeroImageUrl(site: PublicClinicSite): string {
-  return site.site.hero_image_url?.trim() || DEFAULT_HERO_IMAGE;
+  const custom = site.site.hero_image_url?.trim();
+  if (!custom) return DEFAULT_HERO_IMAGE;
+
+  if (custom.startsWith("http://") || custom.startsWith("https://") || custom.startsWith("/")) {
+    return custom;
+  }
+
+  return `/${custom}`;
 }
 
 export function getPublicSiteUrl(slug: string, baseUrl?: string): string {
