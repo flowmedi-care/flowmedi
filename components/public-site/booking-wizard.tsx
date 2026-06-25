@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,9 @@ type Step = "procedure" | "doctor" | "slot" | "patient" | "confirm" | "done";
 const STEPS: Step[] = ["procedure", "doctor", "slot", "patient", "confirm"];
 
 export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: string }) {
+  const searchParams = useSearchParams();
+  const preselectApplied = useRef(false);
+
   const [step, setStep] = useState<Step>("procedure");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -70,6 +74,22 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
   useEffect(() => {
     loadCatalog();
   }, [loadCatalog]);
+
+  useEffect(() => {
+    if (loading || preselectApplied.current || procedures.length === 0) return;
+
+    const paramId = searchParams.get("procedure");
+    if (!paramId) return;
+
+    const match = procedures.find((p) => p.id === paramId);
+    if (!match) return;
+
+    preselectApplied.current = true;
+    setProcedureId(match.id);
+    setDoctorId(null);
+    setSelectedSlot(null);
+    setStep("doctor");
+  }, [loading, procedures, searchParams]);
 
   const filteredDoctors = procedureId
     ? doctors.filter((d) => {
@@ -229,6 +249,11 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
         <Card className="rounded-3xl border-[#e8efec] shadow-sm">
           <CardHeader>
             <CardTitle>Escolha o profissional</CardTitle>
+            {selectedProcedure && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Procedimento: <span className="font-medium text-foreground">{selectedProcedure.name}</span>
+              </p>
+            )}
           </CardHeader>
           <CardContent className="space-y-2">
             {filteredDoctors.map((doc) => (

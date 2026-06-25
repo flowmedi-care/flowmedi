@@ -13,6 +13,7 @@ export type PublicSiteProcedure = {
   name: string;
   duration_minutes: number;
   doctor_ids: string[];
+  recommendations: string | null;
 };
 
 export type PublicSiteFaq = {
@@ -66,6 +67,7 @@ export type PublicClinicSite = {
   cancellation_policy: string | null;
   active_promotions: string | null;
   has_multiple_units: boolean;
+  segment: string | null;
   doctors: PublicSiteDoctor[];
   procedures: PublicSiteProcedure[];
   faq: PublicSiteFaq[];

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import type { PublicClinicSite } from "@/lib/public-site/types";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
+import { getSegmentCopy } from "@/lib/public-site/presentation";
 import { cn } from "@/lib/utils";
 
 export function SiteHeader({
@@ -17,6 +18,7 @@ export function SiteHeader({
   slug: string;
 }) {
   const booking = checkPublicBookingReadiness(site);
+  const copy = getSegmentCopy(site.segment);
   const [open, setOpen] = useState(false);
 
   const links = [
@@ -70,7 +72,7 @@ export function SiteHeader({
                 size="sm"
                 className="rounded-full px-5 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/25 transition-shadow"
               >
-                Agendar consulta
+                {copy.ctaLabel}
               </Button>
             </Link>
           )}

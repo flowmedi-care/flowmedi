@@ -1,62 +1,6 @@
--- Migration: Site público da clínica + autoagendamento configurável
--- Execute no SQL Editor do Supabase.
---
--- PRÉ-REQUISITOS (rode antes, nesta ordem, se ainda não rodou):
---   1. supabase/schema.sql
---   2. Demais migrations do projeto (slug, contact, VA, etc.)
---   3. supabase/migration-virtual-assistant.sql (RPC usa tabelas do assistente)
---
--- Se der "relation public.clinics does not exist", o banco ainda não tem o schema base
--- ou você está no projeto Supabase errado (confira NEXT_PUBLIC_SUPABASE_URL no .env).
+-- Atualização da RPC get_public_clinic_site: segment + recommendations nos procedimentos
+-- Execute no SQL Editor se já rodou migration-clinic-public-site.sql antes desta versão.
 
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'clinics'
-  ) THEN
-    RAISE EXCEPTION
-      'Tabela public.clinics não existe. Execute supabase/schema.sql primeiro (e confira se está no projeto Supabase correto).';
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'profiles'
-  ) THEN
-    RAISE EXCEPTION
-      'Tabela public.profiles não existe. Execute supabase/schema.sql primeiro.';
-  END IF;
-END $$;
-
-CREATE TABLE IF NOT EXISTS public.clinic_public_site_settings (
-  clinic_id uuid PRIMARY KEY REFERENCES public.clinics(id) ON DELETE CASCADE,
-  site_enabled boolean NOT NULL DEFAULT false,
-  self_service_booking_enabled boolean NOT NULL DEFAULT false,
-  show_team boolean NOT NULL DEFAULT true,
-  show_faq boolean NOT NULL DEFAULT true,
-  show_services boolean NOT NULL DEFAULT true,
-  hero_title text,
-  hero_subtitle text,
-  primary_color text,
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-COMMENT ON TABLE public.clinic_public_site_settings IS
-  'Configurações do site público da clínica (landing + autoagendamento).';
-
-ALTER TABLE public.clinic_public_site_settings ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "public_site_settings_clinic" ON public.clinic_public_site_settings;
-CREATE POLICY "public_site_settings_clinic" ON public.clinic_public_site_settings
-  FOR ALL
-  USING (
-    clinic_id IN (SELECT clinic_id FROM public.profiles WHERE id = auth.uid())
-  )
-  WITH CHECK (
-    clinic_id IN (SELECT clinic_id FROM public.profiles WHERE id = auth.uid())
-  );
-
--- RPC pública: retorna dados do site apenas se site_enabled = true
 CREATE OR REPLACE FUNCTION public.get_public_clinic_site(p_slug text)
 RETURNS json
 LANGUAGE plpgsql

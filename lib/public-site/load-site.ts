@@ -38,8 +38,17 @@ function parseSiteData(raw: Record<string, unknown>): PublicClinicSite {
     cancellation_policy: (raw.cancellation_policy as string | null) ?? null,
     active_promotions: (raw.active_promotions as string | null) ?? null,
     has_multiple_units: Boolean(raw.has_multiple_units),
+    segment: (raw.segment as string | null) ?? null,
     doctors: Array.isArray(raw.doctors) ? (raw.doctors as PublicClinicSite["doctors"]) : [],
-    procedures: Array.isArray(raw.procedures) ? (raw.procedures as PublicClinicSite["procedures"]) : [],
+    procedures: Array.isArray(raw.procedures)
+      ? (raw.procedures as Record<string, unknown>[]).map((p) => ({
+          id: String(p.id),
+          name: String(p.name),
+          duration_minutes: Number(p.duration_minutes) || 30,
+          doctor_ids: Array.isArray(p.doctor_ids) ? (p.doctor_ids as string[]) : [],
+          recommendations: (p.recommendations as string | null) ?? null,
+        }))
+      : [],
     faq: Array.isArray(raw.faq) ? (raw.faq as PublicClinicSite["faq"]) : [],
     locations: Array.isArray(raw.locations) ? (raw.locations as PublicClinicSite["locations"]) : [],
     has_active_rooms: Boolean(raw.has_active_rooms),
