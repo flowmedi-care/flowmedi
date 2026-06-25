@@ -21,7 +21,7 @@ export function PremiumHeroImage({ src, alt }: Props) {
   if (showGradient) {
     return (
       <div
-        className="absolute inset-0 bg-gradient-to-br from-[var(--site-primary)] to-[var(--site-accent)]"
+        className="flex min-h-[280px] w-full items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--site-primary)] to-[var(--site-accent)]"
         role="img"
         aria-label={alt}
       />
@@ -33,7 +33,7 @@ export function PremiumHeroImage({ src, alt }: Props) {
     <img
       src={currentSrc}
       alt={alt}
-      className="absolute inset-0 h-full w-full object-cover"
+      className="block w-full h-auto max-h-[32rem] object-contain"
       onError={() => {
         if (currentSrc !== DEFAULT_HERO_IMAGE) {
           setCurrentSrc(DEFAULT_HERO_IMAGE);

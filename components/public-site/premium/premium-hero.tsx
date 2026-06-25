@@ -79,9 +79,9 @@ export function PremiumHero({
           </div>
 
           <div className="order-1 lg:order-2 relative">
-            <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl shadow-[var(--site-primary)]/15 bg-[var(--site-primary)]/10">
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-[var(--site-primary)]/15 bg-[var(--site-bg)] border border-slate-200/60">
               <PremiumHeroImage src={heroImage} alt={imageAlt} />
-              <div className="absolute inset-0 bg-gradient-to-t from-[var(--site-primary)]/35 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[var(--site-primary)]/20 to-transparent pointer-events-none" />
 
               {site.logo_url && (
                 <div className="absolute bottom-4 left-4 right-4 sm:right-auto flex items-center gap-3 rounded-xl bg-white/95 backdrop-blur-sm px-4 py-3 shadow-lg border border-white/80 max-w-xs">

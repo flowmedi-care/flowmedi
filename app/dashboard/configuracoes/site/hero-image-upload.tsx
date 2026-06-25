@@ -83,12 +83,16 @@ export function HeroImageUpload({ currentUrl, disabled, onUrlChange }: Props) {
       <Label>Imagem do hero</Label>
 
       {previewUrl ? (
-        <div className="relative rounded-lg border overflow-hidden bg-muted aspect-[4/3] max-w-sm">
+        <div className="flex items-center justify-center rounded-lg border overflow-hidden bg-muted max-w-sm p-2 min-h-[160px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={previewUrl} alt="Preview do hero" className="h-full w-full object-cover" />
+          <img
+            src={previewUrl}
+            alt="Preview do hero"
+            className="max-h-80 w-full h-auto object-contain"
+          />
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed bg-muted/40 aspect-[4/3] max-w-sm flex items-center justify-center text-sm text-muted-foreground px-4 text-center">
+        <div className="rounded-lg border border-dashed bg-muted/40 min-h-[160px] max-w-sm flex items-center justify-center text-sm text-muted-foreground px-4 text-center">
           Nenhuma imagem — será usada a foto padrão do template
         </div>
       )}
