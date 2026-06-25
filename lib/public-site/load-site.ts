@@ -128,11 +128,15 @@ export function getHeroImageUrl(site: PublicClinicSite): string {
   const custom = site.site.hero_image_url?.trim();
   if (!custom) return DEFAULT_HERO_IMAGE;
 
-  if (custom.startsWith("http://") || custom.startsWith("https://") || custom.startsWith("/")) {
+  if (
+    custom.startsWith("http://") ||
+    custom.startsWith("https://") ||
+    (custom.startsWith("/") && custom.length > 1)
+  ) {
     return custom;
   }
 
-  return `/${custom}`;
+  return DEFAULT_HERO_IMAGE;
 }
 
 export function getPublicSiteUrl(slug: string, baseUrl?: string): string {

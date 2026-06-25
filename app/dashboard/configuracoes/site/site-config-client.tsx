@@ -15,6 +15,7 @@ import {
   updatePublicSiteSettings,
   type ClinicPublicSiteSettingsRow,
 } from "./actions";
+import { HeroImageUpload } from "./hero-image-upload";
 import type { DataReadinessReport } from "@/lib/virtual-assistant/data-readiness";
 
 type Props = {
@@ -255,19 +256,11 @@ export function SiteConfigClient({
               disabled={!siteEnabled}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="hero_image_url">URL da imagem do hero</Label>
-            <Input
-              id="hero_image_url"
-              value={heroImageUrl}
-              onChange={(e) => setHeroImageUrl(e.target.value)}
-              placeholder="https://..."
-              disabled={!siteEnabled}
-            />
-            <p className="text-xs text-muted-foreground">
-              Deixe em branco para usar a imagem padrão do template.
-            </p>
-          </div>
+          <HeroImageUpload
+            currentUrl={heroImageUrl}
+            disabled={!siteEnabled}
+            onUrlChange={setHeroImageUrl}
+          />
           <div className="space-y-2">
             <Label htmlFor="mission">Missão</Label>
             <Textarea

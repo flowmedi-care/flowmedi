@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Clock } from "lucide-react";
 import type { PublicSiteProcedure } from "@/lib/public-site/types";
-import { getServiceIcon, truncateText } from "@/lib/public-site/presentation";
+import { getServiceVisual, truncateText } from "@/lib/public-site/presentation";
 
 type ServiceCardProps = {
   procedure: PublicSiteProcedure;
@@ -18,7 +18,7 @@ export function ServiceCard({
   bookingAvailable,
   whatsappUrl,
 }: ServiceCardProps) {
-  const Icon = getServiceIcon(procedure.id);
+  const visual = getServiceVisual(procedure.name);
   const description = procedure.recommendations
     ? truncateText(procedure.recommendations, 90)
     : null;
@@ -31,7 +31,11 @@ export function ServiceCard({
     <article className="group flex flex-col rounded-2xl bg-white border border-slate-200 overflow-hidden hover:shadow-xl hover:shadow-[var(--site-primary)]/8 transition-all duration-300">
       <div className="relative h-24 flex items-center justify-center bg-[var(--site-primary)]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,_rgba(255,255,255,0.15)_0%,_transparent_50%)]" />
-        <Icon className="relative h-9 w-9 text-white/90" strokeWidth={1.5} />
+        {visual.type === "icon" ? (
+          <visual.Icon className="relative h-9 w-9 text-white/90" strokeWidth={1.5} />
+        ) : (
+          <span className="relative text-3xl font-bold text-white/95">{visual.initial}</span>
+        )}
       </div>
 
       <div className="flex flex-col flex-1 p-5 sm:p-6">

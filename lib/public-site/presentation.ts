@@ -1,13 +1,13 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
+  CalendarClock,
   Heart,
   Microscope,
   Scan,
-  Sparkles,
   Stethoscope,
   Syringe,
-  Zap,
+  Wind,
 } from "lucide-react";
 import type { PublicClinicSite } from "@/lib/public-site/types";
 import { DAY_LABELS } from "@/lib/public-site/types";
@@ -15,27 +15,49 @@ import type { DayKey } from "@/lib/virtual-assistant/types";
 
 const JS_DAY_TO_KEY: DayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
-const SERVICE_ICONS: LucideIcon[] = [
-  Stethoscope,
-  Heart,
-  Activity,
-  Sparkles,
-  Microscope,
-  Scan,
-  Syringe,
-  Zap,
+const PROCEDURE_ICON_RULES: { keywords: string[]; icon: LucideIcon }[] = [
+  { keywords: ["retorno", "revisao", "revisão", "acompanhamento"], icon: CalendarClock },
+  { keywords: ["endoscop", "colonoscop", "gastroscop", "laparoscop"], icon: Scan },
+  { keywords: ["acupuntura", "auriculo"], icon: Wind },
+  { keywords: ["pancrea", "digest", "gastro", "intestin", "hepat", "colon"], icon: Activity },
+  { keywords: ["consulta", "atendimento", "clinica geral"], icon: Stethoscope },
+  { keywords: ["ultra", "tomograf", "resson", "raio", "imagem", "radiolog"], icon: Scan },
+  { keywords: ["exame", "laborat", "sangue", "coleta", "teste"], icon: Microscope },
+  { keywords: ["vacina", "injec", "aplicac", "soro"], icon: Syringe },
+  { keywords: ["cardio", "coracao", "coração", "ecg", "eletro"], icon: Heart },
+  { keywords: ["cirurg", "proced", "biopsia", "biopsia"], icon: Scan },
 ];
 
-const GRADIENT_PAIRS = [
-  "from-teal-600 to-emerald-700",
-  "from-cyan-600 to-teal-700",
-  "from-emerald-600 to-green-700",
-  "from-sky-600 to-cyan-700",
-  "from-teal-700 to-cyan-800",
-  "from-green-600 to-teal-700",
-  "from-cyan-700 to-teal-800",
-  "from-emerald-700 to-teal-800",
-];
+function normalizeProcedureName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+}
+
+export type ServiceVisual =
+  | { type: "icon"; Icon: LucideIcon }
+  | { type: "initial"; initial: string };
+
+export function getServiceVisual(procedureName: string): ServiceVisual {
+  const normalized = normalizeProcedureName(procedureName);
+
+  for (const rule of PROCEDURE_ICON_RULES) {
+    if (rule.keywords.some((keyword) => normalized.includes(keyword))) {
+      return { type: "icon", Icon: rule.icon };
+    }
+  }
+
+  const initial = procedureName.trim().charAt(0).toUpperCase() || "?";
+  return { type: "initial", initial };
+}
+
+/** @deprecated Use getServiceVisual */
+export function getServiceIcon(procedureName: string): LucideIcon {
+  const visual = getServiceVisual(procedureName);
+  if (visual.type === "icon") return visual.Icon;
+  return Stethoscope;
+}
 
 export type ClinicSegment = "clinica" | "restaurante" | "loja" | "outro";
 
@@ -105,15 +127,6 @@ const SEGMENT_COPY: Record<ClinicSegment, SegmentCopy> = {
   },
 };
 
-function hashId(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) {
-    h = (h << 5) - h + id.charCodeAt(i);
-    h |= 0;
-  }
-  return Math.abs(h);
-}
-
 export function normalizeSegment(segment: string | null | undefined): ClinicSegment {
   if (segment === "restaurante" || segment === "loja" || segment === "outro") return segment;
   return "clinica";
@@ -121,14 +134,6 @@ export function normalizeSegment(segment: string | null | undefined): ClinicSegm
 
 export function getSegmentCopy(segment: string | null | undefined): SegmentCopy {
   return SEGMENT_COPY[normalizeSegment(segment)];
-}
-
-export function getServiceIcon(procedureId: string): LucideIcon {
-  return SERVICE_ICONS[hashId(procedureId) % SERVICE_ICONS.length];
-}
-
-export function getServiceGradient(procedureId: string): string {
-  return GRADIENT_PAIRS[hashId(procedureId) % GRADIENT_PAIRS.length];
 }
 
 export function getServiceGridClass(count: number): string {

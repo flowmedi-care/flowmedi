@@ -24,12 +24,14 @@ export function PremiumFooter({ site }: { site: PublicClinicSite }) {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-10">
           <div>
             {site.logo_url ? (
-              <LogoImage
-                src={site.logo_url}
-                alt={site.name}
-                className="max-h-10 max-w-[160px] object-contain brightness-0 invert opacity-90 mb-4"
-                scale={Math.min(site.logo_scale, 120)}
-              />
+              <div className="inline-flex rounded-xl bg-white px-4 py-3 mb-4 shadow-md">
+                <LogoImage
+                  src={site.logo_url}
+                  alt={site.name}
+                  className="max-h-12 max-w-[180px] object-contain"
+                  scale={Math.min(site.logo_scale, 120)}
+                />
+              </div>
             ) : (
               <p className="text-lg font-bold text-white mb-4">{site.name}</p>
             )}

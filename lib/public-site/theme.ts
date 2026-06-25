@@ -13,8 +13,9 @@ export const DEFAULT_HERO_HEADLINE =
 export const DEFAULT_HERO_SUBHEADLINE =
   "Atendimento especializado, tecnologia moderna e profissionais qualificados para cuidar de você e da sua família.";
 
-/** Imagem hero padrão local */
-export const DEFAULT_HERO_IMAGE = "/site/hero-clinic.svg";
+/** Imagem hero padrão (foto profissional de clínica) */
+export const DEFAULT_HERO_IMAGE =
+  "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1200&q=80";
 
 export function siteThemeCssVars(overrides?: { primary?: string | null; accent?: string | null }) {
   return {

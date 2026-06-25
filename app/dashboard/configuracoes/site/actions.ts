@@ -147,3 +147,82 @@ export async function updatePublicSiteSettings(formData: FormData) {
 
   return { error: null };
 }
+
+async function uploadHeroToStorage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  file: File,
+  clinicId: string
+): Promise<{ url: string } | { error: string }> {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `site-hero-${clinicId}.${ext}`;
+  const arrayBuffer = await file.arrayBuffer();
+
+  const { error } = await supabase.storage.from("logos").upload(path, arrayBuffer, {
+    contentType: file.type,
+    upsert: true,
+  });
+
+  if (error) return { error: error.message };
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("logos").getPublicUrl(path);
+
+  return { url: publicUrl };
+}
+
+export async function uploadHeroImage(formData: FormData) {
+  const ctx = await requireAdminClinic();
+  if (ctx.error || !ctx.supabase || !ctx.clinicId) return { error: ctx.error };
+
+  const file = formData.get("file") as File | null;
+  if (!file) return { error: "Nenhum arquivo selecionado." };
+
+  if (!file.type.startsWith("image/")) {
+    return { error: "Selecione um arquivo de imagem (JPG, PNG ou WebP)." };
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    return { error: "A imagem deve ter no máximo 5 MB." };
+  }
+
+  const uploadResult = await uploadHeroToStorage(ctx.supabase, file, ctx.clinicId);
+  if ("error" in uploadResult) return uploadResult;
+
+  const { error } = await ctx.supabase.from("clinic_public_site_settings").upsert(
+    {
+      clinic_id: ctx.clinicId,
+      hero_image_url: uploadResult.url,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "clinic_id" }
+  );
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard/configuracoes/site");
+  revalidatePath("/c/[slug]", "page");
+
+  return { error: null, url: uploadResult.url };
+}
+
+export async function clearHeroImage() {
+  const ctx = await requireAdminClinic();
+  if (ctx.error || !ctx.supabase || !ctx.clinicId) return { error: ctx.error };
+
+  const { error } = await ctx.supabase.from("clinic_public_site_settings").upsert(
+    {
+      clinic_id: ctx.clinicId,
+      hero_image_url: null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "clinic_id" }
+  );
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard/configuracoes/site");
+  revalidatePath("/c/[slug]", "page");
+
+  return { error: null };
+}
