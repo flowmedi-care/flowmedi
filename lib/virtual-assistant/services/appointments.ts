@@ -212,3 +212,52 @@ export async function cancelAppointmentViaAssistant(
 
   return { error: error?.message ?? null };
 }
+
+export async function listPatientAppointmentsViaAssistant(
+  supabase: SupabaseClient,
+  clinicId: string,
+  patientId: string,
+  opts?: { upcomingOnly?: boolean }
+): Promise<
+  {
+    id: string;
+    scheduled_at: string;
+    status: string;
+    doctor_name: string | null;
+    procedure_name: string | null;
+    valor: number | null;
+  }[]
+> {
+  const now = new Date().toISOString();
+  let query = supabase
+    .from("appointments")
+    .select(
+      "id, scheduled_at, status, valor, doctor:profiles!appointments_doctor_id_fkey(full_name), procedure:procedures(name)"
+    )
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .in("status", ["agendada", "confirmada"])
+    .order("scheduled_at", { ascending: true })
+    .limit(20);
+
+  if (opts?.upcomingOnly !== false) {
+    query = query.gte("scheduled_at", now);
+  }
+
+  const { data } = await query;
+
+  return (data ?? []).map((row) => {
+    const doctor = row.doctor as { full_name: string } | { full_name: string }[] | null;
+    const procedure = row.procedure as { name: string } | { name: string }[] | null;
+    const doctorName = Array.isArray(doctor) ? doctor[0]?.full_name : doctor?.full_name;
+    const procedureName = Array.isArray(procedure) ? procedure[0]?.name : procedure?.name;
+    return {
+      id: row.id,
+      scheduled_at: row.scheduled_at,
+      status: row.status,
+      doctor_name: doctorName ?? null,
+      procedure_name: procedureName ?? null,
+      valor: row.valor != null ? Number(row.valor) : null,
+    };
+  });
+}

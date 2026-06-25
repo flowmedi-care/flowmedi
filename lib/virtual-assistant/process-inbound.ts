@@ -185,6 +185,9 @@ async function processConversationAiInner(
   });
 
   let aiState = (conv.ai_state ?? {}) as AiConversationState;
+  if (conv.patient_id && !aiState.patient_id) {
+    aiState = { ...aiState, patient_id: conv.patient_id };
+  }
   const resolved = await resolveInboundTexts(
     supabase,
     conv.clinic_id,

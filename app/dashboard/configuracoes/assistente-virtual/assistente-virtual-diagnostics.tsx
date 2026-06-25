@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
   Bot,
+  ClipboardList,
   Clock,
   Mic,
   MessageSquareWarning,
@@ -19,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
+import type { DataReadinessReport } from "@/lib/virtual-assistant/data-readiness";
 import type {
   AiEventRow,
   AiToolLogRow,
@@ -33,6 +35,7 @@ interface DiagnosticsResponse {
   health: AssistantHealthCheck;
   events: AiEventRow[];
   flows: MessageFlowTrace[];
+  dataReadiness?: DataReadinessReport;
   toolLogs: AiToolLogRow[];
   blockedConversations: BlockedConversationRow[];
 }
@@ -91,6 +94,14 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
   const [simulatePhone, setSimulatePhone] = useState("");
   const [simulateText, setSimulateText] = useState("Oi, quero agendar uma consulta");
   const [showRawEvents, setShowRawEvents] = useState(false);
+
+  const SIMULATE_SCENARIOS = [
+    { label: "Quero agendar", text: "Oi, quero agendar uma consulta" },
+    { label: "Quanto custa?", text: "Quanto custa a consulta?" },
+    { label: "Quais convênios?", text: "Quais convênios vocês aceitam?" },
+    { label: "Minha consulta", text: "Quando é minha consulta?" },
+    { label: "O que vocês fazem?", text: "Quais procedimentos vocês fazem?" },
+  ] as const;
 
   const load = useCallback(async () => {
     try {
@@ -379,6 +390,81 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
         </CardContent>
       </Card>
 
+      {data?.dataReadiness && (
+        <Card
+          className={cn(
+            data.dataReadiness.issues.length === 0
+              ? "border-green-200"
+              : "border-amber-200"
+          )}
+        >
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5" />
+              Dados para o bot
+            </CardTitle>
+            <CardDescription>
+              Cadastros que o assistente usa no prompt e nas ferramentas. Corrija alertas para
+              respostas mais precisas no WhatsApp.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              <HealthStat
+                icon={Bot}
+                label="Procedimentos"
+                value={data.dataReadiness.stats.procedures}
+                ok={data.dataReadiness.stats.procedures > 0}
+              />
+              <HealthStat
+                icon={Bot}
+                label="Sem serviço de preço"
+                value={data.dataReadiness.stats.proceduresWithoutService}
+                ok={data.dataReadiness.stats.proceduresWithoutService === 0}
+                warn
+              />
+              <HealthStat
+                icon={Bot}
+                label="Serviços sem preço"
+                value={data.dataReadiness.stats.servicesWithoutPrice}
+                ok={data.dataReadiness.stats.servicesWithoutPrice === 0}
+                warn
+              />
+              <HealthStat
+                icon={Bot}
+                label="Vínculos médico ↔ proc."
+                value={data.dataReadiness.stats.doctorProcedureLinks}
+                ok={data.dataReadiness.stats.doctorProcedureLinks > 0}
+                warn
+              />
+            </div>
+
+            {data.dataReadiness.issues.length === 0 ? (
+              <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+                Cadastro completo para o assistente responder sobre procedimentos, preços e
+                agendamentos.
+              </p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {data.dataReadiness.issues.map((issue, i) => (
+                  <li
+                    key={i}
+                    className={cn(
+                      "rounded-lg border px-3 py-2",
+                      issue.level === "error"
+                        ? "border-red-200 bg-red-50 text-red-800"
+                        : "border-amber-200 bg-amber-50 text-amber-900"
+                    )}
+                  >
+                    {issue.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Passo a passo das mensagens</CardTitle>
@@ -458,6 +544,21 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
               <Label>Mensagem</Label>
               <Input value={simulateText} onChange={(e) => setSimulateText(e.target.value)} />
             </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="w-full text-xs text-muted-foreground">Cenários rápidos:</span>
+            {SIMULATE_SCENARIOS.map((s) => (
+              <Button
+                key={s.label}
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={simulating}
+                onClick={() => setSimulateText(s.text)}
+              >
+                {s.label}
+              </Button>
+            ))}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button

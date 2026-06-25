@@ -5,13 +5,19 @@ import {
   cancelAppointmentViaAssistant,
   confirmAppointmentViaAssistant,
   createAppointmentViaAssistant,
+  listPatientAppointmentsViaAssistant,
 } from "../services/appointments";
 import {
   linkConversationToPatient,
   lookupPatientByPhone,
   registerPatientViaAssistant,
 } from "../services/patients";
-import { getProcedureInfo, resolveServicePriceForClinic } from "../services/pricing";
+import {
+  getProcedureInfo,
+  listPriceOptionsForClinic,
+  listServicesForClinic,
+  resolveServicePriceForClinic,
+} from "../services/pricing";
 import { applyRoutingOnNewConversation } from "@/lib/whatsapp-routing";
 import type { AiConversationState } from "../types";
 
@@ -43,7 +49,7 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "list_doctors",
-      description: "Lista médicos da clínica.",
+      description: "Lista médicos da clínica com especialidade. Use antes de agendar ou informar preço por profissional.",
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
@@ -51,7 +57,8 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "list_procedures",
-      description: "Lista procedimentos, opcionalmente filtrados por médico.",
+      description:
+        "Lista procedimentos da clínica, opcionalmente filtrados por médico. Retorna nome e duração para apresentar ao paciente.",
       parameters: {
         type: "object",
         properties: {
@@ -110,7 +117,8 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "get_service_price",
-      description: "Consulta preço de serviço/procedimento.",
+      description:
+        "Consulta preço exato de serviço/procedimento. Se needsDimensions=true, use dimension_value_ids das opções retornadas.",
       parameters: {
         type: "object",
         properties: {
@@ -120,6 +128,45 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
           dimension_value_ids: { type: "array", items: { type: "string" } },
         },
         required: ["doctor_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_price_options",
+      description:
+        "Lista opções de preço (convênio, turno, etc.) e faixa de valores para um procedimento ou serviço. Use quando o paciente perguntar quanto custa.",
+      parameters: {
+        type: "object",
+        properties: {
+          procedure_id: { type: "string" },
+          service_id: { type: "string" },
+          doctor_id: { type: "string" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_services",
+      description:
+        "Lista serviços da clínica com categoria, procedimentos vinculados e faixa de preço. Use quando o paciente não souber o nome do procedimento.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_patient_appointments",
+      description:
+        "Lista consultas futuras do paciente desta conversa (por telefone). Use quando perguntarem sobre agendamentos existentes.",
+      parameters: {
+        type: "object",
+        properties: {
+          include_past: { type: "boolean", description: "Se true, inclui consultas passadas também" },
+        },
       },
     },
   },
@@ -229,12 +276,16 @@ export async function executeAssistantTool(
       case "list_doctors": {
         const { data } = await supabase
           .from("profiles")
-          .select("id, full_name")
+          .select("id, full_name, specialty")
           .eq("clinic_id", clinicId)
           .eq("role", "medico")
           .order("full_name");
+        const payload = {
+          doctors: data ?? [],
+          hint: "Apresente os nomes ao paciente e pergunte com qual profissional deseja agendar.",
+        };
         await logToolCall(supabase, clinicId, conversationId, name, {}, `${data?.length ?? 0} médicos`, true);
-        return { result: JSON.stringify(data ?? []) };
+        return { result: JSON.stringify(payload) };
       }
 
       case "list_procedures": {
@@ -258,8 +309,12 @@ export async function executeAssistantTool(
           query = query.in("id", procedureIds);
         }
         const { data } = await query;
+        const payload = {
+          procedures: data ?? [],
+          hint: "Apresente em lista numerada e pergunte qual procedimento o paciente deseja.",
+        };
         await logToolCall(supabase, clinicId, conversationId, name, { doctor_id: doctorId }, `${data?.length ?? 0} procedimentos`, true);
-        return { result: JSON.stringify(data ?? []) };
+        return { result: JSON.stringify(payload) };
       }
 
       case "find_available_slots": {
@@ -272,9 +327,15 @@ export async function executeAssistantTool(
           procedureId,
           daysAhead,
         });
+        const limited = slots.slice(0, 8);
+        const payload = {
+          slots: limited,
+          total_available: slots.length,
+          hint: "Apresente os horários em lista numerada (1, 2, 3...) para o paciente escolher.",
+        };
         await logToolCall(supabase, clinicId, conversationId, name, args, `${slots.length} slots`, true);
         return {
-          result: JSON.stringify(slots),
+          result: JSON.stringify(payload),
           statePatch: { doctor_id: doctorId, procedure_id: procedureId, intent: "booking" },
         };
       }
@@ -320,6 +381,77 @@ export async function executeAssistantTool(
         );
         await logToolCall(supabase, clinicId, conversationId, name, args, String(price.valor), !price.error);
         return { result: JSON.stringify({ service_id: serviceId, ...price }) };
+      }
+
+      case "list_price_options": {
+        const result = await listPriceOptionsForClinic(supabase, clinicId, {
+          serviceId: args.service_id ? String(args.service_id) : null,
+          procedureId: args.procedure_id ? String(args.procedure_id) : null,
+          doctorId: args.doctor_id ? String(args.doctor_id) : null,
+        });
+        await logToolCall(
+          supabase,
+          clinicId,
+          conversationId,
+          name,
+          args,
+          result.fixed_price != null ? String(result.fixed_price) : result.price_range ?? "dims",
+          !result.error
+        );
+        return {
+          result: JSON.stringify({
+            ...result,
+            hint: result.needs_dimensions
+              ? "Pergunte qual opção se aplica (ex.: convênio) e use get_service_price com dimension_value_ids."
+              : "Informe o valor ao paciente em reais.",
+          }),
+          statePatch: args.procedure_id
+            ? { procedure_id: String(args.procedure_id), intent: "price" }
+            : { intent: "price" },
+        };
+      }
+
+      case "list_services": {
+        const services = await listServicesForClinic(supabase, clinicId);
+        await logToolCall(supabase, clinicId, conversationId, name, {}, `${services.length} serviços`, true);
+        return {
+          result: JSON.stringify({
+            services,
+            hint: "Apresente os serviços e procedimentos relacionados ao paciente.",
+          }),
+        };
+      }
+
+      case "list_patient_appointments": {
+        const patient =
+          ctx.aiState.patient_id != null
+            ? { id: ctx.aiState.patient_id }
+            : await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        if (!patient?.id) {
+          return { result: JSON.stringify({ error: "Paciente não cadastrado.", appointments: [] }) };
+        }
+        const appointments = await listPatientAppointmentsViaAssistant(
+          supabase,
+          clinicId,
+          patient.id,
+          { upcomingOnly: !args.include_past }
+        );
+        await logToolCall(
+          supabase,
+          clinicId,
+          conversationId,
+          name,
+          args,
+          `${appointments.length} consultas`,
+          true
+        );
+        return {
+          result: JSON.stringify({
+            appointments,
+            hint: "Apresente data, médico e procedimento. Use confirm_appointment ou cancel_appointment com o id interno.",
+          }),
+          statePatch: { patient_id: patient.id, intent: "appointments" },
+        };
       }
 
       case "confirm_appointment": {

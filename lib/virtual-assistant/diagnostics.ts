@@ -4,6 +4,7 @@ import {
   type ConversationMeta,
   type MessageFlowTrace,
 } from "./diagnostics-flow";
+import { gatherDataReadiness, type DataReadinessReport } from "./data-readiness";
 
 export interface AssistantHealthCheck {
   assistantEnabled: boolean;
@@ -53,6 +54,7 @@ export async function gatherAssistantDiagnostics(
   events: AiEventRow[];
   flows: MessageFlowTrace[];
   conversationMeta: Record<string, ConversationMeta>;
+  dataReadiness: DataReadinessReport;
   toolLogs: AiToolLogRow[];
   blockedConversations: BlockedConversationRow[];
 }> {
@@ -201,12 +203,14 @@ export async function gatherAssistantDiagnostics(
   }
 
   const flows = buildMessageFlows(events, conversationMeta, processedMessageIds);
+  const dataReadiness = await gatherDataReadiness(supabase, clinicId);
 
   return {
     health,
     events,
     flows,
     conversationMeta,
+    dataReadiness,
     toolLogs: (toolLogsResult.data ?? []) as AiToolLogRow[],
     blockedConversations: (blockedResult.data ?? []) as BlockedConversationRow[],
   };
