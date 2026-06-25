@@ -1,5 +1,32 @@
 -- Migration: Site público da clínica + autoagendamento configurável
 -- Execute no SQL Editor do Supabase.
+--
+-- PRÉ-REQUISITOS (rode antes, nesta ordem, se ainda não rodou):
+--   1. supabase/schema.sql
+--   2. Demais migrations do projeto (slug, contact, VA, etc.)
+--   3. supabase/migration-virtual-assistant.sql (RPC usa tabelas do assistente)
+--
+-- Se der "relation public.clinics does not exist", o banco ainda não tem o schema base
+-- ou você está no projeto Supabase errado (confira NEXT_PUBLIC_SUPABASE_URL no .env).
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'clinics'
+  ) THEN
+    RAISE EXCEPTION
+      'Tabela public.clinics não existe. Execute supabase/schema.sql primeiro (e confira se está no projeto Supabase correto).';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'profiles'
+  ) THEN
+    RAISE EXCEPTION
+      'Tabela public.profiles não existe. Execute supabase/schema.sql primeiro.';
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.clinic_public_site_settings (
   clinic_id uuid PRIMARY KEY REFERENCES public.clinics(id) ON DELETE CASCADE,
