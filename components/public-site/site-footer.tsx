@@ -1,59 +1,104 @@
-import Link from "next/link";
-import { Mail, Phone } from "lucide-react";
+import { LogoImage } from "@/components/logo-image";
+import { Instagram, Facebook } from "lucide-react";
 import type { PublicClinicSite } from "@/lib/public-site/types";
 
 export function SiteFooter({ site }: { site: PublicClinicSite }) {
   return (
-    <footer className="border-t bg-card py-10 px-4">
-      <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-6">
-        <div className="text-center sm:text-left">
-          <p className="font-medium">{site.name}</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Site hospedado por{" "}
+    <footer className="bg-[#1a2e28] text-white">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-14">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-10">
+          <div>
+            {site.logo_url ? (
+              <div className="mb-4 inline-block rounded-xl bg-white p-3">
+                <LogoImage
+                  src={site.logo_url}
+                  alt={site.name}
+                  className="max-h-10 max-w-[140px] object-contain"
+                  scale={Math.min(site.logo_scale, 100)}
+                />
+              </div>
+            ) : (
+              <p className="text-xl font-semibold">{site.name}</p>
+            )}
+            <p className="text-sm text-white/60 mt-3 leading-relaxed max-w-xs">
+              Cuidado de qualidade, perto de você.
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-white/90 mb-4">Contato</p>
+            <ul className="space-y-2 text-sm text-white/70">
+              {site.phone && (
+                <li>
+                  <a href={`tel:${site.phone.replace(/\D/g, "")}`} className="hover:text-white transition-colors">
+                    {site.phone}
+                  </a>
+                </li>
+              )}
+              {site.email && (
+                <li>
+                  <a href={`mailto:${site.email}`} className="hover:text-white transition-colors">
+                    {site.email}
+                  </a>
+                </li>
+              )}
+              {site.address && <li className="leading-relaxed">{site.address}</li>}
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-white/90 mb-4">Redes sociais</p>
+            <div className="flex flex-wrap gap-3">
+              {site.instagram_url && (
+                <a
+                  href={site.instagram_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm hover:bg-white/15 transition-colors"
+                >
+                  <Instagram className="h-4 w-4" />
+                  Instagram
+                </a>
+              )}
+              {site.facebook_url && (
+                <a
+                  href={site.facebook_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm hover:bg-white/15 transition-colors"
+                >
+                  <Facebook className="h-4 w-4" />
+                  Facebook
+                </a>
+              )}
+              {site.whatsapp_url && (
+                <a
+                  href={site.whatsapp_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#25D366]/20 text-[#7dffb8] px-4 py-2 text-sm hover:bg-[#25D366]/30 transition-colors"
+                >
+                  WhatsApp
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-12 pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-white/45">
+          <p>© {new Date().getFullYear()} {site.name}</p>
+          <p>
+            Site por{" "}
             <a
               href="https://flowmedi.com.br"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:underline"
+              className="hover:text-white/70 transition-colors"
             >
               FlowMedi
             </a>
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
-          {site.phone && (
-            <a href={`tel:${site.phone.replace(/\D/g, "")}`} className="flex items-center gap-1.5 hover:text-foreground">
-              <Phone className="h-4 w-4" />
-              {site.phone}
-            </a>
-          )}
-          {site.email && (
-            <a href={`mailto:${site.email}`} className="flex items-center gap-1.5 hover:text-foreground">
-              <Mail className="h-4 w-4" />
-              {site.email}
-            </a>
-          )}
-          {site.instagram_url && (
-            <a href={site.instagram_url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
-              Instagram
-            </a>
-          )}
-          {site.facebook_url && (
-            <a href={site.facebook_url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
-              Facebook
-            </a>
-          )}
-          {site.whatsapp_url && (
-            <a href={site.whatsapp_url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
-              WhatsApp
-            </a>
-          )}
-        </div>
-      </div>
-      <div className="mx-auto max-w-5xl mt-6 text-center">
-        <Link href="/" className="text-xs text-muted-foreground hover:text-foreground">
-          flowmedi.com.br
-        </Link>
       </div>
     </footer>
   );

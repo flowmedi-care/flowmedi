@@ -35,15 +35,16 @@ export default async function PublicBookingPage({ params }: Props) {
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-[#f7faf9]">
       <SiteHeader site={site} slug={slug} />
-      <div className="py-8 px-4">
-        <div className="mx-auto max-w-lg text-center mb-8">
-          <h1 className="text-2xl font-semibold">Agendar consulta</h1>
-          <p className="text-sm text-muted-foreground mt-1">{site.name}</p>
+      <div className="py-10 sm:py-14 px-4 sm:px-6">
+        <div className="mx-auto max-w-lg text-center mb-10">
+          <p className="text-sm font-medium text-primary mb-2">Agendamento online</p>
+          <h1 className="text-3xl font-semibold text-[#1a2e28] tracking-tight">Agendar consulta</h1>
+          <p className="text-[#5c6f68] mt-2">{site.name}</p>
         </div>
         <BookingWizard slug={slug} clinicName={site.name} />
       </div>
-    </>
+    </div>
   );
 }
