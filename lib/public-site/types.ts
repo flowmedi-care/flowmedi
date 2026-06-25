@@ -4,6 +4,8 @@ export type PublicSiteDoctor = {
   id: string;
   full_name: string;
   specialty: string | null;
+  crm: string | null;
+  crm_uf: string | null;
   logo_url: string | null;
   logo_scale: number;
 };
@@ -40,6 +42,13 @@ export type PublicSiteSettings = {
   hero_title: string | null;
   hero_subtitle: string | null;
   primary_color: string | null;
+  hero_image_url: string | null;
+  mission: string | null;
+  vision: string | null;
+  values_text: string | null;
+  show_contact_form: boolean;
+  default_headline: string | null;
+  default_subheadline: string | null;
 };
 
 export type PublicClinicSite = {

@@ -49,6 +49,17 @@ export function SiteConfigClient({
   const [heroTitle, setHeroTitle] = useState(initialSettings?.hero_title ?? "");
   const [heroSubtitle, setHeroSubtitle] = useState(initialSettings?.hero_subtitle ?? "");
   const [primaryColor, setPrimaryColor] = useState(initialSettings?.primary_color ?? "");
+  const [heroImageUrl, setHeroImageUrl] = useState(initialSettings?.hero_image_url ?? "");
+  const [mission, setMission] = useState(initialSettings?.mission ?? "");
+  const [vision, setVision] = useState(initialSettings?.vision ?? "");
+  const [valuesText, setValuesText] = useState(initialSettings?.values_text ?? "");
+  const [defaultHeadline, setDefaultHeadline] = useState(initialSettings?.default_headline ?? "");
+  const [defaultSubheadline, setDefaultSubheadline] = useState(
+    initialSettings?.default_subheadline ?? ""
+  );
+  const [showContactForm, setShowContactForm] = useState(
+    initialSettings?.show_contact_form ?? true
+  );
   const [copied, setCopied] = useState(false);
 
   const handleSave = () => {
@@ -61,6 +72,13 @@ export function SiteConfigClient({
     fd.set("hero_title", heroTitle);
     fd.set("hero_subtitle", heroSubtitle);
     fd.set("primary_color", primaryColor);
+    fd.set("hero_image_url", heroImageUrl);
+    fd.set("mission", mission);
+    fd.set("vision", vision);
+    fd.set("values_text", valuesText);
+    fd.set("default_headline", defaultHeadline);
+    fd.set("default_subheadline", defaultSubheadline);
+    fd.set("show_contact_form", String(showContactForm));
 
     startTransition(async () => {
       const res = await updatePublicSiteSettings(fd);
@@ -193,7 +211,31 @@ export function SiteConfigClient({
           <Switch label="Exibir FAQ" checked={showFaq} onChange={setShowFaq} disabled={!siteEnabled} />
 
           <div className="space-y-2 pt-2">
-            <Label htmlFor="hero_title">Título do hero (opcional)</Label>
+            <Label htmlFor="default_headline">Headline padrão (opcional)</Label>
+            <Input
+              id="default_headline"
+              value={defaultHeadline}
+              onChange={(e) => setDefaultHeadline(e.target.value)}
+              placeholder="Cuidando da sua saúde com excelência e humanidade"
+              disabled={!siteEnabled}
+            />
+            <p className="text-xs text-muted-foreground">
+              Usado quando o título do hero não estiver preenchido.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="default_subheadline">Subheadline padrão (opcional)</Label>
+            <Textarea
+              id="default_subheadline"
+              value={defaultSubheadline}
+              onChange={(e) => setDefaultSubheadline(e.target.value)}
+              placeholder="Atendimento especializado, tecnologia moderna..."
+              rows={2}
+              disabled={!siteEnabled}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="hero_title">Título do hero (opcional, sobrescreve headline)</Label>
             <Input
               id="hero_title"
               value={heroTitle}
@@ -214,15 +256,81 @@ export function SiteConfigClient({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="primary_color">Cor primária (opcional, ex: 160 84% 39%)</Label>
+            <Label htmlFor="hero_image_url">URL da imagem do hero</Label>
+            <Input
+              id="hero_image_url"
+              value={heroImageUrl}
+              onChange={(e) => setHeroImageUrl(e.target.value)}
+              placeholder="https://..."
+              disabled={!siteEnabled}
+            />
+            <p className="text-xs text-muted-foreground">
+              Deixe em branco para usar a imagem padrão do template.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="mission">Missão</Label>
+            <Textarea
+              id="mission"
+              value={mission}
+              onChange={(e) => setMission(e.target.value)}
+              placeholder="Nossa missão é..."
+              rows={3}
+              disabled={!siteEnabled}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="vision">Visão</Label>
+            <Textarea
+              id="vision"
+              value={vision}
+              onChange={(e) => setVision(e.target.value)}
+              placeholder="Nossa visão é..."
+              rows={3}
+              disabled={!siteEnabled}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="values_text">Valores</Label>
+            <Textarea
+              id="values_text"
+              value={valuesText}
+              onChange={(e) => setValuesText(e.target.value)}
+              placeholder="Ética, empatia, excelência..."
+              rows={3}
+              disabled={!siteEnabled}
+            />
+          </div>
+          <Switch
+            label="Exibir formulário de contato"
+            checked={showContactForm}
+            onChange={setShowContactForm}
+            disabled={!siteEnabled}
+          />
+          <div className="space-y-2">
+            <Label htmlFor="primary_color">Cor primária (opcional, hex ex: #0A6EBD)</Label>
             <Input
               id="primary_color"
               value={primaryColor}
               onChange={(e) => setPrimaryColor(e.target.value)}
-              placeholder="HSL do tema"
+              placeholder="#0A6EBD"
               disabled={!siteEnabled}
             />
           </div>
+          {siteEnabled && siteUrl && (
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <p className="text-sm font-medium mb-2">Preview ao vivo</p>
+              <a
+                href={siteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Abrir site publicado
+              </a>
+            </div>
+          )}
         </CardContent>
       </Card>
 

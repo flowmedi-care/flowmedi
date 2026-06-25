@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="800" y2="600" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0A6EBD"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <circle cx="620" cy="180" r="120" fill="white" fill-opacity="0.12"/>
+  <circle cx="180" cy="420" r="80" fill="white" fill-opacity="0.08"/>
+  <path d="M400 220h-40v-40h-40v40h-40v40h40v40h40v-40h40v-40h-40z" fill="white" fill-opacity="0.9"/>
+  <text x="400" y="380" text-anchor="middle" fill="white" fill-opacity="0.85" font-family="system-ui,sans-serif" font-size="28" font-weight="600">Clínica de Saúde</text>
+</svg>

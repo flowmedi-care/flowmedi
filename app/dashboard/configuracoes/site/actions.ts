@@ -17,6 +17,13 @@ export type ClinicPublicSiteSettingsRow = {
   hero_title: string | null;
   hero_subtitle: string | null;
   primary_color: string | null;
+  hero_image_url: string | null;
+  mission: string | null;
+  vision: string | null;
+  values_text: string | null;
+  show_contact_form: boolean;
+  default_headline: string | null;
+  default_subheadline: string | null;
   updated_at: string;
 };
 
@@ -101,6 +108,13 @@ export async function updatePublicSiteSettings(formData: FormData) {
   const heroTitle = String(formData.get("hero_title") ?? "").trim() || null;
   const heroSubtitle = String(formData.get("hero_subtitle") ?? "").trim() || null;
   const primaryColor = String(formData.get("primary_color") ?? "").trim() || null;
+  const heroImageUrl = String(formData.get("hero_image_url") ?? "").trim() || null;
+  const mission = String(formData.get("mission") ?? "").trim() || null;
+  const vision = String(formData.get("vision") ?? "").trim() || null;
+  const valuesText = String(formData.get("values_text") ?? "").trim() || null;
+  const defaultHeadline = String(formData.get("default_headline") ?? "").trim() || null;
+  const defaultSubheadline = String(formData.get("default_subheadline") ?? "").trim() || null;
+  const showContactForm = formData.get("show_contact_form") !== "false";
 
   const payload = {
     clinic_id: ctx.clinicId,
@@ -112,6 +126,13 @@ export async function updatePublicSiteSettings(formData: FormData) {
     hero_title: heroTitle,
     hero_subtitle: heroSubtitle,
     primary_color: primaryColor,
+    hero_image_url: heroImageUrl,
+    mission,
+    vision,
+    values_text: valuesText,
+    show_contact_form: showContactForm,
+    default_headline: defaultHeadline,
+    default_subheadline: defaultSubheadline,
     updated_at: new Date().toISOString(),
   };
 

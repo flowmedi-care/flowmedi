@@ -27,6 +27,13 @@ function parseSiteData(raw: Record<string, unknown>): PublicClinicSite {
       hero_title: (site.hero_title as string | null) ?? null,
       hero_subtitle: (site.hero_subtitle as string | null) ?? null,
       primary_color: (site.primary_color as string | null) ?? null,
+      hero_image_url: (site.hero_image_url as string | null) ?? null,
+      mission: (site.mission as string | null) ?? null,
+      vision: (site.vision as string | null) ?? null,
+      values_text: (site.values_text as string | null) ?? null,
+      show_contact_form: site.show_contact_form !== false,
+      default_headline: (site.default_headline as string | null) ?? null,
+      default_subheadline: (site.default_subheadline as string | null) ?? null,
     },
     short_description: (raw.short_description as string | null) ?? null,
     google_maps_url: (raw.google_maps_url as string | null) ?? null,
@@ -39,7 +46,17 @@ function parseSiteData(raw: Record<string, unknown>): PublicClinicSite {
     active_promotions: (raw.active_promotions as string | null) ?? null,
     has_multiple_units: Boolean(raw.has_multiple_units),
     segment: (raw.segment as string | null) ?? null,
-    doctors: Array.isArray(raw.doctors) ? (raw.doctors as PublicClinicSite["doctors"]) : [],
+    doctors: Array.isArray(raw.doctors)
+      ? (raw.doctors as Record<string, unknown>[]).map((d) => ({
+          id: String(d.id),
+          full_name: String(d.full_name),
+          specialty: (d.specialty as string | null) ?? null,
+          crm: (d.crm as string | null) ?? null,
+          crm_uf: (d.crm_uf as string | null) ?? null,
+          logo_url: (d.logo_url as string | null) ?? null,
+          logo_scale: Number(d.logo_scale) || 100,
+        }))
+      : [],
     procedures: Array.isArray(raw.procedures)
       ? (raw.procedures as Record<string, unknown>[]).map((p) => ({
           id: String(p.id),
@@ -83,12 +100,32 @@ export async function loadPublicClinicSiteWithServiceRole(
   return parseSiteData(data as Record<string, unknown>);
 }
 
+import {
+  DEFAULT_HERO_HEADLINE,
+  DEFAULT_HERO_IMAGE,
+  DEFAULT_HERO_SUBHEADLINE,
+} from "./theme";
+
 export function getHeroTitle(site: PublicClinicSite): string {
-  return site.site.hero_title?.trim() || site.name;
+  return (
+    site.site.hero_title?.trim() ||
+    site.site.default_headline?.trim() ||
+    DEFAULT_HERO_HEADLINE ||
+    site.name
+  );
 }
 
 export function getHeroSubtitle(site: PublicClinicSite): string | null {
-  return site.site.hero_subtitle?.trim() || site.short_description;
+  return (
+    site.site.hero_subtitle?.trim() ||
+    site.site.default_subheadline?.trim() ||
+    site.short_description?.trim() ||
+    DEFAULT_HERO_SUBHEADLINE
+  );
+}
+
+export function getHeroImageUrl(site: PublicClinicSite): string {
+  return site.site.hero_image_url?.trim() || DEFAULT_HERO_IMAGE;
 }
 
 export function getPublicSiteUrl(slug: string, baseUrl?: string): string {

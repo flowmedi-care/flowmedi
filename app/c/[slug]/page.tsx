@@ -1,17 +1,23 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { SiteHeader, SiteMobileBar } from "@/components/public-site/site-header";
-import { SiteHero } from "@/components/public-site/site-hero";
-import { SiteTrustStrip } from "@/components/public-site/site-trust-strip";
-import { SiteAbout } from "@/components/public-site/site-about";
-import { SiteServices } from "@/components/public-site/site-services";
-import { SiteTeam } from "@/components/public-site/site-team";
-import { SiteLocation } from "@/components/public-site/site-location";
-import { SiteFaq } from "@/components/public-site/site-faq";
-import { SiteCtaBand } from "@/components/public-site/site-cta-band";
-import { SiteFooter } from "@/components/public-site/site-footer";
-import { loadPublicClinicSite, getHeroTitle, getHeroSubtitle } from "@/lib/public-site/load-site";
+import { PremiumHeader, PremiumMobileBar } from "@/components/public-site/premium/premium-header";
+import { PremiumHero } from "@/components/public-site/premium/premium-hero";
+import { PremiumStats } from "@/components/public-site/premium/premium-stats";
+import { PremiumAbout } from "@/components/public-site/premium/premium-about";
+import { PremiumSpecialties } from "@/components/public-site/premium/premium-specialties";
+import { PremiumTeam } from "@/components/public-site/premium/premium-team";
+import { PremiumFaq } from "@/components/public-site/premium/premium-faq";
+import { PremiumContact } from "@/components/public-site/premium/premium-contact";
+import { PremiumCta } from "@/components/public-site/premium/premium-cta";
+import { PremiumFooter } from "@/components/public-site/premium/premium-footer";
+import {
+  loadPublicClinicSite,
+  getHeroTitle,
+  getHeroSubtitle,
+  getPublicSiteUrl,
+} from "@/lib/public-site/load-site";
 import { RESERVED_CLINIC_SLUGS } from "@/lib/public-site/types";
+import { siteThemeCssVars } from "@/lib/public-site/theme";
 
 export const dynamic = "force-dynamic";
 
@@ -24,18 +30,56 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const site = await loadPublicClinicSite(slug);
   if (!site.found) return { title: "Não encontrado" };
 
-  const title = getHeroTitle(site);
+  const title = `${getHeroTitle(site)} | ${site.name}`;
   const description = getHeroSubtitle(site) ?? `Site de ${site.name}`;
 
   return {
     title,
     description,
+    keywords: [
+      site.name,
+      "clínica",
+      "consulta",
+      "agendamento",
+      ...(site.procedures.slice(0, 5).map((p) => p.name) ?? []),
+    ],
     openGraph: {
       title,
       description,
       type: "website",
-      ...(site.logo_url ? { images: [{ url: site.logo_url }] } : {}),
+      url: getPublicSiteUrl(slug),
+      siteName: site.name,
+      locale: "pt_BR",
+      ...(site.logo_url ? { images: [{ url: site.logo_url, alt: site.name }] } : {}),
     },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      ...(site.logo_url ? { images: [site.logo_url] } : {}),
+    },
+  };
+}
+
+function buildJsonLd(site: Awaited<ReturnType<typeof loadPublicClinicSite>> & { found: true }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "MedicalClinic",
+    name: site.name,
+    url: getPublicSiteUrl(site.slug),
+    ...(site.logo_url ? { image: site.logo_url } : {}),
+    ...(site.phone ? { telephone: site.phone } : {}),
+    ...(site.email ? { email: site.email } : {}),
+    ...(site.address
+      ? {
+          address: {
+            "@type": "PostalAddress",
+            streetAddress: site.address,
+            addressCountry: "BR",
+          },
+        }
+      : {}),
+    ...(site.google_maps_url ? { hasMap: site.google_maps_url } : {}),
   };
 }
 
@@ -51,24 +95,31 @@ export default async function PublicClinicSitePage({ params }: Props) {
     notFound();
   }
 
-  const primaryColor = site.site.primary_color;
-  const style = primaryColor ? ({ "--primary": primaryColor } as Record<string, string>) : undefined;
+  const themeVars = siteThemeCssVars({
+    primary: site.site.primary_color,
+  });
+
+  const jsonLd = buildJsonLd(site);
 
   return (
-    <div style={style} className="bg-white pb-20 sm:pb-0">
-      <SiteHeader site={site} slug={slug} />
+    <div style={themeVars} className="pb-20 sm:pb-0">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <PremiumHeader site={site} slug={slug} />
       <main>
-        <SiteHero site={site} slug={slug} />
-        <SiteTrustStrip site={site} />
-        <SiteAbout site={site} />
-        <SiteServices site={site} slug={slug} />
-        <SiteTeam site={site} />
-        <SiteLocation site={site} />
-        <SiteFaq site={site} />
-        <SiteCtaBand site={site} slug={slug} />
+        <PremiumHero site={site} slug={slug} />
+        <PremiumStats site={site} />
+        <PremiumAbout site={site} />
+        <PremiumSpecialties site={site} slug={slug} />
+        <PremiumTeam site={site} />
+        <PremiumFaq site={site} />
+        <PremiumContact site={site} slug={slug} />
+        <PremiumCta site={site} slug={slug} />
       </main>
-      <SiteFooter site={site} />
-      <SiteMobileBar site={site} slug={slug} />
+      <PremiumFooter site={site} />
+      <PremiumMobileBar site={site} slug={slug} />
     </div>
   );
 }
