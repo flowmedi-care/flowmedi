@@ -29,7 +29,7 @@ export function PremiumSpecialties({
           <p className="mt-4 text-[var(--site-muted)]">{copy.servicesDescription}</p>
         </div>
 
-        <div className={getServiceGridClass(site.procedures.length)}>
+        <div className={`${getServiceGridClass(site.procedures.length)} items-stretch`}>
           {site.procedures.map((procedure) => (
             <ServiceCard
               key={procedure.id}

@@ -154,7 +154,8 @@ async function uploadHeroToStorage(
   clinicId: string
 ): Promise<{ url: string } | { error: string }> {
   const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-  const path = `site-hero-${clinicId}.${ext}`;
+  // Deve seguir o padrão clinic-* (políticas RLS do bucket logos)
+  const path = `clinic-${clinicId}-hero.${ext}`;
   const arrayBuffer = await file.arrayBuffer();
 
   const { error } = await supabase.storage.from("logos").upload(path, arrayBuffer, {
