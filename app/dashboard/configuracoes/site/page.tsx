@@ -1,37 +1,45 @@
-import { Card, CardContent } from "@/components/ui/card";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { redirect } from "next/navigation";
+import { getPublicSitePageData } from "./actions";
+import { SiteConfigClient } from "./site-config-client";
 
-export default function ConfiguracoesSitePage() {
+export default async function ConfiguracoesSitePage() {
+  const data = await getPublicSitePageData();
+  if (data.error) redirect("/dashboard");
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Site da clínica</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Página pública da clínica com formulários de captação.
+          Landing page pública com informações da clínica e autoagendamento opcional.
         </p>
       </div>
-      <Card>
-        <CardContent className="pt-6 space-y-3">
-          <p className="text-sm text-muted-foreground">
-            O site institucional completo (landing com hero, serviços e CTA) está previsto para uma
-            próxima versão. Hoje você pode usar formulários públicos e as redes sociais configuradas
-            em Dados da clínica.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/dashboard/configuracoes/clinica">
-              <Button variant="outline" size="sm">
-                Dados e redes
-              </Button>
-            </Link>
-            <Link href="/dashboard/crm/captacao">
-              <Button variant="outline" size="sm">
-                Formulários de captação
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+      <SiteConfigClient
+        initialSettings={data.settings ?? null}
+        clinicName={data.clinicName ?? ""}
+        slug={data.slug ?? ""}
+        siteUrl={data.siteUrl ?? null}
+        subdomainUrl={data.subdomainUrl ?? null}
+        dataReadiness={
+          data.dataReadiness ?? {
+            ok: false,
+            issues: [],
+            stats: {
+              procedures: 0,
+              proceduresWithoutService: 0,
+              services: 0,
+              servicesWithoutPrice: 0,
+              doctors: 0,
+              doctorProcedureLinks: 0,
+              dimensionsWithoutValues: 0,
+            },
+          }
+        }
+        bookingReadiness={
+          data.bookingReadiness ?? { available: false, reason: null }
+        }
+        hasActiveRooms={data.hasActiveRooms ?? false}
+      />
     </div>
   );
 }

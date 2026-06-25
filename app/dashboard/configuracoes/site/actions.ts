@@ -1,0 +1,128 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import { gatherDataReadiness } from "@/lib/virtual-assistant/data-readiness";
+import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
+import { getPublicSiteUrl, loadPublicClinicSite } from "@/lib/public-site/load-site";
+import { getSubdomainSiteUrl } from "@/lib/public-site/host";
+
+export type ClinicPublicSiteSettingsRow = {
+  clinic_id: string;
+  site_enabled: boolean;
+  self_service_booking_enabled: boolean;
+  show_team: boolean;
+  show_faq: boolean;
+  show_services: boolean;
+  hero_title: string | null;
+  hero_subtitle: string | null;
+  primary_color: string | null;
+  updated_at: string;
+};
+
+async function requireAdminClinic() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", supabase: null, clinicId: null };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") {
+    return { error: "Apenas administradores.", supabase: null, clinicId: null };
+  }
+
+  return { error: null, supabase, clinicId: profile.clinic_id };
+}
+
+export async function getPublicSitePageData() {
+  const ctx = await requireAdminClinic();
+  if (ctx.error || !ctx.supabase || !ctx.clinicId) return { error: ctx.error };
+
+  const [settingsRes, clinicRes, readiness] = await Promise.all([
+    ctx.supabase
+      .from("clinic_public_site_settings")
+      .select("*")
+      .eq("clinic_id", ctx.clinicId)
+      .maybeSingle(),
+    ctx.supabase.from("clinics").select("name, slug").eq("id", ctx.clinicId).single(),
+    gatherDataReadiness(ctx.supabase, ctx.clinicId),
+  ]);
+
+  const slug = clinicRes.data?.slug ?? "";
+  const siteUrl = slug ? getPublicSiteUrl(slug) : null;
+  const subdomainUrl = slug ? getSubdomainSiteUrl(slug) : null;
+
+  let bookingReadiness: { available: boolean; reason: string | null } = {
+    available: false,
+    reason: "Publique o site e ative o autoagendamento.",
+  };
+
+  if (settingsRes.data?.site_enabled && settingsRes.data?.self_service_booking_enabled && slug) {
+    const siteData = await loadPublicClinicSite(slug);
+    if (siteData.found) {
+      bookingReadiness = checkPublicBookingReadiness(siteData);
+    }
+  }
+
+  const { count: roomCount } = await ctx.supabase
+    .from("rooms")
+    .select("id", { count: "exact", head: true })
+    .eq("clinic_id", ctx.clinicId)
+    .eq("active", true);
+
+  return {
+    error: null,
+    settings: (settingsRes.data as ClinicPublicSiteSettingsRow | null) ?? null,
+    clinicName: clinicRes.data?.name ?? "",
+    slug,
+    siteUrl,
+    subdomainUrl,
+    dataReadiness: readiness,
+    bookingReadiness,
+    hasActiveRooms: (roomCount ?? 0) > 0,
+  };
+}
+
+export async function updatePublicSiteSettings(formData: FormData) {
+  const ctx = await requireAdminClinic();
+  if (ctx.error || !ctx.supabase || !ctx.clinicId) return { error: ctx.error };
+
+  const siteEnabled = formData.get("site_enabled") === "true";
+  const bookingEnabled = formData.get("self_service_booking_enabled") === "true";
+  const showTeam = formData.get("show_team") !== "false";
+  const showFaq = formData.get("show_faq") !== "false";
+  const showServices = formData.get("show_services") !== "false";
+  const heroTitle = String(formData.get("hero_title") ?? "").trim() || null;
+  const heroSubtitle = String(formData.get("hero_subtitle") ?? "").trim() || null;
+  const primaryColor = String(formData.get("primary_color") ?? "").trim() || null;
+
+  const payload = {
+    clinic_id: ctx.clinicId,
+    site_enabled: siteEnabled,
+    self_service_booking_enabled: siteEnabled ? bookingEnabled : false,
+    show_team: showTeam,
+    show_faq: showFaq,
+    show_services: showServices,
+    hero_title: heroTitle,
+    hero_subtitle: heroSubtitle,
+    primary_color: primaryColor,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await ctx.supabase.from("clinic_public_site_settings").upsert(payload, {
+    onConflict: "clinic_id",
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard/configuracoes/site");
+  revalidatePath("/c/[slug]", "page");
+
+  return { error: null };
+}
