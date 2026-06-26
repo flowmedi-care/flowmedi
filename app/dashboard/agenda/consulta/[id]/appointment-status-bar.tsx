@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { updateAppointment, deleteAppointment } from "../../actions";
+import { AppointmentCancelWizard } from "../../components/appointment-cancel-wizard";
 import { toast } from "@/components/ui/toast";
 import { Trash2, Clock } from "lucide-react";
 import { getStatusBackgroundColor, getStatusTextColor } from "../../status-utils";
@@ -18,6 +19,7 @@ export function AppointmentStatusBar({
   durationMinutes,
   canEdit,
   isDoctor,
+  userRole,
 }: {
   appointmentId: string;
   appointmentStatus: string;
@@ -25,6 +27,7 @@ export function AppointmentStatusBar({
   durationMinutes: number | null;
   canEdit: boolean;
   isDoctor: boolean;
+  userRole?: string;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(appointmentStatus);
@@ -32,6 +35,12 @@ export function AppointmentStatusBar({
   const [durationMinutesState, setDurationMinutesState] = useState(durationMinutes);
   const [updating, setUpdating] = useState(false);
   const [showExcluirConfirm, setShowExcluirConfirm] = useState(false);
+  const [cancelWizardOpen, setCancelWizardOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<"cancelada" | "falta" | null>(null);
+
+  useEffect(() => {
+    setStatus(appointmentStatus);
+  }, [appointmentStatus]);
 
   const canChangeStatus = isDoctor || canEdit;
   const isPendingStatus = status === "agendada" || status === "confirmada";
@@ -39,6 +48,12 @@ export function AppointmentStatusBar({
   const showInProgress = canChangeStatus && isInProgress;
 
   async function handleStatusChange(newStatus: string) {
+    if (newStatus === "cancelada" || newStatus === "falta") {
+      setCancelTarget(newStatus);
+      setCancelWizardOpen(true);
+      return;
+    }
+
     setUpdating(true);
     const res = await updateAppointment(appointmentId, { status: newStatus });
     if (!res.error) {
@@ -59,6 +74,21 @@ export function AppointmentStatusBar({
       toast(res.error, "error");
     }
     setUpdating(false);
+  }
+
+  function handleWizardClose(open: boolean) {
+    setCancelWizardOpen(open);
+    if (!open) {
+      setCancelTarget(null);
+      router.refresh();
+    }
+  }
+
+  function handleWizardComplete() {
+    if (cancelTarget) setStatus(cancelTarget);
+    setCancelWizardOpen(false);
+    setCancelTarget(null);
+    router.refresh();
   }
 
   async function confirmExcluir() {
@@ -171,6 +201,15 @@ export function AppointmentStatusBar({
         loading={updating}
         onConfirm={confirmExcluir}
         onCancel={() => setShowExcluirConfirm(false)}
+      />
+
+      <AppointmentCancelWizard
+        appointmentId={appointmentId}
+        targetStatus={cancelTarget}
+        open={cancelWizardOpen}
+        onOpenChange={handleWizardClose}
+        onComplete={handleWizardComplete}
+        userRole={userRole}
       />
     </Card>
   );

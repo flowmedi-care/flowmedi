@@ -182,12 +182,16 @@ export async function recalcTreatmentPlanSessionsUsed(treatmentPlanId: string) {
 
   const { data: appts } = await supabase
     .from("appointments")
-    .select("session_number")
+    .select("id, session_number, status")
     .in("id", apptIds);
+
+  const activeAppts = (appts ?? []).filter(
+    (a) => a.status !== "cancelada" && a.status !== "falta"
+  );
 
   const maxSession = Math.max(
     0,
-    ...(appts ?? []).map((a) => Number(a.session_number) || 0)
+    ...activeAppts.map((a) => Number(a.session_number) || 0)
   );
 
   await supabase

@@ -115,7 +115,7 @@ export async function getDashboardMetrics(year: number, month: number) {
       .is("refunded_at", null),
     supabase
       .from("comandas")
-      .select("total_amount, paid_amount")
+      .select("total_amount, paid_amount, appointment:appointments(status)")
       .eq("clinic_id", profile.clinic_id)
       .in("status", ["aberta", "parcial"])
       .not("issued_at", "is", null),
@@ -151,6 +151,9 @@ export async function getDashboardMetrics(year: number, month: number) {
 
   let aReceber = 0;
   for (const c of openComandas ?? []) {
+    const apptRaw = (c as { appointment?: unknown }).appointment;
+    const appt = Array.isArray(apptRaw) ? apptRaw[0] : apptRaw;
+    if ((appt as { status?: string })?.status === "cancelada") continue;
     aReceber += Math.max(0, Number(c.total_amount) - Number(c.paid_amount));
   }
 
@@ -193,7 +196,7 @@ export async function listOpenComandasDetailed() {
       `
       id, status, subtotal_amount, discount_amount, total_amount, paid_amount, created_at,
       patient:patients ( full_name ),
-      appointment:appointments ( scheduled_at )
+      appointment:appointments ( scheduled_at, status )
     `
     )
     .eq("clinic_id", profile.clinic_id)
@@ -203,7 +206,13 @@ export async function listOpenComandasDetailed() {
 
   if (error) return { error: error.message, data: [] };
 
-  const ids = (data ?? []).map((c) => c.id as string);
+  const filtered = (data ?? []).filter((c: Record<string, unknown>) => {
+    const appt = Array.isArray(c.appointment) ? c.appointment[0] : c.appointment;
+    const apptStatus = (appt as { status?: string })?.status;
+    return apptStatus !== "cancelada";
+  });
+
+  const ids = filtered.map((c) => c.id as string);
   const serviceByComanda = new Map<string, string>();
 
   if (ids.length > 0) {
@@ -220,7 +229,7 @@ export async function listOpenComandasDetailed() {
     }
   }
 
-  const rows: OpenComandaRow[] = (data ?? []).map((c: Record<string, unknown>) => {
+  const rows: OpenComandaRow[] = filtered.map((c: Record<string, unknown>) => {
     const patient = Array.isArray(c.patient) ? c.patient[0] : c.patient;
     const appt = Array.isArray(c.appointment) ? c.appointment[0] : c.appointment;
     const total = Number(c.total_amount);

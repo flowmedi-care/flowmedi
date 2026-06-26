@@ -22,7 +22,7 @@ export default async function ConfiguracoesPage() {
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("name, logo_url, logo_scale, agenda_work_start, agenda_work_end, agenda_max_concurrent, phone, email, address, whatsapp_url, facebook_url, instagram_url, compliance_confirmation_days, compliance_form_days, whatsapp_monthly_post24h_limit, auto_message_send_start, auto_message_send_end, auto_message_timezone, services_pricing_mode")
+    .select("name, logo_url, logo_scale, agenda_work_start, agenda_work_end, agenda_max_concurrent, phone, email, address, whatsapp_url, facebook_url, instagram_url, compliance_confirmation_days, compliance_form_days, whatsapp_monthly_post24h_limit, auto_message_send_start, auto_message_send_end, auto_message_timezone, services_pricing_mode, no_show_fee_mode, no_show_fee_amount, no_show_fee_percent, no_show_service_id")
     .eq("id", profile.clinic_id)
     .single();
   const { data: reportGoals } = await supabase
@@ -62,6 +62,12 @@ export default async function ConfiguracoesPage() {
         }}
         clinicId={profile.clinic_id}
         canUseWhatsApp={canUseWhatsAppByPlan}
+        noShowFee={{
+          mode: (clinic?.no_show_fee_mode as "none" | "fixed" | "percent_service" | "service") ?? "none",
+          amount: clinic?.no_show_fee_amount != null ? Number(clinic.no_show_fee_amount) : null,
+          percent: clinic?.no_show_fee_percent != null ? Number(clinic.no_show_fee_percent) : null,
+          serviceId: clinic?.no_show_service_id ? String(clinic.no_show_service_id) : null,
+        }}
       />
     </Suspense>
   );

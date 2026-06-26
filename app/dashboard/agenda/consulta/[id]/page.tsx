@@ -332,6 +332,7 @@ export default async function ConsultaDetalhePage({
         durationMinutes={duration_minutes}
         canEdit={profile.role === "admin" || profile.role === "secretaria"}
         isDoctor={profile.role === "medico"}
+        userRole={profile.role}
       />
 
       <ConsultaTabsClient

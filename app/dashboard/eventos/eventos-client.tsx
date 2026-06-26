@@ -13,6 +13,7 @@ import { EventosConfigModal } from "./eventos-config-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { registerPatientFromPublicForm } from "@/app/dashboard/pacientes/actions";
 import { updateAppointment } from "@/app/dashboard/agenda/actions";
+import { AppointmentCancelWizard } from "@/app/dashboard/agenda/components/appointment-cancel-wizard";
 import { toast } from "@/components/ui/toast";
 import type { MessageEvent, ClinicMessageSetting, MessageTemplate, EffectiveTemplateItem } from "@/app/dashboard/mensagens/actions";
 import type { MessagePreviewItem } from "@/lib/message-processor";
@@ -193,6 +194,9 @@ export function EventosClient({
   const [sendModalChannels, setSendModalChannels] = useState<("email" | "whatsapp")[]>([]);
   const [registeringEventId, setRegisteringEventId] = useState<string | null>(null);
   const [updatingAppointmentId, setUpdatingAppointmentId] = useState<string | null>(null);
+  const [cancelWizardOpen, setCancelWizardOpen] = useState(false);
+  const [cancelWizardAppointmentId, setCancelWizardAppointmentId] = useState<string | null>(null);
+  const [cancelWizardTarget, setCancelWizardTarget] = useState<"cancelada" | "falta" | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<{
@@ -290,13 +294,19 @@ export function EventosClient({
   }
 
   async function handleAppointmentStatusChange(appointmentId: string, status: "realizada" | "falta" | "cancelada") {
+    if (status === "falta" || status === "cancelada") {
+      setCancelWizardAppointmentId(appointmentId);
+      setCancelWizardTarget(status);
+      setCancelWizardOpen(true);
+      return;
+    }
     setUpdatingAppointmentId(appointmentId);
     const res = await updateAppointment(appointmentId, { status });
     setUpdatingAppointmentId(null);
     if (res.error) {
       toast(`Erro: ${res.error}`, "error");
     } else {
-      toast(status === "realizada" ? "Consulta marcada como realizada" : status === "falta" ? "Consulta marcada como falta" : "Consulta cancelada", "success");
+      toast("Consulta marcada como realizada", "success");
       router.refresh();
     }
   }
@@ -1083,6 +1093,25 @@ export function EventosClient({
           </>
         )}
       </div>
+
+      <AppointmentCancelWizard
+        appointmentId={cancelWizardAppointmentId}
+        targetStatus={cancelWizardTarget}
+        open={cancelWizardOpen}
+        onOpenChange={(open) => {
+          setCancelWizardOpen(open);
+          if (!open) {
+            setCancelWizardAppointmentId(null);
+            setCancelWizardTarget(null);
+          }
+        }}
+        onComplete={() => {
+          setCancelWizardOpen(false);
+          setCancelWizardAppointmentId(null);
+          setCancelWizardTarget(null);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

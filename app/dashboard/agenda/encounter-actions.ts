@@ -177,6 +177,83 @@ export async function getAppointmentConsumption(appointmentId: string) {
   };
 }
 
+export type AppointmentOperationalState = {
+  appointmentStatus: string;
+  appointmentScheduledAt: string | null;
+  encounterStatus: string | null;
+  encounterStartedAt: string | null;
+  encounterCompletedAt: string | null;
+  comandaIssuedAt: string | null;
+  comandaClosedAt: string | null;
+  lastPaymentAt: string | null;
+  isFullyPaid: boolean;
+};
+
+export async function getAppointmentOperationalState(
+  appointmentId: string
+): Promise<{ error: string | null; data: AppointmentOperationalState | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: null };
+
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("status, scheduled_at, started_at")
+    .eq("id", appointmentId)
+    .maybeSingle();
+
+  if (!appt) return { error: "Consulta não encontrada.", data: null };
+
+  const { data: encounter } = await supabase
+    .from("encounters")
+    .select("status, completed_at")
+    .eq("appointment_id", appointmentId)
+    .maybeSingle();
+
+  const { data: comanda } = await supabase
+    .from("comandas")
+    .select("id, status, total_amount, paid_amount, issued_at, closed_at")
+    .eq("appointment_id", appointmentId)
+    .neq("status", "cancelada")
+    .maybeSingle();
+
+  let lastPaymentAt: string | null = null;
+  if (comanda?.id) {
+    const { data: lastPay } = await supabase
+      .from("patient_payments")
+      .select("paid_at")
+      .eq("comanda_id", comanda.id)
+      .order("paid_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    lastPaymentAt = lastPay?.paid_at ? String(lastPay.paid_at) : null;
+  }
+
+  const total = comanda ? Number(comanda.total_amount) : 0;
+  const paid = comanda ? Number(comanda.paid_amount) : 0;
+  const isFullyPaid =
+    encounter?.status === "cobrado" ||
+    comanda?.status === "paga" ||
+    (total > 0 && paid >= total);
+
+  return {
+    error: null,
+    data: {
+      appointmentStatus: String(appt.status),
+      appointmentScheduledAt: appt.scheduled_at ? String(appt.scheduled_at) : null,
+      encounterStatus: encounter?.status ? String(encounter.status) : null,
+      encounterStartedAt: appt.started_at ? String(appt.started_at) : null,
+      encounterCompletedAt: encounter?.completed_at ? String(encounter.completed_at) : null,
+      comandaIssuedAt: comanda?.issued_at ? String(comanda.issued_at) : null,
+      comandaClosedAt: comanda?.closed_at ? String(comanda.closed_at) : null,
+      lastPaymentAt,
+      isFullyPaid,
+    },
+  };
+}
+
 export async function addConsumptionLine(appointmentId: string, productId: string, quantity: number) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -1626,8 +1703,21 @@ export async function cancelComanda(
     .eq("id", user.id)
     .single();
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+
+  const paidAmountCheck = Number(
+    (
+      await supabase
+        .from("comandas")
+        .select("paid_amount")
+        .eq("id", comandaId)
+        .single()
+    ).data?.paid_amount ?? 0
+  );
+
   if (profile.role !== "admin" && profile.role !== "secretaria") {
-    return { error: "Sem permissão." };
+    if (profile.role !== "medico" || paidAmountCheck > 0) {
+      return { error: "Sem permissão." };
+    }
   }
 
   const { data: cmd } = await supabase

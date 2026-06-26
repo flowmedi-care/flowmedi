@@ -15,6 +15,8 @@ import {
 } from "./actions";
 import { ClinicalTemplatesSection } from "../clinical-documents/clinical-templates-section";
 import { ClinicalCatalogSection } from "../clinical-documents/clinical-catalog-section";
+import { NoShowFeeSettings } from "./no-show-fee-settings";
+import type { NoShowFeeMode } from "@/app/dashboard/agenda/appointment-status-change";
 
 const BRAZIL_TIMEZONE_OPTIONS = [
   { value: "America/Sao_Paulo", label: "Brasilia: GMT+3" },
@@ -35,6 +37,7 @@ export function ConfiguracoesClient({
   reportGoals,
   clinicId,
   canUseWhatsApp,
+  noShowFee,
 }: {
   complianceConfirmationDays: number | null;
   complianceFormDays: number | null;
@@ -55,6 +58,12 @@ export function ConfiguracoesClient({
   };
   clinicId: string;
   canUseWhatsApp: boolean;
+  noShowFee: {
+    mode: NoShowFeeMode;
+    amount: number | null;
+    percent: number | null;
+    serviceId: string | null;
+  };
 }) {
   const [complianceDays, setComplianceDays] = useState<string>(
     complianceConfirmationDays !== null ? String(complianceConfirmationDays) : ""
@@ -179,6 +188,8 @@ export function ConfiguracoesClient({
           </Button>
         </CardContent>
       </Card>
+
+      <NoShowFeeSettings initial={noShowFee} />
 
       <Card>
         <CardHeader className="space-y-1">

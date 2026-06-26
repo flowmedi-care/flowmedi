@@ -205,12 +205,10 @@ export async function cancelAppointmentViaAssistant(
     return { error: "Consulta não encontrada." };
   }
 
-  const { error } = await supabase
-    .from("appointments")
-    .update({ status: "cancelada" })
-    .eq("id", appointmentId);
-
-  return { error: error?.message ?? null };
+  const { cancelAppointmentOperational } = await import(
+    "@/app/dashboard/agenda/appointment-status-change"
+  );
+  return cancelAppointmentOperational(appointmentId, patientId);
 }
 
 export async function listPatientAppointmentsViaAssistant(

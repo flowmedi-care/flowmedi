@@ -1474,7 +1474,7 @@ export async function updateAppointment(
 
       // Cancelada, confirmada, realizada, falta: trigger cria evento; processamos via event_timeline
       const eventByStatus: Record<string, string> = {
-        canceled: "appointment_canceled",
+        cancelada: "appointment_canceled",
         confirmada: "appointment_confirmed",
         realizada: "appointment_completed",
         falta: "appointment_no_show",
