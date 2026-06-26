@@ -6,6 +6,8 @@ import type { FormTemplateDefinition } from "@/lib/form-types";
 import { getClinicPlanData, countFormTemplates } from "@/lib/plan-helpers";
 import { canCreateFormTemplate, getUpgradeMessage } from "@/lib/plan-gates";
 
+import { generateUniqueFormSlug, generateUniqueSlugFromName, slugify } from "@/lib/form-slug";
+
 export async function createFormTemplate(
   name: string,
   definition: FormTemplateDefinition,
@@ -36,11 +38,15 @@ export async function createFormTemplate(
     }
   }
 
+  const trimmedName = name.trim();
+  const formSlug = slugify(trimmedName) || "formulario";
+
   const { data: inserted, error } = await supabase
     .from("form_templates")
     .insert({
       clinic_id: profile.clinic_id,
-      name: name.trim(),
+      name: trimmedName,
+      slug: formSlug,
       definition: definition as unknown as Record<string, unknown>[],
       appointment_type_id: appointmentTypeId || null,
       is_public: isPublic,
@@ -84,10 +90,14 @@ export async function updateFormTemplate(
   procedureIds: string[] = []
 ) {
   const supabase = await createClient();
+  const trimmedName = name.trim();
+  const formSlug = slugify(trimmedName) || "formulario";
+
   const { error } = await supabase
     .from("form_templates")
     .update({
-      name: name.trim(),
+      name: trimmedName,
+      slug: formSlug,
       definition: definition as unknown as Record<string, unknown>[],
       appointment_type_id: appointmentTypeId || null,
       is_public: isPublic,
@@ -186,8 +196,6 @@ export async function getAppointmentsByPatient(patientId: string) {
   return { error: null, data: list };
 }
 
-import { generateUniqueFormSlug, generateUniqueSlugFromName, slugify } from "@/lib/form-slug";
-
 function generateLinkToken(): string {
   return crypto.randomUUID().replace(/-/g, "") + Date.now().toString(36);
 }
@@ -220,7 +228,7 @@ export async function createOrGetPublicFormLink(
   // Verificar se o template permite uso público
   const { data: template } = await supabase
     .from("form_templates")
-    .select("is_public, clinic_id, name")
+    .select("is_public, clinic_id, name, slug")
     .eq("id", formTemplateId)
     .single();
 
@@ -242,11 +250,18 @@ export async function createOrGetPublicFormLink(
       .eq("id", profile.clinic_id);
   }
 
-  const formSlug = slugify(template.name || "formulario");
+  const formSlugFromName = slugify(template.name || "formulario");
+  const formSlug = template.slug || formSlugFromName;
+  if (!template.slug || template.slug !== formSlugFromName) {
+    await supabase
+      .from("form_templates")
+      .update({ slug: formSlugFromName })
+      .eq("id", formTemplateId);
+  }
 
   return {
     error: null,
-    link: `/f/public/${clinicSlug}/${formSlug}`,
+    link: `/f/public/${clinicSlug}/${formSlugFromName || formSlug}`,
     isNew: true,
   };
 }

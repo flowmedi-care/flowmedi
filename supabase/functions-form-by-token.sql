@@ -16,6 +16,7 @@ DECLARE
   v_doctor_logo text;
   v_doctor_scale int;
   v_doctor_name text;
+  v_custom_fields json;
 BEGIN
   -- Buscar template público
   SELECT ft.id, ft.name, ft.definition, ft.clinic_id, ft.public_doctor_id
@@ -47,6 +48,26 @@ BEGIN
     WHERE id = v_row.public_doctor_id;
   END IF;
 
+  SELECT COALESCE(
+    json_agg(
+      json_build_object(
+        'id', pcf.id::text,
+        'field_name', pcf.field_name,
+        'field_type', pcf.field_type,
+        'field_label', pcf.field_label,
+        'required', pcf.required,
+        'options', pcf.options,
+        'display_order', pcf.display_order
+      )
+      ORDER BY pcf.display_order
+    ),
+    '[]'::json
+  )
+  INTO v_custom_fields
+  FROM patient_custom_fields pcf
+  WHERE pcf.clinic_id = v_row.clinic_id
+    AND pcf.include_in_public_form = true;
+
   v_result := json_build_object(
     'found', true,
     'template_id', v_row.id::text,
@@ -57,7 +78,8 @@ BEGIN
     'clinic_logo_scale', COALESCE(v_clinic_scale, 100),
     'doctor_logo_url', v_doctor_logo,
     'doctor_logo_scale', COALESCE(v_doctor_scale, 100),
-    'doctor_name', v_doctor_name
+    'doctor_name', v_doctor_name,
+    'custom_fields', v_custom_fields
   );
   RETURN v_result;
 END;

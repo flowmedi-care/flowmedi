@@ -2,11 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ExternalLink } from "lucide-react";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
+import { slugify } from "@/lib/form-slug";
 
 export default async function CrmCaptacaoPage() {
   const supabase = await createClient();
@@ -32,11 +32,15 @@ export default async function CrmCaptacaoPage() {
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("slug")
+    .select("slug, name")
     .eq("id", profile.clinic_id)
     .single();
 
-  const formList = forms ?? [];
+  const clinicSlug = clinic?.slug || slugify(clinic?.name || "clinica") || "clinica";
+  const formList = (forms ?? []).map((f) => ({
+    ...f,
+    publicSlug: f.slug || slugify(f.name) || "formulario",
+  }));
 
   return (
     <PageShell
@@ -66,24 +70,20 @@ export default async function CrmCaptacaoPage() {
               <div className="flex w-full flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-medium">{f.name}</p>
-                  {clinic?.slug && f.slug && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      /f/public/{clinic.slug}/{f.slug}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    /f/public/{clinicSlug}/{f.publicSlug}
+                  </p>
                 </div>
-                {clinic?.slug && f.slug && (
-                  <a
-                    href={`/f/public/${clinic.slug}/${f.slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Button variant="ghost" size="sm">
-                      <ExternalLink className="h-4 w-4 mr-1" />
-                      Abrir
-                    </Button>
-                  </a>
-                )}
+                <a
+                  href={`/f/public/${clinicSlug}/${f.publicSlug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="ghost" size="sm">
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Abrir
+                  </Button>
+                </a>
               </div>
             </ListPanelItem>
           ))}

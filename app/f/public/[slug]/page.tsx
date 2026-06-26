@@ -91,7 +91,7 @@ async function renderForm(data: any, templateId: string) {
 
   // Buscar campos customizados que devem aparecer no formulário público
   const clinicId = data.clinic_id ? String(data.clinic_id) : null;
-  let customFields: Array<{
+  type CustomField = {
     id: string;
     field_name: string;
     field_type: "text" | "number" | "date" | "textarea" | "select";
@@ -99,16 +99,20 @@ async function renderForm(data: any, templateId: string) {
     required: boolean;
     options: string[] | null;
     display_order: number;
-  }> = [];
+  };
 
-  if (clinicId) {
+  let customFields: CustomField[] = Array.isArray(data.custom_fields)
+    ? (data.custom_fields as CustomField[])
+    : [];
+
+  if (customFields.length === 0 && clinicId) {
     const { data: fields } = await supabase
       .from("patient_custom_fields")
       .select("id, field_name, field_type, field_label, required, options, display_order")
       .eq("clinic_id", clinicId)
       .eq("include_in_public_form", true)
       .order("display_order");
-    customFields = (fields ?? []) as typeof customFields;
+    customFields = (fields ?? []) as CustomField[];
   }
 
   // Dados básicos sempre vazios para formulários públicos (nova resposta)
