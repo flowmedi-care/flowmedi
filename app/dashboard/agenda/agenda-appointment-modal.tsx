@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Stepper,
   StepperContent,
@@ -18,7 +19,7 @@ import {
   StepperTrigger,
 } from "@/components/ui/stepper";
 import { cn } from "@/lib/utils";
-import { Check } from "lucide-react";
+import { Check, FileText, X } from "lucide-react";
 import {
   createAppointment,
   updateAppointment,
@@ -351,6 +352,19 @@ export function AgendaAppointmentModal({
     const end = buildScheduledEndAt(form.date, form.endTime, start);
     return plannedDurationMinutes(start, end);
   }, [form.date, form.time, form.endTime]);
+
+  const linkedFormTemplates = useMemo(
+    () =>
+      form.linkedFormTemplateIds
+        .map((id) => formTemplates.find((t) => t.id === id))
+        .filter((t): t is FormTemplateOption => !!t),
+    [form.linkedFormTemplateIds, formTemplates]
+  );
+
+  const availableFormTemplates = useMemo(
+    () => formTemplates.filter((t) => !form.linkedFormTemplateIds.includes(t.id)),
+    [formTemplates, form.linkedFormTemplateIds]
+  );
 
   async function addToWaitlistFromForm() {
     if (!form.patientId || !form.doctorId || !form.date) {
@@ -838,36 +852,90 @@ export function AgendaAppointmentModal({
             {!isEdit && formTemplates.length > 0 && (
               <div className="space-y-2">
                 <Label>Vincular formulário</Label>
-                <div className="flex gap-2">
-                  <select
-                    className="h-9 flex-1 rounded-md border border-input bg-transparent px-3 text-sm"
-                    value={selectedFormTemplateId}
-                    onChange={(e) => setSelectedFormTemplateId(e.target.value)}
-                  >
-                    <option value="">Selecione</option>
-                    {formTemplates.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
+                <p className="text-xs text-muted-foreground">
+                  Formulários vinculados serão enviados ao paciente junto com a consulta.
+                </p>
+                {linkedFormTemplates.length > 0 && (
+                  <ul className="space-y-2 rounded-md border border-primary/20 bg-primary/5 p-3">
+                    {linkedFormTemplates.map((t) => (
+                      <li
+                        key={t.id}
+                        className="flex items-center justify-between gap-2 text-sm"
+                      >
+                        <span className="flex items-center gap-2 min-w-0">
+                          <FileText className="size-4 shrink-0 text-primary" />
+                          <span className="truncate font-medium">{t.name}</span>
+                          <Badge variant="success" className="shrink-0">
+                            Vinculado
+                          </Badge>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() =>
+                            setForm((f) => ({
+                              ...f,
+                              linkedFormTemplateIds: f.linkedFormTemplateIds.filter(
+                                (id) => id !== t.id
+                              ),
+                            }))
+                          }
+                          title="Remover formulário"
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </li>
                     ))}
-                  </select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!selectedFormTemplateId}
-                    onClick={() => {
-                      if (!selectedFormTemplateId) return;
-                      setForm((f) => ({
-                        ...f,
-                        linkedFormTemplateIds: f.linkedFormTemplateIds.includes(selectedFormTemplateId)
-                          ? f.linkedFormTemplateIds
-                          : [...f.linkedFormTemplateIds, selectedFormTemplateId],
-                      }));
-                      setSelectedFormTemplateId("");
-                    }}
-                  >
-                    Adicionar
-                  </Button>
-                </div>
+                  </ul>
+                )}
+                {availableFormTemplates.length > 0 ? (
+                  <div className="flex gap-2">
+                    <select
+                      className="h-9 flex-1 rounded-md border border-input bg-transparent px-3 text-sm"
+                      value={selectedFormTemplateId}
+                      onChange={(e) => setSelectedFormTemplateId(e.target.value)}
+                    >
+                      <option value="">Selecione</option>
+                      {availableFormTemplates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!selectedFormTemplateId}
+                      onClick={() => {
+                        if (!selectedFormTemplateId) return;
+                        const template = formTemplates.find(
+                          (t) => t.id === selectedFormTemplateId
+                        );
+                        setForm((f) => ({
+                          ...f,
+                          linkedFormTemplateIds: f.linkedFormTemplateIds.includes(
+                            selectedFormTemplateId
+                          )
+                            ? f.linkedFormTemplateIds
+                            : [...f.linkedFormTemplateIds, selectedFormTemplateId],
+                        }));
+                        setSelectedFormTemplateId("");
+                        if (template) {
+                          toast(`Formulário "${template.name}" vinculado.`, "success");
+                        }
+                      }}
+                    >
+                      Adicionar
+                    </Button>
+                  </div>
+                ) : linkedFormTemplates.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Todos os formulários disponíveis já foram vinculados.
+                  </p>
+                ) : null}
               </div>
             )}
           </div>
