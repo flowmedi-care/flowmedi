@@ -130,54 +130,48 @@ export function AppointmentPipelineClient({
   };
 
   const toolbar = (
-    <div className="flex w-full justify-center">
-      <div className="w-full max-w-sm">
-        <FilterBar
-          filters={
-            <div className="flex flex-wrap items-center justify-center gap-2 w-full">
-              <Input
-                placeholder="Buscar paciente..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-9 w-full"
-              />
-              {doctors.length > 1 && (
-                <select
-                  value={doctorFilter}
-                  onChange={(e) => setDoctorFilter(e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="all">Todos os profissionais</option>
-                  {doctors.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          }
-        />
-      </div>
-    </div>
+    <FilterBar
+      filters={
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            placeholder="Buscar paciente..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 w-full sm:w-48"
+          />
+          {doctors.length > 1 && (
+            <select
+              value={doctorFilter}
+              onChange={(e) => setDoctorFilter(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="all">Todos os profissionais</option>
+              {doctors.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      }
+    />
   );
 
   if (items.length === 0) {
     return (
-      <div className="space-y-4 w-full">
+      <div className="space-y-4">
         {toolbar}
-        <div className="flex justify-center">
-          <EmptyState
-            title="Nenhuma consulta no pipeline"
-            description="Consultas agendadas aparecerão aqui após o agendamento."
-          />
-        </div>
+        <EmptyState
+          title="Nenhuma consulta no pipeline"
+          description="Consultas agendadas aparecerão aqui após o agendamento."
+        />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 w-full">
+    <div className="space-y-4">
       {toolbar}
 
       <DndContext
@@ -186,36 +180,36 @@ export function AppointmentPipelineClient({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex w-full justify-center overflow-x-auto pb-2 px-1">
-          <div className="inline-flex items-start gap-3">
-          {APPOINTMENT_PIPELINE_FLOW_STAGES.map((status) => (
-            <AppointmentKanbanColumn
-              key={status}
-              status={status}
-              items={itemsByStatus[status]}
-              formatDateTime={formatDateTime}
+        <div className="overflow-x-auto pb-2 min-w-0 -mx-1 px-1">
+          <div className="inline-flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-3">
+              {APPOINTMENT_PIPELINE_FLOW_STAGES.map((status) => (
+                <AppointmentKanbanColumn
+                  key={status}
+                  status={status}
+                  items={itemsByStatus[status]}
+                  formatDateTime={formatDateTime}
+                />
+              ))}
+            </div>
+
+            <ChevronRight
+              className="h-5 w-5 shrink-0 text-muted-foreground/60"
+              aria-hidden
             />
-          ))}
 
-          <div className="flex shrink-0 items-center self-center pt-20 text-muted-foreground/60">
-            <ChevronRight className="h-5 w-5" aria-hidden />
+            <div className="flex shrink-0 flex-col gap-3">
+              {APPOINTMENT_PIPELINE_OUTCOME_STAGES.map((status) => (
+                <AppointmentKanbanColumn
+                  key={status}
+                  status={status}
+                  items={itemsByStatus[status]}
+                  formatDateTime={formatDateTime}
+                  compact
+                />
+              ))}
+            </div>
           </div>
-
-          <div className="flex shrink-0 flex-col gap-3 pt-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground px-1">
-              Desfecho
-            </p>
-            {APPOINTMENT_PIPELINE_OUTCOME_STAGES.map((status) => (
-              <AppointmentKanbanColumn
-                key={status}
-                status={status}
-                items={itemsByStatus[status]}
-                formatDateTime={formatDateTime}
-                compact
-              />
-            ))}
-          </div>
-        </div>
         </div>
 
         <DragOverlay>
