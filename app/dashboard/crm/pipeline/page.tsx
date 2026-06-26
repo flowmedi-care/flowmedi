@@ -44,6 +44,8 @@ export default async function CrmPipelinePage() {
     taxaCadastro: 0,
     taxaAgendamento: 0,
     timeSeries: [],
+    cumulativeFunnel: [],
+    cohortSize: 0,
     periodDays: 30,
   };
 
@@ -60,6 +62,8 @@ export default async function CrmPipelinePage() {
     taxaComparecimento: 0,
     taxaNoShow: 0,
     timeSeries: [],
+    cumulativeFunnel: [],
+    outcomeBranches: [],
     periodDays: 30,
   };
 

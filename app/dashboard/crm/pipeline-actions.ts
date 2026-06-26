@@ -37,12 +37,27 @@ export type LeadFunnelTimeBucket = {
   agendados: number;
 };
 
+export type CumulativeFunnelStage = {
+  label: string;
+  value: number;
+  pct: number;
+  step: number;
+};
+
+export type FunnelOutcomeBranch = {
+  label: string;
+  value: number;
+  pct: number;
+};
+
 export type LeadFunnelMetrics = {
   snapshot: LeadFunnelSnapshot;
   total: number;
   taxaCadastro: number;
   taxaAgendamento: number;
   timeSeries: LeadFunnelTimeBucket[];
+  cumulativeFunnel: CumulativeFunnelStage[];
+  cohortSize: number;
   periodDays: number;
 };
 
@@ -71,6 +86,8 @@ export type AppointmentFunnelMetrics = {
   taxaComparecimento: number;
   taxaNoShow: number;
   timeSeries: AppointmentFunnelTimeBucket[];
+  cumulativeFunnel: CumulativeFunnelStage[];
+  outcomeBranches: FunnelOutcomeBranch[];
   periodDays: number;
 };
 
@@ -125,6 +142,221 @@ function bucketKey(date: Date, granularity: FunnelGranularity): string {
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   weekStart.setHours(0, 0, 0, 0);
   return weekStart.toISOString().slice(0, 10);
+}
+
+function isInPeriod(date: Date, start: Date, end: Date): boolean {
+  return date >= start && date <= end;
+}
+
+const LEAD_STAGE_RANK: Record<string, number> = {
+  novo_contato: 0,
+  aguardando_retorno: 1,
+  cadastrado: 2,
+  agendado: 3,
+};
+
+type HistoryRow = {
+  action_type: string;
+  new_stage: string | null;
+  old_stage: string | null;
+  created_at: string;
+  pipeline_id: string;
+};
+
+function computeLeadMaxStage(
+  currentStage: string | null,
+  history: HistoryRow[]
+): number {
+  let max = LEAD_STAGE_RANK[currentStage ?? "novo_contato"] ?? 0;
+  for (const row of history) {
+    if (row.action_type === "stage_change" && row.new_stage) {
+      max = Math.max(max, LEAD_STAGE_RANK[row.new_stage] ?? 0);
+    }
+    if (row.action_type === "registered") {
+      max = Math.max(max, 2);
+    }
+  }
+  return max;
+}
+
+function buildCumulativeStages(
+  steps: { label: string; value: number }[]
+): CumulativeFunnelStage[] {
+  const top = steps[0]?.value ?? 0;
+  return steps.map((step, index) => ({
+    label: step.label,
+    value: step.value,
+    pct: index === 0 ? (top > 0 ? 100 : 0) : pct(step.value, top),
+    step: index + 1,
+  }));
+}
+
+async function buildLeadCumulativeFunnel(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  start: Date,
+  end: Date
+): Promise<{ cohortSize: number; cumulativeFunnel: CumulativeFunnelStage[] }> {
+  const { data: pipelineRows } = await supabase
+    .from("non_registered_pipeline")
+    .select("id, stage, created_at")
+    .eq("clinic_id", clinicId);
+
+  const cohortIds = new Set<string>();
+  const currentStageById = new Map<string, string>();
+
+  for (const row of pipelineRows ?? []) {
+    const id = row.id as string;
+    currentStageById.set(id, row.stage as string);
+    const createdAt = new Date(row.created_at as string);
+    if (isInPeriod(createdAt, start, end)) {
+      cohortIds.add(id);
+    }
+  }
+
+  const allPipelineIds = (pipelineRows ?? []).map((r) => r.id as string);
+
+  const { data: historyInPeriod } =
+    allPipelineIds.length > 0
+      ? await supabase
+          .from("non_registered_history")
+          .select("pipeline_id, action_type, new_stage, old_stage, created_at")
+          .in("pipeline_id", allPipelineIds)
+          .gte("created_at", start.toISOString())
+          .lte("created_at", end.toISOString())
+      : { data: [] };
+
+  const orphanPipelineIds = new Set<string>();
+  for (const row of historyInPeriod ?? []) {
+    orphanPipelineIds.add(row.pipeline_id as string);
+  }
+
+  const idsForFullHistory = [...new Set([...allPipelineIds, ...orphanPipelineIds])];
+
+  const { data: fullHistory } =
+    idsForFullHistory.length > 0
+      ? await supabase
+          .from("non_registered_history")
+          .select("pipeline_id, action_type, new_stage, old_stage, created_at")
+          .in("pipeline_id", idsForFullHistory)
+          .order("created_at", { ascending: true })
+      : { data: [] };
+
+  const historyByPipeline = new Map<string, HistoryRow[]>();
+  for (const row of fullHistory ?? []) {
+    const pid = row.pipeline_id as string;
+    if (!historyByPipeline.has(pid)) historyByPipeline.set(pid, []);
+    historyByPipeline.get(pid)!.push(row as HistoryRow);
+  }
+
+  for (const pid of idsForFullHistory) {
+    if (cohortIds.has(pid)) continue;
+    const entries = historyByPipeline.get(pid) ?? [];
+    if (entries.length === 0) continue;
+    const firstAt = new Date(entries[0].created_at);
+    if (isInPeriod(firstAt, start, end)) {
+      cohortIds.add(pid);
+    }
+  }
+
+  let retornoOuMais = 0;
+  let cadastradosOuMais = 0;
+  let agendados = 0;
+
+  for (const pid of cohortIds) {
+    const maxStage = computeLeadMaxStage(
+      currentStageById.get(pid) ?? null,
+      historyByPipeline.get(pid) ?? []
+    );
+    if (maxStage >= 1) retornoOuMais++;
+    if (maxStage >= 2) cadastradosOuMais++;
+    if (maxStage >= 3) agendados++;
+  }
+
+  const cohortSize = cohortIds.size;
+  const cumulativeFunnel = buildCumulativeStages([
+    { label: "Entraram", value: cohortSize },
+    { label: "Retorno ou mais", value: retornoOuMais },
+    { label: "Cadastrados ou mais", value: cadastradosOuMais },
+    { label: "Agendados", value: agendados },
+  ]);
+
+  return { cohortSize, cumulativeFunnel };
+}
+
+async function buildAppointmentCumulativeFunnel(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  start: Date,
+  end: Date,
+  allowedDoctorIds: string[] | null,
+  role: string
+): Promise<{
+  cumulativeFunnel: CumulativeFunnelStage[];
+  outcomeBranches: FunnelOutcomeBranch[];
+}> {
+  let query = supabase
+    .from("appointments")
+    .select("id, status")
+    .eq("clinic_id", clinicId)
+    .gte("scheduled_at", start.toISOString())
+    .lte("scheduled_at", end.toISOString());
+
+  if (role === "secretaria" && allowedDoctorIds && allowedDoctorIds.length > 0) {
+    query = query.in("doctor_id", allowedDoctorIds);
+  } else if (role === "secretaria") {
+    query = query.eq("doctor_id", "00000000-0000-0000-0000-000000000000");
+  }
+
+  const { data: appointments } = await query;
+  const appts = appointments ?? [];
+  const total = appts.length;
+  const apptIds = appts.map((a) => a.id as string);
+
+  const confirmedIds = new Set<string>();
+  for (const appt of appts) {
+    const status = appt.status as string;
+    if (status === "confirmada" || status === "realizada" || status === "falta") {
+      confirmedIds.add(appt.id as string);
+    }
+  }
+
+  if (apptIds.length > 0) {
+    const { data: confirmEvents } = await supabase
+      .from("event_timeline")
+      .select("appointment_id")
+      .eq("clinic_id", clinicId)
+      .eq("event_code", "appointment_confirmed")
+      .in("appointment_id", apptIds);
+
+    for (const ev of confirmEvents ?? []) {
+      if (ev.appointment_id) confirmedIds.add(ev.appointment_id as string);
+    }
+  }
+
+  let realizadas = 0;
+  let faltas = 0;
+  let canceladas = 0;
+
+  for (const appt of appts) {
+    const status = appt.status as string;
+    if (status === "realizada") realizadas++;
+    else if (status === "falta") faltas++;
+    else if (status === "cancelada") canceladas++;
+  }
+
+  const cumulativeFunnel = buildCumulativeStages([
+    { label: "Agendadas", value: total },
+    { label: "Confirmadas ou mais", value: confirmedIds.size },
+  ]);
+
+  const outcomeBranches: FunnelOutcomeBranch[] = [
+    { label: "Realizada", value: realizadas, pct: pct(realizadas, total) },
+    { label: "Falta", value: faltas, pct: pct(faltas, total) },
+    { label: "Cancelada", value: canceladas, pct: pct(canceladas, total) },
+  ];
+
+  return { cumulativeFunnel, outcomeBranches };
 }
 
 export async function getAppointmentPipeline(): Promise<{
@@ -364,14 +596,23 @@ export async function getLeadFunnelMetrics(
   const cadastradosTotal = snapshot.cadastrado + snapshot.agendado;
   const agendadosTotal = snapshot.agendado;
 
+  const { cohortSize, cumulativeFunnel } = await buildLeadCumulativeFunnel(
+    supabase,
+    clinicId,
+    start,
+    end
+  );
+
   return {
     error: null,
     data: {
       snapshot,
       total,
       taxaCadastro: pct(cadastradosTotal, entered || total),
-      taxaAgendamento: pct(agendadosTotal, cadastradosTotal || entered || total),
+      taxaAgendamento: pct(agendadosTotal, cohortSize || cadastradosTotal || entered || total),
       timeSeries,
+      cumulativeFunnel,
+      cohortSize,
       periodDays,
     },
   };
@@ -472,6 +713,15 @@ export async function getAppointmentFunnelMetrics(
       };
     });
 
+  const { cumulativeFunnel, outcomeBranches } = await buildAppointmentCumulativeFunnel(
+    supabase,
+    clinicId,
+    start,
+    end,
+    profile.role === "secretaria" ? allowedDoctorIds : null,
+    profile.role
+  );
+
   return {
     error: null,
     data: {
@@ -481,6 +731,8 @@ export async function getAppointmentFunnelMetrics(
       taxaComparecimento: pct(realizadasCount, confirmadasCount || total),
       taxaNoShow: pct(snapshot.faltas, total),
       timeSeries,
+      cumulativeFunnel,
+      outcomeBranches,
       periodDays,
     },
   };

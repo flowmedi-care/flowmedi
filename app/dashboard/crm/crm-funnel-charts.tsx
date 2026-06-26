@@ -14,10 +14,7 @@ import {
 } from "recharts";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { StatCard } from "@/components/dashboard-ui/stat-card";
-import {
-  StackedFunnelChart,
-  FUNNEL_CLASSIC_COLORS,
-} from "@/components/dashboard-ui/stacked-funnel-chart";
+import { EngagementFunnelChart } from "@/components/dashboard-ui/engagement-funnel-chart";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CHART_PALETTE,
@@ -33,8 +30,6 @@ import {
   type LeadFunnelMetrics,
   type AppointmentFunnelMetrics,
 } from "./pipeline-actions";
-import { PIPELINE_STAGE_LABELS } from "@/components/dashboard-ui/kanban/pipeline-stage-colors";
-import { APPOINTMENT_PIPELINE_STAGE_LABELS } from "@/components/dashboard-ui/kanban/appointment-pipeline-stage-colors";
 import { Target, Calendar, TrendingUp, Users } from "lucide-react";
 
 const PERIOD_OPTIONS = [
@@ -70,66 +65,9 @@ export function CrmFunnelCharts({
     });
   };
 
-  const leadFunnelStages = [
-    {
-      label: PIPELINE_STAGE_LABELS.novo_contato,
-      value: leadMetrics.snapshot.novo_contato,
-      color: FUNNEL_CLASSIC_COLORS[0],
-    },
-    {
-      label: PIPELINE_STAGE_LABELS.aguardando_retorno,
-      value: leadMetrics.snapshot.aguardando_retorno,
-      color: FUNNEL_CLASSIC_COLORS[1],
-    },
-    {
-      label: PIPELINE_STAGE_LABELS.cadastrado,
-      value: leadMetrics.snapshot.cadastrado,
-      color: FUNNEL_CLASSIC_COLORS[2],
-    },
-    {
-      label: PIPELINE_STAGE_LABELS.agendado,
-      value: leadMetrics.snapshot.agendado,
-      color: FUNNEL_CLASSIC_COLORS[5],
-    },
-  ];
-
-  const appointmentTotal =
-    appointmentMetrics.snapshot.agendadas +
-    appointmentMetrics.snapshot.confirmadas +
-    appointmentMetrics.snapshot.realizadas +
-    appointmentMetrics.snapshot.faltas +
-    appointmentMetrics.snapshot.canceladas;
-
-  const appointmentFunnelStages = [
-    {
-      label: APPOINTMENT_PIPELINE_STAGE_LABELS.agendada,
-      value: appointmentTotal,
-      color: FUNNEL_CLASSIC_COLORS[0],
-    },
-    {
-      label: APPOINTMENT_PIPELINE_STAGE_LABELS.confirmada,
-      value:
-        appointmentMetrics.snapshot.confirmadas +
-        appointmentMetrics.snapshot.realizadas +
-        appointmentMetrics.snapshot.faltas,
-      color: FUNNEL_CLASSIC_COLORS[1],
-    },
-    {
-      label: APPOINTMENT_PIPELINE_STAGE_LABELS.realizada,
-      value: appointmentMetrics.snapshot.realizadas,
-      color: FUNNEL_CLASSIC_COLORS[2],
-    },
-    {
-      label: APPOINTMENT_PIPELINE_STAGE_LABELS.falta,
-      value: appointmentMetrics.snapshot.faltas,
-      color: FUNNEL_CLASSIC_COLORS[3],
-    },
-    {
-      label: APPOINTMENT_PIPELINE_STAGE_LABELS.cancelada,
-      value: appointmentMetrics.snapshot.canceladas,
-      color: FUNNEL_CLASSIC_COLORS[4],
-    },
-  ];
+  const leadCohortSize = leadMetrics.cohortSize;
+  const agendadosPct =
+    leadMetrics.cumulativeFunnel.find((s) => s.label === "Agendados")?.pct ?? 0;
 
   const combinedTimeSeries = (() => {
     const map = new Map<
@@ -182,7 +120,7 @@ export function CrmFunnelCharts({
         <div>
           <h2 className="text-lg font-semibold">Funis no tempo</h2>
           <p className="text-sm text-muted-foreground">
-            Captação de leads e comparecimento de consultas nos últimos {periodDays} dias.
+            Conversão cumulativa de leads e consultas nos últimos {periodDays} dias.
           </p>
         </div>
         <Tabs
@@ -201,9 +139,9 @@ export function CrmFunnelCharts({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Leads no pipeline"
-          value={leadMetrics.total}
-          subtitle={`${leadMetrics.taxaAgendamento}% viraram agendamento`}
+          title="Leads no cohort"
+          value={leadCohortSize}
+          subtitle={`${agendadosPct}% viraram agendamento`}
           icon={Users}
         />
         <StatCard
@@ -231,14 +169,14 @@ export function CrmFunnelCharts({
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard
           title="Funil de captação"
-          description="Distribuição atual dos leads por etapa"
+          description={`Cohort de leads que entraram nos últimos ${periodDays} dias`}
         >
-          {leadMetrics.total === 0 ? (
+          {leadCohortSize === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Nenhum lead no pipeline.
+              Nenhum lead entrou no período.
             </p>
           ) : (
-            <StackedFunnelChart stages={leadFunnelStages} />
+            <EngagementFunnelChart stages={leadMetrics.cumulativeFunnel} />
           )}
         </ChartCard>
 
@@ -246,12 +184,15 @@ export function CrmFunnelCharts({
           title="Funil de comparecimento"
           description={`Consultas agendadas no período (${periodDays}d)`}
         >
-          {appointmentTotal === 0 ? (
+          {appointmentMetrics.total === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               Nenhuma consulta no período.
             </p>
           ) : (
-            <StackedFunnelChart stages={appointmentFunnelStages} />
+            <EngagementFunnelChart
+              stages={appointmentMetrics.cumulativeFunnel}
+              branches={appointmentMetrics.outcomeBranches}
+            />
           )}
         </ChartCard>
       </div>
