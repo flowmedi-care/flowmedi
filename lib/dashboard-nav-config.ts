@@ -132,6 +132,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     roles: ["admin", "secretaria"],
     children: [
       { href: "/dashboard/crm/pipeline", label: "Pipeline CRM" },
+      { href: "/dashboard/crm/jornada", label: "Jornada" },
       { href: "/dashboard/crm/captacao", label: "Formulários de captação" },
     ],
   },

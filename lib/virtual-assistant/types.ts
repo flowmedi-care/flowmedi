@@ -79,6 +79,8 @@ export type AiConversationState = {
   pending_transcription_jobs?: PendingTranscriptionJob[];
   /** Etapa atual do fluxo guiado (booking, price, etc.) */
   pending_step?: string;
+  /** Etapa na Jornada do Contato (CRM) */
+  journey_step_code?: string;
   /** IDs de mensagens que já tiveram retry de transcrição após erro 500 */
   audio_transcription_retried_message_ids?: string[];
 };

@@ -7,6 +7,7 @@ import {
 import { buildBehaviorInstructions, buildKnowledgeContext } from "./knowledge-context";
 import { ASSISTANT_TOOLS, executeAssistantTool } from "./tools";
 import type { AiConversationState, VirtualAssistantSettings } from "./types";
+import { getContactJourneyForAi } from "@/app/dashboard/crm/jornada/actions";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -62,10 +63,19 @@ export async function runVirtualAssistantAgent(opts: {
   const behavior = buildBehaviorInstructions(opts.settings);
   const model = opts.settings.ai_model ?? "gpt-4o-mini";
 
+  const journeyRes = await getContactJourneyForAi({
+    clinicId: opts.clinicId,
+    phone: opts.phoneNumber,
+    patientId: opts.aiState.patient_id,
+  });
+  const journeyBlock = journeyRes.summary
+    ? `\n\nJornada do contato (CRM — use para orientar próximo passo):\n${journeyRes.summary}`
+    : "";
+
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `${knowledge}\n\n${behavior}\n\nEstado atual da conversa: ${JSON.stringify(opts.aiState)}`,
+      content: `${knowledge}\n\n${behavior}${journeyBlock}\n\nEstado atual da conversa: ${JSON.stringify(opts.aiState)}`,
     },
   ];
 

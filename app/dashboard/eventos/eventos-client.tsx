@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus, FileText, CalendarCheck, Calendar, XCircle, UserX } from "lucide-react";
+import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus, FileText, CalendarCheck, Calendar, XCircle, UserX, Route } from "lucide-react";
 import { processEvent, concluirEvent, getMessagePreviewForEvent, type ClinicEventConfigItem } from "./actions";
 import { EventosConfigModal } from "./eventos-config-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -17,6 +17,7 @@ import { toast } from "@/components/ui/toast";
 import type { MessageEvent, ClinicMessageSetting, MessageTemplate, EffectiveTemplateItem } from "@/app/dashboard/mensagens/actions";
 import type { MessagePreviewItem } from "@/lib/message-processor";
 import { getChannelSendState } from "@/lib/event-send-logic";
+import { getJourneyHrefFromEvent } from "@/lib/contact-journey/steps";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 
 // Formatação de data
@@ -331,6 +332,10 @@ export function EventosClient({
     const isExpanded = expanded === event.id;
     const isProcessing = processing === event.id;
     const isPending = event.status === "pending";
+    const journeyHref = getJourneyHrefFromEvent({
+      patient_id: event.patient_id,
+      metadata: event.metadata,
+    });
 
     return (
       <Card key={event.id} className="hover:shadow-md transition-shadow">
@@ -362,6 +367,14 @@ export function EventosClient({
               <p className="text-xs text-muted-foreground mt-1">
                 Ocorreu em: {formatDate(event.occurred_at)}
               </p>
+              {journeyHref && (
+                <Button variant="link" className="h-auto p-0 mt-1 text-xs" asChild>
+                  <Link href={journeyHref}>
+                    <Route className="h-3 w-3 mr-1 inline" />
+                    Ver jornada completa
+                  </Link>
+                </Button>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {/* Ícones de canais — verde quando enviado */}

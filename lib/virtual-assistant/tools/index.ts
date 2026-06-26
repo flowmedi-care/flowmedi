@@ -197,6 +197,15 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
   {
     type: "function",
     function: {
+      name: "get_contact_journey",
+      description:
+        "Consulta a jornada do contato no CRM: etapa atual, eventos pendentes e próxima ação sugerida. Use antes de decidir cadastro, agendamento ou follow-up.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "transfer_to_human",
       description: "Transfere conversa para atendimento humano.",
       parameters: {
@@ -478,6 +487,30 @@ export async function executeAssistantTool(
         );
         await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "cancelada", !res.error);
         return { result: JSON.stringify(res) };
+      }
+
+      case "get_contact_journey": {
+        const { getContactJourneyForAi } = await import(
+          "@/app/dashboard/crm/jornada/actions"
+        );
+        const res = await getContactJourneyForAi({
+          clinicId,
+          phone: phoneNumber,
+          patientId: ctx.aiState.patient_id,
+        });
+        const summary = res.summary ?? "Nenhuma jornada ativa encontrada para este contato.";
+        await logToolCall(supabase, clinicId, conversationId, name, {}, summary.slice(0, 200), true);
+        return {
+          result: JSON.stringify({
+            summary: res.summary,
+            current_step: res.journey?.currentStep ?? null,
+            suggested_action: res.journey?.suggestedAction?.label ?? null,
+            phase: res.journey?.phase ?? null,
+          }),
+          statePatch: res.journey?.currentStep
+            ? { journey_step_code: res.journey.currentStep }
+            : {},
+        };
       }
 
       case "transfer_to_human": {
