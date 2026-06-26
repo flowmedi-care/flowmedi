@@ -63,12 +63,18 @@ type ViewMode = "list" | "kanban";
 export function PipelineClient({
   initialItems,
   embedded = false,
+  viewMode: controlledViewMode,
+  onViewModeChange,
 }: {
   initialItems: PipelineItem[];
   embedded?: boolean;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
 }) {
   const [items, setItems] = useState<PipelineItem[]>(initialItems);
-  const [viewMode, setViewMode] = useState<ViewMode>("kanban");
+  const [internalViewMode, setInternalViewMode] = useState<ViewMode>("kanban");
+  const viewMode = controlledViewMode ?? internalViewMode;
+  const setViewMode = onViewModeChange ?? setInternalViewMode;
   const [selectedItem, setSelectedItem] = useState<PipelineItem | null>(null);
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [noteText, setNoteText] = useState("");

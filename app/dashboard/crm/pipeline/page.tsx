@@ -1,10 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { PipelineClient } from "../../pipeline/pipeline-client";
 import { getPipeline, syncNonRegisteredToPipeline } from "../../pipeline/actions";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
-import { AppointmentPipelineClient } from "../appointment-pipeline-client";
 import { CrmFunnelCharts } from "../crm-funnel-charts";
+import { CrmPipelineBoardsClient } from "../crm-pipeline-boards-client";
 import {
   getAppointmentPipeline,
   getLeadFunnelMetrics,
@@ -89,33 +88,21 @@ export default async function CrmPipelinePage() {
           initialAppointmentMetrics={appointmentMetrics}
         />
 
-        <section id="captacao" className="space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">Captação</h2>
-            <p className="text-sm text-muted-foreground">
-              Do primeiro contato até o agendamento.
-            </p>
+        {(pipelineRes.error || appointmentRes.error) && (
+          <div className="space-y-1">
+            {pipelineRes.error && (
+              <p className="text-sm text-destructive">{pipelineRes.error}</p>
+            )}
+            {appointmentRes.error && (
+              <p className="text-sm text-destructive">{appointmentRes.error}</p>
+            )}
           </div>
-          {pipelineRes.error ? (
-            <p className="text-sm text-destructive">{pipelineRes.error}</p>
-          ) : (
-            <PipelineClient initialItems={pipelineRes.data ?? []} />
-          )}
-        </section>
+        )}
 
-        <section id="comparecimento" className="space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">Comparecimento</h2>
-            <p className="text-sm text-muted-foreground">
-              Da consulta agendada até realização, falta ou cancelamento.
-            </p>
-          </div>
-          {appointmentRes.error ? (
-            <p className="text-sm text-destructive">{appointmentRes.error}</p>
-          ) : (
-            <AppointmentPipelineClient initialItems={appointmentRes.data ?? []} />
-          )}
-        </section>
+        <CrmPipelineBoardsClient
+          pipelineItems={pipelineRes.error ? [] : (pipelineRes.data ?? [])}
+          appointmentItems={appointmentRes.error ? [] : (appointmentRes.data ?? [])}
+        />
       </div>
     </PageShell>
   );

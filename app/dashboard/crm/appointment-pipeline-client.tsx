@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import {
   DndContext,
   DragEndEvent,
@@ -38,6 +39,8 @@ import {
   APPOINTMENT_PIPELINE_OUTCOME_STAGES,
 } from "@/components/dashboard-ui/kanban/appointment-pipeline-stage-colors";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
+import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
+import type { CrmPipelineViewMode } from "./crm-pipeline-boards-client";
 import {
   changeAppointmentPipelineStatus,
   type AppointmentPipelineItem,
@@ -46,8 +49,10 @@ import {
 
 export function AppointmentPipelineClient({
   initialItems,
+  viewMode = "kanban",
 }: {
   initialItems: AppointmentPipelineItem[];
+  viewMode?: CrmPipelineViewMode;
 }) {
   const [items, setItems] = useState<AppointmentPipelineItem[]>(initialItems);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -105,14 +110,25 @@ export function AppointmentPipelineClient({
     if (!item || item.status === newStatus) return;
     if (!APPOINTMENT_PIPELINE_STAGES.includes(newStatus)) return;
 
-    setItems((prev) =>
-      prev.map((i) => (i.id === itemId ? { ...i, status: newStatus } : i))
+    await handleChangeStatus(itemId, newStatus, item.status);
+  };
+
+  const handleChangeStatus = async (
+    itemId: string,
+    newStatus: AppointmentPipelineStatus,
+    previousStatus?: AppointmentPipelineStatus
+  ) => {
+    const prev =
+      previousStatus ?? items.find((i) => i.id === itemId)?.status ?? "agendada";
+
+    setItems((prevItems) =>
+      prevItems.map((i) => (i.id === itemId ? { ...i, status: newStatus } : i))
     );
 
     const result = await changeAppointmentPipelineStatus(itemId, newStatus);
     if (result.error) {
-      setItems((prev) =>
-        prev.map((i) => (i.id === itemId ? { ...i, status: item.status } : i))
+      setItems((prevItems) =>
+        prevItems.map((i) => (i.id === itemId ? { ...i, status: prev } : i))
       );
       toast(`Erro ao mover: ${result.error}`, "error");
     } else {
@@ -129,39 +145,35 @@ export function AppointmentPipelineClient({
     };
   };
 
-  const toolbar = (
-    <FilterBar
-      filters={
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            placeholder="Buscar paciente..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-9 w-full sm:w-48"
-          />
-          {doctors.length > 1 && (
-            <select
-              value={doctorFilter}
-              onChange={(e) => setDoctorFilter(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="all">Todos os profissionais</option>
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      }
-    />
+  const filters = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        placeholder="Buscar paciente..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="h-9 w-full sm:w-48"
+      />
+      {doctors.length > 1 && (
+        <select
+          value={doctorFilter}
+          onChange={(e) => setDoctorFilter(e.target.value)}
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          <option value="all">Todos os profissionais</option>
+          {doctors.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
   );
 
   if (items.length === 0) {
     return (
       <div className="space-y-4">
-        {toolbar}
+        <FilterBar filters={filters} />
         <EmptyState
           title="Nenhuma consulta no pipeline"
           description="Consultas agendadas aparecerão aqui após o agendamento."
@@ -170,9 +182,35 @@ export function AppointmentPipelineClient({
     );
   }
 
+  if (viewMode === "list") {
+    return (
+      <div className="space-y-4">
+        <FilterBar filters={filters} />
+        {filteredItems.length === 0 ? (
+          <EmptyState
+            title="Nenhum resultado"
+            description="Nenhuma consulta corresponde aos filtros."
+          />
+        ) : (
+          <ListPanel>
+            {filteredItems.map((item) => (
+              <ListPanelItem key={item.id}>
+                <AppointmentListItem
+                  item={item}
+                  formatDateTime={formatDateTime}
+                  onChangeStatus={handleChangeStatus}
+                />
+              </ListPanelItem>
+            ))}
+          </ListPanel>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {toolbar}
+      <FilterBar filters={filters} />
 
       <DndContext
         sensors={sensors}
@@ -180,8 +218,8 @@ export function AppointmentPipelineClient({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="overflow-x-auto pb-2 min-w-0 -mx-1 px-1">
-          <div className="inline-flex items-center gap-3">
+        <div className="w-full min-w-0 pb-2">
+          <div className="flex w-full items-center justify-between gap-4">
             <div className="flex shrink-0 items-center gap-3">
               {APPOINTMENT_PIPELINE_FLOW_STAGES.map((status) => (
                 <AppointmentKanbanColumn
@@ -198,7 +236,7 @@ export function AppointmentPipelineClient({
               aria-hidden
             />
 
-            <div className="flex shrink-0 flex-col gap-3">
+            <div className="flex shrink-0 flex-col justify-center gap-3">
               {APPOINTMENT_PIPELINE_OUTCOME_STAGES.map((status) => (
                 <AppointmentKanbanColumn
                   key={status}
@@ -322,7 +360,10 @@ function AppointmentCardContent({
           </div>
         )}
       </div>
-      <Badge variant={APPOINTMENT_PIPELINE_STAGE_BADGE_VARIANT[item.status]} className="text-xs w-fit">
+      <Badge
+        variant={APPOINTMENT_PIPELINE_STAGE_BADGE_VARIANT[item.status]}
+        className="text-xs w-fit"
+      >
         {APPOINTMENT_PIPELINE_STAGE_LABELS[item.status]}
       </Badge>
       <Button
@@ -335,5 +376,55 @@ function AppointmentCardContent({
         <Link href={`/dashboard/agenda/consulta/${item.id}`}>Abrir consulta</Link>
       </Button>
     </KanbanCardShell>
+  );
+}
+
+function AppointmentListItem({
+  item,
+  formatDateTime,
+  onChangeStatus,
+}: {
+  item: AppointmentPipelineItem;
+  formatDateTime: (iso: string) => { date: string; time: string };
+  onChangeStatus: (
+    itemId: string,
+    newStatus: AppointmentPipelineStatus
+  ) => Promise<void>;
+}) {
+  const { date, time } = formatDateTime(item.scheduled_at);
+
+  return (
+    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium">{item.patient_name}</p>
+          <Badge variant={APPOINTMENT_PIPELINE_STAGE_BADGE_VARIANT[item.status]}>
+            {APPOINTMENT_PIPELINE_STAGE_LABELS[item.status]}
+          </Badge>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {date} às {time}
+          {item.doctor_name ? ` • ${item.doctor_name}` : ""}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <Button size="sm" variant="outline" asChild>
+          <Link href={`/dashboard/agenda/consulta/${item.id}`}>Abrir consulta</Link>
+        </Button>
+        <Select
+          value={item.status}
+          onChange={(e) =>
+            onChangeStatus(item.id, e.target.value as AppointmentPipelineStatus)
+          }
+          className="h-8 w-auto min-w-[140px] text-xs"
+        >
+          {APPOINTMENT_PIPELINE_STAGES.map((status) => (
+            <option key={status} value={status}>
+              {APPOINTMENT_PIPELINE_STAGE_LABELS[status]}
+            </option>
+          ))}
+        </Select>
+      </div>
+    </div>
   );
 }
