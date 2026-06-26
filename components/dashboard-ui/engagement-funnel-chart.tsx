@@ -1,23 +1,18 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import type {
-  CumulativeFunnelStage,
-  FunnelOutcomeBranch,
-} from "@/app/dashboard/crm/pipeline-actions";
+import type { CumulativeFunnelStage } from "@/app/dashboard/crm/pipeline-actions";
 
 export type EngagementFunnelStage = CumulativeFunnelStage;
-export type EngagementFunnelBranch = FunnelOutcomeBranch;
 
-const STAGE_HEIGHT = 56;
-const STAGE_GAP = 6;
-const BRANCH_HEIGHT = 48;
+const STAGE_HEIGHT_DEFAULT = 56;
+const STAGE_HEIGHT_COMPACT = 46;
+const STAGE_GAP = 5;
 const MAX_FUNNEL_WIDTH = 240;
-const MIN_SEGMENT_WIDTH = 56;
+const MIN_SEGMENT_WIDTH = 48;
 const LABEL_WIDTH = 130;
 const STEP_COL_WIDTH = 36;
 
-/** Gradiente monocromático (primary / violet) do claro ao escuro */
 function stageColor(index: number, total: number): string {
   const startHue = 158;
   const startLight = 72;
@@ -28,17 +23,11 @@ function stageColor(index: number, total: number): string {
   return `hsl(${startHue} ${saturation}% ${lightness}%)`;
 }
 
-function branchColor(index: number): string {
-  const hues = [158, 145, 38];
-  const lights = [42, 48, 45];
-  return `hsl(${hues[index] ?? 158} 55% ${lights[index] ?? 45}%)`;
-}
-
 function segmentWidths(values: number[]): number[] {
   const top = values[0] ?? 1;
   const max = Math.max(top, 1);
   return values.map((v) =>
-    Math.max((v / max) * MAX_FUNNEL_WIDTH, v > 0 ? MIN_SEGMENT_WIDTH : MIN_SEGMENT_WIDTH * 0.5)
+    Math.max((v / max) * MAX_FUNNEL_WIDTH, v > 0 ? MIN_SEGMENT_WIDTH : MIN_SEGMENT_WIDTH * 0.45)
   );
 }
 
@@ -99,93 +88,28 @@ function StepBadge({ step, y }: { step: number; y: number }) {
   );
 }
 
-function BranchSplit({
-  branches,
-  topWidth,
-  centerX,
-  y,
-}: {
-  branches: EngagementFunnelBranch[];
-  topWidth: number;
-  centerX: number;
-  y: number;
-}) {
-  const total = branches.reduce((s, b) => s + b.value, 0) || 1;
-  const branchWidths = branches.map((b) =>
-    b.value > 0 ? Math.max((b.value / total) * topWidth, 44) : 32
-  );
-  const totalW = branchWidths.reduce((s, w) => s + w, 0);
-  let xCursor = -totalW / 2;
-
-  return (
-    <g transform={`translate(${centerX}, ${y})`}>
-      {branches.map((branch, i) => {
-        const w = branchWidths[i];
-        const cx = xCursor + w / 2;
-        const points = `${xCursor},0 ${xCursor + w},0 ${cx},${BRANCH_HEIGHT}`;
-        const g = (
-          <g key={branch.label}>
-            <polygon points={points} fill={branchColor(i)} />
-            <text
-              x={cx}
-              y={BRANCH_HEIGHT * 0.55}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fill="white"
-              fontSize={13}
-              fontWeight={700}
-              style={{ fontFamily: "inherit" }}
-            >
-              {branch.value}
-            </text>
-            <text
-              x={cx}
-              y={BRANCH_HEIGHT + 14}
-              textAnchor="middle"
-              fill="hsl(var(--muted-foreground))"
-              fontSize={11}
-              fontWeight={500}
-              style={{ fontFamily: "inherit" }}
-            >
-              {branch.label}
-            </text>
-          </g>
-        );
-        xCursor += w;
-        return g;
-      })}
-    </g>
-  );
-}
-
 export function EngagementFunnelChart({
   stages,
-  branches,
   className,
 }: {
   stages: EngagementFunnelStage[];
-  branches?: EngagementFunnelBranch[];
   className?: string;
 }) {
   if (stages.length === 0 || stages[0].value === 0) {
     return null;
   }
 
+  const stageHeight =
+    stages.length > 4 ? STAGE_HEIGHT_COMPACT : STAGE_HEIGHT_DEFAULT;
   const values = stages.map((s) => s.value);
   const widths = segmentWidths(values);
   const funnelCenterX = LABEL_WIDTH + MAX_FUNNEL_WIDTH / 2 + 20;
   const stepX = funnelCenterX + MAX_FUNNEL_WIDTH / 2 + STEP_COL_WIDTH;
-  const hasBranches = branches && branches.some((b) => b.value > 0);
-
-  const linearHeight =
-    stages.length * STAGE_HEIGHT + Math.max(0, stages.length - 1) * STAGE_GAP;
-  const branchBlockHeight = hasBranches ? BRANCH_HEIGHT + STAGE_GAP + 16 : 0;
-  const svgHeight = linearHeight + branchBlockHeight + 8;
-
-  const lastStageWidth = widths[widths.length - 1];
+  const svgHeight =
+    stages.length * stageHeight + Math.max(0, stages.length - 1) * STAGE_GAP + 8;
 
   return (
-    <div className={cn("w-full space-y-4", className)}>
+    <div className={cn("w-full py-2", className)}>
       <svg
         viewBox={`0 0 ${stepX + STEP_COL_WIDTH} ${svgHeight}`}
         className="mx-auto h-auto w-full max-w-[480px]"
@@ -195,14 +119,10 @@ export function EngagementFunnelChart({
         {stages.map((stage, index) => {
           const topWidth = widths[index];
           const bottomWidth =
-            index < stages.length - 1
-              ? widths[index + 1]
-              : hasBranches
-                ? lastStageWidth
-                : 0;
-          const isLastLinear = index === stages.length - 1 && !hasBranches;
-          const segmentY = index * (STAGE_HEIGHT + STAGE_GAP);
-          const labelY = segmentY + STAGE_HEIGHT / 2;
+            index < stages.length - 1 ? widths[index + 1] : 0;
+          const isLast = index === stages.length - 1;
+          const segmentY = index * (stageHeight + STAGE_GAP);
+          const labelY = segmentY + stageHeight / 2;
           const color = stageColor(index, stages.length);
 
           return (
@@ -232,11 +152,11 @@ export function EngagementFunnelChart({
               <g transform={`translate(${funnelCenterX}, ${segmentY})`}>
                 <TrapezoidShape
                   topWidth={topWidth}
-                  bottomWidth={isLastLinear ? 0 : bottomWidth}
-                  height={STAGE_HEIGHT}
+                  bottomWidth={isLast ? 0 : bottomWidth}
+                  height={stageHeight}
                   fill={color}
                   value={stage.value}
-                  isTriangle={isLastLinear}
+                  isTriangle={isLast}
                 />
               </g>
               <g transform={`translate(${stepX}, 0)`}>
@@ -245,38 +165,7 @@ export function EngagementFunnelChart({
             </g>
           );
         })}
-
-        {hasBranches && branches && (
-          <BranchSplit
-            branches={branches}
-            topWidth={lastStageWidth}
-            centerX={funnelCenterX}
-            y={linearHeight}
-          />
-        )}
       </svg>
-
-      {branches && branches.length > 0 && (
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Métricas de conversão
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            {branches.map((branch) => (
-              <div
-                key={branch.label}
-                className="rounded-md bg-background px-3 py-2 text-center shadow-sm"
-              >
-                <p className="text-xs text-muted-foreground">{branch.label}</p>
-                <p className="text-lg font-bold tabular-nums text-primary">
-                  {branch.pct}%
-                </p>
-                <p className="text-xs text-muted-foreground">{branch.value} consultas</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

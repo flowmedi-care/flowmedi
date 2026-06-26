@@ -189,10 +189,7 @@ export function CrmFunnelCharts({
               Nenhuma consulta no período.
             </p>
           ) : (
-            <EngagementFunnelChart
-              stages={appointmentMetrics.cumulativeFunnel}
-              branches={appointmentMetrics.outcomeBranches}
-            />
+            <EngagementFunnelChart stages={appointmentMetrics.cumulativeFunnel} />
           )}
         </ChartCard>
       </div>
