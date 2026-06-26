@@ -6,7 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Stepper,
+  StepperContent,
+  StepperIndicator,
+  StepperItem,
+  StepperNav,
+  StepperPanel,
+  StepperSeparator,
+  StepperTitle,
+  StepperTrigger,
+} from "@/components/ui/stepper";
 import { cn } from "@/lib/utils";
+import { Check } from "lucide-react";
 import {
   createAppointment,
   updateAppointment,
@@ -51,8 +63,6 @@ import type {
   DoctorProcedureLink,
 } from "./agenda-client";
 
-type TabId = "dados" | "procedimentos" | "data" | "financeiro";
-
 export type AppointmentFormState = {
   patientId: string;
   doctorId: string;
@@ -73,12 +83,12 @@ export type AppointmentFormState = {
   paymentPolicy: PaymentPolicy;
 };
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "dados", label: "Dados básicos" },
-  { id: "procedimentos", label: "Procedimentos" },
-  { id: "data", label: "Data e hora" },
-  { id: "financeiro", label: "Financeiro" },
-];
+const WIZARD_STEPS = [
+  { step: 1, label: "Dados básicos" },
+  { step: 2, label: "Procedimentos" },
+  { step: 3, label: "Data e hora" },
+  { step: 4, label: "Financeiro" },
+] as const;
 
 export function AgendaAppointmentModal({
   open,
@@ -123,7 +133,7 @@ export function AgendaAppointmentModal({
   const isEdit = mode === "edit" && !!appointmentId;
   const canSeeRecurrenceBilling =
     userRole === "admin" || userRole === "secretaria";
-  const [tab, setTab] = useState<TabId>("dados");
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -174,7 +184,7 @@ export function AgendaAppointmentModal({
 
   useEffect(() => {
     if (!open) return;
-    setTab("dados");
+    setStep(1);
     setError(null);
 
     if (isEdit && appointmentId) {
@@ -365,6 +375,49 @@ export function AgendaAppointmentModal({
     }
   }
 
+  function validateStep(currentStep: number): string | null {
+    if (currentStep === 1) {
+      if (!form.patientId || !form.doctorId) {
+        return "Paciente e profissional são obrigatórios.";
+      }
+      if (roomsRequired && !form.roomId) {
+        return "Selecione a sala/consultório.";
+      }
+    }
+    if (currentStep === 2 && !form.procedureIds.length) {
+      return "Selecione pelo menos um procedimento.";
+    }
+    if (currentStep === 3) {
+      if (!form.date || !form.time || !form.endTime) {
+        return "Informe data e horários de início e término.";
+      }
+      if (
+        !isEdit &&
+        recurrence.enabled &&
+        recurrenceConflictCount > 0 &&
+        !recurrence.forceConflict
+      ) {
+        return "Uma ou mais sessões estão em conflito. Ajuste os horários ou marque forçar agendamento (admin).";
+      }
+    }
+    return null;
+  }
+
+  function goNext() {
+    const stepError = validateStep(step);
+    if (stepError) {
+      setError(stepError);
+      return;
+    }
+    setError(null);
+    if (step < WIZARD_STEPS.length) setStep(step + 1);
+  }
+
+  function goPrev() {
+    setError(null);
+    if (step > 1) setStep(step - 1);
+  }
+
   const toggleProcedure = (id: string) => {
     setForm((f) => {
       const has = f.procedureIds.includes(id);
@@ -395,12 +448,12 @@ export function AgendaAppointmentModal({
     setError(null);
     if (!form.patientId || !form.doctorId) {
       setError("Paciente e profissional são obrigatórios.");
-      setTab("dados");
+      setStep(1);
       return;
     }
     if (!form.procedureIds.length) {
       setError("Selecione pelo menos um procedimento (aba Procedimentos).");
-      setTab("procedimentos");
+      setStep(2);
       return;
     }
     const dimensionValueIds = Object.values(form.dimensionSelections).filter(Boolean);
@@ -433,17 +486,17 @@ export function AgendaAppointmentModal({
       setError(
         "Configure o serviço padrão no procedimento (Serviços e Valores) ou escolha o serviço na aba Financeiro."
       );
-      setTab("financeiro");
+      setStep(4);
       return;
     }
     if (roomsRequired && !form.roomId) {
       setError("Selecione a sala/consultório (aba Dados).");
-      setTab("dados");
+      setStep(1);
       return;
     }
     if (!form.endTime) {
       setError("Informe o horário de término.");
-      setTab("data");
+      setStep(3);
       return;
     }
     const finalValor = previewRes.data?.totalAmount ?? resolvedValor ?? null;
@@ -457,7 +510,7 @@ export function AgendaAppointmentModal({
     if (!isEdit && recurrence.enabled) {
       if (recurrenceConflictCount > 0 && !recurrence.forceConflict) {
         setError("Uma ou mais sessões estão em conflito. Ajuste os horários ou marque forçar agendamento (admin).");
-        setTab("data");
+        setStep(3);
         return;
       }
 
@@ -588,49 +641,65 @@ export function AgendaAppointmentModal({
       <DialogContent
         title={isEdit ? "Editar consulta" : "Nova consulta"}
         onClose={() => onOpenChange(false)}
-        className="max-w-2xl"
+        className="max-w-2xl [&>div:last-child]:flex [&>div:last-child]:flex-col [&>div:last-child]:min-h-0"
       >
-        {loadingEdit && (
-          <p className="text-sm text-muted-foreground mb-3">Carregando consulta…</p>
-        )}
-        <div className="flex gap-1 border-b border-border pb-2 mb-4 overflow-x-auto">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "px-3 py-1.5 text-sm rounded-md whitespace-nowrap",
-                tab === t.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted"
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {error && (
-          <div className="text-sm text-destructive bg-destructive/10 p-2 rounded-md mb-3 space-y-2">
-            <p>{error}</p>
-            {!isEdit &&
-              (error.includes("já tem consulta") ||
-                error.includes("ocupada") ||
-                error.includes("simultânea")) && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={addingToWaitlist}
-                  onClick={addToWaitlistFromForm}
+        <div className="flex flex-col flex-1 min-h-[560px]">
+          <Stepper
+            value={step}
+            onValueChange={(value) => {
+              if (value <= step) {
+                setError(null);
+                setStep(value);
+              }
+            }}
+            className="flex flex-col flex-1 gap-4"
+          >
+            <StepperNav className="pb-4 border-b border-border overflow-x-auto shrink-0">
+              {WIZARD_STEPS.map((s, idx) => (
+                <StepperItem
+                  key={s.step}
+                  step={s.step}
+                  completed={s.step < step}
+                  disabled={s.step > step}
                 >
-                  Adicionar à fila de espera
-                </Button>
-              )}
-          </div>
-        )}
+                  <StepperTrigger>
+                    <StepperIndicator>
+                      {s.step < step ? <Check className="size-3.5" /> : s.step}
+                    </StepperIndicator>
+                    <StepperTitle className="hidden sm:block">{s.label}</StepperTitle>
+                  </StepperTrigger>
+                  {idx < WIZARD_STEPS.length - 1 && <StepperSeparator />}
+                </StepperItem>
+              ))}
+            </StepperNav>
 
-        {tab === "dados" && (
-          <div className="space-y-4">
+            {loadingEdit && (
+              <p className="text-sm text-muted-foreground shrink-0">Carregando consulta…</p>
+            )}
+
+            {error && (
+              <div className="text-sm text-destructive bg-destructive/10 p-2 rounded-md space-y-2 shrink-0">
+                <p>{error}</p>
+                {!isEdit &&
+                  (error.includes("já tem consulta") ||
+                    error.includes("ocupada") ||
+                    error.includes("simultânea")) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={addingToWaitlist}
+                      onClick={addToWaitlistFromForm}
+                    >
+                      Adicionar à fila de espera
+                    </Button>
+                  )}
+              </div>
+            )}
+
+            <StepperPanel className="flex-1 min-h-[400px] max-h-[400px] overflow-y-auto pr-1">
+              <StepperContent value={1}>
+                <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Paciente *</Label>
@@ -692,10 +761,10 @@ export function AgendaAppointmentModal({
               <Label>Observações</Label>
               <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
-          </div>
-        )}
+                </div>
+              </StepperContent>
 
-        {tab === "procedimentos" && (
+              <StepperContent value={2}>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Selecione um ou mais procedimentos. O sistema aplica serviço padrão, insumos (BOM) e valor total na cobrança.
@@ -797,9 +866,9 @@ export function AgendaAppointmentModal({
               </div>
             )}
           </div>
-        )}
+              </StepperContent>
 
-        {tab === "data" && (
+              <StepperContent value={3}>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>
@@ -863,9 +932,9 @@ export function AgendaAppointmentModal({
               onConflictCountChange={setRecurrenceConflictCount}
             />
           </div>
-        )}
+              </StepperContent>
 
-        {tab === "financeiro" && (
+              <StepperContent value={4}>
           <div className="space-y-4">
             {!treatmentPlanId && (
               <div className="space-y-2">
@@ -1042,33 +1111,22 @@ export function AgendaAppointmentModal({
               </div>
             )}
           </div>
-        )}
+              </StepperContent>
+            </StepperPanel>
+          </Stepper>
 
-        <div className="flex justify-between gap-2 mt-6 pt-4 border-t">
+          <div className="flex justify-between gap-2 mt-6 pt-4 border-t shrink-0">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <div className="flex gap-2">
-            {tab !== "dados" && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  const idx = TABS.findIndex((t) => t.id === tab);
-                  if (idx > 0) setTab(TABS[idx - 1].id);
-                }}
-              >
+            {step > 1 && (
+              <Button type="button" variant="outline" onClick={goPrev}>
                 Anterior
               </Button>
             )}
-            {tab !== "financeiro" ? (
-              <Button
-                type="button"
-                onClick={() => {
-                  const idx = TABS.findIndex((t) => t.id === tab);
-                  if (idx < TABS.length - 1) setTab(TABS[idx + 1].id);
-                }}
-              >
+            {step < WIZARD_STEPS.length ? (
+              <Button type="button" onClick={goNext}>
                 Próximo
               </Button>
             ) : (
@@ -1083,6 +1141,7 @@ export function AgendaAppointmentModal({
               </Button>
             )}
           </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>
