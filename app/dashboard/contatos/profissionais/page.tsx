@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EquipeClient } from "../../equipe/equipe-client";
 import { WhatsAppRoutingSection } from "../../configuracoes/whatsapp-routing-section";
+import { AppPageHeader } from "@/components/app-page-header";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
@@ -78,42 +79,42 @@ export default async function ProfissionaisPage() {
     }
 
     return (
-      <PageShell
-        header={{
-          breadcrumbs: [{ label: "Profissionais" }],
-          title: "Profissionais",
-          description: "Equipe da clínica — convites, papéis e vínculos secretária/médico.",
-        }}
-      >
-        <div className="space-y-6">
-          <EquipeClient
-            clinicId={clinicId}
-            members={members.map((m) => ({
-              id: m.id,
-              email: m.email ?? "",
-              full_name: m.full_name,
-              role: m.role,
-              created_at: m.created_at ?? "",
-              active: m.active,
-            }))}
-            invites={invites}
-            currentUserId={user.id}
-            secretariasMedicos={{
-              secretaries: (secretaries ?? []).map((s) => ({
-                id: s.id,
-                full_name: s.full_name ?? "",
-                email: s.email ?? undefined,
-              })),
-              doctors: (doctors ?? []).map((d) => ({
-                id: d.id,
-                full_name: d.full_name ?? "",
-              })),
-              initialAssignments: bySecretary,
-            }}
+      <div className="space-y-6">
+        <div className="surface-elevated px-4 sm:px-6 pt-5 sm:pt-6 pb-5">
+          <AppPageHeader
+            breadcrumbs={[{ label: "Profissionais" }]}
+            title="Profissionais"
+            description="Equipe da clínica — convites, papéis e vínculos secretária/médico."
+            variant="contained"
           />
-          <WhatsAppRoutingSection clinicId={clinicId} />
         </div>
-      </PageShell>
+        <EquipeClient
+          clinicId={clinicId}
+          members={members.map((m) => ({
+            id: m.id,
+            email: m.email ?? "",
+            full_name: m.full_name,
+            role: m.role,
+            created_at: m.created_at ?? "",
+            active: m.active,
+          }))}
+          invites={invites}
+          currentUserId={user.id}
+          secretariasMedicos={{
+            secretaries: (secretaries ?? []).map((s) => ({
+              id: s.id,
+              full_name: s.full_name ?? "",
+              email: s.email ?? undefined,
+            })),
+            doctors: (doctors ?? []).map((d) => ({
+              id: d.id,
+              full_name: d.full_name ?? "",
+            })),
+            initialAssignments: bySecretary,
+          }}
+        />
+        <WhatsAppRoutingSection clinicId={clinicId} />
+      </div>
     );
   }
 

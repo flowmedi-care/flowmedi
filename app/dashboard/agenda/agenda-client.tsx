@@ -27,6 +27,7 @@ import {
   Rows3,
   Pencil,
   ExternalLink,
+  Ban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -77,6 +78,13 @@ import {
 } from "@/lib/agenda-week-layout";
 import { WeekCalendarDayColumn } from "./agenda-week-event-block";
 import { AgendaWaitlistPanel } from "./agenda-waitlist-panel";
+import { ScheduleBlockModal } from "./schedule-block-modal";
+import { ScheduleBlocksPanel } from "./schedule-blocks-panel";
+import {
+  expandBlockOccurrences,
+  type ScheduleBlockRow,
+  type ScheduleBlockCalendarItem,
+} from "@/lib/schedule-blocks";
 import { getStatusBackgroundColor, getStatusTextColor } from "./status-utils";
 
 /** Retorna className (statuss) ou style (dimensão) para o evento na agenda */
@@ -216,6 +224,8 @@ export type ServiceOption = { id: string; nome: string };
 export type PricingDimensionOption = { id: string; nome: string };
 export type PricingDimensionValueOption = { id: string; dimension_id: string; nome: string; cor?: string | null };
 
+export type { ScheduleBlockCalendarItem };
+
 export function AgendaClient({
   appointments,
   agendaStartHour = 7,
@@ -231,6 +241,7 @@ export function AgendaClient({
   doctorProcedures = [],
   rooms = [],
   roomsRequired = false,
+  scheduleBlocks = [],
   userRole = "secretaria",
   initialPreferences,
 }: {
@@ -248,6 +259,7 @@ export function AgendaClient({
   doctorProcedures?: DoctorProcedureLink[];
   rooms?: RoomOption[];
   roomsRequired?: boolean;
+  scheduleBlocks?: ScheduleBlockRow[];
   userRole?: string;
   initialPreferences?: {
     viewMode: ViewMode;
@@ -283,6 +295,26 @@ export function AgendaClient({
 
   const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
   const [eventDetailsId, setEventDetailsId] = useState<string | null>(null);
+
+  const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [blockModalInitial, setBlockModalInitial] = useState<
+    Partial<{ date: string; timeStart: string; timeEnd: string; doctorId: string }>
+  >({});
+
+  function openCreateBlockModal(
+    partial?: Partial<{ date: string; timeStart: string; timeEnd: string; doctorId: string }>
+  ) {
+    setEditingBlockId(null);
+    setBlockModalInitial(partial ?? {});
+    setBlockModalOpen(true);
+  }
+
+  function openEditBlockModal(blockId: string) {
+    setEditingBlockId(blockId);
+    setBlockModalInitial({});
+    setBlockModalOpen(true);
+  }
 
   function openEventDetails(appointmentId: string) {
     setEventDetailsId(appointmentId);
@@ -758,11 +790,36 @@ export function AgendaClient({
           </Button>
           <Button
             size="icon"
+            variant="outline"
+            className="h-10 w-10 rounded-full sm:hidden"
+            onClick={() =>
+              openCreateBlockModal(
+                doctors.length === 1 ? { doctorId: doctors[0].id } : {}
+              )
+            }
+            aria-label="Bloquear horário"
+          >
+            <Ban className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
             className="h-10 w-10 rounded-full sm:hidden"
             onClick={() => openCreateModal(doctors.length === 1 ? { doctorId: doctors[0].id } : {})}
             aria-label="Nova consulta"
           >
             <Plus className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="outline"
+            className="hidden sm:inline-flex min-h-[44px] touch-manipulation"
+            onClick={() =>
+              openCreateBlockModal(
+                doctors.length === 1 ? { doctorId: doctors[0].id } : {}
+              )
+            }
+          >
+            <Ban className="h-4 w-4 mr-2" />
+            Bloquear horário
           </Button>
           <Button
             className="hidden sm:inline-flex min-h-[44px] touch-manipulation"
@@ -1068,6 +1125,20 @@ export function AgendaClient({
         userRole={userRole}
       />
 
+      <ScheduleBlockModal
+        open={blockModalOpen}
+        onOpenChange={(open) => {
+          setBlockModalOpen(open);
+          if (!open) setEditingBlockId(null);
+        }}
+        doctors={doctors}
+        userRole={userRole}
+        editingBlockId={editingBlockId}
+        initialPartial={blockModalInitial}
+      />
+
+      <ScheduleBlocksPanel doctors={doctors} onEdit={openEditBlockModal} />
+
       {(userRole === "admin" || userRole === "secretaria") && (
         <AgendaWaitlistPanel defaultDate={dateInicio} doctors={doctors} />
       )}
@@ -1096,6 +1167,7 @@ export function AgendaClient({
       {viewMode === "calendar" && calendarGranularity === "week" && (
         <CalendarWeekView
           appointments={appointmentsInPeriod}
+          scheduleBlocks={scheduleBlocks}
           currentDate={calendarDate}
           today={today}
           timeSlots={getAgendaTimeSlots(agendaStartHour, agendaEndHour)}
@@ -1103,6 +1175,7 @@ export function AgendaClient({
           getAccentColor={getAccentColor}
           onEditAppointment={openEditModal}
           onOpenDetails={openEventDetails}
+          onEditBlock={openEditBlockModal}
         />
       )}
       {viewMode === "calendar" && calendarGranularity === "month" && (
@@ -1438,6 +1511,7 @@ function TimelineListView({
 
 function CalendarWeekView({
   appointments,
+  scheduleBlocks,
   currentDate,
   today,
   timeSlots,
@@ -1445,8 +1519,10 @@ function CalendarWeekView({
   getAccentColor,
   onEditAppointment,
   onOpenDetails,
+  onEditBlock,
 }: {
   appointments: AppointmentRow[];
+  scheduleBlocks: ScheduleBlockRow[];
   currentDate: Date;
   today: Date;
   timeSlots: AgendaTimeSlot[];
@@ -1454,6 +1530,7 @@ function CalendarWeekView({
   getAccentColor: (appointment: AppointmentRow) => string;
   onEditAppointment?: (appointmentId: string) => void;
   onOpenDetails?: (appointmentId: string) => void;
+  onEditBlock?: (blockId: string) => void;
 }) {
   const weekDays = useMemo(() => getWeekDates(currentDate), [currentDate]);
   const [isMobile, setIsMobile] = useState(false);
@@ -1510,6 +1587,29 @@ function CalendarWeekView({
     return map;
   }, [byDay, weekDays, gridStartHour, gridEndHour]);
 
+  const blocksByDay = useMemo(() => {
+    const map: Record<string, ScheduleBlockCalendarItem[]> = {};
+    if (!scheduleBlocks.length || !weekDays.length) return map;
+
+    const rangeStart = new Date(weekDays[0]);
+    rangeStart.setHours(0, 0, 0, 0);
+    const rangeEnd = new Date(weekDays[weekDays.length - 1]);
+    rangeEnd.setHours(23, 59, 59, 999);
+
+    for (const block of scheduleBlocks) {
+      const occurrences = expandBlockOccurrences(block, rangeStart, rangeEnd);
+      for (const occ of occurrences) {
+        const dayKey = occ.startsAt.slice(0, 10);
+        if (!map[dayKey]) map[dayKey] = [];
+        map[dayKey].push({
+          ...occ,
+          occurrenceKey: `${occ.blockId}-${occ.startsAt}`,
+        });
+      }
+    }
+    return map;
+  }, [scheduleBlocks, weekDays]);
+
   if (isMobile) {
     const selectedDayDate = weekDays.find((d) => toYMD(d) === selectedDayYmd) ?? weekDays[0] ?? today;
     const selectedDayList = byDay[toYMD(selectedDayDate)] ?? [];
@@ -1560,10 +1660,25 @@ function CalendarWeekView({
               </p>
             </div>
             <div className="p-2">
-              {selectedDayList.length === 0 ? (
+              {(selectedDayList.length === 0 && (blocksByDay[toYMD(selectedDayDate)]?.length ?? 0) === 0) ? (
                 <p className="px-2 py-3 text-sm text-muted-foreground">Sem consultas para este dia.</p>
               ) : (
                 <div className="space-y-2">
+                  {(blocksByDay[toYMD(selectedDayDate)] ?? []).map((block) => (
+                    <button
+                      key={block.occurrenceKey}
+                      type="button"
+                      className="w-full rounded-md border border-dashed border-muted-foreground/40 bg-muted/50 px-3 py-2 text-left text-sm"
+                      onClick={() => onEditBlock?.(block.blockId)}
+                    >
+                      <p className="font-medium text-muted-foreground">
+                        {block.title?.trim() || "Indisponível"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatAppointmentTimeRange(block.startsAt, block.endsAt)}
+                      </p>
+                    </button>
+                  ))}
                   {selectedDayList.map((a) => (
                     <button
                       key={a.id}
@@ -1599,7 +1714,7 @@ function CalendarWeekView({
     <Card>
       <CardHeader>
         <p className="text-sm text-muted-foreground">
-          Grade semanal por horário. Clique em uma consulta para abrir.
+          Grade semanal por horário. Bloqueios aparecem em cinza listrado.
         </p>
       </CardHeader>
       <CardContent className="p-0 overflow-x-auto">
@@ -1664,9 +1779,13 @@ function CalendarWeekView({
                     gridTotalHeightPx={gridTotalHeightPx}
                     appointments={byDay[dayId] ?? []}
                     layouts={layoutsByDay[dayId] ?? []}
+                    blockItems={blocksByDay[dayId] ?? []}
+                    gridStartHour={gridStartHour}
+                    gridEndHour={gridEndHour}
                     getAccentColor={getAccentColor}
                     onEditAppointment={onEditAppointment}
                     onOpenDetails={onOpenDetails}
+                    onEditBlock={onEditBlock}
                     formatTooltip={formatAppointmentTooltip}
                   />
                 );

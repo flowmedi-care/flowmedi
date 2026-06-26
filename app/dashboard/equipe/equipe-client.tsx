@@ -108,7 +108,7 @@ export function EquipeClient({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
           <h2 className="font-medium text-foreground">Convidar pessoa</h2>

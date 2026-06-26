@@ -59,15 +59,12 @@ import {
 } from "@/lib/clinic-operations";
 import { loadAppointmentProcedures, loadServiceName } from "@/lib/appointment-procedures";
 import {
-  dayBoundsForScheduledAt,
-  formatConflictTimeRange,
-  intervalsOverlap,
   plannedDurationMinutes,
-  resolveAppointmentEndMs,
   validateScheduledInterval,
   buildScheduledEndFromDuration,
   DEFAULT_APPOINTMENT_DURATION_MINUTES,
 } from "@/lib/appointment-scheduling";
+import { checkAppointmentConflict, clinicRequiresRoom } from "@/lib/appointment-conflicts";
 
 /** Vincula conversa(s) WhatsApp do paciente à secretária que agendou (para ela ver no pool). */
 async function linkWhatsAppConversationToSecretary(
@@ -1111,157 +1108,6 @@ async function resolveDurationMinutes(
     if (at?.duration_minutes) return Number(at.duration_minutes);
   }
   return 30;
-}
-
-async function clinicRequiresRoom(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  clinicId: string
-): Promise<boolean> {
-  const { count, error } = await supabase
-    .from("rooms")
-    .select("id", { count: "exact", head: true })
-    .eq("clinic_id", clinicId)
-    .eq("active", true);
-  if (error) {
-    if (error.message.includes("rooms")) return false;
-    return false;
-  }
-  return (count ?? 0) > 0;
-}
-
-async function getClinicAgendaMaxConcurrent(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  clinicId: string
-): Promise<number | null> {
-  const { data: clinic } = await supabase
-    .from("clinics")
-    .select("agenda_max_concurrent")
-    .eq("id", clinicId)
-    .single();
-  const n = clinic?.agenda_max_concurrent;
-  if (n == null || n < 2) return null;
-  return n;
-}
-
-async function checkAppointmentConflict(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  opts: {
-    clinicId: string;
-    doctorId: string;
-    scheduledAt: string;
-    scheduledEndAt: string;
-    roomId?: string | null;
-    excludeAppointmentId: string | null;
-  }
-): Promise<string | null> {
-  const start = new Date(opts.scheduledAt).getTime();
-  const end = new Date(opts.scheduledEndAt).getTime();
-  const { dayStart, dayEnd } = dayBoundsForScheduledAt(opts.scheduledAt);
-
-  const { data: doctor } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", opts.doctorId)
-    .single();
-  const doctorName = (doctor?.full_name as string | undefined)?.trim() || "este profissional";
-
-  let doctorQuery = supabase
-    .from("appointments")
-    .select("id, scheduled_at, scheduled_end_at, appointment_type_id")
-    .eq("clinic_id", opts.clinicId)
-    .eq("doctor_id", opts.doctorId)
-    .neq("status", "cancelada")
-    .gte("scheduled_at", dayStart)
-    .lte("scheduled_at", dayEnd);
-
-  if (opts.excludeAppointmentId) {
-    doctorQuery = doctorQuery.neq("id", opts.excludeAppointmentId);
-  }
-
-  const { data: doctorDayAppointments } = await doctorQuery;
-
-  for (const appt of doctorDayAppointments ?? []) {
-    const apptStart = new Date(appt.scheduled_at).getTime();
-    const apptEnd = resolveAppointmentEndMs(
-      appt.scheduled_at,
-      appt.scheduled_end_at as string | null,
-      DEFAULT_APPOINTMENT_DURATION_MINUTES
-    );
-    if (intervalsOverlap(start, end, apptStart, apptEnd)) {
-      return `${doctorName} já tem consulta das ${formatConflictTimeRange(apptStart, apptEnd)}. Escolha outro horário.`;
-    }
-  }
-
-  if (opts.roomId) {
-    const { data: room } = await supabase
-      .from("rooms")
-      .select("name")
-      .eq("id", opts.roomId)
-      .single();
-    const roomName = (room?.name as string | undefined)?.trim() || "esta sala";
-
-    let roomQuery = supabase
-      .from("appointments")
-      .select("id, scheduled_at, scheduled_end_at, appointment_type_id")
-      .eq("clinic_id", opts.clinicId)
-      .eq("room_id", opts.roomId)
-      .neq("status", "cancelada")
-      .gte("scheduled_at", dayStart)
-      .lte("scheduled_at", dayEnd);
-
-    if (opts.excludeAppointmentId) {
-      roomQuery = roomQuery.neq("id", opts.excludeAppointmentId);
-    }
-
-    const { data: roomDayAppointments } = await roomQuery;
-    for (const appt of roomDayAppointments ?? []) {
-      const apptStart = new Date(appt.scheduled_at).getTime();
-      const apptEnd = resolveAppointmentEndMs(
-        appt.scheduled_at,
-        appt.scheduled_end_at as string | null,
-        DEFAULT_APPOINTMENT_DURATION_MINUTES
-      );
-      if (intervalsOverlap(start, end, apptStart, apptEnd)) {
-        return `${roomName} já está ocupada das ${formatConflictTimeRange(apptStart, apptEnd)}. Escolha outro horário ou sala.`;
-      }
-    }
-  } else {
-    const hasRooms = await clinicRequiresRoom(supabase, opts.clinicId);
-    if (!hasRooms) {
-      const maxConcurrent = await getClinicAgendaMaxConcurrent(supabase, opts.clinicId);
-      if (maxConcurrent) {
-        let clinicQuery = supabase
-          .from("appointments")
-          .select("id, scheduled_at, scheduled_end_at, appointment_type_id")
-          .eq("clinic_id", opts.clinicId)
-          .neq("status", "cancelada")
-          .gte("scheduled_at", dayStart)
-          .lte("scheduled_at", dayEnd);
-
-        if (opts.excludeAppointmentId) {
-          clinicQuery = clinicQuery.neq("id", opts.excludeAppointmentId);
-        }
-
-        const { data: clinicDayAppointments } = await clinicQuery;
-        let overlapping = 0;
-        for (const appt of clinicDayAppointments ?? []) {
-          const apptStart = new Date(appt.scheduled_at).getTime();
-          const apptEnd = resolveAppointmentEndMs(
-            appt.scheduled_at,
-            appt.scheduled_end_at as string | null,
-            DEFAULT_APPOINTMENT_DURATION_MINUTES
-          );
-          if (intervalsOverlap(start, end, apptStart, apptEnd)) overlapping += 1;
-        }
-
-        if (overlapping >= maxConcurrent) {
-          return `A clínica permite no máximo ${maxConcurrent} consulta(s) simultânea(s) (${maxConcurrent} consultório(s)). Já há ${overlapping} neste horário. Escolha outro horário.`;
-        }
-      }
-    }
-  }
-
-  return null;
 }
 
 export type AppointmentEditData = {

@@ -8,8 +8,9 @@ import { GripVertical, Pencil, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatAppointmentTimeRange } from "@/lib/appointment-scheduling";
 import type { WeekLayoutEvent } from "@/lib/agenda-week-layout";
-import { AGENDA_SLOT_HEIGHT_PX } from "@/lib/agenda-week-layout";
+import { AGENDA_SLOT_HEIGHT_PX, getAppointmentRect } from "@/lib/agenda-week-layout";
 import type { AppointmentRow } from "./agenda-client";
+import type { ScheduleBlockCalendarItem } from "@/lib/schedule-blocks";
 
 const EVENT_GAP_PX = 2;
 
@@ -139,6 +140,47 @@ export function WeekCalendarEventBlock({
   );
 }
 
+export function WeekCalendarBlockOverlay({
+  block,
+  gridStartHour,
+  gridEndHour,
+  onClick,
+}: {
+  block: ScheduleBlockCalendarItem;
+  gridStartHour: number;
+  gridEndHour: number;
+  onClick?: (blockId: string) => void;
+}) {
+  const rect = getAppointmentRect(
+    block.startsAt,
+    block.endsAt,
+    gridStartHour,
+    gridEndHour
+  );
+  if (rect.heightPx <= 0) return null;
+
+  const timeLabel = formatAppointmentTimeRange(block.startsAt, block.endsAt);
+  const label = block.title?.trim() || "Indisponível";
+
+  return (
+    <button
+      type="button"
+      className="absolute left-0.5 right-0.5 z-[5] overflow-hidden rounded-md border border-dashed border-muted-foreground/40 bg-[repeating-linear-gradient(-45deg,hsl(var(--muted)/0.85),hsl(var(--muted)/0.85)_6px,hsl(var(--muted)/0.55)_6px,hsl(var(--muted)/0.55)_12px)] text-left"
+      style={{
+        top: rect.topPx,
+        height: Math.max(20, rect.heightPx),
+      }}
+      title={`${timeLabel} — ${label}`}
+      onClick={() => onClick?.(block.blockId)}
+    >
+      <div className="px-1.5 py-1">
+        <p className="truncate text-[10px] font-semibold text-muted-foreground">{label}</p>
+        <p className="truncate text-[10px] text-muted-foreground/80">{timeLabel}</p>
+      </div>
+    </button>
+  );
+}
+
 function WeekCalendarDropSlot({
   dayId,
   uniqueId,
@@ -182,9 +224,13 @@ export function WeekCalendarDayColumn({
   gridTotalHeightPx,
   appointments,
   layouts,
+  blockItems = [],
+  gridStartHour,
+  gridEndHour,
   getAccentColor,
   onEditAppointment,
   onOpenDetails,
+  onEditBlock,
   formatTooltip,
 }: {
   dayId: string;
@@ -193,9 +239,13 @@ export function WeekCalendarDayColumn({
   gridTotalHeightPx: number;
   appointments: AppointmentRow[];
   layouts: WeekLayoutEvent[];
+  blockItems?: ScheduleBlockCalendarItem[];
+  gridStartHour: number;
+  gridEndHour: number;
   getAccentColor: (appointment: AppointmentRow) => string;
   onEditAppointment?: (appointmentId: string) => void;
   onOpenDetails?: (appointmentId: string) => void;
+  onEditBlock?: (blockId: string) => void;
   formatTooltip: (appointment: AppointmentRow) => string;
 }) {
   const appointmentById = new Map(appointments.map((a) => [a.id, a]));
@@ -230,6 +280,16 @@ export function WeekCalendarDayColumn({
             top: slotIndex * AGENDA_SLOT_HEIGHT_PX,
             height: AGENDA_SLOT_HEIGHT_PX,
           }}
+        />
+      ))}
+
+      {blockItems.map((block) => (
+        <WeekCalendarBlockOverlay
+          key={block.occurrenceKey}
+          block={block}
+          gridStartHour={gridStartHour}
+          gridEndHour={gridEndHour}
+          onClick={onEditBlock}
         />
       ))}
 

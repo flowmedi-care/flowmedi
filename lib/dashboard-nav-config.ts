@@ -131,9 +131,8 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     prefix: "/dashboard/crm",
     roles: ["admin", "secretaria"],
     children: [
-      { href: "/dashboard/crm/pipeline", label: "Pipeline" },
+      { href: "/dashboard/crm/pipeline", label: "Pipeline CRM" },
       { href: "/dashboard/crm/captacao", label: "Formulários de captação" },
-      { href: "/dashboard/crm/funil", label: "Funil de consultas" },
     ],
   },
   {
@@ -284,6 +283,12 @@ function isAtendimentoGroupPath(pathname: string): boolean {
   if (pathname === "/dashboard/atendimento") return true;
   if (pathname.startsWith("/dashboard/atendimentos")) return true;
   if (pathname.startsWith("/dashboard/agenda/atendimento")) return true;
+  if (
+    pathname === "/dashboard/planos-tratamento" ||
+    pathname.startsWith("/dashboard/planos-tratamento/")
+  ) {
+    return true;
+  }
   return false;
 }
 

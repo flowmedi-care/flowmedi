@@ -5,18 +5,11 @@ import {
   formatConflictTimeRange,
   intervalsOverlap,
   buildScheduledEndFromDuration,
+  resolveAppointmentEndMs,
 } from "./appointment-scheduling";
+import { checkScheduleBlockConflict } from "./schedule-blocks";
 
-function resolveAppointmentEndMs(
-  scheduledAt: string,
-  scheduledEndAt: string | null,
-  defaultMinutes: number
-): number {
-  if (scheduledEndAt) return new Date(scheduledEndAt).getTime();
-  return new Date(scheduledAt).getTime() + defaultMinutes * 60 * 1000;
-}
-
-async function clinicRequiresRoom(supabase: SupabaseClient, clinicId: string): Promise<boolean> {
+export async function clinicRequiresRoom(supabase: SupabaseClient, clinicId: string): Promise<boolean> {
   const { count } = await supabase
     .from("rooms")
     .select("id", { count: "exact", head: true })
@@ -155,6 +148,14 @@ export async function checkAppointmentConflict(
       }
     }
   }
+
+  const blockConflict = await checkScheduleBlockConflict(supabase, {
+    clinicId: opts.clinicId,
+    doctorId: opts.doctorId,
+    scheduledAt: opts.scheduledAt,
+    scheduledEndAt: opts.scheduledEndAt,
+  });
+  if (blockConflict) return blockConflict;
 
   return null;
 }

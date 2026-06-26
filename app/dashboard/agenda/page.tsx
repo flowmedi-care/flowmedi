@@ -4,6 +4,7 @@ import { AgendaClient, type AppointmentRow } from "./agenda-client";
 import { SchemaErrorBanner } from "./schema-error-banner";
 import { loadAppointmentProcedures } from "@/lib/appointment-procedures";
 import { listRooms } from "@/app/dashboard/configuracoes/room-actions";
+import type { ScheduleBlockRow } from "@/lib/schedule-blocks";
 
 export default async function AgendaPage() {
   const supabase = await createClient();
@@ -194,6 +195,22 @@ export default async function AgendaPage() {
     .select("doctor_id, procedure_id")
     .eq("clinic_id", clinicId);
 
+  let scheduleBlocksQuery = supabase
+    .from("schedule_blocks")
+    .select("*")
+    .eq("clinic_id", clinicId)
+    .order("created_at", { ascending: false });
+
+  if (profile?.role === "medico") {
+    scheduleBlocksQuery = scheduleBlocksQuery.eq("doctor_id", user.id);
+  } else if (profile?.role === "secretaria" && allowedDoctorIds.length > 0) {
+    const ids = allowedDoctorIds.join(",");
+    scheduleBlocksQuery = scheduleBlocksQuery.or(`doctor_id.is.null,doctor_id.in.(${ids})`);
+  }
+
+  const { data: scheduleBlocksRaw } = await scheduleBlocksQuery;
+  const scheduleBlocks = (scheduleBlocksRaw ?? []) as ScheduleBlockRow[];
+
   const serviceNameById = new Map(
     (services ?? []).map((s) => [s.id, s.nome] as const)
   );
@@ -311,6 +328,7 @@ export default async function AgendaPage() {
           doctorId: String((dp as { doctor_id?: unknown }).doctor_id ?? ""),
           procedureId: String((dp as { procedure_id?: unknown }).procedure_id ?? ""),
         }))}
+        scheduleBlocks={scheduleBlocks}
         userRole={profile.role ?? "secretaria"}
         initialPreferences={{
           viewMode: (preferences.agenda_view_mode as "timeline" | "calendar") || "timeline",
