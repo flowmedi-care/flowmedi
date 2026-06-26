@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import {
-  BarChart,
   Bar,
   XAxis,
   YAxis,
@@ -10,14 +9,15 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-  FunnelChart,
-  Funnel,
-  LabelList,
   Line,
   ComposedChart,
 } from "recharts";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { StatCard } from "@/components/dashboard-ui/stat-card";
+import {
+  StackedFunnelChart,
+  FUNNEL_CLASSIC_COLORS,
+} from "@/components/dashboard-ui/stacked-funnel-chart";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CHART_PALETTE,
@@ -70,59 +70,66 @@ export function CrmFunnelCharts({
     });
   };
 
-  const leadFunnelData = [
+  const leadFunnelStages = [
     {
-      name: PIPELINE_STAGE_LABELS.novo_contato,
+      label: PIPELINE_STAGE_LABELS.novo_contato,
       value: leadMetrics.snapshot.novo_contato,
-      fill: CHART_PALETTE[0],
+      color: FUNNEL_CLASSIC_COLORS[0],
     },
     {
-      name: PIPELINE_STAGE_LABELS.aguardando_retorno,
+      label: PIPELINE_STAGE_LABELS.aguardando_retorno,
       value: leadMetrics.snapshot.aguardando_retorno,
-      fill: CHART_PALETTE[1],
+      color: FUNNEL_CLASSIC_COLORS[1],
     },
     {
-      name: PIPELINE_STAGE_LABELS.cadastrado,
+      label: PIPELINE_STAGE_LABELS.cadastrado,
       value: leadMetrics.snapshot.cadastrado,
-      fill: CHART_PALETTE[2],
+      color: FUNNEL_CLASSIC_COLORS[2],
     },
     {
-      name: PIPELINE_STAGE_LABELS.agendado,
+      label: PIPELINE_STAGE_LABELS.agendado,
       value: leadMetrics.snapshot.agendado,
-      fill: CHART_PALETTE[3],
+      color: FUNNEL_CLASSIC_COLORS[5],
     },
-  ].filter((d) => d.value > 0);
+  ];
 
-  const appointmentFunnelData = [
+  const appointmentTotal =
+    appointmentMetrics.snapshot.agendadas +
+    appointmentMetrics.snapshot.confirmadas +
+    appointmentMetrics.snapshot.realizadas +
+    appointmentMetrics.snapshot.faltas +
+    appointmentMetrics.snapshot.canceladas;
+
+  const appointmentFunnelStages = [
     {
-      name: APPOINTMENT_PIPELINE_STAGE_LABELS.agendada,
-      value:
-        appointmentMetrics.snapshot.agendadas +
-        appointmentMetrics.snapshot.confirmadas +
-        appointmentMetrics.snapshot.realizadas +
-        appointmentMetrics.snapshot.faltas +
-        appointmentMetrics.snapshot.canceladas,
-      fill: CHART_PALETTE[0],
+      label: APPOINTMENT_PIPELINE_STAGE_LABELS.agendada,
+      value: appointmentTotal,
+      color: FUNNEL_CLASSIC_COLORS[0],
     },
     {
-      name: APPOINTMENT_PIPELINE_STAGE_LABELS.confirmada,
+      label: APPOINTMENT_PIPELINE_STAGE_LABELS.confirmada,
       value:
         appointmentMetrics.snapshot.confirmadas +
         appointmentMetrics.snapshot.realizadas +
         appointmentMetrics.snapshot.faltas,
-      fill: CHART_PALETTE[1],
+      color: FUNNEL_CLASSIC_COLORS[1],
     },
     {
-      name: APPOINTMENT_PIPELINE_STAGE_LABELS.realizada,
+      label: APPOINTMENT_PIPELINE_STAGE_LABELS.realizada,
       value: appointmentMetrics.snapshot.realizadas,
-      fill: CHART_PALETTE[2],
+      color: FUNNEL_CLASSIC_COLORS[2],
     },
     {
-      name: "Perdas",
-      value: appointmentMetrics.snapshot.faltas + appointmentMetrics.snapshot.canceladas,
-      fill: CHART_PALETTE[4],
+      label: APPOINTMENT_PIPELINE_STAGE_LABELS.falta,
+      value: appointmentMetrics.snapshot.faltas,
+      color: FUNNEL_CLASSIC_COLORS[3],
     },
-  ].filter((d) => d.value > 0);
+    {
+      label: APPOINTMENT_PIPELINE_STAGE_LABELS.cancelada,
+      value: appointmentMetrics.snapshot.canceladas,
+      color: FUNNEL_CLASSIC_COLORS[4],
+    },
+  ];
 
   const combinedTimeSeries = (() => {
     const map = new Map<
@@ -226,21 +233,12 @@ export function CrmFunnelCharts({
           title="Funil de captação"
           description="Distribuição atual dos leads por etapa"
         >
-          {leadFunnelData.length === 0 ? (
+          {leadMetrics.total === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               Nenhum lead no pipeline.
             </p>
           ) : (
-            <div className="h-[280px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <FunnelChart>
-                  <Tooltip {...chartTooltipStyle} />
-                  <Funnel dataKey="value" data={leadFunnelData} isAnimationActive>
-                    <LabelList position="right" fill="hsl(var(--foreground))" stroke="none" dataKey="name" />
-                  </Funnel>
-                </FunnelChart>
-              </ResponsiveContainer>
-            </div>
+            <StackedFunnelChart stages={leadFunnelStages} />
           )}
         </ChartCard>
 
@@ -248,21 +246,12 @@ export function CrmFunnelCharts({
           title="Funil de comparecimento"
           description={`Consultas agendadas no período (${periodDays}d)`}
         >
-          {appointmentFunnelData.length === 0 ? (
+          {appointmentTotal === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               Nenhuma consulta no período.
             </p>
           ) : (
-            <div className="h-[280px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <FunnelChart>
-                  <Tooltip {...chartTooltipStyle} />
-                  <Funnel dataKey="value" data={appointmentFunnelData} isAnimationActive>
-                    <LabelList position="right" fill="hsl(var(--foreground))" stroke="none" dataKey="name" />
-                  </Funnel>
-                </FunnelChart>
-              </ResponsiveContainer>
-            </div>
+            <StackedFunnelChart stages={appointmentFunnelStages} />
           )}
         </ChartCard>
       </div>
