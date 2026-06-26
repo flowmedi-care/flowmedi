@@ -21,9 +21,9 @@ export default function HomePage() {
       <main className="flex-1">
         {/* Hero */}
         <section className="gradient-mesh relative overflow-hidden">
-          <div className="container mx-auto px-4 pt-20 pb-24 md:pt-28 md:pb-36">
+          <div className="container mx-auto px-4 pt-20 pb-16 md:pt-28 md:pb-20">
             <div className="mx-auto max-w-4xl text-center">
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm text-primary">
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm text-primary shadow-sm">
                 <Zap className="h-4 w-4" />
                 <span>Comece grátis — sem cartão de crédito</span>
               </div>
@@ -52,6 +52,47 @@ export default function HomePage() {
                 Plano Starter gratuito • 1 profissional • Até 50 consultas/mês
               </p>
             </div>
+
+            {/* Dashboard preview mockup */}
+            <div className="mx-auto mt-16 max-w-5xl">
+              <div className="surface-elevated overflow-hidden rounded-2xl shadow-elevated-lg border-border/60">
+                <div className="flex items-center gap-2 border-b border-border/60 bg-muted/40 px-4 py-3">
+                  <div className="flex gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-border" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-border" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-border" />
+                  </div>
+                  <span className="ml-2 text-xs text-muted-foreground">FlowMedi Dashboard</span>
+                </div>
+                <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4 bg-muted/20">
+                  {[
+                    { label: "Consultas hoje", value: "24", trend: "+12%" },
+                    { label: "Taxa comparecimento", value: "94%", trend: "+3%" },
+                    { label: "Receita do mês", value: "R$ 48k", trend: "+8%" },
+                    { label: "Pacientes ativos", value: "312", trend: "+5%" },
+                  ].map((stat) => (
+                    <div key={stat.label} className="rounded-xl border border-border/60 bg-card p-4 shadow-sm">
+                      <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
+                      <p className="mt-2 text-2xl font-bold tabular-nums">{stat.value}</p>
+                      <p className="mt-1 text-xs font-medium text-success-muted-foreground">{stat.trend} vs mês anterior</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-border/60 bg-card p-6">
+                  <div className="h-32 rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent flex items-end px-4 pb-4">
+                    <div className="flex items-end gap-2 h-20">
+                      {[40, 65, 45, 80, 55, 90, 70].map((h, i) => (
+                        <div
+                          key={i}
+                          className="w-6 rounded-t-md bg-primary/30"
+                          style={{ height: `${h}%` }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -67,7 +108,7 @@ export default function HomePage() {
               </p>
             </div>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto">
-              <div className="group rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
+              <div className="group surface-elevated p-6 transition-all hover:border-primary/30 hover:shadow-elevated-lg">
                 <div className="mb-4 inline-flex rounded-xl bg-primary/10 p-3">
                   <Calendar className="h-6 w-6 text-primary" />
                 </div>
@@ -77,7 +118,7 @@ export default function HomePage() {
                   Status: agendada, confirmada, realizada, falta.
                 </p>
               </div>
-              <div className="group rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
+              <div className="group surface-elevated p-6 transition-all hover:border-primary/30 hover:shadow-elevated-lg">
                 <div className="mb-4 inline-flex rounded-xl bg-primary/10 p-3">
                   <FileText className="h-6 w-6 text-primary" />
                 </div>
@@ -87,7 +128,7 @@ export default function HomePage() {
                   consulta. Respostas no painel do profissional.
                 </p>
               </div>
-              <div className="group rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
+              <div className="group surface-elevated p-6 transition-all hover:border-primary/30 hover:shadow-elevated-lg">
                 <div className="mb-4 inline-flex rounded-xl bg-primary/10 p-3">
                   <MessageSquare className="h-6 w-6 text-primary" />
                 </div>
@@ -97,7 +138,7 @@ export default function HomePage() {
                   transacionais no plano Profissional.
                 </p>
               </div>
-              <div className="group rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
+              <div className="group surface-elevated p-6 transition-all hover:border-primary/30 hover:shadow-elevated-lg">
                 <div className="mb-4 inline-flex rounded-xl bg-primary/10 p-3">
                   <Shield className="h-6 w-6 text-primary" />
                 </div>
@@ -114,7 +155,7 @@ export default function HomePage() {
         {/* How it works / Roles */}
         <section className="py-20 md:py-28">
           <div className="container mx-auto px-4">
-            <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card p-8 shadow-sm md:p-12">
+            <div className="mx-auto max-w-3xl surface-elevated p-8 md:p-12 shadow-elevated-lg">
               <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 Simples para toda a equipe
               </h2>

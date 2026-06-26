@@ -28,6 +28,8 @@ export function DashboardNav({
   canAccessAudit,
   canUseWhatsApp,
   servicesPricingMode,
+  mobileOpen: controlledMobileOpen,
+  onMobileOpenChange: controlledOnMobileOpenChange,
 }: {
   user: User;
   profile: Profile;
@@ -35,10 +37,14 @@ export function DashboardNav({
   canAccessAudit?: boolean;
   canUseWhatsApp?: boolean;
   servicesPricingMode: "centralizado" | "descentralizado";
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
 }) {
   const pathname = usePathname();
   const [whatsappUnreadCount, setWhatsappUnreadCount] = useState(0);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [internalMobileOpen, setInternalMobileOpen] = useState(false);
+  const mobileOpen = controlledMobileOpen ?? internalMobileOpen;
+  const setMobileOpen = controlledOnMobileOpenChange ?? setInternalMobileOpen;
   const [railExpanded, setRailExpanded] = useState(false);
   const [subPanelOpen, setSubPanelOpen] = useState(true);
   const role = profile?.role ?? "";

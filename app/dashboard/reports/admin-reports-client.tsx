@@ -2,7 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BarChart,
   Bar,
@@ -24,8 +25,21 @@ import {
   Users,
   Clock,
   AlertCircle,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StatCard } from "@/components/dashboard-ui/stat-card";
+import { ChartCard } from "@/components/dashboard-ui/chart-card";
+import { GoalProgressCard } from "@/components/dashboard-ui/goal-progress-card";
+import { PageToolbar, PeriodSelect } from "@/components/dashboard-ui/page-toolbar";
+import { DataTable } from "@/components/dashboard-ui/data-table";
+import {
+  CHART_PALETTE,
+  chartAxisProps,
+  chartBarProps,
+  chartGridProps,
+  chartTooltipStyle,
+} from "@/components/dashboard-ui/chart-theme";
 import type { ReportTab } from "../admin-dashboard";
 import type { Period } from "./actions";
 
@@ -333,111 +347,86 @@ export function AdminReportsClient({
           </CardHeader>
         </Card>
       )}
-      <div className="space-y-3 border-b border-border pb-4">
-        <div className="overflow-x-auto">
-          <div className="flex w-max gap-2">
-            {TABS.filter((t) => allowedTabs.includes(t.id)).map((t) => (
-              <Button
-                key={t.id}
-                variant={activeTab === t.id ? "secondary" : "ghost"}
-                size="sm"
-                className={cn("gap-2 whitespace-nowrap", activeTab === t.id && "bg-primary/10 text-primary")}
-                onClick={() => setTab(t.id)}
-              >
-                {t.icon}
-                {t.label}
-              </Button>
-            ))}
+      <div className="space-y-4 border-b border-border/60 pb-4">
+        <Tabs value={activeTab} onValueChange={(v) => setTab(v as ReportTab)}>
+          <div className="overflow-x-auto">
+            <TabsList className="h-auto w-max flex-wrap">
+              {TABS.filter((t) => allowedTabs.includes(t.id)).map((t) => (
+                <TabsTrigger key={t.id} value={t.id} className="gap-2">
+                  {t.icon}
+                  {t.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </div>
-        </div>
-        <div className="flex items-center gap-2 sm:justify-end">
-          <span className="text-sm text-muted-foreground">Período:</span>
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value as Period)}
-            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-          >
-            {PERIODS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        </Tabs>
+        <PageToolbar
+          filters={<PeriodSelect value={period} onChange={setPeriod} options={PERIODS} />}
+        />
       </div>
 
       {activeTab === "visao-geral" && visaoGeral && (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Total de consultas</span>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{visaoGeral.total}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Realizadas</span>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{visaoGeral.realizadas}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Canceladas / Faltas</span>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {visaoGeral.canceladas} / {visaoGeral.faltas}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Taxa comparecimento</span>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{visaoGeral.taxaComparecimento}%</div>
-              </CardContent>
-            </Card>
+            <StatCard
+              title="Total de consultas"
+              value={visaoGeral.total}
+              icon={Calendar}
+              trend={{ value: visaoGeral.crescimento, label: "vs período anterior" }}
+            />
+            <StatCard
+              title="Realizadas"
+              value={visaoGeral.realizadas}
+              icon={TrendingUp}
+              iconColor="success"
+            />
+            <StatCard
+              title="Canceladas / Faltas"
+              value={`${visaoGeral.canceladas} / ${visaoGeral.faltas}`}
+              icon={XCircle}
+              iconColor="warning"
+            />
+            <StatCard
+              title="Taxa comparecimento"
+              value={`${visaoGeral.taxaComparecimento}%`}
+              icon={Users}
+              iconColor="info"
+            />
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Perda estimada (faltas/cancelamentos)</span>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">{formatCurrency(visaoGeral.receitaPerdidaEstimada)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Ticket médio (realizadas)</span>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(visaoGeral.ticketMedioRealizadas)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Taxa de no-show</span>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{visaoGeral.taxaNoShow}%</div>
-              </CardContent>
-            </Card>
+            <StatCard
+              title="Perda estimada (faltas/cancelamentos)"
+              value={formatCurrency(visaoGeral.receitaPerdidaEstimada)}
+              iconColor="destructive"
+            />
+            <StatCard
+              title="Ticket médio (realizadas)"
+              value={formatCurrency(visaoGeral.ticketMedioRealizadas)}
+            />
+            <StatCard
+              title="Taxa de no-show"
+              value={`${visaoGeral.taxaNoShow}%`}
+              icon={AlertCircle}
+              iconColor="warning"
+            />
           </div>
-          <Card>
-            <CardHeader>
-              <span className="font-semibold">Variação do período</span>
-              <p className="text-sm text-muted-foreground">{visaoGeral.crescimento}%</p>
-            </CardHeader>
-          </Card>
+          {visaoGeral.metas.length > 0 && (
+            <GoalProgressCard
+              title="Metas operacionais"
+              subtitle="Progresso em relação às metas definidas para o período"
+              goals={visaoGeral.metas.map((m) => ({
+                label: m.label,
+                current: m.current,
+                target: m.target,
+                color:
+                  m.status === "ok"
+                    ? "success"
+                    : m.status === "warning"
+                      ? "warning"
+                      : "primary",
+              }))}
+            />
+          )}
           <Card>
             <CardHeader className="space-y-1">
               <span className={sectionTitleClass}>Briefing executivo automático</span>
@@ -533,28 +522,26 @@ export function AdminReportsClient({
             </Card>
           </div>
           {visaoGeral.chartData.length > 0 && (
-            <Card>
-              <CardHeader>
-                <span className="font-semibold">Consultas por dia</span>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={visaoGeral.chartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="date" className="text-xs" />
-                      <YAxis className="text-xs" />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="total" name="Total" fill="#14532d" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="realizadas" name="Realizadas" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="canceladas" name="Canceladas" fill="#86efac" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="faltas" name="Faltas" fill="#bbf7d0" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
+            <ChartCard
+              title="Consultas por dia"
+              description="Distribuição diária de consultas no período selecionado"
+            >
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={visaoGeral.chartData}>
+                    <CartesianGrid {...chartGridProps} />
+                    <XAxis dataKey="date" {...chartAxisProps} />
+                    <YAxis {...chartAxisProps} />
+                    <Tooltip {...chartTooltipStyle} />
+                    <Legend />
+                    <Bar dataKey="total" name="Total" fill={CHART_PALETTE[0]} {...chartBarProps} />
+                    <Bar dataKey="realizadas" name="Realizadas" fill={CHART_PALETTE[1]} {...chartBarProps} />
+                    <Bar dataKey="canceladas" name="Canceladas" fill={CHART_PALETTE[2]} {...chartBarProps} />
+                    <Bar dataKey="faltas" name="Faltas" fill={CHART_PALETTE[3]} {...chartBarProps} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </ChartCard>
           )}
         </div>
       )}
@@ -570,30 +557,9 @@ export function AdminReportsClient({
             </CardHeader>
           </Card>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Meta comparecimento</span>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{porProfissional.metas.comparecimento}%</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Meta no-show</span>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{porProfissional.metas.noShow}%</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <span className="text-sm font-medium text-muted-foreground">Meta retorno</span>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{porProfissional.metas.retorno}%</p>
-              </CardContent>
-            </Card>
+            <StatCard title="Meta comparecimento" value={`${porProfissional.metas.comparecimento}%`} iconColor="success" />
+            <StatCard title="Meta no-show" value={`${porProfissional.metas.noShow}%`} iconColor="warning" />
+            <StatCard title="Meta retorno" value={`${porProfissional.metas.retorno}%`} iconColor="info" />
           </div>
           <Card>
             <CardHeader className="space-y-1">
@@ -601,64 +567,59 @@ export function AdminReportsClient({
               <p className={sectionDescClass}>Funil, no-show, retorno e status por profissional</p>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className={tableClass}>
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className={`text-left ${thClass}`}>Profissional</th>
-                      <th className={`text-right ${thClass}`}>Total</th>
-                      <th className={`text-right ${thClass}`}>Conf.</th>
-                      <th className={`text-right ${thClass}`}>Comparecimento</th>
-                      <th className={`text-right ${thClass}`}>No-show</th>
-                      <th className={`text-right ${thClass}`}>Retorno</th>
-                      <th className={`text-right ${thClass}`}>Previsto</th>
-                      <th className={`text-right ${thClass}`}>Real</th>
-                      <th className={`text-right ${thClass}`}>Δ médio</th>
-                      <th className={`text-right ${thClass}`}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {porProfissional.rows.map((row) => (
-                      <tr key={row.doctorId} className="border-b border-border/50">
-                        <td className={`${tdClass} font-medium`}>{row.full_name}</td>
-                        <td className={`text-right ${tdClass}`}>{row.total}</td>
-                        <td className={`text-right ${tdClass}`}>{row.taxaConfirmacao}%</td>
-                        <td className={`text-right ${tdClass}`}>{row.taxaComparecimento}%</td>
-                        <td className={`text-right ${tdClass}`}>{row.taxaNoShow}%</td>
-                        <td className={`text-right ${tdClass}`}>{row.taxaRetorno}%</td>
-                        <td className={`text-right ${tdClass}`}>
-                          {row.tempoMedioPrevistoMin != null ? `${row.tempoMedioPrevistoMin} min` : "—"}
-                        </td>
-                        <td className={`text-right ${tdClass}`}>
-                          {row.tempoMedioMin != null ? `${row.tempoMedioMin} min` : "—"}
-                        </td>
-                        <td className={`text-right ${tdClass}`}>
-                          {row.desvioMedioMin != null ? (
-                            <span
-                              className={cn(
-                                row.desvioMedioMin > 0 && "text-amber-700 dark:text-amber-400"
-                              )}
-                            >
-                              {row.desvioMedioMin > 0 ? "+" : ""}
-                              {row.desvioMedioMin} min
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td className={`text-right ${tdClass}`}>
-                          <span className={cn("rounded px-2 py-1 text-xs font-medium", statusClass(row.status))}>
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {porProfissional.rows.length === 0 && (
-                  <p className="py-8 text-center text-muted-foreground">Nenhum dado no período.</p>
-                )}
-              </div>
+              <DataTable
+                columns={[
+                  { key: "name", header: "Profissional", cell: (row) => <span className="font-medium">{row.full_name}</span> },
+                  { key: "total", header: "Total", className: "text-right", cell: (row) => row.total },
+                  { key: "conf", header: "Conf.", className: "text-right", cell: (row) => `${row.taxaConfirmacao}%` },
+                  { key: "comparecimento", header: "Comparecimento", className: "text-right", cell: (row) => `${row.taxaComparecimento}%` },
+                  { key: "noshow", header: "No-show", className: "text-right", cell: (row) => `${row.taxaNoShow}%` },
+                  { key: "retorno", header: "Retorno", className: "text-right", cell: (row) => `${row.taxaRetorno}%` },
+                  {
+                    key: "previsto",
+                    header: "Previsto",
+                    className: "text-right",
+                    cell: (row) => row.tempoMedioPrevistoMin != null ? `${row.tempoMedioPrevistoMin} min` : "—",
+                  },
+                  {
+                    key: "real",
+                    header: "Real",
+                    className: "text-right",
+                    cell: (row) => row.tempoMedioMin != null ? `${row.tempoMedioMin} min` : "—",
+                  },
+                  {
+                    key: "desvio",
+                    header: "Δ médio",
+                    className: "text-right",
+                    cell: (row) =>
+                      row.desvioMedioMin != null ? (
+                        <span className={cn(row.desvioMedioMin > 0 && "text-amber-700 dark:text-amber-400")}>
+                          {row.desvioMedioMin > 0 ? "+" : ""}
+                          {row.desvioMedioMin} min
+                        </span>
+                      ) : (
+                        "—"
+                      ),
+                  },
+                  {
+                    key: "status",
+                    header: "Status",
+                    className: "text-right",
+                    cell: (row) => (
+                      <Badge
+                        variant={
+                          row.status === "ok" ? "success" : row.status === "warning" ? "warning" : "destructive"
+                        }
+                      >
+                        {row.status}
+                      </Badge>
+                    ),
+                  },
+                ]}
+                data={porProfissional.rows}
+                getRowKey={(row) => row.doctorId}
+                emptyMessage="Nenhum dado no período."
+              />
             </CardContent>
           </Card>
           {porProfissional.durationByProcedure.length > 0 && (

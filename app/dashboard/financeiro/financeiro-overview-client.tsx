@@ -6,7 +6,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Plus } from "lucide-react";
-import { MetricCard } from "./components/metric-card";
+import { StatCard } from "@/components/dashboard-ui/stat-card";
+import { PageToolbar } from "@/components/dashboard-ui/page-toolbar";
+import { DataTable } from "@/components/dashboard-ui/data-table";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 import { PeriodSelector } from "./components/period-selector";
 import { FinancialEntryFormDialog } from "./components/financial-entry-form-dialog";
 import { ComandaPaymentDialog } from "./components/comanda-payment-dialog";
@@ -39,61 +42,59 @@ export function FinanceiroOverviewClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <PeriodSelector year={year} month={month} />
+      <PageToolbar
+        filters={<PeriodSelector year={year} month={month} />}
+      >
         {canManage && (
           <Button onClick={() => setShowForm(true)} className="shrink-0">
             <Plus className="h-4 w-4 mr-1" />
             Lançamento
           </Button>
         )}
-      </div>
+      </PageToolbar>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <MetricCard
+        <StatCard
           title="Receita Faturada (Competência)"
-          lens="Competência"
           value={fmtCurrency(metrics.receitaFaturada)}
           subtitle="Valor cobrado aos pacientes, por emissão da comanda."
+          iconColor="primary"
         />
-        <MetricCard
+        <StatCard
           title="Entradas no Caixa"
-          lens="Caixa"
           value={fmtCurrency(metrics.entradasCaixa)}
           subtitle="Dinheiro que efetivamente entrou, por data de pagamento."
+          iconColor="success"
         />
-        <MetricCard
+        <StatCard
           title="A Receber"
-          lens="AR"
           value={fmtCurrency(metrics.aReceber)}
           subtitle="Comandas abertas aguardando pagamento."
+          iconColor="info"
         />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <MetricCard
+        <StatCard
           title="Saídas no Caixa"
-          lens="Caixa"
           value={fmtCurrency(metrics.saidasCaixa)}
           subtitle="Despesas pagas no período selecionado."
         />
-        <MetricCard
+        <StatCard
           title="A Pagar"
-          lens="AP"
           value={fmtCurrency(metrics.aPagar)}
           subtitle={
             metrics.aPagarVencidas > 0
               ? `${fmtCurrency(metrics.aPagarVencidas)} vencidas · ${fmtCurrency(metrics.aPagarVencendo7d)} nos próximos 7 dias`
               : "Despesas pendentes de pagamento."
           }
-          variant={metrics.aPagarVencidas > 0 ? "warning" : "default"}
+          iconColor={metrics.aPagarVencidas > 0 ? "warning" : "primary"}
         />
-        <MetricCard
+        <StatCard
           title="Resultado do Período"
-          lens="Caixa"
           value={fmtCurrency(metrics.resultadoPeriodo)}
           subtitle="Entradas no caixa − saídas no caixa."
-          variant={metrics.resultadoPeriodo >= 0 ? "positive" : "negative"}
+          iconColor={metrics.resultadoPeriodo >= 0 ? "success" : "destructive"}
         />
       </div>
 
@@ -106,68 +107,68 @@ export function FinanceiroOverviewClient({
         </CardHeader>
         <CardContent>
           {openComandas.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              Nenhuma comanda em aberto.
-            </p>
+            <EmptyState
+              title="Nenhuma comanda em aberto"
+              description="Todas as comandas estão quitadas no momento."
+            />
           ) : (
             <>
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="pb-2 pr-2">Paciente</th>
-                      <th className="pb-2 pr-2">Data</th>
-                      <th className="pb-2 pr-2 text-right">Total</th>
-                      <th className="pb-2 pr-2 text-right">Desconto</th>
-                      <th className="pb-2 pr-2 text-right">Pago</th>
-                      <th className="pb-2 pr-2 text-right">Saldo</th>
-                      <th className="pb-2 pr-2 text-right">Dias</th>
-                      <th className="pb-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {openComandas.map((c) => (
-                      <tr key={c.id} className="border-b last:border-0">
-                        <td className="py-3 pr-2 font-medium">{c.patient_name}</td>
-                        <td className="py-3 pr-2 text-muted-foreground">
-                          {c.scheduled_at
-                            ? new Date(c.scheduled_at).toLocaleDateString("pt-BR")
-                            : new Date(c.created_at).toLocaleDateString("pt-BR")}
-                        </td>
-                        <td className="py-3 pr-2 text-right">{fmtCurrency(c.total_amount)}</td>
-                        <td className="py-3 pr-2 text-right text-muted-foreground">
-                          {c.discount_amount > 0 ? `-${fmtCurrency(c.discount_amount)}` : "—"}
-                        </td>
-                        <td className="py-3 pr-2 text-right">{fmtCurrency(c.paid_amount)}</td>
-                        <td className="py-3 pr-2 text-right font-medium text-amber-700 dark:text-amber-400">
-                          {fmtCurrency(c.remainder)}
-                        </td>
-                        <td className="py-3 pr-2 text-right">{c.days_open}</td>
-                        <td className="py-3 text-right space-x-1">
-                          {canManage && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setPayComanda({ id: c.id, remainder: c.remainder })}
-                              >
-                                Registrar pagamento
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive"
-                                onClick={() => setCancelTarget(c)}
-                              >
-                                Cancelar
-                              </Button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="hidden md:block">
+                <DataTable
+                  columns={[
+                    { key: "patient", header: "Paciente", cell: (c) => <span className="font-medium">{c.patient_name}</span> },
+                    {
+                      key: "date",
+                      header: "Data",
+                      cell: (c) =>
+                        c.scheduled_at
+                          ? new Date(c.scheduled_at).toLocaleDateString("pt-BR")
+                          : new Date(c.created_at).toLocaleDateString("pt-BR"),
+                    },
+                    { key: "total", header: "Total", className: "text-right", cell: (c) => fmtCurrency(c.total_amount) },
+                    {
+                      key: "discount",
+                      header: "Desconto",
+                      className: "text-right",
+                      cell: (c) => (c.discount_amount > 0 ? `-${fmtCurrency(c.discount_amount)}` : "—"),
+                    },
+                    { key: "paid", header: "Pago", className: "text-right", cell: (c) => fmtCurrency(c.paid_amount) },
+                    {
+                      key: "remainder",
+                      header: "Saldo",
+                      className: "text-right font-medium text-amber-700 dark:text-amber-400",
+                      cell: (c) => fmtCurrency(c.remainder),
+                    },
+                    { key: "days", header: "Dias", className: "text-right", cell: (c) => c.days_open },
+                    {
+                      key: "actions",
+                      header: "",
+                      className: "text-right",
+                      cell: (c) =>
+                        canManage ? (
+                          <div className="space-x-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setPayComanda({ id: c.id, remainder: c.remainder })}
+                            >
+                              Registrar pagamento
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive"
+                              onClick={() => setCancelTarget(c)}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        ) : null,
+                    },
+                  ]}
+                  data={openComandas}
+                  getRowKey={(c) => c.id}
+                />
               </div>
 
               <div className="md:hidden space-y-3">

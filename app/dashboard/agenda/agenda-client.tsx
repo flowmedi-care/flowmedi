@@ -2039,7 +2039,6 @@ function DraggableAppointmentItem({
           className="flex-1 truncate text-xs font-semibold text-left hover:underline"
           title={formatAppointmentTooltip(appointment)}
         >
-          {timeLabel}{" "}
           {appointment.patient.full_name}
           {appointment.procedures?.length || appointment.procedure ? (
             <span className="text-muted-foreground font-normal">

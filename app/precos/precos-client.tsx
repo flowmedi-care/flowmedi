@@ -93,10 +93,10 @@ export function PrecosClient() {
           <div
             key={plan.id}
             className={`
-              relative flex flex-col rounded-2xl border bg-card transition-all duration-200
+              relative flex flex-col surface-elevated transition-all duration-200
               ${plan.highlighted
-                ? "border-primary shadow-xl shadow-primary/10 md:scale-[1.02] z-10 ring-2 ring-primary/20"
-                : "border-border hover:border-primary/40 hover:shadow-lg"
+                ? "border-primary shadow-elevated-lg md:scale-[1.02] z-10 ring-2 ring-primary/20"
+                : "hover:border-primary/40 hover:shadow-elevated-lg"
               }
             `}
           >
@@ -135,10 +135,12 @@ export function PrecosClient() {
                     key={f}
                     className="flex items-start gap-3 text-sm text-muted-foreground"
                   >
-                    <Check
-                      className="h-4 w-4 shrink-0 mt-0.5 text-primary"
-                      strokeWidth={2.5}
-                    />
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success-muted mt-0.5">
+                      <Check
+                        className="h-3 w-3 text-success-muted-foreground"
+                        strokeWidth={3}
+                      />
+                    </div>
                     <span className="leading-snug">{f}</span>
                   </li>
                 ))}

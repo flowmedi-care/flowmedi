@@ -7,6 +7,7 @@ import { type User } from "@supabase/supabase-js";
 import { LogOut, Menu } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { Avatar } from "@/components/ui/avatar";
 import { FlowmediLogo } from "@/components/flowmedi-logo";
 import { DashboardNavIcon } from "@/components/dashboard-nav-icons";
 import {
@@ -39,7 +40,7 @@ function navItemClass(active: boolean, expanded: boolean) {
     "relative flex items-center transition-colors rounded-lg shrink-0",
     expanded ? "w-full gap-3 px-3 h-10 text-sm" : "h-10 w-10 justify-center",
     active
-      ? "bg-primary/10 text-primary"
+      ? "bg-primary/10 text-primary font-medium"
       : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
   );
 }
@@ -65,6 +66,9 @@ function RailNavItem({
 
   const inner = (
     <>
+      {active && expanded && (
+        <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary" />
+      )}
       <span className="relative flex h-5 w-5 shrink-0 items-center justify-center [&_svg]:h-5 [&_svg]:w-5">
         {children}
         {badge && (
@@ -263,7 +267,7 @@ export function DashboardNavRail({
         <button
           type="button"
           onClick={() => onMobileOpenChange(true)}
-          className="md:hidden fixed top-3 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background shadow-sm"
+          className="md:hidden fixed top-3 left-4 z-50 hidden h-10 w-10 items-center justify-center rounded-full border border-border bg-background shadow-sm"
           aria-label="Abrir navegação"
         >
           <Menu className="h-5 w-5" />
@@ -322,7 +326,16 @@ export function DashboardNavRail({
           )}
         >
           {topNav.map(renderTopItem)}
-          {middleGroups.length > 0 && <div className={dividerClass} aria-hidden />}
+          {middleGroups.length > 0 && (
+            <>
+              {showLabels && (
+                <p className="px-3 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Módulos
+                </p>
+              )}
+              <div className={dividerClass} aria-hidden />
+            </>
+          )}
           {middleGroups.map((group) => renderGroup(group))}
           {utilityNav.length > 0 && <div className={dividerClass} aria-hidden />}
           {utilityNav.map(renderLink)}
@@ -331,10 +344,23 @@ export function DashboardNavRail({
 
         <div
           className={cn(
-            "flex-shrink-0 border-t border-border/60 py-1.5 gap-0.5",
+            "flex-shrink-0 border-t border-border/60 py-2 gap-1",
             showLabels ? "px-2 flex flex-col" : "flex flex-col items-center px-1.5"
           )}
         >
+          {showLabels && profile && (
+            <div className="flex items-center gap-2.5 rounded-lg px-2 py-2 mb-1">
+              <Avatar name={profile.full_name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium leading-none">
+                  {profile.full_name ?? "Usuário"}
+                </p>
+                <p className="truncate text-xs text-muted-foreground capitalize mt-0.5">
+                  {profile.role}
+                </p>
+              </div>
+            </div>
+          )}
           {showConfig && renderGroup(DASHBOARD_CONFIG_GROUP)}
           <RailNavItem active={false} label="Sair" expanded={showLabels} onClick={handleSignOut}>
             <LogOut className="h-5 w-5" />

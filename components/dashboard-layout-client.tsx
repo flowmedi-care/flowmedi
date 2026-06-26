@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { type User } from "@supabase/supabase-js";
 import { DashboardNav } from "./dashboard-nav";
+import { DashboardTopbar } from "./dashboard-topbar";
 import { createClient } from "@/lib/supabase/client";
 
 type Profile = {
@@ -33,6 +34,7 @@ export function DashboardLayoutClient({
 }: DashboardLayoutClientProps) {
   const pathname = usePathname();
   const [hasWhatsAppConnected, setHasWhatsAppConnected] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isWhatsAppPage = pathname === "/dashboard/whatsapp";
 
   useEffect(() => {
@@ -67,20 +69,28 @@ export function DashboardLayoutClient({
         canAccessAudit={canAccessAudit}
         canUseWhatsApp={canUseWhatsApp}
         servicesPricingMode={servicesPricingMode}
+        mobileOpen={mobileNavOpen}
+        onMobileOpenChange={setMobileNavOpen}
       />
       <main
-        className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-background ${
+        className={`flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/40 ${
           !isWhatsAppPage ? "overflow-y-auto" : ""
-        } pt-14 md:pt-0 pl-0 md:pl-0`}
+        }`}
       >
         {isWhatsAppPage ? (
           <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
             {children}
           </div>
         ) : (
-          <div className="container mx-auto py-6 px-4 md:px-6 lg:px-8 max-w-7xl flex-1">
-            {children}
-          </div>
+          <>
+            <DashboardTopbar
+              profile={profile}
+              onMenuClick={() => setMobileNavOpen(true)}
+            />
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+              <div className="mx-auto max-w-7xl">{children}</div>
+            </div>
+          </>
         )}
       </main>
     </div>

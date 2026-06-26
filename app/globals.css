@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
+    --background: 220 14% 96%;
     --foreground: 220 15% 12%;
     --card: 0 0% 100%;
     --card-foreground: 220 15% 12%;
@@ -12,16 +12,28 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 160 30% 95%;
     --secondary-foreground: 160 60% 25%;
-    --muted: 220 14% 96%;
+    --muted: 220 14% 93%;
     --muted-foreground: 220 10% 46%;
     --accent: 160 40% 92%;
     --accent-foreground: 160 60% 22%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-muted: 142 76% 94%;
+    --success-muted-foreground: 142 64% 28%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 48 96% 93%;
+    --warning-muted-foreground: 32 81% 29%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+    --info-muted: 214 95% 93%;
+    --info-muted-foreground: 224 64% 33%;
+    --border: 220 13% 89%;
+    --input: 220 13% 89%;
     --ring: 160 84% 39%;
-    --radius: 0.5rem;
+    --radius: 0.75rem;
   }
 
   .dark {
@@ -39,6 +51,18 @@
     --accent-foreground: 160 50% 85%;
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
+    --success: 142 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-muted: 142 40% 18%;
+    --success-muted-foreground: 142 50% 75%;
+    --warning: 38 80% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 38 40% 18%;
+    --warning-muted-foreground: 48 80% 75%;
+    --info: 217 70% 55%;
+    --info-foreground: 0 0% 100%;
+    --info-muted: 217 40% 18%;
+    --info-muted-foreground: 214 70% 75%;
     --border: 220 12% 22%;
     --input: 220 12% 22%;
     --ring: 160 70% 45%;
@@ -68,5 +92,14 @@
       radial-gradient(ellipse 80% 50% at 50% -20%, hsl(var(--primary) / 0.15), transparent),
       radial-gradient(ellipse 60% 40% at 100% 0%, hsl(var(--primary) / 0.08), transparent),
       radial-gradient(ellipse 60% 40% at 0% 50%, hsl(var(--primary) / 0.06), transparent);
+  }
+  .surface-elevated {
+    @apply rounded-xl border border-border/60 bg-card text-card-foreground;
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.04),
+      0 4px 12px rgba(0, 0, 0, 0.03);
+  }
+  .surface-muted {
+    @apply rounded-xl border border-border/40 bg-muted/50;
   }
 }
