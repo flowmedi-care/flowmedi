@@ -22,7 +22,7 @@ import { formatPhoneBr, formatPhoneBrInput, parsePhoneBr } from "@/lib/format-ph
 import { toast } from "@/components/ui/toast";
 import Link from "next/link";
 import { ExamesClient } from "../exames/exames-client";
-import { AppPageHeader } from "@/components/app-page-header";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { FilterBar } from "@/components/dashboard-ui/layout/filter-bar";
 import { ViewModeToggle } from "@/components/dashboard-ui/layout/view-mode-toggle";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
@@ -420,7 +420,7 @@ export function PacientesClient({
   const showForm = isNew || editingId !== null;
 
   return (
-    <div className="space-y-4 sm:space-y-6 min-w-0">
+    <div className="space-y-4 min-w-0">
       {justRegisteredPatientId && (
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
           <span className="text-sm text-green-800 dark:text-green-200">
@@ -445,50 +445,53 @@ export function PacientesClient({
         </div>
       )}
 
-      <AppPageHeader
-        breadcrumbs={[{ label: "Pacientes" }]}
-        title="Pacientes"
-        description="Gerencie pacientes cadastrados e contatos de formulários públicos."
-        actions={
-          activeTab === "registered" ? (
-            <Button onClick={openNew}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo paciente
-            </Button>
-          ) : undefined
+      <PageShell
+        header={{
+          breadcrumbs: [{ label: "Pacientes" }],
+          title: "Pacientes",
+          description: "Gerencie pacientes cadastrados e contatos de formulários públicos.",
+          actions:
+            activeTab === "registered" ? (
+              <Button onClick={openNew}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo paciente
+              </Button>
+            ) : undefined,
+        }}
+        toolbar={
+          <FilterBar
+            searchValue={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Buscar por nome, e-mail ou telefone..."
+            actions={
+              activeTab === "registered" ? (
+                <ViewModeToggle
+                  value={viewMode}
+                  onChange={setViewMode}
+                  options={[
+                    { value: "contacts", icon: Grid3x3, title: "Visualização de contatos" },
+                    { value: "list", icon: List, title: "Visualização em lista" },
+                  ]}
+                />
+              ) : undefined
+            }
+          />
         }
-      />
-
-      <FilterBar
-        searchValue={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Buscar por nome, e-mail ou telefone..."
-        actions={
-          activeTab === "registered" ? (
-            <ViewModeToggle
-              value={viewMode}
-              onChange={setViewMode}
-              options={[
-                { value: "contacts", icon: Grid3x3, title: "Visualização de contatos" },
-                { value: "list", icon: List, title: "Visualização em lista" },
-              ]}
-            />
-          ) : undefined
+        tabs={
+          <SegmentedTabs
+            tabs={[
+              { id: "registered", label: "Cadastrados", count: patients.length },
+              { id: "nonRegistered", label: "Não Cadastrados", count: nonRegisteredList.length },
+            ]}
+            value={activeTab}
+            onChange={(id) => setActiveTab(id as "registered" | "nonRegistered")}
+            variant="underline"
+          />
         }
-      />
-
-      <SegmentedTabs
-        tabs={[
-          { id: "registered", label: "Cadastrados", count: patients.length },
-          { id: "nonRegistered", label: "Não Cadastrados", count: nonRegisteredList.length },
-        ]}
-        value={activeTab}
-        onChange={(id) => setActiveTab(id as "registered" | "nonRegistered")}
-        variant="underline"
-      />
-
-      {showForm && (
-        <Card>
+        contentClassName="pt-4"
+      >
+        {showForm && (
+          <Card className="mb-5 border-border/60 shadow-none">
           <CardHeader className="pb-2">
             <div className="flex justify-between items-center">
               <h2 className="font-semibold">
@@ -702,8 +705,8 @@ export function PacientesClient({
       )}
 
       {/* Seção de Exames - Mostrar quando editando um paciente existente */}
-      {editingId && !isNew && (
-        <Card>
+        {editingId && !isNew && (
+          <Card className="mb-5 border-border/60 shadow-none">
           <CardHeader>
             <h2 className="font-semibold">Exames do Paciente</h2>
           </CardHeader>
@@ -713,11 +716,12 @@ export function PacientesClient({
         </Card>
       )}
 
-      {activeTab === "registered" ? (
-        <div className="surface-elevated p-4 sm:p-6">
-          <p className="text-sm text-muted-foreground mb-4">
-            {filtered.length} paciente(s) encontrado(s)
-          </p>
+        {activeTab === "registered" ? (
+          <>
+            <p className="text-sm text-muted-foreground mb-4">
+              {filtered.length} paciente(s) encontrado(s)
+            </p>
+            <div className="rounded-lg border border-border/50 bg-muted/10 p-2 sm:p-3">
           {filtered.length === 0 ? (
             <EmptyState
               title="Nenhum paciente encontrado"
@@ -826,12 +830,14 @@ export function PacientesClient({
               </div>
             </ContactList>
           )}
-        </div>
-      ) : (
-        <div className="surface-elevated p-4 sm:p-6">
-          <p className="text-sm text-muted-foreground mb-4">
-            {filteredNonRegistered.length} pessoa(s) encontrada(s) que preencheram formulários públicos
-          </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground mb-4">
+              {filteredNonRegistered.length} pessoa(s) encontrada(s) que preencheram formulários públicos
+            </p>
+            <div className="rounded-lg border border-border/50 bg-muted/10 p-2 sm:p-3">
           {filteredNonRegistered.length === 0 ? (
             <EmptyState title="Nenhuma pessoa não cadastrada encontrada" />
           ) : (
@@ -869,8 +875,10 @@ export function PacientesClient({
               ))}
             </ListPanel>
           )}
-        </div>
-      )}
+            </div>
+          </>
+        )}
+      </PageShell>
 
       <ConfirmDialog
         open={!!patientToExcluir}

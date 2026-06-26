@@ -56,7 +56,7 @@ export function SegmentedTabs({
   }
 
   return (
-    <div className={cn("flex gap-0 border-b border-border overflow-x-auto", className)}>
+    <div className={cn("flex gap-0 overflow-x-auto px-4 sm:px-6", className)}>
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const active = value === tab.id;

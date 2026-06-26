@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Mail, MessageSquare, Plus, Loader2 } from "lucide-react";
 import { TestEmailSection } from "../configuracoes/test-email-section";
-import { AppPageHeader } from "@/components/app-page-header";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 
 interface Template {
@@ -33,23 +33,25 @@ export function TemplatesClient({ clinicId, initialTemplates }: TemplatesClientP
   const whatsappTemplates = templates.filter((t) => t.channel === "whatsapp" || t.channel === "both");
 
   return (
-    <div className="space-y-6">
-      <AppPageHeader
-        breadcrumbs={[{ label: "Templates" }]}
-        title="Templates"
-        description="Gerencie templates de emails e mensagens WhatsApp para comunicação com pacientes"
-      />
-
-      <SegmentedTabs
-        tabs={[
-          { id: "email", label: "Email", icon: Mail },
-          { id: "whatsapp", label: "WhatsApp", icon: MessageSquare },
-        ]}
-        value={activeTab}
-        onChange={(id) => setActiveTab(id as "email" | "whatsapp")}
-        variant="pill"
-      />
-
+    <PageShell
+      header={{
+        breadcrumbs: [{ label: "Templates" }],
+        title: "Templates",
+        description:
+          "Gerencie templates de emails e mensagens WhatsApp para comunicação com pacientes",
+      }}
+      tabs={
+        <SegmentedTabs
+          tabs={[
+            { id: "email", label: "Email", icon: Mail },
+            { id: "whatsapp", label: "WhatsApp", icon: MessageSquare },
+          ]}
+          value={activeTab}
+          onChange={(id) => setActiveTab(id as "email" | "whatsapp")}
+          variant="pill"
+        />
+      }
+    >
       {/* Conteúdo da aba Email */}
       {activeTab === "email" && (
         <div className="space-y-6">
@@ -127,6 +129,6 @@ export function TemplatesClient({ clinicId, initialTemplates }: TemplatesClientP
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

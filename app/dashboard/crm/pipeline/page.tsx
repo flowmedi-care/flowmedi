@@ -29,14 +29,11 @@ export default async function CrmPipelinePage() {
         title: "Pipeline",
         description: "Acompanhe leads desde o primeiro contato até o agendamento.",
       }}
-      elevated={false}
     >
       {pipelineRes.error ? (
         <p className="text-sm text-destructive">{pipelineRes.error}</p>
       ) : (
-        <div className="surface-elevated p-4 sm:p-6">
-          <PipelineClient initialItems={pipelineRes.data ?? []} />
-        </div>
+        <PipelineClient initialItems={pipelineRes.data ?? []} />
       )}
     </PageShell>
   );

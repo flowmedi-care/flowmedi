@@ -9,7 +9,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { createSupplier, type SupplierRow } from "../actions";
 import { Plus } from "lucide-react";
 import { toast } from "@/components/ui/toast";
-import { AppPageHeader } from "@/components/app-page-header";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
 
@@ -58,22 +58,20 @@ export function FornecedoresClient({
   }
 
   return (
-    <div className="space-y-6">
-      <AppPageHeader
-        breadcrumbs={[{ label: "Fornecedores" }]}
-        title="Fornecedores"
-        description="Cadastro de fornecedores para despesas e contas a pagar."
-        actions={
-          canManage ? (
+    <>
+      <PageShell
+        header={{
+          breadcrumbs: [{ label: "Fornecedores" }],
+          title: "Fornecedores",
+          description: "Cadastro de fornecedores para despesas e contas a pagar.",
+          actions: canManage ? (
             <Button onClick={() => setOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Novo fornecedor
             </Button>
-          ) : undefined
-        }
-      />
-
-      <div className="surface-elevated p-4 sm:p-6">
+          ) : undefined,
+        }}
+      >
         <p className="text-sm font-medium text-muted-foreground mb-4">
           {initialSuppliers.length} fornecedor(es)
         </p>
@@ -83,23 +81,25 @@ export function FornecedoresClient({
             description="Use em lançamentos de despesa no Financeiro."
           />
         ) : (
-          <ListPanel>
-            {initialSuppliers.map((s) => (
-              <ListPanelItem key={s.id}>
-                <div>
-                  <p className="font-medium">{s.name}</p>
-                  <div className="text-sm text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                    {s.document && <span>{s.document}</span>}
-                    {s.email && <span>{s.email}</span>}
-                    {s.phone && <span>{s.phone}</span>}
+          <div className="rounded-lg border border-border/50 bg-muted/10 p-2 sm:p-3">
+            <ListPanel>
+              {initialSuppliers.map((s) => (
+                <ListPanelItem key={s.id}>
+                  <div>
+                    <p className="font-medium">{s.name}</p>
+                    <div className="text-sm text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                      {s.document && <span>{s.document}</span>}
+                      {s.email && <span>{s.email}</span>}
+                      {s.phone && <span>{s.phone}</span>}
+                    </div>
+                    {s.notes && <p className="text-xs text-muted-foreground mt-1">{s.notes}</p>}
                   </div>
-                  {s.notes && <p className="text-xs text-muted-foreground mt-1">{s.notes}</p>}
-                </div>
-              </ListPanelItem>
-            ))}
-          </ListPanel>
+                </ListPanelItem>
+              ))}
+            </ListPanel>
+          </div>
         )}
-      </div>
+      </PageShell>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -131,6 +131,6 @@ export function FornecedoresClient({
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

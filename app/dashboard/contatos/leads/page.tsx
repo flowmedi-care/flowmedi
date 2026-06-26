@@ -30,14 +30,11 @@ export default async function LeadsPage() {
         description:
           "Contatos de formulários públicos e links ainda não cadastrados como pacientes.",
       }}
-      elevated={false}
     >
       {pipelineRes.error ? (
         <p className="text-sm text-destructive">{pipelineRes.error}</p>
       ) : (
-        <div className="surface-elevated p-4 sm:p-6">
-          <PipelineClient initialItems={pipelineRes.data ?? []} />
-        </div>
+        <PipelineClient initialItems={pipelineRes.data ?? []} />
       )}
     </PageShell>
   );

@@ -1,6 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Breadcrumb,
@@ -22,7 +22,27 @@ export type AppPageHeaderProps = {
   description?: string;
   actions?: React.ReactNode;
   className?: string;
+  variant?: "default" | "contained";
 };
+
+function BreadcrumbPill({ breadcrumbs }: { breadcrumbs: AppPageBreadcrumb[] }) {
+  const last = breadcrumbs[breadcrumbs.length - 1];
+  const parent = breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2] : null;
+
+  return (
+    <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/70 px-3 py-1.5 text-xs text-muted-foreground shrink-0">
+      {parent?.href ? (
+        <Link href={parent.href} className="hover:text-foreground transition-colors">
+          <Home className="h-3.5 w-3.5" />
+        </Link>
+      ) : (
+        <Home className="h-3.5 w-3.5" />
+      )}
+      <span className="opacity-50">/</span>
+      <span className="font-medium text-foreground">{last?.label}</span>
+    </div>
+  );
+}
 
 export function AppPageHeader({
   breadcrumbs,
@@ -32,8 +52,36 @@ export function AppPageHeader({
   description,
   actions,
   className,
+  variant = "default",
 }: AppPageHeaderProps) {
-  const hasTitleRow = backHref != null || onBack != null;
+  const displayTitle = title ?? breadcrumbs[breadcrumbs.length - 1]?.label;
+  const hasBack = backHref != null || onBack != null;
+  const showTitleBlock =
+    displayTitle != null || description != null || actions != null || hasBack;
+
+  if (variant === "contained") {
+    return (
+      <div
+        className={cn(
+          "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
+          className
+        )}
+      >
+        <div className="min-w-0">
+          {displayTitle != null && (
+            <h1 className="text-xl font-semibold sm:text-2xl tracking-tight">{displayTitle}</h1>
+          )}
+          {description != null && (
+            <p className="text-sm text-muted-foreground mt-1 max-w-2xl">{description}</p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {breadcrumbs.length > 0 && <BreadcrumbPill breadcrumbs={breadcrumbs} />}
+          {actions}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -61,7 +109,7 @@ export function AppPageHeader({
         </BreadcrumbList>
       </Breadcrumb>
 
-      {hasTitleRow && (
+      {showTitleBlock && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-2 min-w-0">
             {onBack != null ? (
@@ -75,10 +123,10 @@ export function AppPageHeader({
                 </Link>
               </Button>
             ) : null}
-            {(title != null || description != null) && (
+            {(displayTitle != null || description != null) && (
               <div className="min-w-0">
-                {title != null && (
-                  <h1 className="text-xl font-semibold sm:text-2xl truncate">{title}</h1>
+                {displayTitle != null && (
+                  <h1 className="text-xl font-semibold sm:text-2xl truncate">{displayTitle}</h1>
                 )}
                 {description != null && (
                   <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
