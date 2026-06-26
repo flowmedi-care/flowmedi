@@ -641,9 +641,9 @@ export function AgendaAppointmentModal({
       <DialogContent
         title={isEdit ? "Editar consulta" : "Nova consulta"}
         onClose={() => onOpenChange(false)}
-        className="max-w-2xl [&>div:last-child]:flex [&>div:last-child]:flex-col [&>div:last-child]:min-h-0"
+        className="w-[min(42rem,calc(100vw-2rem))] max-w-none shrink-0 overflow-hidden [&>div:last-child]:flex [&>div:last-child]:flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:overflow-hidden"
       >
-        <div className="flex flex-col flex-1 min-h-[560px]">
+        <div className="flex flex-col flex-1 min-h-[560px] w-full min-w-0 overflow-hidden">
           <Stepper
             value={step}
             onValueChange={(value) => {
@@ -652,23 +652,28 @@ export function AgendaAppointmentModal({
                 setStep(value);
               }
             }}
-            className="flex flex-col flex-1 gap-4"
+            className="flex flex-col flex-1 gap-4 w-full min-w-0 overflow-hidden"
           >
-            <StepperNav className="pb-4 border-b border-border overflow-x-auto shrink-0">
+            <StepperNav className="pb-4 border-b border-border shrink-0 w-full min-w-0">
               {WIZARD_STEPS.map((s, idx) => (
                 <StepperItem
                   key={s.step}
                   step={s.step}
                   completed={s.step < step}
                   disabled={s.step > step}
+                  className="min-w-0 flex-1"
                 >
-                  <StepperTrigger>
-                    <StepperIndicator>
+                  <StepperTrigger className="w-full min-w-0 justify-center">
+                    <StepperIndicator className="shrink-0">
                       {s.step < step ? <Check className="size-3.5" /> : s.step}
                     </StepperIndicator>
-                    <StepperTitle className="hidden sm:block">{s.label}</StepperTitle>
+                    <StepperTitle className="hidden sm:block truncate max-w-[5.5rem] md:max-w-none">
+                      {s.label}
+                    </StepperTitle>
                   </StepperTrigger>
-                  {idx < WIZARD_STEPS.length - 1 && <StepperSeparator />}
+                  {idx < WIZARD_STEPS.length - 1 && (
+                    <StepperSeparator className="shrink min-w-2 max-w-8" />
+                  )}
                 </StepperItem>
               ))}
             </StepperNav>
@@ -678,7 +683,7 @@ export function AgendaAppointmentModal({
             )}
 
             {error && (
-              <div className="text-sm text-destructive bg-destructive/10 p-2 rounded-md space-y-2 shrink-0">
+              <div className="text-sm text-destructive bg-destructive/10 p-2 rounded-md space-y-2 shrink-0 break-words">
                 <p>{error}</p>
                 {!isEdit &&
                   (error.includes("já tem consulta") ||
@@ -697,7 +702,7 @@ export function AgendaAppointmentModal({
               </div>
             )}
 
-            <StepperPanel className="flex-1 min-h-[400px] max-h-[400px] overflow-y-auto pr-1">
+            <StepperPanel className="flex-1 min-h-[400px] max-h-[400px] w-full min-w-0 overflow-y-auto overflow-x-hidden pr-1">
               <StepperContent value={1}>
                 <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">

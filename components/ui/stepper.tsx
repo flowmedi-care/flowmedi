@@ -348,7 +348,7 @@ function StepperNav({ children, className }: React.ComponentProps<'nav'>) {
       data-state={activeStep}
       data-orientation={orientation}
       className={cn(
-        'group/stepper-nav inline-flex data-[orientation=horizontal]:w-full data-[orientation=horizontal]:flex-row data-[orientation=vertical]:flex-col',
+        'group/stepper-nav flex data-[orientation=horizontal]:w-full data-[orientation=horizontal]:flex-row data-[orientation=vertical]:flex-col',
         className,
       )}
     >
@@ -384,7 +384,7 @@ function StepperContent({ value, forceMount, children, className }: StepperConte
     <div
       data-slot="stepper-content"
       data-state={activeStep}
-      className={cn('w-full', className, !isActive && forceMount && 'hidden')}
+      className={cn('w-full min-w-0', className, !isActive && forceMount && 'hidden')}
       hidden={!isActive && forceMount}
     >
       {children}
