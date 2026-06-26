@@ -9,15 +9,15 @@ import type {
 export type EngagementFunnelStage = CumulativeFunnelStage;
 export type EngagementFunnelBranch = FunnelOutcomeBranch;
 
-const STAGE_HEIGHT = 56;
-const STAGE_GAP = 8;
-const OUTCOME_GAP = 10;
-const CONNECTOR_HEIGHT = 20;
-const OUTCOME_BOX_HEIGHT = 54;
+const STAGE_HEIGHT = 68;
+const STAGE_GAP = 10;
+const OUTCOME_GAP = 12;
+const CONNECTOR_HEIGHT = 28;
+const OUTCOME_BOX_HEIGHT = 62;
 const MAX_FUNNEL_WIDTH = 240;
 const MIN_SEGMENT_WIDTH = 56;
 const LABEL_WIDTH = 130;
-const STEP_COL_WIDTH = 36;
+const FUNNEL_RIGHT_PAD = 24;
 
 function stageColor(index: number, total: number): string {
   const startHue = 158;
@@ -77,24 +77,6 @@ function TrapezoidShape({
         style={{ fontFamily: "inherit" }}
       >
         {value}
-      </text>
-    </g>
-  );
-}
-
-function StepBadge({ step, y }: { step: number; y: number }) {
-  return (
-    <g transform={`translate(0, ${y})`}>
-      <circle cx={0} cy={0} r={14} fill="hsl(var(--muted))" />
-      <text
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill="hsl(var(--muted-foreground))"
-        fontSize={12}
-        fontWeight={600}
-        style={{ fontFamily: "inherit" }}
-      >
-        {step}
       </text>
     </g>
   );
@@ -172,7 +154,7 @@ function SplitBottomFunnel({
   const values = linearStages.map((s) => s.value);
   const widths = segmentWidths(values);
   const funnelCenterX = LABEL_WIDTH + MAX_FUNNEL_WIDTH / 2 + 20;
-  const stepX = funnelCenterX + MAX_FUNNEL_WIDTH / 2 + STEP_COL_WIDTH;
+  const svgWidth = funnelCenterX + MAX_FUNNEL_WIDTH / 2 + FUNNEL_RIGHT_PAD;
 
   const [leftW, centerW, rightW] = outcomeBoxWidths(branches, MAX_FUNNEL_WIDTH + 40);
   const outcomesTotalW = leftW + centerW + rightW + OUTCOME_GAP * 2;
@@ -180,7 +162,7 @@ function SplitBottomFunnel({
 
   const linearHeight = 2 * STAGE_HEIGHT + STAGE_GAP;
   const outcomesY = linearHeight + CONNECTOR_HEIGHT;
-  const svgHeight = outcomesY + OUTCOME_BOX_HEIGHT + 36;
+  const svgHeight = outcomesY + OUTCOME_BOX_HEIGHT + 44;
 
   const confirmBottomY = STAGE_HEIGHT + STAGE_GAP + STAGE_HEIGHT;
   const confirmBottomHalf = widths[1] / 2;
@@ -197,7 +179,7 @@ function SplitBottomFunnel({
   return (
     <div className={cn("w-full py-2", className)}>
       <svg
-        viewBox={`0 0 ${stepX + STEP_COL_WIDTH} ${svgHeight}`}
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         className="mx-auto h-auto w-full max-w-[500px]"
         role="img"
         aria-label="Funil de comparecimento"
@@ -219,9 +201,6 @@ function SplitBottomFunnel({
                   fill={stageColor(index, 2)}
                   value={stage.value}
                 />
-              </g>
-              <g transform={`translate(${stepX}, 0)`}>
-                <StepBadge step={stage.step} y={labelY} />
               </g>
             </g>
           );
@@ -331,14 +310,14 @@ export function EngagementFunnelChart({
   const values = stages.map((s) => s.value);
   const widths = segmentWidths(values);
   const funnelCenterX = LABEL_WIDTH + MAX_FUNNEL_WIDTH / 2 + 20;
-  const stepX = funnelCenterX + MAX_FUNNEL_WIDTH / 2 + STEP_COL_WIDTH;
+  const svgWidth = funnelCenterX + MAX_FUNNEL_WIDTH / 2 + FUNNEL_RIGHT_PAD;
   const svgHeight =
-    stages.length * stageHeight + Math.max(0, stages.length - 1) * STAGE_GAP + 8;
+    stages.length * stageHeight + Math.max(0, stages.length - 1) * STAGE_GAP + 12;
 
   return (
     <div className={cn("w-full py-2", className)}>
       <svg
-        viewBox={`0 0 ${stepX + STEP_COL_WIDTH} ${svgHeight}`}
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         className="mx-auto h-auto w-full max-w-[480px]"
         role="img"
         aria-label="Funil de conversão"
@@ -363,9 +342,6 @@ export function EngagementFunnelChart({
                   value={stage.value}
                   isTriangle={isLast}
                 />
-              </g>
-              <g transform={`translate(${stepX}, 0)`}>
-                <StepBadge step={stage.step} y={labelY} />
               </g>
             </g>
           );

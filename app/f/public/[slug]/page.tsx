@@ -34,66 +34,31 @@ export default async function FormularioPublicoPage({
       return renderForm(data, slug);
     }
     
-    // Se não for UUID, pode ser um token antigo - tentar buscar por link_token
-    const { data: instanceByToken } = await supabase
-      .from("form_instances")
-      .select("form_template_id")
-      .or(`link_token.eq.${slug},public_link_token.eq.${slug}`)
-      .maybeSingle();
-    
-    if (instanceByToken?.form_template_id) {
-      // Encontrou instância com este token, buscar template
-      const { data, error } = await supabase.rpc("get_public_form_template", {
-        p_template_id: instanceByToken.form_template_id,
-      });
-      
-      if (!error && data?.found) {
-        return renderForm(data, instanceByToken.form_template_id);
+    // Se não for UUID, pode ser um token antigo de instância
+    const { data: tokenData, error: tokenError } = await supabase.rpc("get_form_by_token", {
+      p_token: slug,
+    });
+
+    if (!tokenError && tokenData?.found && tokenData.form_template_id) {
+      const { data: templateData, error: templateError } = await supabase.rpc(
+        "get_public_form_template",
+        { p_template_id: tokenData.form_template_id }
+      );
+
+      if (!templateError && templateData?.found) {
+        return renderForm(templateData, String(tokenData.form_template_id));
       }
     }
-    
-    // Buscar todos os templates públicos e encontrar o que corresponde ao slug
-    const { data: allTemplates, error: fetchError } = await supabase
-      .from("form_templates")
-      .select("id, name")
-      .eq("is_public", true);
-    
-    if (fetchError || !allTemplates) {
-      notFound();
-    }
-    
-    // Função para gerar slug a partir de nome (mesma lógica do TypeScript)
-    const slugify = (text: string): string => {
-      return text
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .substring(0, 100);
-    };
-    
-    // Encontrar template cujo slug do nome corresponde ao slug fornecido
-    const matchingTemplate = allTemplates.find((t) => {
-      const templateSlug = slugify(t.name);
-      return templateSlug === slug;
-    });
-    
-    if (!matchingTemplate) {
-      notFound();
-    }
-    
-    // Usar função RPC para buscar dados completos
-    const { data, error } = await supabase.rpc("get_public_form_template", {
-      p_template_id: matchingTemplate.id,
+
+    const { data, error } = await supabase.rpc("get_public_form_by_slug", {
+      p_slug: slug,
     });
 
     if (error || !data || !data.found) {
       notFound();
     }
 
-    return renderForm(data, matchingTemplate.id);
+    return renderForm(data, String(data.template_id));
   } catch (error) {
     notFound();
   }

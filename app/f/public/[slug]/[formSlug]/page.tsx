@@ -19,55 +19,16 @@ export default async function FormularioPublicoPage({
 
     const supabase = await createClient();
 
-    const { data: clinic, error: clinicError } = await supabase
-      .from("clinics")
-      .select("id")
-      .eq("slug", clinicSlug)
-      .maybeSingle();
-
-    if (clinicError || !clinic) {
-      notFound();
-    }
-
-    const { data: allTemplates, error: fetchError } = await supabase
-      .from("form_templates")
-      .select("id, name")
-      .eq("is_public", true)
-      .eq("clinic_id", clinic.id);
-
-    if (fetchError || !allTemplates) {
-      notFound();
-    }
-
-    const slugify = (text: string): string => {
-      return text
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .substring(0, 100);
-    };
-
-    const matchingTemplate = allTemplates.find((t) => {
-      const templateSlug = slugify(t.name);
-      return templateSlug === formSlug;
-    });
-
-    if (!matchingTemplate) {
-      notFound();
-    }
-
-    const { data, error } = await supabase.rpc("get_public_form_template", {
-      p_template_id: matchingTemplate.id,
+    const { data, error } = await supabase.rpc("get_public_form_by_slugs", {
+      p_clinic_slug: clinicSlug,
+      p_form_slug: formSlug,
     });
 
     if (error || !data || !data.found) {
       notFound();
     }
 
-    return renderForm(data, matchingTemplate.id);
+    return renderForm(data, String(data.template_id));
   } catch (error) {
     notFound();
   }
