@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import { calcPatientAge } from "@/app/dashboard/pacientes/profile-types";
 import {
   ensureAppointmentFichas,
@@ -30,6 +29,7 @@ import { AppointmentEncounterNav } from "@/components/appointment-encounter-nav"
 import { ConsultationNotesClient } from "../consulta/[id]/consultation-notes-client";
 import { ExamesClient } from "@/app/dashboard/exames/exames-client";
 import { ClinicalTranscriptionPanel } from "./clinical-transcription-panel";
+import { ClinicalNavItem, ClinicalNavSection } from "./clinical-nav-item";
 import {
   ClipboardList,
   Clock,
@@ -177,49 +177,44 @@ export function AtendimentoClinicoClient({
   const relatoriosConsulta = relatorios.filter((r) => r.is_current_appointment);
   const relatoriosOutros = relatorios.filter((r) => !r.is_current_appointment);
 
+  const scheduledLabel = new Date(scheduledAt).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
   return (
-    <div className="flex flex-col min-h-[calc(100vh-8rem)] border rounded-lg overflow-hidden bg-background">
-      <div className="border-b px-4 pt-3 pb-0 bg-card">
+    <div className="surface-elevated overflow-hidden flex flex-col min-h-[calc(100vh-9rem)]">
+      <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-border/60">
         <AppPageHeader
           breadcrumbs={[
             { label: "Agenda", href: "/dashboard/agenda" },
             { label: patientName },
           ]}
           backHref="/dashboard/agenda"
-          className="space-y-2"
+          title={patientName}
+          description={[scheduledLabel, doctorName].filter(Boolean).join(" · ")}
+          variant="contained"
+          actions={
+            canEdit && encounterStatus === "finalizado_aguardando_cobranca" ? (
+              <Button size="sm" variant="outline" onClick={() => setComandaOpen(true)}>
+                <CreditCard className="h-4 w-4 mr-1" />
+                Finalizar comanda
+              </Button>
+            ) : undefined
+          }
         />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 bg-card">
-        <div className="min-w-0">
-          <p className="font-semibold truncate">{patientName}</p>
-          <p className="text-xs text-muted-foreground">
-            {new Date(scheduledAt).toLocaleString("pt-BR", {
-              day: "2-digit",
-              month: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-            {doctorName && ` · ${doctorName}`}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {canEdit && encounterStatus === "finalizado_aguardando_cobranca" && (
-            <Button size="sm" variant="outline" onClick={() => setComandaOpen(true)}>
-              <CreditCard className="h-4 w-4 mr-1" />
-              Finalizar comanda
-            </Button>
-          )}
-        </div>
-      </div>
 
-      <div className="px-4 bg-card border-b">
+      <div className="px-4 sm:px-6 border-b border-border/60 bg-card">
         <AppointmentEncounterNav appointmentId={appointmentId} activeView="clinico" />
       </div>
 
       <div className="flex flex-1 min-h-0 flex-col md:flex-row">
-        <aside className="w-full md:w-72 border-b md:border-b-0 md:border-r bg-muted/20 shrink-0 flex flex-col max-h-[55vh] md:max-h-none">
-          <div className="p-4 border-b flex items-center gap-3 shrink-0">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+        <aside className="w-full md:w-72 border-b md:border-b-0 md:border-r border-border/60 bg-card shrink-0 flex flex-col max-h-[50vh] md:max-h-none">
+          <div className="p-4 border-b border-border/60 flex items-center gap-3 shrink-0 bg-muted/20">
+            <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-border/40">
               {patientPhotoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={patientPhotoUrl} alt="" className="h-full w-full object-cover" />
@@ -228,41 +223,30 @@ export function AtendimentoClinicoClient({
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium truncate">{patientName}</p>
+              <p className="text-sm font-semibold truncate">{patientName}</p>
               {age != null && (
                 <p className="text-xs text-muted-foreground">{age} anos</p>
               )}
             </div>
           </div>
 
-          <nav className="flex-1 overflow-y-auto p-2 space-y-3">
-            {/* Fichas clínicas */}
-            <div>
-              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <FileText className="h-3 w-3" />
-                Fichas de atendimento
-              </p>
+          <nav className="flex-1 overflow-y-auto p-3 space-y-4">
+            <ClinicalNavSection title="Fichas de atendimento" icon={FileText}>
               {loadingFichas && (
-                <p className="text-sm text-muted-foreground p-3">Carregando…</p>
+                <p className="text-sm text-muted-foreground px-2 py-1">Carregando…</p>
               )}
               {!loadingFichas && fichas.length === 0 && (
                 <p className="text-xs text-muted-foreground px-2 py-1">
                   Nenhuma ficha configurada.
                 </p>
               )}
-              <div className="space-y-0.5">
-                {fichas.map((f, idx) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => setActive({ kind: "ficha", id: f.id })}
-                    className={cn(
-                      "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center justify-between gap-2",
-                      active?.kind === "ficha" && active.id === f.id
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-muted/60"
-                    )}
-                  >
+              {fichas.map((f, idx) => (
+                <ClinicalNavItem
+                  key={f.id}
+                  active={active?.kind === "ficha" && active.id === f.id}
+                  onClick={() => setActive({ kind: "ficha", id: f.id })}
+                >
+                  <div className="flex items-center justify-between gap-2 pl-1">
                     <span className="truncate">
                       {String(idx + 1).padStart(2, "0")}. {f.template.name}
                     </span>
@@ -271,19 +255,14 @@ export function AtendimentoClinicoClient({
                         OK
                       </Badge>
                     )}
-                  </button>
-                ))}
-              </div>
-            </div>
+                  </div>
+                </ClinicalNavItem>
+              ))}
+            </ClinicalNavSection>
 
-            {/* Relatórios / formulários */}
-            <div>
-              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <ClipboardList className="h-3 w-3" />
-                Relatórios do paciente
-              </p>
+            <ClinicalNavSection title="Relatórios do paciente" icon={ClipboardList}>
               {loadingRelatorios && (
-                <p className="text-sm text-muted-foreground p-3">Carregando…</p>
+                <p className="text-sm text-muted-foreground px-2 py-1">Carregando…</p>
               )}
               {!loadingRelatorios && relatorios.length === 0 && (
                 <p className="text-xs text-muted-foreground px-2 py-1">
@@ -292,95 +271,74 @@ export function AtendimentoClinicoClient({
               )}
 
               {relatoriosConsulta.length > 0 && (
-                <p className="text-[10px] text-muted-foreground px-2 pt-1">Esta consulta</p>
+                <p className="text-[10px] text-muted-foreground px-2 pt-0.5">Esta consulta</p>
               )}
-              <div className="space-y-0.5">
-                {relatoriosConsulta.map((r) => (
-                  <RelatorioSidebarItem
-                    key={r.id}
-                    report={r}
-                    active={active?.kind === "relatorio" && active.id === r.id}
-                    onSelect={() => setActive({ kind: "relatorio", id: r.id })}
-                  />
-                ))}
-              </div>
+              {relatoriosConsulta.map((r) => (
+                <RelatorioSidebarItem
+                  key={r.id}
+                  report={r}
+                  active={active?.kind === "relatorio" && active.id === r.id}
+                  onSelect={() => setActive({ kind: "relatorio", id: r.id })}
+                />
+              ))}
 
               {relatoriosOutros.length > 0 && (
                 <p className="text-[10px] text-muted-foreground px-2 pt-2">Outras consultas</p>
               )}
-              <div className="space-y-0.5">
-                {relatoriosOutros.map((r) => (
-                  <RelatorioSidebarItem
-                    key={r.id}
-                    report={r}
-                    active={active?.kind === "relatorio" && active.id === r.id}
-                    onSelect={() => setActive({ kind: "relatorio", id: r.id })}
-                    showDate
-                  />
-                ))}
-              </div>
-            </div>
+              {relatoriosOutros.map((r) => (
+                <RelatorioSidebarItem
+                  key={r.id}
+                  report={r}
+                  active={active?.kind === "relatorio" && active.id === r.id}
+                  onSelect={() => setActive({ kind: "relatorio", id: r.id })}
+                  showDate
+                />
+              ))}
+            </ClinicalNavSection>
 
-            <div>
-              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <MessageSquare className="h-3 w-3" />
-                Registro
-              </p>
-              <div className="space-y-0.5">
-                <button
-                  type="button"
-                  onClick={() => setActive({ kind: "notas" })}
-                  className={cn(
-                    "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
-                    active?.kind === "notas"
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-muted/60"
-                  )}
-                >
-                  Notas da consulta
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActive({ kind: "transcricao" })}
-                  className={cn(
-                    "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2",
-                    active?.kind === "transcricao"
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-muted/60"
-                  )}
-                >
+            <ClinicalNavSection title="Registro" icon={MessageSquare}>
+              <ClinicalNavItem
+                active={active?.kind === "notas"}
+                onClick={() => setActive({ kind: "notas" })}
+              >
+                <span className="pl-1">Notas da consulta</span>
+              </ClinicalNavItem>
+              <ClinicalNavItem
+                active={active?.kind === "transcricao"}
+                onClick={() => setActive({ kind: "transcricao" })}
+              >
+                <span className="pl-1 flex items-center gap-2">
                   <Mic className="h-3.5 w-3.5 shrink-0" />
                   Transcrição de áudio
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActive({ kind: "arquivos" })}
-                  className={cn(
-                    "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2",
-                    active?.kind === "arquivos"
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-muted/60"
-                  )}
-                >
+                </span>
+              </ClinicalNavItem>
+              <ClinicalNavItem
+                active={active?.kind === "arquivos"}
+                onClick={() => setActive({ kind: "arquivos" })}
+              >
+                <span className="pl-1 flex items-center gap-2">
                   <FolderOpen className="h-3.5 w-3.5 shrink-0" />
                   Arquivos
-                </button>
-              </div>
-            </div>
+                </span>
+              </ClinicalNavItem>
+            </ClinicalNavSection>
           </nav>
 
           {(canEdit || isDoctor) && (
-            <VincularRelatorioAtendimento
-              appointmentId={appointmentId}
-              onLinked={() => {
-                loadRelatorios();
-                router.refresh();
-              }}
-            />
+            <div className="p-3 border-t border-border/60 shrink-0">
+              <VincularRelatorioAtendimento
+                appointmentId={appointmentId}
+                onLinked={() => {
+                  loadRelatorios();
+                  router.refresh();
+                }}
+              />
+            </div>
           )}
         </aside>
 
-        <main className="relative z-10 flex-1 overflow-y-auto p-6 min-h-[300px] bg-background">
+        <main className="flex-1 overflow-y-auto bg-muted/30 p-4 sm:p-5 min-h-[320px]">
+          <div className="rounded-xl border border-border/50 bg-card p-4 sm:p-6 min-h-full shadow-sm">
           {activeFicha?.template.ficha_type === "fields" && (
             <FichaFieldsPanel
               key={activeFicha.id}
@@ -462,10 +420,11 @@ export function AtendimentoClinicoClient({
               Selecione uma ficha ou relatório na barra lateral.
             </p>
           )}
+          </div>
         </main>
       </div>
 
-      <footer className="border-t px-4 py-3 flex flex-wrap items-center justify-between gap-3 bg-card">
+      <footer className="border-t border-border/60 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 bg-card">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Clock className="h-4 w-4" />
           {fmtTime(elapsed)}
@@ -513,39 +472,29 @@ function RelatorioSidebarItem({
   const isPending = report.status === "pendente" || report.status === "incompleto";
 
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
-        active ? "bg-primary text-primary-foreground" : "hover:bg-muted/60"
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-medium">{report.template_name}</span>
-        <Badge
-          variant={
-            report.status === "respondido"
-              ? "secondary"
-              : isPending
-                ? "outline"
-                : "secondary"
-          }
-          className={cn("text-[10px] shrink-0", active && "bg-primary-foreground/20 text-inherit")}
-        >
-          {badgeLabel}
-        </Badge>
+    <ClinicalNavItem active={active} onClick={onSelect}>
+      <div className="pl-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate font-medium">{report.template_name}</span>
+          <Badge
+            variant={
+              report.status === "respondido"
+                ? "secondary"
+                : isPending
+                  ? "outline"
+                  : "secondary"
+            }
+            className="text-[10px] shrink-0"
+          >
+            {badgeLabel}
+          </Badge>
+        </div>
+        {showDate && report.scheduled_at && (
+          <p className="text-[10px] mt-0.5 truncate text-muted-foreground">
+            {new Date(report.scheduled_at).toLocaleDateString("pt-BR")}
+          </p>
+        )}
       </div>
-      {showDate && report.scheduled_at && (
-        <p
-          className={cn(
-            "text-[10px] mt-0.5 truncate",
-            active ? "text-primary-foreground/80" : "text-muted-foreground"
-          )}
-        >
-          {new Date(report.scheduled_at).toLocaleDateString("pt-BR")}
-        </p>
-      )}
-    </button>
+    </ClinicalNavItem>
   );
 }

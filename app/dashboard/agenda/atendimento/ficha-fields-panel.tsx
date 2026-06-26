@@ -111,34 +111,36 @@ export function FichaFieldsPanel({
   }, []);
 
   return (
-    <div className="relative z-10 space-y-6">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold">{templateName}</h2>
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3 pb-4 border-b border-border/60">
+        <h2 className="text-lg font-semibold tracking-tight">{templateName}</h2>
         {interactive && saveState === "saving" && (
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
+          <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Salvando…
           </span>
         )}
         {interactive && saveState === "saved" && (
-          <span className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1">
+          <span className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1 shrink-0">
             <CheckCircle2 className="h-3.5 w-3.5" /> Rascunho salvo
           </span>
         )}
       </div>
       {!interactive && (
-        <p className="text-sm text-muted-foreground rounded-md border bg-muted/30 px-3 py-2">
+        <p className="text-sm text-muted-foreground rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
           Ficha concluída — somente leitura.
         </p>
       )}
-      {fields.map((field) => (
-        <FieldRender
-          key={field.id}
-          field={field}
-          value={responses[field.id]}
-          onChange={(v) => setResponse(field.id, v, field.type)}
-          {...(interactive ? {} : { readOnly: true })}
-        />
-      ))}
+      <div className="space-y-5">
+        {fields.map((field) => (
+          <FieldRender
+            key={field.id}
+            field={field}
+            value={responses[field.id]}
+            onChange={(v) => setResponse(field.id, v, field.type)}
+            {...(interactive ? {} : { readOnly: true })}
+          />
+        ))}
+      </div>
     </div>
   );
 }

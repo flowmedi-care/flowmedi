@@ -197,20 +197,24 @@ export function FieldRender({
             {field.label}
             {required && " *"}
           </Label>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={field.label}>
+          <div
+            className="inline-flex rounded-lg border border-border bg-muted/30 p-1"
+            role="radiogroup"
+            aria-label={field.label}
+          >
             {yesNoOptions.map((opt) => {
               const isSelected = (value as string) === opt.value;
               return (
                 <label
                   key={opt.value}
                   className={cn(
-                    "flex min-w-[120px] flex-1 items-center gap-2 rounded-md border px-3 py-2.5 transition-colors",
+                    "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
                     isSelected
-                      ? "border-primary bg-primary/5 text-foreground"
-                      : "border-input bg-background",
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground",
                     readOnly
                       ? "opacity-60 cursor-not-allowed pointer-events-none"
-                      : "cursor-pointer hover:bg-muted/50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+                      : "cursor-pointer hover:text-foreground"
                   )}
                 >
                   <input
@@ -225,18 +229,7 @@ export function FieldRender({
                     className="sr-only"
                     tabIndex={readOnly ? -1 : 0}
                   />
-                  <span
-                    className={cn(
-                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                      isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
-                    )}
-                    aria-hidden
-                  >
-                    {isSelected ? (
-                      <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
-                    ) : null}
-                  </span>
-                  <span className="text-sm font-medium">{opt.label}</span>
+                  {opt.label}
                 </label>
               );
             })}

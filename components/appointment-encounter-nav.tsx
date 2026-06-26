@@ -9,9 +9,11 @@ export type EncounterNavView = "recepcao" | "clinico";
 export function AppointmentEncounterNav({
   appointmentId,
   activeView,
+  className,
 }: {
   appointmentId: string;
   activeView: EncounterNavView;
+  className?: string;
 }) {
   const pathname = usePathname();
   const recepcaoHref = `/dashboard/agenda/consulta/${appointmentId}`;
@@ -24,7 +26,10 @@ export function AppointmentEncounterNav({
 
   return (
     <nav
-      className="flex gap-1 border-b border-border -mb-px overflow-x-auto"
+      className={cn(
+        "flex gap-0 overflow-x-auto -mb-px",
+        className
+      )}
       aria-label="Visão do atendimento"
     >
       {tabs.map((tab) => {
@@ -37,10 +42,10 @@ export function AppointmentEncounterNav({
             key={tab.id}
             href={tab.href}
             className={cn(
-              "px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+              "px-4 py-3 min-h-[44px] text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0",
               isActive
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             {tab.label}
