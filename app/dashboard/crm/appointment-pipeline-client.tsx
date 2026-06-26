@@ -23,10 +23,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Calendar, Stethoscope } from "lucide-react";
+import { Calendar, Stethoscope, ChevronRight } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { FilterBar } from "@/components/dashboard-ui/layout/filter-bar";
-import { KanbanBoard } from "@/components/dashboard-ui/kanban/kanban-board";
 import { KanbanColumnShell } from "@/components/dashboard-ui/kanban/kanban-column";
 import { KanbanCardShell } from "@/components/dashboard-ui/kanban/kanban-card";
 import { KanbanEmptyColumn } from "@/components/dashboard-ui/kanban/kanban-empty-column";
@@ -35,6 +34,8 @@ import {
   APPOINTMENT_PIPELINE_STAGE_BADGE_VARIANT,
   APPOINTMENT_PIPELINE_STAGE_LABELS,
   APPOINTMENT_PIPELINE_STAGES,
+  APPOINTMENT_PIPELINE_FLOW_STAGES,
+  APPOINTMENT_PIPELINE_OUTCOME_STAGES,
 } from "@/components/dashboard-ui/kanban/appointment-pipeline-stage-colors";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
 import {
@@ -179,8 +180,8 @@ export function AppointmentPipelineClient({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <KanbanBoard>
-          {APPOINTMENT_PIPELINE_STAGES.map((status) => (
+        <div className="flex items-start gap-3 overflow-x-auto pb-2 min-w-0 -mx-1 px-1">
+          {APPOINTMENT_PIPELINE_FLOW_STAGES.map((status) => (
             <AppointmentKanbanColumn
               key={status}
               status={status}
@@ -188,7 +189,26 @@ export function AppointmentPipelineClient({
               formatDateTime={formatDateTime}
             />
           ))}
-        </KanbanBoard>
+
+          <div className="flex shrink-0 items-center self-center pt-20 text-muted-foreground/60">
+            <ChevronRight className="h-5 w-5" aria-hidden />
+          </div>
+
+          <div className="flex shrink-0 flex-col gap-3 pt-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground px-1">
+              Desfecho
+            </p>
+            {APPOINTMENT_PIPELINE_OUTCOME_STAGES.map((status) => (
+              <AppointmentKanbanColumn
+                key={status}
+                status={status}
+                items={itemsByStatus[status]}
+                formatDateTime={formatDateTime}
+                compact
+              />
+            ))}
+          </div>
+        </div>
 
         <DragOverlay>
           {activeId ? (
@@ -208,10 +228,12 @@ function AppointmentKanbanColumn({
   status,
   items,
   formatDateTime,
+  compact = false,
 }: {
   status: AppointmentPipelineStatus;
   items: AppointmentPipelineItem[];
   formatDateTime: (iso: string) => { date: string; time: string };
+  compact?: boolean;
 }) {
   const { setNodeRef } = useDroppable({ id: status });
   const itemIds = items.map((item) => item.id);
@@ -222,6 +244,7 @@ function AppointmentKanbanColumn({
       count={items.length}
       accentClassName={APPOINTMENT_PIPELINE_STAGE_ACCENT[status]}
       bodyRef={setNodeRef}
+      bodyClassName={compact ? "min-h-[120px] sm:min-h-[130px]" : undefined}
     >
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
         {items.length === 0 ? (

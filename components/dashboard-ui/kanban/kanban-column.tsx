@@ -8,6 +8,7 @@ export function KanbanColumnShell({
   headerExtra,
   children,
   className,
+  bodyClassName,
   bodyRef,
 }: {
   title: string;
@@ -16,6 +17,7 @@ export function KanbanColumnShell({
   headerExtra?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  bodyClassName?: string;
   bodyRef?: React.Ref<HTMLDivElement>;
 }) {
   return (
@@ -39,7 +41,10 @@ export function KanbanColumnShell({
       </div>
       <div
         ref={bodyRef}
-        className="flex-1 min-h-[200px] sm:min-h-[240px] bg-muted/20 p-3 space-y-2"
+        className={cn(
+          "flex-1 min-h-[200px] sm:min-h-[240px] bg-muted/20 p-3 space-y-2",
+          bodyClassName
+        )}
       >
         {children}
       </div>

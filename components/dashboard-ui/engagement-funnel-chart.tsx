@@ -1,15 +1,21 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import type { CumulativeFunnelStage } from "@/app/dashboard/crm/pipeline-actions";
+import type {
+  CumulativeFunnelStage,
+  FunnelOutcomeBranch,
+} from "@/app/dashboard/crm/pipeline-actions";
 
 export type EngagementFunnelStage = CumulativeFunnelStage;
+export type EngagementFunnelBranch = FunnelOutcomeBranch;
 
-const STAGE_HEIGHT_DEFAULT = 56;
-const STAGE_HEIGHT_COMPACT = 46;
-const STAGE_GAP = 5;
+const STAGE_HEIGHT = 56;
+const STAGE_GAP = 8;
+const OUTCOME_GAP = 10;
+const CONNECTOR_HEIGHT = 20;
+const OUTCOME_BOX_HEIGHT = 54;
 const MAX_FUNNEL_WIDTH = 240;
-const MIN_SEGMENT_WIDTH = 48;
+const MIN_SEGMENT_WIDTH = 56;
 const LABEL_WIDTH = 130;
 const STEP_COL_WIDTH = 36;
 
@@ -22,6 +28,12 @@ function stageColor(index: number, total: number): string {
   const saturation = 55 + t * 15;
   return `hsl(${startHue} ${saturation}% ${lightness}%)`;
 }
+
+const OUTCOME_COLORS = [
+  "hsl(38 85% 52%)",
+  "hsl(158 55% 42%)",
+  "hsl(0 55% 52%)",
+];
 
 function segmentWidths(values: number[]): number[] {
   const top = values[0] ?? 1;
@@ -88,19 +100,234 @@ function StepBadge({ step, y }: { step: number; y: number }) {
   );
 }
 
-export function EngagementFunnelChart({
+function StageLabels({
+  stage,
+  labelY,
+}: {
+  stage: EngagementFunnelStage;
+  labelY: number;
+}) {
+  return (
+    <>
+      <text
+        x={LABEL_WIDTH - 8}
+        y={labelY - 8}
+        textAnchor="end"
+        fill="hsl(var(--foreground))"
+        fontSize={13}
+        fontWeight={500}
+        style={{ fontFamily: "inherit" }}
+      >
+        {stage.label}
+      </text>
+      <text
+        x={LABEL_WIDTH - 8}
+        y={labelY + 12}
+        textAnchor="end"
+        fill="hsl(var(--primary))"
+        fontSize={14}
+        fontWeight={700}
+        style={{ fontFamily: "inherit" }}
+      >
+        {stage.pct}%
+      </text>
+    </>
+  );
+}
+
+function outcomeBoxWidths(
+  branches: EngagementFunnelBranch[],
+  totalSpread: number
+): number[] {
+  const centerMin = 96;
+  const sideMin = 56;
+  const [left, center, right] = branches;
+  const sum = left.value + center.value + right.value || 1;
+
+  let centerW = Math.max((center.value / sum) * totalSpread * 0.55, centerMin);
+  let leftW = Math.max((left.value / sum) * totalSpread * 0.225, sideMin);
+  let rightW = Math.max((right.value / sum) * totalSpread * 0.225, sideMin);
+
+  const totalW = leftW + centerW + rightW + OUTCOME_GAP * 2;
+  if (totalW > totalSpread + 20) {
+    const scale = (totalSpread + 20) / totalW;
+    leftW *= scale;
+    centerW *= scale;
+    rightW *= scale;
+  }
+
+  return [leftW, centerW, rightW];
+}
+
+function SplitBottomFunnel({
   stages,
+  branches,
   className,
 }: {
   stages: EngagementFunnelStage[];
+  branches: EngagementFunnelBranch[];
+  className?: string;
+}) {
+  const linearStages = stages.slice(0, 2);
+  const values = linearStages.map((s) => s.value);
+  const widths = segmentWidths(values);
+  const funnelCenterX = LABEL_WIDTH + MAX_FUNNEL_WIDTH / 2 + 20;
+  const stepX = funnelCenterX + MAX_FUNNEL_WIDTH / 2 + STEP_COL_WIDTH;
+
+  const [leftW, centerW, rightW] = outcomeBoxWidths(branches, MAX_FUNNEL_WIDTH + 40);
+  const outcomesTotalW = leftW + centerW + rightW + OUTCOME_GAP * 2;
+  const outcomesStartX = funnelCenterX - outcomesTotalW / 2;
+
+  const linearHeight = 2 * STAGE_HEIGHT + STAGE_GAP;
+  const outcomesY = linearHeight + CONNECTOR_HEIGHT;
+  const svgHeight = outcomesY + OUTCOME_BOX_HEIGHT + 36;
+
+  const confirmBottomY = STAGE_HEIGHT + STAGE_GAP + STAGE_HEIGHT;
+  const confirmBottomHalf = widths[1] / 2;
+
+  const leftBoxX = outcomesStartX;
+  const centerBoxX = leftBoxX + leftW + OUTCOME_GAP;
+  const rightBoxX = centerBoxX + centerW + OUTCOME_GAP;
+
+  const leftBoxTop = { x: leftBoxX + leftW / 2, y: outcomesY };
+  const centerBoxTop = { x: centerBoxX + centerW / 2, y: outcomesY };
+  const rightBoxTop = { x: rightBoxX + rightW / 2, y: outcomesY };
+  const confirmBottom = { x: funnelCenterX, y: confirmBottomY };
+
+  return (
+    <div className={cn("w-full py-2", className)}>
+      <svg
+        viewBox={`0 0 ${stepX + STEP_COL_WIDTH} ${svgHeight}`}
+        className="mx-auto h-auto w-full max-w-[500px]"
+        role="img"
+        aria-label="Funil de comparecimento"
+      >
+        {linearStages.map((stage, index) => {
+          const topWidth = widths[index];
+          const bottomWidth = index === 0 ? widths[1] : widths[1];
+          const segmentY = index * (STAGE_HEIGHT + STAGE_GAP);
+          const labelY = segmentY + STAGE_HEIGHT / 2;
+
+          return (
+            <g key={stage.step}>
+              <StageLabels stage={stage} labelY={labelY} />
+              <g transform={`translate(${funnelCenterX}, ${segmentY})`}>
+                <TrapezoidShape
+                  topWidth={topWidth}
+                  bottomWidth={bottomWidth}
+                  height={STAGE_HEIGHT}
+                  fill={stageColor(index, 2)}
+                  value={stage.value}
+                />
+              </g>
+              <g transform={`translate(${stepX}, 0)`}>
+                <StepBadge step={stage.step} y={labelY} />
+              </g>
+            </g>
+          );
+        })}
+
+        <g
+          stroke="hsl(var(--border))"
+          strokeWidth={2}
+          fill="none"
+          strokeLinecap="round"
+        >
+          <line
+            x1={confirmBottom.x}
+            y1={confirmBottom.y}
+            x2={centerBoxTop.x}
+            y2={centerBoxTop.y}
+          />
+          <line
+            x1={confirmBottom.x - confirmBottomHalf * 0.6}
+            y1={confirmBottom.y}
+            x2={leftBoxTop.x}
+            y2={leftBoxTop.y}
+          />
+          <line
+            x1={confirmBottom.x + confirmBottomHalf * 0.6}
+            y1={confirmBottom.y}
+            x2={rightBoxTop.x}
+            y2={rightBoxTop.y}
+          />
+        </g>
+
+        {branches.map((branch, i) => {
+          const boxX = [leftBoxX, centerBoxX, rightBoxX][i];
+          const boxW = [leftW, centerW, rightW][i];
+          return (
+            <g key={branch.label}>
+              <rect
+                x={boxX}
+                y={outcomesY}
+                width={boxW}
+                height={OUTCOME_BOX_HEIGHT}
+                rx={8}
+                fill={OUTCOME_COLORS[i]}
+              />
+              <text
+                x={boxX + boxW / 2}
+                y={outcomesY + OUTCOME_BOX_HEIGHT / 2 - 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="white"
+                fontSize={15}
+                fontWeight={700}
+                style={{ fontFamily: "inherit" }}
+              >
+                {branch.value}
+              </text>
+              <text
+                x={boxX + boxW / 2}
+                y={outcomesY + OUTCOME_BOX_HEIGHT + 16}
+                textAnchor="middle"
+                fill="hsl(var(--foreground))"
+                fontSize={12}
+                fontWeight={600}
+                style={{ fontFamily: "inherit" }}
+              >
+                {branch.label}
+              </text>
+              <text
+                x={boxX + boxW / 2}
+                y={outcomesY + OUTCOME_BOX_HEIGHT + 30}
+                textAnchor="middle"
+                fill="hsl(var(--primary))"
+                fontSize={12}
+                fontWeight={700}
+                style={{ fontFamily: "inherit" }}
+              >
+                {branch.pct}%
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+export function EngagementFunnelChart({
+  stages,
+  branches,
+  className,
+}: {
+  stages: EngagementFunnelStage[];
+  branches?: EngagementFunnelBranch[];
   className?: string;
 }) {
   if (stages.length === 0 || stages[0].value === 0) {
     return null;
   }
 
-  const stageHeight =
-    stages.length > 4 ? STAGE_HEIGHT_COMPACT : STAGE_HEIGHT_DEFAULT;
+  if (branches && branches.length === 3) {
+    return (
+      <SplitBottomFunnel stages={stages} branches={branches} className={className} />
+    );
+  }
+
+  const stageHeight = stages.length > 4 ? 46 : STAGE_HEIGHT;
   const values = stages.map((s) => s.value);
   const widths = segmentWidths(values);
   const funnelCenterX = LABEL_WIDTH + MAX_FUNNEL_WIDTH / 2 + 20;
@@ -123,38 +350,16 @@ export function EngagementFunnelChart({
           const isLast = index === stages.length - 1;
           const segmentY = index * (stageHeight + STAGE_GAP);
           const labelY = segmentY + stageHeight / 2;
-          const color = stageColor(index, stages.length);
 
           return (
             <g key={stage.step}>
-              <text
-                x={LABEL_WIDTH - 8}
-                y={labelY - 8}
-                textAnchor="end"
-                fill="hsl(var(--foreground))"
-                fontSize={13}
-                fontWeight={500}
-                style={{ fontFamily: "inherit" }}
-              >
-                {stage.label}
-              </text>
-              <text
-                x={LABEL_WIDTH - 8}
-                y={labelY + 12}
-                textAnchor="end"
-                fill="hsl(var(--primary))"
-                fontSize={14}
-                fontWeight={700}
-                style={{ fontFamily: "inherit" }}
-              >
-                {stage.pct}%
-              </text>
+              <StageLabels stage={stage} labelY={labelY} />
               <g transform={`translate(${funnelCenterX}, ${segmentY})`}>
                 <TrapezoidShape
                   topWidth={topWidth}
                   bottomWidth={isLast ? 0 : bottomWidth}
                   height={stageHeight}
-                  fill={color}
+                  fill={stageColor(index, stages.length)}
                   value={stage.value}
                   isTriangle={isLast}
                 />

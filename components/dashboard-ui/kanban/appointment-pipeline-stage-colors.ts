@@ -35,3 +35,16 @@ export const APPOINTMENT_PIPELINE_STAGES: AppointmentPipelineStatus[] = [
   "falta",
   "cancelada",
 ];
+
+/** Etapas iniciais (fluxo horizontal) */
+export const APPOINTMENT_PIPELINE_FLOW_STAGES: AppointmentPipelineStatus[] = [
+  "agendada",
+  "confirmada",
+];
+
+/** Desfechos após confirmação (empilhados na vertical) */
+export const APPOINTMENT_PIPELINE_OUTCOME_STAGES: AppointmentPipelineStatus[] = [
+  "realizada",
+  "falta",
+  "cancelada",
+];

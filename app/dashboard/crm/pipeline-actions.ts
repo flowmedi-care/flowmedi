@@ -348,14 +348,11 @@ async function buildAppointmentCumulativeFunnel(
   const cumulativeFunnel = buildCumulativeStages([
     { label: "Agendadas", value: total },
     { label: "Confirmadas", value: confirmedIds.size },
-    { label: "Realizadas", value: realizadas },
-    { label: "Faltas", value: faltas },
-    { label: "Canceladas", value: canceladas },
   ]);
 
   const outcomeBranches: FunnelOutcomeBranch[] = [
-    { label: "Realizada", value: realizadas, pct: pct(realizadas, total) },
     { label: "Falta", value: faltas, pct: pct(faltas, total) },
+    { label: "Realizada", value: realizadas, pct: pct(realizadas, total) },
     { label: "Cancelada", value: canceladas, pct: pct(canceladas, total) },
   ];
 
