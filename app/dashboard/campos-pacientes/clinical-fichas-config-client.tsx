@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { AppPageHeader } from "@/components/app-page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,7 @@ import {
 } from "./clinical-fichas-actions";
 import type { ClinicalFichaType } from "@/lib/clinical-ficha-types";
 import type { FormFieldDefinition } from "@/lib/form-types";
-import { ArrowLeft, Plus, Pencil } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const FICHA_TYPE_LABEL: Record<ClinicalFichaType, string> = {
@@ -124,20 +125,16 @@ export function ClinicalFichasConfigClient({
   if (showForm && isFieldsEditor) {
     return (
       <div className="flex flex-col min-h-[calc(100vh-10rem)] -mx-1">
-        <div className="flex items-center gap-3 mb-4">
-          <Button type="button" variant="ghost" size="sm" onClick={cancelForm}>
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Voltar
-          </Button>
-          <div>
-            <h2 className="text-lg font-semibold">
-              {isNew ? "Nova ficha" : "Editar ficha"}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Monte o relatório arrastando campos para a área central
-            </p>
-          </div>
-        </div>
+        <AppPageHeader
+          breadcrumbs={[
+            { label: "Campos do paciente", href: "/dashboard/campos-pacientes" },
+            { label: isNew ? "Nova ficha" : "Editar ficha" },
+          ]}
+          onBack={cancelForm}
+          title={isNew ? "Nova ficha" : "Editar ficha"}
+          description="Monte o relatório arrastando campos para a área central"
+          className="mb-4"
+        />
 
         {error && (
           <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md mb-4">

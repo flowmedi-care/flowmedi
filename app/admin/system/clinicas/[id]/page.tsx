@@ -1,11 +1,9 @@
 import { redirect, notFound } from "next/navigation";
 import { requireSystemAdmin } from "@/lib/auth-helpers";
 import { createClient } from "@/lib/supabase/server";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { AppPageHeader } from "@/components/app-page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft } from "lucide-react";
 import { ClinicaForm } from "./clinica-form";
 
 export default async function EditarClinicaPage({
@@ -58,21 +56,16 @@ export default async function EditarClinicaPage({
 
   return (
     <div className="container mx-auto py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/admin/system/clinicas">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold">Editar Clínica</h1>
-            <p className="text-muted-foreground mt-2">
-              {clinic.name}
-            </p>
-          </div>
-        </div>
-      </div>
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Sistema", href: "/admin/system" },
+          { label: "Clínicas", href: "/admin/system/clinicas" },
+          { label: clinic.name },
+        ]}
+        backHref="/admin/system/clinicas"
+        title="Editar Clínica"
+        description={clinic.name}
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         <ClinicaForm

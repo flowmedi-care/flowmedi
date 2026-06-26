@@ -1,34 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { AppPageHeader } from "@/components/app-page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Mail, Send } from "lucide-react";
+import { Mail, Send } from "lucide-react";
 import { EmailBrandingCard } from "../templates/email-branding-card";
 
 export function EmailSettingsClient() {
-  const router = useRouter();
   const [testEmailTo, setTestEmailTo] = useState("");
   const [testEmailSending, setTestEmailSending] = useState(false);
   const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Configurações de email</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Teste de envio e configuração de cabeçalho/rodapé dos emails.
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => router.push("/dashboard/mensagens")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar para Mensagens
-        </Button>
-      </div>
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Mensagens", href: "/dashboard/mensagens" },
+          { label: "E-mail" },
+        ]}
+        backHref="/dashboard/mensagens"
+        title="Configurações de email"
+        description="Teste de envio e configuração de cabeçalho/rodapé dos emails."
+      />
 
       <Card className="p-4 sm:p-5">
         <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-2 sm:text-lg">

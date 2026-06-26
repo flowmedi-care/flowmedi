@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConsultaTabsClient } from "./consulta-tabs-client";
 import { AppointmentStatusBar } from "./appointment-status-bar";
 import { DataHoraReagendar } from "./data-hora-reagendar";
-import { BackButton } from "./back-button";
+import { AppPageHeader } from "@/components/app-page-header";
 import { getStatusBadgeClassName } from "../../status-utils";
 import { formatPhoneBr } from "@/lib/format-phone";
 import { cn } from "@/lib/utils";
@@ -40,7 +40,13 @@ export default async function ConsultaDetalhePage({
   if (!gate.ok) {
     return (
       <div className="space-y-4">
-        <BackButton />
+        <AppPageHeader
+          breadcrumbs={[
+            { label: "Agenda", href: "/dashboard/agenda" },
+            { label: "Consulta" },
+          ]}
+          backHref="/dashboard/agenda"
+        />
         <SchemaErrorBanner message={gate.message} />
       </div>
     );
@@ -148,9 +154,18 @@ export default async function ConsultaDetalhePage({
   const serviceName = await loadServiceName(supabase, service_id);
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+  const patientName =
+    (patient as { full_name?: string } | null | undefined)?.full_name ?? "Consulta";
+
   return (
     <div className="space-y-6">
-      <BackButton />
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Agenda", href: "/dashboard/agenda" },
+          { label: patientName },
+        ]}
+        backHref="/dashboard/agenda"
+      />
       <AppointmentEncounterNav appointmentId={id} activeView="recepcao" />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

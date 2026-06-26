@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,12 +25,12 @@ import { AtendimentoClient } from "../consulta/[id]/atendimento-client";
 import { getAppointmentConsumption } from "../encounter-actions";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
+import { AppPageHeader } from "@/components/app-page-header";
 import { AppointmentEncounterNav } from "@/components/appointment-encounter-nav";
 import { ConsultationNotesClient } from "../consulta/[id]/consultation-notes-client";
 import { ExamesClient } from "@/app/dashboard/exames/exames-client";
 import { ClinicalTranscriptionPanel } from "./clinical-transcription-panel";
 import {
-  ArrowLeft,
   ClipboardList,
   Clock,
   CreditCard,
@@ -180,26 +179,28 @@ export function AtendimentoClinicoClient({
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-8rem)] border rounded-lg overflow-hidden bg-background">
+      <div className="border-b px-4 pt-3 pb-0 bg-card">
+        <AppPageHeader
+          breadcrumbs={[
+            { label: "Agenda", href: "/dashboard/agenda" },
+            { label: patientName },
+          ]}
+          backHref="/dashboard/agenda"
+          className="space-y-2"
+        />
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 bg-card">
-        <div className="flex items-center gap-3 min-w-0">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/dashboard/agenda">
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Agenda
-            </Link>
-          </Button>
-          <div className="min-w-0">
-            <p className="font-semibold truncate">{patientName}</p>
-            <p className="text-xs text-muted-foreground">
-              {new Date(scheduledAt).toLocaleString("pt-BR", {
-                day: "2-digit",
-                month: "short",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-              {doctorName && ` · ${doctorName}`}
-            </p>
-          </div>
+        <div className="min-w-0">
+          <p className="font-semibold truncate">{patientName}</p>
+          <p className="text-xs text-muted-foreground">
+            {new Date(scheduledAt).toLocaleString("pt-BR", {
+              day: "2-digit",
+              month: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            {doctorName && ` · ${doctorName}`}
+          </p>
         </div>
         <div className="flex gap-2">
           {canEdit && encounterStatus === "finalizado_aguardando_cobranca" && (

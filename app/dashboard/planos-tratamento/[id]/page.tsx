@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import { AppPageHeader } from "@/components/app-page-header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { fmtCurrency } from "@/lib/financeiro/format";
 
 // RECORRÊNCIA v1 — Detalhe do plano (destino do toast pós-agendamento recorrente).
@@ -65,18 +65,17 @@ export default async function PlanoTratamentoDetalhePage({
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <Button variant="ghost" size="sm" asChild>
-        <Link href="/dashboard/planos-tratamento">← Planos de tratamento</Link>
-      </Button>
-
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Planos de tratamento", href: "/dashboard/planos-tratamento" },
+          { label: plan.name },
+        ]}
+        backHref="/dashboard/planos-tratamento"
+        title={plan.name}
+        description={(patient as { full_name?: string })?.full_name ?? undefined}
+      />
       <Card>
-        <CardHeader>
-          <h1 className="text-xl font-semibold">{plan.name}</h1>
-          <p className="text-sm text-muted-foreground">
-            {(patient as { full_name?: string })?.full_name ?? "—"}
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm">
+        <CardContent className="pt-6 space-y-4 text-sm">
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{plan.status}</Badge>
             {plan.payment_policy && (

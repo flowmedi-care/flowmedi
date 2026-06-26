@@ -1,8 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { AppPageHeader } from "@/components/app-page-header";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 import { getMessageEvents, getSystemTemplatesForDisplay } from "../../actions";
@@ -44,20 +42,15 @@ export default async function TemplatesSistemaPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Templates do sistema</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Modelos padrão por evento/canal para copiar e personalizar.
-          </p>
-        </div>
-        <Link href="/dashboard/mensagens/templates">
-          <Button variant="outline">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar
-          </Button>
-        </Link>
-      </div>
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Templates", href: "/dashboard/mensagens/templates" },
+          { label: "Templates do sistema" },
+        ]}
+        backHref="/dashboard/mensagens/templates"
+        title="Templates do sistema"
+        description="Modelos padrão por evento/canal para copiar e personalizar."
+      />
 
       <TemplatesListClient
         savedTemplates={[]}

@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import Link from "next/link";
+import { AppPageHeader } from "@/components/app-page-header";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,7 +18,6 @@ import { CancelComandaDialog } from "../../financeiro/components/cancel-comanda-
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { calcPatientAge, type PatientProfileBundle } from "../profile-types";
 import {
-  ChevronLeft,
   User,
   Mail,
   Phone,
@@ -178,24 +178,14 @@ export function PacientePerfilClient({
 
   return (
     <div className="space-y-4">
-      <nav className="text-sm text-muted-foreground flex flex-wrap items-center gap-1">
-        <Link href="/dashboard/contatos/pacientes" className="hover:text-foreground">
-          Pacientes
-        </Link>
-        <span>/</span>
-        <span className="text-foreground font-medium truncate max-w-[200px] sm:max-w-none">
-          {patient.full_name}
-        </span>
-      </nav>
-
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/contatos/pacientes">
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <h1 className="text-xl font-semibold sm:text-2xl">Perfil do paciente</h1>
-      </div>
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Pacientes", href: "/dashboard/contatos/pacientes" },
+          { label: patient.full_name },
+        ]}
+        backHref="/dashboard/contatos/pacientes"
+        title="Perfil do paciente"
+      />
 
       <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
         {/* Coluna esquerda — resumo */}

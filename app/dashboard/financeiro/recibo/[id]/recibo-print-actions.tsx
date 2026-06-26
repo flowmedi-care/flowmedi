@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { resendReceiptPdf } from "@/app/dashboard/financeiro/receipt-actions";
@@ -48,9 +47,6 @@ export function ReciboPrintActions({
         disabled={resending}
       >
         {resending ? "Gerando…" : "Reenviar PDF"}
-      </Button>
-      <Button variant="outline" asChild className="flex-1 min-w-[120px]">
-        <Link href="/dashboard/financeiro/receber">Voltar</Link>
       </Button>
     </div>
   );

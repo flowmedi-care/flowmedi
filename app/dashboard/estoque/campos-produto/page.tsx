@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { AppPageHeader } from "@/components/app-page-header";
 import { listProductFieldDefinitions } from "@/app/dashboard/estoque/product-field-actions";
 import { ProductFieldsClient } from "./product-fields-client";
-import Link from "next/link";
 
 export default async function ProductFieldsPage() {
   const supabase = await createClient();
@@ -22,17 +22,15 @@ export default async function ProductFieldsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold">Campos de produto</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Atributos personalizados por clínica (validade, registro, etc.).
-          </p>
-        </div>
-        <Link href="/dashboard/estoque" className="text-sm text-primary hover:underline">
-          Voltar ao estoque
-        </Link>
-      </div>
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Estoque", href: "/dashboard/estoque" },
+          { label: "Campos de produto" },
+        ]}
+        backHref="/dashboard/estoque"
+        title="Campos de produto"
+        description="Atributos personalizados por clínica (validade, registro, etc.)."
+      />
       <ProductFieldsClient initialFields={fields} />
     </div>
   );

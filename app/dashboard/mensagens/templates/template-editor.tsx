@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { AppPageHeader } from "@/components/app-page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +15,7 @@ import {
   updateMessageTemplate,
 } from "../actions";
 import { extractVariables, validateVariables } from "@/lib/message-variables";
-import { ArrowLeft, Mail, MessageSquare, AlertCircle, Code2, Palette } from "lucide-react";
+import { Mail, MessageSquare, AlertCircle, Code2, Palette } from "lucide-react";
 import { VisualEditor, blocksToHtml } from "@/components/email-template-builder/visual-editor";
 import { EmailBlock } from "@/components/email-template-builder/types";
 import { htmlToBlocks } from "@/components/email-template-builder/html-converter";
@@ -214,21 +215,15 @@ export function TemplateEditor({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/dashboard/mensagens/templates">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">
-            {isEdit ? "Editar Template" : "Novo Template"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Crie um template de mensagem para email ou WhatsApp
-          </p>
-        </div>
-      </div>
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Templates", href: "/dashboard/mensagens/templates" },
+          { label: isEdit ? "Editar template" : "Novo template" },
+        ]}
+        backHref="/dashboard/mensagens/templates"
+        title={isEdit ? "Editar Template" : "Novo Template"}
+        description="Crie um template de mensagem para email ou WhatsApp"
+      />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (

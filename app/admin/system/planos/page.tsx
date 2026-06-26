@@ -3,9 +3,10 @@ import { requireSystemAdmin } from "@/lib/auth-helpers";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { AppPageHeader } from "@/components/app-page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ArrowLeft } from "lucide-react";
+import { Plus } from "lucide-react";
 
 export default async function PlanosPage() {
   await requireSystemAdmin();
@@ -18,27 +19,23 @@ export default async function PlanosPage() {
 
   return (
     <div className="container mx-auto py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/admin/system">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Sistema", href: "/admin/system" },
+          { label: "Planos" },
+        ]}
+        backHref="/admin/system"
+        title="Gerenciar Planos"
+        description="Configure os planos disponíveis no sistema"
+        actions={
+          <Link href="/admin/system/planos/novo">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Plano
             </Button>
           </Link>
-          <div>
-            <h1 className="text-3xl font-bold">Gerenciar Planos</h1>
-            <p className="text-muted-foreground mt-2">
-              Configure os planos disponíveis no sistema
-            </p>
-          </div>
-        </div>
-        <Link href="/admin/system/planos/novo">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Plano
-          </Button>
-        </Link>
-      </div>
+        }
+      />
 
       <div className="grid gap-4">
         {!plans || plans.length === 0 ? (

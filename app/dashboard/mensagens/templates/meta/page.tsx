@@ -1,8 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { AppPageHeader } from "@/components/app-page-header";
 import { getClinicMetaMessageModels } from "../../actions";
 import { MetaModelsClient } from "../meta-models-client";
 
@@ -29,20 +27,15 @@ export default async function TemplatesMetaPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Modelos de mensagens Meta</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Crie modelos e envie para aprovação na Meta.
-          </p>
-        </div>
-        <Link href="/dashboard/mensagens/templates">
-          <Button variant="outline">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar
-          </Button>
-        </Link>
-      </div>
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Templates", href: "/dashboard/mensagens/templates" },
+          { label: "Meta" },
+        ]}
+        backHref="/dashboard/mensagens/templates"
+        title="Modelos de mensagens Meta"
+        description="Crie modelos e envie para aprovação na Meta."
+      />
 
       {modelsResult.error ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

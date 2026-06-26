@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { AppPageHeader } from "@/components/app-page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { FormBuilderDnd } from "./form-builder-dnd";
 import { createFormTemplate, updateFormTemplate } from "./actions";
 import type { FormFieldDefinition } from "@/lib/form-types";
-import { ArrowLeft } from "lucide-react";
 
 type AppointmentTypeOption = { id: string; name: string };
 
@@ -84,24 +84,19 @@ export function FormularioEditor({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <Link href="/dashboard/formularios">
-          <Button variant="ghost" size="icon" className="h-9 w-9 mt-0.5">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold">
-            {isEdit ? "Editar formulário" : "Novo formulário"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {isEdit 
-              ? "Atualize as informações e campos do formulário"
-              : "Crie um novo formulário para coletar informações dos pacientes"
-            }
-          </p>
-        </div>
-      </div>
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Formulários", href: "/dashboard/formularios" },
+          { label: isEdit ? "Editar formulário" : "Novo formulário" },
+        ]}
+        backHref="/dashboard/formularios"
+        title={isEdit ? "Editar formulário" : "Novo formulário"}
+        description={
+          isEdit
+            ? "Atualize as informações e campos do formulário"
+            : "Crie um novo formulário para coletar informações dos pacientes"
+        }
+      />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (

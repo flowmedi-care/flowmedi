@@ -3,9 +3,10 @@ import { requireSystemAdmin } from "@/lib/auth-helpers";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { AppPageHeader } from "@/components/app-page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit } from "lucide-react";
+import { Edit } from "lucide-react";
 
 export default async function ClinicasPage() {
   await requireSystemAdmin();
@@ -36,21 +37,15 @@ export default async function ClinicasPage() {
 
   return (
     <div className="container mx-auto py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/admin/system">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold">Gerenciar Clínicas</h1>
-            <p className="text-muted-foreground mt-2">
-              Visualize e gerencie planos e assinaturas das clínicas
-            </p>
-          </div>
-        </div>
-      </div>
+      <AppPageHeader
+        breadcrumbs={[
+          { label: "Sistema", href: "/admin/system" },
+          { label: "Clínicas" },
+        ]}
+        backHref="/admin/system"
+        title="Gerenciar Clínicas"
+        description="Visualize e gerencie planos e assinaturas das clínicas"
+      />
 
       <div className="grid gap-4">
         {!clinics || clinics.length === 0 ? (
