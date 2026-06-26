@@ -17,6 +17,7 @@ import { toast } from "@/components/ui/toast";
 import type { MessageEvent, ClinicMessageSetting, MessageTemplate, EffectiveTemplateItem } from "@/app/dashboard/mensagens/actions";
 import type { MessagePreviewItem } from "@/lib/message-processor";
 import { getChannelSendState } from "@/lib/event-send-logic";
+import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 
 // Formatação de data
 function formatDate(dateString: string): string {
@@ -1023,45 +1024,16 @@ export function EventosClient({
         </CardContent>
       </Card>
 
-      {/* Tabs: Todos, Pendentes, Concluídos */}
-      <div className="flex gap-2 border-b border-border overflow-x-auto">
-        <button
-          onClick={() => setActiveTab("all")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2",
-            activeTab === "all"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <ListTodo className="h-4 w-4" />
-          Todos ({filteredAll.length})
-        </button>
-        <button
-          onClick={() => setActiveTab("pending")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2",
-            activeTab === "pending"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Clock className="h-4 w-4" />
-          Pendentes ({filteredPending.length})
-        </button>
-        <button
-          onClick={() => setActiveTab("completed")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2",
-            activeTab === "completed"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <CheckCircle className="h-4 w-4" />
-          Concluídos ({filteredCompleted.length})
-        </button>
-      </div>
+      <SegmentedTabs
+        tabs={[
+          { id: "all", label: "Todos", count: filteredAll.length, icon: ListTodo },
+          { id: "pending", label: "Pendentes", count: filteredPending.length, icon: Clock },
+          { id: "completed", label: "Concluídos", count: filteredCompleted.length, icon: CheckCircle },
+        ]}
+        value={activeTab}
+        onChange={(id) => setActiveTab(id as "all" | "pending" | "completed")}
+        variant="underline"
+      />
 
       <div className="space-y-4">
         {activeTab === "all" && (

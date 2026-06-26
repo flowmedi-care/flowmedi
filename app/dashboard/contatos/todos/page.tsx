@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { listAllContacts } from "../actions";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
+import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 
 const TYPE_LABELS: Record<string, string> = {
   paciente: "Paciente",
@@ -18,46 +20,45 @@ export default async function TodosContatosPage() {
   if (!user) redirect("/entrar");
 
   const { data: contacts, error } = await listAllContacts();
+  const list = contacts ?? [];
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Todos contatos</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Visão unificada de pacientes, leads, fornecedores e profissionais.
-        </p>
-      </div>
+    <PageShell
+      header={{
+        breadcrumbs: [{ label: "Todos contatos" }],
+        title: "Todos contatos",
+        description: "Visão unificada de pacientes, leads, fornecedores e profissionais.",
+      }}
+    >
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Card>
-        <CardHeader>
-          <p className="text-sm font-medium">{(contacts ?? []).length} contato(s)</p>
-        </CardHeader>
-        <CardContent className="divide-y divide-border max-h-[70vh] overflow-y-auto">
-          {(contacts ?? []).map((c) => (
-            <div
-              key={`${c.type}-${c.id}`}
-              className="py-3 flex flex-wrap items-center justify-between gap-2 first:pt-0"
-            >
-              <div>
-                {c.href ? (
-                  <Link href={c.href} className="font-medium hover:text-primary">
-                    {c.name}
-                  </Link>
-                ) : (
-                  <p className="font-medium">{c.name}</p>
-                )}
-                <p className="text-sm text-muted-foreground">
-                  {[c.email, c.phone].filter(Boolean).join(" · ") || "—"}
-                </p>
+      <p className="text-sm font-medium text-muted-foreground mb-4">
+        {list.length} contato(s)
+      </p>
+      {list.length === 0 && !error ? (
+        <EmptyState title="Nenhum contato encontrado" />
+      ) : (
+        <ListPanel className="max-h-[70vh] overflow-y-auto">
+          {list.map((c) => (
+            <ListPanelItem key={`${c.type}-${c.id}`}>
+              <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                <div>
+                  {c.href ? (
+                    <Link href={c.href} className="font-medium hover:text-primary">
+                      {c.name}
+                    </Link>
+                  ) : (
+                    <p className="font-medium">{c.name}</p>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    {[c.email, c.phone].filter(Boolean).join(" · ") || "—"}
+                  </p>
+                </div>
+                <Badge variant="secondary">{TYPE_LABELS[c.type] ?? c.type}</Badge>
               </div>
-              <Badge variant="secondary">{TYPE_LABELS[c.type] ?? c.type}</Badge>
-            </div>
+            </ListPanelItem>
           ))}
-          {(contacts ?? []).length === 0 && !error && (
-            <p className="text-sm text-muted-foreground py-4">Nenhum contato encontrado.</p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        </ListPanel>
+      )}
+    </PageShell>
   );
 }

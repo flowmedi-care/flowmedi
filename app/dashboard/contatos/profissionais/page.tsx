@@ -2,10 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EquipeClient } from "../../equipe/equipe-client";
 import { WhatsAppRoutingSection } from "../../configuracoes/whatsapp-routing-section";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
+import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 
 export default async function ProfissionaisPage() {
   const supabase = await createClient();
@@ -76,13 +78,13 @@ export default async function ProfissionaisPage() {
     }
 
     return (
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-2xl font-semibold">Profissionais</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Equipe da clínica — convites, papéis e vínculos secretária/médico.
-          </p>
-        </div>
+      <PageShell
+        header={{
+          breadcrumbs: [{ label: "Profissionais" }],
+          title: "Profissionais",
+          description: "Equipe da clínica — convites, papéis e vínculos secretária/médico.",
+        }}
+      >
         <EquipeClient
           clinicId={clinicId}
           members={members.map((m) => ({
@@ -109,54 +111,53 @@ export default async function ProfissionaisPage() {
           }}
         />
         <WhatsAppRoutingSection clinicId={clinicId} />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Profissionais</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Profissionais e equipe administrativa da clínica.
-        </p>
-      </div>
-      <Card>
-        <CardHeader>
-          <p className="text-sm font-medium">Equipe ({members.length})</p>
-        </CardHeader>
-        <CardContent className="divide-y divide-border">
+    <PageShell
+      header={{
+        breadcrumbs: [{ label: "Profissionais" }],
+        title: "Profissionais",
+        description: "Profissionais e equipe administrativa da clínica.",
+      }}
+    >
+      {members.length === 0 ? (
+        <EmptyState title="Nenhum profissional cadastrado" />
+      ) : (
+        <ListPanel>
           {members.map((m) => (
-            <div
-              key={m.id}
-              className="py-3 flex flex-wrap items-center justify-between gap-2 first:pt-0 last:pb-0"
-            >
-              <div>
-                <p className="font-medium">{m.full_name ?? "—"}</p>
-                <p className="text-sm text-muted-foreground">{m.email}</p>
-                {m.role === "medico" && (m.crm || m.specialty) && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {[m.specialty, m.crm && m.crm_uf ? `CRM ${m.crm}/${m.crm_uf}` : m.crm]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                )}
+            <ListPanelItem key={m.id}>
+              <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="font-medium">{m.full_name ?? "—"}</p>
+                  <p className="text-sm text-muted-foreground">{m.email}</p>
+                  {m.role === "medico" && (m.crm || m.specialty) && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {[m.specialty, m.crm && m.crm_uf ? `CRM ${m.crm}/${m.crm_uf}` : m.crm]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  )}
+                </div>
+                <Badge variant="outline" className="capitalize">
+                  {m.role === "medico"
+                    ? "Profissional"
+                    : m.role === "secretaria"
+                      ? "Secretário(a)"
+                      : "Admin"}
+                </Badge>
               </div>
-              <Badge variant="outline" className="capitalize">
-                {m.role === "medico" ? "Profissional" : m.role === "secretaria" ? "Secretário(a)" : "Admin"}
-              </Badge>
-            </div>
+            </ListPanelItem>
           ))}
-          {members.length === 0 && (
-            <p className="text-sm text-muted-foreground py-4">Nenhum profissional cadastrado.</p>
-          )}
-        </CardContent>
-      </Card>
+        </ListPanel>
+      )}
       {myProfile.role === "medico" && (
         <Link href="/dashboard/perfil">
           <Button variant="outline">Meu perfil profissional</Button>
         </Link>
       )}
-    </div>
+    </PageShell>
   );
 }

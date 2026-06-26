@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { createSupplier, type SupplierRow } from "../actions";
 import { Plus } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { AppPageHeader } from "@/components/app-page-header";
+import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 
 export function FornecedoresClient({
   initialSuppliers,
@@ -56,45 +58,48 @@ export function FornecedoresClient({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Fornecedores</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Cadastro de fornecedores para despesas e contas a pagar.
-          </p>
-        </div>
-        {canManage && (
-          <Button onClick={() => setOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Novo fornecedor
-          </Button>
+    <div className="space-y-6">
+      <AppPageHeader
+        breadcrumbs={[{ label: "Fornecedores" }]}
+        title="Fornecedores"
+        description="Cadastro de fornecedores para despesas e contas a pagar."
+        actions={
+          canManage ? (
+            <Button onClick={() => setOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo fornecedor
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <div className="surface-elevated p-4 sm:p-6">
+        <p className="text-sm font-medium text-muted-foreground mb-4">
+          {initialSuppliers.length} fornecedor(es)
+        </p>
+        {initialSuppliers.length === 0 ? (
+          <EmptyState
+            title="Nenhum fornecedor cadastrado"
+            description="Use em lançamentos de despesa no Financeiro."
+          />
+        ) : (
+          <ListPanel>
+            {initialSuppliers.map((s) => (
+              <ListPanelItem key={s.id}>
+                <div>
+                  <p className="font-medium">{s.name}</p>
+                  <div className="text-sm text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                    {s.document && <span>{s.document}</span>}
+                    {s.email && <span>{s.email}</span>}
+                    {s.phone && <span>{s.phone}</span>}
+                  </div>
+                  {s.notes && <p className="text-xs text-muted-foreground mt-1">{s.notes}</p>}
+                </div>
+              </ListPanelItem>
+            ))}
+          </ListPanel>
         )}
       </div>
-
-      <Card>
-        <CardHeader>
-          <p className="text-sm font-medium">{initialSuppliers.length} fornecedor(es)</p>
-        </CardHeader>
-        <CardContent className="divide-y divide-border">
-          {initialSuppliers.map((s) => (
-            <div key={s.id} className="py-3 first:pt-0 last:pb-0">
-              <p className="font-medium">{s.name}</p>
-              <div className="text-sm text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                {s.document && <span>{s.document}</span>}
-                {s.email && <span>{s.email}</span>}
-                {s.phone && <span>{s.phone}</span>}
-              </div>
-              {s.notes && <p className="text-xs text-muted-foreground mt-1">{s.notes}</p>}
-            </div>
-          ))}
-          {initialSuppliers.length === 0 && (
-            <p className="text-sm text-muted-foreground py-2">
-              Nenhum fornecedor cadastrado. Use em lançamentos de despesa no Financeiro.
-            </p>
-          )}
-        </CardContent>
-      </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

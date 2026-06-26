@@ -23,8 +23,10 @@ import {
   updateServicePrice,
   deleteServicePrice,
 } from "./actions";
-import { Plus, Pencil, Trash2, Loader2, Briefcase, Sliders, ListChecks, Calculator, Inbox } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Briefcase, Sliders, ListChecks, Calculator, Inbox, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 
 import {
   recurrenceBillingModeLabel,
@@ -43,32 +45,6 @@ type ServicePriceRow = { id: string; service_id: string; professional_id: string
 type DoctorRow = { id: string; full_name: string | null };
 
 type Tab = "servicos" | "dimensoes" | "valores" | "regras";
-
-function EmptyState({
-  icon: Icon,
-  title,
-  description,
-  actionLabel,
-  onAction,
-}: {
-  icon: React.ElementType;
-  title: string;
-  description: string;
-  actionLabel: string;
-  onAction: () => void;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 rounded-lg border border-dashed border-border bg-muted/20">
-      <Icon className="h-10 w-10 text-muted-foreground mb-3" aria-hidden />
-      <h3 className="text-sm font-medium text-foreground mb-1">{title}</h3>
-      <p className="text-sm text-muted-foreground text-center max-w-sm mb-4">{description}</p>
-      <Button variant="outline" size="sm" onClick={onAction}>
-        <Plus className="h-4 w-4 mr-2" />
-        {actionLabel}
-      </Button>
-    </div>
-  );
-}
 
 export function ServicosValoresClient({
   services: initialServices,
@@ -92,7 +68,7 @@ export function ServicosValoresClient({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("servicos");
 
-  const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
+  const tabs: { id: Tab; label: string; icon: LucideIcon }[] = [
     { id: "servicos", label: "Serviços", icon: Briefcase },
     { id: "dimensoes", label: "Dimensões", icon: Sliders },
     { id: "valores", label: "Valores por dimensão", icon: ListChecks },
@@ -101,28 +77,12 @@ export function ServicosValoresClient({
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-border">
-        <nav className="flex flex-wrap gap-1" aria-label="Abas">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px",
-                  activeTab === tab.id
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted"
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                {tab.label}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+      <SegmentedTabs
+        tabs={tabs.map((t) => ({ id: t.id, label: t.label, icon: t.icon }))}
+        value={activeTab}
+        onChange={(id) => setActiveTab(id as Tab)}
+        variant="underline"
+      />
 
       <div className="min-h-[320px]">
         {activeTab === "servicos" && (
@@ -314,12 +274,14 @@ function ServicosSection({
             icon={Inbox}
             title="Nenhum serviço cadastrado"
             description="Cadastre os serviços oferecidos pela clínica para configurar preços e usar na agenda."
-            actionLabel="Adicionar primeiro serviço"
-            onAction={() => {
-              setIsNew(true);
-              setNome("");
-              setCategoria("");
-              setRecurrenceBillingMode(null);
+            action={{
+              label: "Adicionar primeiro serviço",
+              onClick: () => {
+                setIsNew(true);
+                setNome("");
+                setCategoria("");
+                setRecurrenceBillingMode(null);
+              },
             }}
           />
         ) : (
@@ -502,8 +464,7 @@ function DimensoesSection({
             icon={Sliders}
             title="Nenhuma dimensão cadastrada"
             description="Crie dimensões para diferenciar preços (convênio, cidade, turno, etc.)."
-            actionLabel="Adicionar primeira dimensão"
-            onAction={() => { setIsNew(true); setNome(""); }}
+            action={{ label: "Adicionar primeira dimensão", onClick: () => { setIsNew(true); setNome(""); } }}
           />
         ) : (
           <div className="overflow-x-auto rounded-lg border">
@@ -1013,8 +974,16 @@ function RegrasSection({
             icon={Calculator}
             title="Nenhuma regra de preço"
             description="Crie regras para definir quanto cobrar por serviço conforme dimensões (convênio, cidade, etc.)."
-            actionLabel="Adicionar primeira regra"
-            onAction={() => { setIsNew(true); setServiceId(""); setProfessionalId(""); setValor(""); setSelectedDimensionValueIds([]); }}
+            action={{
+              label: "Adicionar primeira regra",
+              onClick: () => {
+                setIsNew(true);
+                setServiceId("");
+                setProfessionalId("");
+                setValor("");
+                setSelectedDimensionValueIds([]);
+              },
+            }}
           />
         ) : (
           <div className="overflow-x-auto rounded-lg border">

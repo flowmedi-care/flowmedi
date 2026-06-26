@@ -2,8 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { ExternalLink } from "lucide-react";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
+import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 
 export default async function CrmCaptacaoPage() {
   const supabase = await createClient();
@@ -33,58 +36,62 @@ export default async function CrmCaptacaoPage() {
     .eq("id", profile.clinic_id)
     .single();
 
+  const formList = forms ?? [];
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Formulários de captação</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Formulários públicos que geram leads no pipeline.
-          </p>
-        </div>
-        <Link href="/dashboard/configuracoes/campos-personalizados?tab=formularios">
-          <Button variant="outline">Gerenciar formulários</Button>
-        </Link>
-      </div>
-      <Card>
-        <CardHeader>
-          <p className="text-sm font-medium">{(forms ?? []).length} formulário(s) público(s)</p>
-        </CardHeader>
-        <CardContent className="divide-y divide-border">
-          {(forms ?? []).map((f) => (
-            <div key={f.id} className="py-3 flex flex-wrap justify-between gap-2 first:pt-0">
-              <div>
-                <p className="font-medium">{f.name}</p>
+    <PageShell
+      header={{
+        breadcrumbs: [{ label: "Formulários de captação" }],
+        title: "Formulários de captação",
+        description: "Formulários públicos que geram leads no pipeline.",
+        actions: (
+          <Link href="/dashboard/configuracoes/campos-personalizados?tab=formularios">
+            <Button variant="outline">Gerenciar formulários</Button>
+          </Link>
+        ),
+      }}
+    >
+      <p className="text-sm font-medium text-muted-foreground mb-4">
+        {formList.length} formulário(s) público(s)
+      </p>
+      {formList.length === 0 ? (
+        <EmptyState
+          title="Nenhum formulário público"
+          description="Marque um formulário como público em Formulários."
+        />
+      ) : (
+        <ListPanel>
+          {formList.map((f) => (
+            <ListPanelItem key={f.id}>
+              <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="font-medium">{f.name}</p>
+                  {clinic?.slug && f.slug && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      /f/public/{clinic.slug}/{f.slug}
+                    </p>
+                  )}
+                </div>
                 {clinic?.slug && f.slug && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    /f/public/{clinic.slug}/{f.slug}
-                  </p>
+                  <a
+                    href={`/f/public/${clinic.slug}/${f.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="ghost" size="sm">
+                      <ExternalLink className="h-4 w-4 mr-1" />
+                      Abrir
+                    </Button>
+                  </a>
                 )}
               </div>
-              {clinic?.slug && f.slug && (
-                <a
-                  href={`/f/public/${clinic.slug}/${f.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button variant="ghost" size="sm">
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    Abrir
-                  </Button>
-                </a>
-              )}
-            </div>
+            </ListPanelItem>
           ))}
-          {(forms ?? []).length === 0 && (
-            <p className="text-sm text-muted-foreground py-4">
-              Nenhum formulário público. Marque um formulário como público em Formulários.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+        </ListPanel>
+      )}
       <Link href="/dashboard/contatos/leads">
-        <Button>Ver pipeline de leads</Button>
+        <Button className="mt-4">Ver pipeline de leads</Button>
       </Link>
-    </div>
+    </PageShell>
   );
 }

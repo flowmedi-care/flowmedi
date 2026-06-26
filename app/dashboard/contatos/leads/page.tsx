@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PipelineClient } from "../../pipeline/pipeline-client";
 import { getPipeline, syncNonRegisteredToPipeline } from "../../pipeline/actions";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 
 export default async function LeadsPage() {
   const supabase = await createClient();
@@ -22,18 +23,22 @@ export default async function LeadsPage() {
   const pipelineRes = await getPipeline();
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Leads</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Contatos de formulários públicos e links ainda não cadastrados como pacientes.
-        </p>
-      </div>
+    <PageShell
+      header={{
+        breadcrumbs: [{ label: "Leads" }],
+        title: "Leads",
+        description:
+          "Contatos de formulários públicos e links ainda não cadastrados como pacientes.",
+      }}
+      elevated={false}
+    >
       {pipelineRes.error ? (
         <p className="text-sm text-destructive">{pipelineRes.error}</p>
       ) : (
-        <PipelineClient initialItems={pipelineRes.data ?? []} />
+        <div className="surface-elevated p-4 sm:p-6">
+          <PipelineClient initialItems={pipelineRes.data ?? []} />
+        </div>
       )}
-    </div>
+    </PageShell>
   );
 }

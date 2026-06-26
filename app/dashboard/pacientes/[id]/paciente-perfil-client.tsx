@@ -12,6 +12,9 @@ import { formatPhoneBr } from "@/lib/format-phone";
 import { toast } from "@/components/ui/toast";
 import { ExamesClient } from "../../exames/exames-client";
 import { ProntuarioFichasSection } from "./prontuario-fichas-section";
+import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
+import { StatCard } from "@/components/dashboard-ui/stat-card";
+import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
 import { uploadPatientPhoto } from "../profile-actions";
 import { getComandaDetail, type ComandaDetail } from "../../agenda/encounter-actions";
 import { CancelComandaDialog } from "../../financeiro/components/cancel-comanda-dialog";
@@ -293,28 +296,12 @@ export function PacientePerfilClient({
 
         {/* Coluna direita — abas */}
         <div className="space-y-4 min-w-0">
-          <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
-            {TABS.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    "flex items-center gap-1.5 shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    activeTab === tab.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                  <span className="sm:hidden">{tab.label.split(" ")[0]}</span>
-                </button>
-              );
-            })}
-          </div>
+          <SegmentedTabs
+            tabs={TABS.map((t) => ({ id: t.id, label: t.label, icon: t.icon }))}
+            value={activeTab}
+            onChange={(id) => setActiveTab(id as TabId)}
+            variant="pill"
+          />
 
           <Card>
             <CardContent className="pt-6">
@@ -461,24 +448,24 @@ export function PacientePerfilClient({
               {activeTab === "pagamentos" && (
                 <div className="space-y-6">
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-lg border p-4 bg-green-50/50 dark:bg-green-950/20">
-                      <p className="text-xs text-muted-foreground">Total recebido</p>
-                      <p className="text-xl font-semibold text-green-700 dark:text-green-400">
-                        {financial.totalPaid.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border p-4 bg-amber-50/50 dark:bg-amber-950/20">
-                      <p className="text-xs text-muted-foreground">Em aberto / inadimplente</p>
-                      <p className="text-xl font-semibold text-amber-700 dark:text-amber-400">
-                        {financial.totalDue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border p-4">
-                      <p className="text-xs text-muted-foreground">Total faturado (comandas)</p>
-                      <p className="text-xl font-semibold">
-                        {financial.totalBilled.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                      </p>
-                    </div>
+                    <StatCard
+                      title="Total recebido"
+                      value={financial.totalPaid.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      icon={CreditCard}
+                      iconColor="success"
+                    />
+                    <StatCard
+                      title="Em aberto / inadimplente"
+                      value={financial.totalDue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      icon={Clock}
+                      iconColor="warning"
+                    />
+                    <StatCard
+                      title="Total faturado (comandas)"
+                      value={financial.totalBilled.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      icon={FileText}
+                      iconColor="info"
+                    />
                   </div>
 
                   <div>
@@ -486,19 +473,21 @@ export function PacientePerfilClient({
                     {payments.length === 0 ? (
                       <p className="text-sm text-muted-foreground">Nenhum pagamento registrado.</p>
                     ) : (
-                      <ul className="divide-y text-sm">
+                      <ListPanel>
                         {payments.map((p) => (
-                          <li key={p.id} className="py-2 flex justify-between gap-2">
-                            <span>
-                              {new Date(p.paid_at).toLocaleDateString("pt-BR")}
-                              {p.payment_method ? ` · ${p.payment_method}` : ""}
-                            </span>
-                            <span className="font-medium text-green-700 dark:text-green-400">
-                              {p.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                            </span>
-                          </li>
+                          <ListPanelItem key={p.id}>
+                            <div className="flex w-full justify-between gap-2 text-sm">
+                              <span>
+                                {new Date(p.paid_at).toLocaleDateString("pt-BR")}
+                                {p.payment_method ? ` · ${p.payment_method}` : ""}
+                              </span>
+                              <span className="font-medium text-green-700 dark:text-green-400">
+                                {p.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                              </span>
+                            </div>
+                          </ListPanelItem>
                         ))}
-                      </ul>
+                      </ListPanel>
                     )}
                   </div>
 
@@ -507,52 +496,54 @@ export function PacientePerfilClient({
                     {comandas.length === 0 ? (
                       <p className="text-sm text-muted-foreground">Nenhuma comanda.</p>
                     ) : (
-                      <ul className="divide-y text-sm">
+                      <ListPanel>
                         {comandas.map((c) => {
                           const restante = Math.max(0, c.total_amount - c.paid_amount);
                           return (
-                            <li key={c.id} className="py-2 flex flex-wrap justify-between gap-2 items-center">
-                              <span>
-                                {new Date(c.created_at).toLocaleDateString("pt-BR")} ·{" "}
-                                {COMANDA_STATUS[c.status] ?? c.status}
-                              </span>
-                              <div className="flex items-center gap-2">
+                            <ListPanelItem key={c.id}>
+                              <div className="flex w-full flex-wrap justify-between gap-2 items-center text-sm">
                                 <span>
-                                  {c.paid_amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                                  {" / "}
-                                  {c.total_amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                                  {restante > 0 && c.status !== "paga" && c.status !== "cancelada" && (
-                                    <span className="text-amber-600 dark:text-amber-400 ml-1">
-                                      (falta {restante.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})
-                                    </span>
-                                  )}
+                                  {new Date(c.created_at).toLocaleDateString("pt-BR")} ·{" "}
+                                  {COMANDA_STATUS[c.status] ?? c.status}
                                 </span>
-                                <Button variant="outline" size="sm" onClick={() => openComandaDetail(c.id)}>
-                                  Ver itens
-                                </Button>
-                                {canCancelComanda &&
-                                  (c.status === "aberta" || c.status === "parcial" || c.status === "paga") && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-destructive"
-                                      onClick={() =>
-                                        setCancelComanda({
-                                          id: c.id,
-                                          total_amount: c.total_amount,
-                                          paid_amount: c.paid_amount,
-                                          status: c.status,
-                                        })
-                                      }
-                                    >
-                                      Cancelar comanda
-                                    </Button>
-                                  )}
+                                <div className="flex items-center gap-2">
+                                  <span>
+                                    {c.paid_amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                    {" / "}
+                                    {c.total_amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                    {restante > 0 && c.status !== "paga" && c.status !== "cancelada" && (
+                                      <span className="text-amber-600 dark:text-amber-400 ml-1">
+                                        (falta {restante.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})
+                                      </span>
+                                    )}
+                                  </span>
+                                  <Button variant="outline" size="sm" onClick={() => openComandaDetail(c.id)}>
+                                    Ver itens
+                                  </Button>
+                                  {canCancelComanda &&
+                                    (c.status === "aberta" || c.status === "parcial" || c.status === "paga") && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-destructive"
+                                        onClick={() =>
+                                          setCancelComanda({
+                                            id: c.id,
+                                            total_amount: c.total_amount,
+                                            paid_amount: c.paid_amount,
+                                            status: c.status,
+                                          })
+                                        }
+                                      >
+                                        Cancelar comanda
+                                      </Button>
+                                    )}
+                                </div>
                               </div>
-                            </li>
+                            </ListPanelItem>
                           );
                         })}
-                      </ul>
+                      </ListPanel>
                     )}
                   </div>
                 </div>

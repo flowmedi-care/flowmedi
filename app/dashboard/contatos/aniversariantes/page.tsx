@@ -1,9 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Cake } from "lucide-react";
 import { listBirthdaysToday } from "../actions";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
+import { ContactListItem } from "@/components/dashboard-ui/contact-list";
+import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 
 export default async function AniversariantesPage() {
   const supabase = await createClient();
@@ -11,46 +14,40 @@ export default async function AniversariantesPage() {
   if (!user) redirect("/entrar");
 
   const { data: birthdays, error } = await listBirthdaysToday();
+  const list = birthdays ?? [];
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <Cake className="h-6 w-6 text-primary" />
-          Aniversariantes
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Pacientes que fazem aniversário hoje.
-        </p>
-      </div>
+    <PageShell
+      header={{
+        breadcrumbs: [{ label: "Aniversariantes" }],
+        title: "Aniversariantes",
+        description: "Pacientes que fazem aniversário hoje.",
+      }}
+    >
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Card>
-        <CardHeader>
-          <p className="text-sm font-medium">
-            Hoje — {(birthdays ?? []).length} paciente(s)
-          </p>
-        </CardHeader>
-        <CardContent className="divide-y divide-border">
-          {(birthdays ?? []).map((p) => (
-            <div key={p.id} className="py-3 first:pt-0">
-              <Link
-                href={`/dashboard/contatos/pacientes/${p.id}`}
-                className="font-medium hover:text-primary"
-              >
-                {p.full_name}
+      <p className="text-sm font-medium text-muted-foreground mb-4">
+        Hoje — {list.length} paciente(s)
+      </p>
+      {list.length === 0 && !error ? (
+        <EmptyState
+          icon={Cake}
+          title="Nenhum aniversariante hoje"
+          description="Volte amanhã para ver quem faz aniversário."
+        />
+      ) : (
+        <ListPanel>
+          {list.map((p) => (
+            <ListPanelItem key={p.id}>
+              <Link href={`/dashboard/contatos/pacientes/${p.id}`} className="w-full">
+                <ContactListItem
+                  name={p.full_name}
+                  subtitle={[p.phone, p.email].filter(Boolean).join(" · ")}
+                />
               </Link>
-              <p className="text-sm text-muted-foreground">
-                {[p.phone, p.email].filter(Boolean).join(" · ")}
-              </p>
-            </div>
+            </ListPanelItem>
           ))}
-          {(birthdays ?? []).length === 0 && !error && (
-            <p className="text-sm text-muted-foreground py-4">
-              Nenhum aniversariante hoje.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        </ListPanel>
+      )}
+    </PageShell>
   );
 }

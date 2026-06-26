@@ -16,12 +16,24 @@ import {
   type PatientInsert,
   type PatientUpdate,
 } from "./actions";
-import { Search, Plus, Pencil, Trash2, X, UserCheck, User, Grid3x3, List, CalendarPlus, ExternalLink } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, X, UserCheck, Grid3x3, List, CalendarPlus, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPhoneBr, formatPhoneBrInput, parsePhoneBr } from "@/lib/format-phone";
 import { toast } from "@/components/ui/toast";
 import Link from "next/link";
 import { ExamesClient } from "../exames/exames-client";
+import { AppPageHeader } from "@/components/app-page-header";
+import { FilterBar } from "@/components/dashboard-ui/layout/filter-bar";
+import { ViewModeToggle } from "@/components/dashboard-ui/layout/view-mode-toggle";
+import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
+import {
+  ContactList,
+  ContactListItem,
+  ContactListSection,
+  AlphabetIndex,
+} from "@/components/dashboard-ui/contact-list";
+import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 
 export type Patient = {
   id: string;
@@ -433,85 +445,47 @@ export function PacientesClient({
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Pacientes</h1>
-        {activeTab === "registered" && (
-          <Button
-            size="icon"
-            className="h-10 w-10 rounded-full"
-            onClick={openNew}
-            title="Novo paciente"
-            aria-label="Novo paciente"
-          >
-            <Plus className="h-5 w-5" />
-          </Button>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder="Buscar por nome, e-mail ou telefone..."
-            value={search}
-            onChange={(e) => {
-              const newValue = e.target.value;
-              setSearch(newValue);
-            }}
-            className="pl-9 h-10"
-          />
-        </div>
-        {activeTab === "registered" && (
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant={viewMode === "contacts" ? "default" : "outline"}
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => setViewMode("contacts")}
-              title="Visualização de contatos"
-            >
-              <Grid3x3 className="h-4 w-4" />
+      <AppPageHeader
+        breadcrumbs={[{ label: "Pacientes" }]}
+        title="Pacientes"
+        description="Gerencie pacientes cadastrados e contatos de formulários públicos."
+        actions={
+          activeTab === "registered" ? (
+            <Button onClick={openNew}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo paciente
             </Button>
-            <Button
-              variant={viewMode === "list" ? "default" : "outline"}
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => setViewMode("list")}
-              title="Visualização em lista"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-      </div>
+          ) : undefined
+        }
+      />
 
-      {/* Abas */}
-      <div className="flex gap-0 border-b border-border overflow-x-auto -mx-1 px-1 scrollbar-thin">
-        <button
-          type="button"
-          onClick={() => setActiveTab("registered")}
-          className={cn(
-            "px-4 py-3 min-h-[44px] text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation shrink-0",
-            activeTab === "registered"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          Cadastrados ({patients.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("nonRegistered")}
-          className={cn(
-            "px-4 py-3 min-h-[44px] text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation shrink-0",
-            activeTab === "nonRegistered"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          Não Cadastrados ({nonRegisteredList.length})
-        </button>
-      </div>
+      <FilterBar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar por nome, e-mail ou telefone..."
+        actions={
+          activeTab === "registered" ? (
+            <ViewModeToggle
+              value={viewMode}
+              onChange={setViewMode}
+              options={[
+                { value: "contacts", icon: Grid3x3, title: "Visualização de contatos" },
+                { value: "list", icon: List, title: "Visualização em lista" },
+              ]}
+            />
+          ) : undefined
+        }
+      />
+
+      <SegmentedTabs
+        tabs={[
+          { id: "registered", label: "Cadastrados", count: patients.length },
+          { id: "nonRegistered", label: "Não Cadastrados", count: nonRegisteredList.length },
+        ]}
+        value={activeTab}
+        onChange={(id) => setActiveTab(id as "registered" | "nonRegistered")}
+        variant="underline"
+      />
 
       {showForm && (
         <Card>
@@ -740,139 +714,96 @@ export function PacientesClient({
       )}
 
       {activeTab === "registered" ? (
-        <Card>
-          <CardHeader>
-            <p className="text-sm text-muted-foreground">
-              {filtered.length} paciente(s) encontrado(s)
-            </p>
-          </CardHeader>
-          <CardContent>
-            {filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">
-                Nenhum paciente cadastrado ou nenhum resultado para a busca.
-              </p>
-            ) : viewMode === "contacts" ? (
-              // Visualização de contatos (padrão para todos)
-              <div className="relative md:grid md:grid-cols-[minmax(0,1fr)_18px] md:gap-1">
-                <div ref={contactsScrollRef} className="max-h-none overflow-visible pr-4 md:h-[600px] md:overflow-y-auto md:pr-2">
-                  <div className="space-y-6">
-                    {groupedPatients.map((group) => (
-                      <section
-                        key={group.letter}
-                        className="space-y-3"
-                        ref={(el) => {
-                          letterSectionRefs.current[group.letter] = el;
-                        }}
-                      >
-                        <h3 className="text-sm font-semibold text-muted-foreground tracking-wide">
-                          {group.letter}
-                        </h3>
-                        <div className="space-y-2">
-                          {group.patients.map((p) => (
-                            <Card
-                              key={p.id}
-                              className="cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => router.push(`/dashboard/contatos/pacientes/${p.id}`)}
-                            >
-                              <CardContent className="py-3 px-3">
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                    <User className="h-6 w-6 text-primary" />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="font-medium text-sm truncate">{p.full_name}</p>
-                                    <p className="text-xs text-muted-foreground truncate">
-                                      {[p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") || "Sem contato"}
-                                    </p>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </section>
+        <div className="surface-elevated p-4 sm:p-6">
+          <p className="text-sm text-muted-foreground mb-4">
+            {filtered.length} paciente(s) encontrado(s)
+          </p>
+          {filtered.length === 0 ? (
+            <EmptyState
+              title="Nenhum paciente encontrado"
+              description="Cadastre um novo paciente ou ajuste a busca."
+              action={{ label: "Novo paciente", onClick: openNew }}
+            />
+          ) : viewMode === "contacts" ? (
+            <ContactList
+              sideRail={
+                <AlphabetIndex
+                  letters={alphabet}
+                  onLetterClick={(letter) => availableLetters.has(letter) && scrollToLetter(letter)}
+                />
+              }
+            >
+              <div ref={contactsScrollRef}>
+                {groupedPatients.map((group) => (
+                  <ContactListSection
+                    key={group.letter}
+                    letter={group.letter}
+                    sectionRef={(el) => {
+                      letterSectionRefs.current[group.letter] = el;
+                    }}
+                  >
+                    {group.patients.map((p) => (
+                      <ContactListItem
+                        key={p.id}
+                        name={p.full_name}
+                        subtitle={
+                          [p.email, p.phone ? formatPhoneBr(p.phone) : null]
+                            .filter(Boolean)
+                            .join(" · ") || "Sem contato"
+                        }
+                        onClick={() =>
+                          router.push(`/dashboard/contatos/pacientes/${p.id}`)
+                        }
+                      />
                     ))}
-                  </div>
-                </div>
-                <div className="fixed right-2 top-1/2 z-40 -translate-y-1/2 flex flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm md:static md:h-[600px] md:translate-y-0 md:justify-center">
-                  {alphabet.map((letter) => {
-                    const enabled = availableLetters.has(letter);
-                    return (
-                      <button
-                        key={letter}
-                        type="button"
-                        onClick={() => enabled && scrollToLetter(letter)}
-                        disabled={!enabled}
-                        className={cn(
-                          "h-3.5 w-3.5 text-[10px] leading-none rounded-sm",
-                          enabled
-                            ? "text-muted-foreground hover:text-foreground"
-                            : "text-muted-foreground/30 cursor-not-allowed"
-                        )}
-                        aria-label={`Ir para letra ${letter}`}
-                        title={enabled ? `Ir para ${letter}` : `Sem pacientes em ${letter}`}
-                      >
-                        {letter}
-                      </button>
-                    );
-                  })}
-                </div>
+                  </ContactListSection>
+                ))}
               </div>
-            ) : (
-              <div className="relative md:grid md:grid-cols-[minmax(0,1fr)_18px] md:gap-1">
-                <div ref={contactsScrollRef} className="max-h-none overflow-visible pr-4 md:h-[600px] md:overflow-y-auto md:pr-2">
-                  <div className="space-y-6">
-                    {groupedPatients.map((group) => (
-                      <section
-                        key={group.letter}
-                        className="space-y-2"
-                        ref={(el) => {
+            </ContactList>
+          ) : (
+            <ContactList
+              sideRail={
+                <AlphabetIndex
+                  letters={alphabet}
+                  onLetterClick={(letter) => availableLetters.has(letter) && scrollToLetter(letter)}
+                />
+              }
+            >
+              <div ref={contactsScrollRef}>
+                <ListPanel>
+                  {groupedPatients.map((group) => (
+                    <div key={group.letter}>
+                      <ContactListSection
+                        letter={group.letter}
+                        sectionRef={(el) => {
                           letterSectionRefs.current[group.letter] = el;
                         }}
                       >
-                        <h3 className="text-sm font-semibold text-muted-foreground tracking-wide">
-                          {group.letter}
-                        </h3>
-                        <ul className="divide-y divide-border">
-                          {group.patients.map((p) => (
-                            <li
-                              key={p.id}
-                              className={cn(
-                                "flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0",
-                                editingId === p.id && "bg-muted/50 -mx-2 px-2 rounded"
-                              )}
-                            >
-                              <div
-                                className="min-w-0 flex-1 cursor-pointer"
-                                onClick={() => router.push(`/dashboard/contatos/pacientes/${p.id}`)}
-                                role="link"
-                                tabIndex={0}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" || e.key === " ") {
-                                    e.preventDefault();
-                                    router.push(`/dashboard/contatos/pacientes/${p.id}`);
-                                  }
-                                }}
-                              >
-                                <p className="font-medium hover:underline">{p.full_name}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {[p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") || "—"}
-                                </p>
-                              </div>
+                        {group.patients.map((p) => (
+                          <ListPanelItem key={p.id}>
+                            <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                              <ContactListItem
+                                name={p.full_name}
+                                subtitle={
+                                  [p.email, p.phone ? formatPhoneBr(p.phone) : null]
+                                    .filter(Boolean)
+                                    .join(" · ") || "—"
+                                }
+                                onClick={() =>
+                                  router.push(`/dashboard/contatos/pacientes/${p.id}`)
+                                }
+                              />
                               <div className="flex items-center gap-1 shrink-0">
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  title="Ver perfil"
-                                  onClick={() => router.push(`/dashboard/contatos/pacientes/${p.id}`)}
+                                  onClick={() =>
+                                    router.push(`/dashboard/contatos/pacientes/${p.id}`)
+                                  }
                                 >
                                   <ExternalLink className="h-4 w-4" />
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => openEdit(p)}
-                                >
+                                <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                                 <Button
@@ -880,69 +811,40 @@ export function PacientesClient({
                                   size="sm"
                                   onClick={() => openExcluirConfirm(p)}
                                   disabled={deletingId === p.id}
-                                  title="Excluir cadastro"
                                   className="text-destructive hover:text-destructive"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
-                    ))}
-                  </div>
-                </div>
-                <div className="fixed right-2 top-1/2 z-40 -translate-y-1/2 flex flex-col items-center gap-0.5 rounded-md bg-background/80 px-1 py-1 backdrop-blur-sm md:static md:h-[600px] md:translate-y-0 md:justify-center">
-                  {alphabet.map((letter) => {
-                    const enabled = availableLetters.has(letter);
-                    return (
-                      <button
-                        key={letter}
-                        type="button"
-                        onClick={() => enabled && scrollToLetter(letter)}
-                        disabled={!enabled}
-                        className={cn(
-                          "h-3.5 w-3.5 text-[10px] leading-none rounded-sm",
-                          enabled
-                            ? "text-muted-foreground hover:text-foreground"
-                            : "text-muted-foreground/30 cursor-not-allowed"
-                        )}
-                        aria-label={`Ir para letra ${letter}`}
-                        title={enabled ? `Ir para ${letter}` : `Sem pacientes em ${letter}`}
-                      >
-                        {letter}
-                      </button>
-                    );
-                  })}
-                </div>
+                            </div>
+                          </ListPanelItem>
+                        ))}
+                      </ContactListSection>
+                    </div>
+                  ))}
+                </ListPanel>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </ContactList>
+          )}
+        </div>
       ) : (
-        <Card>
-          <CardHeader>
-            <p className="text-sm text-muted-foreground">
-              {filteredNonRegistered.length} pessoa(s) encontrada(s) que preencheram formulários públicos
-            </p>
-          </CardHeader>
-          <CardContent>
-            {filteredNonRegistered.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">
-                Nenhuma pessoa não cadastrada encontrada.
-              </p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {filteredNonRegistered.map((nr) => (
-                  <li
-                    key={nr.email}
-                    className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0"
-                  >
-                    <div className="flex-1">
+        <div className="surface-elevated p-4 sm:p-6">
+          <p className="text-sm text-muted-foreground mb-4">
+            {filteredNonRegistered.length} pessoa(s) encontrada(s) que preencheram formulários públicos
+          </p>
+          {filteredNonRegistered.length === 0 ? (
+            <EmptyState title="Nenhuma pessoa não cadastrada encontrada" />
+          ) : (
+            <ListPanel>
+              {filteredNonRegistered.map((nr) => (
+                <ListPanelItem key={nr.email}>
+                  <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
                       <p className="font-medium">{nr.name || "Sem nome"}</p>
                       <p className="text-sm text-muted-foreground">
-                        {[nr.email, nr.phone ? formatPhoneBr(nr.phone) : null].filter(Boolean).join(" · ") || nr.email}
+                        {[nr.email, nr.phone ? formatPhoneBr(nr.phone) : null]
+                          .filter(Boolean)
+                          .join(" · ") || nr.email}
                       </p>
                       {nr.birth_date && (
                         <p className="text-xs text-muted-foreground mt-1">
@@ -953,24 +855,21 @@ export function PacientesClient({
                         {nr.forms.length} formulário(s) respondido(s)
                       </p>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => handleRegisterPatient(nr)}
-                        disabled={registeringEmail === nr.email}
-                        title="Cadastrar paciente"
-                      >
-                        <UserCheck className="h-4 w-4 mr-1" />
-                        {registeringEmail === nr.email ? "Cadastrando..." : "Cadastrar"}
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+                    <Button
+                      variant="soft"
+                      size="sm"
+                      onClick={() => handleRegisterPatient(nr)}
+                      disabled={registeringEmail === nr.email}
+                    >
+                      <UserCheck className="h-4 w-4 mr-1" />
+                      {registeringEmail === nr.email ? "Cadastrando..." : "Cadastrar"}
+                    </Button>
+                  </div>
+                </ListPanelItem>
+              ))}
+            </ListPanel>
+          )}
+        </div>
       )}
 
       <ConfirmDialog

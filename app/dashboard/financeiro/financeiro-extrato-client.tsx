@@ -9,6 +9,9 @@ import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { PeriodSelector } from "./components/period-selector";
+import { PageToolbar } from "@/components/dashboard-ui/page-toolbar";
+import { DataTable } from "@/components/dashboard-ui/data-table";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 import { fmtCurrency, downloadCsv } from "@/lib/financeiro/format";
 import { CATEGORY_LABELS, EXPENSE_CATEGORIES } from "@/lib/financeiro/constants";
 import type { ExpenseCategory, FinancialEntryRow, FinancialLens } from "@/lib/financeiro/types";
@@ -80,12 +83,11 @@ export function FinanceiroExtratoClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <PeriodSelector year={year} month={month} />
+      <PageToolbar filters={<PeriodSelector year={year} month={month} />}>
         <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
           Exportar CSV
         </Button>
-      </div>
+      </PageToolbar>
 
       <Card>
         <CardHeader>
@@ -147,47 +149,54 @@ export function FinanceiroExtratoClient({
           </div>
 
           {filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              Nenhum lançamento no período com os filtros selecionados.
-            </p>
+            <EmptyState title="Nenhum lançamento no período" />
           ) : (
             <>
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="pb-2 pr-2">Data</th>
-                      <th className="pb-2 pr-2">Lente</th>
-                      <th className="pb-2 pr-2">Descrição</th>
-                      <th className="pb-2 pr-2">Fornecedor</th>
-                      <th className="pb-2 pr-2 text-right">Valor</th>
-                      <th className="pb-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((e) => (
-                      <tr key={e.id} className="border-b last:border-0">
-                        <td className="py-3 pr-2 text-muted-foreground">
+              <div className="hidden md:block">
+                <DataTable
+                  columns={[
+                    {
+                      key: "date",
+                      header: "Data",
+                      cell: (e) => (
+                        <span className="text-muted-foreground">
                           {(e.paid_at ?? e.due_date ?? e.created_at).slice(0, 10)}
-                        </td>
-                        <td className="py-3 pr-2">
-                          <Badge className={LENS_BADGE[e.lens]}>{LENS_LABEL[e.lens]}</Badge>
-                        </td>
-                        <td className="py-3 pr-2">{e.description}</td>
-                        <td className="py-3 pr-2">{e.supplier_display_name ?? "—"}</td>
-                        <td
-                          className={`py-3 pr-2 text-right font-medium ${
+                        </span>
+                      ),
+                    },
+                    {
+                      key: "lens",
+                      header: "Lente",
+                      cell: (e) => (
+                        <Badge className={LENS_BADGE[e.lens]}>{LENS_LABEL[e.lens]}</Badge>
+                      ),
+                    },
+                    { key: "desc", header: "Descrição", cell: (e) => e.description },
+                    {
+                      key: "supplier",
+                      header: "Fornecedor",
+                      cell: (e) => e.supplier_display_name ?? "—",
+                    },
+                    {
+                      key: "amount",
+                      header: "Valor",
+                      className: "text-right font-medium",
+                      cell: (e) => (
+                        <span
+                          className={
                             e.entry_type === "receita" ? "text-green-700 dark:text-green-400" : ""
-                          }`}
+                          }
                         >
                           {e.entry_type === "despesa" ? "−" : "+"}
                           {fmtCurrency(e.amount)}
-                        </td>
-                        <td className="py-3">{e.status}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </span>
+                      ),
+                    },
+                    { key: "status", header: "Status", cell: (e) => e.status },
+                  ]}
+                  data={filtered}
+                  getRowKey={(e) => e.id}
+                />
               </div>
 
               <div className="md:hidden space-y-3">

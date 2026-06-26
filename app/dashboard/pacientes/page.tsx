@@ -44,13 +44,11 @@ export default async function PacientesPage() {
   const nonRegistered = nonRegisteredRes.data || [];
 
   return (
-    <div className="space-y-4">
-      <PacientesClient 
-        initialPatients={patients} 
-        customFields={customFields ?? []}
-        nonRegistered={nonRegistered}
-        userRole={profile?.role || "admin"}
-      />
-    </div>
+    <PacientesClient
+      initialPatients={patients}
+      customFields={customFields ?? []}
+      nonRegistered={nonRegistered}
+      userRole={profile?.role || "admin"}
+    />
   );
 }

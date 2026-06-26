@@ -10,6 +10,8 @@ import { createProduct, adjustStock, type ProductRow } from "./actions";
 import { Plus } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { DataTable } from "@/components/dashboard-ui/data-table";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 
 export function EstoqueClient({
   initialProducts,
@@ -110,73 +112,69 @@ export function EstoqueClient({
         )}
 
         {products.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">Nenhum produto cadastrado.</p>
+          <EmptyState title="Nenhum produto cadastrado" />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="py-2 pr-4">Produto</th>
-                  <th className="py-2 pr-4" title="Quantidade física registrada no estoque">
-                    Em estoque
-                  </th>
-                  <th
-                    className="py-2 pr-4"
-                    title="Reservado por consultas agendadas (comprometido até finalizar comanda)"
-                  >
-                    Comprometido
-                  </th>
-                  <th className="py-2 pr-4" title="Em estoque menos comprometido — disponível para novos agendamentos">
-                    Disponível
-                  </th>
-                  <th className="py-2 pr-4">Custo</th>
-                  <th className="py-2 pr-4">Venda</th>
-                  <th className="py-2">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((p) => {
+          <DataTable
+            columns={[
+              { key: "name", header: "Produto", cell: (p) => <span className="font-medium">{p.name}</span> },
+              {
+                key: "stock",
+                header: "Em estoque",
+                cell: (p) => `${p.quantity_on_hand} ${p.unit}`,
+              },
+              {
+                key: "committed",
+                header: "Comprometido",
+                cell: (p) => (
+                  <span className="text-amber-700 dark:text-amber-400">
+                    {p.quantity_committed} {p.unit}
+                  </span>
+                ),
+              },
+              {
+                key: "available",
+                header: "Disponível",
+                cell: (p) => {
                   const available = p.quantity_on_hand - p.quantity_committed;
                   const lowStock = available <= 0 && p.quantity_committed > 0;
                   return (
-                    <tr key={p.id} className="border-b border-border/50">
-                      <td className="py-3 pr-4 font-medium">{p.name}</td>
-                      <td className="py-3 pr-4">{p.quantity_on_hand} {p.unit}</td>
-                      <td
-                        className="py-3 pr-4 text-amber-700 dark:text-amber-400"
-                        title="Reservado por consultas agendadas"
-                      >
-                        {p.quantity_committed} {p.unit}
-                      </td>
-                      <td
-                        className={cn(
-                          "py-3 pr-4",
-                          lowStock && "text-red-600 dark:text-red-400 font-medium"
-                        )}
-                        title="Disponível para novos agendamentos"
-                      >
-                        {available} {p.unit}
-                      </td>
-                      <td className="py-3 pr-4">
-                        {p.cost.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                      </td>
-                      <td className="py-3 pr-4 text-muted-foreground">
-                        {p.sale_price != null
-                          ? p.sale_price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                          : "—"}
-                      </td>
-                      <td className="py-3">
-                        <div className="flex gap-1">
-                          <Button type="button" variant="outline" size="sm" onClick={() => handleAdjust(p.id, 1)}>+1</Button>
-                          <Button type="button" variant="outline" size="sm" onClick={() => handleAdjust(p.id, -1)}>-1</Button>
-                        </div>
-                      </td>
-                    </tr>
+                    <span className={cn(lowStock && "text-red-600 dark:text-red-400 font-medium")}>
+                      {available} {p.unit}
+                    </span>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                },
+              },
+              {
+                key: "cost",
+                header: "Custo",
+                cell: (p) => p.cost.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+              },
+              {
+                key: "sale",
+                header: "Venda",
+                cell: (p) =>
+                  p.sale_price != null
+                    ? p.sale_price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                    : "—",
+              },
+              {
+                key: "actions",
+                header: "Ações",
+                cell: (p) => (
+                  <div className="flex gap-1">
+                    <Button type="button" variant="outline" size="sm" onClick={() => handleAdjust(p.id, 1)}>
+                      +1
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => handleAdjust(p.id, -1)}>
+                      -1
+                    </Button>
+                  </div>
+                ),
+              },
+            ]}
+            data={products}
+            getRowKey={(p) => p.id}
+          />
         )}
       </CardContent>
     </Card>

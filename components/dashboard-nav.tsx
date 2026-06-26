@@ -101,7 +101,7 @@ export function DashboardNav({
   }, [activeGroupId, hasSubPanel]);
 
   return (
-    <div className="flex h-full flex-shrink-0">
+    <div className="flex h-full flex-shrink-0 bg-card border-r border-border/60">
       <DashboardNavRail
         user={user}
         profile={profile}

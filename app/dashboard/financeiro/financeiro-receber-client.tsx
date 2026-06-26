@@ -14,6 +14,9 @@ import type { FinancialEntryRow, OpenComandaRow } from "@/lib/financeiro/types";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { DataTable } from "@/components/dashboard-ui/data-table";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
+import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
 
 function riskClass(days: number) {
   if (days > 60) return "text-destructive font-semibold";
@@ -56,92 +59,60 @@ export function FinanceiroReceberClient({
         </CardHeader>
         <CardContent>
           {openComandas.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              Nenhuma comanda aguardando pagamento.
-            </p>
+            <EmptyState title="Nenhuma comanda aguardando pagamento" />
           ) : (
-            <>
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="pb-2 pr-2">Paciente</th>
-                      <th className="pb-2 pr-2">Consulta</th>
-                      <th className="pb-2 pr-2">Serviço</th>
-                      <th className="pb-2 pr-2 text-right">Total</th>
-                      <th className="pb-2 pr-2 text-right">Desconto</th>
-                      <th className="pb-2 pr-2 text-right">Pago</th>
-                      <th className="pb-2 pr-2 text-right">Saldo</th>
-                      <th className="pb-2 pr-2 text-right">Dias</th>
-                      <th className="pb-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {openComandas.map((c) => (
-                      <tr key={c.id} className="border-b last:border-0">
-                        <td className="py-3 pr-2 font-medium">{c.patient_name}</td>
-                        <td className="py-3 pr-2 text-muted-foreground">
-                          {c.scheduled_at
-                            ? new Date(c.scheduled_at).toLocaleDateString("pt-BR")
-                            : new Date(c.created_at).toLocaleDateString("pt-BR")}
-                        </td>
-                        <td className="py-3 pr-2">{c.service_name ?? "—"}</td>
-                        <td className="py-3 pr-2 text-right">{fmtCurrency(c.total_amount)}</td>
-                        <td className="py-3 pr-2 text-right text-muted-foreground">
-                          {c.discount_amount > 0 ? `-${fmtCurrency(c.discount_amount)}` : "—"}
-                        </td>
-                        <td className="py-3 pr-2 text-right">{fmtCurrency(c.paid_amount)}</td>
-                        <td className="py-3 pr-2 text-right font-medium">{fmtCurrency(c.remainder)}</td>
-                        <td className={cn("py-3 pr-2 text-right", riskClass(c.days_open))}>
-                          {c.days_open}
-                        </td>
-                        <td className="py-3 text-right space-x-1">
-                          {canManage && (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => setPayComanda({ id: c.id, remainder: c.remainder })}
-                              >
-                                Receber
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive"
-                                onClick={() => setCancelTarget(c)}
-                              >
-                                Cancelar
-                              </Button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="md:hidden space-y-3">
-                {openComandas.map((c) => (
-                  <div key={c.id} className="border rounded-lg p-3 space-y-2">
-                    <p className="font-medium">{c.patient_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Saldo {fmtCurrency(c.remainder)} ·{" "}
-                      <span className={riskClass(c.days_open)}>{c.days_open} dias</span>
-                    </p>
-                    {canManage && (
-                      <Button
-                        size="sm"
-                        className="w-full"
-                        onClick={() => setPayComanda({ id: c.id, remainder: c.remainder })}
-                      >
-                        Receber
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
+            <DataTable
+              columns={[
+                { key: "patient", header: "Paciente", cell: (c) => <span className="font-medium">{c.patient_name}</span> },
+                {
+                  key: "date",
+                  header: "Consulta",
+                  cell: (c) =>
+                    c.scheduled_at
+                      ? new Date(c.scheduled_at).toLocaleDateString("pt-BR")
+                      : new Date(c.created_at).toLocaleDateString("pt-BR"),
+                },
+                { key: "service", header: "Serviço", cell: (c) => c.service_name ?? "—" },
+                { key: "total", header: "Total", className: "text-right", cell: (c) => fmtCurrency(c.total_amount) },
+                {
+                  key: "discount",
+                  header: "Desconto",
+                  className: "text-right",
+                  cell: (c) => (c.discount_amount > 0 ? `-${fmtCurrency(c.discount_amount)}` : "—"),
+                },
+                { key: "paid", header: "Pago", className: "text-right", cell: (c) => fmtCurrency(c.paid_amount) },
+                {
+                  key: "remainder",
+                  header: "Saldo",
+                  className: "text-right font-medium",
+                  cell: (c) => fmtCurrency(c.remainder),
+                },
+                {
+                  key: "days",
+                  header: "Dias",
+                  className: cn("text-right", ""),
+                  cell: (c) => <span className={riskClass(c.days_open)}>{c.days_open}</span>,
+                },
+                {
+                  key: "actions",
+                  header: "",
+                  className: "text-right",
+                  cell: (c) =>
+                    canManage ? (
+                      <div className="space-x-1">
+                        <Button size="sm" onClick={() => setPayComanda({ id: c.id, remainder: c.remainder })}>
+                          Receber
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setCancelTarget(c)}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    ) : null,
+                },
+              ]}
+              data={openComandas}
+              getRowKey={(c) => c.id}
+            />
           )}
         </CardContent>
       </Card>
@@ -155,38 +126,38 @@ export function FinanceiroReceberClient({
         </CardHeader>
         <CardContent>
           {manualReceitas.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              Nenhuma receita manual pendente.
-            </p>
+            <EmptyState title="Nenhuma receita manual pendente" />
           ) : (
-            <ul className="divide-y">
+            <ListPanel>
               {manualReceitas.map((r) => {
                 const days = r.due_date ? daysOpenSince(r.due_date) : daysOpenSince(r.created_at);
                 return (
-                  <li key={r.id} className="flex flex-wrap items-center justify-between py-3 gap-2">
-                    <div>
-                      <p className="font-medium">{r.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {r.due_date
-                          ? `Venc. ${new Date(r.due_date + "T12:00:00").toLocaleDateString("pt-BR")}`
-                          : "Sem vencimento"}{" "}
-                        · {days} dias
-                      </p>
+                  <ListPanelItem key={r.id}>
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{r.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {r.due_date
+                            ? `Venc. ${new Date(r.due_date + "T12:00:00").toLocaleDateString("pt-BR")}`
+                            : "Sem vencimento"}{" "}
+                          · {days} dias
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-green-700 dark:text-green-400">
+                          {fmtCurrency(r.amount)}
+                        </span>
+                        {canManage && (
+                          <Button size="sm" variant="outline" onClick={() => handleMarkReceived(r.id)}>
+                            Marcar como recebida
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-green-700 dark:text-green-400">
-                        {fmtCurrency(r.amount)}
-                      </span>
-                      {canManage && (
-                        <Button size="sm" variant="outline" onClick={() => handleMarkReceived(r.id)}>
-                          Marcar como recebida
-                        </Button>
-                      )}
-                    </div>
-                  </li>
+                  </ListPanelItem>
                 );
               })}
-            </ul>
+            </ListPanel>
           )}
         </CardContent>
       </Card>

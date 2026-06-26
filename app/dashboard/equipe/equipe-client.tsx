@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { createInvite } from "./actions";
 import { UserPlus, Trash2, Copy, Loader2 } from "lucide-react";
 import { SecretariasMedicosClient } from "@/app/dashboard/secretarias-medicos/secretarias-medicos-client";
+import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
 
 type Member = {
   id: string;
@@ -169,29 +170,31 @@ export function EquipeClient({
           </p>
         </CardHeader>
         <CardContent>
-          <ul className="divide-y divide-border">
+          <ListPanel>
             {members.map((m) => (
-              <li key={m.id} className="py-3 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="font-medium text-foreground">{m.full_name || m.email || "—"}</p>
-                  <p className="text-sm text-muted-foreground">{m.email}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{ROLE_LABEL[m.role] ?? m.role}</p>
+              <ListPanelItem key={m.id}>
+                <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-foreground">{m.full_name || m.email || "—"}</p>
+                    <p className="text-sm text-muted-foreground">{m.email}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{ROLE_LABEL[m.role] ?? m.role}</p>
+                  </div>
+                  {m.id !== currentUserId && m.role !== "admin" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRemove(m.id)}
+                      disabled={removingId === m.id}
+                    >
+                      {removingId === m.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      Remover acesso
+                    </Button>
+                  )}
                 </div>
-                {m.id !== currentUserId && m.role !== "admin" && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRemove(m.id)}
-                    disabled={removingId === m.id}
-                  >
-                    {removingId === m.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    Remover acesso
-                  </Button>
-                )}
-              </li>
+              </ListPanelItem>
             ))}
-          </ul>
+          </ListPanel>
         </CardContent>
       </Card>
 
@@ -202,26 +205,31 @@ export function EquipeClient({
             <p className="text-sm text-muted-foreground">Quem ainda não aceitou o link. Quem já entrou aparece em Membros da equipe.</p>
           </CardHeader>
           <CardContent>
-            <ul className="divide-y divide-border">
+            <ListPanel>
               {invites.map((i) => (
-                <li key={i.id} className="py-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm text-foreground">{i.email}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{ROLE_LABEL[i.role] ?? i.role} · expira {new Date(i.expires_at).toLocaleDateString("pt-BR")}</p>
+                <ListPanelItem key={i.id}>
+                  <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm text-foreground">{i.email}</p>
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {ROLE_LABEL[i.role] ?? i.role} · expira{" "}
+                        {new Date(i.expires_at).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => cancelInvite(i.id)}
+                      title="Excluir este convite (o link deixa de funcionar)"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Excluir
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => cancelInvite(i.id)}
-                    title="Excluir este convite (o link deixa de funcionar)"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Excluir
-                  </Button>
-                </li>
+                </ListPanelItem>
               ))}
-            </ul>
+            </ListPanel>
           </CardContent>
         </Card>
       )}

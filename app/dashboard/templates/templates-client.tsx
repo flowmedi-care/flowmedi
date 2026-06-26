@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Mail, MessageSquare, Plus, Loader2 } from "lucide-react";
 import { TestEmailSection } from "../configuracoes/test-email-section";
+import { AppPageHeader } from "@/components/app-page-header";
+import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 
 interface Template {
   id: string;
@@ -32,34 +34,21 @@ export function TemplatesClient({ clinicId, initialTemplates }: TemplatesClientP
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Templates</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Gerencie templates de emails e mensagens WhatsApp para comunicação com pacientes
-        </p>
-      </div>
+      <AppPageHeader
+        breadcrumbs={[{ label: "Templates" }]}
+        title="Templates"
+        description="Gerencie templates de emails e mensagens WhatsApp para comunicação com pacientes"
+      />
 
-      {/* Abas */}
-      <div className="flex gap-2 border-b">
-        <Button
-          variant={activeTab === "email" ? "default" : "ghost"}
-          onClick={() => setActiveTab("email")}
-          className="rounded-b-none"
-        >
-          <Mail className="h-4 w-4 mr-2" />
-          Email
-        </Button>
-        <Button
-          variant={activeTab === "whatsapp" ? "default" : "ghost"}
-          onClick={() => setActiveTab("whatsapp")}
-          className="rounded-b-none"
-          disabled
-        >
-          <MessageSquare className="h-4 w-4 mr-2" />
-          WhatsApp
-          <span className="ml-2 text-xs opacity-70">(Em breve)</span>
-        </Button>
-      </div>
+      <SegmentedTabs
+        tabs={[
+          { id: "email", label: "Email", icon: Mail },
+          { id: "whatsapp", label: "WhatsApp", icon: MessageSquare },
+        ]}
+        value={activeTab}
+        onChange={(id) => setActiveTab(id as "email" | "whatsapp")}
+        variant="pill"
+      />
 
       {/* Conteúdo da aba Email */}
       {activeTab === "email" && (

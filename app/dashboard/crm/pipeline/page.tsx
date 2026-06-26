@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PipelineClient } from "../../pipeline/pipeline-client";
 import { getPipeline, syncNonRegisteredToPipeline } from "../../pipeline/actions";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 
 export default async function CrmPipelinePage() {
   const supabase = await createClient();
@@ -22,18 +23,21 @@ export default async function CrmPipelinePage() {
   const pipelineRes = await getPipeline();
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Pipeline</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Acompanhe leads desde o primeiro contato até o agendamento.
-        </p>
-      </div>
+    <PageShell
+      header={{
+        breadcrumbs: [{ label: "Pipeline" }],
+        title: "Pipeline",
+        description: "Acompanhe leads desde o primeiro contato até o agendamento.",
+      }}
+      elevated={false}
+    >
       {pipelineRes.error ? (
         <p className="text-sm text-destructive">{pipelineRes.error}</p>
       ) : (
-        <PipelineClient initialItems={pipelineRes.data ?? []} />
+        <div className="surface-elevated p-4 sm:p-6">
+          <PipelineClient initialItems={pipelineRes.data ?? []} />
+        </div>
       )}
-    </div>
+    </PageShell>
   );
 }

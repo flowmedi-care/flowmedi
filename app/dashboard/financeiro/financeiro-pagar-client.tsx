@@ -19,6 +19,9 @@ import { PAYMENT_METHODS } from "@/lib/financeiro/constants";
 import { todayDateOnly } from "@/lib/financeiro/date-utils";
 import type { ExpenseGroupKey, FinancialEntryRow, PendingExpenseRow } from "@/lib/financeiro/types";
 import { toast } from "@/components/ui/toast";
+import { PageToolbar } from "@/components/dashboard-ui/page-toolbar";
+import { DataTable } from "@/components/dashboard-ui/data-table";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 
 const GROUP_LABELS: Record<ExpenseGroupKey, { title: string; className: string }> = {
   vencidas: { title: "Vencidas", className: "text-destructive" },
@@ -91,21 +94,17 @@ export function FinanceiroPagarClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <PageToolbar>
         {canManage && (
           <Button onClick={() => setShowForm(true)}>
             <Plus className="h-4 w-4 mr-1" />
             Nova despesa
           </Button>
         )}
-      </div>
+      </PageToolbar>
 
       {expenses.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Nenhuma despesa pendente.
-          </CardContent>
-        </Card>
+        <EmptyState title="Nenhuma despesa pendente" />
       ) : (
         groups
           .filter((g) => g.items.length > 0)
@@ -120,70 +119,49 @@ export function FinanceiroPagarClient({
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-muted-foreground">
-                        <th className="pb-2 pr-2">Fornecedor</th>
-                        <th className="pb-2 pr-2">Descrição</th>
-                        <th className="pb-2 pr-2">Categoria</th>
-                        <th className="pb-2 pr-2 text-right">Valor</th>
-                        <th className="pb-2 pr-2">Vencimento</th>
-                        <th className="pb-2" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {g.items.map((row) => (
-                        <tr key={row.id} className="border-b last:border-0">
-                          <td className="py-3 pr-2">{row.supplier_display_name}</td>
-                          <td className="py-3 pr-2">{row.description}</td>
-                          <td className="py-3 pr-2">
-                            {row.category ? CATEGORY_LABELS[row.category] : "—"}
-                          </td>
-                          <td className="py-3 pr-2 text-right">{fmtCurrency(row.amount)}</td>
-                          <td className="py-3 pr-2">
-                            {row.due_date
-                              ? new Date(row.due_date + "T12:00:00").toLocaleDateString("pt-BR")
-                              : "—"}
-                          </td>
-                          <td className="py-3 text-right space-x-1">
-                            {canManage && (
-                              <>
-                                <Button size="sm" onClick={() => setPayId(row.id)}>
-                                  Marcar como paga
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => openEdit(row)}>
-                                  Editar
-                                </Button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="md:hidden space-y-3">
-                  {g.items.map((row) => (
-                    <div key={row.id} className="border rounded-lg p-3 space-y-2">
-                      <p className="font-medium">{row.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {row.supplier_display_name} · {fmtCurrency(row.amount)}
-                      </p>
-                      {canManage && (
-                        <div className="flex gap-2">
-                          <Button size="sm" className="flex-1" onClick={() => setPayId(row.id)}>
-                            Pagar
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => openEdit(row)}>
-                            Editar
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <DataTable
+                  columns={[
+                    { key: "supplier", header: "Fornecedor", cell: (row) => row.supplier_display_name },
+                    { key: "desc", header: "Descrição", cell: (row) => row.description },
+                    {
+                      key: "cat",
+                      header: "Categoria",
+                      cell: (row) => (row.category ? CATEGORY_LABELS[row.category] : "—"),
+                    },
+                    {
+                      key: "amount",
+                      header: "Valor",
+                      className: "text-right",
+                      cell: (row) => fmtCurrency(row.amount),
+                    },
+                    {
+                      key: "due",
+                      header: "Vencimento",
+                      cell: (row) =>
+                        row.due_date
+                          ? new Date(row.due_date + "T12:00:00").toLocaleDateString("pt-BR")
+                          : "—",
+                    },
+                    {
+                      key: "actions",
+                      header: "",
+                      className: "text-right",
+                      cell: (row) =>
+                        canManage ? (
+                          <div className="space-x-1">
+                            <Button size="sm" onClick={() => setPayId(row.id)}>
+                              Marcar como paga
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => openEdit(row)}>
+                              Editar
+                            </Button>
+                          </div>
+                        ) : null,
+                    },
+                  ]}
+                  data={g.items}
+                  getRowKey={(row) => row.id}
+                />
               </CardContent>
             </Card>
           ))

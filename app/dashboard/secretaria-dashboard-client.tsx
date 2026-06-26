@@ -367,7 +367,7 @@ export function SecretariaDashboardClient({
       {/* Pipeline de Não Cadastrados */}
       {preferences.show_pipeline && (
         <div>
-          <PipelineClient initialItems={pipelineItems} />
+          <PipelineClient initialItems={pipelineItems} embedded />
         </div>
       )}
 
