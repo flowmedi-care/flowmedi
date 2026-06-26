@@ -547,7 +547,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       >
         <div
           className={cn(
-            "flex flex-col border-r border-border bg-muted/30 min-w-0 shrink-0",
+            "flex flex-col border-r border-border bg-card min-w-0 shrink-0",
             fullWidth ? "w-full sm:h-auto sm:w-80 sm:min-w-[280px] sm:min-h-0" : "w-80",
             !showListPane && "hidden sm:flex"
           )}
@@ -633,8 +633,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                         setSelectedId(c.id);
                       }}
                       className={cn(
-                        "w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-muted/50 transition-colors",
-                        selectedId === c.id && "bg-muted"
+                        "w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-muted/40 transition-colors",
+                        selectedId === c.id && "bg-muted/60"
                       )}
                     >
                       <div className={cn(
@@ -759,7 +759,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   <Trash2 className="h-5 w-5" />
                 </Button>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 bg-muted/10 min-h-0">
+              <div className="flex-1 overflow-y-auto p-3 sm:p-4 whatsapp-chat-wallpaper min-h-0">
                 {loadingMessages ? (
                   <p className="text-muted-foreground text-sm">Carregando mensagens...</p>
                 ) : messages.length === 0 ? (
@@ -798,7 +798,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                         <React.Fragment key={group.dateKey}>
                           {/* Separador de data */}
                           <div className="flex items-center justify-center my-4">
-                            <div className="px-3 py-1 bg-muted/50 rounded-full">
+                            <div className="px-3 py-1 bg-white/90 dark:bg-[#182229] rounded-lg shadow-sm">
                               <span className="text-xs text-muted-foreground font-medium">{group.dateLabel}</span>
                             </div>
                           </div>
@@ -813,10 +813,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                             >
                               <div
                                 className={cn(
-                                  "rounded-2xl px-4 py-2.5 text-[15px] shadow-sm max-w-full break-words overflow-hidden",
+                                  "rounded-lg px-3 py-2 text-[14.5px] leading-snug shadow-sm max-w-full break-words overflow-hidden",
                                   m.direction === "outbound"
-                                    ? "bg-[#25D366] text-white rounded-br-md"
-                                    : "bg-white border border-border rounded-bl-md"
+                                    ? "bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef] rounded-tr-none"
+                                    : "bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef] rounded-tl-none"
                                 )}
                               >
                                 {m.media_url && m.message_type === "image" ? (
@@ -880,7 +880,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                     onClick={handleSendInChat}
                     disabled={sendingReply || !replyText.trim()}
                     size="icon"
-                    className="rounded-lg h-11 w-11 shrink-0 bg-[#25D366] hover:bg-[#20bd5a] text-white disabled:opacity-50"
+                    className="rounded-lg h-11 w-11 shrink-0 bg-[#00a884] hover:bg-[#008f72] text-white disabled:opacity-50"
                   >
                     <Send className="h-5 w-5" />
                   </Button>
@@ -888,9 +888,9 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-muted/20">
+            <div className="flex-1 flex items-center justify-center bg-[#f0f2f5] dark:bg-[#111b21]">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mb-4">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white dark:bg-[#202c33] shadow-sm mb-4">
                   <MessageSquare className="h-10 w-10 text-muted-foreground" />
                 </div>
                 <p className="font-medium">Selecione uma conversa</p>

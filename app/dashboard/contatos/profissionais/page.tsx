@@ -85,32 +85,34 @@ export default async function ProfissionaisPage() {
           description: "Equipe da clínica — convites, papéis e vínculos secretária/médico.",
         }}
       >
-        <EquipeClient
-          clinicId={clinicId}
-          members={members.map((m) => ({
-            id: m.id,
-            email: m.email ?? "",
-            full_name: m.full_name,
-            role: m.role,
-            created_at: m.created_at ?? "",
-            active: m.active,
-          }))}
-          invites={invites}
-          currentUserId={user.id}
-          secretariasMedicos={{
-            secretaries: (secretaries ?? []).map((s) => ({
-              id: s.id,
-              full_name: s.full_name ?? "",
-              email: s.email ?? undefined,
-            })),
-            doctors: (doctors ?? []).map((d) => ({
-              id: d.id,
-              full_name: d.full_name ?? "",
-            })),
-            initialAssignments: bySecretary,
-          }}
-        />
-        <WhatsAppRoutingSection clinicId={clinicId} />
+        <div className="space-y-6">
+          <EquipeClient
+            clinicId={clinicId}
+            members={members.map((m) => ({
+              id: m.id,
+              email: m.email ?? "",
+              full_name: m.full_name,
+              role: m.role,
+              created_at: m.created_at ?? "",
+              active: m.active,
+            }))}
+            invites={invites}
+            currentUserId={user.id}
+            secretariasMedicos={{
+              secretaries: (secretaries ?? []).map((s) => ({
+                id: s.id,
+                full_name: s.full_name ?? "",
+                email: s.email ?? undefined,
+              })),
+              doctors: (doctors ?? []).map((d) => ({
+                id: d.id,
+                full_name: d.full_name ?? "",
+              })),
+              initialAssignments: bySecretary,
+            }}
+          />
+          <WhatsAppRoutingSection clinicId={clinicId} />
+        </div>
       </PageShell>
     );
   }

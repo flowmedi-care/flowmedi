@@ -26,13 +26,16 @@ export function FilterBar({
       filters={
         <>
           {onSearchChange != null && (
-            <div className="relative flex-1 min-w-[200px] max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <div className="relative flex-1 w-full min-w-[240px] sm:max-w-2xl">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <Input
                 value={searchValue ?? ""}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={searchPlaceholder}
-                className={cn("h-9 pl-9 bg-muted/40 border-transparent focus-visible:bg-background")}
+                className={cn(
+                  "h-10 w-full pl-10 text-sm bg-background border-border/60 shadow-none",
+                  "focus-visible:bg-background focus-visible:ring-1"
+                )}
               />
             </div>
           )}

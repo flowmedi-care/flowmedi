@@ -17,8 +17,12 @@ export function PageToolbar({
         className
       )}
     >
-      {filters && <div className="flex flex-wrap items-center gap-2">{filters}</div>}
-      {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
+      {filters && (
+        <div className="flex flex-1 flex-wrap items-center gap-2 min-w-0">{filters}</div>
+      )}
+      {children && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">{children}</div>
+      )}
     </div>
   );
 }

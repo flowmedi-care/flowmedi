@@ -72,15 +72,7 @@ export default async function ServicosValoresServicosPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Serviços e valores</h1>
-        <p className="text-muted-foreground max-w-2xl">
-          Configure serviços, dimensões de preço (convênio, cidade, turno, campanha) e regras de valor.
-          Na agenda, o Secretário(a) escolhe serviço e dimensões para definir o preço da consulta de forma padronizada.
-        </p>
-      </header>
-      <ServicosValoresClient
+    <ServicosValoresClient
         services={services}
         dimensions={dimensions}
         dimensionValues={dimensionValues}
@@ -90,6 +82,5 @@ export default async function ServicosValoresServicosPage() {
         currentUserId={user.id}
         currentUserRole={profile.role}
       />
-    </div>
   );
 }

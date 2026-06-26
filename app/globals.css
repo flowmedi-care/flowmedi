@@ -102,4 +102,10 @@
   .surface-muted {
     @apply rounded-xl border border-border/40 bg-muted/50;
   }
+  .whatsapp-chat-wallpaper {
+    background-color: #efeae2;
+  }
+  .dark .whatsapp-chat-wallpaper {
+    background-color: #0b141a;
+  }
 }

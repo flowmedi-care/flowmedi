@@ -27,6 +27,7 @@ import { Plus, Pencil, Trash2, Loader2, Briefcase, Sliders, ListChecks, Calculat
 import { cn } from "@/lib/utils";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 
 import {
   recurrenceBillingModeLabel,
@@ -76,14 +77,22 @@ export function ServicosValoresClient({
   ];
 
   return (
-    <div className="space-y-6">
-      <SegmentedTabs
-        tabs={tabs.map((t) => ({ id: t.id, label: t.label, icon: t.icon }))}
-        value={activeTab}
-        onChange={(id) => setActiveTab(id as Tab)}
-        variant="underline"
-      />
-
+    <PageShell
+      header={{
+        breadcrumbs: [{ label: "Serviços e valores" }],
+        title: "Serviços e valores",
+        description:
+          "Configure serviços, dimensões de preço (convênio, cidade, turno, campanha) e regras de valor. Na agenda, o Secretário(a) escolhe serviço e dimensões para definir o preço da consulta de forma padronizada.",
+      }}
+      tabs={
+        <SegmentedTabs
+          tabs={tabs.map((t) => ({ id: t.id, label: t.label, icon: t.icon }))}
+          value={activeTab}
+          onChange={(id) => setActiveTab(id as Tab)}
+          variant="underline"
+        />
+      }
+    >
       <div className="min-h-[320px]">
         {activeTab === "servicos" && (
           <ServicosSection
@@ -118,7 +127,7 @@ export function ServicosValoresClient({
           />
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -185,7 +194,7 @@ function ServicosSection({
   }
 
   return (
-    <Card>
+    <Card className="border-border/50 shadow-none">
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0 pb-4">
         <div>
           <h2 className="text-lg font-semibold">Serviços</h2>
@@ -431,7 +440,7 @@ function DimensoesSection({
   }
 
   return (
-    <Card>
+    <Card className="border-border/50 shadow-none">
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0 pb-4">
         <div>
           <h2 className="text-lg font-semibold">Dimensões</h2>
@@ -608,7 +617,7 @@ function ValoresSection({
   }
 
   return (
-    <Card>
+    <Card className="border-border/50 shadow-none">
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0 pb-4">
         <div>
           <h2 className="text-lg font-semibold">Valores por dimensão</h2>
@@ -856,7 +865,7 @@ function RegrasSection({
   }
 
   return (
-    <Card>
+    <Card className="border-border/50 shadow-none">
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0 pb-4">
         <div>
           <h2 className="text-lg font-semibold">Regras de preço</h2>

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import {
   createProcedure,
@@ -222,24 +221,21 @@ export function ProcedimentosSection({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-lg font-semibold">Procedimentos</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Ex.: endoscopia, colonoscopia. Cada um tem recomendações padrão (usadas em e-mail e mensagens). Ao agendar, o procedimento pré-preenche as recomendações e pode auto-associar formulários vinculados a ele.
-            </p>
-          </div>
-          {!showForm && (
-            <Button variant="outline" onClick={openNew}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo procedimento
-            </Button>
-          )}
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold">Lista de procedimentos</h2>
+          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+            Ex.: endoscopia, colonoscopia. Cada um tem recomendações padrão (usadas em e-mail e mensagens). Ao agendar, o procedimento pré-preenche as recomendações e pode auto-associar formulários vinculados a ele.
+          </p>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+        {!showForm && (
+          <Button variant="outline" onClick={openNew} className="shrink-0">
+            <Plus className="h-4 w-4 mr-2" />
+            Novo procedimento
+          </Button>
+        )}
+      </div>
         {showForm && (
           <form
             onSubmit={handleSubmit}
@@ -496,7 +492,6 @@ export function ProcedimentosSection({
             })}
           </ul>
         )}
-      </CardContent>
       <ConfirmDialog
         open={!!procedureToDelete}
         title="Excluir procedimento"
@@ -518,6 +513,6 @@ export function ProcedimentosSection({
           onMutate();
         }}
       />
-    </Card>
+    </div>
   );
 }

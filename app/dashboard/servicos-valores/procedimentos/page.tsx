@@ -1,6 +1,7 @@
 import { listClinicalFichaTemplates } from "@/app/dashboard/campos-pacientes/clinical-fichas-actions";
 import { requireProcedimentosPageAccess } from "../page-access";
 import { ProcedimentosPageClient } from "./procedimentos-page-client";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 
 export default async function ServicosValoresProcedimentosPage() {
   const { supabase, clinicId } = await requireProcedimentosPageAccess();
@@ -76,14 +77,14 @@ export default async function ServicosValoresProcedimentosPage() {
   const fichaRes = await listClinicalFichaTemplates();
 
   return (
-    <div className="space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Procedimentos</h1>
-        <p className="text-muted-foreground max-w-2xl">
-          Cadastre procedimentos clínicos, vincule serviços de cobrança, insumos e profissionais.
-          Na agenda, o Secretário(a) seleciona o procedimento para pré-preencher recomendações, formulários e valores.
-        </p>
-      </header>
+    <PageShell
+      header={{
+        breadcrumbs: [{ label: "Procedimentos" }],
+        title: "Procedimentos",
+        description:
+          "Cadastre procedimentos clínicos, vincule serviços de cobrança, insumos e profissionais. Na agenda, o Secretário(a) seleciona o procedimento para pré-preencher recomendações, formulários e valores.",
+      }}
+    >
       <ProcedimentosPageClient
         procedures={procedures}
         doctors={doctors}
@@ -92,6 +93,6 @@ export default async function ServicosValoresProcedimentosPage() {
         products={products}
         fichaTemplates={fichaRes.data ?? []}
       />
-    </div>
+    </PageShell>
   );
 }
