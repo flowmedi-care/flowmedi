@@ -15,15 +15,14 @@ BEGIN
     RETURN '';
   END IF;
 
-  v := btrim(p_text);
-  v := regexp_replace(v, '[àáâãäå]', 'a', 'gi');
-  v := regexp_replace(v, '[èéêë]', 'e', 'gi');
-  v := regexp_replace(v, '[ìíîï]', 'i', 'gi');
-  v := regexp_replace(v, '[òóôõö]', 'o', 'gi');
-  v := regexp_replace(v, '[ùúûü]', 'u', 'gi');
-  v := regexp_replace(v, '[ñÑ]', 'n', 'g');
-  v := regexp_replace(v, '[çÇ]', 'c', 'g');
-  v := lower(regexp_replace(v, '[^a-z0-9]+', '-', 'g'));
+  -- lower() antes de normalizar; translate() evita [c-ç] acidental em character classes
+  v := lower(btrim(p_text));
+  v := translate(
+    v,
+    'àáâãäåèéêëìíîïòóôõöùúûüñç',
+    'aaaaaaeeeeiiiiooooouuuunc'
+  );
+  v := regexp_replace(v, '[^a-z0-9]+', '-', 'g');
   v := trim(both '-' from v);
   v := substring(v from 1 for 100);
 

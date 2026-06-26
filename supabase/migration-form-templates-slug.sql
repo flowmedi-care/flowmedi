@@ -6,7 +6,7 @@ ALTER TABLE public.form_templates
 
 UPDATE public.form_templates
 SET slug = public.slugify_text(name)
-WHERE slug IS NULL OR slug = '';
+WHERE slug IS NULL OR slug = '' OR slug <> public.slugify_text(name);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_form_templates_clinic_slug
   ON public.form_templates(clinic_id, slug)

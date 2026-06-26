@@ -16,14 +16,13 @@ DECLARE
 BEGIN
   -- Gerar slug base do nome (substituir acentos e ç/ñ, nunca remover letras)
   v_base_slug := p_name;
-  v_base_slug := REGEXP_REPLACE(v_base_slug, '[àáâãäå]', 'a', 'gi');
-  v_base_slug := REGEXP_REPLACE(v_base_slug, '[èéêë]', 'e', 'gi');
-  v_base_slug := REGEXP_REPLACE(v_base_slug, '[ìíîï]', 'i', 'gi');
-  v_base_slug := REGEXP_REPLACE(v_base_slug, '[òóôõö]', 'o', 'gi');
-  v_base_slug := REGEXP_REPLACE(v_base_slug, '[ùúûü]', 'u', 'gi');
-  v_base_slug := REGEXP_REPLACE(v_base_slug, '[ñÑ]', 'n', 'g');
-  v_base_slug := REGEXP_REPLACE(v_base_slug, '[çÇ]', 'c', 'g');
-  v_base_slug := LOWER(REGEXP_REPLACE(v_base_slug, '[^a-z0-9]+', '-', 'g'));
+  v_base_slug := lower(btrim(v_base_slug));
+  v_base_slug := translate(
+    v_base_slug,
+    'àáâãäåèéêëìíîïòóôõöùúûüñç',
+    'aaaaaaeeeeiiiiooooouuuunc'
+  );
+  v_base_slug := regexp_replace(v_base_slug, '[^a-z0-9]+', '-', 'g');
   
   -- Remover hífens no início e fim
   v_base_slug := TRIM(BOTH '-' FROM v_base_slug);
