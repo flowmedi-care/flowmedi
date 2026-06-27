@@ -1,10 +1,4 @@
 {
   "installCommand": "npm install",
-  "buildCommand": "npm run build",
-  "crons": [
-    {
-      "path": "/api/cron/weekly-executive-briefing",
-      "schedule": "0 9 * * 1"
-    }
-  ]
+  "buildCommand": "npm run build"
 }

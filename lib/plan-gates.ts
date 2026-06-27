@@ -236,11 +236,16 @@ export function canAccessAudit(planLimits: PlanLimits): boolean {
   return Boolean(planLimits.audit_log_enabled);
 }
 
+export function canAccessVisaoGeral(planLimits: PlanLimits): boolean {
+  return Boolean(planLimits.reports_basic_enabled);
+}
+
+/** @deprecated Use canAccessVisaoGeral — mantido para compatibilidade */
 export function canAccessReportTab(
   planLimits: PlanLimits,
   tab: "visao-geral" | "profissional" | "atendente" | "financeiro" | "operacional"
 ): boolean {
-  if (tab === "visao-geral") return Boolean(planLimits.reports_basic_enabled);
+  if (tab === "visao-geral") return canAccessVisaoGeral(planLimits);
   if (tab === "profissional") return Boolean(planLimits.reports_advanced_enabled);
   if (tab === "atendente") return Boolean(planLimits.productivity_team_enabled);
   if (tab === "financeiro") return Boolean(planLimits.reports_managerial_enabled);

@@ -85,7 +85,7 @@ export const DASHBOARD_TOP_NAV: NavTopItem[] = [
   {
     type: "link",
     href: "/dashboard",
-    label: "Relatórios",
+    label: "Visão Geral",
     icon: "layout-dashboard",
     roles: ["admin"],
   },

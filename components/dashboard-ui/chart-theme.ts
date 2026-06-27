@@ -14,6 +14,16 @@ export const CHART_PALETTE = [
   CHART_COLORS.muted,
 ];
 
+/** Escala monocromática (verde marca) para gráficos da Visão Geral */
+export const MONO_CHART_SCALE = [
+  "hsl(160 84% 28%)",
+  "hsl(160 70% 38%)",
+  "hsl(160 45% 52%)",
+  "hsl(160 30% 68%)",
+] as const;
+
+export const MONO_CHART_TREND = "hsl(160 55% 22%)";
+
 export const chartGridProps = {
   strokeDasharray: "3 3",
   stroke: "hsl(var(--border))",

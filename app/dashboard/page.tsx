@@ -52,7 +52,7 @@ export default async function DashboardPage({
     return <MedicoDashboard profile={profile} />;
   }
 
-  // Dashboard do admin: relatórios e métricas
+  // Dashboard do admin: visão geral e métricas
   return <AdminDashboard searchParams={searchParams} />;
 }
 
