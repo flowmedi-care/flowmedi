@@ -11,24 +11,25 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, Pencil, Send, Trash2, Link2, ExternalLink } from "lucide-react";
 import { EncaminharModal } from "@/app/dashboard/formularios/encaminhar-modal";
 import { deleteFormTemplate, createOrGetPublicFormLink } from "@/app/dashboard/formularios/actions";
+import type {
+  FormTemplateRow,
+  FormTemplatePatientOption,
+} from "@/components/forms/form-template-types";
 
-export type FormTemplateRow = {
-  id: string;
-  name: string;
-  appointment_type_name: string | null;
-  is_public: boolean;
-  publicUrl?: string | null;
-};
-
-type PatientOption = { id: string; full_name: string };
+export type { FormTemplateRow, FormTemplatePatientOption };
 
 type FormTemplatesGridProps = {
   templates: FormTemplateRow[];
-  patients: PatientOption[];
-  editHref: (id: string) => string;
+  patients: FormTemplatePatientOption[];
+  /** Base path without trailing slash, e.g. /dashboard/crm/captacao */
+  editBasePath: string;
 };
 
-export function FormTemplatesGrid({ templates, patients, editHref }: FormTemplatesGridProps) {
+export function FormTemplatesGrid({
+  templates,
+  patients,
+  editBasePath,
+}: FormTemplatesGridProps) {
   const router = useRouter();
   const [encaminharTemplate, setEncaminharTemplate] = useState<{
     id: string;
@@ -138,7 +139,7 @@ export function FormTemplatesGrid({ templates, patients, editHref }: FormTemplat
                   <Send className="h-3.5 w-3.5 mr-1" />
                   Encaminhar
                 </Button>
-                <Link href={editHref(t.id)}>
+                <Link href={`${editBasePath}/${t.id}/editar`}>
                   <Button variant="outline" size="sm" className="h-8">
                     <Pencil className="h-3.5 w-3.5 mr-1" />
                     Editar

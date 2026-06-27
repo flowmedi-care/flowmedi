@@ -91,6 +91,17 @@ export async function updateFormTemplate(
   procedureIds: string[] = []
 ) {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+
   const trimmedName = name.trim();
   const formSlug = slugify(trimmedName) || "formulario";
 
@@ -105,7 +116,8 @@ export async function updateFormTemplate(
       public_doctor_id: publicDoctorId || null,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id);
   if (error) return { error: error.message };
   await supabase.from("form_template_procedures").delete().eq("form_template_id", id);
   if (procedureIds.length > 0) {
@@ -125,12 +137,30 @@ export async function updateFormTemplate(
 
 export async function deleteFormTemplate(id: string) {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+
   const { data: row } = await supabase
     .from("form_templates")
     .select("clinic_id, name")
     .eq("id", id)
+    .eq("clinic_id", profile.clinic_id)
     .single();
-  const { error } = await supabase.from("form_templates").delete().eq("id", id);
+  if (!row) return { error: "Formulário não encontrado." };
+
+  const { error } = await supabase
+    .from("form_templates")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id);
   if (error) return { error: error.message };
   try {
     if (row?.clinic_id) {

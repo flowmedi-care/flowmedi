@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
-import { FormTemplatesGrid, type FormTemplateRow } from "@/components/forms/form-templates-grid";
+import { FormTemplatesGrid } from "@/components/forms/form-templates-grid";
+import type { FormTemplateRow } from "@/components/forms/form-template-types";
 import { slugify } from "@/lib/form-slug";
 
 export default async function CrmCaptacaoPage() {
@@ -24,7 +25,7 @@ export default async function CrmCaptacaoPage() {
     redirect("/dashboard");
   }
 
-  const { data: templatesRaw } = await supabase
+  const { data: templatesRaw, error: templatesError } = await supabase
     .from("form_templates")
     .select(`
       id,
@@ -92,10 +93,15 @@ export default async function CrmCaptacaoPage() {
       <p className="text-sm text-muted-foreground mb-4">
         {templates.length} formulário(s) · marque como &quot;Uso público&quot; no editor para gerar links de captação
       </p>
+      {templatesError && (
+        <p className="mb-4 text-sm text-destructive">
+          Erro ao carregar formulários: {templatesError.message}
+        </p>
+      )}
       <FormTemplatesGrid
         templates={templates}
         patients={patientOptions}
-        editHref={(id) => `/dashboard/crm/captacao/${id}/editar`}
+        editBasePath="/dashboard/crm/captacao"
       />
       <div className="mt-6 flex flex-wrap gap-3">
         <Link href="/dashboard/contatos/leads">
