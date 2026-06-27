@@ -154,15 +154,13 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     type: "group",
     id: "vendas",
     label: "Vendas",
-    icon: "shopping-cart",
+    icon: "circle-dollar-sign",
     prefix: "/dashboard/vendas",
     roles: ["admin", "secretaria"],
     children: [
       { href: "/dashboard/vendas", label: "Visão geral" },
       { href: "/dashboard/vendas/relatorio", label: "Relatório de vendas" },
-      { href: "/dashboard/vendas/pacotes", label: "Relatório de pacotes" },
       { href: "/dashboard/vendas/orcamentos", label: "Orçamentos" },
-      { href: "/dashboard/vendas/notas-fiscais", label: "Notas fiscais" },
     ],
   },
   {

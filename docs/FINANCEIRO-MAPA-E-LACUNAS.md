@@ -43,7 +43,8 @@ Administradores e secretarias da clínica que usam o Flowmedi para agendar, aten
 | Extrato de lançamentos | Ativo |
 | Competência, fluxo de caixa, DRE simplificada | Ativo (lentes diferentes — ver abaixo) |
 | Relatório de vendas por comanda | Ativo |
-| Orçamentos, pacotes, NF do paciente | Stub (“em desenvolvimento”) |
+| Orçamentos comerciais | Em desenvolvimento |
+| Pacotes comerciais / NF do paciente | Fora da UI (fases posteriores) |
 
 ### Por que parece desconexo
 
@@ -297,11 +298,9 @@ Acesso: admin e secretaria.
 
 | Rota | Status | Função |
 |------|--------|--------|
-| `/dashboard/vendas` | Ativo | Visão geral: total de vendas, ticket médio, top serviços (comandas recentes) |
-| `.../relatorio` | Ativo | Lista de comandas (~90 dias) |
-| `.../orcamentos` | **Stub** | Texto: cobrança hoje via comanda ao finalizar atendimento |
-| `.../pacotes` | **Stub** | Pacotes comerciais não disponíveis |
-| `.../notas-fiscais` | **Stub** | NF do paciente não ativa |
+| `/dashboard/vendas` | Ativo | Dashboard com KPIs, gráficos e filtro temporal |
+| `.../relatorio` | Ativo | Relatório enriquecido com filtros e gráficos |
+| `.../orcamentos` | Em desenvolvimento | Propostas comerciais com PDF |
 
 ### Outros pontos do produto
 
@@ -359,7 +358,7 @@ Organizadas por severidade para priorização de produto e engenharia.
 
 | # | Lacuna | Efeito | Direção de solução |
 |---|--------|--------|---------------------|
-| I1 | Orçamentos, pacotes, NF paciente | Rotas existem mas não funcionam | Modelar `budgets`, pacotes, integração fiscal em fases posteriores |
+| I1 | Orçamentos comerciais | Módulo em implementação | Tabelas `quotes` + PDF; pacotes/NF paciente fora de escopo imediato |
 | I2 | CRM sem valor | Pipeline não alimenta financeiro | Campo valor estimado + conversão em agendamento/comanda |
 | I3 | Competência inclui comandas abertas | Receita reconhecida antes de fechar/pagar | Usar só comandas com `closed_at` ou status `paga`/`parcial` com regra clara |
 | I4 | Duplicidade conceitual comanda + entry | Pagamento gera `patient_payments` e `financial_entries` | Manter entry como espelho do extrato; AR primário na comanda |
