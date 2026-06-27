@@ -5,6 +5,86 @@ import { revalidatePath } from "next/cache";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 
+export const EVENTS_LIST_LIMIT = 100;
+
+export type EventCounts = {
+  pending: number;
+  completed: number;
+  all: number;
+};
+
+async function getEventContext() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { supabase, user: null, profile: null, secretaryId: null as string | null };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  const secretaryId = profile?.role === "secretaria" ? user.id : null;
+  return { supabase, user, profile, secretaryId };
+}
+
+// ========== CONTAGENS REAIS (sem limite de listagem) ==========
+export async function getEventCounts(): Promise<{
+  data: EventCounts | null;
+  error: string | null;
+}> {
+  const { supabase, profile, secretaryId } = await getEventContext();
+  if (!profile?.clinic_id) return { data: null, error: "Clínica não encontrada." };
+
+  const { data, error } = await supabase.rpc("get_event_counts", {
+    p_clinic_id: profile.clinic_id,
+    p_secretary_id: secretaryId,
+  });
+
+  if (error) {
+    // Fallback: contagem aproximada via head count (sem filtro system_enabled/secretária)
+    const [pendingRes, completedRes, allRes] = await Promise.all([
+      supabase
+        .from("event_timeline")
+        .select("id", { count: "exact", head: true })
+        .eq("clinic_id", profile.clinic_id)
+        .eq("status", "pending"),
+      supabase
+        .from("event_timeline")
+        .select("id", { count: "exact", head: true })
+        .eq("clinic_id", profile.clinic_id)
+        .in("status", ["sent", "completed_without_send", "completed"]),
+      supabase
+        .from("event_timeline")
+        .select("id", { count: "exact", head: true })
+        .eq("clinic_id", profile.clinic_id),
+    ]);
+
+    if (pendingRes.error || completedRes.error || allRes.error) {
+      return { data: null, error: error.message };
+    }
+
+    return {
+      data: {
+        pending: pendingRes.count ?? 0,
+        completed: completedRes.count ?? 0,
+        all: allRes.count ?? 0,
+      },
+      error: null,
+    };
+  }
+
+  const counts = data as { pending?: number; completed?: number; all?: number } | null;
+  return {
+    data: {
+      pending: Number(counts?.pending ?? 0),
+      completed: Number(counts?.completed ?? 0),
+      all: Number(counts?.all ?? 0),
+    },
+    error: null,
+  };
+}
+
 // ========== BUSCAR EVENTOS PENDENTES ==========
 export async function getPendingEvents(filters?: {
   patientId?: string;
@@ -28,7 +108,7 @@ export async function getPendingEvents(filters?: {
     p_clinic_id: profile.clinic_id,
     p_patient_id: filters?.patientId || null,
     p_event_code: filters?.eventCode || null,
-    p_limit: 100,
+    p_limit: EVENTS_LIST_LIMIT,
     p_offset: 0,
     p_secretary_id: secretaryId,
   });
@@ -58,7 +138,7 @@ export async function getPastEvents(filters?: {
     p_clinic_id: profile.clinic_id,
     p_patient_id: filters?.patientId || null,
     p_event_code: filters?.eventCode || null,
-    p_limit: 100,
+    p_limit: EVENTS_LIST_LIMIT,
     p_offset: 0,
   });
 
@@ -89,7 +169,7 @@ export async function getAllEvents(filters?: {
     p_clinic_id: profile.clinic_id,
     p_patient_id: filters?.patientId || null,
     p_event_code: filters?.eventCode || null,
-    p_limit: 100,
+    p_limit: EVENTS_LIST_LIMIT,
     p_offset: 0,
     p_secretary_id: secretaryId,
   });
@@ -121,7 +201,7 @@ export async function getCompletedEvents(filters?: {
     p_clinic_id: profile.clinic_id,
     p_patient_id: filters?.patientId || null,
     p_event_code: filters?.eventCode || null,
-    p_limit: 100,
+    p_limit: EVENTS_LIST_LIMIT,
     p_offset: 0,
     p_secretary_id: secretaryId,
   });
@@ -132,17 +212,19 @@ export async function getCompletedEvents(filters?: {
 
 // ========== ATUALIZAR LISTAS (refetch direto, sem cache RSC) ==========
 export async function refreshEventsLists() {
-  const [pending, all, completed] = await Promise.all([
+  const [pending, all, completed, counts] = await Promise.all([
     getPendingEvents(),
     getAllEvents(),
     getCompletedEvents(),
+    getEventCounts(),
   ]);
 
   return {
     pendingEvents: pending.data ?? [],
     allEvents: all.data ?? [],
     completedEvents: completed.data ?? [],
-    error: pending.error ?? all.error ?? completed.error ?? null,
+    counts: counts.data ?? { pending: 0, completed: 0, all: 0 },
+    error: pending.error ?? all.error ?? completed.error ?? counts.error ?? null,
   };
 }
 
@@ -202,6 +284,60 @@ export async function concluirEvent(eventId: string): Promise<{ error: string | 
 
   revalidatePath("/dashboard/eventos");
   return { error: null };
+}
+
+// ========== CONCLUIR TODOS OS EVENTOS PENDENTES ==========
+export async function concluirTodosEventos(): Promise<{
+  error: string | null;
+  concluded: number;
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", concluded: 0 };
+
+  const { data: concluded, error: rpcError } = await supabase.rpc("concluir_todos_eventos", {
+    p_processed_by: user.id,
+  });
+
+  if (!rpcError && concluded != null) {
+    revalidatePath("/dashboard/eventos");
+    return { error: null, concluded: Number(concluded) };
+  }
+
+  const rpcMissing =
+    rpcError &&
+    (rpcError.code === "PGRST202" ||
+      rpcError.code === "42883" ||
+      rpcError.message.includes("concluir_todos_eventos"));
+
+  if (rpcError && !rpcMissing) {
+    return { error: rpcError.message, concluded: 0 };
+  }
+
+  // Fallback: concluir em lote via update direto
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", concluded: 0 };
+
+  const { data: updated, error: updateError } = await supabase
+    .from("event_timeline")
+    .update({
+      status: "completed",
+      processed_at: new Date().toISOString(),
+      processed_by: user.id,
+    })
+    .eq("clinic_id", profile.clinic_id)
+    .eq("status", "pending")
+    .select("id");
+
+  if (updateError) return { error: updateError.message, concluded: 0 };
+
+  revalidatePath("/dashboard/eventos");
+  return { error: null, concluded: updated?.length ?? 0 };
 }
 
 // ========== PREVIEW PARA PÁGINA DE TESTE (mensagem que seria enviada) ==========

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus, FileText, CalendarCheck, Calendar, XCircle, UserX, Route } from "lucide-react";
-import { processEvent, concluirEvent, getMessagePreviewForEvent, refreshEventsLists, type ClinicEventConfigItem } from "./actions";
+import { processEvent, concluirEvent, concluirTodosEventos, getMessagePreviewForEvent, refreshEventsLists, EVENTS_LIST_LIMIT, type ClinicEventConfigItem, type EventCounts } from "./actions";
 import { EventosConfigModal } from "./eventos-config-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { registerPatientFromPublicForm } from "@/app/dashboard/pacientes/actions";
@@ -142,6 +142,7 @@ export function EventosClient({
   initialPendingEvents,
   initialAllEvents,
   initialCompletedEvents,
+  initialEventCounts,
   patients,
   patientIdsWithAppointment = [],
   appointmentIdsNeedingForm = [],
@@ -158,6 +159,7 @@ export function EventosClient({
   initialPendingEvents: Event[];
   initialAllEvents: Event[];
   initialCompletedEvents: Event[];
+  initialEventCounts: EventCounts;
   patients: Patient[];
   patientIdsWithAppointment?: string[];
   appointmentIdsNeedingForm?: string[];
@@ -178,8 +180,10 @@ export function EventosClient({
   const [pendingEvents, setPendingEvents] = useState<Event[]>(initialPendingEvents);
   const [allEvents, setAllEvents] = useState<Event[]>(initialAllEvents);
   const [completedEvents, setCompletedEvents] = useState<Event[]>(initialCompletedEvents);
+  const [eventCounts, setEventCounts] = useState<EventCounts>(initialEventCounts);
   const [settings, setSettings] = useState<ClinicMessageSetting[]>(msgSettings);
   const skipPropsSyncRef = useRef(false);
+  const [concludingAll, setConcludingAll] = useState(false);
 
   useEffect(() => {
     if (skipPropsSyncRef.current) {
@@ -189,7 +193,8 @@ export function EventosClient({
     setPendingEvents(initialPendingEvents);
     setAllEvents(initialAllEvents);
     setCompletedEvents(initialCompletedEvents);
-  }, [initialPendingEvents, initialAllEvents, initialCompletedEvents]);
+    setEventCounts(initialEventCounts);
+  }, [initialPendingEvents, initialAllEvents, initialCompletedEvents, initialEventCounts]);
   const [eventConfigState, setEventConfigState] = useState<ClinicEventConfigItem[]>(eventConfig);
   const [processing, setProcessing] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -264,6 +269,34 @@ export function EventosClient({
   const filteredPending = pendingEvents.filter(filterFn);
   const filteredAll = allEvents.filter(filterFn);
   const filteredCompleted = completedEvents.filter(filterFn);
+  const filtersActive = patientFilter !== "all" || eventFilter !== "all";
+
+  const tabCounts = {
+    all: filtersActive ? filteredAll.length : eventCounts.all,
+    pending: filtersActive ? filteredPending.length : eventCounts.pending,
+    completed: filtersActive ? filteredCompleted.length : eventCounts.completed,
+  };
+
+  const listTruncated = {
+    all: !filtersActive && eventCounts.all > EVENTS_LIST_LIMIT,
+    pending: !filtersActive && eventCounts.pending > EVENTS_LIST_LIMIT,
+    completed: !filtersActive && eventCounts.completed > EVENTS_LIST_LIMIT,
+  };
+
+  async function applyRefreshedLists(
+    refreshed: Awaited<ReturnType<typeof refreshEventsLists>>
+  ) {
+    if (refreshed.error) {
+      toast(`Erro ao atualizar lista: ${refreshed.error}`, "error");
+      return false;
+    }
+    skipPropsSyncRef.current = true;
+    setPendingEvents(refreshed.pendingEvents);
+    setAllEvents(refreshed.allEvents);
+    setCompletedEvents(refreshed.completedEvents);
+    setEventCounts(refreshed.counts);
+    return true;
+  }
 
   async function handleProcessEvent(
     eventId: string,
@@ -302,16 +335,42 @@ export function EventosClient({
     const refreshed = await refreshEventsLists();
     setProcessing(null);
 
-    if (refreshed.error) {
-      toast(`Erro ao atualizar lista: ${refreshed.error}`, "error");
+    if (await applyRefreshedLists(refreshed)) {
+      toast("Evento concluído", "success");
+    }
+  }
+
+  async function handleConcluirTodos() {
+    if (eventCounts.pending === 0) {
+      toast("Não há eventos pendentes.", "error");
+      return;
+    }
+    if (
+      !confirm(
+        `Concluir todos os ${eventCounts.pending} eventos pendentes? Esta ação não pode ser desfeita em lote.`
+      )
+    ) {
       return;
     }
 
-    skipPropsSyncRef.current = true;
-    setPendingEvents(refreshed.pendingEvents);
-    setAllEvents(refreshed.allEvents);
-    setCompletedEvents(refreshed.completedEvents);
-    toast("Evento concluído", "success");
+    setConcludingAll(true);
+    const result = await concluirTodosEventos();
+    const refreshed = await refreshEventsLists();
+    setConcludingAll(false);
+
+    if (result.error) {
+      toast(result.error, "error");
+      return;
+    }
+
+    if (await applyRefreshedLists(refreshed)) {
+      toast(
+        result.concluded > 0
+          ? `${result.concluded} evento(s) concluído(s)`
+          : "Nenhum evento pendente restante",
+        "success"
+      );
+    }
   }
 
   async function handleAppointmentStatusChange(appointmentId: string, status: "realizada" | "falta" | "cancelada") {
@@ -1070,14 +1129,46 @@ export function EventosClient({
 
       <SegmentedTabs
         tabs={[
-          { id: "all", label: "Todos", count: filteredAll.length, icon: ListTodo },
-          { id: "pending", label: "Pendentes", count: filteredPending.length, icon: Clock },
-          { id: "completed", label: "Concluídos", count: filteredCompleted.length, icon: CheckCircle },
+          { id: "all", label: "Todos", count: tabCounts.all, icon: ListTodo },
+          { id: "pending", label: "Pendentes", count: tabCounts.pending, icon: Clock },
+          { id: "completed", label: "Concluídos", count: tabCounts.completed, icon: CheckCircle },
         ]}
         value={activeTab}
         onChange={(id) => setActiveTab(id as "all" | "pending" | "completed")}
         variant="underline"
       />
+
+      {activeTab === "pending" && eventCounts.pending > 0 && !filtersActive && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-1">
+          <p className="text-sm text-muted-foreground">
+            {listTruncated.pending
+              ? `Exibindo os ${EVENTS_LIST_LIMIT} pendentes mais recentes de ${eventCounts.pending} no total.`
+              : `${eventCounts.pending} evento(s) pendente(s).`}
+          </p>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleConcluirTodos}
+            disabled={concludingAll || processing !== null}
+            className="w-full sm:w-auto shrink-0"
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            {concludingAll ? "Concluindo..." : "Concluir todos"}
+          </Button>
+        </div>
+      )}
+
+      {activeTab === "completed" && listTruncated.completed && !filtersActive && (
+        <p className="text-sm text-muted-foreground px-1">
+          Exibindo os {EVENTS_LIST_LIMIT} concluídos mais recentes de {eventCounts.completed} no total.
+        </p>
+      )}
+
+      {activeTab === "all" && listTruncated.all && !filtersActive && (
+        <p className="text-sm text-muted-foreground px-1">
+          Exibindo os {EVENTS_LIST_LIMIT} eventos mais recentes de {eventCounts.all} no total.
+        </p>
+      )}
 
       <div className="space-y-4">
         {activeTab === "all" && (

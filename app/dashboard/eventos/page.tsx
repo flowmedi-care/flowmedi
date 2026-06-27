@@ -4,6 +4,7 @@ import {
   getPendingEvents,
   getAllEvents,
   getCompletedEvents,
+  getEventCounts,
   getPatientsForFilter,
   getPatientIdsWithAppointment,
   getAppointmentIdsNeedingFormLink,
@@ -43,6 +44,7 @@ export default async function EventosPage() {
     pendingResult,
     allResult,
     completedResult,
+    countsResult,
     patientsResult,
     patientIdsWithAppointmentResult,
     appointmentIdsNeedingFormResult,
@@ -56,6 +58,7 @@ export default async function EventosPage() {
     getPendingEvents(),
     getAllEvents(),
     getCompletedEvents(),
+    getEventCounts(),
     getPatientsForFilter(),
     getPatientIdsWithAppointment(),
     getAppointmentIdsNeedingFormLink(),
@@ -78,6 +81,7 @@ export default async function EventosPage() {
   const pendingEvents = pendingResult.data || [];
   const allEvents = allResult.data || [];
   const completedEvents = completedResult.data || [];
+  const eventCounts = countsResult.data ?? { pending: 0, completed: 0, all: 0 };
   const patients = patientsResult.data || [];
   const patientIdsWithAppointment = patientIdsWithAppointmentResult.data || [];
   const appointmentIdsNeedingForm = appointmentIdsNeedingFormResult.data || [];
@@ -93,6 +97,7 @@ export default async function EventosPage() {
       initialPendingEvents={pendingEvents}
       initialAllEvents={allEvents}
       initialCompletedEvents={completedEvents}
+      initialEventCounts={eventCounts}
       patients={patients}
       patientIdsWithAppointment={patientIdsWithAppointment}
       appointmentIdsNeedingForm={appointmentIdsNeedingForm}
