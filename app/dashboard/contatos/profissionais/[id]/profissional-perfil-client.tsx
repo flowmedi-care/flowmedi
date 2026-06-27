@@ -8,7 +8,7 @@ import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
-import type { ProfessionalProfileBundle } from "./profile-types";
+import type { ProfessionalProfileBundle } from "../profile-types";
 import { useState } from "react";
 import { Pencil } from "lucide-react";
 
