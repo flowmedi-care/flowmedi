@@ -12,7 +12,8 @@ import {
   updateClinicMessageSetting,
   type EffectiveTemplateItem,
 } from "@/app/dashboard/mensagens/actions";
-import { updateClinicEventConfig, type ClinicEventConfigItem } from "./actions";
+import { updateClinicEventConfig } from "./actions";
+import type { ClinicEventConfigItem } from "./eventos-types";
 import { Mail, MessageSquare, Settings2 } from "lucide-react";
 
 type EventSettingsMap = Record<

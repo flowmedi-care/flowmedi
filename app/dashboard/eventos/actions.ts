@@ -4,14 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
-
-export const EVENTS_LIST_LIMIT = 100;
-
-export type EventCounts = {
-  pending: number;
-  completed: number;
-  all: number;
-};
+import { EVENTS_LIST_LIMIT, type EventCounts, type ClinicEventConfigItem } from "./eventos-types";
 
 async function getEventContext() {
   const supabase = await createClient();
@@ -596,8 +589,6 @@ export async function getEventTypesForFilter() {
 }
 
 // ========== CONFIG EVENTOS: clinic_event_config (sistema on/off) ==========
-export type ClinicEventConfigItem = { event_code: string; system_enabled: boolean };
-
 export async function getClinicEventConfig(): Promise<{
   data: ClinicEventConfigItem[] | null;
   error: string | null;
