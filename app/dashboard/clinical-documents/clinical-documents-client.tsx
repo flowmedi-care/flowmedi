@@ -20,14 +20,25 @@ import type {
   ClinicalDocumentType,
   StructuredContent,
 } from "@/lib/clinical-documents/types";
-import { emptyStructuredContent, isExamOrderContent } from "@/lib/clinical-documents/render";
+import {
+  emptyStructuredContent,
+  isCertificateContent,
+  isExamOrderContent,
+} from "@/lib/clinical-documents/render";
 import { MedicationPrescriptionEditor } from "./medication-prescription-editor";
 import { ExamOrderEditor } from "./exam-order-editor";
+import { CertificateOrderEditor } from "./certificate-order-editor";
 import { ClinicalDocumentPreview } from "./clinical-document-preview";
+import {
+  ClinicalLayoutPickerDialog,
+  printClinicalHtml,
+} from "@/components/clinical-layout-picker";
+import type { ClinicalPdfLayoutId } from "@/lib/clinical-documents/pdf-layouts";
 
 const TYPE_LABELS: Record<ClinicalDocumentType, { title: string; newLabel: string }> = {
   prescription: { title: "Receitas", newLabel: "Nova receita" },
   exam_request: { title: "Pedidos de exame", newLabel: "Novo pedido" },
+  certificate: { title: "Atestados", newLabel: "Novo atestado" },
 };
 
 const STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
@@ -38,29 +49,23 @@ const STATUS_LABELS: Record<string, { label: string; variant: "default" | "secon
   void: { label: "Anulado", variant: "outline" },
 };
 
-function printHtml(html: string) {
-  const w = window.open("", "_blank", "width=800,height=900");
-  if (!w) {
-    alert("Permita pop-ups para imprimir o documento.");
-    return;
-  }
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  setTimeout(() => {
-    w.print();
-  }, 400);
+function docTypeLabel(type: ClinicalDocumentType) {
+  if (type === "prescription") return "Receita";
+  if (type === "certificate") return "Atestado";
+  return "Pedido de exame";
 }
 
 export function ClinicalDocumentsClient({
   type,
   patientId,
   appointmentId,
+  procedureId,
   isDoctor,
 }: {
   type: ClinicalDocumentType;
   patientId: string;
   appointmentId: string;
+  procedureId?: string | null;
   isDoctor: boolean;
 }) {
   const labels = TYPE_LABELS[type];
@@ -74,20 +79,26 @@ export function ClinicalDocumentsClient({
   const [structured, setStructured] = useState<StructuredContent>(() => emptyStructuredContent(type));
   const [saving, setSaving] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [layoutPickerOpen, setLayoutPickerOpen] = useState(false);
+  const [pendingDocId, setPendingDocId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const needsLayoutPicker = type === "exam_request" || type === "certificate";
 
   const load = useCallback(async () => {
     setLoading(true);
     const [docsRes, tplRes] = await Promise.all([
-      listClinicalDocuments({ appointmentId, patientId, type }),
-      listClinicalTemplates(type),
+      listClinicalDocuments({ appointmentId, patientId, type, procedureId }),
+      type === "certificate"
+        ? Promise.resolve({ data: [] as ClinicalDocumentTemplate[], error: null })
+        : listClinicalTemplates(type),
     ]);
     if (docsRes.error) setError(docsRes.error);
     else setDocuments(docsRes.data);
     if (!tplRes.error) setTemplates(tplRes.data);
     setLoading(false);
-  }, [appointmentId, patientId, type]);
+  }, [appointmentId, patientId, type, procedureId]);
 
   useEffect(() => {
     if (isDoctor) load();
@@ -112,11 +123,10 @@ export function ClinicalDocumentsClient({
     setTitle(doc.title ?? "");
     setBodyText(doc.body_text);
     const sc = doc.structured_content;
-    if (
-      doc.type === "exam_request" &&
-      !isExamOrderContent(sc)
-    ) {
+    if (doc.type === "exam_request" && !isExamOrderContent(sc)) {
       setStructured({ examLines: [], examNotes: "" });
+    } else if (doc.type === "certificate" && !isCertificateContent(sc)) {
+      setStructured({ certificateBody: "", certificateDays: 1, certificateCid: "" });
     } else {
       setStructured(sc);
     }
@@ -130,7 +140,7 @@ export function ClinicalDocumentsClient({
       setError(err ?? "Não foi possível abrir o documento.");
       return;
     }
-    printHtml(html);
+    printClinicalHtml(html);
   }
 
   async function handleSaveDraft() {
@@ -141,6 +151,7 @@ export function ClinicalDocumentsClient({
       type,
       patientId,
       appointmentId,
+      procedureId,
       title: title || null,
       bodyText,
       structuredContent: structured,
@@ -163,18 +174,18 @@ export function ClinicalDocumentsClient({
       const hasExam = structured.examLines.some((l) => l.name.trim());
       if (!hasExam) return "Adicione pelo menos um exame.";
     }
+    if (type === "certificate" && isCertificateContent(structured)) {
+      if (!structured.certificateBody.trim()) return "Informe o texto do atestado.";
+    }
     return null;
   }
 
-  async function handleFinalizeAndPrint() {
+  async function prepareDraftForFinalize(): Promise<string | null> {
     const validationErr = validateBeforeFinalize();
     if (validationErr) {
       setError(validationErr);
-      return;
+      return null;
     }
-
-    setFinalizing(true);
-    setError(null);
 
     let docId = editingId;
     if (!docId) {
@@ -182,14 +193,14 @@ export function ClinicalDocumentsClient({
         type,
         patientId,
         appointmentId,
+        procedureId,
         title: title || null,
         bodyText,
         structuredContent: structured,
       });
       if (saveRes.error || !saveRes.data) {
         setError(saveRes.error ?? "Erro ao salvar.");
-        setFinalizing(false);
-        return;
+        return null;
       }
       docId = saveRes.data.id;
       setEditingId(docId);
@@ -199,24 +210,58 @@ export function ClinicalDocumentsClient({
         type,
         patientId,
         appointmentId,
+        procedureId,
         title: title || null,
         bodyText,
         structuredContent: structured,
       });
       if (saveRes.error) {
         setError(saveRes.error);
-        setFinalizing(false);
-        return;
+        return null;
       }
     }
+    return docId;
+  }
 
+  async function handleFinalizeAndPrint() {
+    setFinalizing(true);
+    setError(null);
+    const docId = await prepareDraftForFinalize();
+    setFinalizing(false);
+    if (!docId) return;
+
+    if (needsLayoutPicker) {
+      setPendingDocId(docId);
+      setLayoutPickerOpen(true);
+      return;
+    }
+
+    setFinalizing(true);
     const fin = await finalizeClinicalDocumentManual(docId);
     setFinalizing(false);
     if (fin.error || !fin.html) {
       setError(fin.error ?? "Erro ao finalizar.");
       return;
     }
-    printHtml(fin.html);
+    printClinicalHtml(fin.html);
+    setView("list");
+    await load();
+  }
+
+  async function handleLayoutSelected(layoutId: ClinicalPdfLayoutId) {
+    setLayoutPickerOpen(false);
+    if (!pendingDocId) return;
+
+    setFinalizing(true);
+    const fin = await finalizeClinicalDocumentManual(pendingDocId, layoutId);
+    setFinalizing(false);
+    setPendingDocId(null);
+
+    if (fin.error || !fin.html) {
+      setError(fin.error ?? "Erro ao finalizar.");
+      return;
+    }
+    printClinicalHtml(fin.html);
     setView("list");
     await load();
   }
@@ -232,6 +277,15 @@ export function ClinicalDocumentsClient({
   if (view === "edit") {
     return (
       <div className="space-y-4">
+        <ClinicalLayoutPickerDialog
+          open={layoutPickerOpen}
+          onClose={() => {
+            setLayoutPickerOpen(false);
+            setPendingDocId(null);
+          }}
+          onSelect={handleLayoutSelected}
+        />
+
         <Button variant="ghost" size="sm" onClick={() => setView("list")}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Voltar
@@ -247,7 +301,7 @@ export function ClinicalDocumentsClient({
               <h3 className="font-semibold">{editingId ? "Editar" : labels.newLabel}</h3>
             </CardHeader>
             <CardContent className="space-y-4">
-              {templates.length > 0 && !editingId && (
+              {templates.length > 0 && !editingId && type !== "certificate" && (
                 <div>
                   <Label className="text-sm">Usar template</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -289,6 +343,10 @@ export function ClinicalDocumentsClient({
                 />
               )}
 
+              {type === "certificate" && isCertificateContent(structured) && (
+                <CertificateOrderEditor content={structured} onChange={setStructured} />
+              )}
+
               {type === "prescription" && (
                 <div>
                   <Label htmlFor="doc-body">Observações adicionais (opcional)</Label>
@@ -313,8 +371,8 @@ export function ClinicalDocumentsClient({
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                O documento será impresso para assinatura com carimbo e caneta. A assinatura digital
-                (certificado ICP) estará disponível quando configurada.
+                O documento será impresso para assinatura com carimbo e caneta. Escolha o modelo de
+                layout antes da impressão.
               </p>
             </CardContent>
           </Card>
@@ -333,6 +391,15 @@ export function ClinicalDocumentsClient({
 
   return (
     <div className="space-y-4">
+      <ClinicalLayoutPickerDialog
+        open={layoutPickerOpen}
+        onClose={() => {
+          setLayoutPickerOpen(false);
+          setPendingDocId(null);
+        }}
+        onSelect={handleLayoutSelected}
+      />
+
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-semibold text-lg">{labels.title}</h3>
         <Button size="sm" onClick={() => startNew()}>
@@ -362,8 +429,7 @@ export function ClinicalDocumentsClient({
               >
                 <div className="min-w-0 flex-1">
                   <p className="font-medium truncate">
-                    {doc.title ||
-                      (type === "prescription" ? "Receita" : "Pedido de exame")}{" "}
+                    {doc.title || docTypeLabel(type)}{" "}
                     <span className="text-muted-foreground font-normal text-sm">
                       {new Date(doc.created_at).toLocaleString("pt-BR")}
                     </span>
@@ -402,4 +468,3 @@ export function ClinicalDocumentsClient({
     </div>
   );
 }
-

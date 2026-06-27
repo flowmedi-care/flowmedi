@@ -278,9 +278,18 @@ export function PerfilClient({
       <ClinicalCatalogSection
         kind="exam"
         scope="doctor"
-        title="Meus exames"
-        description="Cadastre cada exame com nome e detalhes do que você costuma solicitar. Na consulta, basta escolher quais entram no pedido."
+        title="Meus pedidos de exame"
+        description="Cadastre cada pedido com nome e detalhes do que você costuma solicitar. Na consulta, basta escolher quais entram no pedido."
       />
+      <Card>
+        <CardHeader>
+          <h2 className="font-semibold">Meus atestados</h2>
+          <p className="text-sm text-muted-foreground">
+            Salve textos padrão de atestado durante o atendimento (botão &quot;Salvar como atestado padrão&quot;)
+            ou cadastre aqui em breve. No atendimento, use a ficha Atestado com modelos de impressão.
+          </p>
+        </CardHeader>
+      </Card>
       <ClinicalTemplatesSection
         scope="doctor"
         title="Meus templates de texto"

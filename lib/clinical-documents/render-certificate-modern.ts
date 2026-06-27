@@ -1,4 +1,4 @@
-import type { DocumentRenderContext, ExamOrderLine } from "./types";
+import type { DocumentRenderContext } from "./types";
 import { buildPlaceholderMap } from "./placeholders";
 import {
   buildLayoutCss,
@@ -22,33 +22,18 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-export type RenderExamRequestInput = {
+export type RenderCertificateInput = {
   ctx: DocumentRenderContext;
-  examLines: ExamOrderLine[];
-  examNotes?: string;
-  qrCodeUrl?: string | null;
+  certificateBody: string;
+  certificateDays?: number;
+  certificateCid?: string;
   layoutId?: ClinicalPdfLayoutId | string | null;
 };
 
-export function renderExamRequestModernHtml(input: RenderExamRequestInput): string {
+export function renderCertificateModernHtml(input: RenderCertificateInput): string {
   const layoutId = (input.layoutId ?? DEFAULT_CLINICAL_PDF_LAYOUT) as ClinicalPdfLayoutId;
   const theme = getLayoutTheme(layoutId);
   const map = buildPlaceholderMap(input.ctx);
-  const lines = input.examLines.filter((l) => l.name.trim());
-
-  const examListHtml = lines
-    .map(
-      (line, i) => `
-      <div class="content-line">
-        <p class="content-line-name"><span class="content-num">${i + 1}.</span> ${escapeHtml(line.name)}</p>
-        ${
-          line.details.trim()
-            ? `<p class="content-line-details">${escapeHtml(line.details).replace(/\n/g, "<br/>")}</p>`
-            : ""
-        }
-      </div>`
-    )
-    .join("");
 
   const clinicLogo = logoImg(
     input.ctx.clinic.logo_url,
@@ -56,17 +41,18 @@ export function renderExamRequestModernHtml(input: RenderExamRequestInput): stri
     input.ctx.clinic.name
   );
 
-  const qrHtml =
-    theme.showQr && input.qrCodeUrl
-      ? `<img src="${escapeHtml(input.qrCodeUrl)}" alt="QR Code" class="qr-img" width="72" height="72" />`
-      : "";
-
   const crmLine = map["{{crm_medico}}"];
   const birthDisplay = map["{{data_nascimento}}"];
   const emissionDate = map["{{data_emissao}}"];
+  const bodyHtml = escapeHtml(input.certificateBody.trim()).replace(/\n/g, "<br/>");
 
-  const notesBlock = input.examNotes?.trim()
-    ? `<div class="content-notes"><strong>Observações gerais:</strong> ${escapeHtml(input.examNotes).replace(/\n/g, "<br/>")}</div>`
+  const daysLine =
+    input.certificateDays && input.certificateDays > 0
+      ? `<p class="content-line-details"><strong>Afastamento:</strong> ${input.certificateDays} dia(s)</p>`
+      : "";
+
+  const cidLine = input.certificateCid?.trim()
+    ? `<p class="content-line-details"><strong>CID:</strong> ${escapeHtml(input.certificateCid.trim())}</p>`
     : "";
 
   const contactParts = [
@@ -86,7 +72,7 @@ export function renderExamRequestModernHtml(input: RenderExamRequestInput): stri
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <title>Solicitação de exames</title>
+  <title>Atestado médico</title>
   <style>${buildLayoutCss(theme)}</style>
 </head>
 <body>
@@ -99,11 +85,10 @@ export function renderExamRequestModernHtml(input: RenderExamRequestInput): stri
       <div class="doctor-block">
         <p class="doctor-name">${escapeHtml(map["{{nome_medico}}"])}</p>
         <p class="doctor-crm">${escapeHtml(crmLine)}</p>
-        ${qrHtml}
       </div>
     </header>
 
-    <div class="title-badge"${titleAlign}>Solicitação de exames</div>
+    <div class="title-badge"${titleAlign}>Atestado médico</div>
 
     <div class="patient-simple">
       <p><strong>Paciente:</strong> ${escapeHtml(map["{{nome_paciente}}"])}</p>
@@ -111,9 +96,14 @@ export function renderExamRequestModernHtml(input: RenderExamRequestInput): stri
     </div>
 
     <div class="content-list">
-      ${examListHtml || "<p style='color:#888'>Nenhum exame informado.</p>"}
+      <div class="content-line">
+        <div class="content-line-details" style="padding-left:0;font-size:11pt;line-height:1.6">
+          ${bodyHtml || "<em>Texto do atestado não informado.</em>"}
+        </div>
+        ${daysLine}
+        ${cidLine}
+      </div>
     </div>
-    ${notesBlock}
 
     <div class="sign-footer">
       <div class="sign-block">

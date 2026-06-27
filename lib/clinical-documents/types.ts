@@ -1,4 +1,4 @@
-export type ClinicalDocumentType = "prescription" | "exam_request";
+export type ClinicalDocumentType = "prescription" | "exam_request" | "certificate";
 
 export type ClinicalTemplateScope = "clinic" | "doctor";
 
@@ -36,7 +36,13 @@ export type StructuredContent =
   | { medications: MedicationItem[] }
   | { exams: ExamItem[] }
   | { selectedExamIds: string[]; examNotes?: string }
-  | { examLines: ExamOrderLine[]; examNotes?: string };
+  | { examLines: ExamOrderLine[]; examNotes?: string; layoutId?: string }
+  | {
+      certificateBody: string;
+      certificateDays?: number;
+      certificateCid?: string;
+      layoutId?: string;
+    };
 
 export type MedicationCatalogItem = {
   id: string;
@@ -63,6 +69,19 @@ export type ExamCatalogItem = {
   is_active: boolean;
 };
 
+export type CertificateCatalogItem = {
+  id: string;
+  clinic_id: string;
+  scope: ClinicalTemplateScope;
+  doctor_id: string | null;
+  name: string;
+  default_body: string;
+  default_days: number;
+  default_cid: string;
+  display_order: number;
+  is_active: boolean;
+};
+
 export type ClinicalDocumentTemplate = {
   id: string;
   clinic_id: string;
@@ -82,6 +101,7 @@ export type ClinicalDocument = {
   type: ClinicalDocumentType;
   patient_id: string;
   appointment_id: string | null;
+  procedure_id?: string | null;
   doctor_id: string;
   template_id: string | null;
   title: string | null;

@@ -145,11 +145,9 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     roles: ["admin", "secretaria", "medico"],
     children: [
       { href: "/dashboard/atendimento", label: "Fila operacional" },
-      { href: "/dashboard/planos-tratamento", label: "Planos de tratamento" },
       { href: "/dashboard/atendimentos/prescricoes", label: "Prescrições" },
       { href: "/dashboard/atendimentos/pedidos-exame", label: "Pedidos de exame" },
       { href: "/dashboard/atendimentos/atestados", label: "Atestados" },
-      { href: "/dashboard/atendimentos/sadt", label: "Guia SP / SADT" },
     ],
   },
   {

@@ -9,13 +9,15 @@ export default async function PedidosExamePage() {
       {error && <p className="text-sm text-destructive mb-4">{error}</p>}
       <DocumentosListClient
         title="Pedidos de exame"
-        subtitle="Solicitações de exames emitidas nos atendimentos."
+        subtitle="Solicitações de exames emitidas nos atendimentos. Imprima novamente para assinatura manual."
         items={(data ?? []).map((d) => ({
           id: d.id,
           created_at: d.created_at,
           patient_name: d.patient_name,
           patient_id: d.patient_id,
           doctor_name: d.doctor_name,
+          appointment_id: d.appointment_id ?? undefined,
+          body_rendered: d.body_rendered,
         }))}
         emptyMessage="Nenhum pedido de exame registrado ainda."
       />

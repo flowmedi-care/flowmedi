@@ -13,6 +13,12 @@ import { CalendarClock, Plus, Search, CalendarRange, Tags, Activity, Stethoscope
 import { cn } from "@/lib/utils";
 import { getStatusBadgeClassName } from "../agenda/status-utils";
 import type { ConsultaRow } from "./page";
+import {
+  formatDayHeader,
+  getOperacionalRange,
+  groupRowsByDay,
+  isToday,
+} from "@/lib/operational-queue";
 
 function todayYMD() {
   return new Date().toISOString().slice(0, 10);
@@ -33,18 +39,6 @@ const PERIOD_OPTIONS = [
   { value: "mes", label: "Mês" },
   { value: "personalizado", label: "Personalizado" },
 ] as const;
-
-/** Mesmo recorte da fila em /dashboard/atendimento: −7d até +14d */
-function getOperacionalRange() {
-  const now = new Date();
-  const start = new Date(now);
-  start.setDate(start.getDate() - 7);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(now);
-  end.setDate(end.getDate() + 14);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
-}
 
 function toYMD(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -234,6 +228,11 @@ export function ConsultaClient({
     filteredPatientId,
     pricingDimensionValues,
   ]);
+
+  const operacionalDayGroups = useMemo(() => {
+    if (period !== "operacional") return null;
+    return groupRowsByDay(filtered);
+  }, [filtered, period]);
 
   const showDoctorFilter = doctors.length > 1;
   const activeFiltersCount = [
@@ -505,55 +504,107 @@ export function ConsultaClient({
           <p className="text-sm text-muted-foreground py-8 text-center">
             Nenhuma consulta encontrada com os filtros aplicados.
           </p>
+        ) : period === "operacional" && operacionalDayGroups ? (
+          <div className="space-y-4">
+            {operacionalDayGroups.map(({ dayKey, rows: dayRows }) => {
+              const today = isToday(dayKey);
+              return (
+                <Card
+                  key={dayKey}
+                  className={cn(
+                    today && "border-primary/40 bg-primary/[0.03] ring-1 ring-primary/20"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "flex items-center justify-between gap-2 border-b px-4 py-2.5",
+                      today && "bg-primary/10 border-primary/20"
+                    )}
+                  >
+                    <h2 className="text-sm font-semibold capitalize">{formatDayHeader(dayKey)}</h2>
+                    <div className="flex items-center gap-2">
+                      {today && (
+                        <Badge className="bg-primary text-primary-foreground hover:bg-primary">
+                          Hoje
+                        </Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {dayRows.length} consulta{dayRows.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  </div>
+                  <CardContent className="p-0">
+                    <ul className="divide-y divide-border">
+                      {dayRows.map((c) => (
+                        <ConsultaListItem key={c.id} c={c} showDoctorFilter={showDoctorFilter} />
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         ) : (
           <ul className="divide-y divide-border">
             {filtered.map((c) => (
-              <li key={c.id}>
-                <Link
-                  href={`/dashboard/agenda/consulta/${c.id}`}
-                  className="grid grid-cols-[auto_1fr_auto] items-start gap-2 py-3 px-2 -mx-2 rounded-md hover:bg-muted/50 transition-colors"
-                >
-                  <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="font-medium tabular-nums shrink-0">
-                        {new Date(c.scheduled_at).toLocaleDateString("pt-BR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                        })}{" "}
-                        {new Date(c.scheduled_at).toLocaleTimeString("pt-BR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                      <span className="font-medium truncate">{c.patient.full_name}</span>
-                      {c.patient.phone && (
-                        <span className="text-sm text-muted-foreground truncate">{c.patient.phone}</span>
-                      )}
-                    </div>
-                    {((c.procedure || c.service_name) || (showDoctorFilter && c.doctor?.full_name)) && (
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                        {(c.procedure || c.service_name) && (
-                          <span className="shrink-0">
-                            {[c.procedure?.name, c.service_name].filter(Boolean).join(" · ")}
-                          </span>
-                        )}
-                        {showDoctorFilter && c.doctor?.full_name && (
-                          <span>Prof.: {c.doctor.full_name}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <Badge className={getStatusBadgeClassName(c.status) + " shrink-0 self-center"}>
-                    {STATUS_OPTIONS.find((s) => s.value === c.status)?.label ?? c.status}
-                  </Badge>
-                </Link>
-              </li>
+              <ConsultaListItem key={c.id} c={c} showDoctorFilter={showDoctorFilter} />
             ))}
           </ul>
         )}
       </div>
     </div>
+  );
+}
+
+function ConsultaListItem({
+  c,
+  showDoctorFilter,
+}: {
+  c: ConsultaRow;
+  showDoctorFilter: boolean;
+}) {
+  return (
+    <li>
+      <Link
+        href={`/dashboard/agenda/consulta/${c.id}`}
+        className="grid grid-cols-[auto_1fr_auto] items-start gap-2 py-3 px-2 -mx-2 rounded-md hover:bg-muted/50 transition-colors"
+      >
+        <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-medium tabular-nums shrink-0">
+              {new Date(c.scheduled_at).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })}{" "}
+              {new Date(c.scheduled_at).toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+            <span className="font-medium truncate">{c.patient.full_name}</span>
+            {c.patient.phone && (
+              <span className="text-sm text-muted-foreground truncate">{c.patient.phone}</span>
+            )}
+          </div>
+          {((c.procedure || c.service_name) || (showDoctorFilter && c.doctor?.full_name)) && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              {(c.procedure || c.service_name) && (
+                <span className="shrink-0">
+                  {[c.procedure?.name, c.service_name].filter(Boolean).join(" · ")}
+                </span>
+              )}
+              {showDoctorFilter && c.doctor?.full_name && (
+                <span>Prof.: {c.doctor.full_name}</span>
+              )}
+            </div>
+          )}
+        </div>
+        <Badge className={getStatusBadgeClassName(c.status) + " shrink-0 self-center"}>
+          {STATUS_OPTIONS.find((s) => s.value === c.status)?.label ?? c.status}
+        </Badge>
+      </Link>
+    </li>
   );
 }

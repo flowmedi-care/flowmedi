@@ -10,6 +10,8 @@ import {
   createTreatmentPlan,
   generatePlanAppointments,
   listClinicDoctors,
+  getDefaultServicePrice,
+  listProceduresForService,
   type TreatmentPlanRow,
 } from "@/app/dashboard/agenda/treatment-plan-actions";
 import { buildPlanSessionDates, type PlanScheduleFrequency } from "@/lib/financeiro/plan-schedule";
@@ -18,10 +20,20 @@ import { toast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCurrency } from "@/lib/financeiro/format";
+import { PatientCombobox, type PatientOption } from "@/components/patient-combobox";
 
-export function PlanosTratamentoClient({ initialPlans }: { initialPlans: TreatmentPlanRow[] }) {
+export function PlanosTratamentoClient({
+  initialPlans,
+  treatmentPlanServices = [],
+}: {
+  initialPlans: TreatmentPlanRow[];
+  treatmentPlanServices?: { id: string; nome: string }[];
+}) {
   const router = useRouter();
-  const [patientId, setPatientId] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState<PatientOption | null>(null);
+  const [serviceId, setServiceId] = useState("");
+  const [procedureId, setProcedureId] = useState("");
+  const [procedures, setProcedures] = useState<{ id: string; name: string }[]>([]);
   const [name, setName] = useState("");
   const [total, setTotal] = useState("");
   const [sessions, setSessions] = useState("10");
@@ -60,18 +72,40 @@ export function PlanosTratamentoClient({ initialPlans }: { initialPlans: Treatme
     }
   }, [schedulePlanId]);
 
+  useEffect(() => {
+    if (!serviceId) {
+      setProcedures([]);
+      setProcedureId("");
+      return;
+    }
+    listProceduresForService(serviceId).then((res) => {
+      if (!res.error) {
+        setProcedures(res.data);
+        if (res.data.length === 1) setProcedureId(res.data[0].id);
+      }
+    });
+    getDefaultServicePrice(serviceId).then((res) => {
+      if (!res.error && res.price != null && sessions) {
+        const sessionCount = parseInt(sessions, 10) || 1;
+        setTotal(String((res.price * sessionCount).toFixed(2).replace(".", ",")));
+      }
+    });
+  }, [serviceId, sessions]);
+
   async function handleCreate() {
-    if (!patientId.trim() || !name.trim()) {
-      toast("Informe paciente (UUID) e nome do plano.", "error");
+    if (!selectedPatient?.id || !name.trim()) {
+      toast("Selecione o paciente e informe o nome do plano.", "error");
       return;
     }
     setSaving(true);
     const res = await createTreatmentPlan({
-      patient_id: patientId.trim(),
+      patient_id: selectedPatient.id,
       name: name.trim(),
       total_amount: parseFloat(total.replace(",", ".")) || 0,
       sessions_total: parseInt(sessions, 10) || 1,
       payment_policy: policy,
+      service_id: serviceId || null,
+      procedure_id: procedureId || null,
     });
     setSaving(false);
     if (res.error) toast(res.error, "error");
@@ -318,10 +352,44 @@ export function PlanosTratamentoClient({ initialPlans }: { initialPlans: Treatme
           </p>
         </CardHeader>
         <CardContent className="space-y-3 max-w-lg">
-          <div className="space-y-1">
-            <Label>ID do paciente (UUID)</Label>
-            <Input value={patientId} onChange={(e) => setPatientId(e.target.value)} />
-          </div>
+          <PatientCombobox value={selectedPatient} onChange={setSelectedPatient} />
+          {treatmentPlanServices.length > 0 && (
+            <div className="space-y-1">
+              <Label>Serviço vinculado</Label>
+              <select
+                className="h-9 w-full rounded-md border px-2 text-sm"
+                value={serviceId}
+                onChange={(e) => setServiceId(e.target.value)}
+              >
+                <option value="">Selecione (opcional)</option>
+                {treatmentPlanServices.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nome}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Serviços com modo &quot;Plano de tratamento&quot; em Serviços e valores.
+              </p>
+            </div>
+          )}
+          {procedures.length > 0 && (
+            <div className="space-y-1">
+              <Label>Procedimento</Label>
+              <select
+                className="h-9 w-full rounded-md border px-2 text-sm"
+                value={procedureId}
+                onChange={(e) => setProcedureId(e.target.value)}
+              >
+                <option value="">Selecione</option>
+                {procedures.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="space-y-1">
             <Label>Nome do plano</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: 10 sessões laser" />

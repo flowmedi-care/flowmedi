@@ -185,13 +185,26 @@ export function renderClinicalDocumentHtml(input: RenderDocumentInput): string {
 }
 
 export function emptyStructuredContent(type: ClinicalDocumentType): StructuredContent {
-  return type === "prescription"
-    ? { medications: [] }
-    : { examLines: [], examNotes: "" };
+  if (type === "prescription") return { medications: [] };
+  if (type === "certificate") {
+    return { certificateBody: "", certificateDays: 1, certificateCid: "" };
+  }
+  return { examLines: [], examNotes: "" };
 }
 
 export function isExamOrderContent(
   content: StructuredContent
-): content is { examLines: ExamOrderLine[]; examNotes?: string } {
+): content is { examLines: ExamOrderLine[]; examNotes?: string; layoutId?: string } {
   return "examLines" in content && Array.isArray(content.examLines);
+}
+
+export function isCertificateContent(
+  content: StructuredContent
+): content is {
+  certificateBody: string;
+  certificateDays?: number;
+  certificateCid?: string;
+  layoutId?: string;
+} {
+  return "certificateBody" in content;
 }

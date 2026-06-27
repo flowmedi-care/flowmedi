@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Printer } from "lucide-react";
+import { printClinicalHtml } from "@/components/clinical-layout-picker";
 
 export function DocumentosListClient({
   title,
@@ -19,6 +22,7 @@ export function DocumentosListClient({
     doctor_name?: string;
     preview?: string;
     appointment_id?: string;
+    body_rendered?: string | null;
   }[];
   emptyMessage: string;
 }) {
@@ -36,7 +40,7 @@ export function DocumentosListClient({
           {items.map((item) => (
             <div key={item.id} className="py-3 first:pt-0">
               <div className="flex flex-wrap justify-between gap-2">
-                <div>
+                <div className="min-w-0 flex-1">
                   {item.patient_id ? (
                     <Link
                       href={`/dashboard/contatos/pacientes/${item.patient_id}`}
@@ -54,9 +58,22 @@ export function DocumentosListClient({
                     <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{item.preview}</p>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground shrink-0">
-                  {new Date(item.created_at).toLocaleDateString("pt-BR")}
-                </p>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(item.created_at).toLocaleDateString("pt-BR")}
+                  </p>
+                  {item.body_rendered && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => printClinicalHtml(item.body_rendered!)}
+                    >
+                      <Printer className="h-4 w-4 mr-1" />
+                      Reimprimir
+                    </Button>
+                  )}
+                </div>
               </div>
               {item.appointment_id && (
                 <Link

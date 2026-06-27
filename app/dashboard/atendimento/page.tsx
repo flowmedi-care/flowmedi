@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AtendimentoListClient } from "./atendimento-list-client";
+import { getOperacionalRange } from "@/lib/operational-queue";
 
 export type AtendimentoListRow = {
   id: string;
@@ -29,13 +30,7 @@ export default async function AtendimentoListPage() {
   if (!profile?.clinic_id) redirect("/dashboard");
 
   const clinicId = profile.clinic_id;
-  const now = new Date();
-  const start = new Date(now);
-  start.setDate(start.getDate() - 7);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(now);
-  end.setDate(end.getDate() + 14);
-  end.setHours(23, 59, 59, 999);
+  const { start, end } = getOperacionalRange();
 
   let allowedDoctorIds: string[] = [];
   if (profile.role === "secretaria") {

@@ -2,9 +2,11 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { renderClinicalDocumentHtml, isExamOrderContent } from "@/lib/clinical-documents/render";
+import { renderClinicalDocumentHtml, isExamOrderContent, isCertificateContent } from "@/lib/clinical-documents/render";
 import { renderExamRequestModernHtml } from "@/lib/clinical-documents/render-exam-modern";
+import { renderCertificateModernHtml } from "@/lib/clinical-documents/render-certificate-modern";
 import { renderPrescriptionModernHtml } from "@/lib/clinical-documents/render-prescription-modern";
+import { DEFAULT_CLINICAL_PDF_LAYOUT, isClinicalPdfLayoutId } from "@/lib/clinical-documents/pdf-layouts";
 import type {
   ClinicalDocument,
   ClinicalDocumentTemplate,
@@ -13,6 +15,7 @@ import type {
   ExamCatalogItem,
   ExamItem,
   ExamOrderLine,
+  CertificateCatalogItem,
   MedicationCatalogItem,
   MedicationItem,
   StructuredContent,
@@ -64,6 +67,19 @@ function parseStructuredContent(
         details: String(l?.details ?? ""),
       })),
       examNotes: obj.examNotes ? String(obj.examNotes) : "",
+      layoutId: obj.layoutId && isClinicalPdfLayoutId(String(obj.layoutId))
+        ? String(obj.layoutId)
+        : undefined,
+    };
+  }
+  if (type === "certificate" && typeof obj.certificateBody === "string") {
+    return {
+      certificateBody: String(obj.certificateBody),
+      certificateDays: obj.certificateDays ? Number(obj.certificateDays) : 1,
+      certificateCid: obj.certificateCid ? String(obj.certificateCid) : "",
+      layoutId: obj.layoutId && isClinicalPdfLayoutId(String(obj.layoutId))
+        ? String(obj.layoutId)
+        : undefined,
     };
   }
   if (type === "exam_request" && Array.isArray(obj.selectedExamIds)) {
@@ -307,6 +323,7 @@ export async function listClinicalDocuments(input: {
   appointmentId?: string;
   patientId?: string;
   type: ClinicalDocumentType;
+  procedureId?: string | null;
 }): Promise<{ data: ClinicalDocument[]; error: string | null }> {
   const auth = await getAuthDoctor();
   if (auth.error || !auth.profile) return { data: [], error: auth.error };
@@ -321,6 +338,7 @@ export async function listClinicalDocuments(input: {
 
   if (input.appointmentId) query = query.eq("appointment_id", input.appointmentId);
   if (input.patientId) query = query.eq("patient_id", input.patientId);
+  if (input.procedureId) query = query.eq("procedure_id", input.procedureId);
 
   const { data, error } = await query;
   if (error) return { data: [], error: error.message };
@@ -358,6 +376,7 @@ export async function saveClinicalDocumentDraft(input: {
   type: ClinicalDocumentType;
   patientId: string;
   appointmentId: string | null;
+  procedureId?: string | null;
   templateId?: string | null;
   title?: string | null;
   bodyText: string;
@@ -390,6 +409,7 @@ export async function saveClinicalDocumentDraft(input: {
     type: input.type,
     patient_id: input.patientId,
     appointment_id: input.appointmentId,
+    procedure_id: input.procedureId ?? null,
     doctor_id: auth.user.id,
     template_id: input.templateId ?? null,
     title: input.title?.trim() || null,
@@ -446,7 +466,8 @@ export async function saveClinicalDocumentDraft(input: {
 }
 
 export async function finalizeClinicalDocumentManual(
-  documentId: string
+  documentId: string,
+  layoutId?: string | null
 ): Promise<{ html: string | null; error: string | null }> {
   const auth = await getAuthDoctor();
   if (auth.error || !auth.user || !auth.profile) return { html: null, error: auth.error };
@@ -485,11 +506,28 @@ export async function finalizeClinicalDocumentManual(
     const qrCodeUrl = referralLink
       ? `https://api.qrserver.com/v1/create-qr-code/?size=144x144&data=${encodeURIComponent(referralLink)}`
       : null;
+    const resolvedLayout =
+      layoutId && isClinicalPdfLayoutId(layoutId)
+        ? layoutId
+        : structured.layoutId ?? DEFAULT_CLINICAL_PDF_LAYOUT;
     html = renderExamRequestModernHtml({
       ctx,
       examLines: structured.examLines,
       examNotes: structured.examNotes,
       qrCodeUrl,
+      layoutId: resolvedLayout,
+    });
+  } else if (type === "certificate" && isCertificateContent(structured)) {
+    const resolvedLayout =
+      layoutId && isClinicalPdfLayoutId(layoutId)
+        ? layoutId
+        : structured.layoutId ?? DEFAULT_CLINICAL_PDF_LAYOUT;
+    html = renderCertificateModernHtml({
+      ctx,
+      certificateBody: structured.certificateBody,
+      certificateDays: structured.certificateDays,
+      certificateCid: structured.certificateCid,
+      layoutId: resolvedLayout,
     });
   } else {
     html = renderClinicalDocumentHtml({
@@ -506,6 +544,10 @@ export async function finalizeClinicalDocumentManual(
     .from("clinical_documents")
     .update({
       body_rendered: html,
+      structured_content: {
+        ...structured,
+        ...(layoutId && isClinicalPdfLayoutId(layoutId) ? { layoutId } : {}),
+      },
       signature_mode: "manual",
       status: "issued_manual",
       finalized_at: new Date().toISOString(),
@@ -524,13 +566,24 @@ export async function finalizeClinicalDocumentManual(
 export async function getClinicalDocumentHtml(
   documentId: string
 ): Promise<{ html: string | null; error: string | null }> {
-  const auth = await getAuthDoctor();
-  if (auth.error) return { html: null, error: auth.error };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { html: null, error: "Não autorizado." };
 
-  const { data: doc, error } = await auth.supabase
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { html: null, error: "Clínica não encontrada." };
+
+  const { data: doc, error } = await supabase
     .from("clinical_documents")
-    .select("body_rendered, status")
+    .select("body_rendered, status, clinic_id")
     .eq("id", documentId)
+    .eq("clinic_id", profile.clinic_id)
     .single();
 
   if (error || !doc?.body_rendered) {
@@ -733,6 +786,20 @@ export async function previewClinicalDocumentHtml(input: {
         examLines: structured.examLines,
         examNotes: structured.examNotes,
         qrCodeUrl,
+        layoutId: structured.layoutId ?? DEFAULT_CLINICAL_PDF_LAYOUT,
+      }),
+      error: null,
+    };
+  }
+
+  if (input.type === "certificate" && isCertificateContent(structured)) {
+    return {
+      html: renderCertificateModernHtml({
+        ctx,
+        certificateBody: structured.certificateBody,
+        certificateDays: structured.certificateDays,
+        certificateCid: structured.certificateCid,
+        layoutId: structured.layoutId ?? DEFAULT_CLINICAL_PDF_LAYOUT,
       }),
       error: null,
     };
@@ -802,6 +869,76 @@ export async function deleteExamCatalogItem(id: string): Promise<{ error: string
   const supabase = await createClient();
   const { error } = await supabase.from("clinical_exam_catalog").delete().eq("id", id);
   if (error) return { error: error.message };
+  revalidatePath("/dashboard/perfil");
+  revalidatePath("/dashboard/configuracoes");
+  return { error: null };
+}
+
+export async function listCertificateCatalog(): Promise<{
+  data: CertificateCatalogItem[];
+  error: string | null;
+}> {
+  const auth = await getAuthDoctor();
+  if (auth.error || !auth.user || !auth.profile) return { data: [], error: auth.error };
+
+  const { data, error } = await auth.supabase
+    .from("clinical_certificate_catalog")
+    .select("*")
+    .eq("clinic_id", auth.profile.clinic_id)
+    .eq("is_active", true)
+    .or(`scope.eq.clinic,and(scope.eq.doctor,doctor_id.eq.${auth.user.id})`)
+    .order("display_order")
+    .order("name");
+
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as CertificateCatalogItem[], error: null };
+}
+
+export async function saveCertificateCatalogItem(input: {
+  id?: string;
+  scope: "clinic" | "doctor";
+  name: string;
+  default_body?: string;
+  default_days?: number;
+  default_cid?: string;
+  display_order?: number;
+  is_active?: boolean;
+}): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+  if (input.scope === "clinic" && profile.role !== "admin") return { error: "Sem permissão." };
+  if (input.scope === "doctor" && profile.role !== "medico") return { error: "Sem permissão." };
+
+  const row = {
+    clinic_id: profile.clinic_id,
+    scope: input.scope,
+    doctor_id: input.scope === "doctor" ? user.id : null,
+    name: input.name.trim(),
+    default_body: input.default_body?.trim() ?? "",
+    default_days: input.default_days ?? 1,
+    default_cid: input.default_cid?.trim() ?? "",
+    display_order: input.display_order ?? 0,
+    is_active: input.is_active ?? true,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.id) {
+    const { error } = await supabase.from("clinical_certificate_catalog").update(row).eq("id", input.id);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from("clinical_certificate_catalog").insert(row);
+    if (error) return { error: error.message };
+  }
   revalidatePath("/dashboard/perfil");
   revalidatePath("/dashboard/configuracoes");
   return { error: null };

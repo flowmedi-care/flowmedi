@@ -3,26 +3,30 @@ import { createClient } from "@/lib/supabase/server";
 import { requireClinicMember } from "@/lib/auth-helpers";
 
 /**
- * GET /api/patients/search?q=nome
- * Retorna contatos de pacientes da clínica para seleção rápida no WhatsApp.
+ * GET /api/patients/search?q=nome&all=1
+ * Retorna pacientes da clínica para seleção rápida.
+ * Sem `all=1`, filtra apenas pacientes com telefone (WhatsApp).
  */
 export async function GET(request: Request) {
   try {
     const { clinicId } = await requireClinicMember();
     const { searchParams } = new URL(request.url);
     const q = (searchParams.get("q") || "").trim();
+    const allPatients = searchParams.get("all") === "1";
 
     const supabase = await createClient();
     let query = supabase
       .from("patients")
       .select("id, full_name, phone")
       .eq("clinic_id", clinicId)
-      .not("phone", "is", null)
       .order("full_name", { ascending: true })
       .limit(30);
 
     if (q) {
       query = query.ilike("full_name", `%${q}%`);
+    }
+    if (!allPatients) {
+      query = query.not("phone", "is", null);
     }
 
     const { data, error } = await query;
@@ -36,7 +40,7 @@ export async function GET(request: Request) {
         full_name: row.full_name ? String(row.full_name) : null,
         phone: row.phone ? String(row.phone) : "",
       }))
-      .filter((row) => row.phone.trim().length > 0);
+      .filter((row) => allPatients || row.phone.trim().length > 0);
 
     return NextResponse.json({ contacts });
   } catch (e) {

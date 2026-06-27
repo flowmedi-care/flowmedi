@@ -172,6 +172,8 @@ export async function createRecurringAppointments(input: {
         sessions_used: 0,
         payment_policy: "por_sessao",
         status: "ativo",
+        service_id: input.serviceId ?? null,
+        procedure_id: input.procedureIds?.[0] ?? null,
         created_by: user.id,
       })
       .select("id, payment_policy")

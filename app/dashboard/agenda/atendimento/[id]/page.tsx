@@ -67,6 +67,33 @@ export default async function AtendimentoPage({
     profile.role === "medico";
   const isDoctor = profile.role === "medico";
 
+  const fichaProcedureMap: Record<string, { procedureId: string; procedureName: string }> = {};
+  const { data: apProcs } = await supabase
+    .from("appointment_procedures")
+    .select("procedure_id, procedures!procedure_id ( id, name )")
+    .eq("appointment_id", id);
+
+  const procedureIds = (apProcs ?? []).map((p) => String(p.procedure_id));
+  const legacyProcedureId = (appointment as { procedure_id?: string | null }).procedure_id;
+  if (procedureIds.length === 0 && legacyProcedureId) {
+    procedureIds.push(String(legacyProcedureId));
+  }
+
+  if (procedureIds.length > 0) {
+    const { data: links } = await supabase
+      .from("procedure_clinical_fichas")
+      .select("ficha_template_id, procedure_id, procedures!procedure_id ( name )")
+      .in("procedure_id", procedureIds);
+
+    for (const row of links ?? []) {
+      const proc = Array.isArray(row.procedures) ? row.procedures[0] : row.procedures;
+      fichaProcedureMap[String(row.ficha_template_id)] = {
+        procedureId: String(row.procedure_id),
+        procedureName: String((proc as { name?: string })?.name ?? "Procedimento"),
+      };
+    }
+  }
+
   return (
     <AtendimentoClinicoClient
       appointmentId={id}
@@ -81,6 +108,7 @@ export default async function AtendimentoPage({
       isDoctor={isDoctor}
       currentUserId={user.id}
       autoFinalize={finalize === "1"}
+      fichaProcedureMap={fichaProcedureMap}
     />
   );
 }

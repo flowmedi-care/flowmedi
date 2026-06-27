@@ -1,13 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
 import { AppPageHeader } from "@/components/app-page-header";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { fmtCurrency } from "@/lib/financeiro/format";
+import { PlanoDetalheClient } from "./plano-detalhe-client";
 
-// RECORRÊNCIA v1 — Detalhe do plano (destino do toast pós-agendamento recorrente).
-// Contrato: FLUXO-OPERACIONAL-COMPLETO.md § Parte 3
 export default async function PlanoTratamentoDetalhePage({
   params,
 }: {
@@ -26,7 +21,7 @@ export default async function PlanoTratamentoDetalhePage({
     .eq("id", user.id)
     .single();
   if (!profile?.clinic_id) redirect("/dashboard");
-  if (profile.role === "medico") redirect("/dashboard/planos-tratamento");
+  if (profile.role === "medico") redirect("/dashboard/servicos-valores/servicos?tab=planos");
 
   const { data: plan, error } = await supabase
     .from("treatment_plans")
@@ -40,7 +35,7 @@ export default async function PlanoTratamentoDetalhePage({
       sessions_used,
       payment_policy,
       status,
-      created_at,
+      patient_id,
       patient:patients ( full_name )
     `
     )
@@ -49,12 +44,12 @@ export default async function PlanoTratamentoDetalhePage({
     .maybeSingle();
 
   if (error?.message.includes("treatment_plans")) {
-    redirect("/dashboard/planos-tratamento");
+    redirect("/dashboard/servicos-valores/servicos?tab=planos");
   }
   if (!plan) notFound();
 
   const patient = Array.isArray(plan.patient) ? plan.patient[0] : plan.patient;
-  const remainder = Math.max(0, Number(plan.total_amount) - Number(plan.paid_amount));
+  const patientName = (patient as { full_name?: string })?.full_name ?? "Paciente";
   const perSession = Number(plan.total_amount) / Math.max(1, Number(plan.sessions_total));
 
   const { data: linkedAppts } = await supabase
@@ -63,78 +58,75 @@ export default async function PlanoTratamentoDetalhePage({
     .eq("treatment_plan_id", id)
     .order("scheduled_at", { ascending: true });
 
+  const apptIds = (linkedAppts ?? []).map((a) => a.id as string);
+  const comandaByAppt = new Map<string, { status: string; id: string; session_revenue_amount: number | null }>();
+  if (apptIds.length > 0) {
+    const { data: comandas } = await supabase
+      .from("comandas")
+      .select("id, appointment_id, status, session_revenue_amount")
+      .in("appointment_id", apptIds)
+      .neq("status", "cancelada");
+    for (const c of comandas ?? []) {
+      comandaByAppt.set(String(c.appointment_id), {
+        status: String(c.status),
+        id: String(c.id),
+        session_revenue_amount: c.session_revenue_amount != null ? Number(c.session_revenue_amount) : null,
+      });
+    }
+  }
+
+  const { data: bankAccounts } = await supabase
+    .from("bank_accounts")
+    .select("id, name")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("active", true)
+    .order("name");
+
+  const sessions = (linkedAppts ?? []).map((a) => {
+    const comanda = comandaByAppt.get(String(a.id));
+    return {
+      id: String(a.id),
+      session_number: a.session_number != null ? Number(a.session_number) : null,
+      scheduled_at: String(a.scheduled_at),
+      status: String(a.status),
+      comanda_status: comanda?.status ?? null,
+      comanda_id: comanda?.id ?? null,
+      session_revenue: comanda?.session_revenue_amount ?? perSession,
+      paid: comanda?.status === "paga",
+    };
+  });
+
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl">
       <AppPageHeader
         breadcrumbs={[
-          { label: "Planos de tratamento", href: "/dashboard/planos-tratamento" },
+          { label: "Serviços e valores", href: "/dashboard/servicos-valores/servicos?tab=planos" },
+          { label: "Planos de tratamento", href: "/dashboard/servicos-valores/servicos?tab=planos" },
           { label: plan.name },
         ]}
-        backHref="/dashboard/planos-tratamento"
+        backHref="/dashboard/servicos-valores/servicos?tab=planos"
         title={plan.name}
-        description={(patient as { full_name?: string })?.full_name ?? undefined}
+        description={patientName}
       />
-      <Card>
-        <CardContent className="pt-6 space-y-4 text-sm">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">{plan.status}</Badge>
-            {plan.payment_policy && (
-              <Badge variant="secondary">{plan.payment_policy}</Badge>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-muted-foreground">Valor total</p>
-              <p className="font-semibold">{fmtCurrency(Number(plan.total_amount))}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Recebido</p>
-              <p className="font-semibold">{fmtCurrency(Number(plan.paid_amount))}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Saldo do plano</p>
-              <p className="font-semibold">{fmtCurrency(remainder)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Por sessão (previsto)</p>
-              <p className="font-semibold">{fmtCurrency(perSession)}</p>
-            </div>
-          </div>
-          <p className="text-muted-foreground">
-            Progresso: {plan.sessions_used}/{plan.sessions_total} sessões utilizadas
-          </p>
-          <p className="text-xs text-muted-foreground">
-            DRE: receita reconhecida por sessão realizada (proporcional ao plano). Contas a
-            receber usam o saldo do plano, não de cada consulta isolada.
-          </p>
-        </CardContent>
-      </Card>
-
-      {(linkedAppts?.length ?? 0) > 0 && (
-        <Card>
-          <CardHeader>
-            <h2 className="font-semibold">Sessões na agenda</h2>
-          </CardHeader>
-          <CardContent>
-            <ul className="divide-y text-sm">
-              {linkedAppts!.map((a) => (
-                <li key={a.id} className="py-2 flex justify-between gap-2">
-                  <span>
-                    Sessão {a.session_number ?? "—"} —{" "}
-                    {new Date(a.scheduled_at).toLocaleString("pt-BR")} ({a.status})
-                  </span>
-                  <Link
-                    href={`/dashboard/agenda/consulta/${a.id}`}
-                    className="text-primary hover:underline shrink-0"
-                  >
-                    Abrir
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+      <PlanoDetalheClient
+        plan={{
+          id: String(plan.id),
+          name: String(plan.name),
+          total_amount: Number(plan.total_amount),
+          paid_amount: Number(plan.paid_amount),
+          sessions_total: Number(plan.sessions_total),
+          sessions_used: Number(plan.sessions_used),
+          payment_policy: plan.payment_policy != null ? String(plan.payment_policy) : null,
+          status: String(plan.status),
+        }}
+        patientId={String(plan.patient_id)}
+        patientName={patientName}
+        sessions={sessions}
+        bankAccounts={(bankAccounts ?? []).map((b) => ({
+          id: String(b.id),
+          name: String(b.name),
+        }))}
+      />
     </div>
   );
 }

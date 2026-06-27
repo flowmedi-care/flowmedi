@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 
 export async function listClinicalDocumentsByType(
-  documentType: "prescription" | "exam_request"
+  documentType: "prescription" | "exam_request" | "certificate"
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -22,14 +22,16 @@ export async function listClinicalDocumentsByType(
     .select(
       `
       id,
-      document_type,
+      type,
+      appointment_id,
+      body_rendered,
       created_at,
       patient:patients ( id, full_name ),
       doctor:profiles!doctor_id ( full_name )
     `
     )
     .eq("clinic_id", profile.clinic_id)
-    .eq("document_type", documentType)
+    .eq("type", documentType)
     .order("created_at", { ascending: false })
     .limit(100);
 
@@ -43,6 +45,8 @@ export async function listClinicalDocumentsByType(
       return {
         id: d.id as string,
         created_at: d.created_at as string,
+        appointment_id: d.appointment_id as string | null,
+        body_rendered: d.body_rendered as string | null,
         patient_id: (patient as { id?: string })?.id,
         patient_name: (patient as { full_name?: string })?.full_name ?? "—",
         doctor_name: (doctor as { full_name?: string })?.full_name ?? "—",
@@ -79,14 +83,14 @@ export async function listAtestadoInstances() {
       `
       id,
       created_at,
-      field_values,
+      responses,
       appointment:appointments (
         id,
         patient:patients ( id, full_name )
       )
     `
     )
-    .in("template_id", templateIds)
+    .in("ficha_template_id", templateIds)
     .order("created_at", { ascending: false })
     .limit(100);
 
@@ -101,14 +105,15 @@ export async function listAtestadoInstances() {
           ? (appt as { patient: { full_name?: string; id?: string }[] }).patient[0]
           : (appt as { patient?: { full_name?: string; id?: string } }).patient
         : null;
-      const fv = row.field_values as Record<string, unknown> | null;
+      const fv = row.responses as Record<string, unknown> | null;
+      const texto = fv?.["atestado-texto"];
       return {
         id: row.id as string,
         created_at: row.created_at as string,
         patient_name: patient?.full_name ?? "—",
         patient_id: patient?.id,
         appointment_id: (appt as { id?: string })?.id,
-        preview: fv?.texto ? String(fv.texto).slice(0, 80) : "Atestado",
+        preview: texto ? String(texto).slice(0, 80) : "Atestado",
       };
     }),
   };

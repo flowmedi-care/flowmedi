@@ -23,11 +23,13 @@ import {
   updateServicePrice,
   deleteServicePrice,
 } from "./actions";
-import { Plus, Pencil, Trash2, Loader2, Briefcase, Sliders, ListChecks, Calculator, Inbox, type LucideIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Briefcase, Sliders, ListChecks, Calculator, Inbox, ClipboardList, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
+import { PlanosTratamentoClient } from "@/app/dashboard/planos-tratamento/planos-tratamento-client";
+import type { TreatmentPlanRow } from "@/app/dashboard/agenda/treatment-plan-actions";
 
 import {
   recurrenceBillingModeLabel,
@@ -45,7 +47,7 @@ type DimensionValueRow = { id: string; dimension_id: string; nome: string; ativo
 type ServicePriceRow = { id: string; service_id: string; professional_id: string | null; valor: number; ativo: boolean };
 type DoctorRow = { id: string; full_name: string | null };
 
-type Tab = "servicos" | "dimensoes" | "valores" | "regras";
+type Tab = "servicos" | "dimensoes" | "valores" | "regras" | "planos";
 
 export function ServicosValoresClient({
   services: initialServices,
@@ -56,6 +58,8 @@ export function ServicosValoresClient({
   doctors,
   currentUserId,
   currentUserRole,
+  initialPlans = [],
+  initialTab = "servicos",
 }: {
   services: ServiceRow[];
   dimensions: DimensionRow[];
@@ -65,15 +69,28 @@ export function ServicosValoresClient({
   doctors: DoctorRow[];
   currentUserId: string;
   currentUserRole: string;
+  initialPlans?: TreatmentPlanRow[];
+  initialTab?: Tab;
 }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>("servicos");
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
-  const tabs: { id: Tab; label: string; icon: LucideIcon }[] = [
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
+  const treatmentPlanServices = initialServices.filter(
+    (s) => s.recurrence_billing_mode === "treatment_plan"
+  );
+
+  const canManagePlans = currentUserRole === "admin" || currentUserRole === "secretaria";
+
+  const tabs: { id: Tab; label: string; icon: LucideIcon; hidden?: boolean }[] = [
     { id: "servicos", label: "Serviços", icon: Briefcase },
     { id: "dimensoes", label: "Dimensões", icon: Sliders },
     { id: "valores", label: "Valores por dimensão", icon: ListChecks },
     { id: "regras", label: "Regras de preço", icon: Calculator },
+    { id: "planos", label: "Planos de tratamento", icon: ClipboardList, hidden: !canManagePlans },
   ];
 
   return (
@@ -86,7 +103,7 @@ export function ServicosValoresClient({
       }}
       tabs={
         <SegmentedTabs
-          tabs={tabs.map((t) => ({ id: t.id, label: t.label, icon: t.icon }))}
+          tabs={tabs.filter((t) => !t.hidden).map((t) => ({ id: t.id, label: t.label, icon: t.icon }))}
           value={activeTab}
           onChange={(id) => setActiveTab(id as Tab)}
           variant="underline"
@@ -124,6 +141,15 @@ export function ServicosValoresClient({
             currentUserId={currentUserId}
             currentUserRole={currentUserRole}
             onMutate={() => router.refresh()}
+          />
+        )}
+        {activeTab === "planos" && canManagePlans && (
+          <PlanosTratamentoClient
+            initialPlans={initialPlans}
+            treatmentPlanServices={treatmentPlanServices.map((s) => ({
+              id: s.id,
+              nome: s.nome,
+            }))}
           />
         )}
       </div>

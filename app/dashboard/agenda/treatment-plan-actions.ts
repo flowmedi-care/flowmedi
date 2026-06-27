@@ -15,6 +15,8 @@ export type TreatmentPlanRow = {
   sessions_used: number;
   payment_policy: string | null;
   status: string;
+  service_id: string | null;
+  procedure_id: string | null;
   created_at: string;
 };
 
@@ -46,6 +48,8 @@ export async function listTreatmentPlans(patientId?: string) {
       sessions_used,
       payment_policy,
       status,
+      service_id,
+      procedure_id,
       created_at,
       patient:patients ( full_name )
     `
@@ -78,6 +82,8 @@ export async function listTreatmentPlans(patientId?: string) {
         sessions_used: Number(r.sessions_used),
         payment_policy: r.payment_policy != null ? String(r.payment_policy) : null,
         status: String(r.status),
+        service_id: r.service_id != null ? String(r.service_id) : null,
+        procedure_id: r.procedure_id != null ? String(r.procedure_id) : null,
         created_at: String(r.created_at),
       };
     }),
@@ -91,6 +97,8 @@ export async function createTreatmentPlan(input: {
   sessions_total: number;
   payment_policy?: "antecipado" | "parcelado" | "por_sessao";
   notes?: string;
+  service_id?: string | null;
+  procedure_id?: string | null;
 }) {
   const supabase = await createClient();
   const {
@@ -118,6 +126,8 @@ export async function createTreatmentPlan(input: {
       sessions_total: Math.max(1, input.sessions_total),
       payment_policy: input.payment_policy ?? "antecipado",
       notes: input.notes?.trim() || null,
+      service_id: input.service_id ?? null,
+      procedure_id: input.procedure_id ?? null,
       created_by: user.id,
     })
     .select("id")
@@ -126,6 +136,7 @@ export async function createTreatmentPlan(input: {
   if (error) return { error: error.message, id: null };
 
   revalidatePath("/dashboard/planos-tratamento");
+  revalidatePath("/dashboard/servicos-valores/servicos");
   revalidatePath(`/dashboard/pacientes/${input.patient_id}`);
   return { error: null, id: String(data.id) };
 }
@@ -358,6 +369,61 @@ export async function listClinicDoctors() {
   };
 }
 
+export async function getDefaultServicePrice(serviceId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", price: null as number | null };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", price: null };
+
+  const { data } = await supabase
+    .from("service_prices")
+    .select("valor")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("service_id", serviceId)
+    .eq("ativo", true)
+    .order("valor", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  return { error: null, price: data?.valor != null ? Number(data.valor) : null };
+}
+
+export async function listProceduresForService(serviceId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado.", data: [] as { id: string; name: string }[] };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada.", data: [] };
+
+  const { data, error } = await supabase
+    .from("procedures")
+    .select("id, name")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("default_service_id", serviceId)
+    .order("name");
+
+  if (error) return { error: error.message, data: [] };
+  return {
+    error: null,
+    data: (data ?? []).map((p) => ({ id: String(p.id), name: String(p.name) })),
+  };
+}
+
 export async function generatePlanAppointments(
   planId: string,
   slots: {
@@ -387,7 +453,7 @@ export async function generatePlanAppointments(
 
   const { data: plan } = await supabase
     .from("treatment_plans")
-    .select("id, patient_id, sessions_total, clinic_id, payment_policy")
+    .select("id, patient_id, sessions_total, clinic_id, payment_policy, service_id, procedure_id")
     .eq("id", planId)
     .single();
 
@@ -424,7 +490,7 @@ export async function generatePlanAppointments(
     const scheduledEndAt =
       slot.scheduled_end_at ??
       buildScheduledEndFromDuration(slot.scheduled_at, 30);
-    const procedureIds = slot.procedure_ids ?? [];
+    const procedureIds = slot.procedure_ids ?? (plan.procedure_id ? [String(plan.procedure_id)] : []);
 
     const res = await createAppointment(
       String(plan.patient_id),
@@ -439,7 +505,7 @@ export async function generatePlanAppointments(
       null,
       null,
       undefined,
-      slot.service_id ?? null,
+      slot.service_id ?? (plan.service_id ? String(plan.service_id) : null),
       null,
       undefined,
       procedureIds.length ? procedureIds : undefined,

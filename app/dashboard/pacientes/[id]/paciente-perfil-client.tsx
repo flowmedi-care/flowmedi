@@ -609,9 +609,9 @@ export function PacientePerfilClient({
                               {d.appointment_id && (
                                 <Button variant="outline" size="sm" asChild>
                                   <Link
-                                    href={`/dashboard/agenda/consulta/${d.appointment_id}?tab=${d.type === "prescription" ? "receitas" : "pedidos"}`}
+                                    href={`/dashboard/agenda/atendimento/${d.appointment_id}`}
                                   >
-                                    Abrir consulta
+                                    Abrir atendimento
                                   </Link>
                                 </Button>
                               )}

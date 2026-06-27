@@ -16,6 +16,8 @@ export default async function PrescricoesPage() {
           patient_name: d.patient_name,
           patient_id: d.patient_id,
           doctor_name: d.doctor_name,
+          appointment_id: d.appointment_id ?? undefined,
+          body_rendered: d.body_rendered,
         }))}
         emptyMessage="Nenhuma prescrição registrada ainda."
       />

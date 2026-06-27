@@ -1,7 +1,13 @@
 import { ServicosValoresClient } from "../servicos-valores-client";
 import { requireServicosValoresPageAccess } from "../page-access";
+import { listTreatmentPlans } from "@/app/dashboard/agenda/treatment-plan-actions";
 
-export default async function ServicosValoresServicosPage() {
+export default async function ServicosValoresServicosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
   const { supabase, user, profile, clinicId } = await requireServicosValoresPageAccess();
 
   const [servicesRes, dimensionsRes, dimensionValuesRes, servicePricesRes, doctorsRes] =
@@ -71,6 +77,12 @@ export default async function ServicosValoresServicosPage() {
     dimensionValuesByPrice[row.service_price_id].push(row.dimension_value_id);
   }
 
+  let initialPlans: Awaited<ReturnType<typeof listTreatmentPlans>>["data"] = [];
+  if (profile.role === "admin" || profile.role === "secretaria") {
+    const plansRes = await listTreatmentPlans();
+    initialPlans = plansRes.data ?? [];
+  }
+
   return (
     <ServicosValoresClient
         services={services}
@@ -81,6 +93,8 @@ export default async function ServicosValoresServicosPage() {
         doctors={doctors}
         currentUserId={user.id}
         currentUserRole={profile.role}
+        initialPlans={initialPlans}
+        initialTab={tab === "planos" ? "planos" : "servicos"}
       />
   );
 }

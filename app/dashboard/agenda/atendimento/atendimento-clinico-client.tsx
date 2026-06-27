@@ -73,6 +73,7 @@ export function AtendimentoClinicoClient({
   isDoctor,
   currentUserId,
   autoFinalize,
+  fichaProcedureMap = {},
 }: {
   appointmentId: string;
   patientId: string;
@@ -86,6 +87,7 @@ export function AtendimentoClinicoClient({
   isDoctor: boolean;
   currentUserId: string | null;
   autoFinalize?: boolean;
+  fichaProcedureMap?: Record<string, { procedureId: string; procedureName: string }>;
 }) {
   const router = useRouter();
   const [fichas, setFichas] = useState<AppointmentFichaInstance[]>([]);
@@ -219,6 +221,24 @@ export function AtendimentoClinicoClient({
   const relatoriosConsulta = relatorios.filter((r) => r.is_current_appointment);
   const relatoriosOutros = relatorios.filter((r) => !r.is_current_appointment);
 
+  const activeProcedureId = activeFichaCurrent
+    ? fichaProcedureMap[activeFichaCurrent.ficha_template_id]?.procedureId ?? null
+    : null;
+
+  const fichasByProcedure = (() => {
+    const groups = new Map<string, { name: string; fichas: AppointmentFichaInstance[] }>();
+    for (const f of fichas) {
+      const meta = fichaProcedureMap[f.ficha_template_id];
+      const key = meta?.procedureId ?? "_geral";
+      const name = meta?.procedureName ?? "Geral";
+      if (!groups.has(key)) groups.set(key, { name, fichas: [] });
+      groups.get(key)!.fichas.push(f);
+    }
+    return Array.from(groups.values());
+  })();
+
+  const useProcedureGroups = Object.keys(fichaProcedureMap).length > 0 && fichasByProcedure.length > 1;
+
   const scheduledLabel = new Date(scheduledAt).toLocaleString("pt-BR", {
     day: "2-digit",
     month: "short",
@@ -282,16 +302,47 @@ export function AtendimentoClinicoClient({
                   Nenhuma ficha configurada.
                 </p>
               )}
-              {!loadingFichas && (fichas.length > 0 || previousAppointments.length > 0) && (
-                <FichaHistorySidebar
-                  currentFichas={fichas}
-                  previousAppointments={previousAppointments}
-                  activeFichaId={active?.kind === "ficha" ? active.id : null}
-                  onSelectFicha={(id, scope) => setActive({ kind: "ficha", id, scope })}
-                  onCopySingleFicha={(templateId) => openCopyDialog(templateId)}
-                  canCopy={canCopyFichas}
-                />
-              )}
+              {!loadingFichas && (fichas.length > 0 || previousAppointments.length > 0) &&
+                (useProcedureGroups ? (
+                  <>
+                    <p className="text-[10px] text-muted-foreground px-2 pt-0.5">Esta consulta</p>
+                    {fichasByProcedure.map((group) => (
+                      <div key={group.name} className="mb-2">
+                        <p className="text-[10px] font-semibold text-primary px-2 py-1">{group.name}</p>
+                        {group.fichas.map((f, idx) => (
+                          <ClinicalNavItem
+                            key={f.id}
+                            active={active?.kind === "ficha" && active.id === f.id}
+                            onClick={() => setActive({ kind: "ficha", id: f.id, scope: "current" })}
+                          >
+                            <span className="pl-1 truncate">
+                              {String(idx + 1).padStart(2, "0")}. {f.template.name}
+                            </span>
+                          </ClinicalNavItem>
+                        ))}
+                      </div>
+                    ))}
+                    {previousAppointments.length > 0 && (
+                      <FichaHistorySidebar
+                        currentFichas={[]}
+                        previousAppointments={previousAppointments}
+                        activeFichaId={active?.kind === "ficha" ? active.id : null}
+                        onSelectFicha={(id, scope) => setActive({ kind: "ficha", id, scope })}
+                        onCopySingleFicha={(templateId) => openCopyDialog(templateId)}
+                        canCopy={canCopyFichas}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <FichaHistorySidebar
+                    currentFichas={fichas}
+                    previousAppointments={previousAppointments}
+                    activeFichaId={active?.kind === "ficha" ? active.id : null}
+                    onSelectFicha={(id, scope) => setActive({ kind: "ficha", id, scope })}
+                    onCopySingleFicha={(templateId) => openCopyDialog(templateId)}
+                    canCopy={canCopyFichas}
+                  />
+                ))}
             </ClinicalNavSection>
 
             <ClinicalNavSection title="Relatórios do paciente" icon={ClipboardList}>
@@ -381,7 +432,8 @@ export function AtendimentoClinicoClient({
               </Button>
             </div>
           )}
-          {activeFicha?.template.ficha_type === "fields" && (
+          {activeFicha?.template.ficha_type === "fields" &&
+            activeFicha.template.slug !== "atestado" && (
             <FichaFieldsPanel
               key={activeFicha.id}
               instanceId={activeFicha.id}
@@ -407,11 +459,21 @@ export function AtendimentoClinicoClient({
               }
             />
           )}
+          {isViewingCurrentFicha && activeFicha?.template.slug === "atestado" && isDoctor && (
+            <ClinicalDocumentsClient
+              type="certificate"
+              patientId={patientId}
+              appointmentId={appointmentId}
+              procedureId={activeProcedureId}
+              isDoctor={isDoctor}
+            />
+          )}
           {isViewingCurrentFicha && activeFicha?.template.ficha_type === "prescription" && isDoctor && (
             <ClinicalDocumentsClient
               type="prescription"
               patientId={patientId}
               appointmentId={appointmentId}
+              procedureId={activeProcedureId}
               isDoctor={isDoctor}
             />
           )}
@@ -420,13 +482,15 @@ export function AtendimentoClinicoClient({
               type="exam_request"
               patientId={patientId}
               appointmentId={appointmentId}
+              procedureId={activeProcedureId}
               isDoctor={isDoctor}
             />
           )}
           {isViewingCurrentFicha &&
             activeFicha &&
             (activeFicha.template.ficha_type === "prescription" ||
-              activeFicha.template.ficha_type === "exam_request") &&
+              activeFicha.template.ficha_type === "exam_request" ||
+              activeFicha.template.slug === "atestado") &&
             !isDoctor && (
               <p className="text-sm text-muted-foreground">
                 Apenas o profissional pode preencher esta ficha.

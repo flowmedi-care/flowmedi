@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, X, ChevronDown, ChevronUp } from "lucide-react";
-import { listExamCatalog } from "./actions";
+import { listExamCatalog, saveExamCatalogItem } from "./actions";
 import type { ExamCatalogItem, ExamOrderLine } from "@/lib/clinical-documents/types";
+import { toast } from "@/components/ui/toast";
 
 export function ExamOrderEditor({
   examLines,
@@ -23,6 +24,7 @@ export function ExamOrderEditor({
   const [catalog, setCatalog] = useState<ExamCatalogItem[]>([]);
   const [search, setSearch] = useState("");
   const [expandedOverride, setExpandedOverride] = useState<Record<number, boolean>>({});
+  const [savingCatalog, setSavingCatalog] = useState(false);
 
   useEffect(() => {
     listExamCatalog().then((r) => {
@@ -61,13 +63,34 @@ export function ExamOrderEditor({
     onLinesChange(examLines.filter((_, i) => i !== index));
   }
 
+  async function saveLineAsDefault(line: ExamOrderLine) {
+    if (!line.name.trim()) {
+      toast("Informe o nome do exame.", "error");
+      return;
+    }
+    setSavingCatalog(true);
+    const res = await saveExamCatalogItem({
+      scope: "doctor",
+      name: line.name.trim(),
+      category: "Geral",
+      default_details: line.details.trim(),
+    });
+    setSavingCatalog(false);
+    if (res.error) toast(res.error, "error");
+    else {
+      toast("Pedido salvo em Meus pedidos de exame.", "success");
+      listExamCatalog().then((r) => {
+        if (!r.error) setCatalog(r.data);
+      });
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div>
-        <Label className="text-sm font-medium">Adicionar exames do catálogo</Label>
+        <Label className="text-sm font-medium">Meus pedidos de exame cadastrados</Label>
         <p className="text-xs text-muted-foreground mb-2">
-          Os detalhes vêm do cadastro em Meu Perfil. Aqui você só escolhe quais exames entram neste
-          pedido.
+          Escolha exames do seu catálogo (Meu Perfil). Os detalhes já vêm preenchidos.
         </p>
         <Input
           placeholder="Buscar exame..."
@@ -152,6 +175,18 @@ export function ExamOrderEditor({
                     rows={3}
                     className="mt-2 text-sm"
                   />
+                )}
+                {(line.catalogId || line.name.trim()) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 h-7 text-xs"
+                    disabled={savingCatalog}
+                    onClick={() => saveLineAsDefault(line)}
+                  >
+                    Salvar como pedido padrão
+                  </Button>
                 )}
                 {!line.catalogId && (
                   <Input
