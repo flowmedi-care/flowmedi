@@ -13,13 +13,7 @@ import {
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { DataTable } from "@/components/dashboard-ui/data-table";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
@@ -151,21 +145,15 @@ export function VendasRelatorioClient({ initialData }: VendasRelatorioClientProp
               </div>
               <Select
                 value={professionalId}
-                onValueChange={(v) => {
-                  setProfessionalId(v);
-                }}
+                onChange={(e) => setProfessionalId(e.target.value)}
+                className="h-9 w-[180px]"
               >
-                <SelectTrigger className="h-9 w-[180px]">
-                  <SelectValue placeholder="Profissional" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos profissionais</SelectItem>
-                  {data.professionals.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                <option value="all">Todos profissionais</option>
+                {data.professionals.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
               </Select>
               <Button
                 type="button"

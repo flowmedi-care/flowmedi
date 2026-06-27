@@ -117,7 +117,7 @@ async function fetchComandasInPeriod(
     .lte("created_at", end.toISOString())
     .order("created_at", { ascending: false });
 
-  return (data ?? []) as RawComanda[];
+  return (data ?? []) as unknown as RawComanda[];
 }
 
 async function fetchComandaItems(

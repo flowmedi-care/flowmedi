@@ -17,13 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PatientCombobox, type PatientOption } from "@/components/patient-combobox";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
@@ -70,7 +64,7 @@ function emptyItem(section: QuoteItemSection): QuoteItemInput {
   };
 }
 
-(quote?: QuoteDetail | null): LinkMode {
+function detectLinkMode(quote?: QuoteDetail | null): LinkMode {
   if (quote?.patient_id) return "patient";
   if (quote?.pipeline_id) return "lead";
   return "standalone";
@@ -416,16 +410,18 @@ export function QuoteEditorClient({
             <CardContent className="space-y-4">
               <Tabs
                 value={linkMode}
-                onValueChange={(v) => setLinkMode(v as LinkMode)}
+                onValueChange={(v) => {
+                  if (!readOnly) setLinkMode(v as LinkMode);
+                }}
               >
-                <TabsList>
-                  <TabsTrigger value="patient" disabled={readOnly}>
+                <TabsList className={readOnly ? "pointer-events-none opacity-60" : undefined}>
+                  <TabsTrigger value="patient">
                     Paciente
                   </TabsTrigger>
-                  <TabsTrigger value="lead" disabled={readOnly}>
+                  <TabsTrigger value="lead">
                     Lead
                   </TabsTrigger>
-                  <TabsTrigger value="standalone" disabled={readOnly}>
+                  <TabsTrigger value="standalone">
                     Avulso
                   </TabsTrigger>
                 </TabsList>
@@ -440,7 +436,8 @@ export function QuoteEditorClient({
                   <Label>Lead do CRM</Label>
                   <Select
                     value={pipelineId || "none"}
-                    onValueChange={(v) => {
+                    onChange={(e) => {
+                      const v = e.target.value;
                       setPipelineId(v === "none" ? "" : v);
                       const lead = catalogs.leads.find((l) => l.id === v);
                       if (lead) {
@@ -450,17 +447,12 @@ export function QuoteEditorClient({
                     }}
                     disabled={readOnly}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecionar lead" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Selecionar…</SelectItem>
-                      {catalogs.leads.map((lead) => (
-                        <SelectItem key={lead.id} value={lead.id}>
-                          {lead.name ?? lead.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
+                    <option value="none">Selecionar…</option>
+                    {catalogs.leads.map((lead) => (
+                      <option key={lead.id} value={lead.id}>
+                        {lead.name ?? lead.email}
+                      </option>
+                    ))}
                   </Select>
                 </TabsContent>
                 <TabsContent value="standalone" className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -503,20 +495,15 @@ export function QuoteEditorClient({
                 <Label>Profissional</Label>
                 <Select
                   value={professionalId || "none"}
-                  onValueChange={(v) => setProfessionalId(v === "none" ? "" : v)}
+                  onChange={(e) => setProfessionalId(e.target.value === "none" ? "" : e.target.value)}
                   disabled={readOnly}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Opcional" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Não informado</SelectItem>
-                    {catalogs.professionals.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                  <option value="none">Não informado</option>
+                  {catalogs.professionals.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
                 </Select>
               </div>
               <div className="space-y-1">
@@ -566,41 +553,53 @@ export function QuoteEditorClient({
           <CardContent className="space-y-6">
             {!readOnly && (
               <div className="flex flex-wrap gap-2">
-                <Select onValueChange={handleAddService}>
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="+ Serviço do catálogo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {catalogs.services.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                <Select
+                  defaultValue=""
+                  className="w-[220px]"
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    if (id) void handleAddService(id);
+                    e.target.value = "";
+                  }}
+                >
+                  <option value="">+ Serviço do catálogo</option>
+                  {catalogs.services.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nome}
+                    </option>
+                  ))}
                 </Select>
-                <Select onValueChange={(id) => handleAddProduct(id, false)}>
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="+ Material incluso" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {catalogs.products.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                <Select
+                  defaultValue=""
+                  className="w-[220px]"
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    if (id) handleAddProduct(id, false);
+                    e.target.value = "";
+                  }}
+                >
+                  <option value="">+ Material incluso</option>
+                  {catalogs.products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
                 </Select>
-                <Select onValueChange={(id) => handleAddProduct(id, true)}>
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="+ Material à parte" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {catalogs.products.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                <Select
+                  defaultValue=""
+                  className="w-[220px]"
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    if (id) handleAddProduct(id, true);
+                    e.target.value = "";
+                  }}
+                >
+                  <option value="">+ Material à parte</option>
+                  {catalogs.products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
                 </Select>
               </div>
             )}

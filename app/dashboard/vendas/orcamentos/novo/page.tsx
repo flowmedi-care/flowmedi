@@ -1,5 +1,5 @@
-import { listQuoteCatalogs } from "./actions";
-import { QuoteEditorClient } from "./quote-editor-client";
+import { listQuoteCatalogs } from "../actions";
+import { QuoteEditorClient } from "../quote-editor-client";
 
 export default async function NovoOrcamentoPage() {
   const catalogs = await listQuoteCatalogs();
