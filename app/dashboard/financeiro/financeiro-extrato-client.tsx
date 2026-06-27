@@ -1,236 +1,195 @@
-// FINANCEIRO FASE 1 — ITEM 7: extrato reformulado
-
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PeriodSelector } from "./components/period-selector";
 import { PageToolbar } from "@/components/dashboard-ui/page-toolbar";
-import { DataTable } from "@/components/dashboard-ui/data-table";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
 import { fmtCurrency, downloadCsv } from "@/lib/financeiro/format";
 import { CATEGORY_LABELS, EXPENSE_CATEGORIES } from "@/lib/financeiro/constants";
-import type { ExpenseCategory, FinancialEntryRow, FinancialLens } from "@/lib/financeiro/types";
+import { filterLedgerRows } from "@/lib/financeiro/ledger-filters";
+import { generateExpenseReceipt } from "./expense-receipt-actions";
+import type { ExpenseCategory, UnifiedLedgerRow } from "@/lib/financeiro/types";
+import { toast } from "@/components/ui/toast";
+import { FileText, ChevronDown, ChevronUp } from "lucide-react";
 
 type SupplierOption = { id: string; name: string };
-
-const LENS_BADGE: Record<FinancialLens, string> = {
-  caixa: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
-  competencia: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200",
-  manual: "bg-muted text-muted-foreground",
-  previsto: "bg-muted text-muted-foreground",
-};
-
-const LENS_LABEL: Record<FinancialLens, string> = {
-  caixa: "Caixa",
-  competencia: "Competência",
-  manual: "Manual",
-  previsto: "Previsto",
-};
 
 export function FinanceiroExtratoClient({
   year,
   month,
-  entries,
+  ledger,
   suppliers,
 }: {
   year: number;
   month: number;
-  entries: FinancialEntryRow[];
+  ledger: UnifiedLedgerRow[];
   suppliers: SupplierOption[];
 }) {
-  const [typeFilter, setTypeFilter] = useState<"all" | "receita" | "despesa">("all");
-  const [lensFilter, setLensFilter] = useState<FinancialLens | "all">("all");
-  const [supplierFilter, setSupplierFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "inflow" | "outflow">("all");
   const [categoryFilter, setCategoryFilter] = useState<ExpenseCategory | "all">("all");
+  const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    return entries.filter((e) => {
-      if (typeFilter !== "all" && e.entry_type !== typeFilter) return false;
-      if (lensFilter !== "all" && e.lens !== lensFilter) return false;
-      if (supplierFilter && e.supplier_id !== supplierFilter) return false;
-      if (categoryFilter !== "all" && e.category !== categoryFilter) return false;
-      return true;
-    });
-  }, [entries, typeFilter, lensFilter, supplierFilter, categoryFilter]);
+  const filtered = useMemo(
+    () =>
+      filterLedgerRows(ledger, {
+        type: typeFilter,
+        category: categoryFilter,
+        search,
+      }),
+    [ledger, typeFilter, categoryFilter, search]
+  );
 
-  const inflow = filtered
-    .filter((e) => e.entry_type === "receita" && e.status === "pago")
-    .reduce((s, e) => s + e.amount, 0);
-  const outflow = filtered
-    .filter((e) => e.entry_type === "despesa" && e.status === "pago")
-    .reduce((s, e) => s + e.amount, 0);
+  const inflow = filtered.filter((e) => e.type === "inflow").reduce((s, e) => s + e.amount, 0);
+  const outflow = filtered.filter((e) => e.type === "outflow").reduce((s, e) => s + e.amount, 0);
 
   function exportCsv() {
     downloadCsv(`extrato-${year}-${month}.csv`, [
-      ["Data", "Tipo", "Lente", "Descrição", "Fornecedor", "Categoria", "Valor", "Status"],
+      ["Data/Hora", "Tipo", "Contraparte", "Origem", "Descrição", "Valor", "Saldo", "Método"],
       ...filtered.map((e) => [
-        e.paid_at?.slice(0, 10) ?? e.due_date ?? e.created_at.slice(0, 10),
-        e.entry_type,
-        LENS_LABEL[e.lens],
+        new Date(e.occurred_at).toLocaleString("pt-BR"),
+        e.type === "inflow" ? "Entrada" : "Saída",
+        e.counterparty,
+        e.source_label,
         e.description,
-        e.supplier_display_name ?? "",
-        e.category ? CATEGORY_LABELS[e.category] : "",
-        String(e.amount),
-        e.status,
+        String(e.type === "inflow" ? e.amount : -e.amount),
+        String(e.running_balance),
+        e.payment_method ?? "",
       ]),
     ]);
+  }
+
+  async function openReceipt(row: UnifiedLedgerRow) {
+    if (row.receipt_id) {
+      window.open(`/dashboard/financeiro/recibo/${row.receipt_id}`, "_blank");
+      return;
+    }
+    if (row.financial_entry_id && row.type === "outflow") {
+      const res = await generateExpenseReceipt(row.financial_entry_id);
+      if (res.error) toast(res.error, "error");
+      else if (res.receiptId) window.open(`/dashboard/financeiro/comprovante-despesa/${res.receiptId}`, "_blank");
+      return;
+    }
+    toast("Comprovante não disponível.", "error");
   }
 
   return (
     <div className="space-y-6">
       <PageToolbar filters={<PeriodSelector year={year} month={month} />}>
-        <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
-          Exportar CSV
-        </Button>
+        <Button variant="outline" size="sm" onClick={exportCsv}>Exportar CSV</Button>
       </PageToolbar>
 
-      <Card>
-        <CardHeader>
-          <h2 className="font-semibold">Extrato — Movimentos e lançamentos</h2>
-          <p className="text-sm text-muted-foreground">
-            Histórico unificado de receitas e despesas com identificação de lente contábil.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1">
-              <Label className="text-xs">Tipo</Label>
-              <Select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
-              >
-                <option value="all">Todos</option>
-                <option value="receita">Receita</option>
-                <option value="despesa">Despesa</option>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Lente</Label>
-              <Select
-                value={lensFilter}
-                onChange={(e) => setLensFilter(e.target.value as FinancialLens | "all")}
-              >
-                <option value="all">Todas</option>
-                <option value="caixa">Caixa</option>
-                <option value="competencia">Competência</option>
-                <option value="manual">Manual</option>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Fornecedor</Label>
-              <Select value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)}>
-                <option value="">Todos</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Categoria</Label>
-              <Select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value as ExpenseCategory | "all")}
-              >
-                <option value="all">Todas</option>
-                {EXPENSE_CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2"><p className="text-sm text-muted-foreground">Entradas</p></CardHeader>
+          <CardContent><p className="text-2xl font-semibold text-emerald-600">{fmtCurrency(inflow)}</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><p className="text-sm text-muted-foreground">Saídas</p></CardHeader>
+          <CardContent><p className="text-2xl font-semibold text-red-600">{fmtCurrency(outflow)}</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><p className="text-sm text-muted-foreground">Saldo do período</p></CardHeader>
+          <CardContent><p className="text-2xl font-semibold">{fmtCurrency(inflow - outflow)}</p></CardContent>
+        </Card>
+      </div>
 
-          {filtered.length === 0 ? (
-            <EmptyState title="Nenhum lançamento no período" />
-          ) : (
-            <>
-              <div className="hidden md:block">
-                <DataTable
-                  columns={[
-                    {
-                      key: "date",
-                      header: "Data",
-                      cell: (e) => (
-                        <span className="text-muted-foreground">
-                          {(e.paid_at ?? e.due_date ?? e.created_at).slice(0, 10)}
-                        </span>
-                      ),
-                    },
-                    {
-                      key: "lens",
-                      header: "Lente",
-                      cell: (e) => (
-                        <Badge className={LENS_BADGE[e.lens]}>{LENS_LABEL[e.lens]}</Badge>
-                      ),
-                    },
-                    { key: "desc", header: "Descrição", cell: (e) => e.description },
-                    {
-                      key: "supplier",
-                      header: "Fornecedor",
-                      cell: (e) => e.supplier_display_name ?? "—",
-                    },
-                    {
-                      key: "amount",
-                      header: "Valor",
-                      className: "text-right font-medium",
-                      cell: (e) => (
-                        <span
-                          className={
-                            e.entry_type === "receita" ? "text-green-700 dark:text-green-400" : ""
-                          }
-                        >
-                          {e.entry_type === "despesa" ? "−" : "+"}
-                          {fmtCurrency(e.amount)}
-                        </span>
-                      ),
-                    },
-                    { key: "status", header: "Status", cell: (e) => e.status },
-                  ]}
-                  data={filtered}
-                  getRowKey={(e) => e.id}
-                />
-              </div>
+      <div className="flex flex-wrap gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Tipo</Label>
+          <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}>
+            <option value="all">Todos</option>
+            <option value="inflow">Entradas</option>
+            <option value="outflow">Saídas</option>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Categoria</Label>
+          <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as ExpenseCategory | "all")}>
+            <option value="all">Todas</option>
+            {EXPENSE_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </Select>
+        </div>
+        <div className="space-y-1 flex-1 min-w-[200px]">
+          <Label className="text-xs">Buscar</Label>
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Paciente, fornecedor, descrição…" />
+        </div>
+      </div>
 
-              <div className="md:hidden space-y-3">
-                {filtered.map((e) => (
-                  <div key={e.id} className="border rounded-lg p-3 space-y-1">
-                    <div className="flex justify-between">
-                      <Badge className={LENS_BADGE[e.lens]}>{LENS_LABEL[e.lens]}</Badge>
-                      <span className="font-medium">{fmtCurrency(e.amount)}</span>
-                    </div>
-                    <p className="font-medium">{e.description}</p>
-                    <p className="text-xs text-muted-foreground">{e.status}</p>
+      {filtered.length === 0 ? (
+        <EmptyState title="Nenhum lançamento" description="Não há movimentações no período selecionado." />
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((row) => {
+            const isExpanded = expanded === row.id;
+            const initial = row.counterparty.charAt(0).toUpperCase();
+            return (
+              <div key={row.id} className="border rounded-xl p-4 hover:bg-muted/30 transition-colors">
+                <div className="flex items-start gap-3">
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${row.type === "inflow" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"}`}>
+                    {initial}
                   </div>
-                ))}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{row.counterparty}</p>
+                        <p className="text-sm text-muted-foreground">{row.source_label} · {row.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {new Date(row.occurred_at).toLocaleString("pt-BR")}
+                          {row.payment_method && ` · ${row.payment_method}`}
+                          {row.bank_account_name && ` · ${row.bank_account_name}`}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-lg font-semibold ${row.type === "inflow" ? "text-emerald-600" : "text-red-600"}`}>
+                          {row.type === "inflow" ? "+" : "−"}{fmtCurrency(row.amount)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Saldo {fmtCurrency(row.running_balance)}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {row.category && (
+                        <Badge variant="secondary">{CATEGORY_LABELS[row.category]}</Badge>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => setExpanded(isExpanded ? null : row.id)}>
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        Detalhes
+                      </Button>
+                      {(row.receipt_id || row.financial_entry_id) && (
+                        <Button size="sm" variant="outline" onClick={() => openReceipt(row)}>
+                          <FileText className="h-3.5 w-3.5 mr-1" />
+                          Comprovante
+                        </Button>
+                      )}
+                      {row.comanda_id && (
+                        <Link href={`/dashboard/agenda/consulta`}>
+                          <Button size="sm" variant="ghost">Ver comanda</Button>
+                        </Link>
+                      )}
+                    </div>
+                    {isExpanded && (
+                      <div className="mt-3 pt-3 border-t text-sm space-y-1 text-muted-foreground">
+                        <p>Origem: {row.source === "payment" ? "Pagamento de paciente" : "Lançamento financeiro"}</p>
+                        {row.patient_id && <p>ID paciente: {row.patient_id}</p>}
+                        {row.financial_entry_id && <p>ID lançamento: {row.financial_entry_id}</p>}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-
-              <div className="flex flex-wrap gap-4 pt-4 border-t text-sm">
-                <span>
-                  Entradas:{" "}
-                  <strong className="text-green-700 dark:text-green-400">{fmtCurrency(inflow)}</strong>
-                </span>
-                <span>
-                  Saídas: <strong>{fmtCurrency(outflow)}</strong>
-                </span>
-                <span>
-                  Saldo:{" "}
-                  <strong className={inflow - outflow >= 0 ? "text-green-700 dark:text-green-400" : "text-destructive"}>
-                    {fmtCurrency(inflow - outflow)}
-                  </strong>
-                </span>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

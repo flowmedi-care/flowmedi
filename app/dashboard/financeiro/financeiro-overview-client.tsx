@@ -1,5 +1,3 @@
-// FINANCEIRO FASE 1 — ITEM 1: visão geral reformulada
-
 "use client";
 
 import { useState } from "react";
@@ -14,8 +12,13 @@ import { PeriodSelector } from "./components/period-selector";
 import { FinancialEntryFormDialog } from "./components/financial-entry-form-dialog";
 import { ComandaPaymentDialog } from "./components/comanda-payment-dialog";
 import { CancelComandaDialog } from "./components/cancel-comanda-dialog";
+import { FinanceOverviewCharts } from "./components/finance-overview-charts";
 import { fmtCurrency } from "@/lib/financeiro/format";
-import type { DashboardMetrics, OpenComandaRow } from "@/lib/financeiro/types";
+import type {
+  DashboardMetricsExtended,
+  FinanceChartData,
+  OpenComandaRow,
+} from "@/lib/financeiro/types";
 
 type SupplierOption = { id: string; name: string };
 
@@ -23,6 +26,7 @@ export function FinanceiroOverviewClient({
   year,
   month,
   metrics,
+  chartData,
   openComandas,
   suppliers,
   canManage,
@@ -30,7 +34,8 @@ export function FinanceiroOverviewClient({
 }: {
   year: number;
   month: number;
-  metrics: DashboardMetrics;
+  metrics: DashboardMetricsExtended;
+  chartData: FinanceChartData;
   openComandas: OpenComandaRow[];
   suppliers: SupplierOption[];
   canManage: boolean;
@@ -42,9 +47,7 @@ export function FinanceiroOverviewClient({
 
   return (
     <div className="space-y-6">
-      <PageToolbar
-        filters={<PeriodSelector year={year} month={month} />}
-      >
+      <PageToolbar filters={<PeriodSelector year={year} month={month} />}>
         {canManage && (
           <Button onClick={() => setShowForm(true)} className="shrink-0">
             <Plus className="h-4 w-4 mr-1" />
@@ -53,160 +56,139 @@ export function FinanceiroOverviewClient({
         )}
       </PageToolbar>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Receita Faturada (Competência)"
+          title="Receita Faturada"
           value={fmtCurrency(metrics.receitaFaturada)}
-          subtitle="Valor cobrado aos pacientes, por emissão da comanda."
+          subtitle={`Competência · ${metrics.comandasNoPeriodo} comandas · MoM ${metrics.momReceitaPct.toFixed(1)}%`}
           iconColor="primary"
+        />
+        <StatCard
+          title="Margem Bruta"
+          value={fmtCurrency(metrics.margemBruta)}
+          subtitle="Receita − CMV (custo real dos materiais)."
+          iconColor="success"
         />
         <StatCard
           title="Entradas no Caixa"
           value={fmtCurrency(metrics.entradasCaixa)}
-          subtitle="Dinheiro que efetivamente entrou, por data de pagamento."
+          subtitle="Dinheiro recebido no período."
           iconColor="success"
         />
         <StatCard
-          title="A Receber"
-          value={fmtCurrency(metrics.aReceber)}
-          subtitle="Comandas abertas aguardando pagamento."
-          iconColor="info"
+          title="Resultado do Período"
+          value={fmtCurrency(metrics.resultadoPeriodo)}
+          subtitle="Entradas − saídas (caixa)."
+          iconColor={metrics.resultadoPeriodo >= 0 ? "success" : "destructive"}
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Saídas no Caixa"
-          value={fmtCurrency(metrics.saidasCaixa)}
-          subtitle="Despesas pagas no período selecionado."
+          title="A Receber"
+          value={fmtCurrency(metrics.aReceber)}
+          subtitle={`Inadimplência ${metrics.taxaInadimplencia.toFixed(1)}%`}
+          iconColor="info"
         />
         <StatCard
           title="A Pagar"
           value={fmtCurrency(metrics.aPagar)}
           subtitle={
             metrics.aPagarVencidas > 0
-              ? `${fmtCurrency(metrics.aPagarVencidas)} vencidas · ${fmtCurrency(metrics.aPagarVencendo7d)} nos próximos 7 dias`
-              : "Despesas pendentes de pagamento."
+              ? `${fmtCurrency(metrics.aPagarVencidas)} vencidas`
+              : "Despesas pendentes."
           }
           iconColor={metrics.aPagarVencidas > 0 ? "warning" : "primary"}
         />
         <StatCard
-          title="Resultado do Período"
-          value={fmtCurrency(metrics.resultadoPeriodo)}
-          subtitle="Entradas no caixa − saídas no caixa."
-          iconColor={metrics.resultadoPeriodo >= 0 ? "success" : "destructive"}
+          title="Ticket Médio"
+          value={fmtCurrency(metrics.ticketMedio)}
+          subtitle="Receita faturada ÷ comandas."
+        />
+        <StatCard
+          title="Projeção 30 dias"
+          value={fmtCurrency(metrics.projecao30d)}
+          subtitle={`No-show ${metrics.taxaNoShow.toFixed(1)}% · recorrências + AR`}
+          iconColor="info"
         />
       </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          title="Saídas no Caixa"
+          value={fmtCurrency(metrics.saidasCaixa)}
+          subtitle={`Burn rate ${fmtCurrency(metrics.burnRate)}/mês`}
+        />
+        <StatCard
+          title="Runway estimado"
+          value={metrics.runway > 0 ? `${metrics.runway.toFixed(1)} meses` : "—"}
+          subtitle="Com base na média de saídas dos últimos 3 meses."
+        />
+        <StatCard
+          title="Variação receita (MoM)"
+          value={`${metrics.momReceitaPct >= 0 ? "+" : ""}${metrics.momReceitaPct.toFixed(1)}%`}
+          subtitle="Comparado ao mês anterior."
+        />
+      </div>
+
+      <FinanceOverviewCharts data={chartData} />
 
       <Card>
         <CardHeader>
           <h2 className="font-semibold">Comandas em aberto</h2>
-          <p className="text-sm text-muted-foreground">
-            Contas a receber — saldo pendente de pacientes.
-          </p>
+          <p className="text-sm text-muted-foreground">Contas a receber — saldo pendente de pacientes.</p>
         </CardHeader>
         <CardContent>
           {openComandas.length === 0 ? (
-            <EmptyState
-              title="Nenhuma comanda em aberto"
-              description="Todas as comandas estão quitadas no momento."
-            />
+            <EmptyState title="Nenhuma comanda em aberto" description="Todas as comandas estão quitadas." />
           ) : (
-            <>
-              <div className="hidden md:block">
-                <DataTable
-                  columns={[
-                    { key: "patient", header: "Paciente", cell: (c) => <span className="font-medium">{c.patient_name}</span> },
-                    {
-                      key: "date",
-                      header: "Data",
-                      cell: (c) =>
-                        c.scheduled_at
-                          ? new Date(c.scheduled_at).toLocaleDateString("pt-BR")
-                          : new Date(c.created_at).toLocaleDateString("pt-BR"),
-                    },
-                    { key: "total", header: "Total", className: "text-right", cell: (c) => fmtCurrency(c.total_amount) },
-                    {
-                      key: "discount",
-                      header: "Desconto",
-                      className: "text-right",
-                      cell: (c) => (c.discount_amount > 0 ? `-${fmtCurrency(c.discount_amount)}` : "—"),
-                    },
-                    { key: "paid", header: "Pago", className: "text-right", cell: (c) => fmtCurrency(c.paid_amount) },
-                    {
-                      key: "remainder",
-                      header: "Saldo",
-                      className: "text-right font-medium text-amber-700 dark:text-amber-400",
-                      cell: (c) => fmtCurrency(c.remainder),
-                    },
-                    { key: "days", header: "Dias", className: "text-right", cell: (c) => c.days_open },
-                    {
-                      key: "actions",
-                      header: "",
-                      className: "text-right",
-                      cell: (c) =>
-                        canManage ? (
-                          <div className="space-x-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setPayComanda({ id: c.id, remainder: c.remainder })}
-                            >
-                              Registrar pagamento
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive"
-                              onClick={() => setCancelTarget(c)}
-                            >
-                              Cancelar
-                            </Button>
-                          </div>
-                        ) : null,
-                    },
-                  ]}
-                  data={openComandas}
-                  getRowKey={(c) => c.id}
-                />
-              </div>
-
-              <div className="md:hidden space-y-3">
-                {openComandas.map((c) => (
-                  <div key={c.id} className="border rounded-lg p-3 space-y-2">
-                    <p className="font-medium">{c.patient_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Saldo {fmtCurrency(c.remainder)} · {c.days_open} dias em aberto
-                    </p>
-                    {canManage && (
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => setPayComanda({ id: c.id, remainder: c.remainder })}
-                        >
-                          Registrar pagamento
+            <DataTable
+              columns={[
+                { key: "patient", header: "Paciente", cell: (c) => <span className="font-medium">{c.patient_name}</span> },
+                {
+                  key: "date",
+                  header: "Data",
+                  cell: (c) =>
+                    c.scheduled_at
+                      ? new Date(c.scheduled_at).toLocaleDateString("pt-BR")
+                      : new Date(c.created_at).toLocaleDateString("pt-BR"),
+                },
+                { key: "total", header: "Total", className: "text-right", cell: (c) => fmtCurrency(c.total_amount) },
+                { key: "paid", header: "Pago", className: "text-right", cell: (c) => fmtCurrency(c.paid_amount) },
+                {
+                  key: "remainder",
+                  header: "Saldo",
+                  className: "text-right font-medium text-amber-700 dark:text-amber-400",
+                  cell: (c) => fmtCurrency(c.remainder),
+                },
+                { key: "days", header: "Dias", className: "text-right", cell: (c) => c.days_open },
+                {
+                  key: "actions",
+                  header: "",
+                  className: "text-right",
+                  cell: (c) =>
+                    canManage ? (
+                      <div className="space-x-1">
+                        <Button size="sm" variant="outline" onClick={() => setPayComanda({ id: c.id, remainder: c.remainder })}>
+                          Pagar
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => setCancelTarget(c)}>
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setCancelTarget(c)}>
                           Cancelar
                         </Button>
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
+                    ) : null,
+                },
+              ]}
+              data={openComandas}
+              getRowKey={(c) => c.id}
+            />
           )}
         </CardContent>
       </Card>
 
       {canManage && (
         <>
-          <FinancialEntryFormDialog
-            open={showForm}
-            onOpenChange={setShowForm}
-            suppliers={suppliers}
-          />
+          <FinancialEntryFormDialog open={showForm} onOpenChange={setShowForm} suppliers={suppliers} />
           <ComandaPaymentDialog
             comandaId={payComanda?.id ?? null}
             defaultAmount={payComanda?.remainder ?? 0}

@@ -24,6 +24,7 @@ export default async function FinanceiroPage({
           year={data.year}
           month={data.month}
           metrics={data.metrics}
+          chartData={data.chartData}
           openComandas={data.openComandas}
           suppliers={data.suppliers}
           canManage={data.canManage}

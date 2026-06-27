@@ -176,9 +176,21 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
       { href: "/dashboard/financeiro/pagar", label: "Contas a pagar" },
       { href: "/dashboard/financeiro/extrato", label: "Extrato" },
       { href: "/dashboard/financeiro/competencia", label: "Competência" },
-      { href: "/dashboard/financeiro/fluxo-diario", label: "Fluxo diário" },
-      { href: "/dashboard/financeiro/fluxo-mensal", label: "Fluxo mensal" },
+      { href: "/dashboard/financeiro/fluxo-caixa", label: "Fluxo de caixa" },
       { href: "/dashboard/financeiro/dre", label: "DRE" },
+    ],
+  },
+  {
+    type: "group",
+    id: "estoque",
+    label: "Estoque",
+    icon: "package",
+    prefix: "/dashboard/estoque",
+    roles: ["admin", "secretaria"],
+    children: [
+      { href: "/dashboard/estoque", label: "Visão geral" },
+      { href: "/dashboard/estoque/lotes", label: "Lotes e validade" },
+      { href: "/dashboard/estoque/campos-produto", label: "Campos de produto", roles: ["admin"] },
     ],
   },
 ];
@@ -223,13 +235,6 @@ export const DASHBOARD_NAV_GROUPS: NavGroupItem[] = [
 ];
 
 export const DASHBOARD_UTILITY_NAV: NavLinkItem[] = [
-  {
-    type: "link",
-    href: "/dashboard/estoque",
-    label: "Estoque",
-    icon: "package",
-    roles: ["admin", "secretaria"],
-  },
   {
     type: "link",
     href: "/dashboard/perfil",
@@ -380,7 +385,7 @@ export function isLinkActive(pathname: string, href: string): boolean {
   if (href === "/dashboard/mensagens/pendentes") {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
-  if (href === "/dashboard/financeiro" || href === "/dashboard/vendas") {
+  if (href === "/dashboard/financeiro" || href === "/dashboard/vendas" || href === "/dashboard/estoque") {
     return pathname === href;
   }
   if (href.startsWith("/dashboard/atendimentos/")) {

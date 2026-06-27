@@ -7,8 +7,10 @@ import {
   isComandaInPeriod,
 } from "@/lib/financeiro/comanda-rules";
 import { getMonthPeriod, formatMonthLabel } from "@/lib/financeiro/date-utils";
-import type { DreReport, DreLine, ExpenseCategory } from "@/lib/financeiro/types";
-import { CATEGORY_LABELS } from "@/lib/financeiro/constants";
+import type { DreReport, ExpenseCategory } from "@/lib/financeiro/types";
+import { buildFullDreLines } from "@/lib/financeiro/dre-structure";
+import { computeCmvForPeriod } from "@/lib/financeiro/analytics";
+import { getClinicFinancialSettings } from "@/lib/financeiro/analytics";
 
 export type CashFlowDay = { date: string; inflow: number; outflow: number };
 export type CompetenceMonth = { month: string; revenue: number; label: string };
@@ -276,11 +278,9 @@ export async function getDetailedDre(year: number, month: number) {
   ]);
 
   let receitaBruta = 0;
-  const comandaIds: string[] = [];
   for (const c of comandas ?? []) {
     if (isComandaInPeriod(c, startIso, endIso)) {
       receitaBruta += Number(c.total_amount);
-      comandaIds.push(c.id as string);
     }
   }
 
@@ -292,20 +292,8 @@ export async function getDetailedDre(year: number, month: number) {
     }
   }
 
-  const receitaLiquida = receitaBruta - cancelamentos;
 
-  let cmv = 0;
-  if (comandaIds.length > 0) {
-    const { data: items } = await supabase
-      .from("comanda_items")
-      .select("total_price, item_type")
-      .in("comanda_id", comandaIds)
-      .eq("item_type", "product");
-
-    cmv = (items ?? []).reduce((s, i) => s + Number(i.total_price), 0);
-  }
-
-  const margemBruta = receitaLiquida - cmv;
+  const cmv = await computeCmvForPeriod(supabase, profile.clinic_id, startIso, endIso);
 
   const byCategory: Record<string, number> = {};
   for (const e of expenses ?? []) {
@@ -313,85 +301,27 @@ export async function getDetailedDre(year: number, month: number) {
     byCategory[cat] = (byCategory[cat] ?? 0) + Number(e.amount);
   }
 
-  const despesasTotal = Object.values(byCategory).reduce((s, v) => s + v, 0);
-  const resultadoOperacional = margemBruta - despesasTotal;
+  const { data: openComandas } = await supabase
+    .from("comandas")
+    .select("total_amount, paid_amount")
+    .eq("clinic_id", profile.clinic_id)
+    .in("status", ["aberta", "parcial"]);
 
-  const lines: DreLine[] = [
-    {
-      key: "receita_bruta",
-      label: "(+) Receita Faturada Bruta",
-      value: receitaBruta,
-      level: 0,
-      tooltip: "Comandas fechadas ou pagas com data de fechamento no período (competência).",
-    },
-    {
-      key: "cancelamentos",
-      label: "(-) Cancelamentos",
-      value: cancelamentos,
-      level: 0,
-      tooltip: "Comandas canceladas no período.",
-    },
-    {
-      key: "receita_liquida",
-      label: "(=) Receita Líquida de Atendimentos",
-      value: receitaLiquida,
-      level: 0,
-      isTotal: true,
-    },
-  ];
-
-  if (cmv > 0) {
-    lines.push({
-      key: "cmv",
-      label: "(-) Custo de Materiais (CMV)",
-      value: cmv,
-      level: 0,
-      tooltip: "Produtos e insumos faturados nas comandas do período.",
-    });
-    lines.push({
-      key: "margem_bruta",
-      label: "(=) Margem Bruta",
-      value: margemBruta,
-      level: 0,
-      isTotal: true,
-    });
+  let aReceber = 0;
+  for (const c of openComandas ?? []) {
+    aReceber += Math.max(0, Number(c.total_amount) - Number(c.paid_amount));
   }
 
-  lines.push({
-    key: "despesas_header",
-    label: "(-) Despesas Operacionais",
-    value: despesasTotal,
-    level: 0,
-    tooltip: "Despesas pagas no período (caixa), agrupadas por categoria.",
-  });
+  const { settings } = await getClinicFinancialSettings();
 
-  const categoryOrder: ExpenseCategory[] = [
-    "aluguel",
-    "salarios",
-    "materiais",
-    "laboratorio",
-    "equipamentos",
-    "marketing",
-    "outros",
-  ];
-
-  for (const cat of categoryOrder) {
-    const val = byCategory[cat] ?? 0;
-    if (val <= 0) continue;
-    lines.push({
-      key: `despesa_${cat}`,
-      label: `• ${CATEGORY_LABELS[cat]}`,
-      value: val,
-      level: 1,
-    });
-  }
-
-  lines.push({
-    key: "resultado",
-    label: "(=) Resultado Operacional",
-    value: resultadoOperacional,
-    level: 0,
-    isTotal: true,
+  const lines = buildFullDreLines({
+    receitaBruta,
+    cancelamentos,
+    cmv,
+    byCategory,
+    aReceber,
+    pecldPercent: settings.pecld_percent_ar,
+    irCsllPercent: settings.ir_csll_percent_lair,
   });
 
   const report: DreReport = {

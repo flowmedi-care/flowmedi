@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -122,7 +123,18 @@ export function FinanceiroPagarClient({
                 <DataTable
                   columns={[
                     { key: "supplier", header: "Fornecedor", cell: (row) => row.supplier_display_name },
-                    { key: "desc", header: "Descrição", cell: (row) => row.description },
+                    {
+                      key: "desc",
+                      header: "Descrição",
+                      cell: (row) => (
+                        <div className="flex items-center gap-2">
+                          <span>{row.description}</span>
+                          {row.is_recurring && (
+                            <Badge variant="secondary" className="text-xs">Recorrente</Badge>
+                          )}
+                        </div>
+                      ),
+                    },
                     {
                       key: "cat",
                       header: "Categoria",

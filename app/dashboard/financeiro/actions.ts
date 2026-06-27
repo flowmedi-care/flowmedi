@@ -25,13 +25,20 @@ import type {
   FinancialLens,
   OpenComandaRow,
   PendingExpenseRow,
+  RecurrenceInput,
+  StockLineInput,
 } from "@/lib/financeiro/types";
+import { generateRecurrenceDates, addRecurrenceInterval } from "@/lib/financeiro/recurrence";
+import { categoryToDreSection } from "@/lib/financeiro/constants";
+import { applyStockFromExpense } from "@/lib/estoque/stock-from-expense";
 
 const FINANCE_PATHS = [
   "/dashboard/financeiro",
   "/dashboard/financeiro/receber",
   "/dashboard/financeiro/pagar",
   "/dashboard/financeiro/extrato",
+  "/dashboard/financeiro/competencia",
+  "/dashboard/financeiro/fluxo-caixa",
   "/dashboard/financeiro/dre",
   "/dashboard",
 ];
@@ -354,7 +361,7 @@ export async function listPendingManualReceitas() {
   const { data, error } = await supabase
     .from("financial_entries")
     .select(
-      "id, entry_type, origin, description, amount, due_date, paid_at, status, supplier_name, supplier_id, patient_id, comanda_id, category, payment_method, created_at"
+      "id, entry_type, origin, description, amount, due_date, paid_at, status, supplier_name, supplier_id, patient_id, comanda_id, category, payment_method, created_at, series_id"
     )
     .eq("clinic_id", profile.clinic_id)
     .eq("entry_type", "receita")
@@ -382,6 +389,8 @@ export async function listPendingManualReceitas() {
     payment_method: r.payment_method as string | null,
     created_at: r.created_at as string,
     lens: "manual" as const,
+    series_id: r.series_id as string | null,
+    is_recurring: !!r.series_id,
   }));
 
   return { error: null, data: rows };
@@ -410,6 +419,7 @@ export async function listPendingExpensesGrouped() {
     .select(
       `
       id, description, amount, due_date, status, category, supplier_name, supplier_id,
+      series_id,
       supplier:suppliers ( name )
     `
     )
@@ -444,6 +454,8 @@ export async function listPendingExpensesGrouped() {
       ),
       days_until_due,
       group: classifyExpenseGroup(due),
+      series_id: r.series_id as string | null,
+      is_recurring: !!r.series_id,
     };
   });
 
@@ -489,6 +501,9 @@ export async function createFinancialEntry(data: {
   category?: ExpenseCategory | null;
   mark_paid?: boolean;
   payment_method?: string | null;
+  recurrence?: RecurrenceInput | null;
+  stock_lines?: StockLineInput[];
+  register_stock?: boolean;
 }) {
   const ctx = await getFinanceProfile();
   if (ctx.error || !ctx.user || !ctx.profile) return { error: ctx.error ?? "Não autorizado." };
@@ -508,23 +523,115 @@ export async function createFinancialEntry(data: {
     if (sup?.name) supplierName = sup.name;
   }
 
-  const { error } = await ctx.supabase.from("financial_entries").insert({
-    clinic_id: ctx.profile.clinic_id,
-    entry_type: data.entry_type,
-    origin: data.origin,
-    description: data.description.trim(),
-    amount: data.amount,
-    due_date: data.due_date ?? null,
-    supplier_id: data.supplier_id ?? null,
-    supplier_name: supplierName,
-    category: data.category ?? null,
-    status: data.mark_paid ? "pago" : "pendente",
-    paid_at: data.mark_paid ? new Date().toISOString() : null,
-    payment_method: data.mark_paid ? data.payment_method ?? null : null,
-    created_by: ctx.user.id,
-  });
+  const category = data.category ?? null;
+  const dreSection = category ? categoryToDreSection(category) : null;
+  const competenceDate = data.due_date ?? null;
+
+  if (data.recurrence) {
+    const startDate = data.due_date!;
+    const dates = generateRecurrenceDates({
+      startDate,
+      frequency: data.recurrence.frequency,
+      interval_count: data.recurrence.interval_count,
+      end_mode: data.recurrence.end_mode,
+      end_count: data.recurrence.end_count,
+      end_date: data.recurrence.end_date,
+    });
+
+    const { data: series, error: seriesErr } = await ctx.supabase
+      .from("financial_entry_series")
+      .insert({
+        clinic_id: ctx.profile.clinic_id,
+        entry_type: data.entry_type,
+        description: data.description.trim(),
+        amount: data.amount,
+        category,
+        supplier_id: data.supplier_id ?? null,
+        payment_method: data.payment_method ?? null,
+        frequency: data.recurrence.frequency,
+        interval_count: data.recurrence.interval_count,
+        end_mode: data.recurrence.end_mode,
+        end_count: data.recurrence.end_count ?? null,
+        end_date: data.recurrence.end_date ?? null,
+        next_due_date:
+          data.recurrence.end_mode === "never" && dates.length === 1
+            ? addRecurrenceInterval(startDate, data.recurrence.frequency, data.recurrence.interval_count)
+            : dates.length > 1
+              ? dates[1]
+              : null,
+        generated_count: dates.length,
+        active: data.recurrence.end_mode === "never" || dates.length < (data.recurrence.end_count ?? Infinity),
+        created_by: ctx.user.id,
+      })
+      .select("id")
+      .single();
+
+    if (seriesErr) return { error: seriesErr.message };
+
+    for (let i = 0; i < dates.length; i++) {
+      const due = dates[i];
+      const { error } = await ctx.supabase.from("financial_entries").insert({
+        clinic_id: ctx.profile.clinic_id,
+        entry_type: data.entry_type,
+        origin: data.origin,
+        description: data.description.trim(),
+        amount: data.amount,
+        due_date: due,
+        competence_date: due,
+        supplier_id: data.supplier_id ?? null,
+        supplier_name: supplierName,
+        category,
+        dre_section: dreSection,
+        status: "pendente",
+        series_id: series?.id,
+        series_index: i + 1,
+        created_by: ctx.user.id,
+      });
+      if (error) return { error: error.message };
+    }
+
+    revalidateFinanceiro();
+    return { error: null, seriesId: series?.id, count: dates.length };
+  }
+
+  const { data: inserted, error } = await ctx.supabase
+    .from("financial_entries")
+    .insert({
+      clinic_id: ctx.profile.clinic_id,
+      entry_type: data.entry_type,
+      origin: data.origin,
+      description: data.description.trim(),
+      amount: data.amount,
+      due_date: data.due_date ?? null,
+      competence_date: competenceDate,
+      supplier_id: data.supplier_id ?? null,
+      supplier_name: supplierName,
+      category,
+      dre_section: dreSection,
+      status: data.mark_paid ? "pago" : "pendente",
+      paid_at: data.mark_paid ? new Date().toISOString() : null,
+      payment_method: data.mark_paid ? data.payment_method ?? null : null,
+      created_by: ctx.user.id,
+    })
+    .select("id")
+    .single();
 
   if (error) return { error: error.message };
+
+  if (data.mark_paid && data.register_stock && data.stock_lines?.length && inserted?.id) {
+    const stockRes = await applyStockFromExpense(
+      ctx.profile.clinic_id,
+      ctx.user.id,
+      inserted.id as string,
+      data.stock_lines
+    );
+    if (stockRes.error) return { error: stockRes.error };
+    await ctx.supabase
+      .from("financial_entries")
+      .update({ origin: "stock" })
+      .eq("id", inserted.id);
+  }
+
   revalidateFinanceiro();
   return { error: null };
 }
@@ -572,10 +679,15 @@ export async function updateFinancialEntry(
 
 export async function markEntryPaid(
   id: string,
-  options?: { paid_at?: string; payment_method?: string }
+  options?: {
+    paid_at?: string;
+    payment_method?: string;
+    stock_lines?: StockLineInput[];
+    register_stock?: boolean;
+  }
 ) {
   const ctx = await getFinanceProfile();
-  if (ctx.error || !ctx.profile) return { error: ctx.error ?? "Não autorizado." };
+  if (ctx.error || !ctx.profile || !ctx.user) return { error: ctx.error ?? "Não autorizado." };
   if (!canManage(ctx.profile.role)) return { error: "Sem permissão." };
 
   const paidAt = options?.paid_at
@@ -592,6 +704,18 @@ export async function markEntryPaid(
     .eq("id", id);
 
   if (error) return { error: error.message };
+
+  if (options?.register_stock && options.stock_lines?.length) {
+    const stockRes = await applyStockFromExpense(
+      ctx.profile.clinic_id,
+      ctx.user.id,
+      id,
+      options.stock_lines
+    );
+    if (stockRes.error) return { error: stockRes.error };
+    await ctx.supabase.from("financial_entries").update({ origin: "stock" }).eq("id", id);
+  }
+
   revalidateFinanceiro();
   return { error: null };
 }

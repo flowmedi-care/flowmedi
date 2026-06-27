@@ -1,24 +1,21 @@
-import { getCompetenceByMonth } from "@/lib/financial-reports";
-import { FinanceiroReportClient } from "../financeiro-report-client";
+import { Suspense } from "react";
+import { FinanceiroCompetenciaClient } from "../financeiro-competencia-client";
+import { loadFinanceiroCompetencia } from "../load-financeiro-data";
 
 export default async function FinanceiroCompetenciaPage() {
-  const { data, error } = await getCompetenceByMonth(12);
+  const data = await loadFinanceiroCompetencia();
 
   return (
-    <>
-      {error && <p className="text-sm text-destructive mb-4">{error}</p>}
-      <FinanceiroReportClient
-        title="Relatório de competência"
-        subtitle="Receita faturada por mês — comandas fechadas ou pagas (lente Competência)."
-        rows={(data ?? []).map((r) => ({
-          periodo: r.label,
-          receita: r.revenue,
-        }))}
-        columns={[
-          { key: "periodo", label: "Período" },
-          { key: "receita", label: "Receita faturada", format: "currency" },
-        ]}
-      />
-    </>
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold">Competência</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          P&L por competência — receitas, despesas e lucro mensal.
+        </p>
+      </div>
+      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}>
+        <FinanceiroCompetenciaClient rows={data.rows} />
+      </Suspense>
+    </div>
   );
 }

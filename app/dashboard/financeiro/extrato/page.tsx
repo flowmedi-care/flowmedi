@@ -15,14 +15,14 @@ export default async function FinanceiroExtratoPage({
       <div>
         <h1 className="text-2xl font-semibold">Extrato</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Histórico de lançamentos com lente contábil (Caixa, Competência, Manual).
+          Movimentações unificadas com origem, saldo acumulado e comprovantes Flowmedi.
         </p>
       </div>
       <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}>
         <FinanceiroExtratoClient
           year={data.year}
           month={data.month}
-          entries={data.entries}
+          ledger={data.ledger}
           suppliers={data.suppliers}
         />
       </Suspense>
