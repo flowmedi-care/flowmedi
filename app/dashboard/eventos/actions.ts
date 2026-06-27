@@ -130,6 +130,22 @@ export async function getCompletedEvents(filters?: {
   return { data: data || [], error: null };
 }
 
+// ========== ATUALIZAR LISTAS (refetch direto, sem cache RSC) ==========
+export async function refreshEventsLists() {
+  const [pending, all, completed] = await Promise.all([
+    getPendingEvents(),
+    getAllEvents(),
+    getCompletedEvents(),
+  ]);
+
+  return {
+    pendingEvents: pending.data ?? [],
+    allEvents: all.data ?? [],
+    completedEvents: completed.data ?? [],
+    error: pending.error ?? all.error ?? completed.error ?? null,
+  };
+}
+
 // ========== CONCLUIR EVENTO (botão Concluir → status completed) ==========
 export async function concluirEvent(eventId: string): Promise<{ error: string | null }> {
   const supabase = await createClient();
@@ -144,8 +160,28 @@ export async function concluirEvent(eventId: string): Promise<{ error: string | 
 
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
 
-  const processedAt = new Date().toISOString();
+  const { data: rpcId, error: rpcError } = await supabase.rpc("concluir_evento", {
+    p_event_id: eventId,
+    p_processed_by: user.id,
+  });
 
+  if (!rpcError && rpcId) {
+    revalidatePath("/dashboard/eventos");
+    return { error: null };
+  }
+
+  const rpcMissing =
+    rpcError &&
+    (rpcError.code === "PGRST202" ||
+      rpcError.code === "42883" ||
+      rpcError.message.includes("concluir_evento"));
+
+  if (rpcError && !rpcMissing) {
+    return { error: rpcError.message };
+  }
+
+  // Fallback: update direto (enquanto migration-concluir-evento-rpc.sql não foi aplicada)
+  const processedAt = new Date().toISOString();
   const { data: updated, error: updateError } = await supabase
     .from("event_timeline")
     .update({
@@ -156,11 +192,13 @@ export async function concluirEvent(eventId: string): Promise<{ error: string | 
     .eq("id", eventId)
     .eq("clinic_id", profile.clinic_id)
     .eq("status", "pending")
-    .select("id")
+    .select("id, status")
     .maybeSingle();
 
   if (updateError) return { error: updateError.message };
-  if (!updated) return { error: "Evento não encontrado ou já processado." };
+  if (!updated || updated.status !== "completed") {
+    return { error: "Evento não encontrado ou já processado." };
+  }
 
   revalidatePath("/dashboard/eventos");
   return { error: null };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus, FileText, CalendarCheck, Calendar, XCircle, UserX, Route } from "lucide-react";
-import { processEvent, concluirEvent, getMessagePreviewForEvent, type ClinicEventConfigItem } from "./actions";
+import { processEvent, concluirEvent, getMessagePreviewForEvent, refreshEventsLists, type ClinicEventConfigItem } from "./actions";
 import { EventosConfigModal } from "./eventos-config-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { registerPatientFromPublicForm } from "@/app/dashboard/pacientes/actions";
@@ -179,8 +179,13 @@ export function EventosClient({
   const [allEvents, setAllEvents] = useState<Event[]>(initialAllEvents);
   const [completedEvents, setCompletedEvents] = useState<Event[]>(initialCompletedEvents);
   const [settings, setSettings] = useState<ClinicMessageSetting[]>(msgSettings);
+  const skipPropsSyncRef = useRef(false);
 
   useEffect(() => {
+    if (skipPropsSyncRef.current) {
+      skipPropsSyncRef.current = false;
+      return;
+    }
     setPendingEvents(initialPendingEvents);
     setAllEvents(initialAllEvents);
     setCompletedEvents(initialCompletedEvents);
@@ -288,29 +293,25 @@ export function EventosClient({
   async function handleConcluir(eventId: string) {
     setProcessing(eventId);
     const result = await concluirEvent(eventId);
-    setProcessing(null);
     if (result.error) {
+      setProcessing(null);
       toast(result.error, "error");
       return;
     }
 
-    const processedAt = new Date().toISOString();
-    const concluded = pendingEvents.find((e) => e.id === eventId);
-    if (concluded) {
-      const updated: Event = {
-        ...concluded,
-        status: "completed",
-        processed_at: processedAt,
-      };
-      setPendingEvents((prev) => prev.filter((e) => e.id !== eventId));
-      setCompletedEvents((prev) => [updated, ...prev]);
-      setAllEvents((prev) =>
-        prev.map((e) => (e.id === eventId ? updated : e))
-      );
+    const refreshed = await refreshEventsLists();
+    setProcessing(null);
+
+    if (refreshed.error) {
+      toast(`Erro ao atualizar lista: ${refreshed.error}`, "error");
+      return;
     }
 
+    skipPropsSyncRef.current = true;
+    setPendingEvents(refreshed.pendingEvents);
+    setAllEvents(refreshed.allEvents);
+    setCompletedEvents(refreshed.completedEvents);
     toast("Evento concluído", "success");
-    router.refresh();
   }
 
   async function handleAppointmentStatusChange(appointmentId: string, status: "realizada" | "falta" | "cancelada") {
