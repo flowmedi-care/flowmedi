@@ -366,5 +366,6 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.get_all_events TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_completed_events TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_pending_events(uuid, uuid, text, integer, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_all_events(uuid, uuid, text, integer, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_completed_events(uuid, uuid, text, integer, integer) TO authenticated;
