@@ -289,8 +289,28 @@ export function EventosClient({
     setProcessing(eventId);
     const result = await concluirEvent(eventId);
     setProcessing(null);
-    if (result.error) alert(`Erro: ${result.error}`);
-    else router.refresh();
+    if (result.error) {
+      toast(result.error, "error");
+      return;
+    }
+
+    const processedAt = new Date().toISOString();
+    const concluded = pendingEvents.find((e) => e.id === eventId);
+    if (concluded) {
+      const updated: Event = {
+        ...concluded,
+        status: "completed",
+        processed_at: processedAt,
+      };
+      setPendingEvents((prev) => prev.filter((e) => e.id !== eventId));
+      setCompletedEvents((prev) => [updated, ...prev]);
+      setAllEvents((prev) =>
+        prev.map((e) => (e.id === eventId ? updated : e))
+      );
+    }
+
+    toast("Evento concluído", "success");
+    router.refresh();
   }
 
   async function handleAppointmentStatusChange(appointmentId: string, status: "realizada" | "falta" | "cancelada") {

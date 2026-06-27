@@ -144,17 +144,25 @@ export async function concluirEvent(eventId: string): Promise<{ error: string | 
 
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
 
-  const { error: updateError } = await supabase
+  const processedAt = new Date().toISOString();
+
+  const { data: updated, error: updateError } = await supabase
     .from("event_timeline")
     .update({
       status: "completed",
-      processed_at: new Date().toISOString(),
+      processed_at: processedAt,
       processed_by: user.id,
     })
     .eq("id", eventId)
-    .eq("clinic_id", profile.clinic_id);
+    .eq("clinic_id", profile.clinic_id)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
 
   if (updateError) return { error: updateError.message };
+  if (!updated) return { error: "Evento não encontrado ou já processado." };
+
+  revalidatePath("/dashboard/eventos");
   return { error: null };
 }
 
