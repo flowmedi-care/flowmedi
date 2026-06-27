@@ -118,7 +118,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
       { href: "/dashboard/contatos/pacientes", label: "Pacientes" },
       { href: "/dashboard/contatos/profissionais", label: "Profissionais" },
       { href: "/dashboard/contatos/fornecedores", label: "Fornecedores", roles: ["admin", "secretaria"] },
-      { href: "/dashboard/contatos/leads", label: "Leads", roles: ["admin", "secretaria"] },
+      { href: "/dashboard/contatos/leads", label: "Centro de Leads", roles: ["admin", "secretaria"] },
       { href: "/dashboard/contatos/todos", label: "Todos contatos" },
       { href: "/dashboard/contatos/aniversariantes", label: "Aniversariantes" },
     ],

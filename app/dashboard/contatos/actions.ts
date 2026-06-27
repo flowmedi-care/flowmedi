@@ -110,14 +110,25 @@ export async function listBirthdaysToday() {
   return { error: null, data: matches };
 }
 
+export type UnifiedContactType = "paciente" | "lead" | "fornecedor" | "profissional";
+
 export type UnifiedContact = {
   id: string;
-  type: "paciente" | "lead" | "fornecedor" | "profissional";
+  primaryType: UnifiedContactType;
+  /** @deprecated Use primaryType */
+  type: UnifiedContactType;
+  tags: string[];
   name: string;
   email: string | null;
   phone: string | null;
   href: string | null;
 };
+
+function normalizeEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const n = email.trim().toLowerCase();
+  return n || null;
+}
 
 export async function listAllContacts() {
   const supabase = await createClient();
@@ -133,7 +144,6 @@ export async function listAllContacts() {
   if (!profile?.clinic_id) return { error: "Clínica não encontrada.", data: [] };
 
   const clinicId = profile.clinic_id;
-  const items: UnifiedContact[] = [];
 
   const [{ data: patients }, { data: leads }, { data: suppliers }, { data: doctors }] =
     await Promise.all([
@@ -144,7 +154,7 @@ export async function listAllContacts() {
         .order("full_name"),
       supabase
         .from("non_registered_pipeline")
-        .select("id, name, email, phone")
+        .select("id, name, email, phone, stage")
         .eq("clinic_id", clinicId)
         .neq("stage", "cadastrado")
         .order("name"),
@@ -163,44 +173,77 @@ export async function listAllContacts() {
         .order("full_name"),
     ]);
 
+  const leadEmails = new Set(
+    (leads ?? [])
+      .map((l) => normalizeEmail(l.email))
+      .filter((e): e is string => !!e)
+  );
+
+  const items: UnifiedContact[] = [];
+
   for (const p of patients ?? []) {
+    const emailNorm = normalizeEmail(p.email);
+    const tags: string[] = ["Paciente"];
+    if (emailNorm && leadEmails.has(emailNorm)) {
+      tags.push("Lead ativo");
+    }
     items.push({
       id: p.id,
+      primaryType: "paciente",
       type: "paciente",
+      tags,
       name: p.full_name,
       email: p.email,
       phone: p.phone,
       href: `/dashboard/contatos/pacientes/${p.id}`,
     });
   }
+
+  const patientEmails = new Set(
+    (patients ?? [])
+      .map((p) => normalizeEmail(p.email))
+      .filter((e): e is string => !!e)
+  );
+
   for (const l of leads ?? []) {
+    const emailNorm = normalizeEmail(l.email);
+    if (emailNorm && patientEmails.has(emailNorm)) continue;
+
     items.push({
       id: l.id,
+      primaryType: "lead",
       type: "lead",
+      tags: ["Lead"],
       name: l.name ?? "Sem nome",
       email: l.email,
       phone: l.phone,
       href: "/dashboard/contatos/leads",
     });
   }
+
   for (const s of suppliers ?? []) {
     items.push({
       id: s.id,
+      primaryType: "fornecedor",
       type: "fornecedor",
+      tags: ["Fornecedor"],
       name: s.name,
       email: s.email,
       phone: s.phone,
       href: "/dashboard/contatos/fornecedores",
     });
   }
+
   for (const d of doctors ?? []) {
     items.push({
       id: d.id,
+      primaryType: "profissional",
       type: "profissional",
+      tags: ["Profissional"],
       name: d.full_name ?? "Profissional",
       email: d.email,
       phone: null,
-      href: "/dashboard/contatos/profissionais",
+      href: `/dashboard/contatos/profissionais/${d.id}`,
     });
   }
 

@@ -1,37 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { PipelineClient } from "../pipeline/pipeline-client";
+import Link from "next/link";
 import { AppointmentPipelineClient } from "./appointment-pipeline-client";
-import type { PipelineItem } from "../pipeline/actions";
 import type { AppointmentPipelineItem } from "./pipeline-actions";
+import { Button } from "@/components/ui/button";
+import { ArrowRight } from "lucide-react";
 
 export type CrmPipelineViewMode = "list" | "kanban";
 
 export function CrmPipelineBoardsClient({
-  pipelineItems,
   appointmentItems,
 }: {
-  pipelineItems: PipelineItem[];
   appointmentItems: AppointmentPipelineItem[];
 }) {
-  const [viewMode, setViewMode] = useState<CrmPipelineViewMode>("kanban");
-
   return (
-    <>
-      <section id="captacao" className="space-y-4">
+    <div className="space-y-6">
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Captação</h2>
+          <p className="text-sm font-medium">Captação e repescagem</p>
           <p className="text-sm text-muted-foreground">
-            Do primeiro contato até o agendamento.
+            Leads, formulários e oportunidades de retorno estão no Centro de Leads.
           </p>
         </div>
-        <PipelineClient
-          initialItems={pipelineItems}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-        />
-      </section>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/dashboard/contatos/leads">
+            Abrir Centro de Leads
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Link>
+        </Button>
+      </div>
 
       <section id="comparecimento" className="space-y-4">
         <div>
@@ -40,11 +37,8 @@ export function CrmPipelineBoardsClient({
             Da consulta agendada até realização, falta ou cancelamento.
           </p>
         </div>
-        <AppointmentPipelineClient
-          initialItems={appointmentItems}
-          viewMode={viewMode}
-        />
+        <AppointmentPipelineClient initialItems={appointmentItems} />
       </section>
-    </>
+    </div>
   );
 }

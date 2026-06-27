@@ -16,7 +16,7 @@ import {
   type PatientInsert,
   type PatientUpdate,
 } from "./actions";
-import { Search, Plus, Pencil, Trash2, X, UserCheck, Grid3x3, List, CalendarPlus, ExternalLink } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, X, UserCheck, Grid3x3, List, LayoutGrid, CalendarPlus, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPhoneBr, formatPhoneBrInput, parsePhoneBr } from "@/lib/format-phone";
 import { toast } from "@/components/ui/toast";
@@ -34,6 +34,26 @@ import {
 } from "@/components/dashboard-ui/contact-list";
 import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
+import {
+  ContactCard,
+  ContactCardGrid,
+  ContactCardSection,
+} from "@/components/dashboard-ui/contact-card";
+
+const VIEW_MODE_KEY = "pacientes-view-mode";
+type PatientViewMode = "contacts" | "list" | "cards";
+
+function formatPatientAge(birthDate: string | null): string | null {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate + "T12:00:00");
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const monthDiff = now.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age >= 0 ? `${age} anos` : null;
+}
 
 export type Patient = {
   id: string;
@@ -43,6 +63,7 @@ export type Patient = {
   birth_date: string | null;
   cpf: string | null;
   notes: string | null;
+  photo_url?: string | null;
   custom_fields?: Record<string, unknown>;
   created_at: string;
 };
@@ -95,7 +116,8 @@ export function PacientesClient({
   const [patientToExcluir, setPatientToExcluir] = useState<Patient | null>(null);
   const [registeringEmail, setRegisteringEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"contacts" | "list">("contacts");
+  const [viewMode, setViewMode] = useState<PatientViewMode>("contacts");
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [justRegisteredPatientId, setJustRegisteredPatientId] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const [form, setForm] = useState<PatientInsert & { id?: string; custom_fields?: Record<string, unknown> }>({
@@ -110,6 +132,18 @@ export function PacientesClient({
   const contactsScrollRef = useRef<HTMLDivElement | null>(null);
   const letterSectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const alphabet = useMemo(() => Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)), []);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    if (stored === "contacts" || stored === "list" || stored === "cards") {
+      setViewMode(stored);
+    }
+  }, []);
+
+  function handleViewModeChange(mode: PatientViewMode) {
+    setViewMode(mode);
+    localStorage.setItem(VIEW_MODE_KEY, mode);
+  }
 
   // Sincronizar lista quando o servidor enviar dados novos (ex.: após router.refresh())
   useEffect(() => {
@@ -212,14 +246,67 @@ export function PacientesClient({
     }));
   }, [filtered]);
   const availableLetters = useMemo(
-    () => new Set(groupedPatients.map((g) => g.letter).filter((l) => l !== "#")),
+    () => new Set(groupedPatients.map((g) => g.letter)),
     [groupedPatients]
   );
 
+  const indexLetters = useMemo(() => {
+    const letters = [...alphabet];
+    if (availableLetters.has("#")) letters.push("#");
+    return letters;
+  }, [alphabet, availableLetters]);
+
   function scrollToLetter(letter: string) {
+    const container = contactsScrollRef.current;
     const target = letterSectionRefs.current[letter];
-    if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!container || !target) return;
+    const top = target.offsetTop - container.offsetTop;
+    container.scrollTo({ top, behavior: "smooth" });
+    setActiveLetter(letter);
+  }
+
+  useEffect(() => {
+    const container = contactsScrollRef.current;
+    if (!container || activeTab !== "registered") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        const letter = visible[0]?.target.getAttribute("data-letter");
+        if (letter) setActiveLetter(letter);
+      },
+      { root: container, rootMargin: "-5% 0px -75% 0px", threshold: 0 }
+    );
+
+    Object.values(letterSectionRefs.current).forEach((el) => {
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [groupedPatients, viewMode, activeTab]);
+
+  function renderAlphabetRail() {
+    return (
+      <AlphabetIndex
+        letters={indexLetters}
+        activeLetter={activeLetter}
+        availableLetters={availableLetters}
+        onLetterClick={scrollToLetter}
+      />
+    );
+  }
+
+  function patientSubtitle(p: Patient) {
+    return (
+      [p.email, p.phone ? formatPhoneBr(p.phone) : null].filter(Boolean).join(" · ") ||
+      "Sem contato"
+    );
+  }
+
+  function navigateToPatient(id: string) {
+    router.push(`/dashboard/contatos/pacientes/${id}`);
   }
 
   const filteredNonRegistered = nonRegisteredList.filter(
@@ -467,9 +554,10 @@ export function PacientesClient({
               activeTab === "registered" ? (
                 <ViewModeToggle
                   value={viewMode}
-                  onChange={setViewMode}
+                  onChange={handleViewModeChange}
                   options={[
                     { value: "contacts", icon: Grid3x3, title: "Visualização de contatos" },
+                    { value: "cards", icon: LayoutGrid, title: "Visualização em cards" },
                     { value: "list", icon: List, title: "Visualização em lista" },
                   ]}
                 />
@@ -728,106 +816,108 @@ export function PacientesClient({
               description="Cadastre um novo paciente ou ajuste a busca."
               action={{ label: "Novo paciente", onClick: openNew }}
             />
+          ) : viewMode === "cards" ? (
+            <ContactList scrollRef={contactsScrollRef} sideRail={renderAlphabetRail()}>
+              {groupedPatients.map((group) => (
+                <ContactCardSection
+                  key={group.letter}
+                  letter={group.letter}
+                  sectionRef={(el) => {
+                    letterSectionRefs.current[group.letter] = el;
+                  }}
+                >
+                  <ContactCardGrid>
+                    {group.patients.map((p) => {
+                      const age = formatPatientAge(p.birth_date);
+                      return (
+                        <ContactCard
+                          key={p.id}
+                          name={p.full_name}
+                          avatarSrc={p.photo_url}
+                          subtitle={patientSubtitle(p)}
+                          detail={age ?? undefined}
+                          onClick={() => navigateToPatient(p.id)}
+                        />
+                      );
+                    })}
+                  </ContactCardGrid>
+                </ContactCardSection>
+              ))}
+            </ContactList>
           ) : viewMode === "contacts" ? (
-            <ContactList
-              sideRail={
-                <AlphabetIndex
-                  letters={alphabet}
-                  onLetterClick={(letter) => availableLetters.has(letter) && scrollToLetter(letter)}
-                />
-              }
-            >
-              <div ref={contactsScrollRef}>
-                {groupedPatients.map((group) => (
-                  <ContactListSection
-                    key={group.letter}
-                    letter={group.letter}
-                    sectionRef={(el) => {
-                      letterSectionRefs.current[group.letter] = el;
-                    }}
-                  >
-                    {group.patients.map((p) => (
-                      <ContactListItem
-                        key={p.id}
-                        name={p.full_name}
-                        subtitle={
-                          [p.email, p.phone ? formatPhoneBr(p.phone) : null]
-                            .filter(Boolean)
-                            .join(" · ") || "Sem contato"
-                        }
-                        onClick={() =>
-                          router.push(`/dashboard/contatos/pacientes/${p.id}`)
-                        }
-                      />
-                    ))}
-                  </ContactListSection>
-                ))}
-              </div>
+            <ContactList scrollRef={contactsScrollRef} sideRail={renderAlphabetRail()}>
+              {groupedPatients.map((group) => (
+                <ContactListSection
+                  key={group.letter}
+                  letter={group.letter}
+                  sectionRef={(el) => {
+                    letterSectionRefs.current[group.letter] = el;
+                  }}
+                >
+                  {group.patients.map((p) => (
+                    <ContactListItem
+                      key={p.id}
+                      name={p.full_name}
+                      avatarSrc={p.photo_url}
+                      subtitle={patientSubtitle(p)}
+                      onClick={() => navigateToPatient(p.id)}
+                    />
+                  ))}
+                </ContactListSection>
+              ))}
             </ContactList>
           ) : (
-            <ContactList
-              sideRail={
-                <AlphabetIndex
-                  letters={alphabet}
-                  onLetterClick={(letter) => availableLetters.has(letter) && scrollToLetter(letter)}
-                />
-              }
-            >
-              <div ref={contactsScrollRef}>
-                <ListPanel>
-                  {groupedPatients.map((group) => (
-                    <div key={group.letter}>
-                      <ContactListSection
-                        letter={group.letter}
-                        sectionRef={(el) => {
-                          letterSectionRefs.current[group.letter] = el;
-                        }}
-                      >
-                        {group.patients.map((p) => (
-                          <ListPanelItem key={p.id}>
-                            <div className="flex w-full flex-wrap items-center justify-between gap-2">
-                              <ContactListItem
-                                name={p.full_name}
-                                subtitle={
-                                  [p.email, p.phone ? formatPhoneBr(p.phone) : null]
-                                    .filter(Boolean)
-                                    .join(" · ") || "—"
-                                }
-                                onClick={() =>
-                                  router.push(`/dashboard/contatos/pacientes/${p.id}`)
-                                }
-                              />
-                              <div className="flex items-center gap-1 shrink-0">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    router.push(`/dashboard/contatos/pacientes/${p.id}`)
-                                  }
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => openExcluirConfirm(p)}
-                                  disabled={deletingId === p.id}
-                                  className="text-destructive hover:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
+            <ContactList scrollRef={contactsScrollRef} sideRail={renderAlphabetRail()}>
+              <ListPanel>
+                {groupedPatients.map((group) => (
+                  <div key={group.letter}>
+                    <ContactListSection
+                      letter={group.letter}
+                      sectionRef={(el) => {
+                        letterSectionRefs.current[group.letter] = el;
+                      }}
+                    >
+                      {group.patients.map((p) => (
+                        <ListPanelItem key={p.id}>
+                          <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                            <ContactListItem
+                              name={p.full_name}
+                              avatarSrc={p.photo_url}
+                              subtitle={
+                                [p.email, p.phone ? formatPhoneBr(p.phone) : null]
+                                  .filter(Boolean)
+                                  .join(" · ") || "—"
+                              }
+                              onClick={() => navigateToPatient(p.id)}
+                            />
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigateToPatient(p.id)}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openExcluirConfirm(p)}
+                                disabled={deletingId === p.id}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
-                          </ListPanelItem>
-                        ))}
-                      </ContactListSection>
-                    </div>
-                  ))}
-                </ListPanel>
-              </div>
+                          </div>
+                        </ListPanelItem>
+                      ))}
+                    </ContactListSection>
+                  </div>
+                ))}
+              </ListPanel>
             </ContactList>
           )}
             </div>

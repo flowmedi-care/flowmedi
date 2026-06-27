@@ -20,6 +20,9 @@ export type PipelineItem = {
   last_contact_at: string | null;
   next_action: string | null;
   notes: string | null;
+  loss_reason: string | null;
+  lead_segment: string | null;
+  source: string | null;
   created_at: string;
   updated_at: string;
   forms: Array<{
@@ -354,6 +357,9 @@ export async function getPipeline() {
       last_contact_at: item.last_contact_at,
       next_action: item.next_action,
       notes: item.notes,
+      loss_reason: item.loss_reason ?? null,
+      lead_segment: item.lead_segment ?? null,
+      source: item.source ?? null,
       created_at: item.created_at,
       updated_at: item.updated_at,
       forms,

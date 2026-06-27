@@ -1427,6 +1427,19 @@ export async function updateAppointment(
           console.error("[updateAppointment] plan sessions recalc:", e);
         }
       }
+      if (currentRow.patient_id) {
+        try {
+          const { suggestRepescagemFromAppointment } = await import("@/lib/leads/suggest-repescagem");
+          await suggestRepescagemFromAppointment(supabase, {
+            clinicId: currentRow.clinic_id as string,
+            patientId: currentRow.patient_id as string,
+            appointmentId: id,
+            source: data.status === "falta" ? "falta" : "cancelamento",
+          });
+        } catch (e) {
+          console.error("[updateAppointment] repescagem suggest:", e);
+        }
+      }
     }
   }
 

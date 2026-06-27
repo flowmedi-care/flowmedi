@@ -27,7 +27,8 @@ export default async function TodosContatosPage() {
       header={{
         breadcrumbs: [{ label: "Todos contatos" }],
         title: "Todos contatos",
-        description: "Visão unificada de pacientes, leads, fornecedores e profissionais.",
+        description:
+          "Visão unificada de pacientes, leads, fornecedores e profissionais. Um contato pode ter múltiplas classificações.",
       }}
     >
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -39,7 +40,7 @@ export default async function TodosContatosPage() {
       ) : (
         <ListPanel className="max-h-[70vh] overflow-y-auto">
           {list.map((c) => (
-            <ListPanelItem key={`${c.type}-${c.id}`}>
+            <ListPanelItem key={`${c.primaryType}-${c.id}`}>
               <div className="flex w-full flex-wrap items-center justify-between gap-2">
                 <div>
                   {c.href ? (
@@ -53,7 +54,22 @@ export default async function TodosContatosPage() {
                     {[c.email, c.phone].filter(Boolean).join(" · ") || "—"}
                   </p>
                 </div>
-                <Badge variant="secondary">{TYPE_LABELS[c.type] ?? c.type}</Badge>
+                <div className="flex flex-wrap gap-1 justify-end" title="Classificações do contato">
+                  {c.tags.map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant={tag === "Lead ativo" ? "default" : "secondary"}
+                      className="text-[10px]"
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                  {!c.tags.length && (
+                    <Badge variant="secondary">
+                      {TYPE_LABELS[c.primaryType] ?? c.primaryType}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </ListPanelItem>
           ))}

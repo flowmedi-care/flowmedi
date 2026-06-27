@@ -1,6 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getPipeline, syncNonRegisteredToPipeline } from "../../pipeline/actions";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { CrmFunnelCharts } from "../crm-funnel-charts";
 import { CrmPipelineBoardsClient } from "../crm-pipeline-boards-client";
@@ -9,6 +7,7 @@ import {
   getLeadFunnelMetrics,
   getAppointmentFunnelMetrics,
 } from "../pipeline-actions";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function CrmPipelinePage() {
   const supabase = await createClient();
@@ -27,15 +26,11 @@ export default async function CrmPipelinePage() {
     redirect("/dashboard");
   }
 
-  await syncNonRegisteredToPipeline();
-
-  const [pipelineRes, appointmentRes, leadMetricsRes, appointmentMetricsRes] =
-    await Promise.all([
-      getPipeline(),
-      getAppointmentPipeline(),
-      getLeadFunnelMetrics(30, "day"),
-      getAppointmentFunnelMetrics(30, "day"),
-    ]);
+  const [appointmentRes, leadMetricsRes, appointmentMetricsRes] = await Promise.all([
+    getAppointmentPipeline(),
+    getLeadFunnelMetrics(30, "day"),
+    getAppointmentFunnelMetrics(30, "day"),
+  ]);
 
   const leadMetrics = leadMetricsRes.data ?? {
     snapshot: { novo_contato: 0, aguardando_retorno: 0, cadastrado: 0, agendado: 0 },
@@ -72,7 +67,7 @@ export default async function CrmPipelinePage() {
         breadcrumbs: [{ label: "Pipeline CRM" }],
         title: "Pipeline CRM",
         description:
-          "Captação de leads, comparecimento de consultas e funis no tempo.",
+          "Comparecimento de consultas e funis no tempo. Captação em Contatos → Leads.",
       }}
       elevated={false}
     >
@@ -88,19 +83,11 @@ export default async function CrmPipelinePage() {
           initialAppointmentMetrics={appointmentMetrics}
         />
 
-        {(pipelineRes.error || appointmentRes.error) && (
-          <div className="space-y-1">
-            {pipelineRes.error && (
-              <p className="text-sm text-destructive">{pipelineRes.error}</p>
-            )}
-            {appointmentRes.error && (
-              <p className="text-sm text-destructive">{appointmentRes.error}</p>
-            )}
-          </div>
+        {(appointmentRes.error) && (
+          <p className="text-sm text-destructive">{appointmentRes.error}</p>
         )}
 
         <CrmPipelineBoardsClient
-          pipelineItems={pipelineRes.error ? [] : (pipelineRes.data ?? [])}
           appointmentItems={appointmentRes.error ? [] : (appointmentRes.data ?? [])}
         />
       </div>

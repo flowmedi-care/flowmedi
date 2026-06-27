@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -174,11 +175,14 @@ export function EquipeClient({
             {members.map((m) => (
               <ListPanelItem key={m.id}>
                 <div className="flex w-full flex-wrap items-center justify-between gap-2">
-                  <div>
+                  <Link
+                    href={`/dashboard/contatos/profissionais/${m.id}`}
+                    className="min-w-0 flex-1 hover:opacity-90 transition-opacity"
+                  >
                     <p className="font-medium text-foreground">{m.full_name || m.email || "—"}</p>
                     <p className="text-sm text-muted-foreground">{m.email}</p>
                     <p className="text-xs text-muted-foreground capitalize">{ROLE_LABEL[m.role] ?? m.role}</p>
-                  </div>
+                  </Link>
                   {m.id !== currentUserId && m.role !== "admin" && (
                     <Button
                       type="button"

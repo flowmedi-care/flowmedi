@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { PipelineClient } from "../../pipeline/pipeline-client";
-import { getPipeline, syncNonRegisteredToPipeline } from "../../pipeline/actions";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
+import { getLeadsHubData } from "./actions";
+import { LeadsHubClient } from "./leads-hub-client";
 
 export default async function LeadsPage() {
   const supabase = await createClient();
@@ -19,23 +19,22 @@ export default async function LeadsPage() {
     redirect("/dashboard/contatos/pacientes");
   }
 
-  await syncNonRegisteredToPipeline();
-  const pipelineRes = await getPipeline();
+  const hubRes = await getLeadsHubData();
 
   return (
     <PageShell
       header={{
         breadcrumbs: [{ label: "Leads" }],
-        title: "Leads",
+        title: "Centro de Leads",
         description:
-          "Contatos de formulários públicos e links ainda não cadastrados como pacientes.",
+          "Captação, repescagem e acompanhamento de contatos — do primeiro formulário até o retorno.",
       }}
     >
-      {pipelineRes.error ? (
-        <p className="text-sm text-destructive">{pipelineRes.error}</p>
-      ) : (
-        <PipelineClient initialItems={pipelineRes.data ?? []} />
-      )}
+      {hubRes.error ? (
+        <p className="text-sm text-destructive">{hubRes.error}</p>
+      ) : hubRes.data ? (
+        <LeadsHubClient data={hubRes.data} />
+      ) : null}
     </PageShell>
   );
 }

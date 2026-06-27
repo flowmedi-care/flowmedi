@@ -132,7 +132,10 @@ export default async function ProfissionaisPage() {
         <ListPanel>
           {members.map((m) => (
             <ListPanelItem key={m.id}>
-              <div className="flex w-full flex-wrap items-center justify-between gap-2">
+              <Link
+                href={`/dashboard/contatos/profissionais/${m.id}`}
+                className="flex w-full flex-wrap items-center justify-between gap-2 hover:opacity-90 transition-opacity"
+              >
                 <div>
                   <p className="font-medium">{m.full_name ?? "—"}</p>
                   <p className="text-sm text-muted-foreground">{m.email}</p>
@@ -151,7 +154,7 @@ export default async function ProfissionaisPage() {
                       ? "Secretário(a)"
                       : "Admin"}
                 </Badge>
-              </div>
+              </Link>
             </ListPanelItem>
           ))}
         </ListPanel>
