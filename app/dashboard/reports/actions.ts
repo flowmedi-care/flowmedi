@@ -24,18 +24,18 @@ export async function getAuditLog(
       old_values,
       new_values,
       created_at,
-      user:profiles!audit_log_user_id_fkey ( full_name )
+      profiles!user_id ( id, full_name, email )
     `
     )
     .eq("clinic_id", clinicId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(opts.limit ?? 50);
 
   if (opts.userId) q = q.eq("user_id", opts.userId);
   if (opts.from) q = q.gte("created_at", opts.from);
   if (opts.to) q = q.lte("created_at", opts.to);
-  if (opts.limit) q = q.limit(opts.limit);
 
   const { data, error } = await q;
   if (error) return { data: null, error: error.message };
-  return { data, error: null };
+  return { data: data ?? [], error: null };
 }
