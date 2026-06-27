@@ -434,9 +434,9 @@ export function AtendimentoClinicoClient({
             )}
 
           {activeFichaHistory &&
-            activeFicha.template.ficha_type !== "fields" && (
+            activeFichaHistory.template.ficha_type !== "fields" && (
               <div className="space-y-3">
-                <h2 className="text-lg font-semibold">{activeFicha.template.name}</h2>
+                <h2 className="text-lg font-semibold">{activeFichaHistory.template.name}</h2>
                 <p className="text-sm text-muted-foreground">
                   Documentos de consultas anteriores podem ser visualizados no atendimento
                   completo daquela data.
