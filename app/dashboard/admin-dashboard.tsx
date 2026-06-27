@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getVisaoGeralData, getVisaoGeralWeekData, type Period } from "./visao-geral/actions";
 import { getClinicPlanData } from "@/lib/plan-helpers";
-import { canAccessVisaoGeral } from "@/lib/plan-gates";
 import { getOrSetMemoryCache } from "@/lib/server-memory-cache";
 import { AdminTodayStrip } from "./admin-today-strip";
 import { FinanceAlertsPanelServer } from "./financeiro/finance-alerts-panel-server";
@@ -36,44 +35,20 @@ export default async function AdminDashboard({
   const periodTyped: Period = period === "7d" || period === "90d" ? period : "30d";
 
   const planData = await getClinicPlanData();
-  const canAccess = canAccessVisaoGeral(
-    planData?.limits ?? {
-      max_doctors: null,
-      max_secretaries: null,
-      max_appointments_per_month: null,
-      max_patients: null,
-      max_form_templates: null,
-      max_custom_fields: null,
-      storage_mb: null,
-      whatsapp_enabled: false,
-      email_enabled: false,
-      custom_logo_enabled: false,
-      priority_support: false,
-      reports_basic_enabled: false,
-      reports_advanced_enabled: false,
-      reports_managerial_enabled: false,
-      productivity_team_enabled: false,
-      operational_indicators_enabled: false,
-      audit_log_enabled: false,
-    }
-  );
-
   const weekStart = getStartOfWeek(new Date());
 
-  const [visaoGeral, weekData] = canAccess
-    ? await Promise.all([
-        getOrSetMemoryCache(
-          `visao-geral:${clinicId}:${periodTyped}`,
-          120000,
-          async () => (await getVisaoGeralData(clinicId, periodTyped)).data
-        ),
-        getOrSetMemoryCache(
-          `visao-geral:${clinicId}:week:${weekStart.toISOString().slice(0, 10)}`,
-          120000,
-          async () => (await getVisaoGeralWeekData(weekStart.toISOString())).data
-        ),
-      ])
-    : [null, null];
+  const [visaoGeral, weekData] = await Promise.all([
+    getOrSetMemoryCache(
+      `visao-geral:${clinicId}:${periodTyped}`,
+      120000,
+      async () => (await getVisaoGeralData(clinicId, periodTyped)).data
+    ),
+    getOrSetMemoryCache(
+      `visao-geral:${clinicId}:week:${weekStart.toISOString().slice(0, 10)}`,
+      120000,
+      async () => (await getVisaoGeralWeekData(weekStart.toISOString())).data
+    ),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -96,12 +71,7 @@ export default async function AdminDashboard({
 
       <FinanceAlertsPanelServer />
 
-      <VisaoGeralClient
-        period={periodTyped}
-        visaoGeral={visaoGeral}
-        weekData={weekData}
-        canAccess={canAccess}
-      />
+      <VisaoGeralClient period={periodTyped} visaoGeral={visaoGeral} weekData={weekData} />
     </div>
   );
 }

@@ -2,9 +2,7 @@
 
 import { useCallback, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   TrendingUp,
   Calendar,
@@ -37,12 +35,10 @@ export function VisaoGeralClient({
   period,
   visaoGeral,
   weekData: initialWeekData,
-  canAccess,
 }: {
   period: Period;
   visaoGeral: VisaoGeralData | null;
   weekData: VisaoGeralWeekData | null;
-  canAccess: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -84,24 +80,6 @@ export function VisaoGeralClient({
     loadWeek(getStartOfWeek(next));
   }
 
-  if (!canAccess) {
-    return (
-      <Card>
-        <CardHeader>
-          <span className="font-semibold">Visão Geral indisponível no plano atual</span>
-          <p className="text-sm text-muted-foreground">
-            Faça upgrade do plano para acessar indicadores e operação da clínica.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <Button asChild>
-            <Link href="/dashboard/configuracoes/assinatura">Ver planos</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
   if (!visaoGeral) {
     return (
       <Card>
@@ -117,10 +95,7 @@ export function VisaoGeralClient({
       <PageToolbar filters={<PeriodSelect value={period} onChange={setPeriod} options={PERIODS} />} />
 
       <div className="space-y-4">
-        <div>
-          <h2 className="text-sm font-medium text-muted-foreground">Resumo do período</h2>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total de consultas"
             value={visaoGeral.total}
@@ -140,14 +115,8 @@ export function VisaoGeralClient({
             icon={Users}
             iconColor="info"
           />
-          <StatCard
-            title="Taxa de no-show"
-            value={`${visaoGeral.taxaNoShow}%`}
-            icon={AlertCircle}
-            iconColor="warning"
-          />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             title="Perda estimada (faltas/cancelamentos)"
             value={formatCurrency(visaoGeral.receitaPerdidaEstimada)}
@@ -156,6 +125,12 @@ export function VisaoGeralClient({
           <StatCard
             title="Ticket médio (realizadas)"
             value={formatCurrency(visaoGeral.ticketMedioRealizadas)}
+          />
+          <StatCard
+            title="Taxa de no-show"
+            value={`${visaoGeral.taxaNoShow}%`}
+            icon={AlertCircle}
+            iconColor="warning"
           />
         </div>
       </div>

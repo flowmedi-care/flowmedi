@@ -236,8 +236,9 @@ export function canAccessAudit(planLimits: PlanLimits): boolean {
   return Boolean(planLimits.audit_log_enabled);
 }
 
-export function canAccessVisaoGeral(planLimits: PlanLimits): boolean {
-  return Boolean(planLimits.reports_basic_enabled);
+export function canAccessVisaoGeral(_planLimits?: PlanLimits): boolean {
+  // Visão Geral é funcionalidade básica — disponível em todos os planos
+  return true;
 }
 
 /** @deprecated Use canAccessVisaoGeral — mantido para compatibilidade */
