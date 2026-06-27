@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     const { data: conv, error: fetchErr } = await supabase
       .from("whatsapp_conversations")
-      .select("id, clinic_id, phone_number, ai_handoff_at, ai_enabled")
+      .select("id, clinic_id, phone_number, ai_handoff_at, ai_enabled, ai_user_opt_out")
       .eq("id", conversationId)
       .eq("clinic_id", clinicId)
       .maybeSingle();
@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
       .update({
         ai_handoff_at: null,
         ai_enabled: true,
+        ai_user_opt_out: false,
       })
       .eq("id", conversationId);
 
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
         manual: true,
         hadHandoff: Boolean(conv.ai_handoff_at),
         hadAiDisabled: conv.ai_enabled === false,
+        hadUserOptOut: Boolean(conv.ai_user_opt_out),
         phone: conv.phone_number,
       },
     });

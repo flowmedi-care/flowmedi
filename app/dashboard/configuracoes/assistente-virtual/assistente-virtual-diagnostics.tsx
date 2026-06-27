@@ -489,7 +489,8 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
           <CardHeader>
             <CardTitle>Conversas sem IA ativa</CardTitle>
             <CardDescription>
-              Handoff humano ou IA pausada. Use Reativar IA ou aguarde nova mensagem do paciente.
+              Handoff humano, opt-out permanente do paciente ou IA pausada. Use Reativar IA no painel para
+              voltar a atender automaticamente.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -501,10 +502,13 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
                 >
                   <span>
                     <strong>{c.phone_number}</strong>
-                    {c.ai_handoff_at && (
+                    {c.ai_user_opt_out && (
+                      <span className="ml-2 text-red-700">opt-out permanente (DESATIVE)</span>
+                    )}
+                    {c.ai_handoff_at && !c.ai_user_opt_out && (
                       <span className="ml-2 text-amber-700">handoff humano</span>
                     )}
-                    {c.ai_enabled === false && (
+                    {c.ai_enabled === false && !c.ai_user_opt_out && !c.ai_handoff_at && (
                       <span className="ml-2 text-amber-700">IA pausada</span>
                     )}
                   </span>

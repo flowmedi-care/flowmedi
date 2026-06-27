@@ -103,13 +103,13 @@ async function processConversationAiInner(
   const { data: conv } = await supabase
     .from("whatsapp_conversations")
     .select(
-      "id, clinic_id, phone_number, ai_enabled, ai_handoff_at, ai_debounce_until, ai_state, patient_id"
+      "id, clinic_id, phone_number, ai_enabled, ai_handoff_at, ai_user_opt_out, ai_debounce_until, ai_state, patient_id"
     )
     .eq("id", conversationId)
     .single();
 
   if (!conv) return;
-  if (conv.ai_handoff_at || conv.ai_enabled === false) return;
+  if (conv.ai_user_opt_out || conv.ai_handoff_at || conv.ai_enabled === false) return;
 
   const debounceUntil = conv.ai_debounce_until ? new Date(conv.ai_debounce_until).getTime() : 0;
   if (debounceUntil > Date.now()) {
@@ -212,6 +212,28 @@ async function processConversationAiInner(
   }
 
   const userTexts = resolved.userTexts;
+
+  if (userTexts.length) {
+    const combinedInbound = userTexts.join("\n");
+    const { checkBotLoopRisk, applyBotLoopSilence } = await import("./bot-loop-guard");
+    const loopRisk = await checkBotLoopRisk(
+      supabase,
+      conversationId,
+      conv.clinic_id,
+      combinedInbound
+    );
+    if (loopRisk.block) {
+      await applyBotLoopSilence({
+        supabase,
+        clinicId: conv.clinic_id,
+        conversationId,
+        messageIds: pending.map((m) => m.id),
+        reason: loopRisk.reason ?? "process_inbound",
+        aiState,
+      });
+      return;
+    }
+  }
 
   if (!userTexts.length) {
     const now = new Date().toISOString();
@@ -561,10 +583,13 @@ export async function shouldSkipMenuChatbot(
 
   const { data: conv } = await supabase
     .from("whatsapp_conversations")
-    .select("ai_handoff_at, ai_enabled")
+    .select("ai_handoff_at, ai_enabled, ai_user_opt_out")
     .eq("id", conversationId)
     .single();
 
+  if (conv?.ai_user_opt_out) {
+    return { skipMenu: false, reason: "Paciente desativou respostas de IA (opt-out permanente)" };
+  }
   if (conv?.ai_handoff_at) {
     console.info("[VirtualAssistant] conversa em handoff humano", { conversationId });
     return { skipMenu: false, reason: "conversa em handoff humano" };

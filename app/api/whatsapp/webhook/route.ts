@@ -12,6 +12,8 @@ import {
   scheduleAiDebounce,
   shouldSkipMenuChatbot,
 } from "@/lib/virtual-assistant/process-inbound";
+import { handleInboundUserCommand } from "@/lib/virtual-assistant/user-commands";
+import { applyBotLoopSilence, quickBotLoopCheck } from "@/lib/virtual-assistant/bot-loop-guard";
 
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
@@ -166,27 +168,65 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          const insertMsg = await supabase.from("whatsapp_messages").insert({
-            conversation_id: conversationId,
-            clinic_id: clinicId,
-            direction: "inbound",
-            body: bodyText ?? "",
-            sent_at: new Date().toISOString(),
-          } as Record<string, unknown>);
+          const insertMsg = await supabase
+            .from("whatsapp_messages")
+            .insert({
+              conversation_id: conversationId,
+              clinic_id: clinicId,
+              direction: "inbound",
+              body: bodyText ?? "",
+              sent_at: new Date().toISOString(),
+            } as Record<string, unknown>)
+            .select("id")
+            .single();
 
           if (insertMsg.error) {
             console.error("[WhatsApp Webhook] Erro ao inserir mensagem:", insertMsg.error);
           }
 
+          const messageId = insertMsg.data?.id ?? undefined;
+
+          const { data: vaSettingsRow } = await supabase
+            .from("clinic_virtual_assistant_settings")
+            .select("human_handoff_enabled, message_debounce_seconds")
+            .eq("clinic_id", clinicId)
+            .maybeSingle();
+
+          const commandResult = await handleInboundUserCommand({
+            supabase,
+            clinicId,
+            conversationId,
+            phoneNumber: from,
+            messageId,
+            bodyText: bodyText ?? "",
+            humanHandoffEnabled: vaSettingsRow?.human_handoff_enabled !== false,
+          });
+
+          if (commandResult.handled) {
+            continue;
+          }
+
+          const botLoop = await quickBotLoopCheck(
+            supabase,
+            conversationId,
+            clinicId,
+            bodyText ?? ""
+          );
+          if (botLoop.block) {
+            await applyBotLoopSilence({
+              supabase,
+              clinicId,
+              conversationId,
+              messageIds: messageId ? [messageId] : undefined,
+              reason: botLoop.reason ?? "webhook_prefilter",
+            });
+            continue;
+          }
+
           const skipMenu = await shouldSkipMenuChatbot(supabase, clinicId, conversationId);
           if (skipMenu) {
-            const { data: vaSettings } = await supabase
-              .from("clinic_virtual_assistant_settings")
-              .select("message_debounce_seconds")
-              .eq("clinic_id", clinicId)
-              .maybeSingle();
-            const debounceSec = Number(vaSettings?.message_debounce_seconds) || 5;
-            await scheduleAiDebounce(supabase, conversationId, clinicId, debounceSec);
+            const debounceSec = Number(vaSettingsRow?.message_debounce_seconds) || 5;
+            await scheduleAiDebounce(supabase, conversationId, clinicId, debounceSec, messageId);
           } else {
             const chatbotResult = await handleChatbotMessage(
               supabase,

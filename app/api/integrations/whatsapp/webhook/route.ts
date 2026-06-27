@@ -11,10 +11,11 @@ import {
   sendChatbotReply,
 } from "@/lib/whatsapp-routing";
 import {
-  reactivateAiOnPatientInbound,
   scheduleAiDebounce,
   shouldSkipMenuChatbot,
 } from "@/lib/virtual-assistant/process-inbound";
+import { handleInboundUserCommand } from "@/lib/virtual-assistant/user-commands";
+import { applyBotLoopSilence, quickBotLoopCheck } from "@/lib/virtual-assistant/bot-loop-guard";
 import { logAiEvent } from "@/lib/virtual-assistant/event-log";
 import { excludeInboundFromAiQueue } from "@/lib/virtual-assistant/exclude-from-ai-queue";
 
@@ -298,7 +299,42 @@ export async function POST(request: NextRequest) {
             },
           });
 
-          await reactivateAiOnPatientInbound(supabase, clinicId, conversationId);
+          const { data: vaSettingsRow } = await supabase
+            .from("clinic_virtual_assistant_settings")
+            .select("human_handoff_enabled, message_debounce_seconds")
+            .eq("clinic_id", clinicId)
+            .maybeSingle();
+
+          const commandResult = await handleInboundUserCommand({
+            supabase,
+            clinicId,
+            conversationId,
+            phoneNumber: from,
+            messageId,
+            bodyText: bodyText ?? "",
+            humanHandoffEnabled: vaSettingsRow?.human_handoff_enabled !== false,
+          });
+
+          if (commandResult.handled) {
+            continue;
+          }
+
+          const botLoop = await quickBotLoopCheck(
+            supabase,
+            conversationId,
+            clinicId,
+            bodyText ?? ""
+          );
+          if (botLoop.block) {
+            await applyBotLoopSilence({
+              supabase,
+              clinicId,
+              conversationId,
+              messageIds: messageId ? [messageId] : undefined,
+              reason: botLoop.reason ?? "webhook_prefilter",
+            });
+            continue;
+          }
 
           const routing = await shouldSkipMenuChatbot(supabase, clinicId, conversationId);
           console.info("[WhatsApp Webhook] roteamento pós-mensagem", {
@@ -322,12 +358,7 @@ export async function POST(request: NextRequest) {
           });
 
           if (routing.skipMenu) {
-            const { data: vaSettings } = await supabase
-              .from("clinic_virtual_assistant_settings")
-              .select("message_debounce_seconds")
-              .eq("clinic_id", clinicId)
-              .maybeSingle();
-            const debounceSec = Number(vaSettings?.message_debounce_seconds) || 5;
+            const debounceSec = Number(vaSettingsRow?.message_debounce_seconds) || 5;
             console.info("[VirtualAssistant] mensagem recebida, agendando IA", {
               clinicId,
               conversationId,

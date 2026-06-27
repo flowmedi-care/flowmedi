@@ -26,6 +26,7 @@ export interface BlockedConversationRow {
   phone_number: string;
   ai_handoff_at: string | null;
   ai_enabled: boolean | null;
+  ai_user_opt_out: boolean | null;
 }
 
 export interface AiEventRow {
@@ -87,7 +88,8 @@ export async function gatherAssistantDiagnostics(
       .eq("clinic_id", clinicId)
       .not("ai_debounce_until", "is", null)
       .lt("ai_debounce_until", now)
-      .is("ai_handoff_at", null),
+      .is("ai_handoff_at", null)
+      .eq("ai_user_opt_out", false),
     supabase
       .from("whatsapp_ai_event_log")
       .select("created_at, stage")
@@ -109,9 +111,9 @@ export async function gatherAssistantDiagnostics(
       .limit(20),
     supabase
       .from("whatsapp_conversations")
-      .select("id, phone_number, ai_handoff_at, ai_enabled")
+      .select("id, phone_number, ai_handoff_at, ai_enabled, ai_user_opt_out")
       .eq("clinic_id", clinicId)
-      .or("ai_handoff_at.not.is.null,ai_enabled.eq.false")
+      .or("ai_handoff_at.not.is.null,ai_enabled.eq.false,ai_user_opt_out.eq.true")
       .order("updated_at", { ascending: false })
       .limit(20),
     supabase
@@ -236,6 +238,7 @@ export async function findClinicConversationIdsToProcess(
     .eq("clinic_id", clinicId)
     .lte("ai_debounce_until", now)
     .is("ai_handoff_at", null)
+    .eq("ai_user_opt_out", false)
     .neq("ai_enabled", false)
     .limit(50);
 
@@ -252,6 +255,7 @@ export async function findClinicConversationIdsToProcess(
     .select("id, ai_state")
     .eq("clinic_id", clinicId)
     .is("ai_handoff_at", null)
+    .eq("ai_user_opt_out", false)
     .neq("ai_enabled", false);
 
   const ids = new Set<string>();

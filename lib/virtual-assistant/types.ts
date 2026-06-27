@@ -83,6 +83,8 @@ export type AiConversationState = {
   journey_step_code?: string;
   /** IDs de mensagens que já tiveram retry de transcrição após erro 500 */
   audio_transcription_retried_message_ids?: string[];
+  /** Loop bot↔bot detectado — IA silenciada sem resposta */
+  bot_loop_detected_at?: string;
 };
 
 export const DAY_LABELS: Record<DayKey, string> = {

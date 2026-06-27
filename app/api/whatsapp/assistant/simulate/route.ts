@@ -5,9 +5,10 @@ import { gatherAssistantDiagnostics } from "@/lib/virtual-assistant/diagnostics"
 import { logAiEvent } from "@/lib/virtual-assistant/event-log";
 import {
   processConversationAi,
-  reactivateAiOnPatientInbound,
   scheduleAiDebounce,
+  shouldSkipMenuChatbot,
 } from "@/lib/virtual-assistant/process-inbound";
+import { handleInboundUserCommand } from "@/lib/virtual-assistant/user-commands";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 
 /**
@@ -87,13 +88,48 @@ export async function POST(request: NextRequest) {
       detail: { phone, textPreview: text.slice(0, 80), tag: simulateTag },
     });
 
-    await reactivateAiOnPatientInbound(supabase, clinicId, conversationId);
-
     const { data: vaSettings } = await supabase
       .from("clinic_virtual_assistant_settings")
-      .select("message_debounce_seconds")
+      .select("message_debounce_seconds, human_handoff_enabled")
       .eq("clinic_id", clinicId)
       .maybeSingle();
+
+    const commandResult = await handleInboundUserCommand({
+      supabase,
+      clinicId,
+      conversationId,
+      phoneNumber: phone,
+      messageId: msg?.id,
+      bodyText: text,
+      humanHandoffEnabled: vaSettings?.human_handoff_enabled !== false,
+    });
+
+    if (commandResult.handled) {
+      const diagnostics = await gatherAssistantDiagnostics(supabase, clinicId);
+      return NextResponse.json({
+        ok: true,
+        conversationId,
+        messageId: msg?.id,
+        phone,
+        command: commandResult.command,
+        ...diagnostics,
+      });
+    }
+
+    const routing = await shouldSkipMenuChatbot(supabase, clinicId, conversationId);
+    if (!routing.skipMenu) {
+      const diagnostics = await gatherAssistantDiagnostics(supabase, clinicId);
+      return NextResponse.json({
+        ok: true,
+        conversationId,
+        messageId: msg?.id,
+        phone,
+        skippedAi: true,
+        reason: routing.reason,
+        ...diagnostics,
+      });
+    }
+
     const debounceSec = Number(vaSettings?.message_debounce_seconds) || 5;
 
     if (body.processImmediately) {

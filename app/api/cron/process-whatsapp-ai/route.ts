@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     .select("id")
     .lte("ai_debounce_until", now)
     .is("ai_handoff_at", null)
+    .eq("ai_user_opt_out", false)
     .neq("ai_enabled", false)
     .limit(50);
 
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
     .from("whatsapp_conversations")
     .select("id, ai_state")
     .is("ai_handoff_at", null)
+    .eq("ai_user_opt_out", false)
     .neq("ai_enabled", false)
     .limit(100);
 
