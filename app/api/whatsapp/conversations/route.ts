@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicMemberWithRole } from "@/lib/auth-helpers";
+import {
+  getConversationHandler,
+  type HandlerFilter,
+} from "@/lib/whatsapp-ai-state";
 
 type SecretaryRef = { id: string; full_name: string | null } | null;
 
@@ -14,6 +18,9 @@ type ConversationRow = {
   assigned_secretary_id: string | null;
   patient_id: string | null;
   assigned_at: string | null;
+  ai_enabled: boolean | null;
+  ai_handoff_at: string | null;
+  ai_user_opt_out: boolean | null;
   assigned_secretary: SecretaryRef | SecretaryRef[] | null;
 };
 
@@ -25,7 +32,7 @@ function normalizeSecretary(
 }
 
 /**
- * GET /api/whatsapp/conversations?status=open|closed|completed
+ * GET /api/whatsapp/conversations?status=open|closed|completed&handler=all|ai|human
  * Lista conversas WhatsApp da clínica.
  * Admin: vê todas. Secretária: vê apenas as atribuídas a ela ou em pool (eligible).
  */
@@ -35,6 +42,9 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
+    const handlerParam = searchParams.get("handler");
+    const handler: HandlerFilter =
+      handlerParam === "ai" || handlerParam === "human" ? handlerParam : "all";
 
     // Garantir consistência da janela de 24h: toda conversa aberta expirada vira "closed".
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -47,7 +57,7 @@ export async function GET(request: Request) {
       .lt("last_inbound_message_at", twentyFourHoursAgo);
 
     const selectFields =
-      "id, phone_number, contact_name, status, last_inbound_message_at, created_at, assigned_secretary_id, patient_id, assigned_at";
+      "id, phone_number, contact_name, status, last_inbound_message_at, created_at, assigned_secretary_id, patient_id, assigned_at, ai_enabled, ai_handoff_at, ai_user_opt_out";
 
     let query = supabase
       .from("whatsapp_conversations")
@@ -58,6 +68,17 @@ export async function GET(request: Request) {
 
     if (status && ["open", "closed", "completed"].includes(status)) {
       query = query.eq("status", status);
+    }
+
+    if (handler === "ai") {
+      query = query
+        .is("ai_handoff_at", null)
+        .eq("ai_user_opt_out", false)
+        .neq("ai_enabled", false);
+    } else if (handler === "human") {
+      query = query.or(
+        "ai_handoff_at.not.is.null,ai_enabled.eq.false,ai_user_opt_out.eq.true"
+      );
     }
 
     const { data: rawConversations, error } = await query.order("created_at", {
@@ -132,25 +153,37 @@ export async function GET(request: Request) {
       }
     }
 
-    const result = conversations.map((c) => ({
-      id: c.id,
-      phone_number: c.phone_number,
-      contact_name: c.contact_name,
-      status: c.status,
-      last_inbound_message_at: c.last_inbound_message_at,
-      created_at: c.created_at,
-      assigned_secretary_id: c.assigned_secretary_id,
-      assigned_secretary: (() => {
-        const s = normalizeSecretary(c.assigned_secretary);
-        return s ? { id: s.id, full_name: s.full_name } : null;
-      })(),
-      assigned_at: c.assigned_at,
-      eligible_secretaries: (() => {
-        if (c.assigned_secretary_id) return [];
-        const details = eligibleDetailsByConv?.get(c.id) ?? [];
-        return details;
-      })(),
-    }));
+    const result = conversations.map((c) => {
+      const aiFields = {
+        ai_enabled: c.ai_enabled,
+        ai_handoff_at: c.ai_handoff_at,
+        ai_user_opt_out: c.ai_user_opt_out,
+      };
+
+      return {
+        id: c.id,
+        phone_number: c.phone_number,
+        contact_name: c.contact_name,
+        status: c.status,
+        last_inbound_message_at: c.last_inbound_message_at,
+        created_at: c.created_at,
+        assigned_secretary_id: c.assigned_secretary_id,
+        assigned_secretary: (() => {
+          const s = normalizeSecretary(c.assigned_secretary);
+          return s ? { id: s.id, full_name: s.full_name } : null;
+        })(),
+        assigned_at: c.assigned_at,
+        ai_enabled: c.ai_enabled,
+        ai_handoff_at: c.ai_handoff_at,
+        ai_user_opt_out: c.ai_user_opt_out,
+        handler: getConversationHandler(aiFields),
+        eligible_secretaries: (() => {
+          if (c.assigned_secretary_id) return [];
+          const details = eligibleDetailsByConv?.get(c.id) ?? [];
+          return details;
+        })(),
+      };
+    });
 
     return NextResponse.json(result);
   } catch (e) {

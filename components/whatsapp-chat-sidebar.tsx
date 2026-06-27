@@ -4,11 +4,19 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MessageSquare, Plus, Send, Info, Trash2, Check, User, ArrowLeft } from "lucide-react";
+import { MessageSquare, Plus, Send, Info, Trash2, Check, User, ArrowLeft, Bot, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppContactSidebar, type Patient } from "./whatsapp-contact-sidebar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
+import { Badge } from "@/components/ui/badge";
+import {
+  WHATSAPP_HANDLER_FILTER_STORAGE_KEY,
+  isValidHandlerFilter,
+  type HandlerFilter,
+  type ConversationHandler,
+} from "@/lib/whatsapp-ai-state";
 
 type Conversation = {
   id: string;
@@ -21,6 +29,10 @@ type Conversation = {
   assigned_secretary: { id: string; full_name: string | null } | null;
   assigned_at: string | null;
   eligible_secretaries?: Array<{ id: string; full_name: string | null }>;
+  ai_enabled: boolean | null;
+  ai_handoff_at: string | null;
+  ai_user_opt_out: boolean | null;
+  handler: ConversationHandler;
 };
 
 type Message = {
@@ -126,6 +138,11 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
   const [conversationStatusFilter, setConversationStatusFilter] = useState<"open" | "closed" | "completed" | null>("open");
+  const [handlerFilter, setHandlerFilter] = useState<HandlerFilter>(() => {
+    if (typeof window === "undefined") return "all";
+    const stored = localStorage.getItem(WHATSAPP_HANDLER_FILTER_STORAGE_KEY);
+    return isValidHandlerFilter(stored) ? stored : "all";
+  });
   const [completingConversationId, setCompletingConversationId] = useState<string | null>(null);
   const [secretaries, setSecretaries] = useState<{ id: string; full_name: string }[]>([]);
   const [usageLimit, setUsageLimit] = useState<WhatsAppUsageLimit | null>(null);
@@ -204,8 +221,16 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const loadConversations = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const url = conversationStatusFilter 
-        ? `/api/whatsapp/conversations?status=${conversationStatusFilter}`
+      const params = new URLSearchParams();
+      if (conversationStatusFilter) {
+        params.set("status", conversationStatusFilter);
+      }
+      if (handlerFilter !== "all") {
+        params.set("handler", handlerFilter);
+      }
+      const query = params.toString();
+      const url = query
+        ? `/api/whatsapp/conversations?${query}`
         : "/api/whatsapp/conversations";
       const res = await fetch(url);
       if (res.ok) {
@@ -239,7 +264,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [conversationStatusFilter, fetchPatientByPhone]);
+  }, [conversationStatusFilter, handlerFilter, fetchPatientByPhone]);
 
   const scheduleLoadConversations = useCallback(
     (showLoading = false) => {
@@ -325,6 +350,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     window.addEventListener("resize", syncMobile);
     return () => window.removeEventListener("resize", syncMobile);
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(WHATSAPP_HANDLER_FILTER_STORAGE_KEY, handlerFilter);
+  }, [handlerFilter]);
 
   useEffect(() => {
     loadConversations();
@@ -552,16 +581,30 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
             !showListPane && "hidden sm:flex"
           )}
         >
-          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
-            <span className="font-semibold text-sm truncate">Conversas</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setNewChatOpen(true)}
-              className="shrink-0 h-9 w-9"
-            >
-              <Plus className="h-5 w-5" />
-            </Button>
+          <div className="px-3 py-2 border-b border-border space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-sm truncate">Conversas</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setNewChatOpen(true)}
+                className="shrink-0 h-9 w-9"
+                title="Nova conversa"
+              >
+                <Plus className="h-5 w-5" />
+              </Button>
+            </div>
+            <SegmentedTabs
+              variant="pill"
+              className="gap-1"
+              value={handlerFilter}
+              onChange={(id) => setHandlerFilter(id as HandlerFilter)}
+              tabs={[
+                { id: "all", label: "Todos" },
+                { id: "ai", label: "IA", icon: Bot },
+                { id: "human", label: "Atend.", icon: Headphones },
+              ]}
+            />
           </div>
           {usageLimit && usageLimit.limit !== null && (
             <div
@@ -657,6 +700,17 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                              c.contact_name ?? 
                              formatPhone(c.phone_number)}
                           </span>
+                          {handlerFilter === "all" && (
+                            c.handler === "ai" ? (
+                              <Badge variant="info" className="shrink-0 text-[10px] px-1.5 py-0">
+                                IA
+                              </Badge>
+                            ) : (
+                              <Badge variant="warning" className="shrink-0 text-[10px] px-1.5 py-0">
+                                Atend.
+                              </Badge>
+                            )
+                          )}
                           {unreadCounts[c.id] > 0 && (
                             <span className="flex-shrink-0 h-5 min-w-[20px] px-1.5 rounded-full bg-[#25D366] text-white text-xs font-semibold flex items-center justify-center">
                               {unreadCounts[c.id] > 99 ? "99+" : unreadCounts[c.id]}

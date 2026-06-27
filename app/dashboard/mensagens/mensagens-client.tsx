@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   getRecentMessageLog,
   getMessageLogById,
@@ -10,6 +11,11 @@ import {
 } from "./actions";
 import { Mail, MessageSquare, Eye } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import {
+  SentEmailPreviewPanel,
+  WhatsAppPreviewBubble,
+} from "@/components/comunicacao/message-preview";
 
 const CHANNEL_LABELS: Record<string, string> = {
   email: "Email",
@@ -45,26 +51,83 @@ function formatSender(entry: MessageLogEntry) {
   return userLabel ? `${roleLabel} (${userLabel})` : roleLabel;
 }
 
-function WhatsAppPreviewBubble({ body, sentAt }: { body: string; sentAt?: string }) {
-  const plainText = body
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n")
-    .replace(/<p[^>]*>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .trim();
-  const referenceDate = sentAt ? new Date(sentAt) : new Date();
-  const timeStr = referenceDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-
+function ChannelBadge({ channel }: { channel: string }) {
+  const isEmail = channel === "email";
   return (
-    <div className="rounded-xl border border-border bg-[#d1ccc6] dark:bg-[#0b141a] p-4 shadow-inner max-w-[96%]">
-      <div className="flex flex-col gap-1">
-        <div className="rounded-lg px-3 py-2 shadow-md max-w-[320px] bg-[#c6e7b8] dark:bg-[#005c4b]">
-          <p className="text-sm text-[#111b21] dark:text-[#e9edef] whitespace-pre-wrap break-words">{plainText}</p>
-          <p className="text-[10px] text-[#667781] dark:text-[#8696a0] text-right mt-1">{timeStr}</p>
+    <Badge
+      variant="outline"
+      className={cn(
+        "shrink-0 gap-1 text-xs font-medium",
+        isEmail
+          ? "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300"
+          : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+      )}
+    >
+      {isEmail ? <Mail className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
+      {CHANNEL_LABELS[channel] ?? channel}
+    </Badge>
+  );
+}
+
+function MessageLogRow({
+  entry,
+  onPreview,
+}: {
+  entry: MessageLogEntry;
+  onPreview: () => void;
+}) {
+  return (
+    <li className="group rounded-lg border border-border/60 bg-card hover:bg-muted/20 transition-colors">
+      <div className="flex items-start gap-3 p-3 sm:p-4">
+        <div
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+            entry.channel === "email"
+              ? "bg-sky-100 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400"
+              : "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400"
+          )}
+        >
+          {entry.channel === "email" ? (
+            <Mail className="h-4 w-4" />
+          ) : (
+            <MessageSquare className="h-4 w-4" />
+          )}
         </div>
+
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-medium text-sm truncate">
+              {entry.patient_name ?? "Paciente"}
+            </p>
+            <ChannelBadge channel={entry.channel} />
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {formatDate(entry.sent_at)} · {entry.type}
+          </p>
+
+          {entry.channel === "email" && entry.subject && (
+            <p className="text-xs text-muted-foreground truncate">
+              Assunto: {entry.subject}
+            </p>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Enviado por: {formatSender(entry)}
+          </p>
+        </div>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0 h-9 w-9 opacity-80 group-hover:opacity-100"
+          onClick={onPreview}
+          title="Ver preview"
+        >
+          <Eye className="h-4 w-4" />
+        </Button>
       </div>
-    </div>
+    </li>
   );
 }
 
@@ -78,6 +141,14 @@ export function MensagensClient() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewEntry, setPreviewEntry] = useState<MessageLogEntry | null>(null);
+
+  const openPreview = async (entry: MessageLogEntry) => {
+    setPreviewOpen(true);
+    setPreviewLoading(true);
+    const res = await getMessageLogById(entry.id);
+    setPreviewEntry(res.data ?? entry);
+    setPreviewLoading(false);
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -152,43 +223,20 @@ export function MensagensClient() {
             Ver tudo
           </Button>
         </div>
-        <div className="max-h-[65vh] overflow-y-auto overflow-x-hidden space-y-2">
+
+        <div className="max-h-[65vh] overflow-y-auto overflow-x-hidden">
           {recentLog.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma mensagem enviada ainda.</p>
+            <p className="text-sm text-muted-foreground py-4">
+              Nenhuma mensagem enviada ainda.
+            </p>
           ) : (
             <ul className="space-y-2">
               {recentLog.map((entry) => (
-                <li
+                <MessageLogRow
                   key={entry.id}
-                  className="text-sm flex items-start justify-between gap-3 py-2 border-b border-border/50 last:border-0"
-                >
-                  <div className="min-w-0 flex-1">
-                    <span className="truncate block font-medium">
-                      {entry.patient_name ?? "Paciente"} · {CHANNEL_LABELS[entry.channel] ?? entry.channel}
-                    </span>
-                    <span className="text-muted-foreground text-xs block">
-                      {formatDate(entry.sent_at)} · tipo: {entry.type}
-                    </span>
-                    <span className="text-muted-foreground text-xs block">
-                      Enviado por: {formatSender(entry)}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={async () => {
-                      setPreviewOpen(true);
-                      setPreviewLoading(true);
-                      const res = await getMessageLogById(entry.id);
-                      setPreviewEntry(res.data ?? entry);
-                      setPreviewLoading(false);
-                    }}
-                  >
-                    <Eye className="h-4 w-4 mr-1" />
-                    Preview
-                  </Button>
-                </li>
+                  entry={entry}
+                  onPreview={() => void openPreview(entry)}
+                />
               ))}
             </ul>
           )}
@@ -205,35 +253,11 @@ export function MensagensClient() {
             ) : (
               <ul className="space-y-2">
                 {fullHistory.map((entry) => (
-                  <li key={entry.id} className="border rounded-md p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {entry.patient_name ?? "Paciente"} · {CHANNEL_LABELS[entry.channel] ?? entry.channel}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(entry.sent_at)} · tipo: {entry.type}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Enviado por: {formatSender(entry)}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          setPreviewOpen(true);
-                          setPreviewLoading(true);
-                          const res = await getMessageLogById(entry.id);
-                          setPreviewEntry(res.data ?? entry);
-                          setPreviewLoading(false);
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Preview
-                      </Button>
-                    </div>
-                  </li>
+                  <MessageLogRow
+                    key={entry.id}
+                    entry={entry}
+                    onPreview={() => void openPreview(entry)}
+                  />
                 ))}
               </ul>
             )}
@@ -245,64 +269,67 @@ export function MensagensClient() {
         <DialogContent
           title="Mensagem real enviada"
           onClose={() => setPreviewOpen(false)}
-          className="max-w-[96vw] sm:max-w-2xl"
+          className={cn(
+            "max-w-[96vw]",
+            previewEntry?.channel === "email" ? "sm:max-w-3xl" : "sm:max-w-2xl"
+          )}
         >
           {previewLoading ? (
             <p className="text-sm text-muted-foreground">Carregando detalhes...</p>
           ) : !previewEntry ? (
             <p className="text-sm text-muted-foreground">Não foi possível carregar os detalhes.</p>
           ) : (
-            <div className="space-y-3">
-              <div className="space-y-1 text-sm">
-                <p><strong>Paciente:</strong> {previewEntry.patient_name ?? "Paciente"}</p>
-                <p><strong>Data/hora:</strong> {formatDate(previewEntry.sent_at)}</p>
-                <p><strong>Enviado por:</strong> {formatSender(previewEntry)}</p>
+            <div className="space-y-4">
+              <div className="grid gap-1 text-sm rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p>
+                  <span className="text-muted-foreground">Paciente:</span>{" "}
+                  {previewEntry.patient_name ?? "Paciente"}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Data/hora:</span>{" "}
+                  {formatDate(previewEntry.sent_at)}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Enviado por:</span>{" "}
+                  {formatSender(previewEntry)}
+                </p>
               </div>
 
               {previewEntry.channel === "email" && (
-                <div className="rounded-md border border-border p-3 space-y-3">
-                  <p className="text-sm font-medium flex items-center gap-2">
-                    <Mail className="h-4 w-4" />
-                    Email — {previewEntry.type}
-                  </p>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Assunto</p>
-                    <p className="text-sm rounded bg-muted/50 p-2">{previewEntry.subject || "(sem assunto)"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Corpo</p>
-                    <div className="rounded bg-muted/50 p-3 max-h-[45vh] overflow-auto">
-                      {previewEntry.body_html ? (
-                        <div
-                          className="text-sm prose prose-sm max-w-none dark:prose-invert"
-                          dangerouslySetInnerHTML={{ __html: previewEntry.body_html }}
-                        />
-                      ) : (
-                        <pre className="text-xs whitespace-pre-wrap">{previewEntry.body_text || "(sem conteúdo)"}</pre>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <SentEmailPreviewPanel
+                  subject={previewEntry.subject}
+                  bodyHtml={previewEntry.body_html}
+                  templateName={previewEntry.template_name}
+                  legacyFallback={previewEntry.body_text}
+                />
               )}
 
               {previewEntry.channel === "whatsapp" && (
-                <div className="rounded-md border border-border p-3 space-y-3">
-                  <p className="text-sm font-medium flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    WhatsApp — {previewEntry.type}
-                  </p>
+                <Card className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-emerald-600" />
+                    <p className="text-sm font-medium">WhatsApp — {previewEntry.type}</p>
+                    {previewEntry.template_name && (
+                      <Badge variant="secondary" className="text-xs">
+                        {previewEntry.template_name}
+                      </Badge>
+                    )}
+                  </div>
                   <WhatsAppPreviewBubble
-                    body={previewEntry.body_text || previewEntry.body_html || ""}
+                    text={previewEntry.body_text || previewEntry.body_html || ""}
                     sentAt={previewEntry.sent_at}
                   />
-                </div>
+                </Card>
               )}
 
-              {!previewEntry.body_html && !previewEntry.body_text && !previewEntry.subject && previewEntry.channel !== "whatsapp" && (
-                <pre className="text-xs p-3 rounded-md bg-muted overflow-auto max-h-[40vh]">
-                  {JSON.stringify(previewEntry.metadata ?? {}, null, 2)}
-                </pre>
-              )}
+              {!previewEntry.body_html &&
+                !previewEntry.body_text &&
+                !previewEntry.subject &&
+                previewEntry.channel !== "whatsapp" && (
+                  <pre className="text-xs p-3 rounded-md bg-muted overflow-auto max-h-[40vh]">
+                    {JSON.stringify(previewEntry.metadata ?? {}, null, 2)}
+                  </pre>
+                )}
             </div>
           )}
         </DialogContent>

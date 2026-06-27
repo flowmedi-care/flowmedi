@@ -1312,6 +1312,7 @@ export type MessageLogEntry = {
   subject: string | null;
   body_html: string | null;
   body_text: string | null;
+  template_name: string | null;
   metadata: Record<string, unknown> | null;
 };
 
@@ -1371,6 +1372,7 @@ export async function getRecentMessageLog(limit = 15): Promise<{
       subject: extractString(metadataMap?.subject),
       body_html: extractString(metadataMap?.body_html),
       body_text: extractString(metadataMap?.body_text),
+      template_name: null,
       metadata: metadataMap,
     };
   });
@@ -1412,6 +1414,17 @@ export async function getMessageLogById(
   const asString = (value: unknown): string | null =>
     typeof value === "string" && value.trim() ? value : null;
 
+  let templateName: string | null = null;
+  const templateId = metadata?.template_id;
+  if (typeof templateId === "string" && templateId.trim()) {
+    const { data: template } = await supabase
+      .from("message_templates")
+      .select("name")
+      .eq("id", templateId)
+      .maybeSingle();
+    templateName = template?.name ?? null;
+  }
+
   return {
     data: {
       id: data.id,
@@ -1431,6 +1444,7 @@ export async function getMessageLogById(
       subject: asString(metadata?.subject),
       body_html: asString(metadata?.body_html),
       body_text: asString(metadata?.body_text),
+      template_name: templateName,
       metadata,
     },
     error: null,
