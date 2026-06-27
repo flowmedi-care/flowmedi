@@ -7,6 +7,7 @@ import {
   getLeadFunnelMetrics,
   getAppointmentFunnelMetrics,
 } from "../pipeline-actions";
+import { getPresetFunnelPeriod } from "@/lib/analytics/time-buckets";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function CrmPipelinePage() {
@@ -26,10 +27,12 @@ export default async function CrmPipelinePage() {
     redirect("/dashboard");
   }
 
+  const defaultPeriod = getPresetFunnelPeriod("30d");
+
   const [appointmentRes, leadMetricsRes, appointmentMetricsRes] = await Promise.all([
     getAppointmentPipeline(),
-    getLeadFunnelMetrics(30, "day"),
-    getAppointmentFunnelMetrics(30, "day"),
+    getLeadFunnelMetrics(defaultPeriod),
+    getAppointmentFunnelMetrics(defaultPeriod),
   ]);
 
   const leadMetrics = leadMetricsRes.data ?? {
@@ -40,7 +43,7 @@ export default async function CrmPipelinePage() {
     timeSeries: [],
     cumulativeFunnel: [],
     cohortSize: 0,
-    periodDays: 30,
+    period: defaultPeriod,
   };
 
   const appointmentMetrics = appointmentMetricsRes.data ?? {
@@ -58,7 +61,7 @@ export default async function CrmPipelinePage() {
     timeSeries: [],
     cumulativeFunnel: [],
     outcomeBranches: [],
-    periodDays: 30,
+    period: defaultPeriod,
   };
 
   return (

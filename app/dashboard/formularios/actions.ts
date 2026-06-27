@@ -76,6 +76,7 @@ export async function createFormTemplate(
       );
     }
   }
+  revalidatePath("/dashboard/crm/captacao");
   revalidatePath("/dashboard/formularios");
   return { error: null };
 }
@@ -115,8 +116,10 @@ export async function updateFormTemplate(
       }))
     );
   }
+  revalidatePath("/dashboard/crm/captacao");
   revalidatePath("/dashboard/formularios");
   revalidatePath(`/dashboard/formularios/${id}`);
+  revalidatePath(`/dashboard/crm/captacao/${id}/editar`);
   return { error: null };
 }
 
@@ -143,6 +146,7 @@ export async function deleteFormTemplate(id: string) {
       });
     }
   } catch (_) {}
+  revalidatePath("/dashboard/crm/captacao");
   revalidatePath("/dashboard/formularios");
   return { error: null };
 }

@@ -4,7 +4,7 @@ import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { JourneyStepper } from "@/components/crm/journey-stepper";
+import { JourneyFlowMap } from "@/components/crm/journey-flow-map";
 import { JourneyNextActionCard } from "@/components/crm/journey-next-action-card";
 import { JourneyTimeline } from "@/components/crm/journey-list-client";
 import { getJourneyDetail } from "../actions";
@@ -53,10 +53,10 @@ export default async function JornadaDetailPage({ params }: Props) {
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Trilha da jornada</CardTitle>
+              <CardTitle className="text-base">Mapa da jornada</CardTitle>
             </CardHeader>
             <CardContent>
-              <JourneyStepper
+              <JourneyFlowMap
                 currentStep={journey.currentStep}
                 completedSteps={journey.completedSteps}
               />

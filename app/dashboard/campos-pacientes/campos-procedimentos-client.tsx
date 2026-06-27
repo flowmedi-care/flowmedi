@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/button";
 import { CamposPacientesClient, type CustomFieldRow } from "./campos-pacientes-client";
 import { ClinicalFichasConfigClient } from "./clinical-fichas-config-client";
 import type { ClinicalFichaTemplateRow } from "./clinical-fichas-actions";
-import { Plus } from "lucide-react";
 import Link from "next/link";
-import { FormulariosListClient } from "@/app/dashboard/formularios/formularios-list-client";
 import { cn } from "@/lib/utils";
 
 type Tab = "paciente" | "fichas" | "formularios";
@@ -77,23 +75,14 @@ export function CamposProcedimentosClient({
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">
-                Formulários de pré-consulta e captação vinculados aos atendimentos.
+                Gerencie formulários no CRM — captação e pré-consulta.
               </p>
-              <Link href="/dashboard/formularios/novo">
-                <Button size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Novo formulário
+              <Link href="/dashboard/crm/captacao">
+                <Button size="sm" variant="outline">
+                  Abrir no CRM
                 </Button>
               </Link>
             </div>
-            {formTemplates && formPatients ? (
-              <FormulariosListClient
-                templates={formTemplates}
-                patients={formPatients}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">Carregando formulários…</p>
-            )}
           </div>
         )}
       </div>

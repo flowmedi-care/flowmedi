@@ -17,6 +17,8 @@ type DoctorOption = { id: string; full_name: string | null };
 
 type ProcedureOption = { id: string; name: string };
 
+const CRM_CAPTACAO_DEFAULT = "/dashboard/crm/captacao";
+
 export function FormularioEditor({
   templateId,
   initialName,
@@ -28,6 +30,8 @@ export function FormularioEditor({
   appointmentTypes,
   procedures,
   doctors,
+  returnHref = CRM_CAPTACAO_DEFAULT,
+  breadcrumbsBase = { label: "Formulários de captação", href: CRM_CAPTACAO_DEFAULT },
 }: {
   templateId: string | null;
   initialName: string;
@@ -39,6 +43,8 @@ export function FormularioEditor({
   appointmentTypes: AppointmentTypeOption[];
   procedures: ProcedureOption[];
   doctors: DoctorOption[];
+  returnHref?: string;
+  breadcrumbsBase?: { label: string; href: string };
 }) {
   const [name, setName] = useState(initialName);
   const [definition, setDefinition] = useState<FormFieldDefinition[]>(initialDefinition);
@@ -69,7 +75,7 @@ export function FormularioEditor({
         setLoading(false);
         return;
       }
-      window.location.href = "/dashboard/formularios";
+      window.location.href = returnHref;
       return;
     }
     const res = await createFormTemplate(name, definition, null, isPublic, publicDoctorId, procedureIds);
@@ -78,7 +84,7 @@ export function FormularioEditor({
       setLoading(false);
       return;
     }
-    window.location.href = "/dashboard/formularios";
+    window.location.href = returnHref;
     setLoading(false);
   }
 
@@ -86,10 +92,10 @@ export function FormularioEditor({
     <div className="space-y-6">
       <AppPageHeader
         breadcrumbs={[
-          { label: "Formulários", href: "/dashboard/formularios" },
+          breadcrumbsBase,
           { label: isEdit ? "Editar formulário" : "Novo formulário" },
         ]}
-        backHref="/dashboard/formularios"
+        backHref={returnHref}
         title={isEdit ? "Editar formulário" : "Novo formulário"}
         description={
           isEdit
@@ -239,7 +245,7 @@ export function FormularioEditor({
 
         {/* Ações */}
         <div className="flex items-center justify-between pt-4 border-t">
-          <Link href="/dashboard/formularios">
+          <Link href={returnHref}>
             <Button type="button" variant="ghost">
               Cancelar
             </Button>

@@ -2,15 +2,16 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ExternalLink } from "lucide-react";
+import { Plus } from "lucide-react";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
-import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
-import { EmptyState } from "@/components/dashboard-ui/empty-state";
+import { FormTemplatesGrid, type FormTemplateRow } from "@/components/forms/form-templates-grid";
 import { slugify } from "@/lib/form-slug";
 
 export default async function CrmCaptacaoPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/entrar");
 
   const { data: profile } = await supabase
@@ -23,11 +24,17 @@ export default async function CrmCaptacaoPage() {
     redirect("/dashboard");
   }
 
-  const { data: forms } = await supabase
+  const { data: templatesRaw } = await supabase
     .from("form_templates")
-    .select("id, name, slug, is_public, created_at")
+    .select(`
+      id,
+      name,
+      slug,
+      appointment_type_id,
+      is_public,
+      appointment_types ( name )
+    `)
     .eq("clinic_id", profile.clinic_id)
-    .eq("is_public", true)
     .order("name");
 
   const { data: clinic } = await supabase
@@ -37,61 +44,64 @@ export default async function CrmCaptacaoPage() {
     .single();
 
   const clinicSlug = clinic?.slug || slugify(clinic?.name || "clinica") || "clinica";
-  const formList = (forms ?? []).map((f) => ({
-    ...f,
-    publicSlug: f.slug || slugify(f.name) || "formulario",
+
+  const templates: FormTemplateRow[] = (templatesRaw ?? []).map((t: Record<string, unknown>) => {
+    const at = Array.isArray(t.appointment_types) ? t.appointment_types[0] : t.appointment_types;
+    const typeName = (at as { name?: string } | null)?.name ?? null;
+    const publicSlug = (t.slug as string) || slugify(String(t.name)) || "formulario";
+    const isPublic = Boolean(t.is_public ?? false);
+    return {
+      id: String(t.id),
+      name: String(t.name),
+      appointment_type_name: typeName,
+      is_public: isPublic,
+      publicUrl: isPublic ? `/f/public/${clinicSlug}/${publicSlug}` : null,
+    };
+  });
+
+  const { data: patients } = await supabase
+    .from("patients")
+    .select("id, full_name")
+    .eq("clinic_id", profile.clinic_id)
+    .order("full_name");
+
+  const patientOptions = (patients ?? []).map((p) => ({
+    id: p.id,
+    full_name: p.full_name,
   }));
 
   return (
     <PageShell
       header={{
-        breadcrumbs: [{ label: "Formulários de captação" }],
+        breadcrumbs: [
+          { label: "CRM", href: "/dashboard/crm/pipeline" },
+          { label: "Formulários de captação" },
+        ],
         title: "Formulários de captação",
-        description: "Formulários públicos que geram leads no pipeline.",
+        description: "Crie e gerencie formulários públicos e de pré-consulta que alimentam o pipeline.",
         actions: (
-          <Link href="/dashboard/configuracoes/campos-personalizados?tab=formularios">
-            <Button variant="outline">Gerenciar formulários</Button>
+          <Link href="/dashboard/crm/captacao/novo">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo formulário
+            </Button>
           </Link>
         ),
       }}
     >
-      <p className="text-sm font-medium text-muted-foreground mb-4">
-        {formList.length} formulário(s) público(s)
+      <p className="text-sm text-muted-foreground mb-4">
+        {templates.length} formulário(s) · marque como &quot;Uso público&quot; no editor para gerar links de captação
       </p>
-      {formList.length === 0 ? (
-        <EmptyState
-          title="Nenhum formulário público"
-          description="Marque um formulário como público em Formulários."
-        />
-      ) : (
-        <ListPanel>
-          {formList.map((f) => (
-            <ListPanelItem key={f.id}>
-              <div className="flex w-full flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="font-medium">{f.name}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    /f/public/{clinicSlug}/{f.publicSlug}
-                  </p>
-                </div>
-                <a
-                  href={`/f/public/${clinicSlug}/${f.publicSlug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button variant="ghost" size="sm">
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    Abrir
-                  </Button>
-                </a>
-              </div>
-            </ListPanelItem>
-          ))}
-        </ListPanel>
-      )}
-      <Link href="/dashboard/contatos/leads">
-        <Button className="mt-4">Ver pipeline de leads</Button>
-      </Link>
+      <FormTemplatesGrid
+        templates={templates}
+        patients={patientOptions}
+        editHref={(id) => `/dashboard/crm/captacao/${id}/editar`}
+      />
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Link href="/dashboard/contatos/leads">
+          <Button variant="outline">Ver pipeline de leads</Button>
+        </Link>
+      </div>
     </PageShell>
   );
 }

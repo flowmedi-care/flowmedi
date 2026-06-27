@@ -14,10 +14,11 @@ import {
 } from "recharts";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { StatCard } from "@/components/dashboard-ui/stat-card";
+import { PeriodRangePicker } from "@/components/dashboard-ui/period-range-picker";
 import { EngagementFunnelChart } from "@/components/dashboard-ui/engagement-funnel-chart";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  CHART_PALETTE,
+  MONO_CHART_SCALE,
+  MONO_CHART_TREND,
   chartAxisProps,
   chartBarProps,
   chartGridProps,
@@ -30,13 +31,11 @@ import {
   type LeadFunnelMetrics,
   type AppointmentFunnelMetrics,
 } from "./pipeline-actions";
-import { Target, Calendar, TrendingUp, Users } from "lucide-react";
-
-const PERIOD_OPTIONS = [
-  { value: 7, label: "7 dias" },
-  { value: 30, label: "30 dias" },
-  { value: 90, label: "90 dias" },
-] as const;
+import {
+  type FunnelPeriod,
+  formatPeriodRangeLabel,
+} from "@/lib/analytics/time-buckets";
+import { Target, Calendar, TrendingUp, Users, Info } from "lucide-react";
 
 type CrmFunnelChartsProps = {
   initialLeadMetrics: LeadFunnelMetrics;
@@ -47,19 +46,24 @@ export function CrmFunnelCharts({
   initialLeadMetrics,
   initialAppointmentMetrics,
 }: CrmFunnelChartsProps) {
-  const [periodDays, setPeriodDays] = useState(30);
+  const [period, setPeriod] = useState<FunnelPeriod>(initialLeadMetrics.period);
   const [leadMetrics, setLeadMetrics] = useState(initialLeadMetrics);
   const [appointmentMetrics, setAppointmentMetrics] = useState(initialAppointmentMetrics);
   const [isPending, startTransition] = useTransition();
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const handlePeriodChange = (days: number) => {
-    setPeriodDays(days);
-    const granularity = days <= 30 ? ("day" as const) : ("week" as const);
+  const handlePeriodChange = (next: FunnelPeriod) => {
+    setPeriod(next);
     startTransition(async () => {
       const [leadRes, apptRes] = await Promise.all([
-        getLeadFunnelMetrics(days, granularity),
-        getAppointmentFunnelMetrics(days, granularity),
+        getLeadFunnelMetrics(next),
+        getAppointmentFunnelMetrics(next),
       ]);
+      if (leadRes.error || apptRes.error) {
+        setFetchError(leadRes.error || apptRes.error);
+        return;
+      }
+      setFetchError(null);
       if (leadRes.data) setLeadMetrics(leadRes.data);
       if (apptRes.data) setAppointmentMetrics(apptRes.data);
     });
@@ -68,80 +72,94 @@ export function CrmFunnelCharts({
   const leadCohortSize = leadMetrics.cohortSize;
   const agendadosPct =
     leadMetrics.cumulativeFunnel.find((s) => s.label === "Agendados")?.pct ?? 0;
+  const periodLabel = formatPeriodRangeLabel(period);
 
   const combinedTimeSeries = (() => {
     const map = new Map<
       string,
       {
+        dateKey: string;
         label: string;
         novosLeads: number;
         agendadosLeads: number;
+        consultasAgendadas: number;
+        consultasConfirmadas: number;
         realizadas: number;
         faltas: number;
+        canceladas: number;
         taxaComparecimento: number;
       }
     >();
 
     for (const lead of leadMetrics.timeSeries) {
-      map.set(lead.label, {
+      map.set(lead.dateKey, {
+        dateKey: lead.dateKey,
         label: lead.label,
         novosLeads: lead.novos,
         agendadosLeads: lead.agendados,
+        consultasAgendadas: 0,
+        consultasConfirmadas: 0,
         realizadas: 0,
         faltas: 0,
+        canceladas: 0,
         taxaComparecimento: 0,
       });
     }
 
     for (const appt of appointmentMetrics.timeSeries) {
-      const existing = map.get(appt.label);
+      const existing = map.get(appt.dateKey);
       if (existing) {
+        existing.consultasAgendadas = appt.agendadas;
+        existing.consultasConfirmadas = appt.confirmadas;
         existing.realizadas = appt.realizadas;
         existing.faltas = appt.faltas;
+        existing.canceladas = appt.canceladas;
         existing.taxaComparecimento = appt.taxaComparecimento;
       } else {
-        map.set(appt.label, {
+        map.set(appt.dateKey, {
+          dateKey: appt.dateKey,
           label: appt.label,
           novosLeads: 0,
           agendadosLeads: 0,
+          consultasAgendadas: appt.agendadas,
+          consultasConfirmadas: appt.confirmadas,
           realizadas: appt.realizadas,
           faltas: appt.faltas,
+          canceladas: appt.canceladas,
           taxaComparecimento: appt.taxaComparecimento,
         });
       }
     }
 
-    return Array.from(map.values());
+    const keys = [
+      ...new Set([
+        ...leadMetrics.timeSeries.map((b) => b.dateKey),
+        ...appointmentMetrics.timeSeries.map((b) => b.dateKey),
+      ]),
+    ].sort();
+
+    return keys.map((key) => map.get(key)!);
   })();
 
   return (
     <section id="funis" className={isPending ? "space-y-4 opacity-60" : "space-y-4"}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="text-lg font-semibold">Funis no tempo</h2>
           <p className="text-sm text-muted-foreground">
-            Conversão cumulativa de leads e consultas nos últimos {periodDays} dias.
+            Conversão cumulativa de leads e consultas · {periodLabel}
           </p>
         </div>
-        <Tabs
-          value={String(periodDays)}
-          onValueChange={(v) => handlePeriodChange(Number(v))}
-        >
-          <TabsList>
-            {PERIOD_OPTIONS.map((p) => (
-              <TabsTrigger key={p.value} value={String(p.value)}>
-                {p.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <PeriodRangePicker period={period} onChange={handlePeriodChange} className="lg:max-w-xl" />
       </div>
+
+      {fetchError && <p className="text-sm text-destructive">{fetchError}</p>}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Leads no cohort"
+          title="Novos leads no período"
           value={leadCohortSize}
-          subtitle={`${agendadosPct}% viraram agendamento`}
+          subtitle={`${agendadosPct}% viraram agendamento · Leads que entraram no funil`}
           icon={Users}
         />
         <StatCard
@@ -169,7 +187,17 @@ export function CrmFunnelCharts({
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard
           title="Funil de captação"
-          description={`Cohort de leads que entraram nos últimos ${periodDays} dias`}
+          description={
+            <span className="inline-flex items-center gap-1.5">
+              Leads que entraram no período selecionado
+              <span
+                className="inline-flex text-muted-foreground"
+                title="Conta leads cuja entrada no funil (criação ou primeiro histórico) ocorreu neste intervalo — não o total de leads ativos."
+              >
+                <Info className="h-3.5 w-3.5" />
+              </span>
+            </span>
+          }
         >
           {leadCohortSize === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
@@ -182,7 +210,7 @@ export function CrmFunnelCharts({
 
         <ChartCard
           title="Funil de comparecimento"
-          description={`Consultas agendadas no período (${periodDays}d)`}
+          description={`Consultas agendadas no período`}
         >
           {appointmentMetrics.total === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
@@ -192,17 +220,22 @@ export function CrmFunnelCharts({
             <EngagementFunnelChart
               stages={appointmentMetrics.cumulativeFunnel}
               branches={appointmentMetrics.outcomeBranches}
+              variant="mono"
             />
           )}
         </ChartCard>
       </div>
 
-      {combinedTimeSeries.length > 0 && (
-        <ChartCard
-          title="Evolução no tempo"
-          description="Leads, agendamentos e comparecimento por período"
-        >
-          <div className="h-[320px] w-full">
+      <ChartCard
+        title="Evolução no tempo"
+        description="Leads, agendamentos e comparecimento por período"
+      >
+        {combinedTimeSeries.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Nenhum dado no período selecionado.
+          </p>
+        ) : (
+          <div className="h-[360px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={combinedTimeSeries}>
                 <CartesianGrid {...chartGridProps} />
@@ -217,22 +250,70 @@ export function CrmFunnelCharts({
                 />
                 <Tooltip {...chartTooltipStyle} />
                 <Legend />
-                <Bar yAxisId="left" dataKey="novosLeads" name="Novos leads" fill={CHART_PALETTE[0]} {...chartBarProps} />
-                <Bar yAxisId="left" dataKey="agendadosLeads" name="Leads agendados" fill={CHART_PALETTE[1]} {...chartBarProps} />
-                <Bar yAxisId="left" dataKey="realizadas" name="Consultas realizadas" fill={CHART_PALETTE[2]} {...chartBarProps} />
-                <Bar yAxisId="left" dataKey="faltas" name="Faltas" fill={CHART_PALETTE[3]} {...chartBarProps} />
+                <Bar
+                  yAxisId="left"
+                  dataKey="novosLeads"
+                  name="Novos leads"
+                  fill={MONO_CHART_SCALE[0]}
+                  {...chartBarProps}
+                />
+                <Bar
+                  yAxisId="left"
+                  dataKey="agendadosLeads"
+                  name="Leads agendados"
+                  fill={MONO_CHART_SCALE[1]}
+                  {...chartBarProps}
+                />
+                <Bar
+                  yAxisId="left"
+                  dataKey="consultasAgendadas"
+                  name="Consultas agendadas"
+                  fill={MONO_CHART_SCALE[2]}
+                  {...chartBarProps}
+                />
+                <Bar
+                  yAxisId="left"
+                  dataKey="consultasConfirmadas"
+                  name="Consultas confirmadas"
+                  fill={MONO_CHART_SCALE[3]}
+                  {...chartBarProps}
+                />
+                <Bar
+                  yAxisId="left"
+                  dataKey="realizadas"
+                  name="Realizadas"
+                  fill={MONO_CHART_SCALE[0]}
+                  fillOpacity={0.7}
+                  {...chartBarProps}
+                />
+                <Bar
+                  yAxisId="left"
+                  dataKey="faltas"
+                  name="Faltas"
+                  fill={MONO_CHART_SCALE[1]}
+                  fillOpacity={0.5}
+                  {...chartBarProps}
+                />
+                <Bar
+                  yAxisId="left"
+                  dataKey="canceladas"
+                  name="Canceladas"
+                  fill="hsl(var(--muted-foreground))"
+                  fillOpacity={0.35}
+                  {...chartBarProps}
+                />
                 <Line
                   yAxisId="right"
                   dataKey="taxaComparecimento"
                   name="Taxa comparecimento (%)"
-                  stroke={CHART_PALETTE[4]}
+                  stroke={MONO_CHART_TREND}
                   {...chartLineProps}
                 />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-        </ChartCard>
-      )}
+        )}
+      </ChartCard>
     </section>
   );
 }

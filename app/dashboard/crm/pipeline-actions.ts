@@ -3,6 +3,19 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { updateAppointment } from "../agenda/actions";
+import {
+  type FunnelPeriod,
+  type TimeGranularity,
+  bucketKeyFromDate,
+  formatBucketLabel,
+  generateBucketKeys,
+  getDefaultFunnelPeriod,
+  parseFunnelPeriodDates,
+  validateFunnelPeriod,
+} from "@/lib/analytics/time-buckets";
+
+export type { FunnelPeriod, TimeGranularity };
+export type FunnelGranularity = TimeGranularity;
 
 export type AppointmentPipelineStatus =
   | "agendada"
@@ -21,8 +34,6 @@ export type AppointmentPipelineItem = {
   valor: number | null;
 };
 
-export type FunnelGranularity = "day" | "week";
-
 export type LeadFunnelSnapshot = {
   novo_contato: number;
   aguardando_retorno: number;
@@ -31,6 +42,7 @@ export type LeadFunnelSnapshot = {
 };
 
 export type LeadFunnelTimeBucket = {
+  dateKey: string;
   label: string;
   novos: number;
   cadastrados: number;
@@ -58,7 +70,7 @@ export type LeadFunnelMetrics = {
   timeSeries: LeadFunnelTimeBucket[];
   cumulativeFunnel: CumulativeFunnelStage[];
   cohortSize: number;
-  periodDays: number;
+  period: FunnelPeriod;
 };
 
 export type AppointmentFunnelSnapshot = {
@@ -70,6 +82,7 @@ export type AppointmentFunnelSnapshot = {
 };
 
 export type AppointmentFunnelTimeBucket = {
+  dateKey: string;
   label: string;
   agendadas: number;
   confirmadas: number;
@@ -88,7 +101,7 @@ export type AppointmentFunnelMetrics = {
   timeSeries: AppointmentFunnelTimeBucket[];
   cumulativeFunnel: CumulativeFunnelStage[];
   outcomeBranches: FunnelOutcomeBranch[];
-  periodDays: number;
+  period: FunnelPeriod;
 };
 
 const APPOINTMENT_STATUSES: AppointmentPipelineStatus[] = [
@@ -123,25 +136,6 @@ async function getAuthContext() {
 function pct(numerator: number, denominator: number): number {
   if (denominator <= 0) return 0;
   return Math.round((numerator / denominator) * 100);
-}
-
-function formatBucketLabel(date: Date, granularity: FunnelGranularity): string {
-  if (granularity === "day") {
-    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-  }
-  const weekStart = new Date(date);
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-  return weekStart.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-}
-
-function bucketKey(date: Date, granularity: FunnelGranularity): string {
-  if (granularity === "day") {
-    return date.toISOString().slice(0, 10);
-  }
-  const weekStart = new Date(date);
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-  weekStart.setHours(0, 0, 0, 0);
-  return weekStart.toISOString().slice(0, 10);
 }
 
 function isInPeriod(date: Date, start: Date, end: Date): boolean {
@@ -485,20 +479,45 @@ export async function changeAppointmentPipelineStatus(
   return { error: null };
 }
 
+function createEmptyLeadBucket(dateKey: string, granularity: TimeGranularity): LeadFunnelTimeBucket {
+  return {
+    dateKey,
+    label: formatBucketLabel(dateKey, granularity),
+    novos: 0,
+    cadastrados: 0,
+    agendados: 0,
+  };
+}
+
+function createEmptyAppointmentBucket(
+  dateKey: string,
+  granularity: TimeGranularity
+): AppointmentFunnelTimeBucket {
+  return {
+    dateKey,
+    label: formatBucketLabel(dateKey, granularity),
+    agendadas: 0,
+    confirmadas: 0,
+    realizadas: 0,
+    faltas: 0,
+    canceladas: 0,
+    taxaComparecimento: 0,
+  };
+}
+
 export async function getLeadFunnelMetrics(
-  periodDays = 30,
-  granularity: FunnelGranularity = periodDays <= 30 ? "day" : "week"
+  period: FunnelPeriod = getDefaultFunnelPeriod()
 ): Promise<{ error: string | null; data: LeadFunnelMetrics | null }> {
+  const periodError = validateFunnelPeriod(period);
+  if (periodError) return { error: periodError, data: null };
+
   const ctx = await getAuthContext();
   if (ctx.error || !ctx.profile) return { error: ctx.error, data: null };
 
   const { supabase, profile } = ctx;
   const clinicId = profile.clinic_id;
-
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - periodDays);
-  start.setHours(0, 0, 0, 0);
+  const { start, end } = parseFunnelPeriodDates(period);
+  const { granularity } = period;
 
   const { data: pipelineRows } = await supabase
     .from("non_registered_pipeline")
@@ -537,20 +556,18 @@ export async function getLeadFunnelMetrics(
           .lte("created_at", end.toISOString())
       : { data: [] };
 
+  const bucketKeys = generateBucketKeys(start, end, granularity);
   const buckets = new Map<string, LeadFunnelTimeBucket>();
+  for (const key of bucketKeys) {
+    buckets.set(key, createEmptyLeadBucket(key, granularity));
+  }
+
   const pipelineFirstSeen = new Set<string>();
 
   for (const row of historyRows ?? []) {
     const date = new Date(row.created_at as string);
-    const key = bucketKey(date, granularity);
-    if (!buckets.has(key)) {
-      buckets.set(key, {
-        label: formatBucketLabel(date, granularity),
-        novos: 0,
-        cadastrados: 0,
-        agendados: 0,
-      });
-    }
+    const key = bucketKeyFromDate(date, granularity);
+    if (!buckets.has(key)) continue;
     const bucket = buckets.get(key)!;
 
     if (row.action_type === "stage_change" && row.new_stage === "novo_contato") {
@@ -575,23 +592,14 @@ export async function getLeadFunnelMetrics(
 
   for (const row of newPipelineRows ?? []) {
     const date = new Date(row.created_at as string);
-    const key = bucketKey(date, granularity);
-    if (!buckets.has(key)) {
-      buckets.set(key, {
-        label: formatBucketLabel(date, granularity),
-        novos: 0,
-        cadastrados: 0,
-        agendados: 0,
-      });
-    }
+    const key = bucketKeyFromDate(date, granularity);
+    if (!buckets.has(key)) continue;
     if (!pipelineFirstSeen.has(row.id as string)) {
       buckets.get(key)!.novos++;
     }
   }
 
-  const timeSeries = Array.from(buckets.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, v]) => v);
+  const timeSeries = bucketKeys.map((key) => buckets.get(key)!);
 
   const cadastradosTotal = snapshot.cadastrado + snapshot.agendado;
   const agendadosTotal = snapshot.agendado;
@@ -613,25 +621,24 @@ export async function getLeadFunnelMetrics(
       timeSeries,
       cumulativeFunnel,
       cohortSize,
-      periodDays,
+      period,
     },
   };
 }
 
 export async function getAppointmentFunnelMetrics(
-  periodDays = 30,
-  granularity: FunnelGranularity = periodDays <= 30 ? "day" : "week"
+  period: FunnelPeriod = getDefaultFunnelPeriod()
 ): Promise<{ error: string | null; data: AppointmentFunnelMetrics | null }> {
+  const periodError = validateFunnelPeriod(period);
+  if (periodError) return { error: periodError, data: null };
+
   const ctx = await getAuthContext();
   if (ctx.error || !ctx.profile) return { error: ctx.error, data: null };
 
   const { supabase, profile, userId } = ctx;
   const clinicId = profile.clinic_id;
-
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - periodDays);
-  start.setHours(0, 0, 0, 0);
+  const { start, end } = parseFunnelPeriodDates(period);
+  const { granularity } = period;
 
   let allowedDoctorIds: string[] = [];
   if (profile.role === "secretaria") {
@@ -645,7 +652,7 @@ export async function getAppointmentFunnelMetrics(
 
   let query = supabase
     .from("appointments")
-    .select("status, scheduled_at")
+    .select("id, status, scheduled_at")
     .eq("clinic_id", clinicId)
     .gte("scheduled_at", start.toISOString())
     .lte("scheduled_at", end.toISOString());
@@ -657,6 +664,22 @@ export async function getAppointmentFunnelMetrics(
   }
 
   const { data: appointments } = await query;
+  const appts = appointments ?? [];
+  const apptIds = appts.map((a) => a.id as string);
+
+  const confirmedByEvent = new Set<string>();
+  if (apptIds.length > 0) {
+    const { data: confirmEvents } = await supabase
+      .from("event_timeline")
+      .select("appointment_id")
+      .eq("clinic_id", clinicId)
+      .eq("event_code", "appointment_confirmed")
+      .in("appointment_id", apptIds);
+
+    for (const ev of confirmEvents ?? []) {
+      if (ev.appointment_id) confirmedByEvent.add(ev.appointment_id as string);
+    }
+  }
 
   const snapshot: AppointmentFunnelSnapshot = {
     agendadas: 0,
@@ -666,10 +689,25 @@ export async function getAppointmentFunnelMetrics(
     canceladas: 0,
   };
 
+  const bucketKeys = generateBucketKeys(start, end, granularity);
   const buckets = new Map<string, AppointmentFunnelTimeBucket>();
+  for (const key of bucketKeys) {
+    buckets.set(key, createEmptyAppointmentBucket(key, granularity));
+  }
 
-  for (const appt of appointments ?? []) {
+  function isConfirmed(status: string, apptId: string): boolean {
+    return (
+      status === "confirmada" ||
+      status === "realizada" ||
+      status === "falta" ||
+      confirmedByEvent.has(apptId)
+    );
+  }
+
+  for (const appt of appts) {
     const status = appt.status as string;
+    const apptId = appt.id as string;
+
     if (status === "agendada") snapshot.agendadas++;
     else if (status === "confirmada") snapshot.confirmadas++;
     else if (status === "realizada") snapshot.realizadas++;
@@ -677,41 +715,35 @@ export async function getAppointmentFunnelMetrics(
     else if (status === "cancelada") snapshot.canceladas++;
 
     const date = new Date(appt.scheduled_at as string);
-    const key = bucketKey(date, granularity);
-    if (!buckets.has(key)) {
-      buckets.set(key, {
-        label: formatBucketLabel(date, granularity),
-        agendadas: 0,
-        confirmadas: 0,
-        realizadas: 0,
-        faltas: 0,
-        canceladas: 0,
-        taxaComparecimento: 0,
-      });
-    }
+    const key = bucketKeyFromDate(date, granularity);
+    if (!buckets.has(key)) continue;
     const bucket = buckets.get(key)!;
-    if (status === "agendada") bucket.agendadas++;
-    else if (status === "confirmada") bucket.confirmadas++;
-    else if (status === "realizada") bucket.realizadas++;
+
+    bucket.agendadas++;
+    if (isConfirmed(status, apptId)) bucket.confirmadas++;
+    if (status === "realizada") bucket.realizadas++;
     else if (status === "falta") bucket.faltas++;
     else if (status === "cancelada") bucket.canceladas++;
   }
 
-  const total = appointments?.length ?? 0;
-  const confirmadasCount = snapshot.confirmadas + snapshot.realizadas + snapshot.faltas;
+  const total = appts.length;
+  const confirmedUnique = new Set<string>();
+  for (const appt of appts) {
+    if (isConfirmed(appt.status as string, appt.id as string)) {
+      confirmedUnique.add(appt.id as string);
+    }
+  }
   const realizadasCount = snapshot.realizadas;
 
-  const timeSeries = Array.from(buckets.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, v]) => {
-      const bucketTotal =
-        v.agendadas + v.confirmadas + v.realizadas + v.faltas + v.canceladas;
-      const confirmed = v.confirmadas + v.realizadas + v.faltas;
-      return {
-        ...v,
-        taxaComparecimento: pct(v.realizadas, confirmed || bucketTotal),
-      };
-    });
+  const timeSeries = bucketKeys.map((key) => {
+    const v = buckets.get(key)!;
+    const bucketTotal = v.agendadas;
+    const confirmed = v.confirmadas;
+    return {
+      ...v,
+      taxaComparecimento: pct(v.realizadas, confirmed || bucketTotal),
+    };
+  });
 
   const { cumulativeFunnel, outcomeBranches } = await buildAppointmentCumulativeFunnel(
     supabase,
@@ -727,13 +759,13 @@ export async function getAppointmentFunnelMetrics(
     data: {
       snapshot,
       total,
-      taxaConfirmacao: pct(confirmadasCount, total),
-      taxaComparecimento: pct(realizadasCount, confirmadasCount || total),
+      taxaConfirmacao: pct(confirmedUnique.size, total),
+      taxaComparecimento: pct(realizadasCount, confirmedUnique.size || total),
       taxaNoShow: pct(snapshot.faltas, total),
       timeSeries,
       cumulativeFunnel,
       outcomeBranches,
-      periodDays,
+      period,
     },
   };
 }

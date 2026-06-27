@@ -1,0 +1,57 @@
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { FormularioEditor } from "@/app/dashboard/formularios/formulario-editor";
+
+const CRM_CAPTACAO_PATH = "/dashboard/crm/captacao";
+
+export default async function CrmCaptacaoNovoPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/entrar");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.clinic_id || (profile.role !== "admin" && profile.role !== "secretaria")) {
+    redirect("/dashboard");
+  }
+
+  const { data: types } = await supabase
+    .from("appointment_types")
+    .select("id, name")
+    .eq("clinic_id", profile.clinic_id)
+    .order("name");
+
+  const { data: doctors } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("role", "medico")
+    .order("full_name");
+
+  const { data: procedures } = await supabase
+    .from("procedures")
+    .select("id, name")
+    .eq("clinic_id", profile.clinic_id)
+    .order("display_order", { ascending: true });
+
+  return (
+    <FormularioEditor
+      templateId={null}
+      initialName=""
+      initialDefinition={[]}
+      initialAppointmentTypeId={null}
+      initialProcedureIds={[]}
+      appointmentTypes={(types ?? []).map((t) => ({ id: t.id, name: t.name }))}
+      procedures={(procedures ?? []).map((p) => ({ id: p.id, name: p.name }))}
+      doctors={(doctors ?? []).map((d) => ({ id: d.id, full_name: d.full_name }))}
+      returnHref={CRM_CAPTACAO_PATH}
+      breadcrumbsBase={{ label: "Formulários de captação", href: CRM_CAPTACAO_PATH }}
+    />
+  );
+}

@@ -146,7 +146,7 @@ export function FormulariosListClient({
                     >
                       <Send className="h-4 w-4" />
                     </Button>
-                    <Link href={`/dashboard/formularios/${t.id}/editar`}>
+                    <Link href={`/dashboard/crm/captacao/${t.id}/editar`}>
                       <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" title="Editar">
                         <Pencil className="h-4 w-4" />
                       </Button>

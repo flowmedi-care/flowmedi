@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { MONO_CHART_SCALE } from "@/components/dashboard-ui/chart-theme";
 import type {
   CumulativeFunnelStage,
   FunnelOutcomeBranch,
@@ -29,11 +30,13 @@ function stageColor(index: number, total: number): string {
   return `hsl(${startHue} ${saturation}% ${lightness}%)`;
 }
 
-const OUTCOME_COLORS = [
+const OUTCOME_BORDER_COLORS = [
   "hsl(38 85% 52%)",
   "hsl(158 55% 42%)",
   "hsl(0 55% 52%)",
 ];
+
+const OUTCOME_COLORS = OUTCOME_BORDER_COLORS;
 
 function segmentWidths(values: number[]): number[] {
   const top = values[0] ?? 1;
@@ -50,6 +53,7 @@ function TrapezoidShape({
   fill,
   value,
   isTriangle,
+  textFill = "white",
 }: {
   topWidth: number;
   bottomWidth: number;
@@ -57,6 +61,7 @@ function TrapezoidShape({
   fill: string;
   value: number;
   isTriangle?: boolean;
+  textFill?: string;
 }) {
   const halfTop = topWidth / 2;
   const halfBottom = bottomWidth / 2;
@@ -71,7 +76,7 @@ function TrapezoidShape({
         y={isTriangle ? height * 0.62 : height / 2}
         textAnchor="middle"
         dominantBaseline="middle"
-        fill="white"
+        fill={textFill}
         fontSize={16}
         fontWeight={700}
         style={{ fontFamily: "inherit" }}
@@ -145,10 +150,12 @@ function SplitBottomFunnel({
   stages,
   branches,
   className,
+  variant = "default",
 }: {
   stages: EngagementFunnelStage[];
   branches: EngagementFunnelBranch[];
   className?: string;
+  variant?: "default" | "mono";
 }) {
   const linearStages = stages.slice(0, 2);
   const values = linearStages.map((s) => s.value);
@@ -189,6 +196,11 @@ function SplitBottomFunnel({
           const bottomWidth = index === 0 ? widths[1] : widths[1];
           const segmentY = index * (STAGE_HEIGHT + STAGE_GAP);
           const labelY = segmentY + STAGE_HEIGHT / 2;
+          const fill =
+            variant === "mono"
+              ? MONO_CHART_SCALE[Math.min(index, MONO_CHART_SCALE.length - 1)]
+              : stageColor(index, 2);
+          const textFill = variant === "mono" ? "white" : "white";
 
           return (
             <g key={stage.step}>
@@ -198,8 +210,9 @@ function SplitBottomFunnel({
                   topWidth={topWidth}
                   bottomWidth={bottomWidth}
                   height={STAGE_HEIGHT}
-                  fill={stageColor(index, 2)}
+                  fill={fill}
                   value={stage.value}
+                  textFill={textFill}
                 />
               </g>
             </g>
@@ -235,6 +248,8 @@ function SplitBottomFunnel({
         {branches.map((branch, i) => {
           const boxX = [leftBoxX, centerBoxX, rightBoxX][i];
           const boxW = [leftW, centerW, rightW][i];
+          const borderColor = OUTCOME_BORDER_COLORS[i];
+          const isMono = variant === "mono";
           return (
             <g key={branch.label}>
               <rect
@@ -243,14 +258,16 @@ function SplitBottomFunnel({
                 width={boxW}
                 height={OUTCOME_BOX_HEIGHT}
                 rx={8}
-                fill={OUTCOME_COLORS[i]}
+                fill={isMono ? "hsl(var(--card))" : OUTCOME_COLORS[i]}
+                stroke={isMono ? borderColor : "none"}
+                strokeWidth={isMono ? 2.5 : 0}
               />
               <text
                 x={boxX + boxW / 2}
                 y={outcomesY + OUTCOME_BOX_HEIGHT / 2 - 2}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill="white"
+                fill={isMono ? "hsl(var(--foreground))" : "white"}
                 fontSize={15}
                 fontWeight={700}
                 style={{ fontFamily: "inherit" }}
@@ -291,10 +308,12 @@ export function EngagementFunnelChart({
   stages,
   branches,
   className,
+  variant = "default",
 }: {
   stages: EngagementFunnelStage[];
   branches?: EngagementFunnelBranch[];
   className?: string;
+  variant?: "default" | "mono";
 }) {
   if (stages.length === 0 || stages[0].value === 0) {
     return null;
@@ -302,7 +321,12 @@ export function EngagementFunnelChart({
 
   if (branches && branches.length === 3) {
     return (
-      <SplitBottomFunnel stages={stages} branches={branches} className={className} />
+      <SplitBottomFunnel
+        stages={stages}
+        branches={branches}
+        className={className}
+        variant={variant}
+      />
     );
   }
 

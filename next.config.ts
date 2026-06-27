@@ -13,7 +13,17 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/dashboard/formularios",
-        destination: "/dashboard/configuracoes/campos-personalizados?tab=formularios",
+        destination: "/dashboard/crm/captacao",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/formularios/novo",
+        destination: "/dashboard/crm/captacao/novo",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/formularios/:id/editar",
+        destination: "/dashboard/crm/captacao/:id/editar",
         permanent: false,
       },
       {
