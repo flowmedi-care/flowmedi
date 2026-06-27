@@ -41,7 +41,7 @@ import {
 } from "@/components/dashboard-ui/chart-theme";
 import {
   getVendasDashboardMetrics,
-} from "@/lib/vendas-reports";
+} from "./vendas-actions";
 import type { VendasDashboardMetrics } from "@/lib/vendas/types";
 import {
   type FunnelPeriod,

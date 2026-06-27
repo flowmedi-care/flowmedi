@@ -38,6 +38,7 @@ CREATE INDEX IF NOT EXISTS idx_quotes_created ON public.quotes(created_at DESC);
 
 ALTER TABLE public.quotes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "quotes_clinic" ON public.quotes;
 CREATE POLICY "quotes_clinic"
   ON public.quotes FOR ALL
   USING (clinic_id IN (SELECT clinic_id FROM public.profiles WHERE id = auth.uid()))
@@ -63,6 +64,7 @@ CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON public.quote_items(quote_id)
 
 ALTER TABLE public.quote_items ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "quote_items_clinic" ON public.quote_items;
 CREATE POLICY "quote_items_clinic"
   ON public.quote_items FOR ALL
   USING (
@@ -80,3 +82,8 @@ CREATE POLICY "quote_items_clinic"
 
 COMMENT ON TABLE public.quotes IS 'Orçamentos comerciais — propostas enviadas ao paciente/lead antes da comanda.';
 COMMENT ON TABLE public.quote_items IS 'Itens do orçamento: serviços, materiais e outros valores.';
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.quotes TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.quote_items TO authenticated;
+
+NOTIFY pgrst, 'reload schema';

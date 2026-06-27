@@ -54,7 +54,7 @@ function validateRecipient(input: QuoteInput): string | null {
   const hasLead = !!input.pipeline_id;
   const hasStandalone = !!input.recipient_name?.trim();
   if (!hasPatient && !hasLead && !hasStandalone) {
-    return "Informe um paciente, lead ou nome do destinatário.";
+    return "Informe um paciente, lead ou nome do destinatário (aba Avulso).";
   }
   return null;
 }
@@ -73,13 +73,17 @@ async function nextQuoteNumber(
   return (data?.quote_number ?? 0) + 1;
 }
 
-function mapQuoteDetail(raw: Record<string, unknown>): QuoteDetail {
+function mapQuoteDetail(
+  raw: Record<string, unknown>,
+  itemsOverride?: Record<string, unknown>[]
+): QuoteDetail {
   const patient = unwrapRelation(raw.patient as { full_name?: string } | null);
   const pipeline = unwrapRelation(raw.pipeline as { name?: string; email?: string } | null);
   const professional = unwrapRelation(
     raw.professional as { full_name?: string | null } | null
   );
-  const items = ((raw.quote_items as Record<string, unknown>[]) ?? [])
+  const itemsSource = itemsOverride ?? (raw.quote_items as Record<string, unknown>[] | undefined);
+  const items = (itemsSource ?? [])
     .sort((a, b) => Number(a.display_order ?? 0) - Number(b.display_order ?? 0))
     .map((item) => ({
       id: item.id as string,
@@ -136,9 +140,7 @@ async function fetchQuoteById(
       `
       *,
       patient:patients ( full_name ),
-      pipeline:non_registered_pipeline ( name, email ),
-      professional:profiles!professional_id ( full_name ),
-      quote_items ( * )
+      pipeline:non_registered_pipeline ( name, email )
     `
     )
     .eq("id", id)
@@ -147,7 +149,30 @@ async function fetchQuoteById(
 
   if (error) return { error: error.message, data: null };
   if (!data) return { error: "Orçamento não encontrado.", data: null };
-  return { error: null, data: mapQuoteDetail(data as Record<string, unknown>) };
+
+  const [{ data: items, error: itemsError }, { data: professional }] = await Promise.all([
+    supabase
+      .from("quote_items")
+      .select("*")
+      .eq("quote_id", id)
+      .order("display_order", { ascending: true }),
+    data.professional_id
+      ? supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", data.professional_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  if (itemsError) return { error: itemsError.message, data: null };
+
+  const detail = mapQuoteDetail(data as Record<string, unknown>, items ?? []);
+  if (professional?.full_name) {
+    detail.professional_name = professional.full_name;
+  }
+
+  return { error: null, data: detail };
 }
 
 export async function listQuotes(): Promise<{

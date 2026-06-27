@@ -33,7 +33,7 @@ import {
 } from "@/lib/vendas/status-badges";
 import {
   getVendasRelatorioDetalhado,
-} from "@/lib/vendas-reports";
+} from "./vendas-actions";
 import type { VendasRelatorioData, VendasRelatorioFilters } from "@/lib/vendas/types";
 import type { ComandaStatus } from "@/lib/vendas/types";
 import {
