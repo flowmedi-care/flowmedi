@@ -28,6 +28,7 @@ import {
   Pencil,
   ExternalLink,
   Ban,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -77,9 +78,9 @@ import {
   layoutOverlappingEvents,
 } from "@/lib/agenda-week-layout";
 import { WeekCalendarDayColumn } from "./agenda-week-event-block";
-import { AgendaWaitlistPanel } from "./agenda-waitlist-panel";
-import { ScheduleBlockModal } from "./schedule-block-modal";
-import { ScheduleBlocksPanel } from "./schedule-blocks-panel";
+import { ScheduleConfigModal, type ScheduleConfigTab } from "./schedule-config-modal";
+import { AgendaWaitlistModal } from "./agenda-waitlist-modal";
+import { listWaitlistEntries } from "./waitlist-actions";
 import {
   expandBlockOccurrences,
   type ScheduleBlockRow,
@@ -268,6 +269,9 @@ export function AgendaClient({
     statusFilter?: string[];
     formFilter?: "confirmados_sem_formulario" | "confirmados_com_formulario" | null;
     filterByServiceId?: string;
+    filterByDoctorId?: string;
+    filterByProcedureId?: string;
+    filterByRoomId?: string;
     colorBy?: "status" | "dimension";
     colorByDimensionId?: string;
   };
@@ -297,22 +301,28 @@ export function AgendaClient({
   const [eventDetailsId, setEventDetailsId] = useState<string | null>(null);
 
   const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [blockModalTab, setBlockModalTab] = useState<ScheduleConfigTab>("create");
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [blockModalInitial, setBlockModalInitial] = useState<
     Partial<{ date: string; timeStart: string; timeEnd: string; doctorId: string }>
   >({});
+
+  const [waitlistModalOpen, setWaitlistModalOpen] = useState(false);
+  const [waitlistCount, setWaitlistCount] = useState(0);
 
   function openCreateBlockModal(
     partial?: Partial<{ date: string; timeStart: string; timeEnd: string; doctorId: string }>
   ) {
     setEditingBlockId(null);
     setBlockModalInitial(partial ?? {});
+    setBlockModalTab("create");
     setBlockModalOpen(true);
   }
 
   function openEditBlockModal(blockId: string) {
     setEditingBlockId(blockId);
     setBlockModalInitial({});
+    setBlockModalTab("create");
     setBlockModalOpen(true);
   }
 
@@ -383,7 +393,15 @@ export function AgendaClient({
   const [filterByServiceId, setFilterByServiceId] = useState<string>(
     initialPreferences?.filterByServiceId ?? ""
   );
-  const [filterByRoomId, setFilterByRoomId] = useState<string>("");
+  const [filterByDoctorId, setFilterByDoctorId] = useState<string>(
+    initialPreferences?.filterByDoctorId ?? ""
+  );
+  const [filterByProcedureId, setFilterByProcedureId] = useState<string>(
+    initialPreferences?.filterByProcedureId ?? ""
+  );
+  const [filterByRoomId, setFilterByRoomId] = useState<string>(
+    initialPreferences?.filterByRoomId ?? ""
+  );
   const [colorBy, setColorBy] = useState<"status" | "dimension">(
     initialPreferences?.colorBy ?? "status"
   );
@@ -415,6 +433,13 @@ export function AgendaClient({
     window.addEventListener("resize", syncMobile);
     return () => window.removeEventListener("resize", syncMobile);
   }, []);
+
+  useEffect(() => {
+    if (userRole !== "admin" && userRole !== "secretaria") return;
+    listWaitlistEntries(dateInicio).then((res) => {
+      if (!res.error) setWaitlistCount(res.entries.length);
+    });
+  }, [dateInicio, userRole]);
 
   useEffect(() => {
     // Se dateFim foi alterado manualmente, não recalcular automaticamente
@@ -503,6 +528,19 @@ export function AgendaClient({
         return false;
       }
 
+      // Filtro por médico
+      if (filterByDoctorId && a.doctor.id !== filterByDoctorId) {
+        return false;
+      }
+
+      // Filtro por procedimento
+      if (filterByProcedureId) {
+        const procIds = (a.procedures ?? (a.procedure ? [a.procedure] : [])).map((p) => p.id);
+        if (!procIds.includes(filterByProcedureId)) {
+          return false;
+        }
+      }
+
       // Filtro por serviço
       if (filterByServiceId && a.service_id !== filterByServiceId) {
         return false;
@@ -555,6 +593,8 @@ export function AgendaClient({
     calendarGranularity,
     statusFilter,
     formFilter,
+    filterByDoctorId,
+    filterByProcedureId,
     filterByServiceId,
     filterByRoomId,
   ]);
@@ -629,6 +669,8 @@ export function AgendaClient({
   const activeFiltersCount = [
     statusFilter.length > 0,
     formFilter !== null,
+    filterByDoctorId !== "",
+    filterByProcedureId !== "",
     filterByServiceId !== "",
     filterByRoomId !== "",
     colorBy === "dimension" && colorByDimensionId !== "",
@@ -797,10 +839,26 @@ export function AgendaClient({
                 doctors.length === 1 ? { doctorId: doctors[0].id } : {}
               )
             }
-            aria-label="Bloquear horário"
+            aria-label="Indisponibilidades"
           >
             <Ban className="h-4 w-4" />
           </Button>
+          {(userRole === "admin" || userRole === "secretaria") && (
+            <Button
+              size="icon"
+              variant={waitlistCount > 0 ? "secondary" : "outline"}
+              className={cn("h-10 w-10 rounded-full sm:hidden relative", waitlistCount > 0 && "relative")}
+              onClick={() => setWaitlistModalOpen(true)}
+              aria-label="Fila de espera"
+            >
+              <Clock className="h-4 w-4" />
+              {waitlistCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-[10px] leading-[18px] text-center px-1 font-semibold">
+                  {waitlistCount}
+                </span>
+              )}
+            </Button>
+          )}
           <Button
             size="icon"
             className="h-10 w-10 rounded-full sm:hidden"
@@ -819,8 +877,23 @@ export function AgendaClient({
             }
           >
             <Ban className="h-4 w-4 mr-2" />
-            Bloquear horário
+            Indisponibilidades
           </Button>
+          {(userRole === "admin" || userRole === "secretaria") && (
+            <Button
+              variant={waitlistCount > 0 ? "secondary" : "outline"}
+              className={cn("hidden sm:inline-flex min-h-[44px] touch-manipulation relative", waitlistCount > 0 && "pr-3")}
+              onClick={() => setWaitlistModalOpen(true)}
+            >
+              <Clock className="h-4 w-4 mr-2" />
+              Fila de espera
+              {waitlistCount > 0 && (
+                <span className="ml-1.5 min-w-[20px] h-5 rounded-full bg-primary text-primary-foreground text-xs leading-5 text-center px-1.5 font-semibold">
+                  {waitlistCount}
+                </span>
+              )}
+            </Button>
+          )}
           <Button
             className="hidden sm:inline-flex min-h-[44px] touch-manipulation"
             onClick={() => openCreateModal(doctors.length === 1 ? { doctorId: doctors[0].id } : {})}
@@ -961,6 +1034,44 @@ export function AgendaClient({
                 })}
               </div>
             </div>
+            {doctors.length > 1 && (
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Profissional</Label>
+                <select
+                  value={filterByDoctorId}
+                  onChange={async (e) => {
+                    const v = e.target.value;
+                    setFilterByDoctorId(v);
+                    await updateUserPreferences({ agenda_filter_by_doctor_id: v || undefined });
+                  }}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Todos</option>
+                  {doctors.map((d) => (
+                    <option key={d.id} value={d.id}>{d.full_name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {procedures.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Procedimento</Label>
+                <select
+                  value={filterByProcedureId}
+                  onChange={async (e) => {
+                    const v = e.target.value;
+                    setFilterByProcedureId(v);
+                    await updateUserPreferences({ agenda_filter_by_procedure_id: v || undefined });
+                  }}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Todos</option>
+                  {procedures.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Formulários</Label>
               <select
@@ -1002,7 +1113,11 @@ export function AgendaClient({
                 <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sala</Label>
                 <select
                   value={filterByRoomId}
-                  onChange={(e) => setFilterByRoomId(e.target.value)}
+                  onChange={async (e) => {
+                    const v = e.target.value;
+                    setFilterByRoomId(v);
+                    await updateUserPreferences({ agenda_filter_by_room_id: v || undefined });
+                  }}
                   className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="">Todas</option>
@@ -1046,6 +1161,8 @@ export function AgendaClient({
                 onClick={() => {
                   setStatusFilter([]);
                   setFormFilter(null);
+                  setFilterByDoctorId("");
+                  setFilterByProcedureId("");
                   setFilterByServiceId("");
                   setFilterByRoomId("");
                   setColorBy("status");
@@ -1053,7 +1170,10 @@ export function AgendaClient({
                   updateUserPreferences({
                     agenda_status_filter: [],
                     agenda_form_filter: null,
+                    agenda_filter_by_doctor_id: undefined,
+                    agenda_filter_by_procedure_id: undefined,
                     agenda_filter_by_service_id: undefined,
+                    agenda_filter_by_room_id: undefined,
                     agenda_color_by: "status",
                     agenda_color_by_dimension_id: "",
                   }).catch(console.error);
@@ -1125,7 +1245,7 @@ export function AgendaClient({
         userRole={userRole}
       />
 
-      <ScheduleBlockModal
+      <ScheduleConfigModal
         open={blockModalOpen}
         onOpenChange={(open) => {
           setBlockModalOpen(open);
@@ -1135,12 +1255,23 @@ export function AgendaClient({
         userRole={userRole}
         editingBlockId={editingBlockId}
         initialPartial={blockModalInitial}
+        initialTab={blockModalTab}
       />
 
-      <ScheduleBlocksPanel doctors={doctors} onEdit={openEditBlockModal} />
-
       {(userRole === "admin" || userRole === "secretaria") && (
-        <AgendaWaitlistPanel defaultDate={dateInicio} doctors={doctors} />
+        <AgendaWaitlistModal
+          open={waitlistModalOpen}
+          onOpenChange={(open) => {
+            setWaitlistModalOpen(open);
+            if (!open && (userRole === "admin" || userRole === "secretaria")) {
+              listWaitlistEntries(dateInicio).then((res) => {
+                if (!res.error) setWaitlistCount(res.entries.length);
+              });
+            }
+          }}
+          defaultDate={dateInicio}
+          doctors={doctors}
+        />
       )}
 
       {/* Conteúdo da visão */}

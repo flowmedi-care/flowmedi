@@ -1637,6 +1637,9 @@ export async function updateUserPreferences(preferences: {
   agenda_status_filter?: string[];
   agenda_form_filter?: "confirmados_sem_formulario" | "confirmados_com_formulario" | null;
   agenda_filter_by_service_id?: string;
+  agenda_filter_by_doctor_id?: string;
+  agenda_filter_by_procedure_id?: string;
+  agenda_filter_by_room_id?: string;
   agenda_color_by?: "status" | "dimension";
   agenda_color_by_dimension_id?: string;
 }) {

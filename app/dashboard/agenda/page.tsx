@@ -337,6 +337,9 @@ export default async function AgendaPage() {
           statusFilter: (preferences.agenda_status_filter as string[]) || [],
           formFilter: (preferences.agenda_form_filter as "confirmados_sem_formulario" | "confirmados_com_formulario" | null) || null,
           filterByServiceId: (preferences.agenda_filter_by_service_id as string) || "",
+          filterByDoctorId: (preferences.agenda_filter_by_doctor_id as string) || "",
+          filterByProcedureId: (preferences.agenda_filter_by_procedure_id as string) || "",
+          filterByRoomId: (preferences.agenda_filter_by_room_id as string) || "",
           colorBy: (preferences.agenda_color_by as "status" | "dimension") || "status",
           colorByDimensionId: (preferences.agenda_color_by_dimension_id as string) || "",
         }}

@@ -655,9 +655,9 @@ export function AgendaAppointmentModal({
       <DialogContent
         title={isEdit ? "Editar consulta" : "Nova consulta"}
         onClose={() => onOpenChange(false)}
-        className="w-[min(42rem,calc(100vw-2rem))] max-w-none shrink-0 overflow-hidden [&>div:last-child]:flex [&>div:last-child]:flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:overflow-hidden"
+        className="w-[min(42rem,calc(100vw-2rem))] max-w-none max-h-[90dvh] flex flex-col overflow-hidden [&>div:last-child]:flex [&>div:last-child]:flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1 [&>div:last-child]:overflow-hidden"
       >
-        <div className="flex flex-col flex-1 min-h-[560px] w-full min-w-0 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 overflow-hidden">
           <Stepper
             value={step}
             onValueChange={(value) => {
@@ -666,7 +666,7 @@ export function AgendaAppointmentModal({
                 setStep(value);
               }
             }}
-            className="flex flex-col flex-1 gap-4 w-full min-w-0 overflow-hidden"
+            className="flex flex-col flex-1 min-h-0 gap-4 w-full min-w-0 overflow-hidden"
           >
             <StepperNav className="pb-4 border-b border-border shrink-0 w-full min-w-0">
               {WIZARD_STEPS.map((s, idx) => (
@@ -716,7 +716,7 @@ export function AgendaAppointmentModal({
               </div>
             )}
 
-            <StepperPanel className="flex-1 min-h-[400px] max-h-[400px] w-full min-w-0 overflow-y-auto overflow-x-hidden pr-1">
+            <StepperPanel className="flex-1 min-h-0 w-full min-w-0 overflow-y-auto overflow-x-hidden pr-1">
               <StepperContent value={1}>
                 <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -1186,35 +1186,35 @@ export function AgendaAppointmentModal({
           </div>
               </StepperContent>
             </StepperPanel>
-          </Stepper>
 
-          <div className="flex justify-between gap-2 mt-6 pt-4 border-t shrink-0">
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <div className="flex gap-2">
-            {step > 1 && (
-              <Button type="button" variant="outline" onClick={goPrev}>
-                Anterior
+            <div className="flex justify-between gap-2 pt-4 border-t shrink-0 bg-background">
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                Cancelar
               </Button>
-            )}
-            {step < WIZARD_STEPS.length ? (
-              <Button type="button" onClick={goNext}>
-                Próximo
-              </Button>
-            ) : (
-              <Button type="button" disabled={loading || loadingEdit} onClick={handleSubmit}>
-                {loading
-                  ? isEdit
-                    ? "Salvando…"
-                    : "Agendando…"
-                  : isEdit
-                    ? "Salvar alterações"
-                    : "Agendar consulta"}
-              </Button>
-            )}
-          </div>
-        </div>
+              <div className="flex gap-2">
+                {step > 1 && (
+                  <Button type="button" variant="outline" onClick={goPrev}>
+                    Anterior
+                  </Button>
+                )}
+                {step < WIZARD_STEPS.length ? (
+                  <Button type="button" onClick={goNext}>
+                    Próximo
+                  </Button>
+                ) : (
+                  <Button type="button" disabled={loading || loadingEdit} onClick={handleSubmit}>
+                    {loading
+                      ? isEdit
+                        ? "Salvando…"
+                        : "Agendando…"
+                      : isEdit
+                        ? "Salvar alterações"
+                        : "Agendar consulta"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Stepper>
         </div>
       </DialogContent>
     </Dialog>
