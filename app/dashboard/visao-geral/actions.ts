@@ -91,11 +91,15 @@ export type VisaoGeralWeekData = {
   appointments: VisaoGeralWeekAppointment[];
 };
 
+function getSingleRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] ?? null : value;
+}
+
 function getSinglePatientRelation(
   patient: { full_name: string | null; phone: string | null } | { full_name: string | null; phone: string | null }[] | null | undefined
 ) {
-  if (!patient) return null;
-  return Array.isArray(patient) ? patient[0] ?? null : patient;
+  return getSingleRelation(patient);
 }
 
 function pct(numerator: number, denominator: number): number {
@@ -534,10 +538,10 @@ export async function getVisaoGeralWeekData(weekStartISO: string) {
 
   const procedureCountMap = new Map<string, number>();
   const appointments: VisaoGeralWeekAppointment[] = (appointmentsRows ?? []).map((row) => {
-    const patient = getSinglePatientRelation(
+    const patient = getSingleRelation(
       row.patient as { full_name: string | null } | { full_name: string | null }[] | null
     );
-    const doctor = getSinglePatientRelation(
+    const doctor = getSingleRelation(
       row.doctor as { full_name: string | null } | { full_name: string | null }[] | null
     );
     const linkedProcs = (row.appointment_procedures as { procedure_id: string }[] | null) ?? [];
