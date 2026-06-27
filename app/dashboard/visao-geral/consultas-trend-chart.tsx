@@ -24,7 +24,7 @@ import {
   chartTooltipStyle,
 } from "@/components/dashboard-ui/chart-theme";
 import { cn } from "@/lib/utils";
-import type { VisaoGeralChartPoint } from "../actions";
+import type { VisaoGeralChartPoint } from "./actions";
 
 type ChartGranularity = "day" | "week" | "month";
 
