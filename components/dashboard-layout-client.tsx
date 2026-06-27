@@ -72,7 +72,7 @@ export function DashboardLayoutClient({
         mobileOpen={mobileNavOpen}
         onMobileOpenChange={setMobileNavOpen}
       />
-      <main className="flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/40">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden bg-background">
         {isWhatsAppPage ? (
           <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
             {children}

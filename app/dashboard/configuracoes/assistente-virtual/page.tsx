@@ -7,14 +7,7 @@ export default async function AssistenteVirtualPage() {
   if (data.error) redirect("/dashboard");
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Assistente virtual</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Configure o chatbot com IA para atender pacientes no WhatsApp.
-        </p>
-      </div>
-      <AssistenteVirtualClient
+    <AssistenteVirtualClient
         canUse={data.canUse ?? false}
         initialSettings={(data.settings ?? null) as Partial<import("@/lib/virtual-assistant/types").VirtualAssistantSettings> | null}
         initialFaq={data.faq ?? []}
@@ -35,6 +28,5 @@ export default async function AssistenteVirtualPage() {
             : null
         }
       />
-    </div>
   );
 }

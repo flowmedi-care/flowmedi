@@ -24,6 +24,8 @@ import {
   upsertVirtualAssistantLocation,
 } from "./actions";
 import { AssistenteVirtualDiagnostics } from "./assistente-virtual-diagnostics";
+import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
+import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 
 type TabId =
   | "geral"
@@ -164,29 +166,28 @@ export function AssistenteVirtualClient({
   }
 
   return (
-    <div className="space-y-4">
+    <PageShell
+      header={{
+        breadcrumbs: [{ label: "Assistente virtual" }],
+        title: "Assistente virtual",
+        description: "Configure o chatbot com IA para atender pacientes no WhatsApp.",
+      }}
+      tabs={
+        <SegmentedTabs
+          tabs={tabs}
+          value={tab}
+          onChange={(id) => setTab(id as TabId)}
+          variant="underline"
+        />
+      }
+    >
       {!canUse && (
-        <Card className="border-amber-200 bg-amber-50">
+        <Card className="mb-4 border-amber-200 bg-amber-50">
           <CardContent className="pt-4 text-sm text-amber-900">
             O assistente virtual está disponível em planos com WhatsApp ativo.
           </CardContent>
         </Card>
       )}
-
-      <div className="flex flex-wrap gap-2 border-b pb-2">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={`rounded-md px-3 py-1.5 text-sm ${
-              tab === t.id ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
 
       {tab === "geral" && (
         <Card>
@@ -581,6 +582,6 @@ export function AssistenteVirtualClient({
       )}
 
       {tab === "diagnostico" && <AssistenteVirtualDiagnostics active={tab === "diagnostico"} />}
-    </div>
+    </PageShell>
   );
 }

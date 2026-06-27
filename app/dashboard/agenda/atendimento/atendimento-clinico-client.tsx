@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -8,13 +9,16 @@ import { calcPatientAge } from "@/app/dashboard/pacientes/profile-types";
 import {
   ensureAppointmentFichas,
   finalizeClinicalEncounter,
+  getPatientFichaHistoryForAtendimento,
 } from "../clinical-ficha-actions";
 import {
   getFormReportsForAtendimento,
   type FormReportItem,
 } from "../consulta/[id]/formularios-consulta-actions";
-import type { AppointmentFichaInstance } from "@/lib/clinical-ficha-types";
+import type { AppointmentFichaInstance, FichaCopySource, FichaHistoryAppointment } from "@/lib/clinical-ficha-types";
 import { FichaFieldsPanel } from "./ficha-fields-panel";
+import { FichaHistorySidebar } from "./ficha-history-sidebar";
+import { CopyFichasDialog } from "./copy-fichas-dialog";
 import {
   AtendimentoRelatorioPanel,
   VincularRelatorioAtendimento,
@@ -33,6 +37,7 @@ import { ClinicalNavItem, ClinicalNavSection } from "./clinical-nav-item";
 import {
   ClipboardList,
   Clock,
+  Copy,
   CreditCard,
   FileText,
   FolderOpen,
@@ -42,7 +47,7 @@ import {
 } from "lucide-react";
 
 type ActivePanel =
-  | { kind: "ficha"; id: string }
+  | { kind: "ficha"; id: string; scope: "current" | "history" }
   | { kind: "relatorio"; id: string }
   | { kind: "notas" }
   | { kind: "transcricao" }
@@ -84,11 +89,15 @@ export function AtendimentoClinicoClient({
 }) {
   const router = useRouter();
   const [fichas, setFichas] = useState<AppointmentFichaInstance[]>([]);
+  const [previousAppointments, setPreviousAppointments] = useState<FichaHistoryAppointment[]>([]);
+  const [copySources, setCopySources] = useState<FichaCopySource[]>([]);
   const [relatorios, setRelatorios] = useState<FormReportItem[]>([]);
   const [loadingFichas, setLoadingFichas] = useState(true);
   const [loadingRelatorios, setLoadingRelatorios] = useState(true);
   const [active, setActive] = useState<ActivePanel>(null);
   const [comandaOpen, setComandaOpen] = useState(false);
+  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
+  const [copyPreselectedTemplateId, setCopyPreselectedTemplateId] = useState<string | null>(null);
   const [encounterStatus, setEncounterStatus] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [finalizing, setFinalizing] = useState(false);
@@ -97,16 +106,20 @@ export function AtendimentoClinicoClient({
 
   async function loadFichas() {
     setLoadingFichas(true);
-    const res = await ensureAppointmentFichas(appointmentId);
+    const res = await getPatientFichaHistoryForAtendimento(patientId, appointmentId);
     setLoadingFichas(false);
     if (res.error) {
       toast(res.error, "error");
       return;
     }
-    setFichas(res.data);
+    setFichas(res.current);
+    setPreviousAppointments(res.previous);
+    setCopySources(res.copySources);
     setActive((prev) => {
       if (prev) return prev;
-      if (res.data.length > 0) return { kind: "ficha", id: res.data[0].id };
+      if (res.current.length > 0) {
+        return { kind: "ficha", id: res.current[0].id, scope: "current" };
+      }
       return null;
     });
   }
@@ -120,8 +133,30 @@ export function AtendimentoClinicoClient({
   }
 
   async function loadAll() {
+    await ensureAppointmentFichas(appointmentId);
     await Promise.all([loadFichas(), loadRelatorios()]);
   }
+
+  function openCopyDialog(templateId?: string) {
+    setCopyPreselectedTemplateId(templateId ?? null);
+    setCopyDialogOpen(true);
+  }
+
+  const historicalFichas = previousAppointments.flatMap((a) => a.fichas);
+  const activeFichaCurrent =
+    active?.kind === "ficha" && active.scope === "current"
+      ? fichas.find((f) => f.id === active.id) ?? null
+      : null;
+  const activeFichaHistory =
+    active?.kind === "ficha" && active.scope === "history"
+      ? historicalFichas.find((f) => f.id === active.id) ?? null
+      : null;
+  const activeFicha = activeFichaCurrent ?? activeFichaHistory;
+  const activeFichaHistoryAppt =
+    activeFichaHistory &&
+    previousAppointments.find((a) =>
+      a.fichas.some((f) => f.id === activeFichaHistory.id)
+    );
 
   useEffect(() => {
     loadAll();
@@ -143,12 +178,19 @@ export function AtendimentoClinicoClient({
     return () => clearInterval(iv);
   }, [appointmentId]);
 
-  const activeFicha =
-    active?.kind === "ficha" ? fichas.find((f) => f.id === active.id) ?? null : null;
   const activeRelatorio =
     active?.kind === "relatorio"
       ? relatorios.find((r) => r.id === active.id) ?? null
       : null;
+
+  const canCopyFichas =
+    (canEdit || isDoctor) && copySources.length > 0;
+  const isViewingCurrentFicha = active?.kind === "ficha" && active.scope === "current";
+  const canEditActiveFicha =
+    isViewingCurrentFicha &&
+    activeFichaCurrent != null &&
+    canEdit &&
+    activeFichaCurrent.status !== "concluida";
 
   function handleFichaSaved(fichaId: string, responses: Record<string, unknown>) {
     setFichas((prev) =>
@@ -235,29 +277,21 @@ export function AtendimentoClinicoClient({
               {loadingFichas && (
                 <p className="text-sm text-muted-foreground px-2 py-1">Carregando…</p>
               )}
-              {!loadingFichas && fichas.length === 0 && (
+              {!loadingFichas && fichas.length === 0 && previousAppointments.length === 0 && (
                 <p className="text-xs text-muted-foreground px-2 py-1">
                   Nenhuma ficha configurada.
                 </p>
               )}
-              {fichas.map((f, idx) => (
-                <ClinicalNavItem
-                  key={f.id}
-                  active={active?.kind === "ficha" && active.id === f.id}
-                  onClick={() => setActive({ kind: "ficha", id: f.id })}
-                >
-                  <div className="flex items-center justify-between gap-2 pl-1">
-                    <span className="truncate">
-                      {String(idx + 1).padStart(2, "0")}. {f.template.name}
-                    </span>
-                    {f.status === "concluida" && (
-                      <Badge variant="secondary" className="text-[10px] shrink-0">
-                        OK
-                      </Badge>
-                    )}
-                  </div>
-                </ClinicalNavItem>
-              ))}
+              {!loadingFichas && (fichas.length > 0 || previousAppointments.length > 0) && (
+                <FichaHistorySidebar
+                  currentFichas={fichas}
+                  previousAppointments={previousAppointments}
+                  activeFichaId={active?.kind === "ficha" ? active.id : null}
+                  onSelectFicha={(id, scope) => setActive({ kind: "ficha", id, scope })}
+                  onCopySingleFicha={(templateId) => openCopyDialog(templateId)}
+                  canCopy={canCopyFichas}
+                />
+              )}
             </ClinicalNavSection>
 
             <ClinicalNavSection title="Relatórios do paciente" icon={ClipboardList}>
@@ -339,6 +373,14 @@ export function AtendimentoClinicoClient({
 
         <main className="flex-1 overflow-y-auto bg-muted/30 p-4 sm:p-5 min-h-[320px]">
           <div className="rounded-xl border border-border/50 bg-card p-4 sm:p-6 min-h-full shadow-sm">
+          {isViewingCurrentFicha && canCopyFichas && (
+            <div className="mb-4 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => openCopyDialog()}>
+                <Copy className="h-4 w-4 mr-1" />
+                Trazer da consulta anterior
+              </Button>
+            </div>
+          )}
           {activeFicha?.template.ficha_type === "fields" && (
             <FichaFieldsPanel
               key={activeFicha.id}
@@ -346,13 +388,26 @@ export function AtendimentoClinicoClient({
               templateName={activeFicha.template.name}
               definition={activeFicha.template.definition}
               initialResponses={activeFicha.responses}
-              interactive={
-                canEdit && activeFicha.status !== "concluida"
+              interactive={canEditActiveFicha}
+              consultationLabel={
+                activeFichaHistoryAppt
+                  ? `Consulta de ${new Date(activeFichaHistoryAppt.scheduled_at).toLocaleString("pt-BR", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}`
+                  : undefined
               }
-              onSaved={(responses) => handleFichaSaved(activeFicha.id, responses)}
+              onSaved={
+                canEditActiveFicha
+                  ? (responses) => handleFichaSaved(activeFicha.id, responses)
+                  : undefined
+              }
             />
           )}
-          {activeFicha?.template.ficha_type === "prescription" && isDoctor && (
+          {isViewingCurrentFicha && activeFicha?.template.ficha_type === "prescription" && isDoctor && (
             <ClinicalDocumentsClient
               type="prescription"
               patientId={patientId}
@@ -360,7 +415,7 @@ export function AtendimentoClinicoClient({
               isDoctor={isDoctor}
             />
           )}
-          {activeFicha?.template.ficha_type === "exam_request" && isDoctor && (
+          {isViewingCurrentFicha && activeFicha?.template.ficha_type === "exam_request" && isDoctor && (
             <ClinicalDocumentsClient
               type="exam_request"
               patientId={patientId}
@@ -368,13 +423,33 @@ export function AtendimentoClinicoClient({
               isDoctor={isDoctor}
             />
           )}
-          {activeFicha &&
+          {isViewingCurrentFicha &&
+            activeFicha &&
             (activeFicha.template.ficha_type === "prescription" ||
               activeFicha.template.ficha_type === "exam_request") &&
             !isDoctor && (
               <p className="text-sm text-muted-foreground">
                 Apenas o profissional pode preencher esta ficha.
               </p>
+            )}
+
+          {activeFichaHistory &&
+            activeFicha.template.ficha_type !== "fields" && (
+              <div className="space-y-3">
+                <h2 className="text-lg font-semibold">{activeFicha.template.name}</h2>
+                <p className="text-sm text-muted-foreground">
+                  Documentos de consultas anteriores podem ser visualizados no atendimento
+                  completo daquela data.
+                </p>
+                {activeFichaHistoryAppt && (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/dashboard/agenda/atendimento/${activeFichaHistoryAppt.appointment_id}`}>
+                      Abrir atendimento de{" "}
+                      {new Date(activeFichaHistoryAppt.scheduled_at).toLocaleDateString("pt-BR")}
+                    </Link>
+                  </Button>
+                )}
+              </div>
             )}
 
           {activeRelatorio && (
@@ -437,6 +512,18 @@ export function AtendimentoClinicoClient({
           )}
         </div>
       </footer>
+
+      <CopyFichasDialog
+        open={copyDialogOpen}
+        onOpenChange={setCopyDialogOpen}
+        targetAppointmentId={appointmentId}
+        copySources={copySources}
+        preselectedTemplateId={copyPreselectedTemplateId}
+        onCopied={() => {
+          loadFichas();
+          router.refresh();
+        }}
+      />
 
       <Dialog open={comandaOpen} onOpenChange={setComandaOpen}>
         <DialogContent

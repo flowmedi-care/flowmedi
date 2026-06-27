@@ -29,6 +29,7 @@ export function FichaFieldsPanel({
   initialResponses,
   /** Quando false, campos ficam somente leitura. Default: editável. */
   interactive = true,
+  consultationLabel,
   onSaved,
 }: {
   instanceId: string;
@@ -36,6 +37,8 @@ export function FichaFieldsPanel({
   definition: FormFieldDefinition[];
   initialResponses: Record<string, unknown>;
   interactive?: boolean;
+  /** Ex.: "Consulta de 12 mar 2025" para fichas históricas */
+  consultationLabel?: string;
   onSaved?: (responses: Record<string, unknown>) => void;
 }) {
   const fields = normalizeDefinition(definition);
@@ -113,7 +116,12 @@ export function FichaFieldsPanel({
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 pb-4 border-b border-border/60">
-        <h2 className="text-lg font-semibold tracking-tight">{templateName}</h2>
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold tracking-tight">{templateName}</h2>
+          {consultationLabel && (
+            <p className="text-xs text-muted-foreground mt-0.5">{consultationLabel}</p>
+          )}
+        </div>
         {interactive && saveState === "saving" && (
           <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Salvando…
@@ -127,7 +135,9 @@ export function FichaFieldsPanel({
       </div>
       {!interactive && (
         <p className="text-sm text-muted-foreground rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
-          Ficha concluída — somente leitura.
+          {consultationLabel
+            ? "Consulta anterior — somente leitura."
+            : "Ficha concluída — somente leitura."}
         </p>
       )}
       <div className="space-y-5">

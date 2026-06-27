@@ -34,3 +34,35 @@ export type AppointmentFichaSummary = {
   appointment_id: string;
   scheduled_at: string;
 };
+
+export type FichaHistoryAppointment = {
+  appointment_id: string;
+  scheduled_at: string;
+  doctor_name: string | null;
+  is_current_appointment: boolean;
+  fichas: AppointmentFichaInstance[];
+};
+
+export type FichaCopySourceFicha = {
+  ficha_template_id: string;
+  template_name: string;
+  has_content: boolean;
+};
+
+export type FichaCopySource = {
+  appointment_id: string;
+  scheduled_at: string;
+  doctor_name: string | null;
+  fichas: FichaCopySourceFicha[];
+};
+
+export type CopyFichaResult = {
+  copied: number;
+  skipped: number;
+  messages: string[];
+};
+
+export type AppointmentFichaDetail = AppointmentFichaSummary & {
+  definition: FormFieldDefinition[];
+  responses: Record<string, unknown>;
+};
