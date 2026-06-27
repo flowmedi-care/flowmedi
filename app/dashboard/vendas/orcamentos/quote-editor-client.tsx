@@ -121,7 +121,16 @@ export function QuoteEditorClient({
   const buildInput = (): QuoteInput => ({
     patient_id: linkMode === "patient" ? patient?.id ?? null : null,
     pipeline_id: linkMode === "lead" ? pipelineId || null : null,
-    recipient_name: linkMode === "standalone" ? recipientName : patient?.full_name ?? null,
+    recipient_name:
+      linkMode === "standalone"
+        ? recipientName
+        : linkMode === "patient"
+          ? patient?.full_name ?? null
+          : linkMode === "lead"
+            ? catalogs.leads.find((l) => l.id === pipelineId)?.name ??
+              catalogs.leads.find((l) => l.id === pipelineId)?.email ??
+              null
+            : null,
     recipient_phone:
       linkMode === "standalone"
         ? recipientPhone

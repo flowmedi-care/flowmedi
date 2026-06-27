@@ -1,4 +1,4 @@
-import { listQuoteCatalogs } from "../actions";
+import { listQuoteCatalogs } from "../quote-service";
 import { QuoteEditorClient } from "../quote-editor-client";
 
 export default async function NovoOrcamentoPage() {

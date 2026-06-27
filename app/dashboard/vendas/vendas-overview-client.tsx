@@ -169,12 +169,7 @@ export function VendasOverviewClient({ initialMetrics }: VendasOverviewClientPro
                     ]}
                   />
                   <Bar dataKey="receita" fill={MONO_CHART_SCALE[1]} {...chartBarProps} />
-                  <Line
-                    dataKey="comandas"
-                    stroke={MONO_CHART_TREND}
-                    yAxisId={undefined}
-                    {...chartLineProps}
-                  />
+                  <Line dataKey="comandas" stroke={MONO_CHART_TREND} {...chartLineProps} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

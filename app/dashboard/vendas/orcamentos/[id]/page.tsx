@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getQuote, listQuoteCatalogs } from "../actions";
+import { getQuote, listQuoteCatalogs } from "../quote-service";
 import { QuoteEditorClient } from "../quote-editor-client";
 
 export default async function OrcamentoDetailPage({

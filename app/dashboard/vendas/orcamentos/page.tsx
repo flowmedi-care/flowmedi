@@ -1,4 +1,4 @@
-import { listQuotes } from "./actions";
+import { listQuotes } from "./quote-service";
 import { OrcamentosListClient } from "./orcamentos-list-client";
 
 export default async function VendasOrcamentosPage() {

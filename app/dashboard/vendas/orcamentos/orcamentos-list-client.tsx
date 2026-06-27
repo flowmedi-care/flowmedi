@@ -74,7 +74,7 @@ export function OrcamentosListClient({ quotes }: { quotes: QuoteListItem[] }) {
               key: "status",
               header: "Status",
               cell: (row) => (
-                <Badge variant={QUOTE_STATUS_VARIANTS[row.status as QuoteStatus]}>
+                <Badge variant={QUOTE_STATUS_VARIANTS[row.status as QuoteStatus] ?? "secondary"}>
                   {QUOTE_STATUS_LABELS[row.status as QuoteStatus]}
                 </Badge>
               ),
