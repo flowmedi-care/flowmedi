@@ -501,6 +501,7 @@ export async function createFinancialEntry(data: {
   category?: ExpenseCategory | null;
   mark_paid?: boolean;
   payment_method?: string | null;
+  bank_account_id?: string | null;
   recurrence?: RecurrenceInput | null;
   stock_lines?: StockLineInput[];
   register_stock?: boolean;
@@ -611,6 +612,7 @@ export async function createFinancialEntry(data: {
       status: data.mark_paid ? "pago" : "pendente",
       paid_at: data.mark_paid ? new Date().toISOString() : null,
       payment_method: data.mark_paid ? data.payment_method ?? null : null,
+      bank_account_id: data.mark_paid ? data.bank_account_id ?? null : null,
       created_by: ctx.user.id,
     })
     .select("id")
@@ -682,6 +684,7 @@ export async function markEntryPaid(
   options?: {
     paid_at?: string;
     payment_method?: string;
+    bank_account_id?: string;
     stock_lines?: StockLineInput[];
     register_stock?: boolean;
   }
@@ -700,6 +703,7 @@ export async function markEntryPaid(
       status: "pago",
       paid_at: paidAt,
       payment_method: options?.payment_method ?? null,
+      bank_account_id: options?.bank_account_id ?? null,
     })
     .eq("id", id);
 
@@ -720,7 +724,10 @@ export async function markEntryPaid(
   return { error: null };
 }
 
-export async function markEntryReceived(id: string, options?: { paid_at?: string }) {
+export async function markEntryReceived(
+  id: string,
+  options?: { paid_at?: string; payment_method?: string; bank_account_id?: string }
+) {
   return markEntryPaid(id, options);
 }
 

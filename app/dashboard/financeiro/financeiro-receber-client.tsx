@@ -5,11 +5,17 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { ComandaPaymentDialog } from "./components/comanda-payment-dialog";
 import { CancelComandaDialog } from "./components/cancel-comanda-dialog";
 import { markEntryReceived } from "./actions";
+import { BankAccountSelect } from "@/components/financeiro/bank-account-select";
+import { PAYMENT_METHODS } from "@/lib/financeiro/constants";
 import { fmtCurrency } from "@/lib/financeiro/format";
-import { daysOpenSince } from "@/lib/financeiro/date-utils";
+import { daysOpenSince, todayDateOnly } from "@/lib/financeiro/date-utils";
 import type { FinancialEntryRow, OpenComandaRow } from "@/lib/financeiro/types";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
@@ -38,12 +44,29 @@ export function FinanceiroReceberClient({
   const router = useRouter();
   const [payComanda, setPayComanda] = useState<{ id: string; remainder: number } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<OpenComandaRow | null>(null);
+  const [receiveId, setReceiveId] = useState<string | null>(null);
+  const [receiveDate, setReceiveDate] = useState(todayDateOnly());
+  const [receiveMethod, setReceiveMethod] = useState("pix");
+  const [receiveBankAccountId, setReceiveBankAccountId] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  async function handleMarkReceived(id: string) {
-    const res = await markEntryReceived(id);
+  async function handleMarkReceived() {
+    if (!receiveId) return;
+    if (!receiveBankAccountId) {
+      toast("Selecione a conta bancária.", "error");
+      return;
+    }
+    setSaving(true);
+    const res = await markEntryReceived(receiveId, {
+      paid_at: receiveDate,
+      payment_method: receiveMethod,
+      bank_account_id: receiveBankAccountId,
+    });
+    setSaving(false);
     if (res.error) toast(res.error, "error");
     else {
       toast("Receita marcada como recebida.", "success");
+      setReceiveId(null);
       router.refresh();
     }
   }
@@ -148,7 +171,7 @@ export function FinanceiroReceberClient({
                           {fmtCurrency(r.amount)}
                         </span>
                         {canManage && (
-                          <Button size="sm" variant="outline" onClick={() => handleMarkReceived(r.id)}>
+                          <Button size="sm" variant="outline" onClick={() => setReceiveId(r.id)}>
                             Marcar como recebida
                           </Button>
                         )}
@@ -164,6 +187,41 @@ export function FinanceiroReceberClient({
 
       {canManage && (
         <>
+          <Dialog open={!!receiveId} onOpenChange={(o) => !o && setReceiveId(null)}>
+            <DialogContent title="Marcar receita como recebida" onClose={() => setReceiveId(null)}>
+              <div className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Lente: <strong>Entradas no caixa</strong>
+                </p>
+                <div className="space-y-2">
+                  <Label>Data do recebimento</Label>
+                  <Input
+                    type="date"
+                    value={receiveDate}
+                    onChange={(e) => setReceiveDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Método</Label>
+                  <Select value={receiveMethod} onChange={(e) => setReceiveMethod(e.target.value)}>
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <BankAccountSelect
+                  value={receiveBankAccountId}
+                  onChange={setReceiveBankAccountId}
+                  required
+                />
+                <Button className="w-full" onClick={handleMarkReceived} disabled={saving}>
+                  {saving ? "Salvando…" : "Confirmar recebimento"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
           <ComandaPaymentDialog
             comandaId={payComanda?.id ?? null}
             defaultAmount={payComanda?.remainder ?? 0}

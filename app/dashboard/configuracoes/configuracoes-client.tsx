@@ -13,8 +13,6 @@ import {
   updateClinicServicesPricingMode,
   upsertClinicReportGoals,
 } from "./actions";
-import { ClinicalTemplatesSection } from "../clinical-documents/clinical-templates-section";
-import { ClinicalCatalogSection } from "../clinical-documents/clinical-catalog-section";
 import { NoShowFeeSettings } from "./no-show-fee-settings";
 import type { NoShowFeeMode } from "@/app/dashboard/agenda/appointment-status-change";
 
@@ -640,24 +638,6 @@ export function ConfiguracoesClient({
           )}
         </CardContent>
       </Card>
-
-      <ClinicalCatalogSection
-        kind="medication"
-        scope="clinic"
-        title="Medicamentos da clínica"
-        description="Lista compartilhada de medicamentos para os médicos usarem nas receitas."
-      />
-      <ClinicalCatalogSection
-        kind="exam"
-        scope="clinic"
-        title="Exames da clínica"
-        description="Nomes de exames compartilhados; o médico complementa os detalhes ao emitir cada pedido."
-      />
-      <ClinicalTemplatesSection
-        scope="clinic"
-        title="Templates de texto da clínica"
-        description="Textos opcionais compartilhados entre os médicos."
-      />
     </div>
   );
 }

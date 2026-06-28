@@ -216,7 +216,7 @@ export async function buildKnowledgeContext(
     return parts.join("\n");
   });
 
-  const tone = s.tone === "formal" ? "formal e respeitoso" : "informal e acolhedor";
+  const tone = s.tone === "formal" ? "formal e respeitoso" : "casual e acolhedor";
   const emojiRule = s.use_emojis !== false ? "Pode usar emojis com moderação." : "Não use emojis.";
 
   const sections = [

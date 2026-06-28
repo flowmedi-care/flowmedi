@@ -218,6 +218,7 @@ export async function upsertVirtualAssistantFaq(
   }
 
   revalidatePath("/dashboard/configuracoes/assistente-virtual");
+  revalidatePath("/dashboard/configuracoes/clinica");
   return { error: null };
 }
 
@@ -273,6 +274,7 @@ export async function upsertVirtualAssistantLocation(
   }
 
   revalidatePath("/dashboard/configuracoes/assistente-virtual");
+  revalidatePath("/dashboard/configuracoes/clinica");
   return { error: null };
 }
 
@@ -288,6 +290,7 @@ export async function deleteVirtualAssistantLocation(id: string) {
 
   if (error) return { error: error.message };
   revalidatePath("/dashboard/configuracoes/assistente-virtual");
+  revalidatePath("/dashboard/configuracoes/clinica");
   return { error: null };
 }
 

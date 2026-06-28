@@ -109,14 +109,14 @@ export async function updatePublicSiteSettings(formData: FormData) {
   const heroSubtitle = String(formData.get("hero_subtitle") ?? "").trim() || null;
   const primaryColor = String(formData.get("primary_color") ?? "").trim() || null;
   const heroImageUrl = String(formData.get("hero_image_url") ?? "").trim() || null;
-  const mission = String(formData.get("mission") ?? "").trim() || null;
-  const vision = String(formData.get("vision") ?? "").trim() || null;
-  const valuesText = String(formData.get("values_text") ?? "").trim() || null;
+  const missionRaw = formData.get("mission");
+  const visionRaw = formData.get("vision");
+  const valuesRaw = formData.get("values_text");
   const defaultHeadline = String(formData.get("default_headline") ?? "").trim() || null;
   const defaultSubheadline = String(formData.get("default_subheadline") ?? "").trim() || null;
   const showContactForm = formData.get("show_contact_form") !== "false";
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     clinic_id: ctx.clinicId,
     site_enabled: siteEnabled,
     self_service_booking_enabled: siteEnabled ? bookingEnabled : false,
@@ -127,14 +127,21 @@ export async function updatePublicSiteSettings(formData: FormData) {
     hero_subtitle: heroSubtitle,
     primary_color: primaryColor,
     hero_image_url: heroImageUrl,
-    mission,
-    vision,
-    values_text: valuesText,
     show_contact_form: showContactForm,
     default_headline: defaultHeadline,
     default_subheadline: defaultSubheadline,
     updated_at: new Date().toISOString(),
   };
+
+  if (missionRaw !== null) {
+    payload.mission = String(missionRaw).trim() || null;
+  }
+  if (visionRaw !== null) {
+    payload.vision = String(visionRaw).trim() || null;
+  }
+  if (valuesRaw !== null) {
+    payload.values_text = String(valuesRaw).trim() || null;
+  }
 
   const { error } = await ctx.supabase.from("clinic_public_site_settings").upsert(payload, {
     onConflict: "clinic_id",

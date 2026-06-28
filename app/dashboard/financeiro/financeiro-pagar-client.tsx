@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import { markEntryPaid } from "./actions";
 import { FinancialEntryFormDialog } from "./components/financial-entry-form-dialog";
+import { BankAccountSelect } from "@/components/financeiro/bank-account-select";
 import { fmtCurrency } from "@/lib/financeiro/format";
 import { CATEGORY_LABELS } from "@/lib/financeiro/constants";
 import { PAYMENT_METHODS } from "@/lib/financeiro/constants";
@@ -48,6 +49,7 @@ export function FinanceiroPagarClient({
   const [payId, setPayId] = useState<string | null>(null);
   const [payDate, setPayDate] = useState(todayDateOnly());
   const [payMethod, setPayMethod] = useState("pix");
+  const [payBankAccountId, setPayBankAccountId] = useState("");
   const [saving, setSaving] = useState(false);
 
   const groups = (["vencidas", "hoje_amanha", "proximos_7", "futuras"] as ExpenseGroupKey[]).map(
@@ -60,8 +62,16 @@ export function FinanceiroPagarClient({
 
   async function handleMarkPaid() {
     if (!payId) return;
+    if (!payBankAccountId) {
+      toast("Selecione a conta bancária.", "error");
+      return;
+    }
     setSaving(true);
-    const res = await markEntryPaid(payId, { paid_at: payDate, payment_method: payMethod });
+    const res = await markEntryPaid(payId, {
+      paid_at: payDate,
+      payment_method: payMethod,
+      bank_account_id: payBankAccountId,
+    });
     setSaving(false);
     if (res.error) toast(res.error, "error");
     else {
@@ -213,6 +223,11 @@ export function FinanceiroPagarClient({
                     ))}
                   </Select>
                 </div>
+                <BankAccountSelect
+                  value={payBankAccountId}
+                  onChange={setPayBankAccountId}
+                  required
+                />
                 <Button className="w-full" onClick={handleMarkPaid} disabled={saving}>
                   {saving ? "Salvando…" : "Confirmar pagamento"}
                 </Button>

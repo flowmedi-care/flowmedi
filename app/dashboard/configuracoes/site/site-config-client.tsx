@@ -51,9 +51,6 @@ export function SiteConfigClient({
   const [heroSubtitle, setHeroSubtitle] = useState(initialSettings?.hero_subtitle ?? "");
   const [primaryColor, setPrimaryColor] = useState(initialSettings?.primary_color ?? "");
   const [heroImageUrl, setHeroImageUrl] = useState(initialSettings?.hero_image_url ?? "");
-  const [mission, setMission] = useState(initialSettings?.mission ?? "");
-  const [vision, setVision] = useState(initialSettings?.vision ?? "");
-  const [valuesText, setValuesText] = useState(initialSettings?.values_text ?? "");
   const [defaultHeadline, setDefaultHeadline] = useState(initialSettings?.default_headline ?? "");
   const [defaultSubheadline, setDefaultSubheadline] = useState(
     initialSettings?.default_subheadline ?? ""
@@ -74,9 +71,6 @@ export function SiteConfigClient({
     fd.set("hero_subtitle", heroSubtitle);
     fd.set("primary_color", primaryColor);
     fd.set("hero_image_url", heroImageUrl);
-    fd.set("mission", mission);
-    fd.set("vision", vision);
-    fd.set("values_text", valuesText);
     fd.set("default_headline", defaultHeadline);
     fd.set("default_subheadline", defaultSubheadline);
     fd.set("show_contact_form", String(showContactForm));
@@ -192,16 +186,9 @@ export function SiteConfigClient({
         <CardHeader>
           <CardTitle className="text-base">Conteúdo do site</CardTitle>
           <CardDescription>
-            Dados de contato, horários e FAQ vêm de{" "}
+            Conteúdo visual e publicação. Dados institucionais, contato e horários vêm de{" "}
             <Link href="/dashboard/configuracoes/clinica" className="text-primary hover:underline">
               Dados da clínica
-            </Link>{" "}
-            e{" "}
-            <Link
-              href="/dashboard/configuracoes/assistente-virtual"
-              className="text-primary hover:underline"
-            >
-              Assistente virtual
             </Link>
             .
           </CardDescription>
@@ -261,38 +248,12 @@ export function SiteConfigClient({
             disabled={!siteEnabled}
             onUrlChange={setHeroImageUrl}
           />
-          <div className="space-y-2">
-            <Label htmlFor="mission">Missão</Label>
-            <Textarea
-              id="mission"
-              value={mission}
-              onChange={(e) => setMission(e.target.value)}
-              placeholder="Nossa missão é..."
-              rows={3}
-              disabled={!siteEnabled}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="vision">Visão</Label>
-            <Textarea
-              id="vision"
-              value={vision}
-              onChange={(e) => setVision(e.target.value)}
-              placeholder="Nossa visão é..."
-              rows={3}
-              disabled={!siteEnabled}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="values_text">Valores</Label>
-            <Textarea
-              id="values_text"
-              value={valuesText}
-              onChange={(e) => setValuesText(e.target.value)}
-              placeholder="Ética, empatia, excelência..."
-              rows={3}
-              disabled={!siteEnabled}
-            />
+          <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+            Missão, visão e valores são editados em{" "}
+            <Link href="/dashboard/configuracoes/clinica" className="text-primary hover:underline">
+              Dados da clínica
+            </Link>{" "}
+            (aba Institucional).
           </div>
           <Switch
             label="Exibir formulário de contato"

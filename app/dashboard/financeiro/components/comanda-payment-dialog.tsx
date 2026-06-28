@@ -13,11 +13,11 @@ import {
   getComandaPaymentContext,
   registerComandaPayment,
 } from "../../agenda/encounter-actions";
-import { listBankAccounts, type BankAccountRow } from "../bank-account-actions";
 import {
   listAvailablePatientCredits,
   type PatientCreditRow,
 } from "../patient-credit-actions";
+import { BankAccountSelect } from "@/components/financeiro/bank-account-select";
 import { PAYMENT_METHODS } from "@/lib/financeiro/constants";
 import { todayDateOnly } from "@/lib/financeiro/date-utils";
 import { fmtCurrency } from "@/lib/financeiro/format";
@@ -39,7 +39,6 @@ export function ComandaPaymentDialog({
   const [bankAccountId, setBankAccountId] = useState("");
   const [cardBrand, setCardBrand] = useState("visa");
   const [installments, setInstallments] = useState("1");
-  const [accounts, setAccounts] = useState<BankAccountRow[]>([]);
   const [credits, setCredits] = useState<PatientCreditRow[]>([]);
   const [useCredit, setUseCredit] = useState(false);
   const [creditId, setCreditId] = useState("");
@@ -59,14 +58,6 @@ export function ComandaPaymentDialog({
 
   useEffect(() => {
     if (!open || !comandaId) return;
-
-    listBankAccounts().then((res) => {
-      if (!res.error) {
-        setAccounts(res.data);
-        const def = res.data.find((a) => a.is_default);
-        if (def) setBankAccountId(def.id);
-      }
-    });
 
     getComandaPaymentContext(comandaId).then((ctx) => {
       if (ctx.data) {
@@ -200,19 +191,11 @@ export function ComandaPaymentDialog({
                   ))}
                 </Select>
               </div>
-              {accounts.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Conta bancária</Label>
-                  <Select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
-                    <option value="">— Selecionar —</option>
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              )}
+              <BankAccountSelect
+                value={bankAccountId}
+                onChange={setBankAccountId}
+                required={(parseFloat(amount.replace(",", ".")) || 0) > 0}
+              />
               {method === "cartao" && (
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">

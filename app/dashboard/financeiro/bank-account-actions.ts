@@ -62,16 +62,39 @@ export async function listBankAccounts() {
 
   return {
     error: null,
-    data: (data ?? []).map((r) => ({
-      id: String(r.id),
-      name: String(r.name),
-      bank_name: r.bank_name != null ? String(r.bank_name) : null,
-      agency: r.agency != null ? String(r.agency) : null,
-      account_number: r.account_number != null ? String(r.account_number) : null,
-      is_default: Boolean(r.is_default),
-      active: Boolean(r.active),
-    })),
+    data: (data ?? []).map(mapBankAccountRow),
   };
+}
+
+function mapBankAccountRow(r: Record<string, unknown>): BankAccountRow {
+  return {
+    id: String(r.id),
+    name: String(r.name),
+    bank_name: r.bank_name != null ? String(r.bank_name) : null,
+    agency: r.agency != null ? String(r.agency) : null,
+    account_number: r.account_number != null ? String(r.account_number) : null,
+    is_default: Boolean(r.is_default),
+    active: Boolean(r.active),
+  };
+}
+
+/** Includes inactive accounts — for settings page only. */
+export async function listAllBankAccounts() {
+  const ctx = await getClinicContext();
+  if (ctx.error || !ctx.profile) return { error: ctx.error, data: [] as BankAccountRow[] };
+  if (ctx.profile.role !== "admin") return { error: "Sem permissão.", data: [] as BankAccountRow[] };
+
+  const { data, error } = await ctx.supabase
+    .from("bank_accounts")
+    .select("id, name, bank_name, agency, account_number, is_default, active")
+    .eq("clinic_id", ctx.profile.clinic_id)
+    .order("is_default", { ascending: false })
+    .order("active", { ascending: false })
+    .order("name");
+
+  if (error) return { error: error.message, data: [] };
+
+  return { error: null, data: (data ?? []).map(mapBankAccountRow) };
 }
 
 export async function upsertBankAccount(input: {
@@ -111,6 +134,46 @@ export async function upsertBankAccount(input: {
   }
 
   revalidatePath("/dashboard/configuracoes/contas-bancarias");
+  revalidatePath("/dashboard/financeiro");
+  return { error: null };
+}
+
+export async function setDefaultBankAccount(id: string) {
+  const ctx = await getClinicContext();
+  if (ctx.error || !ctx.profile) return { error: ctx.error };
+  if (ctx.profile.role !== "admin") return { error: "Sem permissão." };
+
+  await ctx.supabase
+    .from("bank_accounts")
+    .update({ is_default: false })
+    .eq("clinic_id", ctx.profile.clinic_id);
+
+  const { error } = await ctx.supabase
+    .from("bank_accounts")
+    .update({ is_default: true, active: true, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("clinic_id", ctx.profile.clinic_id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/configuracoes/contas-bancarias");
+  revalidatePath("/dashboard/financeiro");
+  return { error: null };
+}
+
+export async function deactivateBankAccount(id: string) {
+  const ctx = await getClinicContext();
+  if (ctx.error || !ctx.profile) return { error: ctx.error };
+  if (ctx.profile.role !== "admin") return { error: "Sem permissão." };
+
+  const { error } = await ctx.supabase
+    .from("bank_accounts")
+    .update({ active: false, is_default: false, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("clinic_id", ctx.profile.clinic_id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/configuracoes/contas-bancarias");
+  revalidatePath("/dashboard/financeiro");
   return { error: null };
 }
 
@@ -165,6 +228,22 @@ export async function upsertPaymentFeeRule(input: {
     if (error) return { error: error.message };
   }
 
+  revalidatePath("/dashboard/configuracoes/contas-bancarias");
+  return { error: null };
+}
+
+export async function deactivatePaymentFeeRule(id: string) {
+  const ctx = await getClinicContext();
+  if (ctx.error || !ctx.profile) return { error: ctx.error };
+  if (ctx.profile.role !== "admin") return { error: "Sem permissão." };
+
+  const { error } = await ctx.supabase
+    .from("payment_fee_rules")
+    .update({ active: false })
+    .eq("id", id)
+    .eq("clinic_id", ctx.profile.clinic_id);
+
+  if (error) return { error: error.message };
   revalidatePath("/dashboard/configuracoes/contas-bancarias");
   return { error: null };
 }

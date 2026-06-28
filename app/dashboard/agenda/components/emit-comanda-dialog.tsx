@@ -13,7 +13,7 @@ import {
   type BillingPreview,
   type EmitComandaOptions,
 } from "../encounter-actions";
-import { listBankAccounts, type BankAccountRow } from "@/app/dashboard/financeiro/bank-account-actions";
+import { BankAccountSelect } from "@/components/financeiro/bank-account-select";
 import { PAYMENT_METHODS } from "@/lib/financeiro/constants";
 import { toast } from "@/components/ui/toast";
 
@@ -43,7 +43,6 @@ export function EmitComandaDialog({
   const [bankAccountId, setBankAccountId] = useState("");
   const [cardBrand, setCardBrand] = useState("visa");
   const [installments, setInstallments] = useState("1");
-  const [accounts, setAccounts] = useState<BankAccountRow[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -53,14 +52,7 @@ export function EmitComandaDialog({
     setDiscountMode("none");
     setDiscountValue("");
     setNotes("");
-
-    listBankAccounts().then((res) => {
-      if (!res.error) {
-        setAccounts(res.data);
-        const def = res.data.find((a) => a.is_default);
-        if (def) setBankAccountId(def.id);
-      }
-    });
+    setBankAccountId("");
 
     getClinicBillingDefaults().then((defaults) => {
       const charge = defaults.chargeMaterialsSeparately;
@@ -276,19 +268,11 @@ export function EmitComandaDialog({
                     ))}
                   </Select>
                 </div>
-                {accounts.length > 0 && (
-                  <div className="space-y-1">
-                    <Label>Conta bancária</Label>
-                    <Select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
-                      <option value="">— Selecionar —</option>
-                      {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                )}
+                <BankAccountSelect
+                  value={bankAccountId}
+                  onChange={setBankAccountId}
+                  required={paymentExpanded && (parseFloat(paymentAmount.replace(",", ".")) || 0) > 0}
+                />
                 {paymentMethod === "cartao" && (
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">

@@ -223,8 +223,8 @@ export const DASHBOARD_CONFIG_GROUP: NavGroupItem = {
     { href: "/dashboard/configuracoes/assistente-virtual", label: "Assistente virtual" },
     { href: "/dashboard/configuracoes/campos-personalizados", label: "Campos personalizados" },
     { href: "/dashboard/configuracoes/contas-bancarias", label: "Contas bancárias" },
-    { href: "/dashboard/configuracoes/assinatura", label: "Assinatura" },
     { href: "/dashboard/configuracoes/site", label: "Site da clínica" },
+    { href: "/dashboard/configuracoes/assinatura", label: "Assinatura" },
   ],
 };
 

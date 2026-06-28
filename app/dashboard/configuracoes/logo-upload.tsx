@@ -124,11 +124,11 @@ export function LogoUpload({
         <div className="space-y-4">
           <div className="flex justify-center">
             <div className="relative inline-block">
-              <div className="w-32 h-32 border border-border rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+              <div className="relative w-full max-w-sm min-h-[220px] border border-border rounded-xl overflow-hidden bg-muted flex items-center justify-center p-6">
                 <img
                   src={logoUrl}
                   alt="Logo"
-                  className="max-w-full max-h-full object-contain"
+                  className="max-w-full max-h-[180px] object-contain"
                   style={{ transform: `scale(${scale / 100})` }}
                 />
               </div>

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { listBankAccounts, listPaymentFeeRules } from "@/app/dashboard/financeiro/bank-account-actions";
+import { listAllBankAccounts, listPaymentFeeRules } from "@/app/dashboard/financeiro/bank-account-actions";
 import { ContasBancariasClient } from "./contas-bancarias-client";
 
 export default async function ContasBancariasPage() {
@@ -18,7 +18,7 @@ export default async function ContasBancariasPage() {
   if (!profile || profile.role !== "admin") redirect("/dashboard");
 
   const [{ data: accounts }, { data: feeRules }] = await Promise.all([
-    listBankAccounts(),
+    listAllBankAccounts(),
     listPaymentFeeRules(),
   ]);
 
