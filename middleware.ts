@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { extractClinicSubdomain } from "@/lib/public-site/host";
+import { blockDevRoutesInProduction } from "@/lib/api-audit/guard";
 
 function rewriteSubdomainToPublicSite(request: NextRequest): NextResponse | null {
   const host = request.headers.get("host") ?? "";
@@ -16,6 +17,7 @@ function rewriteSubdomainToPublicSite(request: NextRequest): NextResponse | null
     pathname.startsWith("/_next") ||
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/admin") ||
+    pathname.startsWith("/dev") ||
     pathname.startsWith("/c/")
   ) {
     return null;
@@ -29,6 +31,10 @@ function rewriteSubdomainToPublicSite(request: NextRequest): NextResponse | null
 }
 
 export async function middleware(request: NextRequest) {
+  if (blockDevRoutesInProduction(request.nextUrl.pathname)) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const subdomainRewrite = rewriteSubdomainToPublicSite(request);
   if (subdomainRewrite) {
     return subdomainRewrite;
