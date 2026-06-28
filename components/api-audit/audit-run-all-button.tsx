@@ -22,7 +22,7 @@ export function AuditRunAllButton() {
       setProgress(90);
       const data = await res.json();
       if (data.results) {
-        setBatchResults(data.results);
+        setBatchResults(data.results, data.summary ?? null);
       }
       setProgress(100);
     } finally {

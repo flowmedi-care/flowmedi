@@ -2,10 +2,16 @@
 
 ## Endpoint de debug (ver último payload)
 
-Acesse **https://www.flowmedi.com.br/api/whatsapp/webhook/debug** no navegador ou Postman.
+Requer autenticação com **CRON_SECRET** (mesmo segredo dos crons):
 
-- Se `lastPayload` for `null`: o webhook **não está sendo chamado** pela Meta (URL errada, webhook não inscrito, etc.)
-- Se tiver dados: o webhook recebeu algo; o objeto mostra o que a Meta enviou
+```bash
+curl -H "Authorization: Bearer SEU_CRON_SECRET" \
+  "https://www.flowmedi.com.br/api/whatsapp/webhook/debug"
+```
+
+Ou `?secret=SEU_CRON_SECRET` na query string.
+
+Sem token válido, retorna **401**. Se `CRON_SECRET` não estiver configurado no servidor, retorna **503**.
 
 **Importante:** O webhook recebe mensagens **inbound** (quando alguém envia DO celular PARA o número do negócio). Quando você digita no FlowMedi e envia, isso é **outbound** e não aciona o webhook.
 

@@ -106,6 +106,10 @@ export function computeFlags(
       endpoint.category !== "publico",
     adminOpenWithoutAuth: isAnonymous && isAdminCategory && status === 200 && responseSize > 0,
     privateOpenWithoutAuth:
-      isAnonymous && endpoint.requiresAuth && status === 200 && responseSize > 50,
+      isAnonymous &&
+      endpoint.requiresAuth &&
+      endpoint.authMechanism !== "cron-secret" &&
+      status === 200 &&
+      responseSize > 50,
   };
 }

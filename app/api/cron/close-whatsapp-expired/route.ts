@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 /**
  * Cron: fecha conversas WhatsApp com janela de 24h expirada.
@@ -9,13 +10,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
  */
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace(/^Bearer\s+/i, "") || request.nextUrl.searchParams.get("secret");
-    const expectedSecret = process.env.CRON_SECRET;
-
-    if (expectedSecret && token !== expectedSecret) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    const authError = verifyCronSecret(request);
+    if (authError) return authError;
 
     const supabase = createServiceRoleClient();
     const clinicId = request.nextUrl.searchParams.get("clinic_id") || null;

@@ -1,4 +1,4 @@
-import type { AuditFixtures } from "./types";
+import type { AuditConfigStatus, AuditFixtures } from "./types";
 
 export function loadFixturesFromEnv(overrides?: Partial<AuditFixtures>): AuditFixtures {
   const cronSecret =
@@ -64,6 +64,24 @@ export function loadRoleCredentials(role: string): RoleCredentials | null {
   const [email, password] = map[role] ?? [undefined, undefined];
   if (!email?.trim() || !password?.trim()) return null;
   return { email: email.trim(), password: password.trim() };
+}
+
+export function getAuditConfigStatus(): AuditConfigStatus {
+  return {
+    supabase: !!(
+      process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+    ),
+    cronSecret: !!(
+      process.env.API_AUDIT_CRON_SECRET?.trim() || process.env.CRON_SECRET?.trim()
+    ),
+    roleCredentials: {
+      admin: !!loadRoleCredentials("admin"),
+      secretaria: !!loadRoleCredentials("secretaria"),
+      medico: !!loadRoleCredentials("medico"),
+      system_admin: !!loadRoleCredentials("system_admin"),
+    },
+  };
 }
 
 export const FIXTURE_STORAGE_KEY = "api-audit-fixtures";

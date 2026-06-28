@@ -8,7 +8,7 @@ Ferramenta interna para validar autenticação, autorização e exposição de d
 
 ## Requisitos
 
-- `ENABLE_API_AUDIT_PANEL=true` no `.env.local` (dev) ou nas Environment Variables da Vercel
+- `ENABLE_API_AUDIT_PANEL=true` nas Environment Variables da Vercel (ou `.env.local` em dev)
 
 ## Proteção
 
@@ -20,11 +20,52 @@ Ferramenta interna para validar autenticação, autorização e exposição de d
 
 ## Acesso
 
-Com o servidor de desenvolvimento rodando:
+```
+https://seu-dominio.com/dev/api-validation
+```
+
+(local: `http://localhost:3000/dev/api-validation`)
+
+---
+
+## Setup na Vercel (batch completo)
+
+O runner **já lê `process.env` no servidor Vercel**. Não usa credenciais genéricas da app — apenas variáveis `API_AUDIT_*` dedicadas.
+
+### 1. Criar usuários de teste no Supabase
+
+Crie 4 contas (Auth) com `profiles` na clínica de staging:
+
+| Papel | `profiles.role` |
+|-------|-----------------|
+| Admin da clínica | `admin` |
+| Secretária | `secretaria` |
+| Médico | `medico` |
+| System admin | `system_admin` |
+
+### 2. Environment Variables (Production ou Preview)
 
 ```
-http://localhost:3000/dev/api-validation
+ENABLE_API_AUDIT_PANEL=true
+API_AUDIT_ADMIN_EMAIL=...
+API_AUDIT_ADMIN_PASSWORD=...
+API_AUDIT_SECRETARIA_EMAIL=...
+API_AUDIT_SECRETARIA_PASSWORD=...
+API_AUDIT_MEDICO_EMAIL=...
+API_AUDIT_MEDICO_PASSWORD=...
+API_AUDIT_SYSTEM_ADMIN_EMAIL=...
+API_AUDIT_SYSTEM_ADMIN_PASSWORD=...
 ```
+
+`CRON_SECRET` já existente é reutilizado para probes de cron (fallback de `API_AUDIT_CRON_SECRET`).
+
+### 3. Redeploy
+
+Após adicionar vars, faça **redeploy** — Next.js só enxerga env no runtime do deployment.
+
+### 4. Executar logado
+
+Abra `/dev/api-validation` **logado** no mesmo browser antes de **Executar Auditoria**. O painel mostra status das vars e se há sessão ativa.
 
 ---
 
@@ -32,7 +73,7 @@ http://localhost:3000/dev/api-validation
 
 ### Fixtures (parâmetros de teste)
 
-Defaults em `.env.local` (ver `.env.example`). Override na UI — salvo em `localStorage` (`api-audit-fixtures`).
+Defaults via env (ver `.env.example`). Override na UI — salvo em `localStorage` (`api-audit-fixtures`).
 
 | Variável | Uso |
 |----------|-----|
@@ -44,22 +85,7 @@ Defaults em `.env.local` (ver `.env.example`). Override na UI — salvo em `loca
 | `API_AUDIT_CRON_SECRET` | Rotas cron (fallback: `CRON_SECRET`) |
 | `API_AUDIT_META_VERIFY_TOKEN` | Webhook Meta GET verify |
 
-### Contas multi-papel (batch completo)
-
-Para o botão **Executar Auditoria** testar admin, secretária, médico e system_admin via login server-side:
-
-```
-API_AUDIT_ADMIN_EMAIL=
-API_AUDIT_ADMIN_PASSWORD=
-API_AUDIT_SECRETARIA_EMAIL=
-API_AUDIT_SECRETARIA_PASSWORD=
-API_AUDIT_MEDICO_EMAIL=
-API_AUDIT_MEDICO_PASSWORD=
-API_AUDIT_SYSTEM_ADMIN_EMAIL=
-API_AUDIT_SYSTEM_ADMIN_PASSWORD=
-```
-
-Sem essas credenciais, os cenários por papel são marcados como *skip* no batch.
+Sem credenciais de papel, o batch **omite** cenários admin/secretaria/medico/system_admin (não conta como falha).
 
 ---
 
@@ -67,7 +93,8 @@ Sem essas credenciais, os cenários por papel são marcados como *skip* no batch
 
 | Cenário | Descrição |
 |---------|-----------|
-| `anonymous` | Fetch sem cookies |
+| `anonymous` | Fetch sem cookies nem CRON_SECRET |
+| `cron_authenticated` | Apenas endpoints cron — Bearer `CRON_SECRET` |
 | `current_session` | Cookies da sessão logada no navegador |
 | `admin` / `secretaria` / `medico` / `system_admin` | Login Supabase via env (batch) |
 
@@ -100,36 +127,32 @@ Ou via painel: badge verde **Registry sincronizado**.
 
 ## Relatório
 
-Após **Executar Auditoria**, exporte:
-
-- Markdown
-- JSON
-- CSV
+Após **Executar Auditoria**, exporte Markdown / JSON / CSV.
 
 Classificações: `aprovado` | `atencao` | `critico`
+
+O resumo separa **falhas reais** de **skips** (config ausente vs teste manual).
 
 ---
 
 ## Fluxo pré-deploy
 
-1. Homolog: `ENABLE_API_AUDIT_PANEL=true`
-2. Configure fixtures e contas de teste
-3. Acesse `/dev/api-validation`
-4. Confirme registry sincronizado (86/86)
-5. **Executar Auditoria**
-6. Revise linhas vermelhas (admin aberto, PII, stack trace)
-7. Exporte Markdown para o checklist de deploy
-8. **Produção:** confirme que `ENABLE_API_AUDIT_PANEL` **não** está definido
+1. Vercel: `ENABLE_API_AUDIT_PANEL=true` + contas `API_AUDIT_*`
+2. Redeploy
+3. Login no app → `/dev/api-validation`
+4. Confirme registry sincronizado e vars configuradas (painel mostra status)
+5. **Executar Auditoria** → exporte JSON
+6. Revise críticos e atenção
+7. **Produção:** desligue `ENABLE_API_AUDIT_PANEL`
 
 ---
 
 ## Limitações
 
-1. Um browser = uma sessão; papéis completos exigem contas env ou login manual
+1. Um browser = uma sessão; papéis completos exigem contas env
 2. POSTs destrutivos testados em modo auth-only
 3. Webhooks Stripe/Meta POST requerem assinatura real (manual)
 4. OAuth callbacks dependem de state/code (manual)
-5. Rate limits de booking/contact podem disparar em batch longo
 
 ---
 
@@ -140,4 +163,5 @@ app/dev/api-validation/          → UI do painel
 app/api/dev/audit/               → API interna (probe, run, session, validate-registry)
 lib/api-audit/                   → registry, runner, analyzer, redact, export
 components/api-audit/            → componentes React
+lib/cron-auth.ts                 → verifyCronSecret (fail-closed)
 ```

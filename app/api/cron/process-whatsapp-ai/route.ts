@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { processConversationAi } from "@/lib/virtual-assistant/process-inbound";
 import { logAiEvent } from "@/lib/virtual-assistant/event-log";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 /**
  * Cron fallback: processa conversas com debounce expirado ou mensagens pendentes.
@@ -11,13 +12,8 @@ import { logAiEvent } from "@/lib/virtual-assistant/event-log";
  * ou Authorization: Bearer <CRON_SECRET>
  */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.replace(/^Bearer\s+/i, "") || request.nextUrl.searchParams.get("secret");
-  const expectedSecret = process.env.CRON_SECRET;
-
-  if (expectedSecret && token !== expectedSecret) {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const authError = verifyCronSecret(request);
+  if (authError) return authError;
 
   const supabase = createServiceRoleClient();
   const now = new Date().toISOString();

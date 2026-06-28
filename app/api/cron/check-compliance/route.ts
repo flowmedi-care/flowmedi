@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { runAutoSendForEvent } from "@/lib/event-send-logic-server";
 import { isInsideAutoMessageWindow } from "@/lib/whatsapp-ops-controls";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 /**
  * Cron: verifica compliance de confirmação e de formulário vinculado.
@@ -13,13 +14,8 @@ import { isInsideAutoMessageWindow } from "@/lib/whatsapp-ops-controls";
  */
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace(/^Bearer\s+/i, "") || request.nextUrl.searchParams.get("secret");
-    const expectedSecret = process.env.CRON_SECRET;
-
-    if (expectedSecret && token !== expectedSecret) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    const authError = verifyCronSecret(request);
+    if (authError) return authError;
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json(

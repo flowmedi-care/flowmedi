@@ -34,13 +34,24 @@ export function AuditReportPanel() {
     );
   }
 
-  const critical = lastBatchResults.filter((r) => r.classification === "critico");
+  const critical = lastBatchResults.filter(
+    (r) => !r.skipped && r.classification === "critico"
+  );
+  const skippedConfig = lastBatchResults.filter(
+    (r) =>
+      r.skipped &&
+      (r.skipReason === "Credenciais ausentes" || r.skipReason === "CRON_SECRET ausente")
+  ).length;
+  const skippedManual = lastBatchResults.filter(
+    (r) => r.skipped && (r.skipReason === "Teste manual" || r.skipReason === "Marcado como skip")
+  ).length;
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <CardTitle className="text-base">
-          Relatório ({lastBatchResults.length} testes · {critical.length} críticos)
+          Relatório ({lastBatchResults.length} testes · {critical.length} críticos ·{" "}
+          {skippedConfig} skip config · {skippedManual} manual)
         </CardTitle>
         <div className="flex flex-wrap gap-2">
           <Button

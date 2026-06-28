@@ -2,6 +2,7 @@ import type {
   ApiCategory,
   ApiEndpointDefinition,
   AuditRiskLevel,
+  AuditScenario,
   AuthMechanism,
   HttpMethod,
   ProbeStrategy,
@@ -24,6 +25,7 @@ type EndpointInput = {
   auditFindingIds?: string[];
   probeStrategy?: ProbeStrategy;
   expectedAnonymousStatus?: number | number[];
+  expectedStatusByRole?: Partial<Record<AuditScenario, number | number[]>>;
   queryParams?: Record<string, string>;
   sampleBody?: unknown;
   sideEffects?: SideEffect;
@@ -49,6 +51,7 @@ function e(input: EndpointInput): ApiEndpointDefinition {
     expectedAnonymousStatus:
       input.expectedAnonymousStatus ??
       (input.requiresAuth ? [401, 403, 500] : undefined),
+    expectedStatusByRole: input.expectedStatusByRole,
     queryParams: input.queryParams,
     sampleBody: input.sampleBody,
     sideEffects: input.sideEffects ?? (input.method === "GET" ? "read" : "write"),
@@ -278,15 +281,16 @@ export const API_AUDIT_REGISTRY: ApiEndpointDefinition[] = [
     method: "GET",
     path: "/api/whatsapp/webhook/debug",
     file: "app/api/whatsapp/webhook/debug/route.ts",
-    category: "publico",
-    requiresAuth: false,
-    authMechanism: "service-role",
+    category: "cron",
+    requiresAuth: true,
+    authMechanism: "cron-secret",
     auditRisk: "critico",
     auditFindingIds: ["V-002"],
     probeStrategy: "full",
-    expectedAnonymousStatus: 200,
+    expectedAnonymousStatus: 401,
+    expectedStatusByRole: { cron_authenticated: 200 },
     sideEffects: "read",
-    notes: "Expõe PII — não deve existir em produção",
+    notes: "Protegido por CRON_SECRET — não expor sem autenticação",
   }),
 
   // --- Webhooks ---
@@ -387,7 +391,8 @@ export const API_AUDIT_REGISTRY: ApiEndpointDefinition[] = [
     auditRisk: "alto",
     auditFindingIds: ["V-006"],
     probeStrategy: "auth-only",
-    expectedAnonymousStatus: [401, 200],
+    expectedAnonymousStatus: 401,
+    expectedStatusByRole: { cron_authenticated: 200 },
     sideEffects: "write",
   }),
   e({
@@ -402,7 +407,8 @@ export const API_AUDIT_REGISTRY: ApiEndpointDefinition[] = [
     auditRisk: "alto",
     auditFindingIds: ["V-006"],
     probeStrategy: "auth-only",
-    expectedAnonymousStatus: [401, 200],
+    expectedAnonymousStatus: 401,
+    expectedStatusByRole: { cron_authenticated: 200 },
     sideEffects: "write",
   }),
   e({
@@ -417,7 +423,8 @@ export const API_AUDIT_REGISTRY: ApiEndpointDefinition[] = [
     auditRisk: "alto",
     auditFindingIds: ["V-006"],
     probeStrategy: "auth-only",
-    expectedAnonymousStatus: [401, 200],
+    expectedAnonymousStatus: 401,
+    expectedStatusByRole: { cron_authenticated: 200 },
     sideEffects: "write",
   }),
   e({
@@ -432,7 +439,8 @@ export const API_AUDIT_REGISTRY: ApiEndpointDefinition[] = [
     auditRisk: "alto",
     auditFindingIds: ["V-006"],
     probeStrategy: "auth-only",
-    expectedAnonymousStatus: [401, 200],
+    expectedAnonymousStatus: 401,
+    expectedStatusByRole: { cron_authenticated: 200 },
     sideEffects: "write",
   }),
   e({
@@ -447,7 +455,8 @@ export const API_AUDIT_REGISTRY: ApiEndpointDefinition[] = [
     auditRisk: "alto",
     auditFindingIds: ["V-006"],
     probeStrategy: "auth-only",
-    expectedAnonymousStatus: [401, 200],
+    expectedAnonymousStatus: 401,
+    expectedStatusByRole: { cron_authenticated: 200 },
     sideEffects: "write",
   }),
   e({
@@ -462,7 +471,8 @@ export const API_AUDIT_REGISTRY: ApiEndpointDefinition[] = [
     auditRisk: "alto",
     auditFindingIds: ["V-007"],
     probeStrategy: "auth-only",
-    expectedAnonymousStatus: [401, 400],
+    expectedAnonymousStatus: 401,
+    expectedStatusByRole: { cron_authenticated: [200, 400] },
     sideEffects: "write",
   }),
 

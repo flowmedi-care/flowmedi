@@ -10,8 +10,10 @@ import {
 } from "react";
 import type {
   ApiEndpointDefinition,
+  AuditConfigStatus,
   AuditFixtures,
   AuditSessionInfo,
+  AuditSummary,
   AuditTestResult,
   RegistryValidationResult,
 } from "@/lib/api-audit/types";
@@ -28,15 +30,18 @@ interface AuditContextValue {
   endpoints: ApiEndpointDefinition[];
   results: Map<ResultKey, AuditTestResult>;
   session: AuditSessionInfo | null;
+  configStatus: AuditConfigStatus | null;
   registryValidation: RegistryValidationResult | null;
   fixtures: Partial<AuditFixtures>;
   isRunning: boolean;
   lastBatchResults: AuditTestResult[];
+  lastBatchSummary: AuditSummary | null;
   setSession: (session: AuditSessionInfo | null) => void;
+  setConfigStatus: (status: AuditConfigStatus | null) => void;
   setRegistryValidation: (v: RegistryValidationResult | null) => void;
   setFixtures: (fixtures: Partial<AuditFixtures>) => void;
   setResult: (result: AuditTestResult) => void;
-  setBatchResults: (results: AuditTestResult[]) => void;
+  setBatchResults: (results: AuditTestResult[], summary?: AuditSummary | null) => void;
   setIsRunning: (v: boolean) => void;
   getLatestResult: (endpointId: string) => AuditTestResult | undefined;
 }
@@ -74,10 +79,12 @@ export function AuditProvider({
   });
 
   const [session, setSession] = useState<AuditSessionInfo | null>(null);
+  const [configStatus, setConfigStatus] = useState<AuditConfigStatus | null>(null);
   const [registryValidation, setRegistryValidation] =
     useState<RegistryValidationResult | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [lastBatchResults, setLastBatchResults] = useState<AuditTestResult[]>([]);
+  const [lastBatchSummary, setLastBatchSummary] = useState<AuditSummary | null>(null);
 
   const setFixtures = useCallback((next: Partial<AuditFixtures>) => {
     setFixturesState((prev) => {
@@ -99,8 +106,9 @@ export function AuditProvider({
     });
   }, []);
 
-  const setBatchResults = useCallback((batch: AuditTestResult[]) => {
+  const setBatchResults = useCallback((batch: AuditTestResult[], summary?: AuditSummary | null) => {
     setLastBatchResults(batch);
+    if (summary !== undefined) setLastBatchSummary(summary);
     setResults((prev) => {
       const next = new Map(prev);
       for (const r of batch) {
@@ -132,11 +140,14 @@ export function AuditProvider({
       endpoints: API_AUDIT_REGISTRY,
       results,
       session,
+      configStatus,
       registryValidation,
       fixtures,
       isRunning,
       lastBatchResults,
+      lastBatchSummary,
       setSession,
+      setConfigStatus,
       setRegistryValidation,
       setFixtures,
       setResult,
@@ -147,10 +158,12 @@ export function AuditProvider({
     [
       results,
       session,
+      configStatus,
       registryValidation,
       fixtures,
       isRunning,
       lastBatchResults,
+      lastBatchSummary,
       setFixtures,
       setResult,
       setBatchResults,

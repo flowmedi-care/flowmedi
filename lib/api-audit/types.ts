@@ -11,6 +11,7 @@ export type ApiCategory =
 export type AuditScenario =
   | "anonymous"
   | "current_session"
+  | "cron_authenticated"
   | "admin"
   | "secretaria"
   | "medico"
@@ -124,6 +125,17 @@ export interface AuditSessionInfo {
   clinicId: string | null;
 }
 
+export interface AuditConfigStatus {
+  supabase: boolean;
+  cronSecret: boolean;
+  roleCredentials: {
+    admin: boolean;
+    secretaria: boolean;
+    medico: boolean;
+    system_admin: boolean;
+  };
+}
+
 export interface AuditSummary {
   total: number;
   publicCount: number;
@@ -135,6 +147,9 @@ export interface AuditSummary {
   untested: number;
   critical: number;
   attention: number;
+  executed: number;
+  skippedConfig: number;
+  skippedManual: number;
 }
 
 export interface AuditRunRequest {

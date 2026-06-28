@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { AuditProvider } from "@/components/api-audit/audit-context";
 import { AuditSummaryDashboard } from "@/components/api-audit/audit-summary-dashboard";
 import { AuditRegistryAlert } from "@/components/api-audit/audit-registry-alert";
+import { AuditConfigStatusPanel } from "@/components/api-audit/audit-config-status";
+import { AuditSessionBanner } from "@/components/api-audit/audit-session-banner";
 import { AuditFilters, type AuditFilterState } from "@/components/api-audit/audit-filters";
 import { AuditEndpointsTable } from "@/components/api-audit/audit-endpoints-table";
 import { AuditTestResultDialog } from "@/components/api-audit/audit-test-result-dialog";
@@ -15,7 +17,7 @@ import type { ApiEndpointDefinition } from "@/lib/api-audit/types";
 import type { AuditFixtures } from "@/lib/api-audit/types";
 
 function ApiValidationPanelInner() {
-  const { setSession } = useAudit();
+  const { setSession, setConfigStatus, configStatus } = useAudit();
   const [filters, setFilters] = useState<AuditFilterState>({
     search: "",
     method: "all",
@@ -29,9 +31,16 @@ function ApiValidationPanelInner() {
   useEffect(() => {
     fetch("/api/dev/audit/session")
       .then((r) => r.json())
-      .then(setSession)
-      .catch(() => setSession(null));
-  }, [setSession]);
+      .then((data) => {
+        const { configStatus: cfg, ...sess } = data;
+        setSession(sess);
+        setConfigStatus(cfg ?? null);
+      })
+      .catch(() => {
+        setSession(null);
+        setConfigStatus(null);
+      });
+  }, [setSession, setConfigStatus]);
 
   return (
     <main className="mx-auto max-w-7xl space-y-8 p-6">
@@ -46,6 +55,10 @@ function ApiValidationPanelInner() {
       </header>
 
       <AuditRegistryAlert />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <AuditConfigStatusPanel config={configStatus} />
+        <AuditSessionBanner />
+      </div>
       <AuditSummaryDashboard />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

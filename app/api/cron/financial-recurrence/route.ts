@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { addRecurrenceInterval } from "@/lib/financeiro/recurrence";
 import { categoryToDreSection } from "@/lib/financeiro/constants";
 import type { ExpenseCategory } from "@/lib/financeiro/types";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 /**
  * Cron: materializa próximo lançamento de séries financeiras recorrentes.
@@ -10,14 +11,8 @@ import type { ExpenseCategory } from "@/lib/financeiro/types";
  */
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization");
-    const token =
-      authHeader?.replace(/^Bearer\s+/i, "") || request.nextUrl.searchParams.get("secret");
-    const expectedSecret = process.env.CRON_SECRET;
-
-    if (expectedSecret && token !== expectedSecret) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    const authError = verifyCronSecret(request);
+    if (authError) return authError;
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY não configurada" }, { status: 500 });

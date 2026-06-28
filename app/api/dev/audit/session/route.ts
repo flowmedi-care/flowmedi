@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { assertApiAuditEnabled } from "@/lib/api-audit/guard";
+import { getAuditConfigStatus } from "@/lib/api-audit/fixtures";
 import { getAuditSession, getRequestOriginFromHeaders } from "@/lib/api-audit/runner";
 
 export async function GET() {
@@ -13,6 +14,7 @@ export async function GET() {
   return NextResponse.json({
     ...session,
     panelEnabled: true,
+    configStatus: getAuditConfigStatus(),
     origin: getRequestOriginFromHeaders(
       headersList.get("x-forwarded-host") ?? headersList.get("host"),
       headersList.get("x-forwarded-proto")

@@ -5,7 +5,7 @@ import { useAudit } from "./audit-context";
 import { useMemo } from "react";
 
 export function AuditSummaryDashboard() {
-  const { endpoints, results, getLatestResult } = useAudit();
+  const { endpoints, results, getLatestResult, lastBatchSummary } = useAudit();
 
   const stats = useMemo(() => {
     const publicCount = endpoints.filter((e) => e.category === "publico").length;
@@ -41,31 +41,68 @@ export function AuditSummaryDashboard() {
     };
   }, [endpoints, getLatestResult, results]);
 
+  const batch = lastBatchSummary;
+
   const cards = [
     { label: "Total endpoints", value: stats.total },
     { label: "Públicos", value: stats.publicCount },
     { label: "Privados", value: stats.privateCount },
     { label: "Administrativos", value: stats.adminCount },
-    { label: "Testados", value: stats.tested },
-    { label: "Aprovados", value: stats.approved },
-    { label: "Falharam / Atenção", value: stats.failed },
+    { label: "Endpoints testados", value: stats.tested },
+    { label: "Aprovados (último/run)", value: batch?.approved ?? stats.approved },
+    {
+      label: "Falhas reais",
+      value: batch ? batch.failed : stats.failed,
+      hint: batch ? "Exclui skips de config/manual" : undefined,
+    },
     { label: "Não testados", value: stats.untested },
   ];
 
+  const skipCards = batch
+    ? [
+        { label: "Executados", value: batch.executed },
+        { label: "Skip config", value: batch.skippedConfig },
+        { label: "Skip manual", value: batch.skippedManual },
+        { label: "Críticos", value: batch.critical },
+        { label: "Atenção", value: batch.attention },
+      ]
+    : [];
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {cards.map((c) => (
-        <Card key={c.label}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              {c.label}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">{c.value}</p>
-          </CardContent>
-        </Card>
-      ))}
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map((c) => (
+          <Card key={c.label}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {c.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-semibold tabular-nums">{c.value}</p>
+              {"hint" in c && c.hint && (
+                <p className="mt-1 text-xs text-muted-foreground">{c.hint}</p>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      {skipCards.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {skipCards.map((c) => (
+            <Card key={c.label}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {c.label} (último batch)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">{c.value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

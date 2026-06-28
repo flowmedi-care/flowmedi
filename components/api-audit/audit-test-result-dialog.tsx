@@ -13,6 +13,7 @@ import type { ApiEndpointDefinition, AuditScenario, AuditTestResult } from "@/li
 
 const SCENARIOS: { id: AuditScenario; label: string }[] = [
   { id: "anonymous", label: "Sem autenticação" },
+  { id: "cron_authenticated", label: "Cron (CRON_SECRET)" },
   { id: "current_session", label: "Sessão atual" },
   { id: "admin", label: "Administrador (env)" },
   { id: "secretaria", label: "Secretária (env)" },

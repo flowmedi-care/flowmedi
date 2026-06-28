@@ -59,11 +59,11 @@ function buildAuthHeaders(
     "X-Api-Audit-Probe": "1",
   };
 
-  if (endpoint.authMechanism === "cron-secret" && fixtures.cronSecret) {
+  if (endpoint.authMechanism === "cron-secret" && scenario === "cron_authenticated" && fixtures.cronSecret) {
     headers.Authorization = `Bearer ${fixtures.cronSecret}`;
   }
 
-  if (cookieHeader && scenario !== "anonymous") {
+  if (cookieHeader && scenario !== "anonymous" && scenario !== "cron_authenticated") {
     headers.Cookie = cookieHeader;
   }
 
@@ -176,7 +176,7 @@ export async function probeEndpoint(
   const url = `${options.origin}${resolvedPath}`;
 
   let cookieHeader: string | null = null;
-  if (scenario === "anonymous") {
+  if (scenario === "anonymous" || scenario === "cron_authenticated") {
     cookieHeader = null;
   } else if (scenario === "current_session") {
     cookieHeader = options.requestCookieHeader ?? null;
@@ -197,7 +197,7 @@ export async function probeEndpoint(
         ok: false,
         classification: "atencao",
         problems: [`Credenciais não configuradas para papel ${scenario}`],
-        recommendation: `Defina API_AUDIT_${scenario.toUpperCase()}_EMAIL/PASSWORD no .env.local`,
+        recommendation: `Defina API_AUDIT_${scenario.toUpperCase()}_EMAIL/PASSWORD nas Environment Variables (Vercel)`,
         headers: {},
         responseSize: 0,
         contentType: null,
@@ -211,6 +211,73 @@ export async function probeEndpoint(
         },
         skipped: true,
         skipReason: "Credenciais ausentes",
+        testedAt,
+      };
+    }
+  }
+
+  if (scenario === "cron_authenticated") {
+    if (endpoint.authMechanism !== "cron-secret") {
+      return {
+        endpointId: endpoint.id,
+        endpointName: endpoint.name,
+        method: endpoint.method,
+        pathTemplate: endpoint.pathTemplate,
+        resolvedPath,
+        file: endpoint.file,
+        category: endpoint.category,
+        scenario,
+        status: 0,
+        durationMs: 0,
+        ok: false,
+        classification: "atencao",
+        problems: ["Cenário cron_authenticated não se aplica a este endpoint"],
+        recommendation: "Use apenas em rotas protegidas por CRON_SECRET.",
+        headers: {},
+        responseSize: 0,
+        contentType: null,
+        preview: null,
+        flags: {
+          exposesStackTrace: false,
+          exposesSensitiveData: false,
+          suspiciousCors: false,
+          adminOpenWithoutAuth: false,
+          privateOpenWithoutAuth: false,
+        },
+        skipped: true,
+        skipReason: "Cenário não aplicável",
+        testedAt,
+      };
+    }
+    if (!options.fixtures.cronSecret) {
+      return {
+        endpointId: endpoint.id,
+        endpointName: endpoint.name,
+        method: endpoint.method,
+        pathTemplate: endpoint.pathTemplate,
+        resolvedPath,
+        file: endpoint.file,
+        category: endpoint.category,
+        scenario,
+        status: 0,
+        durationMs: 0,
+        ok: false,
+        classification: "atencao",
+        problems: ["CRON_SECRET não configurado no servidor"],
+        recommendation: "Defina CRON_SECRET ou API_AUDIT_CRON_SECRET nas Environment Variables (Vercel).",
+        headers: {},
+        responseSize: 0,
+        contentType: null,
+        preview: null,
+        flags: {
+          exposesStackTrace: false,
+          exposesSensitiveData: false,
+          suspiciousCors: false,
+          adminOpenWithoutAuth: false,
+          privateOpenWithoutAuth: false,
+        },
+        skipped: true,
+        skipReason: "CRON_SECRET ausente",
         testedAt,
       };
     }
@@ -328,6 +395,37 @@ function defaultScenarios(): AuditScenario[] {
   return ["anonymous", "current_session", "admin", "secretaria", "medico", "system_admin"];
 }
 
+const ROLE_SCENARIOS: AuditScenario[] = ["admin", "secretaria", "medico", "system_admin"];
+
+function scenariosForEndpoint(
+  endpoint: ApiEndpointDefinition,
+  requested?: AuditScenario[]
+): AuditScenario[] {
+  const base = requested ?? defaultScenarios();
+  const scenarios: AuditScenario[] = [];
+
+  for (const scenario of base) {
+    if (ROLE_SCENARIOS.includes(scenario) && !loadRoleCredentials(scenario)) {
+      continue;
+    }
+    scenarios.push(scenario);
+  }
+
+  if (
+    endpoint.authMechanism === "cron-secret" &&
+    !scenarios.includes("cron_authenticated")
+  ) {
+    const anonIdx = scenarios.indexOf("anonymous");
+    if (anonIdx >= 0) {
+      scenarios.splice(anonIdx + 1, 0, "cron_authenticated");
+    } else {
+      scenarios.unshift("cron_authenticated");
+    }
+  }
+
+  return scenarios;
+}
+
 export function computeSummary(
   results: AuditTestResult[],
   registryTotal: number
@@ -355,8 +453,17 @@ export function computeSummary(
     approved,
     failed,
     untested: registryTotal - testedIds.size,
-    critical: results.filter((r) => r.classification === "critico").length,
-    attention: results.filter((r) => r.classification === "atencao").length,
+    critical: results.filter((r) => !r.skipped && r.classification === "critico").length,
+    attention: results.filter((r) => !r.skipped && r.classification === "atencao").length,
+    executed: results.filter((r) => !r.skipped).length,
+    skippedConfig: results.filter(
+      (r) =>
+        r.skipped &&
+        (r.skipReason === "Credenciais ausentes" || r.skipReason === "CRON_SECRET ausente")
+    ).length,
+    skippedManual: results.filter(
+      (r) => r.skipped && (r.skipReason === "Teste manual" || r.skipReason === "Marcado como skip")
+    ).length,
   };
 }
 
@@ -369,7 +476,6 @@ export async function runAuditBatch(
   }
 ): Promise<AuditRunResponse> {
   const fixtures = loadFixturesFromEnv(options.fixtureOverrides);
-  const scenarios = request.scenarios ?? defaultScenarios();
   const endpoints = request.endpointIds
     ? request.endpointIds
         .map(getEndpointById)
@@ -380,8 +486,9 @@ export async function runAuditBatch(
   const results: AuditTestResult[] = [];
 
   for (const endpoint of endpoints) {
+    const scenarios = scenariosForEndpoint(endpoint, request.scenarios);
     for (const scenario of scenarios) {
-      if (scenario !== "anonymous" && scenario !== "current_session") {
+      if (ROLE_SCENARIOS.includes(scenario)) {
         if (!roleCookieCache.has(scenario)) {
           roleCookieCache.set(scenario, await getCookieHeaderForRole(scenario));
         }
