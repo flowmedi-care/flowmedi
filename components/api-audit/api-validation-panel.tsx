@@ -40,8 +40,8 @@ function ApiValidationPanelInner() {
         <p className="text-sm text-muted-foreground max-w-3xl">
           Inventário completo da auditoria de segurança. Valide autenticação, autorização e
           exposição de dados antes de cada deploy. Disponível apenas com{" "}
-          <code className="rounded bg-muted px-1">ENABLE_API_AUDIT_PANEL=true</code> fora de
-          produção.
+          <code className="rounded bg-muted px-1">ENABLE_API_AUDIT_PANEL=true</code> na Vercel ou
+          no <code className="rounded bg-muted px-1">.env.local</code>. Desative após a auditoria.
         </p>
       </header>
 

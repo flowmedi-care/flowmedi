@@ -2,19 +2,18 @@
 
 Ferramenta interna para validar autenticação, autorização e exposição de dados das rotas `/api/*` antes de cada deploy.
 
-**Nunca habilite em produção.**
+**Desligue `ENABLE_API_AUDIT_PANEL` na Vercel assim que terminar a auditoria.**
 
 ---
 
 ## Requisitos
 
-- `NODE_ENV` diferente de `production` (development ou homologação)
-- `ENABLE_API_AUDIT_PANEL=true` no `.env.local`
+- `ENABLE_API_AUDIT_PANEL=true` no `.env.local` (dev) ou nas Environment Variables da Vercel
 
-## Proteção (tripla camada)
+## Proteção
 
-1. **Variável de ambiente** — `isApiAuditEnabled()` exige `ENABLE_API_AUDIT_PANEL=true` e `NODE_ENV !== "production"`
-2. **Middleware** — rotas `/dev/*` e `/api/dev/*` retornam `404` em produção
+1. **Variável de ambiente** — painel só existe com `ENABLE_API_AUDIT_PANEL=true`
+2. **Middleware** — em production, `/dev/*` e `/api/dev/*` retornam `404` **se a flag estiver off**
 3. **Handlers** — cada rota em `app/api/dev/audit/*` chama `assertApiAuditEnabled()`
 
 ---
