@@ -170,8 +170,14 @@ export function FinanceiroExtratoClient({
                           Comprovante
                         </Button>
                       )}
-                      {row.comanda_id && (
-                        <Link href={`/dashboard/agenda/consulta`}>
+                      {(row.appointment_id || row.comanda_id) && (
+                        <Link
+                          href={
+                            row.appointment_id
+                              ? `/dashboard/agenda/consulta/${row.appointment_id}`
+                              : "/dashboard/financeiro/receber"
+                          }
+                        >
                           <Button size="sm" variant="ghost">Ver comanda</Button>
                         </Link>
                       )}

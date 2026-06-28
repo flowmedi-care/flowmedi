@@ -37,6 +37,12 @@ import {
 } from "@/lib/analytics/time-buckets";
 import { Target, Calendar, TrendingUp, Users, Info } from "lucide-react";
 
+const OUTCOME_BAR_STYLE = {
+  realizadas: { fill: "hsl(var(--card))", stroke: "hsl(158 55% 42%)", strokeWidth: 2 },
+  faltas: { fill: "hsl(var(--card))", stroke: "hsl(38 85% 52%)", strokeWidth: 2 },
+  canceladas: { fill: "hsl(var(--card))", stroke: "hsl(0 55% 52%)", strokeWidth: 2 },
+} as const;
+
 type CrmFunnelChartsProps = {
   initialLeadMetrics: LeadFunnelMetrics;
   initialAppointmentMetrics: AppointmentFunnelMetrics;
@@ -91,42 +97,38 @@ export function CrmFunnelCharts({
       }
     >();
 
-    for (const lead of leadMetrics.timeSeries) {
-      map.set(lead.dateKey, {
-        dateKey: lead.dateKey,
-        label: lead.label,
-        novosLeads: lead.novos,
-        agendadosLeads: lead.agendados,
-        consultasAgendadas: 0,
-        consultasConfirmadas: 0,
-        realizadas: 0,
-        faltas: 0,
-        canceladas: 0,
-        taxaComparecimento: 0,
+    for (const appt of appointmentMetrics.timeSeries) {
+      map.set(appt.dateKey, {
+        dateKey: appt.dateKey,
+        label: appt.label,
+        novosLeads: 0,
+        agendadosLeads: 0,
+        consultasAgendadas: appt.agendadas,
+        consultasConfirmadas: appt.confirmadas,
+        realizadas: appt.realizadas,
+        faltas: appt.faltas,
+        canceladas: appt.canceladas,
+        taxaComparecimento: appt.taxaComparecimento,
       });
     }
 
-    for (const appt of appointmentMetrics.timeSeries) {
-      const existing = map.get(appt.dateKey);
+    for (const lead of leadMetrics.timeSeries) {
+      const existing = map.get(lead.dateKey);
       if (existing) {
-        existing.consultasAgendadas = appt.agendadas;
-        existing.consultasConfirmadas = appt.confirmadas;
-        existing.realizadas = appt.realizadas;
-        existing.faltas = appt.faltas;
-        existing.canceladas = appt.canceladas;
-        existing.taxaComparecimento = appt.taxaComparecimento;
+        existing.novosLeads = lead.novos;
+        existing.agendadosLeads = lead.agendados;
       } else {
-        map.set(appt.dateKey, {
-          dateKey: appt.dateKey,
-          label: appt.label,
-          novosLeads: 0,
-          agendadosLeads: 0,
-          consultasAgendadas: appt.agendadas,
-          consultasConfirmadas: appt.confirmadas,
-          realizadas: appt.realizadas,
-          faltas: appt.faltas,
-          canceladas: appt.canceladas,
-          taxaComparecimento: appt.taxaComparecimento,
+        map.set(lead.dateKey, {
+          dateKey: lead.dateKey,
+          label: lead.label,
+          novosLeads: lead.novos,
+          agendadosLeads: lead.agendados,
+          consultasAgendadas: 0,
+          consultasConfirmadas: 0,
+          realizadas: 0,
+          faltas: 0,
+          canceladas: 0,
+          taxaComparecimento: 0,
         });
       }
     }
@@ -228,7 +230,7 @@ export function CrmFunnelCharts({
 
       <ChartCard
         title="Evolução no tempo"
-        description="Leads, agendamentos e comparecimento por período"
+        description="Consultas por data agendada (scheduled_at); leads por data de entrada no funil"
       >
         {combinedTimeSeries.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
@@ -282,24 +284,21 @@ export function CrmFunnelCharts({
                   yAxisId="left"
                   dataKey="realizadas"
                   name="Realizadas"
-                  fill={MONO_CHART_SCALE[0]}
-                  fillOpacity={0.7}
+                  {...OUTCOME_BAR_STYLE.realizadas}
                   {...chartBarProps}
                 />
                 <Bar
                   yAxisId="left"
                   dataKey="faltas"
                   name="Faltas"
-                  fill={MONO_CHART_SCALE[1]}
-                  fillOpacity={0.5}
+                  {...OUTCOME_BAR_STYLE.faltas}
                   {...chartBarProps}
                 />
                 <Bar
                   yAxisId="left"
                   dataKey="canceladas"
                   name="Canceladas"
-                  fill="hsl(var(--muted-foreground))"
-                  fillOpacity={0.35}
+                  {...OUTCOME_BAR_STYLE.canceladas}
                   {...chartBarProps}
                 />
                 <Line

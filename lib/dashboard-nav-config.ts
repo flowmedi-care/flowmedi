@@ -15,6 +15,9 @@ export type NavIconName =
   | "stethoscope"
   | "shopping-cart"
   | "wallet"
+  | "receipt"
+  | "tags"
+  | "landmark"
   | "settings"
   | "shield-check"
   | "cake"
@@ -154,7 +157,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     type: "group",
     id: "vendas",
     label: "Vendas",
-    icon: "circle-dollar-sign",
+    icon: "receipt",
     prefix: "/dashboard/vendas",
     roles: ["admin", "secretaria"],
     children: [
@@ -167,7 +170,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     type: "group",
     id: "financeiro",
     label: "Financeiro",
-    icon: "wallet",
+    icon: "landmark",
     prefix: "/dashboard/financeiro",
     roles: ["admin", "secretaria"],
     children: [
@@ -199,7 +202,7 @@ export const DASHBOARD_SERVICOS_VALORES_GROUP: NavGroupItem = {
   type: "group",
   id: "servicos-valores",
   label: "Serviços e Valores",
-  icon: "circle-dollar-sign",
+  icon: "tags",
   prefix: "/dashboard/servicos-valores",
   roles: ["admin", "medico"],
   children: [

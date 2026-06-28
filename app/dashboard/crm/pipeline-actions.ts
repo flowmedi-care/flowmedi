@@ -716,7 +716,9 @@ export async function getAppointmentFunnelMetrics(
 
     const date = new Date(appt.scheduled_at as string);
     const key = bucketKeyFromDate(date, granularity);
-    if (!buckets.has(key)) continue;
+    if (!buckets.has(key)) {
+      buckets.set(key, createEmptyAppointmentBucket(key, granularity));
+    }
     const bucket = buckets.get(key)!;
 
     bucket.agendadas++;
@@ -735,8 +737,9 @@ export async function getAppointmentFunnelMetrics(
   }
   const realizadasCount = snapshot.realizadas;
 
-  const timeSeries = bucketKeys.map((key) => {
-    const v = buckets.get(key)!;
+  const seriesKeys = [...new Set([...bucketKeys, ...buckets.keys()])].sort();
+  const timeSeries = seriesKeys.map((key) => {
+    const v = buckets.get(key) ?? createEmptyAppointmentBucket(key, granularity);
     const bucketTotal = v.agendadas;
     const confirmed = v.confirmadas;
     return {

@@ -298,7 +298,7 @@ export function MensagensClient() {
               {previewEntry.channel === "email" && (
                 <SentEmailPreviewPanel
                   subject={previewEntry.subject}
-                  bodyHtml={previewEntry.body_html}
+                  bodyHtml={previewEntry.preview_html ?? previewEntry.body_html}
                   templateName={previewEntry.template_name}
                   legacyFallback={previewEntry.body_text}
                 />

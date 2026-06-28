@@ -49,13 +49,13 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
       <div
         ref={ref}
         className={cn(
-          "relative z-50 w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-background rounded-lg border border-border shadow-lg",
+          "relative z-50 flex w-full max-w-2xl max-h-[90vh] flex-col overflow-hidden bg-background rounded-lg border border-border shadow-lg",
           className
         )}
         {...props}
       >
         {title && (
-          <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-background z-10">
+          <div className="flex shrink-0 items-center justify-between border-b border-border p-6">
             <h2 className="text-lg font-semibold text-foreground">{title}</h2>
             {onClose && (
               <Button
@@ -69,7 +69,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
             )}
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-6">{children}</div>
       </div>
     );
   }

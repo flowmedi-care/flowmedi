@@ -655,7 +655,7 @@ export function AgendaAppointmentModal({
       <DialogContent
         title={isEdit ? "Editar consulta" : "Nova consulta"}
         onClose={() => onOpenChange(false)}
-        className="w-[min(42rem,calc(100vw-2rem))] max-w-none max-h-[90dvh] flex flex-col overflow-hidden [&>div:last-child]:flex [&>div:last-child]:flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1 [&>div:last-child]:overflow-hidden"
+        className="w-[min(42rem,calc(100vw-2rem))] max-w-none max-h-[90dvh]"
       >
         <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 overflow-hidden">
           <Stepper

@@ -33,6 +33,7 @@ type RawEntry = {
   patient_id: string | null;
   comanda_id: string | null;
   bank_account_id: string | null;
+  comanda?: unknown;
   supplier?: unknown;
   patient?: unknown;
 };
@@ -64,6 +65,7 @@ export async function fetchUnifiedLedger(
             id,
             patient:patients ( full_name ),
             appointment:appointments (
+              id,
               scheduled_at,
               service:services ( name )
             )
@@ -82,7 +84,8 @@ export async function fetchUnifiedLedger(
           status, category, payment_method, supplier_name, supplier_id, patient_id,
           comanda_id, bank_account_id,
           supplier:suppliers ( name ),
-          patient:patients ( full_name )
+          patient:patients ( full_name ),
+          comanda:comandas ( appointment_id )
         `
         )
         .eq("clinic_id", clinicId)
@@ -142,6 +145,7 @@ export async function fetchUnifiedLedger(
       payment_method: p.payment_method,
       bank_account_name: p.bank_account_id ? bankMap.get(p.bank_account_id) ?? null : null,
       comanda_id: p.comanda_id,
+      appointment_id: (appt as { id?: string })?.id ?? null,
       patient_payment_id: p.id,
       financial_entry_id: null,
       receipt_id: receiptByPayment.get(p.id) ?? null,
@@ -153,6 +157,7 @@ export async function fetchUnifiedLedger(
   for (const e of (entries ?? []) as RawEntry[]) {
     if (!e.paid_at) continue;
     const isInflow = e.entry_type === "receita";
+    const entryComanda = Array.isArray(e.comanda) ? e.comanda[0] : e.comanda;
     rows.push({
       id: `entry-${e.id}`,
       source: "entry",
@@ -168,6 +173,7 @@ export async function fetchUnifiedLedger(
       payment_method: e.payment_method,
       bank_account_name: e.bank_account_id ? bankMap.get(e.bank_account_id) ?? null : null,
       comanda_id: e.comanda_id,
+      appointment_id: (entryComanda as { appointment_id?: string })?.appointment_id ?? null,
       patient_payment_id: null,
       financial_entry_id: e.id,
       receipt_id: null,

@@ -116,18 +116,20 @@ export function ContactList({
 }) {
   return (
     <div
-      className={cn("flex gap-2 min-h-0", className)}
+      className={cn("relative min-h-0", className)}
       style={{ minHeight: "min(70vh, calc(100dvh - 18rem))" }}
     >
       <div
         ref={scrollRef}
-        className="flex-1 min-w-0 min-h-0 overflow-y-auto space-y-4 pr-1"
+        className="h-full min-h-0 overflow-y-auto space-y-4 pr-8 sm:pr-10"
       >
         {children}
       </div>
       {sideRail && (
-        <div className="hidden sm:flex flex-col shrink-0 self-stretch border-l border-border/40 pl-1 overflow-y-auto min-h-0">
-          {sideRail}
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden sm:flex w-8 flex-col items-center justify-center border-l border-border/40 bg-card/80 backdrop-blur-sm">
+          <div className="pointer-events-auto sticky top-1/2 -translate-y-1/2">
+            {sideRail}
+          </div>
         </div>
       )}
     </div>

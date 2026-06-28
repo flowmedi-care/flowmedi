@@ -158,6 +158,7 @@ export type UnifiedLedgerRow = {
   payment_method: string | null;
   bank_account_name: string | null;
   comanda_id: string | null;
+  appointment_id: string | null;
   patient_payment_id: string | null;
   financial_entry_id: string | null;
   receipt_id: string | null;

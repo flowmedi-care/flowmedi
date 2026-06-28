@@ -17,6 +17,7 @@ import {
   getAllowedVariablesForEventChannel,
   getDisallowedVariablesForEventChannel,
 } from "@/lib/message-variable-catalog";
+import { buildSentEmailPreviewHtml } from "@/lib/comunicacao/email-preview-html";
 
 // ========== TIPOS ==========
 
@@ -1314,6 +1315,7 @@ export type MessageLogEntry = {
   body_text: string | null;
   template_name: string | null;
   metadata: Record<string, unknown> | null;
+  preview_html: string | null;
 };
 
 export async function getRecentMessageLog(limit = 15): Promise<{
@@ -1374,6 +1376,7 @@ export async function getRecentMessageLog(limit = 15): Promise<{
       body_text: extractString(metadataMap?.body_text),
       template_name: null,
       metadata: metadataMap,
+      preview_html: null,
     };
   });
   return { data: entries, error: null };
@@ -1425,6 +1428,24 @@ export async function getMessageLogById(
     templateName = template?.name ?? null;
   }
 
+  const bodyHtml = asString(metadata?.body_html);
+  const bodyText = asString(metadata?.body_text);
+  let previewHtml: string | null = null;
+
+  if (data.channel === "email") {
+    const { data: clinic } = await supabase
+      .from("clinics")
+      .select("email_header, email_footer")
+      .eq("id", profile.clinic_id)
+      .maybeSingle();
+    previewHtml = buildSentEmailPreviewHtml(
+      bodyHtml,
+      bodyText,
+      asString(clinic?.email_header),
+      asString(clinic?.email_footer)
+    );
+  }
+
   return {
     data: {
       id: data.id,
@@ -1442,10 +1463,11 @@ export async function getMessageLogById(
       sender_name: asString(metadata?.sender_name),
       sender_email: asString(metadata?.sender_email),
       subject: asString(metadata?.subject),
-      body_html: asString(metadata?.body_html),
-      body_text: asString(metadata?.body_text),
+      body_html: bodyHtml,
+      body_text: bodyText,
       template_name: templateName,
       metadata,
+      preview_html: previewHtml,
     },
     error: null,
   };
