@@ -19,6 +19,7 @@ const PROBE_TIMEOUT_MS = 30_000;
 const BATCH_DELAY_MS = 100;
 
 type CookiePair = { name: string; value: string };
+type SupabaseCookie = { name: string; value: string; options?: Record<string, unknown> };
 
 async function getCookieHeaderForRole(role: string): Promise<string | null> {
   const creds = loadRoleCredentials(role);
@@ -32,7 +33,7 @@ async function getCookieHeaderForRole(role: string): Promise<string | null> {
   const supabase = createServerClient(url, anonKey, {
     cookies: {
       getAll: () => jar.map((c) => ({ name: c.name, value: c.value })),
-      setAll: (cookies) => {
+      setAll: (cookies: SupabaseCookie[]) => {
         for (const c of cookies) {
           const idx = jar.findIndex((x) => x.name === c.name);
           if (idx >= 0) jar[idx] = { name: c.name, value: c.value };
@@ -102,7 +103,7 @@ export async function getAuditSession(cookieHeader: string | null): Promise<Audi
   const supabase = createServerClient(url, anonKey, {
     cookies: {
       getAll: () => jar.map((c) => ({ name: c.name, value: c.value })),
-      setAll: () => {},
+      setAll: (_cookies: SupabaseCookie[]) => {},
     },
   });
 
