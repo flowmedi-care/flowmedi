@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdmin } from "@/lib/auth-helpers";
 import { google } from "googleapis";
 import { assertEmailFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
+import { getGoogleOAuthRedirectUri } from "@/lib/app-origin";
 
 /**
  * Inicia o fluxo OAuth do Google
@@ -18,8 +19,8 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const redirectUri = searchParams.get("redirect_uri") || 
-      `${request.nextUrl.origin}/api/integrations/google/callback`;
+    const redirectUri =
+      searchParams.get("redirect_uri") || getGoogleOAuthRedirectUri(request);
 
     // Configurar OAuth2 client
     const oauth2Client = new google.auth.OAuth2(

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { google } from "googleapis";
 import { assertEmailFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
+import { getGoogleOAuthRedirectUri } from "@/lib/app-origin";
 
 /**
  * Callback do OAuth do Google
@@ -55,8 +56,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Configurar OAuth2 client
-    const redirectUri = `${request.nextUrl.origin}/api/integrations/google/callback`;
+    const redirectUri = getGoogleOAuthRedirectUri(request);
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,

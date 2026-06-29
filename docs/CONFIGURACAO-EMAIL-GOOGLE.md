@@ -1,6 +1,6 @@
 # 📧 Configuração de Email via Google OAuth
 
-O sistema de mensagens usa a integração Google/Gmail que você já tem configurada. Não precisa de Resend!
+O sistema de mensagens usa a integração Google/Gmail. Não precisa de Resend!
 
 ---
 
@@ -11,9 +11,56 @@ O sistema usa a função `sendEmail()` de `lib/comunicacao/email.ts` que:
 2. Renova o token automaticamente se expirado
 3. Envia email via Gmail API usando a conta conectada
 
+O `redirect_uri` do OAuth usa a origem canônica definida em `NEXT_PUBLIC_APP_URL` (ver `lib/app-origin.ts`). Isso evita erro `redirect_uri_mismatch` quando o usuário acessa o app com ou sem `www`.
+
 ---
 
-## 🔧 Configuração Necessária
+## 🔧 Setup no Google Cloud Console
+
+### 1. Criar credenciais OAuth
+
+1. Acesse [Google Cloud Console](https://console.cloud.google.com/) → **APIs e serviços** → **Credenciais**.
+2. Crie um **ID do cliente OAuth 2.0** do tipo **Aplicativo da Web**.
+3. Habilite a **Gmail API** no mesmo projeto.
+4. Configure a **Tela de consentimento OAuth** (modo Teste é suficiente para uso interno; adicione os emails que vão conectar).
+
+### 2. URIs de redirecionamento autorizados
+
+Cadastre a URI **exata** que o app envia ao Google. O path é sempre:
+
+```
+{NEXT_PUBLIC_APP_URL}/api/integrations/google/callback
+```
+
+| Ambiente | Exemplo de URI |
+|----------|----------------|
+| Produção | `https://flowmedi.com.br/api/integrations/google/callback` |
+| Produção (www) | `https://www.flowmedi.com.br/api/integrations/google/callback` |
+| Local | `http://localhost:3000/api/integrations/google/callback` |
+| Preview Vercel | `https://seu-projeto.vercel.app/api/integrations/google/callback` |
+
+**Recomendação:** defina `NEXT_PUBLIC_APP_URL` com o domínio canônico (ex.: `https://flowmedi.com.br`) e cadastre **apenas** essa URI no Google Console. O app sempre usará essa origem, independente de o usuário acessar com `www` ou sem.
+
+Se ainda não tiver `NEXT_PUBLIC_APP_URL` em produção, cadastre **ambas** as variantes (`flowmedi.com.br` e `www.flowmedi.com.br`) até padronizar a variável.
+
+### 3. Variáveis de ambiente (Vercel / `.env.local`)
+
+| Variável | Descrição |
+|----------|-----------|
+| `NEXT_PUBLIC_APP_URL` | URL canônica do app (sem barra final). Ex.: `https://flowmedi.com.br` |
+| `GOOGLE_CLIENT_ID` | Client ID do OAuth 2.0 criado acima |
+| `GOOGLE_CLIENT_SECRET` | Client Secret do mesmo client |
+
+**Checklist de verificação:**
+
+1. O `GOOGLE_CLIENT_ID` na Vercel corresponde ao client OAuth onde você cadastrou as URIs de redirect.
+2. `GOOGLE_CLIENT_SECRET` é do **mesmo** client (não de outro projeto ou ambiente).
+3. `NEXT_PUBLIC_APP_URL` + `/api/integrations/google/callback` está listado em **URIs de redirecionamento autorizados**.
+4. Após alterar variáveis na Vercel, faça **redeploy**.
+
+---
+
+## 🔧 Conectar no FlowMedi
 
 ### 1. Conectar Conta Google
 
@@ -73,6 +120,18 @@ O sistema verifica automaticamente se a integração está conectada antes de en
 
 ## 🐛 Troubleshooting
 
+### Erro: `redirect_uri_mismatch` (Google OAuth 400)
+
+A URI enviada pelo app não está cadastrada no Google Cloud Console.
+
+1. Na tela de erro do Google, clique em **detalhes do erro** e copie o valor de `redirect_uri`.
+2. Adicione essa URI exata em **Credenciais → OAuth 2.0 → URIs de redirecionamento autorizados**.
+3. Confirme que `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` na Vercel são do mesmo client.
+4. Defina `NEXT_PUBLIC_APP_URL` com o domínio canônico e redeploy.
+5. Aguarde 1–5 minutos e tente novamente.
+
+**Descobrir a URI via DevTools:** Network → resposta de `/api/integrations/google/auth` → parâmetro `redirect_uri` na `authUrl`.
+
 ### Erro: "Integração Google não conectada"
 - Vá em **Configurações → Integrações**
 - Conecte sua conta Google
@@ -92,6 +151,7 @@ O sistema verifica automaticamente se a integração está conectada antes de en
 
 ## 📚 Arquivos Relacionados
 
+- `lib/app-origin.ts` - Origem canônica e redirect URI do OAuth Google
 - `lib/comunicacao/email.ts` - Função de envio via Gmail API
 - `lib/message-processor.ts` - Processador de eventos
 - `app/api/integrations/google/` - Rotas de OAuth
