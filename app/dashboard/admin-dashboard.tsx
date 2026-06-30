@@ -44,7 +44,7 @@ export default async function AdminDashboard({
       async () => (await getVisaoGeralData(clinicId, periodTyped)).data
     ),
     getOrSetMemoryCache(
-      `visao-geral:${clinicId}:week:${weekStartYMD}`,
+      `visao-geral:${clinicId}:week:v2:${weekStartYMD}`,
       120000,
       async () => (await getVisaoGeralWeekData(weekStartYMD)).data
     ),

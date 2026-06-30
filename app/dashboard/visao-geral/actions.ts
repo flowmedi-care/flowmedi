@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { parseYMD, toYMD } from "@/app/dashboard/agenda/agenda-date-utils";
+import { parseYMD, toYMD, localDateToISO } from "@/app/dashboard/agenda/agenda-date-utils";
 
 export type Period = "7d" | "30d" | "90d";
 
@@ -176,12 +176,25 @@ function getPeriodDates(period: Period): { start: Date; end: Date } {
   return { start, end };
 }
 
-function parseWeekRange(weekStartYMD: string): { start: Date; end: Date } {
+function parseWeekRange(weekStartYMD: string): {
+  start: Date;
+  end: Date;
+  startISO: string;
+  endISO: string;
+} {
+  const [y, m, d] = weekStartYMD.split("-").map(Number);
   const start = parseYMD(weekStartYMD);
   const end = new Date(start);
   end.setDate(end.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
+  const startISO = localDateToISO(y, m, d, 0, 0);
+  const endISO = localDateToISO(
+    end.getFullYear(),
+    end.getMonth() + 1,
+    end.getDate(),
+    23,
+    59
+  );
+  return { start, end, startISO, endISO };
 }
 
 /** Visão Geral: KPIs do período */
@@ -505,11 +518,10 @@ export async function getVisaoGeralWeekData(weekStartYMD: string) {
   }
 
   const clinicId = profile.clinic_id;
-  const { start, end } = parseWeekRange(weekStartYMD);
-  const startStr = start.toISOString();
-  const endStr = end.toISOString();
+  const { start, end, startISO, endISO } = parseWeekRange(weekStartYMD);
 
-  const [{ data: proceduresRows }, { data: appointmentsRows }] = await Promise.all([
+  const [{ data: proceduresRows }, { data: appointmentsRows, error: appointmentsError }] =
+    await Promise.all([
     supabase
       .from("procedures")
       .select("id, name, duration_minutes, display_order")
@@ -525,16 +537,20 @@ export async function getVisaoGeralWeekData(weekStartYMD: string) {
         doctor_id,
         procedure_id,
         patient:patients ( full_name ),
-        doctor:profiles ( full_name ),
+        doctor:profiles!doctor_id ( full_name ),
         appointment_procedures ( procedure_id )
       `
       )
       .eq("clinic_id", clinicId)
-      .gte("scheduled_at", startStr)
-      .lte("scheduled_at", endStr)
+      .gte("scheduled_at", startISO)
+      .lte("scheduled_at", endISO)
       .not("status", "eq", "cancelada")
       .order("scheduled_at", { ascending: true }),
   ]);
+
+  if (appointmentsError) {
+    console.error("[getVisaoGeralWeekData] appointments query failed:", appointmentsError.message);
+  }
 
   const procedureCountMap = new Map<string, number>();
   const appointments: VisaoGeralWeekAppointment[] = (appointmentsRows ?? []).map((row) => {
