@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
@@ -11,7 +11,7 @@ import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-p
  */
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireClinicAdmin();
+    const admin = await requireClinicAdminApi();
     const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
     if (!whatsappAccess.allowed) {
       return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
@@ -59,6 +59,9 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json({ authUrl: authUrlStr });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao iniciar autenticação" },
       { status: 500 }

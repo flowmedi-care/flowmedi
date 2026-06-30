@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { clearAssistantQueue } from "@/lib/virtual-assistant/clear-queue";
 import { gatherAssistantDiagnostics } from "@/lib/virtual-assistant/diagnostics";
@@ -11,7 +11,7 @@ import { logAiEvent } from "@/lib/virtual-assistant/event-log";
  */
 export async function POST() {
   try {
-    const { clinicId } = await requireClinicAdmin();
+    const { clinicId } = await requireClinicAdminApi();
     const supabase = createServiceRoleClient();
 
     const result = await clearAssistantQueue(supabase, clinicId);
@@ -34,6 +34,9 @@ export async function POST() {
       ...diagnostics,
     });
   } catch (e) {
+    if (e instanceof ApiAuthError) {
+      return toApiErrorResponse(e);
+    }
     const message = e instanceof Error ? e.message : "Erro ao zerar fila";
     return NextResponse.json({ error: message }, { status: 401 });
   }

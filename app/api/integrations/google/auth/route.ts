@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { google } from "googleapis";
 import { assertEmailFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 import { getGoogleOAuthRedirectUri } from "@/lib/app-origin";
@@ -11,7 +11,7 @@ import { getGoogleOAuthRedirectUri } from "@/lib/app-origin";
  */
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireClinicAdmin();
+    const admin = await requireClinicAdminApi();
     const supabase = await createClient();
     const emailAccess = await assertEmailFeatureAccessForCurrentClinic();
     if (!emailAccess.allowed) {
@@ -48,6 +48,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ authUrl });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     console.error("Erro ao iniciar OAuth Google:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao iniciar autenticação" },

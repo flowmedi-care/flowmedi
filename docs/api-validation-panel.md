@@ -77,9 +77,10 @@ Defaults via env (ver `.env.example`). Override na UI — salvo em `localStorage
 
 | Variável | Uso |
 |----------|-----|
-| `API_AUDIT_CLINIC_SLUG` | Substituir `[slug]` em booking/contact |
-| `API_AUDIT_PLAN_ID` | Substituir `[id]` em admin plans |
-| `API_AUDIT_CONVERSATION_ID` | Query WhatsApp messages |
+| `API_AUDIT_CLINIC_SLUG` | Slug real da clínica de staging (evite `demo` se não existir) |
+| `API_AUDIT_CONTACT_SLUG` | Mesmo slug para `/api/public/contact/[slug]` |
+| `API_AUDIT_PLAN_ID` | UUID de plano existente em `plans` |
+| `API_AUDIT_CONVERSATION_ID` | UUID de conversa WhatsApp da clínica de teste |
 | `API_AUDIT_APPOINTMENT_ID` | Transcrições |
 | `API_AUDIT_FORM_INSTANCE_ID` | process-public-form-event |
 | `API_AUDIT_CRON_SECRET` | Rotas cron (fallback: `CRON_SECRET`) |

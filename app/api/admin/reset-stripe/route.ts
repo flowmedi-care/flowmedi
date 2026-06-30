@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireSystemAdmin } from "@/lib/auth-helpers";
+import { requireSystemAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 
 /**
  * Rota para limpar dados Stripe de teste quando migrar para produção
@@ -9,10 +9,7 @@ import { requireSystemAdmin } from "@/lib/auth-helpers";
  */
 export async function POST(request: NextRequest) {
   try {
-    const admin = await requireSystemAdmin(false);
-    if (!admin) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    await requireSystemAdminApi();
 
     const supabase = await createClient();
     const body = await request.json();
@@ -74,6 +71,9 @@ export async function POST(request: NextRequest) {
       clinics: result.data,
     });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao limpar dados Stripe" },
       { status: 500 }

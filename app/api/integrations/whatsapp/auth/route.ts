@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
@@ -12,7 +12,7 @@ import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-p
  */
 export async function GET(request: NextRequest) {
   try {
-    await requireClinicAdmin();
+    await requireClinicAdminApi();
     const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
     if (!whatsappAccess.allowed) {
       return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
@@ -117,6 +117,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     console.error("Erro ao iniciar OAuth Meta (Embedded Signup):", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao iniciar autenticação" },

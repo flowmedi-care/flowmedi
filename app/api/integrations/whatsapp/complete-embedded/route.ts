@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 type EmbeddedSignupSessionData = {
@@ -26,7 +26,7 @@ function pickString(value: unknown): string | null {
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await requireClinicAdmin();
+    const admin = await requireClinicAdminApi();
     const supabase = await createClient();
     const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
     if (!whatsappAccess.allowed) {
@@ -262,6 +262,9 @@ export async function POST(request: NextRequest) {
       waba_id: wabaId,
     });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao finalizar Embedded Signup." },
       { status: 500 }

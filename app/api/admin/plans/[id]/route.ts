@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireSystemAdmin } from "@/lib/auth-helpers";
+import { requireSystemAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
+import { sanitizeDbErrorMessage } from "@/lib/db-error";
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await requireSystemAdmin(false);
-    if (!admin) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    await requireSystemAdminApi();
     const supabase = await createClient();
     const { id } = await params;
     const body = await request.json();
@@ -105,7 +103,15 @@ export async function PUT(
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: sanitizeDbErrorMessage(
+            error.message,
+            "Não foi possível atualizar o plano. Verifique os dados enviados."
+          ),
+        },
+        { status: 400 }
+      );
     }
 
     if (!data) {
@@ -114,6 +120,9 @@ export async function PUT(
 
     return NextResponse.json({ data });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao atualizar plano" },
       { status: 500 }
@@ -126,10 +135,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await requireSystemAdmin(false);
-    if (!admin) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    await requireSystemAdminApi();
     const supabase = await createClient();
     const { id } = await params;
 
@@ -149,11 +155,22 @@ export async function DELETE(
     const { error } = await supabase.from("plans").delete().eq("id", id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: sanitizeDbErrorMessage(
+            error.message,
+            "Não foi possível excluir o plano."
+          ),
+        },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao deletar plano" },
       { status: 500 }

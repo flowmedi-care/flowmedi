@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 type IntegrationRow = {
@@ -55,7 +55,7 @@ function extractBillingStatus(payload: Record<string, unknown> | null): {
 
 export async function GET() {
   try {
-    const admin = await requireClinicAdmin();
+    const admin = await requireClinicAdminApi();
     const supabase = await createClient();
     const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
     if (!whatsappAccess.allowed) {
@@ -135,6 +135,9 @@ export async function GET() {
             : "Não foi possível confirmar a forma de pagamento automaticamente.",
     });
   } catch (e) {
+    if (e instanceof ApiAuthError) {
+      return toApiErrorResponse(e);
+    }
     const message = e instanceof Error ? e.message : "Erro ao verificar cobrança Meta";
     return NextResponse.json({ error: message }, { status: 500 });
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 type IntegrationRow = {
@@ -29,7 +29,7 @@ type MetaBusiness = {
 
 export async function GET() {
   try {
-    const admin = await requireClinicAdmin();
+    const admin = await requireClinicAdminApi();
     const supabase = await createClient();
     const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
     if (!whatsappAccess.allowed) {
@@ -205,6 +205,9 @@ export async function GET() {
       businesses,
     });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao carregar ativos Meta." },
       { status: 500 }

@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireSystemAdmin } from "@/lib/auth-helpers";
+import { requireSystemAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
+import { sanitizeDbErrorMessage } from "@/lib/db-error";
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await requireSystemAdmin(false);
-    if (!admin) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    await requireSystemAdminApi();
     const supabase = await createClient();
     const body = await request.json();
 
@@ -48,11 +46,22 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: sanitizeDbErrorMessage(
+            error.message,
+            "Não foi possível criar o plano. Verifique os campos obrigatórios."
+          ),
+        },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({ data });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao criar plano" },
       { status: 500 }

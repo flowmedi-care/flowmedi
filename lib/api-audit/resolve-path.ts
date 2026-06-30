@@ -22,10 +22,23 @@ export function resolveEndpointPath(
     const params = new URLSearchParams();
     for (const [key, rawValue] of Object.entries(endpoint.queryParams)) {
       let value = rawValue;
-      value = value.replace("{clinicSlug}", fixtures.clinicSlug);
-      value = value.replace("{planId}", fixtures.planId);
-      value = value.replace("{metaVerifyToken}", fixtures.metaVerifyToken);
-      value = value.replace("{cronSecret}", fixtures.cronSecret);
+      const placeholderMap: Record<string, string> = {
+        clinicSlug: fixtures.clinicSlug,
+        planId: fixtures.planId,
+        conversationId: fixtures.conversationId,
+        appointmentId: fixtures.appointmentId,
+        transcriptionId: fixtures.transcriptionId,
+        formInstanceId: fixtures.formInstanceId,
+        suggestionId: fixtures.suggestionId,
+        suggestionToken: fixtures.suggestionToken,
+        clinicId: fixtures.clinicId,
+        patientId: fixtures.patientId,
+        metaVerifyToken: fixtures.metaVerifyToken,
+        cronSecret: fixtures.cronSecret,
+      };
+      for (const [placeholder, replacement] of Object.entries(placeholderMap)) {
+        value = value.replace(`{${placeholder}}`, replacement);
+      }
       params.set(key, value);
     }
     const qs = params.toString();

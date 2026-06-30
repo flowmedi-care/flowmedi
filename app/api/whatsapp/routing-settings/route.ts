@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 
 /**
  * GET /api/whatsapp/routing-settings
@@ -8,7 +8,7 @@ import { requireClinicAdmin } from "@/lib/auth-helpers";
  */
 export async function GET() {
   try {
-    const { clinicId } = await requireClinicAdmin();
+    const { clinicId } = await requireClinicAdminApi();
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -27,8 +27,11 @@ export async function GET() {
       chatbot_fallback_strategy: (data as { chatbot_fallback_strategy?: string })?.chatbot_fallback_strategy ?? "first_responder",
     });
   } catch (e) {
+    if (e instanceof ApiAuthError) {
+      return toApiErrorResponse(e);
+    }
     const message = e instanceof Error ? e.message : "Erro ao buscar";
-    return NextResponse.json({ error: message }, { status: 401 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -39,7 +42,7 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const { clinicId } = await requireClinicAdmin();
+    const { clinicId } = await requireClinicAdminApi();
     const supabase = await createClient();
     const body = await request.json();
     const routing_strategy = body.routing_strategy as string | undefined;
@@ -95,7 +98,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (e) {
+    if (e instanceof ApiAuthError) {
+      return toApiErrorResponse(e);
+    }
     const message = e instanceof Error ? e.message : "Erro ao salvar";
-    return NextResponse.json({ error: message }, { status: 401 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

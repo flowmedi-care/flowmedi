@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { sendEmail } from "@/lib/comunicacao/email";
 import { assertEmailFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
@@ -9,7 +9,7 @@ import { assertEmailFeatureAccessForCurrentClinic } from "@/lib/integration-plan
  */
 export async function POST(request: NextRequest) {
   try {
-    const admin = await requireClinicAdmin();
+    const admin = await requireClinicAdminApi();
     const emailAccess = await assertEmailFeatureAccessForCurrentClinic();
     if (!emailAccess.allowed) {
       return NextResponse.json({ error: emailAccess.error }, { status: 403 });
@@ -45,6 +45,9 @@ export async function POST(request: NextRequest) {
       message: "Email enviado com sucesso!",
     });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     console.error("Erro ao testar envio de email:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao enviar email" },

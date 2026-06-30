@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { assertEmailFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
@@ -9,7 +9,7 @@ import { assertEmailFeatureAccessForCurrentClinic } from "@/lib/integration-plan
  */
 export async function POST(request: NextRequest) {
   try {
-    const admin = await requireClinicAdmin();
+    const admin = await requireClinicAdminApi();
     const supabase = await createClient();
     const emailAccess = await assertEmailFeatureAccessForCurrentClinic();
     if (!emailAccess.allowed) {
@@ -38,6 +38,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     console.error("Erro ao desconectar Google:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao desconectar" },

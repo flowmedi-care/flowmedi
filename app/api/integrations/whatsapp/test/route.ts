@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { sendWhatsAppMessage } from "@/lib/comunicacao/whatsapp";
 import { createClient } from "@/lib/supabase/server";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
@@ -11,7 +11,7 @@ import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-p
  */
 export async function POST(request: NextRequest) {
   try {
-    const admin = await requireClinicAdmin();
+    const admin = await requireClinicAdminApi();
     const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
     if (!whatsappAccess.allowed) {
       return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
@@ -61,6 +61,9 @@ export async function POST(request: NextRequest) {
       debug: result.debug ?? undefined,
     });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     console.error("[WhatsApp Test] Exceção:", error);
     return NextResponse.json(
       {

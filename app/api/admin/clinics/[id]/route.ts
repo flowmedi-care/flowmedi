@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireSystemAdmin } from "@/lib/auth-helpers";
+import { requireSystemAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await requireSystemAdmin(false);
-    if (!admin) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    await requireSystemAdminApi();
 
     const supabase = await createClient();
     const { id } = await params;
@@ -88,6 +85,9 @@ export async function PUT(
 
     return NextResponse.json({ data });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao atualizar clínica" },
       { status: 500 }

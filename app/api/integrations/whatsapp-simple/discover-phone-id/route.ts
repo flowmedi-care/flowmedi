@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
 
 /**
@@ -10,7 +10,7 @@ import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-p
  */
 export async function POST() {
   try {
-    const admin = await requireClinicAdmin();
+    const admin = await requireClinicAdminApi();
     const whatsappAccess = await assertWhatsAppFeatureAccessForCurrentClinic();
     if (!whatsappAccess.allowed) {
       return NextResponse.json({ error: whatsappAccess.error }, { status: 403 });
@@ -99,6 +99,9 @@ export async function POST() {
         }
       }
     } catch (e) {
+    if (e instanceof ApiAuthError) {
+      return toApiErrorResponse(e);
+    }
       console.log("[WhatsApp OAuth] Discover: erro fluxo businesses:", e);
     }
 
@@ -170,6 +173,9 @@ export async function POST() {
 
     return NextResponse.json({ success: true, phone_number_id: phoneNumberId });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao descobrir número" },
       { status: 500 }

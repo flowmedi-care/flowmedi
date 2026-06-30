@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 
@@ -10,7 +10,7 @@ import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
  */
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireClinicAdmin();
+    const admin = await requireClinicAdminApi();
     const supabase = await createClient();
     const planData = await getClinicPlanData();
     const emailAllowed = Boolean(
@@ -42,6 +42,9 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json({ integrations: filtered });
   } catch (error) {
+    if (error instanceof ApiAuthError) {
+      return toApiErrorResponse(error);
+    }
     console.error("Erro ao listar integrações:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao listar integrações" },

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireClinicAdmin } from "@/lib/auth-helpers";
+import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { gatherAssistantDiagnostics } from "@/lib/virtual-assistant/diagnostics";
 import { logAiEvent } from "@/lib/virtual-assistant/event-log";
@@ -12,7 +12,7 @@ import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
  */
 export async function POST(request: NextRequest) {
   try {
-    const { clinicId } = await requireClinicAdmin();
+    const { clinicId } = await requireClinicAdminApi();
     const body = (await request.json()) as { conversationId?: string; phone?: string };
     const supabase = createServiceRoleClient();
 
@@ -72,6 +72,9 @@ export async function POST(request: NextRequest) {
     const diagnostics = await gatherAssistantDiagnostics(supabase, clinicId);
     return NextResponse.json({ ok: true, conversationId, ...diagnostics });
   } catch (e) {
+    if (e instanceof ApiAuthError) {
+      return toApiErrorResponse(e);
+    }
     const message = e instanceof Error ? e.message : "Erro ao reativar IA";
     return NextResponse.json({ error: message }, { status: 401 });
   }
