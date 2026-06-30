@@ -960,29 +960,36 @@ export async function createAppointment(
   if (patient?.email) {
     const { data: pipelineItem } = await supabase
       .from("non_registered_pipeline")
-      .select("id, stage")
+      .select("id, stage, lifecycle_stage")
       .eq("email", patient.email.toLowerCase().trim())
       .maybeSingle();
 
     if (pipelineItem) {
-      // Se estiver em "cadastrado", mover para "agendado"
-      if (pipelineItem.stage === "cadastrado") {
+      const updates: Record<string, unknown> = {
+        stage: "agendado",
+        lifecycle_stage: "oportunidade",
+      };
+      if (pipelineItem.stage === "cadastrado" || !pipelineItem.lifecycle_stage) {
         await supabase
           .from("non_registered_pipeline")
-          .update({ stage: "agendado" })
+          .update(updates)
           .eq("id", pipelineItem.id);
 
-        // Registrar histórico
         await supabase
           .from("non_registered_history")
           .insert({
             pipeline_id: pipelineItem.id,
             action_by: user.id,
             action_type: "stage_change",
-            old_stage: "cadastrado",
+            old_stage: pipelineItem.stage,
             new_stage: "agendado",
             notes: "Consulta agendada",
           });
+      } else {
+        await supabase
+          .from("non_registered_pipeline")
+          .update(updates)
+          .eq("id", pipelineItem.id);
       }
     }
   }
@@ -1373,6 +1380,22 @@ export async function updateAppointment(
     .update(updatePayload)
     .eq("id", id);
   if (error) return { error: error.message };
+
+  if (data.status === "realizada" && currentRow?.patient_id && currentRow?.clinic_id) {
+    try {
+      const { markPipelineClienteIfFirstAppointment } = await import(
+        "@/lib/leads/sync-pipeline-lifecycle"
+      );
+      await markPipelineClienteIfFirstAppointment(
+        supabase,
+        currentRow.clinic_id as string,
+        currentRow.patient_id as string,
+        user.id
+      );
+    } catch (e) {
+      console.error("[updateAppointment] sync pipeline lifecycle:", e);
+    }
+  }
 
   if (currentRow?.clinic_id) {
     if (procedureIds !== undefined) {

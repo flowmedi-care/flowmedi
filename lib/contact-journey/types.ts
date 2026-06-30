@@ -1,20 +1,46 @@
-export type JourneyPhase = "captacao" | "pre_consulta" | "consulta" | "pos_consulta";
+export type JourneyPhase =
+  | "captacao"
+  | "comercial"
+  | "pre_consulta"
+  | "consulta"
+  | "financeiro"
+  | "pos_consulta"
+  | "reengajamento";
 
 export type JourneyStepCode =
   | "primeiro_contato"
   | "aguardando_retorno"
   | "cadastro_pendente"
   | "cadastrado"
+  | "orcamento_rascunho"
+  | "orcamento_enviado"
+  | "orcamento_aceito"
+  | "orcamento_recusado"
   | "consulta_agendada"
   | "consulta_confirmada"
   | "formulario_pendente"
   | "formulario_ok"
+  | "checkin_pendente"
+  | "em_atendimento"
   | "consulta_realizada"
   | "consulta_falta"
   | "consulta_cancelada"
+  | "pagamento_pendente"
+  | "pagamento_parcial"
+  | "pago"
   | "retorno_sugerido"
   | "retorno_agendado"
-  | "jornada_concluida";
+  | "plano_tratamento_ativo"
+  | "jornada_concluida"
+  | "repescagem_ativa";
+
+export type LifecycleStageCode =
+  | "lead_novo"
+  | "em_qualificacao"
+  | "qualificado"
+  | "oportunidade"
+  | "cliente"
+  | "perdido";
 
 export type JourneyContactType = "lead" | "patient";
 
@@ -30,6 +56,8 @@ export type SuggestedActionKind =
   | "schedule_return"
   | "mark_appointment_done"
   | "view_event"
+  | "collect_payment"
+  | "view_quote"
   | "none";
 
 export type SuggestedAction = {
@@ -45,7 +73,7 @@ export type SuggestedAction = {
 
 export type JourneyTimelineEntry = {
   id: string;
-  type: "event" | "pipeline_history";
+  type: "event" | "pipeline_history" | "quote" | "payment";
   title: string;
   description?: string;
   occurredAt: string;
@@ -76,6 +104,9 @@ export type ContactJourney = {
   email?: string | null;
   phone?: string | null;
   source: JourneySource;
+  lifecycleStage?: LifecycleStageCode;
+  leadScore?: number;
+  temperature?: string;
   currentStep: JourneyStepCode;
   completedSteps: JourneyStepCode[];
   phase: JourneyPhase;
@@ -91,6 +122,7 @@ export type ContactJourney = {
 export type JourneyListFilters = {
   phase?: JourneyPhase;
   source?: JourneySource;
+  lifecycleStage?: LifecycleStageCode;
   withPendingAction?: boolean;
 };
 
@@ -98,4 +130,29 @@ export type JourneyActionContext = {
   appointmentIdsNeedingForm: string[];
   patientIdsWithAppointment: string[];
   isAppointmentToday: (scheduledAt: string | null) => boolean;
+};
+
+export type QuoteSnapshot = {
+  id: string;
+  status: string;
+  total_amount: number | null;
+  created_at: string;
+};
+
+export type ComandaSnapshot = {
+  id: string;
+  status: string;
+  appointment_id: string | null;
+};
+
+export type TreatmentPlanSnapshot = {
+  id: string;
+  sessions_remaining: number | null;
+  status: string | null;
+};
+
+export type RepescagemSnapshot = {
+  id: string;
+  status: string;
+  source: string;
 };

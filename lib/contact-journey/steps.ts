@@ -10,9 +10,12 @@ export type JourneyStepDefinition = {
 
 export const JOURNEY_PHASE_LABELS: Record<JourneyPhase, string> = {
   captacao: "Captação",
+  comercial: "Comercial",
   pre_consulta: "Pré-consulta",
   consulta: "Consulta",
+  financeiro: "Financeiro",
   pos_consulta: "Pós-consulta",
+  reengajamento: "Reengajamento",
 };
 
 export const JOURNEY_STEPS: JourneyStepDefinition[] = [
@@ -20,16 +23,27 @@ export const JOURNEY_STEPS: JourneyStepDefinition[] = [
   { code: "aguardando_retorno", label: "Aguardando retorno", shortLabel: "Retorno", phase: "captacao", order: 2 },
   { code: "cadastro_pendente", label: "Cadastro pendente", shortLabel: "Cadastro", phase: "captacao", order: 3 },
   { code: "cadastrado", label: "Cadastrado", shortLabel: "Cadastrado", phase: "captacao", order: 4 },
-  { code: "consulta_agendada", label: "Consulta agendada", shortLabel: "Agendada", phase: "pre_consulta", order: 5 },
-  { code: "consulta_confirmada", label: "Consulta confirmada", shortLabel: "Confirmada", phase: "pre_consulta", order: 6 },
-  { code: "formulario_pendente", label: "Formulário pendente", shortLabel: "Formulário", phase: "pre_consulta", order: 7 },
-  { code: "formulario_ok", label: "Formulário respondido", shortLabel: "Form ok", phase: "pre_consulta", order: 8 },
-  { code: "consulta_realizada", label: "Consulta realizada", shortLabel: "Realizada", phase: "consulta", order: 9 },
-  { code: "consulta_falta", label: "Falta registrada", shortLabel: "Falta", phase: "consulta", order: 10 },
-  { code: "consulta_cancelada", label: "Consulta cancelada", shortLabel: "Cancelada", phase: "consulta", order: 11 },
-  { code: "retorno_sugerido", label: "Retorno sugerido", shortLabel: "Retorno", phase: "pos_consulta", order: 12 },
-  { code: "retorno_agendado", label: "Retorno agendado", shortLabel: "Retorno ok", phase: "pos_consulta", order: 13 },
-  { code: "jornada_concluida", label: "Jornada concluída", shortLabel: "Concluída", phase: "pos_consulta", order: 14 },
+  { code: "orcamento_rascunho", label: "Orçamento em rascunho", shortLabel: "Orç. rascunho", phase: "comercial", order: 5 },
+  { code: "orcamento_enviado", label: "Orçamento enviado", shortLabel: "Orç. enviado", phase: "comercial", order: 6 },
+  { code: "orcamento_aceito", label: "Orçamento aceito", shortLabel: "Orç. aceito", phase: "comercial", order: 7 },
+  { code: "orcamento_recusado", label: "Orçamento recusado", shortLabel: "Orç. recusado", phase: "comercial", order: 8 },
+  { code: "consulta_agendada", label: "Consulta agendada", shortLabel: "Agendada", phase: "pre_consulta", order: 9 },
+  { code: "consulta_confirmada", label: "Consulta confirmada", shortLabel: "Confirmada", phase: "pre_consulta", order: 10 },
+  { code: "formulario_pendente", label: "Formulário pendente", shortLabel: "Formulário", phase: "pre_consulta", order: 11 },
+  { code: "formulario_ok", label: "Formulário respondido", shortLabel: "Form ok", phase: "pre_consulta", order: 12 },
+  { code: "checkin_pendente", label: "Check-in pendente", shortLabel: "Check-in", phase: "consulta", order: 13 },
+  { code: "em_atendimento", label: "Em atendimento", shortLabel: "Atendimento", phase: "consulta", order: 14 },
+  { code: "consulta_realizada", label: "Consulta realizada", shortLabel: "Realizada", phase: "consulta", order: 15 },
+  { code: "consulta_falta", label: "Falta registrada", shortLabel: "Falta", phase: "consulta", order: 16 },
+  { code: "consulta_cancelada", label: "Consulta cancelada", shortLabel: "Cancelada", phase: "consulta", order: 17 },
+  { code: "pagamento_pendente", label: "Pagamento pendente", shortLabel: "A receber", phase: "financeiro", order: 18 },
+  { code: "pagamento_parcial", label: "Pagamento parcial", shortLabel: "Parcial", phase: "financeiro", order: 19 },
+  { code: "pago", label: "Pago", shortLabel: "Pago", phase: "financeiro", order: 20 },
+  { code: "retorno_sugerido", label: "Retorno sugerido", shortLabel: "Retorno", phase: "pos_consulta", order: 21 },
+  { code: "retorno_agendado", label: "Retorno agendado", shortLabel: "Retorno ok", phase: "pos_consulta", order: 22 },
+  { code: "plano_tratamento_ativo", label: "Plano de tratamento ativo", shortLabel: "Plano", phase: "pos_consulta", order: 23 },
+  { code: "jornada_concluida", label: "Jornada concluída", shortLabel: "Concluída", phase: "pos_consulta", order: 24 },
+  { code: "repescagem_ativa", label: "Repescagem ativa", shortLabel: "Repescagem", phase: "reengajamento", order: 25 },
 ];
 
 const STEP_BY_CODE = new Map(JOURNEY_STEPS.map((s) => [s.code, s]));
@@ -74,10 +88,33 @@ export const PIPELINE_STAGE_TO_STEP: Record<string, JourneyStepCode> = {
   agendado: "consulta_agendada",
 };
 
+export const LIFECYCLE_TO_STEP: Record<string, JourneyStepCode> = {
+  lead_novo: "primeiro_contato",
+  em_qualificacao: "aguardando_retorno",
+  qualificado: "cadastrado",
+  oportunidade: "consulta_agendada",
+  cliente: "consulta_realizada",
+  perdido: "consulta_cancelada",
+};
+
 export const APPOINTMENT_STATUS_TO_STEP: Record<string, JourneyStepCode> = {
   agendada: "consulta_agendada",
   confirmada: "consulta_confirmada",
   realizada: "consulta_realizada",
   falta: "consulta_falta",
   cancelada: "consulta_cancelada",
+};
+
+export const QUOTE_STATUS_TO_STEP: Record<string, JourneyStepCode> = {
+  rascunho: "orcamento_rascunho",
+  enviado: "orcamento_enviado",
+  aceito: "orcamento_aceito",
+  recusado: "orcamento_recusado",
+  expirado: "orcamento_recusado",
+};
+
+export const COMANDA_STATUS_TO_STEP: Record<string, JourneyStepCode> = {
+  aberta: "pagamento_pendente",
+  parcial: "pagamento_parcial",
+  paga: "pago",
 };

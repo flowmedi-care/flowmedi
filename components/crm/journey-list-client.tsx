@@ -10,7 +10,9 @@ import {
   type ContactJourney,
   type JourneyPhase,
   type JourneySource,
+  type LifecycleStageCode,
 } from "@/lib/contact-journey";
+import { LIFECYCLE_STAGE_LABELS } from "@/lib/leads/lifecycle";
 import { ChevronRight, FileText, MessageSquare, Globe, User } from "lucide-react";
 
 const SOURCE_LABELS: Record<JourneySource, string> = {
@@ -71,6 +73,16 @@ export function JourneyListClient({
                     <Badge variant="secondary" className="font-normal">
                       {JOURNEY_PHASE_LABELS[j.phase]}
                     </Badge>
+                    {j.lifecycleStage && (
+                      <Badge variant="outline" className="font-normal">
+                        {LIFECYCLE_STAGE_LABELS[j.lifecycleStage as LifecycleStageCode]}
+                      </Badge>
+                    )}
+                    {j.leadScore != null && j.leadScore > 0 && (
+                      <Badge variant="outline" className="font-normal">
+                        Score {j.leadScore}
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Etapa: <span className="text-foreground">{step.label}</span>

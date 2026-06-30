@@ -103,6 +103,14 @@ async function fetchJourneyData(clinicId: string) {
           .order("created_at", { ascending: false })
       : { data: [] as Record<string, unknown>[] };
 
+  const { data: pipelineQuotes } =
+    pipelineIds.length > 0
+      ? await supabase
+          .from("quotes")
+          .select("id, pipeline_id, status, total_amount, created_at")
+          .in("pipeline_id", pipelineIds)
+      : { data: [] as Record<string, unknown>[] };
+
   const formEmails = new Set(
     (formEmailsRes.data ?? [])
       .map((f) => String(f.public_submitter_email ?? "").toLowerCase().trim())
@@ -121,18 +129,75 @@ async function fetchJourneyData(clinicId: string) {
   const patientList = patients ?? [];
   const patientIds = patientList.map((p) => p.id);
 
-  const { data: appointments } =
+  const [
+    appointmentsRes,
+    patientQuotesRes,
+    comandasRes,
+    treatmentPlansRes,
+    repescagemRes,
+    realizedApptsRes,
+  ] = await Promise.all([
     patientIds.length > 0
-      ? await supabase
+      ? supabase
           .from("appointments")
-          .select("id, patient_id, status, scheduled_at, appointment_type_id, appointment_types(slug, name)")
+          .select(
+            "id, patient_id, status, scheduled_at, appointment_type_id, checked_in_at, appointment_types(slug, name)"
+          )
           .eq("clinic_id", clinicId)
           .in("patient_id", patientIds)
           .in("status", ["agendada", "confirmada", "realizada", "falta", "cancelada"])
           .order("scheduled_at", { ascending: false })
-      : { data: [] as Record<string, unknown>[] };
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    patientIds.length > 0
+      ? supabase
+          .from("quotes")
+          .select("id, patient_id, status, total_amount, created_at")
+          .in("patient_id", patientIds)
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    patientIds.length > 0
+      ? supabase
+          .from("comandas")
+          .select("id, patient_id, appointment_id, status")
+          .eq("clinic_id", clinicId)
+          .in("patient_id", patientIds)
+          .in("status", ["aberta", "parcial", "paga"])
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    patientIds.length > 0
+      ? supabase
+          .from("treatment_plans")
+          .select("id, patient_id, sessions_total, sessions_used, status")
+          .eq("clinic_id", clinicId)
+          .in("patient_id", patientIds)
+          .eq("status", "ativo")
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    patientIds.length > 0
+      ? supabase
+          .from("lead_repescagem")
+          .select("id, patient_id, status, source")
+          .eq("clinic_id", clinicId)
+          .in("patient_id", patientIds)
+          .neq("status", "arquivado")
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    patientIds.length > 0
+      ? supabase
+          .from("appointments")
+          .select("patient_id")
+          .eq("clinic_id", clinicId)
+          .in("patient_id", patientIds)
+          .eq("status", "realizada")
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+  ]);
 
-  const apptIds = (appointments ?? []).map((a) => String(a.id));
+  const appointments = appointmentsRes.data ?? [];
+  const apptIds = appointments.map((a) => String(a.id));
+
+  const { data: encounters } =
+    apptIds.length > 0
+      ? await supabase
+          .from("encounters")
+          .select("appointment_id, status")
+          .in("appointment_id", apptIds)
+      : { data: [] as Record<string, unknown>[] };
 
   const { data: formInstances } =
     apptIds.length > 0
@@ -146,21 +211,33 @@ async function fetchJourneyData(clinicId: string) {
     mapEvent(e)
   );
 
+  const patientsWithRealized = new Set(
+    (realizedApptsRes.data ?? []).map((a) => String(a.patient_id))
+  );
+
   return {
     pipelineItems,
     historyItems: historyItems ?? [],
+    pipelineQuotes: pipelineQuotes ?? [],
     formEmails,
     leadEmails,
     patientList,
-    appointments: appointments ?? [],
+    appointments,
+    encounters: encounters ?? [],
     formInstances: formInstances ?? [],
+    patientQuotes: patientQuotesRes.data ?? [],
+    comandas: comandasRes.data ?? [],
+    treatmentPlans: treatmentPlansRes.data ?? [],
+    repescagem: repescagemRes.data ?? [],
+    patientsWithRealized,
     allPendingEvents,
   };
 }
 
 function pickRelevantAppointment(
   patientId: string,
-  appointments: Record<string, unknown>[]
+  appointments: Record<string, unknown>[],
+  encounters: Record<string, unknown>[]
 ): PatientJourneyInput["appointment"] {
   const patientAppts = appointments
     .filter((a) => String(a.patient_id) === patientId)
@@ -180,11 +257,17 @@ function pickRelevantAppointment(
     : chosen.appointment_types;
   const slug = (apptType as { slug?: string } | null)?.slug;
 
+  const encounter = encounters.find(
+    (e) => String(e.appointment_id) === String(chosen.id)
+  );
+
   return {
     id: String(chosen.id),
     status: String(chosen.status),
     scheduled_at: String(chosen.scheduled_at),
     is_return: slug === "retorno",
+    encounter_status: encounter ? String(encounter.status) : null,
+    checked_in: Boolean(chosen.checked_in_at),
   };
 }
 
@@ -231,15 +314,32 @@ export async function getJourneyList(filters?: JourneyListFilters): Promise<{
   const journeys: ContactJourney[] = [];
 
   for (const item of data.pipelineItems) {
+    const leadQuotes = data.pipelineQuotes
+      .filter((q) => String(q.pipeline_id) === String(item.id))
+      .map((q) => ({
+        id: String(q.id),
+        status: String(q.status),
+        total_amount: q.total_amount != null ? Number(q.total_amount) : null,
+        created_at: String(q.created_at),
+      }));
+
     const lead: PipelineLeadInput = {
       id: String(item.id),
       email: String(item.email),
       name: item.name ? String(item.name) : null,
       phone: item.phone ? String(item.phone) : null,
       stage: String(item.stage),
+      lifecycle_stage: item.lifecycle_stage ? String(item.lifecycle_stage) : null,
+      source: item.source ? String(item.source) : null,
+      loss_reason: item.loss_reason ? String(item.loss_reason) : null,
+      lead_score: item.lead_score != null ? Number(item.lead_score) : undefined,
+      temperature_override: item.temperature_override
+        ? String(item.temperature_override)
+        : null,
       updated_at: String(item.updated_at),
       history: historyByPipeline.get(String(item.id)) ?? [],
       hasPublicForm: data.formEmails.has(String(item.email).toLowerCase().trim()),
+      quotes: leadQuotes,
     };
     const events = eventsForLead(lead.email, data.allPendingEvents);
     journeys.push(buildLeadJourney(lead, events, context));
@@ -249,34 +349,79 @@ export async function getJourneyList(filters?: JourneyListFilters): Promise<{
     const emailLower = patient.email?.toLowerCase().trim();
     if (emailLower && data.leadEmails.has(emailLower)) continue;
 
-    const appt = pickRelevantAppointment(String(patient.id), data.appointments);
+    const patientId = String(patient.id);
+    const appt = pickRelevantAppointment(patientId, data.appointments, data.encounters);
     const apptForms = appt
       ? data.formInstances.filter((fi) => String(fi.appointment_id) === appt.id)
       : [];
 
+    const patientQuotes = data.patientQuotes
+      .filter((q) => String(q.patient_id) === patientId)
+      .map((q) => ({
+        id: String(q.id),
+        status: String(q.status),
+        total_amount: q.total_amount != null ? Number(q.total_amount) : null,
+        created_at: String(q.created_at),
+      }));
+
+    const patientComandas = data.comandas
+      .filter((c) => String(c.patient_id) === patientId)
+      .map((c) => ({
+        id: String(c.id),
+        status: String(c.status),
+        appointment_id: c.appointment_id ? String(c.appointment_id) : null,
+      }));
+
+    const plan = data.treatmentPlans.find((tp) => String(tp.patient_id) === patientId);
+    const treatmentPlan = plan
+      ? {
+          id: String(plan.id),
+          sessions_remaining:
+            Number(plan.sessions_total ?? 0) - Number(plan.sessions_used ?? 0),
+          status: plan.status ? String(plan.status) : null,
+        }
+      : null;
+
+    const repRow = data.repescagem.find((r) => String(r.patient_id) === patientId);
+    const repescagem = repRow
+      ? {
+          id: String(repRow.id),
+          status: String(repRow.status),
+          source: String(repRow.source),
+        }
+      : null;
+
     const patientInput: PatientJourneyInput = {
-      id: String(patient.id),
+      id: patientId,
       full_name: String(patient.full_name),
       email: patient.email ? String(patient.email) : null,
       phone: patient.phone ? String(patient.phone) : null,
       updated_at: String(patient.updated_at),
+      hasCompletedAppointment: data.patientsWithRealized.has(patientId),
+      lifecycle_stage: data.patientsWithRealized.has(patientId) ? "cliente" : undefined,
       appointment: appt,
       pendingFormCount: apptForms.filter((f) => String(f.status) !== "respondido").length,
       respondedFormCount: apptForms.filter((f) => String(f.status) === "respondido").length,
+      quotes: patientQuotes,
+      comandas: patientComandas,
+      treatmentPlan,
+      repescagem,
     };
 
     const events = eventsForPatient(patientInput.id, data.allPendingEvents);
+    const built = buildPatientJourney(patientInput, events, context);
     const hasActivity =
       events.length > 0 ||
       appt !== null ||
+      patientQuotes.length > 0 ||
+      patientComandas.length > 0 ||
+      repescagem !== null ||
       ["consulta_agendada", "consulta_confirmada", "formulario_pendente"].includes(
-        buildPatientJourney(patientInput, events, context).currentStep
+        built.currentStep
       );
 
-    if (events.length > 0 || appt) {
-      journeys.push(buildPatientJourney(patientInput, events, context));
-    } else if (hasActivity) {
-      journeys.push(buildPatientJourney(patientInput, events, context));
+    if (hasActivity) {
+      journeys.push(built);
     }
   }
 
@@ -318,7 +463,11 @@ export async function getContactJourneyForAi(params: {
   if (params.patientId) {
     const patient = data.patientList.find((p) => String(p.id) === params.patientId);
     if (patient) {
-      const appt = pickRelevantAppointment(String(patient.id), data.appointments);
+      const appt = pickRelevantAppointment(
+        String(patient.id),
+        data.appointments,
+        data.encounters
+      );
       const apptForms = appt
         ? data.formInstances.filter((fi) => String(fi.appointment_id) === appt.id)
         : [];
@@ -350,6 +499,8 @@ export async function getContactJourneyForAi(params: {
         name: lead.name ? String(lead.name) : null,
         phone: lead.phone ? String(lead.phone) : null,
         stage: String(lead.stage),
+        lifecycle_stage: lead.lifecycle_stage ? String(lead.lifecycle_stage) : null,
+        source: lead.source ? String(lead.source) : null,
         updated_at: String(lead.updated_at),
         history: [],
         hasPublicForm: data.formEmails.has(emailLower),
@@ -373,6 +524,8 @@ export async function getContactJourneyForAi(params: {
         name: lead.name ? String(lead.name) : null,
         phone: lead.phone ? String(lead.phone) : null,
         stage: String(lead.stage),
+        lifecycle_stage: lead.lifecycle_stage ? String(lead.lifecycle_stage) : null,
+        source: lead.source ? String(lead.source) : null,
         updated_at: String(lead.updated_at),
         history: [],
         hasPublicForm: data.formEmails.has(String(lead.email).toLowerCase().trim()),

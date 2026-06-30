@@ -135,6 +135,37 @@ export function resolveSuggestedAction(input: NextActionInput): SuggestedAction 
     };
   }
 
+  if (currentStep === "orcamento_enviado") {
+    return {
+      kind: "view_quote",
+      label: "Acompanhar orçamento",
+      description: "Orçamento enviado aguardando resposta",
+      href: "/dashboard/vendas/orcamentos",
+    };
+  }
+
+  if (currentStep === "pagamento_pendente" || currentStep === "pagamento_parcial") {
+    return {
+      kind: "collect_payment",
+      label: "Registrar pagamento",
+      description: "Cobrança pendente do paciente",
+      href: appointmentId
+        ? `/dashboard/agenda/consulta/${appointmentId}`
+        : "/dashboard/financeiro",
+      appointmentId,
+    };
+  }
+
+  if (currentStep === "checkin_pendente" && appointmentId) {
+    return {
+      kind: "view_event",
+      label: "Fazer check-in",
+      description: "Consulta hoje — confirmar presença",
+      href: `/dashboard/agenda/consulta/${appointmentId}`,
+      appointmentId,
+    };
+  }
+
   return null;
 }
 

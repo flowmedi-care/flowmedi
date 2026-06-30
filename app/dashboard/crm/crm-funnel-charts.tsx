@@ -77,7 +77,7 @@ export function CrmFunnelCharts({
 
   const leadCohortSize = leadMetrics.cohortSize;
   const agendadosPct =
-    leadMetrics.cumulativeFunnel.find((s) => s.label === "Agendados")?.pct ?? 0;
+    leadMetrics.cumulativeFunnel.find((s) => s.label === "Oportunidade+")?.pct ?? 0;
   const periodLabel = formatPeriodRangeLabel(period);
 
   const combinedTimeSeries = (() => {

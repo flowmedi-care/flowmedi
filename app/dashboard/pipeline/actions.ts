@@ -2,6 +2,13 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import {
+  lifecycleToLegacyStage,
+  legacyStageToLifecycle,
+  type LifecycleStage,
+  type QualificationType,
+} from "@/lib/leads/lifecycle";
+import { computeLeadScore, type LeadTemperature } from "@/lib/leads/scoring";
 
 export type PipelineStage = 
   | "novo_contato" 
@@ -17,6 +24,11 @@ export type PipelineItem = {
   birth_date: string | null;
   custom_fields: Record<string, unknown>;
   stage: PipelineStage;
+  lifecycle_stage: LifecycleStage | null;
+  qualification_type: QualificationType | null;
+  temperature_override: LeadTemperature | null;
+  lead_score: number;
+  next_action_at: string | null;
   last_contact_at: string | null;
   next_action: string | null;
   notes: string | null;
@@ -25,6 +37,10 @@ export type PipelineItem = {
   source: string | null;
   created_at: string;
   updated_at: string;
+  /** Campos derivados para scoring (preenchidos em getPipeline) */
+  has_sent_quote?: boolean;
+  has_confirmed_appointment_soon?: boolean;
+  has_pending_form?: boolean;
   forms: Array<{
     id: string;
     template_name: string;
@@ -90,6 +106,8 @@ export async function syncNonRegisteredToPipeline() {
           birth_date: item.birth_date || null,
           custom_fields: item.custom_fields || {},
           stage: "novo_contato",
+          lifecycle_stage: "lead_novo",
+          source: "form",
         });
 
       if (insertError) {
@@ -261,6 +279,20 @@ export async function getPipeline() {
 
   if (pipelineError) return { error: pipelineError.message, data: null };
 
+  const pipelineIdsForQuotes = (pipelineItems || []).map((p) => p.id);
+  const { data: quoteRows } =
+    pipelineIdsForQuotes.length > 0
+      ? await supabase
+          .from("quotes")
+          .select("pipeline_id, status")
+          .in("pipeline_id", pipelineIdsForQuotes)
+      : { data: [] as { pipeline_id: string; status: string }[] };
+
+  const sentQuoteByPipeline = new Set<string>();
+  for (const q of quoteRows ?? []) {
+    if (q.status === "enviado") sentQuoteByPipeline.add(q.pipeline_id);
+  }
+
   // Buscar formulários para cada item
   const { data: formInstances } = await supabase
     .from("form_instances")
@@ -346,6 +378,25 @@ export async function getPipeline() {
       })
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+    const lifecycleStage =
+      (item.lifecycle_stage as LifecycleStage | null) ??
+      legacyStageToLifecycle(String(item.stage), item.loss_reason);
+
+    const hasSentQuote = sentQuoteByPipeline.has(item.id);
+
+    const scoreInput = {
+      lifecycle_stage: lifecycleStage,
+      last_contact_at: item.last_contact_at,
+      next_action: item.next_action,
+      next_action_at: item.next_action_at,
+      loss_reason: item.loss_reason,
+      temperature_override: item.temperature_override as LeadTemperature | null,
+      hasSentQuote,
+      stage: item.stage,
+      history,
+    };
+    const scoreResult = computeLeadScore(scoreInput);
+
     return {
       id: item.id,
       email: item.email,
@@ -354,6 +405,11 @@ export async function getPipeline() {
       birth_date: item.birth_date,
       custom_fields: (item.custom_fields as Record<string, unknown>) || {},
       stage: item.stage as PipelineStage,
+      lifecycle_stage: lifecycleStage,
+      qualification_type: (item.qualification_type as QualificationType | null) ?? null,
+      temperature_override: (item.temperature_override as LeadTemperature | null) ?? null,
+      lead_score: item.lead_score ?? scoreResult.score,
+      next_action_at: item.next_action_at ?? null,
       last_contact_at: item.last_contact_at,
       next_action: item.next_action,
       notes: item.notes,
@@ -362,12 +418,188 @@ export async function getPipeline() {
       source: item.source ?? null,
       created_at: item.created_at,
       updated_at: item.updated_at,
+      has_sent_quote: hasSentQuote,
       forms,
       history,
     };
   });
 
   return { error: null, data: items };
+}
+
+const CRM_REVALIDATE_PATHS = [
+  "/dashboard",
+  "/dashboard/contatos/leads",
+  "/dashboard/crm/pipeline",
+  "/dashboard/crm/jornada",
+];
+
+function revalidateCrm() {
+  for (const p of CRM_REVALIDATE_PATHS) revalidatePath(p);
+}
+
+export async function changeLifecycleStage(
+  pipelineId: string,
+  newLifecycle: LifecycleStage,
+  options?: {
+    notes?: string | null;
+    lossReason?: string | null;
+    qualificationType?: QualificationType | null;
+  }
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: currentItem } = await supabase
+    .from("non_registered_pipeline")
+    .select("stage, lifecycle_stage, clinic_id")
+    .eq("id", pipelineId)
+    .single();
+
+  if (!currentItem) return { error: "Item não encontrado." };
+
+  const oldLifecycle =
+    (currentItem.lifecycle_stage as LifecycleStage | null) ??
+    legacyStageToLifecycle(String(currentItem.stage));
+  const legacyStage = lifecycleToLegacyStage(newLifecycle);
+
+  const updateData: Record<string, unknown> = {
+    stage: legacyStage,
+    lifecycle_stage: newLifecycle,
+  };
+
+  if (newLifecycle === "em_qualificacao" || newLifecycle === "oportunidade") {
+    updateData.last_contact_at = new Date().toISOString();
+  }
+
+  if (newLifecycle === "perdido" && options?.lossReason) {
+    updateData.loss_reason = options.lossReason;
+    updateData.lead_score = 0;
+  }
+
+  if (newLifecycle === "qualificado" && options?.qualificationType) {
+    updateData.qualification_type = options.qualificationType;
+  }
+
+  if (newLifecycle !== "perdido") {
+    updateData.loss_reason = null;
+  }
+
+  if (options?.notes) {
+    updateData.notes = options.notes;
+  }
+
+  const { error: updateError } = await supabase
+    .from("non_registered_pipeline")
+    .update(updateData)
+    .eq("id", pipelineId);
+
+  if (updateError) return { error: updateError.message };
+
+  await supabase.from("non_registered_history").insert({
+    pipeline_id: pipelineId,
+    action_by: user.id,
+    action_type: "stage_change",
+    old_stage: currentItem.stage,
+    new_stage: legacyStage,
+    notes: options?.notes ?? `Funil: ${oldLifecycle} → ${newLifecycle}`,
+  });
+
+  revalidateCrm();
+  return { error: null };
+}
+
+export async function registerPipelineContact(pipelineId: string, notes?: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const now = new Date().toISOString();
+  const { data: current } = await supabase
+    .from("non_registered_pipeline")
+    .select("lifecycle_stage, stage")
+    .eq("id", pipelineId)
+    .single();
+
+  if (!current) return { error: "Item não encontrado." };
+
+  const lifecycle =
+    current.lifecycle_stage === "lead_novo" || !current.lifecycle_stage
+      ? "em_qualificacao"
+      : (current.lifecycle_stage as LifecycleStage);
+
+  const { error: updateError } = await supabase
+    .from("non_registered_pipeline")
+    .update({
+      last_contact_at: now,
+      lifecycle_stage: lifecycle,
+      stage: lifecycleToLegacyStage(lifecycle),
+    })
+    .eq("id", pipelineId);
+
+  if (updateError) return { error: updateError.message };
+
+  await supabase.from("non_registered_history").insert({
+    pipeline_id: pipelineId,
+    action_by: user.id,
+    action_type: "contact_made",
+    notes: notes?.trim() || "Contato registrado",
+  });
+
+  revalidateCrm();
+  return { error: null };
+}
+
+export async function qualifyPipelineLead(
+  pipelineId: string,
+  qualificationType: QualificationType = "mql"
+) {
+  return changeLifecycleStage(pipelineId, "qualificado", { qualificationType });
+}
+
+export async function markPipelineAsLost(pipelineId: string, lossReason: string) {
+  return changeLifecycleStage(pipelineId, "perdido", { lossReason });
+}
+
+export async function updateTemperatureOverride(
+  pipelineId: string,
+  temperature: LeadTemperature | null
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { error } = await supabase
+    .from("non_registered_pipeline")
+    .update({ temperature_override: temperature })
+    .eq("id", pipelineId);
+
+  if (error) return { error: error.message };
+  revalidateCrm();
+  return { error: null };
+}
+
+export async function updateNextActionWithDate(
+  pipelineId: string,
+  nextAction: string | null,
+  nextActionAt: string | null
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { error } = await supabase
+    .from("non_registered_pipeline")
+    .update({
+      next_action: nextAction,
+      next_action_at: nextActionAt,
+    })
+    .eq("id", pipelineId);
+
+  if (error) return { error: error.message };
+  revalidateCrm();
+  return { error: null };
 }
 
 // Mudar etapa do pipeline
@@ -390,10 +622,11 @@ export async function changePipelineStage(
   if (!currentItem) return { error: "Item não encontrado." };
 
   const oldStage = currentItem.stage;
+  const lifecycleFromStage = legacyStageToLifecycle(newStage);
 
-  // Atualizar etapa
   const updateData: Record<string, unknown> = {
     stage: newStage,
+    lifecycle_stage: lifecycleFromStage,
   };
 
   if (newStage === "aguardando_retorno" || newStage === "agendado") {
@@ -588,10 +821,12 @@ export async function registerPatientFromPipeline(pipelineId: string) {
     patientId = newPatient.id;
   }
 
-  // Atualizar pipeline para etapa "cadastrado"
   const { error: updatePipelineError } = await supabase
     .from("non_registered_pipeline")
-    .update({ stage: "cadastrado" })
+    .update({
+      stage: "cadastrado",
+      lifecycle_stage: "qualificado",
+    })
     .eq("id", pipelineId);
 
   if (updatePipelineError) {

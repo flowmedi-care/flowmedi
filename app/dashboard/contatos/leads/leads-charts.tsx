@@ -22,49 +22,48 @@ import {
   chartTooltipStyle,
 } from "@/components/dashboard-ui/chart-theme";
 import type { LeadsHubMetrics } from "./actions";
-import { LEAD_SEGMENT_LABELS, type LeadHubSegment } from "@/lib/leads/segments";
+import { LIFECYCLE_STAGE_LABELS, LIFECYCLE_STAGES } from "@/lib/leads/lifecycle";
 import { Target, Users, RefreshCw, CheckCircle } from "lucide-react";
 
 export function LeadsCharts({ metrics }: { metrics: LeadsHubMetrics }) {
-  const segmentData = (
-    Object.entries(metrics.bySegment) as [LeadHubSegment, number][]
-  ).map(([key, value]) => ({
-    name: LEAD_SEGMENT_LABELS[key],
-    value,
+  const lifecycleData = LIFECYCLE_STAGES.map((key) => ({
+    name: LIFECYCLE_STAGE_LABELS[key],
+    value: metrics.byLifecycle[key],
     key,
   }));
 
   const totalActive =
-    metrics.bySegment.captacao +
-    metrics.bySegment.nao_fechou +
-    metrics.bySegment.pendente_retorno +
-    metrics.bySegment.repescagem;
+    metrics.byLifecycle.lead_novo +
+    metrics.byLifecycle.em_qualificacao +
+    metrics.byLifecycle.qualificado +
+    metrics.byLifecycle.oportunidade +
+    metrics.repescagemCount;
 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Captação"
-          value={metrics.bySegment.captacao}
-          subtitle="Novos contatos"
+          title="Leads novos"
+          value={metrics.byLifecycle.lead_novo}
+          subtitle="Aguardando primeiro contato"
           icon={Users}
         />
         <StatCard
           title="Repescagem"
-          value={metrics.bySegment.repescagem}
+          value={metrics.repescagemCount}
           subtitle="Oportunidades ativas"
           icon={RefreshCw}
           iconColor="warning"
         />
         <StatCard
-          title="Não fechou"
-          value={metrics.bySegment.nao_fechou}
-          subtitle="Aguardando decisão"
+          title="Oportunidades"
+          value={metrics.byLifecycle.oportunidade}
+          subtitle="Consultas ou propostas"
           icon={Target}
         />
         <StatCard
-          title="Concluídos"
-          value={metrics.bySegment.concluido}
+          title="Clientes"
+          value={metrics.byLifecycle.cliente}
           subtitle={`${totalActive} ativos no funil`}
           icon={CheckCircle}
           iconColor="success"
@@ -72,13 +71,13 @@ export function LeadsCharts({ metrics }: { metrics: LeadsHubMetrics }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Distribuição por segmento" description="Leads e repescagem ativos">
-          {segmentData.every((s) => s.value === 0) ? (
+        <ChartCard title="Distribuição por etapa do funil" description="Leads no pipeline">
+          {lifecycleData.every((s) => s.value === 0) ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Sem dados.</p>
           ) : (
             <div className="h-[280px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={segmentData}>
+                <BarChart data={lifecycleData}>
                   <CartesianGrid {...chartGridProps} />
                   <XAxis dataKey="name" {...chartAxisProps} />
                   <YAxis {...chartAxisProps} allowDecimals={false} />

@@ -4,9 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { getPipeline, syncNonRegisteredToPipeline, type PipelineItem } from "../../pipeline/actions";
 import {
-  derivePipelineSegment,
-  type LeadHubSegment,
-} from "@/lib/leads/segments";
+  getEffectiveLifecycleStage,
+  LIFECYCLE_STAGE_LABELS,
+  LIFECYCLE_STAGES,
+  type LifecycleStage,
+} from "@/lib/leads/lifecycle";
 import { LOSS_REASON_LABELS } from "@/lib/leads/loss-reasons";
 
 const LEADS_PATHS = [
@@ -34,9 +36,10 @@ export type RepescagemItem = {
 };
 
 export type LeadsHubMetrics = {
-  bySegment: Record<LeadHubSegment, number>;
+  byLifecycle: Record<LifecycleStage, number>;
   byLossReason: { reason: string; label: string; count: number }[];
   weeklyTrend: { week: string; captacao: number; repescagem: number }[];
+  repescagemCount: number;
 };
 
 export type LeadsHubData = {
@@ -49,18 +52,16 @@ function buildMetrics(
   pipeline: PipelineItem[],
   repescagem: RepescagemItem[]
 ): LeadsHubMetrics {
-  const bySegment: Record<LeadHubSegment, number> = {
-    captacao: 0,
-    nao_fechou: 0,
-    pendente_retorno: 0,
-    concluido: 0,
-    repescagem: repescagem.filter((r) => r.status !== "arquivado").length,
-  };
+  const byLifecycle = Object.fromEntries(
+    LIFECYCLE_STAGES.map((s) => [s, 0])
+  ) as Record<LifecycleStage, number>;
 
   for (const item of pipeline) {
-    const seg = derivePipelineSegment(item);
-    if (seg !== "repescagem") bySegment[seg]++;
+    const stage = getEffectiveLifecycleStage(item);
+    byLifecycle[stage]++;
   }
+
+  const repescagemCount = repescagem.filter((r) => r.status !== "arquivado").length;
 
   const lossCounts = new Map<string, number>();
   for (const item of pipeline) {
@@ -92,7 +93,7 @@ function buildMetrics(
   }
 
   for (const item of pipeline) {
-    if (derivePipelineSegment(item) === "captacao") {
+    if (getEffectiveLifecycleStage(item) === "lead_novo") {
       const key = new Date(item.created_at).toLocaleDateString("pt-BR", {
         day: "2-digit",
         month: "short",
@@ -116,7 +117,7 @@ function buildMetrics(
     repescagem: v.repescagem,
   }));
 
-  return { bySegment, byLossReason, weeklyTrend };
+  return { byLifecycle, byLossReason, weeklyTrend, repescagemCount };
 }
 
 export async function getLeadsHubData(): Promise<{

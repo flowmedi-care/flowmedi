@@ -35,10 +35,12 @@ export type AppointmentPipelineItem = {
 };
 
 export type LeadFunnelSnapshot = {
-  novo_contato: number;
-  aguardando_retorno: number;
-  cadastrado: number;
-  agendado: number;
+  lead_novo: number;
+  em_qualificacao: number;
+  qualificado: number;
+  oportunidade: number;
+  cliente: number;
+  perdido: number;
 };
 
 export type LeadFunnelTimeBucket = {
@@ -142,11 +144,13 @@ function isInPeriod(date: Date, start: Date, end: Date): boolean {
   return date >= start && date <= end;
 }
 
-const LEAD_STAGE_RANK: Record<string, number> = {
-  novo_contato: 0,
-  aguardando_retorno: 1,
-  cadastrado: 2,
-  agendado: 3,
+const LIFECYCLE_STAGE_RANK: Record<string, number> = {
+  lead_novo: 0,
+  em_qualificacao: 1,
+  qualificado: 2,
+  oportunidade: 3,
+  cliente: 4,
+  perdido: -1,
 };
 
 type HistoryRow = {
@@ -157,17 +161,30 @@ type HistoryRow = {
   pipeline_id: string;
 };
 
-function computeLeadMaxStage(
+function computeLifecycleMaxRank(
+  currentLifecycle: string | null,
   currentStage: string | null,
   history: HistoryRow[]
 ): number {
-  let max = LEAD_STAGE_RANK[currentStage ?? "novo_contato"] ?? 0;
+  const legacyMap: Record<string, string> = {
+    novo_contato: "lead_novo",
+    aguardando_retorno: "em_qualificacao",
+    cadastrado: "qualificado",
+    agendado: "oportunidade",
+  };
+  let lifecycle =
+    currentLifecycle ??
+    legacyMap[currentStage ?? "novo_contato"] ??
+    "lead_novo";
+  let max = LIFECYCLE_STAGE_RANK[lifecycle] ?? 0;
+
   for (const row of history) {
-    if (row.action_type === "stage_change" && row.new_stage) {
-      max = Math.max(max, LEAD_STAGE_RANK[row.new_stage] ?? 0);
-    }
     if (row.action_type === "registered") {
-      max = Math.max(max, 2);
+      max = Math.max(max, LIFECYCLE_STAGE_RANK.qualificado);
+    }
+    if (row.action_type === "stage_change" && row.new_stage) {
+      const mapped = legacyMap[row.new_stage] ?? row.new_stage;
+      max = Math.max(max, LIFECYCLE_STAGE_RANK[mapped] ?? 0);
     }
   }
   return max;
@@ -193,15 +210,20 @@ async function buildLeadCumulativeFunnel(
 ): Promise<{ cohortSize: number; cumulativeFunnel: CumulativeFunnelStage[] }> {
   const { data: pipelineRows } = await supabase
     .from("non_registered_pipeline")
-    .select("id, stage, created_at")
+    .select("id, stage, lifecycle_stage, created_at")
     .eq("clinic_id", clinicId);
 
   const cohortIds = new Set<string>();
+  const currentLifecycleById = new Map<string, string>();
   const currentStageById = new Map<string, string>();
 
   for (const row of pipelineRows ?? []) {
     const id = row.id as string;
     currentStageById.set(id, row.stage as string);
+    currentLifecycleById.set(
+      id,
+      (row.lifecycle_stage as string) ?? (row.stage as string)
+    );
     const createdAt = new Date(row.created_at as string);
     if (isInPeriod(createdAt, start, end)) {
       cohortIds.add(id);
@@ -253,26 +275,30 @@ async function buildLeadCumulativeFunnel(
     }
   }
 
-  let retornoOuMais = 0;
-  let cadastradosOuMais = 0;
-  let agendados = 0;
+  let qualificacaoOuMais = 0;
+  let qualificadoOuMais = 0;
+  let oportunidadeOuMais = 0;
+  let clientes = 0;
 
   for (const pid of cohortIds) {
-    const maxStage = computeLeadMaxStage(
+    const maxRank = computeLifecycleMaxRank(
+      currentLifecycleById.get(pid) ?? null,
       currentStageById.get(pid) ?? null,
       historyByPipeline.get(pid) ?? []
     );
-    if (maxStage >= 1) retornoOuMais++;
-    if (maxStage >= 2) cadastradosOuMais++;
-    if (maxStage >= 3) agendados++;
+    if (maxRank >= 1) qualificacaoOuMais++;
+    if (maxRank >= 2) qualificadoOuMais++;
+    if (maxRank >= 3) oportunidadeOuMais++;
+    if (maxRank >= 4) clientes++;
   }
 
   const cohortSize = cohortIds.size;
   const cumulativeFunnel = buildCumulativeStages([
     { label: "Entraram", value: cohortSize },
-    { label: "Retorno ou mais", value: retornoOuMais },
-    { label: "Cadastrados ou mais", value: cadastradosOuMais },
-    { label: "Agendados", value: agendados },
+    { label: "Em qualificação+", value: qualificacaoOuMais },
+    { label: "Qualificados+", value: qualificadoOuMais },
+    { label: "Oportunidade+", value: oportunidadeOuMais },
+    { label: "Clientes", value: clientes },
   ]);
 
   return { cohortSize, cumulativeFunnel };
@@ -521,23 +547,40 @@ export async function getLeadFunnelMetrics(
 
   const { data: pipelineRows } = await supabase
     .from("non_registered_pipeline")
-    .select("stage")
+    .select("stage, lifecycle_stage")
     .eq("clinic_id", clinicId);
 
   const snapshot: LeadFunnelSnapshot = {
-    novo_contato: 0,
-    aguardando_retorno: 0,
-    cadastrado: 0,
-    agendado: 0,
+    lead_novo: 0,
+    em_qualificacao: 0,
+    qualificado: 0,
+    oportunidade: 0,
+    cliente: 0,
+    perdido: 0,
+  };
+
+  const legacyToLifecycle: Record<string, keyof LeadFunnelSnapshot> = {
+    novo_contato: "lead_novo",
+    aguardando_retorno: "em_qualificacao",
+    cadastrado: "qualificado",
+    agendado: "oportunidade",
   };
 
   for (const row of pipelineRows ?? []) {
-    const stage = row.stage as keyof LeadFunnelSnapshot;
-    if (stage in snapshot) snapshot[stage]++;
+    const lifecycle =
+      (row.lifecycle_stage as keyof LeadFunnelSnapshot | null) ??
+      legacyToLifecycle[row.stage as string] ??
+      "lead_novo";
+    if (lifecycle in snapshot) snapshot[lifecycle]++;
   }
 
   const total = Object.values(snapshot).reduce((s, n) => s + n, 0);
-  const entered = snapshot.novo_contato + snapshot.aguardando_retorno + snapshot.cadastrado + snapshot.agendado;
+  const entered =
+    snapshot.lead_novo +
+    snapshot.em_qualificacao +
+    snapshot.qualificado +
+    snapshot.oportunidade +
+    snapshot.cliente;
 
   const { data: clinicPipelineRows } = await supabase
     .from("non_registered_pipeline")
@@ -601,8 +644,8 @@ export async function getLeadFunnelMetrics(
 
   const timeSeries = bucketKeys.map((key) => buckets.get(key)!);
 
-  const cadastradosTotal = snapshot.cadastrado + snapshot.agendado;
-  const agendadosTotal = snapshot.agendado;
+  const cadastradosTotal = snapshot.qualificado + snapshot.oportunidade + snapshot.cliente;
+  const agendadosTotal = snapshot.oportunidade + snapshot.cliente;
 
   const { cohortSize, cumulativeFunnel } = await buildLeadCumulativeFunnel(
     supabase,

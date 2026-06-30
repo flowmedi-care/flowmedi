@@ -36,7 +36,14 @@ export default async function CrmPipelinePage() {
   ]);
 
   const leadMetrics = leadMetricsRes.data ?? {
-    snapshot: { novo_contato: 0, aguardando_retorno: 0, cadastrado: 0, agendado: 0 },
+    snapshot: {
+      lead_novo: 0,
+      em_qualificacao: 0,
+      qualificado: 0,
+      oportunidade: 0,
+      cliente: 0,
+      perdido: 0,
+    },
     total: 0,
     taxaCadastro: 0,
     taxaAgendamento: 0,
