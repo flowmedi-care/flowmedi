@@ -15,6 +15,7 @@ import {
   DASHBOARD_UTILITY_NAV,
   DASHBOARD_MIDDLE_NAV_GROUPS,
   DASHBOARD_CONFIG_GROUP,
+  DASHBOARD_INSTRUCOES_GROUP,
   DASHBOARD_SERVICOS_VALORES_GROUP,
   filterNavByRole,
   filterTopNavByRole,
@@ -340,6 +341,7 @@ export function DashboardNavRail({
           {utilityNav.length > 0 && <div className={dividerClass} aria-hidden />}
           {utilityNav.map(renderLink)}
           {showServicosValores && renderGroup(DASHBOARD_SERVICOS_VALORES_GROUP)}
+          {renderGroup(DASHBOARD_INSTRUCOES_GROUP)}
         </nav>
 
         <div

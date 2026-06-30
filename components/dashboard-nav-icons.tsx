@@ -27,6 +27,7 @@ import {
   Contact,
   FileEdit,
   Plug,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 import type { NavIconName } from "@/lib/dashboard-nav-config";
@@ -58,6 +59,7 @@ const ICON_MAP: Record<NavIconName, LucideIcon> = {
   contact: Contact,
   "file-edit": FileEdit,
   plug: Plug,
+  "book-open": BookOpen,
 };
 
 export function DashboardNavIcon({

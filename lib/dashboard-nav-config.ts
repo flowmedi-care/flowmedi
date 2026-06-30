@@ -24,7 +24,8 @@ export type NavIconName =
   | "truck"
   | "contact"
   | "file-edit"
-  | "plug";
+  | "plug"
+  | "book-open";
 
 export type NavLinkItem = {
   type: "link";
@@ -211,6 +212,18 @@ export const DASHBOARD_SERVICOS_VALORES_GROUP: NavGroupItem = {
   ],
 };
 
+export const DASHBOARD_INSTRUCOES_GROUP: NavGroupItem = {
+  type: "group",
+  id: "instrucoes",
+  label: "Instruções",
+  icon: "book-open",
+  prefix: "/dashboard/instrucoes",
+  children: [
+    { href: "/dashboard/instrucoes", label: "Visão geral" },
+    { href: "/dashboard/instrucoes/jornada-crm", label: "Jornada do lead" },
+  ],
+};
+
 export const DASHBOARD_CONFIG_GROUP: NavGroupItem = {
   type: "group",
   id: "configuracoes",
@@ -319,6 +332,12 @@ export function getActiveNavGroupId(pathname: string): string | null {
   ) {
     return "servicos-valores";
   }
+  if (
+    pathname === DASHBOARD_INSTRUCOES_GROUP.prefix ||
+    pathname.startsWith(`${DASHBOARD_INSTRUCOES_GROUP.prefix}/`)
+  ) {
+    return "instrucoes";
+  }
   if (isComunicacaoGroupPath(pathname)) {
     return "comunicacao";
   }
@@ -388,7 +407,12 @@ export function isLinkActive(pathname: string, href: string): boolean {
   if (href === "/dashboard/mensagens/pendentes") {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
-  if (href === "/dashboard/financeiro" || href === "/dashboard/vendas" || href === "/dashboard/estoque") {
+  if (
+    href === "/dashboard/financeiro" ||
+    href === "/dashboard/vendas" ||
+    href === "/dashboard/estoque" ||
+    href === "/dashboard/instrucoes"
+  ) {
     return pathname === href;
   }
   if (href.startsWith("/dashboard/atendimentos/")) {
@@ -406,6 +430,7 @@ export function isLinkActive(pathname: string, href: string): boolean {
 
 export function getNavGroupById(id: string): NavGroupItem | undefined {
   if (id === "configuracoes") return DASHBOARD_CONFIG_GROUP;
+  if (id === "instrucoes") return DASHBOARD_INSTRUCOES_GROUP;
   if (id === "servicos-valores") return DASHBOARD_SERVICOS_VALORES_GROUP;
   const topGroup = TOP_NAV_GROUPS.find((g) => g.id === id);
   if (topGroup) return topGroup;
