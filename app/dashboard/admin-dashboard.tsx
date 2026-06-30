@@ -7,7 +7,7 @@ import { getOrSetMemoryCache } from "@/lib/server-memory-cache";
 import { AdminTodayStrip } from "./admin-today-strip";
 import { FinanceAlertsPanelServer } from "./financeiro/finance-alerts-panel-server";
 import { VisaoGeralClient } from "./visao-geral/visao-geral-client";
-import { getStartOfWeek } from "./agenda/agenda-date-utils";
+import { getStartOfWeek, toYMD } from "./agenda/agenda-date-utils";
 
 export default async function AdminDashboard({
   searchParams,
@@ -35,7 +35,7 @@ export default async function AdminDashboard({
   const periodTyped: Period = period === "7d" || period === "90d" ? period : "30d";
 
   const planData = await getClinicPlanData();
-  const weekStart = getStartOfWeek(new Date());
+  const weekStartYMD = toYMD(getStartOfWeek(new Date()));
 
   const [visaoGeral, weekData] = await Promise.all([
     getOrSetMemoryCache(
@@ -44,9 +44,9 @@ export default async function AdminDashboard({
       async () => (await getVisaoGeralData(clinicId, periodTyped)).data
     ),
     getOrSetMemoryCache(
-      `visao-geral:${clinicId}:week:${weekStart.toISOString().slice(0, 10)}`,
+      `visao-geral:${clinicId}:week:${weekStartYMD}`,
       120000,
-      async () => (await getVisaoGeralWeekData(weekStart.toISOString())).data
+      async () => (await getVisaoGeralWeekData(weekStartYMD)).data
     ),
   ]);
 

@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/dashboard-ui/stat-card";
 import { GoalProgressCard } from "@/components/dashboard-ui/goal-progress-card";
 import { PageToolbar, PeriodSelect } from "@/components/dashboard-ui/page-toolbar";
-import { getStartOfWeek } from "@/app/dashboard/agenda/agenda-date-utils";
+import { getStartOfWeek, parseYMD, toYMD } from "@/app/dashboard/agenda/agenda-date-utils";
 import { ProcedureWeekPanel } from "./procedure-week-panel";
 import { OverviewWeekCalendar } from "./overview-week-calendar";
 import { ConsultasTrendChart } from "./consultas-trend-chart";
@@ -46,7 +46,7 @@ export function VisaoGeralClient({
   const [weekData, setWeekData] = useState(initialWeekData);
   const [weekStart, setWeekStart] = useState(() =>
     initialWeekData?.weekStart
-      ? new Date(initialWeekData.weekStart)
+      ? parseYMD(initialWeekData.weekStart)
       : getStartOfWeek(new Date())
   );
   const [isPending, startTransition] = useTransition();
@@ -65,10 +65,10 @@ export function VisaoGeralClient({
 
   const loadWeek = useCallback((start: Date) => {
     startTransition(async () => {
-      const res = await getVisaoGeralWeekData(start.toISOString());
+      const res = await getVisaoGeralWeekData(toYMD(getStartOfWeek(start)));
       if (res.data) {
         setWeekData(res.data);
-        setWeekStart(new Date(res.data.weekStart));
+        setWeekStart(parseYMD(res.data.weekStart));
       }
     });
   }, []);

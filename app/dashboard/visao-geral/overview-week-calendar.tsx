@@ -48,7 +48,7 @@ export function OverviewWeekCalendar({
       map.set(toYMD(d), []);
     }
     for (const appt of appointments) {
-      const key = appt.scheduled_at.slice(0, 10);
+      const key = toYMD(new Date(appt.scheduled_at));
       const list = map.get(key);
       if (list) list.push(appt);
     }

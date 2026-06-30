@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { parseYMD, toYMD } from "@/app/dashboard/agenda/agenda-date-utils";
 
 export type Period = "7d" | "30d" | "90d";
 
@@ -175,9 +176,8 @@ function getPeriodDates(period: Period): { start: Date; end: Date } {
   return { start, end };
 }
 
-function parseWeekRange(weekStartISO: string): { start: Date; end: Date } {
-  const start = new Date(weekStartISO);
-  start.setHours(0, 0, 0, 0);
+function parseWeekRange(weekStartYMD: string): { start: Date; end: Date } {
+  const start = parseYMD(weekStartYMD);
   const end = new Date(start);
   end.setDate(end.getDate() + 6);
   end.setHours(23, 59, 59, 999);
@@ -487,7 +487,7 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
 }
 
 /** Agenda semanal + procedimentos para o painel da Visão Geral */
-export async function getVisaoGeralWeekData(weekStartISO: string) {
+export async function getVisaoGeralWeekData(weekStartYMD: string) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -505,7 +505,7 @@ export async function getVisaoGeralWeekData(weekStartISO: string) {
   }
 
   const clinicId = profile.clinic_id;
-  const { start, end } = parseWeekRange(weekStartISO);
+  const { start, end } = parseWeekRange(weekStartYMD);
   const startStr = start.toISOString();
   const endStr = end.toISOString();
 
@@ -570,8 +570,8 @@ export async function getVisaoGeralWeekData(weekStartISO: string) {
 
   return {
     data: {
-      weekStart: start.toISOString(),
-      weekEnd: end.toISOString(),
+      weekStart: toYMD(start),
+      weekEnd: toYMD(end),
       procedures,
       appointments,
     } satisfies VisaoGeralWeekData,

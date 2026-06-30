@@ -99,6 +99,12 @@ export function toYMD(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Converte YYYY-MM-DD para Date local à meia-noite. */
+export function parseYMD(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
 export function formatWeekRange(startOfWeek: Date): string {
   const end = addDays(startOfWeek, 6);
   const fmt = (x: Date) =>
