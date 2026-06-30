@@ -81,6 +81,7 @@ Defaults via env (ver `.env.example`). Override na UI — salvo em `localStorage
 | `API_AUDIT_CONTACT_SLUG` | Mesmo slug para `/api/public/contact/[slug]` |
 | `API_AUDIT_PLAN_ID` | UUID de plano existente em `plans` |
 | `API_AUDIT_CONVERSATION_ID` | UUID de conversa WhatsApp da clínica de teste |
+| `API_AUDIT_SUGGESTION_ID` | UUID em `public_suggestions` para rotas `[id]` |
 | `API_AUDIT_APPOINTMENT_ID` | Transcrições |
 | `API_AUDIT_FORM_INSTANCE_ID` | process-public-form-event |
 | `API_AUDIT_CRON_SECRET` | Rotas cron (fallback: `CRON_SECRET`) |
@@ -144,7 +145,7 @@ O resumo separa **falhas reais** de **skips** (config ausente vs teste manual).
 4. Confirme registry sincronizado e vars configuradas (painel mostra status)
 5. **Executar Auditoria** → exporte JSON
 6. Revise críticos e atenção
-7. **Produção:** desligue `ENABLE_API_AUDIT_PANEL`
+7. **Produção:** remova `ENABLE_API_AUDIT_PANEL` ou defina `ENABLE_API_AUDIT_PANEL=false` na Vercel e **redeploy** (o painel e `/api/dev/*` passam a retornar 404).
 
 ---
 

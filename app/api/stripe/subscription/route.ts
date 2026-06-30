@@ -60,31 +60,20 @@ export async function GET() {
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Erro ao buscar assinatura.";
-    
-    // Se a subscription não existe (modo teste vs produção), limpar do banco
+
+    // Não alterar o banco em GET — evita downgrade acidental (ex.: auditoria ou mismatch test/live).
     if (errorMessage.includes("No such subscription")) {
-      const { data: starterPlan } = await supabase
-        .from("plans")
-        .select("id")
-        .eq("slug", "starter")
-        .single();
-      
-      await supabase
-        .from("clinics")
-        .update({
-          stripe_subscription_id: null,
-          subscription_status: null,
-          plan_id: starterPlan?.id ?? null,
-        })
-        .eq("id", profile.clinic_id);
-      
+      console.warn(
+        "[stripe/subscription] Subscription ID no banco não existe na Stripe; retornando vazio sem alterar a clínica."
+      );
       return NextResponse.json({
         cancelAtPeriodEnd: false,
         currentPeriodEnd: null,
         status: null,
+        staleSubscription: true,
       });
     }
-    
+
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

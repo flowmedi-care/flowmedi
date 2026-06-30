@@ -1,5 +1,12 @@
 import type { ApiEndpointDefinition, AuditFixtures } from "./types";
 
+function resolvePathParamId(endpoint: ApiEndpointDefinition, fixtures: AuditFixtures): string {
+  if (endpoint.pathTemplate.includes("/public-suggestions/")) {
+    return fixtures.suggestionId;
+  }
+  return fixtures.planId;
+}
+
 export function resolveEndpointPath(
   endpoint: ApiEndpointDefinition,
   fixtures: AuditFixtures
@@ -8,7 +15,7 @@ export function resolveEndpointPath(
 
   const replacements: Record<string, string> = {
     slug: fixtures.clinicSlug,
-    id: fixtures.planId,
+    id: resolvePathParamId(endpoint, fixtures),
     token: fixtures.suggestionToken,
     transcriptionId: fixtures.transcriptionId,
     conversationId: fixtures.conversationId,

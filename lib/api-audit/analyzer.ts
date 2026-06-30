@@ -31,7 +31,7 @@ export function analyzeTestResult(
   if (flags.exposesStackTrace) {
     problems.push("Resposta contém stack trace ou campo debug");
   }
-  if (flags.exposesSensitiveData) {
+  if (flags.exposesSensitiveData && isAnonymous) {
     problems.push("Resposta pode conter dados sensíveis (PII/tokens)");
   }
   if (flags.suspiciousCors) {
@@ -69,7 +69,7 @@ export function analyzeTestResult(
 
   const hasAttention =
     problems.length > 0 ||
-    flags.exposesSensitiveData ||
+    (flags.exposesSensitiveData && isAnonymous) ||
     flags.suspiciousCors ||
     (isAnonymous && isAdminCategory && status < 400);
 

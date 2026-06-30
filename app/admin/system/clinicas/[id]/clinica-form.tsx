@@ -9,6 +9,8 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 
+const PAID_PLAN_SLUGS = ["pro", "profissional", "essencial", "estrategico"];
+
 interface Plan {
   id: string;
   name: string;
@@ -87,8 +89,8 @@ export function ClinicaForm({ clinic, plans }: ClinicaFormProps) {
         <CardHeader>
           <CardTitle>Plano e Assinatura</CardTitle>
           <CardDescription>
-            Atribua um plano e defina o status da assinatura. Para dar acesso Pro sem Stripe,
-            selecione o plano "Pro" e defina o status como "active".
+            Atribua um plano e defina o status da assinatura. Para liberar WhatsApp/e-mail sem Stripe,
+            selecione um plano pago (ex.: Estratégico) e defina o status como &quot;active&quot;.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -97,7 +99,17 @@ export function ClinicaForm({ clinic, plans }: ClinicaFormProps) {
             <Select
               id="plan_id"
               value={formData.plan_id}
-              onChange={(e) => setFormData({ ...formData, plan_id: e.target.value })}
+              onChange={(e) => {
+                const planId = e.target.value;
+                const plan = plans.find((p) => p.id === planId);
+                const isPaidPlan = plan ? PAID_PLAN_SLUGS.includes(plan.slug) : false;
+                setFormData((prev) => ({
+                  ...prev,
+                  plan_id: planId,
+                  subscription_status:
+                    isPaidPlan && !prev.subscription_status ? "active" : prev.subscription_status,
+                }));
+              }}
             >
               <option value="">Selecione um plano</option>
               {plans.map((plan) => (
@@ -124,7 +136,8 @@ export function ClinicaForm({ clinic, plans }: ClinicaFormProps) {
               <option value="unpaid">Unpaid (Não pago)</option>
             </Select>
             <p className="text-xs text-muted-foreground mt-1">
-              Para dar acesso Pro sem Stripe: selecione plano "Pro" e status "active"
+              WhatsApp e e-mail exigem plano pago + status &quot;active&quot;. Ao escolher um plano
+              pago, o status &quot;active&quot; é sugerido automaticamente se estiver vazio.
             </p>
           </div>
 

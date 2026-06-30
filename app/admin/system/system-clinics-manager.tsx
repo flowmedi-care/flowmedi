@@ -26,6 +26,8 @@ type RowState = {
   subscription_status: string;
 };
 
+const PAID_PLAN_SLUGS = ["pro", "profissional", "essencial", "estrategico"];
+
 export function SystemClinicsManager({
   plans,
   clinics,
@@ -113,7 +115,16 @@ export function SystemClinicsManager({
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <Select
                       value={row.plan_id}
-                      onChange={(e) => updateRow(clinic.id, { plan_id: e.target.value })}
+                      onChange={(e) => {
+                        const planId = e.target.value;
+                        const plan = plans.find((p) => p.id === planId);
+                        const isPaidPlan = plan ? PAID_PLAN_SLUGS.includes(plan.slug) : false;
+                        const patch: Partial<RowState> = { plan_id: planId };
+                        if (isPaidPlan && !row.subscription_status) {
+                          patch.subscription_status = "active";
+                        }
+                        updateRow(clinic.id, patch);
+                      }}
                     >
                       <option value="">Sem plano</option>
                       {plans.map((plan) => (

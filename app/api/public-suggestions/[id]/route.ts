@@ -101,6 +101,11 @@ export async function DELETE(
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({} as { edit_token?: string }));
+
+    if (typeof body?.edit_token !== "string" || body.edit_token.length === 0) {
+      return NextResponse.json({ error: "Token de edição obrigatório." }, { status: 401 });
+    }
+
     const suggestion = await getSuggestionById(id);
 
     if (!suggestion) {
