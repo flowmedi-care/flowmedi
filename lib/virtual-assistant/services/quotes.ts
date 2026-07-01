@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveQuoteContext } from "@/lib/quotes/quote-resolution";
 import { renderQuotePdfBuffer } from "@/lib/quotes/quote-pdf";
 import { DEFAULT_QUOTE_TERMS } from "@/lib/quotes/types";
+import { createFileAccessUrl } from "@/lib/storage/file-access-token";
 import { sendAssistantReply } from "@/lib/virtual-assistant/send-reply";
 
 const QUOTES_BUCKET = "quotes";
@@ -232,7 +233,8 @@ export async function createAndSendQuoteViaAssistant(
   });
 
   const receiptNumber = `ORC-${new Date().getFullYear()}-${String(quoteNumber).padStart(5, "0")}`;
-  let pdfUrl: string | null = null;
+  let pdfStoragePath: string | null = null;
+  let pdfAccessUrl: string | null = null;
 
   try {
     const buffer = await renderQuotePdfBuffer({
@@ -250,8 +252,11 @@ export async function createAndSendQuoteViaAssistant(
       .from(QUOTES_BUCKET)
       .upload(path, buffer, { contentType: "application/pdf", upsert: true });
     if (!upErr) {
-      const { data: pub } = supabase.storage.from(QUOTES_BUCKET).getPublicUrl(path);
-      pdfUrl = pub.publicUrl;
+      pdfStoragePath = path;
+      pdfAccessUrl = createFileAccessUrl(QUOTES_BUCKET, path, {
+        resourceType: "quote",
+        resourceId: quoteId,
+      });
     }
   } catch (e) {
     console.warn("[quote-pdf]", e);
@@ -266,7 +271,7 @@ export async function createAndSendQuoteViaAssistant(
     doctor.name ? `Profissional: ${doctor.name}` : null,
     `Valor: ${fmt(total)}`,
     `Válido até: ${validBr}`,
-    pdfUrl ? `\nPDF: ${pdfUrl}` : null,
+    pdfAccessUrl ? `\nPDF: ${pdfAccessUrl}` : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -290,7 +295,7 @@ export async function createAndSendQuoteViaAssistant(
         quote_number: quoteNumber,
         total_amount: total,
         valid_until: ctx.validUntil,
-        pdf_url: pdfUrl,
+        pdf_storage_path: pdfStoragePath,
         source: "virtual_assistant",
       },
     });

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createTranscriptionJob, getTranscriptionJob } from "@/lib/transcribe-api";
-import { getTranscribeAudioFile } from "@/lib/whatsapp-media";
+import { getTranscribeAudioFile, WHATSAPP_MEDIA_BUCKET } from "@/lib/whatsapp-media";
+import { downloadStorageObject } from "@/lib/storage/signed-url";
 import { logAiEvent } from "./event-log";
 import type { AiConversationState, PendingTranscriptionJob } from "./types";
 
@@ -22,18 +23,24 @@ export interface ResolveInboundTextsResult {
   aiState: AiConversationState;
 }
 
-async function downloadMediaAsBuffer(mediaUrl: string): Promise<Buffer> {
-  const res = await fetch(mediaUrl);
-  if (!res.ok) {
-    throw new Error(`Falha ao baixar mídia (${res.status})`);
+async function downloadMediaAsBuffer(
+  supabase: SupabaseClient,
+  mediaUrl: string
+): Promise<Buffer> {
+  const { buffer, error } = await downloadStorageObject(
+    supabase,
+    WHATSAPP_MEDIA_BUCKET,
+    mediaUrl
+  );
+  if (error || !buffer) {
+    throw new Error(error ?? "Falha ao baixar mídia");
   }
-  const buffer = Buffer.from(await res.arrayBuffer());
   if (buffer.length < 100) {
     throw new Error(`Arquivo de áudio muito pequeno (${buffer.length} bytes)`);
   }
   if (buffer.subarray(0, 1).toString() === "<") {
     throw new Error(
-      "Download retornou HTML em vez de áudio — verifique se o bucket whatsapp-media é público"
+      "Download retornou HTML em vez de áudio — verifique o acesso ao storage."
     );
   }
   return buffer;
@@ -45,7 +52,7 @@ async function startTranscriptionJobForMessage(
   conversationId: string,
   msg: InboundMessageRow
 ): Promise<{ jobId: string } | { unsupported: string }> {
-  const buffer = await downloadMediaAsBuffer(msg.media_url!);
+  const buffer = await downloadMediaAsBuffer(supabase, msg.media_url!);
   const file = getTranscribeAudioFile(msg.id, msg.media_mime_type, msg.media_url, buffer);
   if (file.unsupported) {
     return { unsupported: file.unsupported };

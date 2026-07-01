@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const BUCKET = "whatsapp-media";
 
+export const WHATSAPP_MEDIA_BUCKET = BUCKET;
+
 /**
  * Obtém a URL da mídia da API Meta e faz upload para o Supabase Storage.
  * As URLs da Meta expiram em ~5 min, então é necessário persistir.
@@ -62,8 +64,7 @@ export async function fetchAndStoreWhatsAppMedia(
       return null;
     }
 
-    const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(data.path);
-    return publicUrl;
+    return data.path;
   } catch (err) {
     console.error("[WhatsApp Media] Error:", err);
     return null;
@@ -187,7 +188,7 @@ export function getTranscribeAudioFile(
         filename: `whatsapp-${messageId}.ogg`,
         mimeType: "audio/ogg",
         unsupported:
-          "Não foi possível baixar o áudio (resposta inválida do storage). Verifique se o bucket whatsapp-media é público.",
+          "Não foi possível baixar o áudio (resposta inválida do storage). Verifique o acesso ao arquivo.",
       };
     }
     if (buffer.length < 100) {

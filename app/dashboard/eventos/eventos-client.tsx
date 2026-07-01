@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { sanitizeEmailPreviewHtml } from "@/lib/sanitize-html";
 import { Mail, MessageSquare, Send, Clock, ListTodo, CheckCircle, Settings2, UserCheck, Eye, Plus, FileText, CalendarCheck, Calendar, XCircle, UserX, Route } from "lucide-react";
 import { processEvent, concluirEvent, concluirTodosEventos, getMessagePreviewForEvent, refreshEventsLists } from "./actions";
 import { EVENTS_LIST_LIMIT, type ClinicEventConfigItem, type EventCounts } from "./eventos-types";
@@ -1074,7 +1075,7 @@ export function EventosClient({
                         <p className="text-xs text-muted-foreground">Corpo</p>
                         <div
                           className="text-sm rounded bg-muted/50 p-3 prose prose-sm max-w-none max-h-[38vh] overflow-auto dark:prose-invert"
-                          dangerouslySetInnerHTML={{ __html: item.body }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeEmailPreviewHtml(item.body) }}
                         />
                       </div>
                     </>

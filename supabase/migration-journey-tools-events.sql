@@ -82,11 +82,11 @@ WHERE me.code IN ('payment_receipt_generated', 'quote_sent')
 ON CONFLICT (clinic_id, event_code, channel) DO NOTHING;
 
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('receipts', 'receipts', true)
+VALUES ('receipts', 'receipts', false)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('quotes', 'quotes', true)
+VALUES ('quotes', 'quotes', false)
 ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS public.patient_nps_feedback (

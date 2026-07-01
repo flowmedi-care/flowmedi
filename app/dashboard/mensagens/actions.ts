@@ -1626,11 +1626,15 @@ export async function approvePendingMessage(
       if (!finalSubject) finalSubject = template.subject ?? null;
       if (!finalBody && template.body_html) {
         const { replaceVariables } = await import("@/lib/message-variables");
-        finalBody = replaceVariables(template.body_html, pendingMessage.variables as any);
+        const htmlOpts =
+          pendingMessage.channel === "email" ? { escapeHtml: true as const } : undefined;
+        finalBody = replaceVariables(template.body_html, pendingMessage.variables as any, htmlOpts);
       }
       if (finalSubject && pendingMessage.variables) {
         const { replaceVariables } = await import("@/lib/message-variables");
-        finalSubject = replaceVariables(finalSubject, pendingMessage.variables as any);
+        const htmlOpts =
+          pendingMessage.channel === "email" ? { escapeHtml: true as const } : undefined;
+        finalSubject = replaceVariables(finalSubject, pendingMessage.variables as any, htmlOpts);
       }
       whatsappMetaPhrase = template.whatsapp_meta_phrase ?? null;
     }

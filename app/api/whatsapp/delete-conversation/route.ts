@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicMember } from "@/lib/auth-helpers";
+import { toStoragePath } from "@/lib/storage/storage-ref";
+import { WHATSAPP_MEDIA_BUCKET } from "@/lib/whatsapp-media";
 
 /**
  * DELETE /api/whatsapp/delete-conversation?conversationId=...
@@ -42,21 +44,13 @@ export async function DELETE(request: Request) {
         .map((m) => {
           const url = m.media_url as string;
           if (!url) return null;
-          // Extrair path do URL do storage
-          // Exemplos de URLs:
-          // - https://xxx.supabase.co/storage/v1/object/public/whatsapp-media/clinic-id/file.jpg
-          // - /storage/v1/object/public/whatsapp-media/clinic-id/file.jpg
-          const match = url.match(/whatsapp-media\/(.+)$/);
-          if (match) return match[1];
-          // Se não encontrar, tentar extrair diretamente do path
-          const pathMatch = url.match(/\/([^\/]+\/[^\/]+\.\w+)$/);
-          return pathMatch ? pathMatch[1] : null;
+          return toStoragePath(WHATSAPP_MEDIA_BUCKET, url);
         })
         .filter(Boolean) as string[];
 
       if (filePaths.length > 0) {
         const { error: deleteError } = await supabase.storage
-          .from("whatsapp-media")
+          .from(WHATSAPP_MEDIA_BUCKET)
           .remove(filePaths);
         if (deleteError) {
           console.error("[Delete Conversation] Erro ao deletar mídias:", deleteError);

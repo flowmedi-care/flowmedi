@@ -14,6 +14,7 @@ import {
   hasRecentPost24hUsageForPhone,
   recordPost24hUsage,
 } from "@/lib/whatsapp-ops-controls";
+import { resolvePatientFileUrlFromMetadata } from "@/lib/storage/file-access-token";
 
 export type ProcessMessageResult = {
   success: boolean;
@@ -226,7 +227,7 @@ export async function processMessageEvent(
       const fmtBrl = (n: number) =>
         n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
       if (eventCode === "payment_receipt_generated") {
-        const pdfUrl = eventMetadata.pdf_url ? String(eventMetadata.pdf_url) : "";
+        const pdfUrl = resolvePatientFileUrlFromMetadata("receipts", eventMetadata);
         context.recibo = {
           numero: String(eventMetadata.receipt_number ?? ""),
           valor:
@@ -236,7 +237,7 @@ export async function processMessageEvent(
         };
       }
       if (eventCode === "quote_sent") {
-        const pdfUrl = eventMetadata.pdf_url ? String(eventMetadata.pdf_url) : "";
+        const pdfUrl = resolvePatientFileUrlFromMetadata("quotes", eventMetadata);
         const validUntil = eventMetadata.valid_until
           ? new Date(`${String(eventMetadata.valid_until)}T12:00:00`).toLocaleDateString("pt-BR")
           : "";
@@ -254,10 +255,11 @@ export async function processMessageEvent(
     }
 
     // 5. Processar template (substituir variáveis) e montar corpo email
+    const htmlOpts = channel === "email" ? { escapeHtml: true as const } : undefined;
     const processedSubject = template.subject
-      ? replaceVariables(template.subject, context)
+      ? replaceVariables(template.subject, context, htmlOpts)
       : null;
-    const rawBody = replaceVariables(template.body_html || "", context);
+    const rawBody = replaceVariables(template.body_html || "", context, htmlOpts);
     let processedBody = rawBody;
     if (channel === "email") {
       const { data: clinic } = await supabase
@@ -265,8 +267,8 @@ export async function processMessageEvent(
         .select("email_header, email_footer")
         .eq("id", clinicId)
         .single();
-      const header = (clinic?.email_header && replaceVariables(clinic.email_header, context)) || "";
-      const footer = (clinic?.email_footer && replaceVariables(clinic.email_footer, context)) || "";
+      const header = (clinic?.email_header && replaceVariables(clinic.email_header, context, htmlOpts)) || "";
+      const footer = (clinic?.email_footer && replaceVariables(clinic.email_footer, context, htmlOpts)) || "";
       processedBody = composeEmailHtml(rawBody, header, footer);
     }
 
@@ -1172,15 +1174,16 @@ export async function processEventByIdForPublicForm(
     return { success: false, error: "Template de email não encontrado." };
   }
 
-  const processedSubject = template.subject ? replaceVariables(template.subject, context) : null;
-  const rawBody = replaceVariables(template.body_html || "", context);
+  const htmlOpts = { escapeHtml: true as const };
+  const processedSubject = template.subject ? replaceVariables(template.subject, context, htmlOpts) : null;
+  const rawBody = replaceVariables(template.body_html || "", context, htmlOpts);
   const { data: clinicRow } = await supabase
     .from("clinics")
     .select("email_header, email_footer")
     .eq("id", event.clinic_id)
     .single();
-  const header = (clinicRow?.email_header && replaceVariables(clinicRow.email_header, context)) || "";
-  const footer = (clinicRow?.email_footer && replaceVariables(clinicRow.email_footer, context)) || "";
+  const header = (clinicRow?.email_header && replaceVariables(clinicRow.email_header, context, htmlOpts)) || "";
+  const footer = (clinicRow?.email_footer && replaceVariables(clinicRow.email_footer, context, htmlOpts)) || "";
   const processedBody = composeEmailHtml(rawBody, header, footer);
 
   if (!processedSubject) {
@@ -1339,8 +1342,9 @@ export async function getMessagePreview(
       continue;
     }
 
-    const subject = template.subject ? replaceVariables(template.subject, context) : null;
-    const rawBody = replaceVariables(template.body_html || "", context);
+    const htmlOpts = channel === "email" ? { escapeHtml: true as const } : undefined;
+    const subject = template.subject ? replaceVariables(template.subject, context, htmlOpts) : null;
+    const rawBody = replaceVariables(template.body_html || "", context, htmlOpts);
     let body = rawBody;
 
     if (channel === "email") {
@@ -1349,8 +1353,8 @@ export async function getMessagePreview(
         .select("email_header, email_footer")
         .eq("id", clinicId)
         .single();
-      const header = (clinicRow?.email_header && replaceVariables(clinicRow.email_header, context)) || "";
-      const footer = (clinicRow?.email_footer && replaceVariables(clinicRow.email_footer, context)) || "";
+      const header = (clinicRow?.email_header && replaceVariables(clinicRow.email_header, context, htmlOpts)) || "";
+      const footer = (clinicRow?.email_footer && replaceVariables(clinicRow.email_footer, context, htmlOpts)) || "";
       body = composeEmailHtml(rawBody, header, footer);
     } else if (channel === "whatsapp" && event.patient_id) {
       // WhatsApp: se ticket fechado, mostrar preview do template Meta; senão texto livre

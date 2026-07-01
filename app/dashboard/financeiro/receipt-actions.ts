@@ -7,6 +7,8 @@ import {
   type ReceiptPdfLine,
   type ReceiptPdfItem,
 } from "@/lib/financeiro/receipt-pdf";
+import { isStoragePath, toStoragePath } from "@/lib/storage/storage-ref";
+import { createAuthenticatedSignedUrl } from "@/lib/storage/signed-url";
 
 const RECEIPTS_BUCKET = "receipts";
 
@@ -202,8 +204,7 @@ async function uploadReceiptPdf(
     return null;
   }
 
-  const { data } = supabase.storage.from(RECEIPTS_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  return path;
 }
 
 /** CORRIGIDO v2 — gera PDF real e persiste pdf_url no Storage. */
@@ -220,10 +221,10 @@ async function generateAndStoreReceiptPdf(
 
   try {
     const buffer = await renderReceiptPdfBuffer(payload);
-    const publicUrl = await uploadReceiptPdf(supabase, clinicId, receiptNumber, buffer);
-    if (publicUrl) {
-      await supabase.from("receipts").update({ pdf_url: publicUrl }).eq("id", receiptId);
-      return publicUrl;
+    const storagePath = await uploadReceiptPdf(supabase, clinicId, receiptNumber, buffer);
+    if (storagePath) {
+      await supabase.from("receipts").update({ pdf_url: storagePath }).eq("id", receiptId);
+      return storagePath;
     }
   } catch (e) {
     console.warn("[receipt-pdf] render:", e);
@@ -315,7 +316,7 @@ export async function generateReceiptForPayment(paymentId: string, comandaId?: s
     return { error: error.message, receiptId: null };
   }
 
-  const pdfUrl = await generateAndStoreReceiptPdf(
+  const pdfStoragePath = await generateAndStoreReceiptPdf(
     supabase,
     String(receipt.id),
     paymentId,
@@ -332,7 +333,7 @@ export async function generateReceiptForPayment(paymentId: string, comandaId?: s
       p_metadata: {
         receipt_id: String(receipt.id),
         receipt_number: receiptNumber,
-        pdf_url: pdfUrl,
+        pdf_storage_path: pdfStoragePath && isStoragePath(pdfStoragePath) ? pdfStoragePath : null,
         amount: cashAmount,
       },
     });
@@ -357,7 +358,7 @@ export async function generateReceiptForPayment(paymentId: string, comandaId?: s
     error: null,
     receiptId: String(receipt.id),
     receiptNumber: String(receipt.receipt_number),
-    pdfUrl,
+    pdfUrl: pdfStoragePath,
   };
 }
 
@@ -406,7 +407,7 @@ export async function resendReceiptPdf(receiptId: string) {
 
   if (!receipt) return { error: "Recibo não encontrado.", pdfUrl: null };
 
-  const pdfUrl = await generateAndStoreReceiptPdf(
+  const pdfStoragePath = await generateAndStoreReceiptPdf(
     supabase,
     receiptId,
     String(receipt.payment_id),
@@ -415,7 +416,39 @@ export async function resendReceiptPdf(receiptId: string) {
     !!receipt.voided_at
   );
 
-  return { error: null, pdfUrl };
+  return { error: null, pdfUrl: pdfStoragePath };
+}
+
+export async function getReceiptSignedUrl(receiptId: string): Promise<{
+  url: string | null;
+  error: string | null;
+}> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { url: null, error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { url: null, error: "Clínica não encontrada." };
+
+  const { data: receipt } = await supabase
+    .from("receipts")
+    .select("pdf_url, clinic_id")
+    .eq("id", receiptId)
+    .eq("clinic_id", profile.clinic_id)
+    .maybeSingle();
+
+  if (!receipt?.pdf_url) return { url: null, error: "PDF não disponível." };
+
+  const storagePath = toStoragePath(RECEIPTS_BUCKET, String(receipt.pdf_url));
+  if (!storagePath) return { url: null, error: "PDF não disponível no storage." };
+
+  return createAuthenticatedSignedUrl(supabase, RECEIPTS_BUCKET, storagePath);
 }
 
 export async function getReceiptPrintData(receiptId: string) {

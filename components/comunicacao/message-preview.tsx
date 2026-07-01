@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { sanitizeEmailPreviewHtml } from "@/lib/sanitize-html";
 
 function stripHtmlToPlainText(html: string): string {
   return html
@@ -93,7 +94,7 @@ export function SentEmailPreviewPanel({
             <div className="rounded-md border border-border overflow-hidden max-h-[50vh] overflow-y-auto">
               <div
                 className="bg-white p-4 text-sm dark:bg-zinc-950 min-h-[120px]"
-                dangerouslySetInnerHTML={{ __html: bodyHtml! }}
+                dangerouslySetInnerHTML={{ __html: sanitizeEmailPreviewHtml(bodyHtml!) }}
               />
             </div>
           ) : (
@@ -143,7 +144,9 @@ export function EmailPreviewPanel({
       </p>
       <div
         className="rounded bg-white p-2 text-sm dark:bg-zinc-950"
-        dangerouslySetInnerHTML={{ __html: previewHtml || "<p>(sem conteúdo)</p>" }}
+        dangerouslySetInnerHTML={{
+          __html: sanitizeEmailPreviewHtml(previewHtml || "<p>(sem conteúdo)</p>"),
+        }}
       />
     </Card>
   );

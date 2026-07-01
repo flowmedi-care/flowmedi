@@ -2,6 +2,8 @@
  * Sistema de substituição de variáveis em templates de mensagens
  */
 
+import { escapeHtml } from "./html-escape";
+
 export type VariableContext = {
   // Dados do paciente
   paciente?: {
@@ -100,10 +102,14 @@ function extractFirstName(fullName?: string | null): string {
 /**
  * Gera texto completo de preparo baseado nos campos da consulta
  */
-function generatePreparoCompleto(context: VariableContext): string {
+function generatePreparoCompleto(
+  context: VariableContext,
+  options?: { escapeHtml?: boolean }
+): string {
   const consulta = context.consulta;
   if (!consulta) return "";
 
+  const esc = options?.escapeHtml ? escapeHtml : (s: string) => s;
   const partes: string[] = [];
 
   if (consulta.precisa_jejum) {
@@ -111,18 +117,22 @@ function generatePreparoCompleto(context: VariableContext): string {
   }
 
   if (consulta.recomendacoes) {
-    partes.push(`📋 Recomendações:\n${consulta.recomendacoes}`);
+    partes.push(`📋 Recomendações:\n${esc(consulta.recomendacoes)}`);
   }
 
   if (consulta.instrucoes_especiais) {
-    partes.push(`📝 Instruções especiais:\n${consulta.instrucoes_especiais}`);
+    partes.push(`📝 Instruções especiais:\n${esc(consulta.instrucoes_especiais)}`);
   }
 
   if (consulta.notas_preparo) {
-    partes.push(`📌 Notas de preparo:\n${consulta.notas_preparo}`);
+    partes.push(`📌 Notas de preparo:\n${esc(consulta.notas_preparo)}`);
   }
 
   return partes.join("\n\n");
+}
+
+function generatePreparoCompletoHtml(context: VariableContext): string {
+  return generatePreparoCompleto(context, { escapeHtml: true }).replace(/\n/g, "<br>");
 }
 
 /**
@@ -209,17 +219,30 @@ export function extractVariables(text: string): string[] {
   return variables;
 }
 
+export type ReplaceVariablesOptions = {
+  /** Escapa valores dinâmicos para uso seguro em HTML (e-mail). */
+  escapeHtml?: boolean;
+};
+
 /**
  * Substitui variáveis em um texto pelos valores do contexto
  */
 export function replaceVariables(
   text: string,
-  context: VariableContext
+  context: VariableContext,
+  options?: ReplaceVariablesOptions
 ): string {
   let result = text;
 
   for (const [variable, getValue] of Object.entries(VARIABLE_MAP)) {
-    const value = getValue(context);
+    let value = getValue(context);
+    if (options?.escapeHtml) {
+      if (variable === "{{preparo_completo_html}}") {
+        value = generatePreparoCompletoHtml(context);
+      } else {
+        value = escapeHtml(value);
+      }
+    }
     result = result.replace(new RegExp(variable.replace(/[{}]/g, "\\$&"), "g"), value);
   }
 

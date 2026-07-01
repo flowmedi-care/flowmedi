@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicMember } from "@/lib/auth-helpers";
+import { createAuthenticatedSignedUrl } from "@/lib/storage/signed-url";
+import { WHATSAPP_MEDIA_BUCKET } from "@/lib/whatsapp-media";
 
 /**
  * GET /api/whatsapp/messages?conversationId=...
@@ -46,28 +48,42 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const messages = (rows || []).map(
-      (r: {
-        content?: string;
-        media_url?: string | null;
-        message_type?: string;
-        sender_type?: string | null;
-        sender_name?: string | null;
-        sender_user_id?: string | null;
-        ai_processed_at?: string | null;
-        [k: string]: unknown;
-      }) => ({
-        id: r.id,
-        direction: r.direction,
-        body: r.content ?? null,
-        media_url: r.media_url ?? null,
-        message_type: r.message_type ?? "text",
-        sent_at: r.sent_at,
-        sender_type: r.sender_type ?? null,
-        sender_name: r.sender_name ?? null,
-        sender_user_id: r.sender_user_id ?? null,
-        ai_processed_at: r.ai_processed_at ?? null,
-      })
+    const messages = await Promise.all(
+      (rows || []).map(
+        async (r: {
+          content?: string;
+          media_url?: string | null;
+          message_type?: string;
+          sender_type?: string | null;
+          sender_name?: string | null;
+          sender_user_id?: string | null;
+          ai_processed_at?: string | null;
+          [k: string]: unknown;
+        }) => {
+          let mediaUrl = r.media_url ?? null;
+          if (mediaUrl) {
+            const signed = await createAuthenticatedSignedUrl(
+              supabase,
+              WHATSAPP_MEDIA_BUCKET,
+              mediaUrl
+            );
+            mediaUrl = signed.url ?? mediaUrl;
+          }
+
+          return {
+            id: r.id,
+            direction: r.direction,
+            body: r.content ?? null,
+            media_url: mediaUrl,
+            message_type: r.message_type ?? "text",
+            sent_at: r.sent_at,
+            sender_type: r.sender_type ?? null,
+            sender_name: r.sender_name ?? null,
+            sender_user_id: r.sender_user_id ?? null,
+            ai_processed_at: r.ai_processed_at ?? null,
+          };
+        }
+      )
     );
     return NextResponse.json(messages);
   } catch (e) {
