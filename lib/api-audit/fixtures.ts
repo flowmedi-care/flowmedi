@@ -11,7 +11,7 @@ export function loadFixturesFromEnv(overrides?: Partial<AuditFixtures>): AuditFi
   const metaVerifyToken =
     process.env.API_AUDIT_META_VERIFY_TOKEN?.trim() ||
     process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim() ||
-    "flowmedi-verify";
+    "";
 
   const clinicSlug = overrides?.clinicSlug ?? process.env.API_AUDIT_CLINIC_SLUG?.trim() ?? "demo";
 

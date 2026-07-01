@@ -17,20 +17,29 @@ import { applyBotLoopSilence, quickBotLoopCheck } from "@/lib/virtual-assistant/
 import { upsertWhatsappPipelineLead } from "@/lib/leads/upsert-whatsapp-lead";
 import { parseMetaInboundMessage } from "@/lib/whatsapp-inbound-parse";
 import { tryHandleInboundConfirmationFlow } from "@/lib/virtual-assistant/webhook-inbound-flow";
-import { verifyMetaWebhookSignature } from "@/lib/meta-webhook-signature";
-
-const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
+import {
+  requireMetaWebhookVerifyToken,
+  verifyMetaWebhookSignature,
+} from "@/lib/meta-webhook-signature";
 
 /**
  * GET /api/whatsapp/webhook
  * Verificação do webhook pela Meta: hub.mode, hub.verify_token, hub.challenge.
  */
 export async function GET(request: NextRequest) {
+  let verifyToken: string;
+  try {
+    verifyToken = requireMetaWebhookVerifyToken();
+  } catch {
+    console.error("[WhatsApp Webhook] META_WHATSAPP_WEBHOOK_VERIFY_TOKEN não configurado");
+    return new NextResponse("Webhook não configurado", { status: 503 });
+  }
+
   const mode = request.nextUrl.searchParams.get("hub.mode");
   const token = request.nextUrl.searchParams.get("hub.verify_token");
   const challenge = request.nextUrl.searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === VERIFY_TOKEN && challenge) {
+  if (mode === "subscribe" && token === verifyToken && challenge) {
     return new NextResponse(challenge, { status: 200 });
   }
   return new NextResponse("Forbidden", { status: 403 });

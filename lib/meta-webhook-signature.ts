@@ -2,6 +2,16 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 const SIGNATURE_PREFIX = "sha256=";
 
+export function requireMetaWebhookVerifyToken(): string {
+  const token = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim();
+  if (!token) {
+    throw new Error(
+      "META_WHATSAPP_WEBHOOK_VERIFY_TOKEN é obrigatório para verificação do webhook Meta"
+    );
+  }
+  return token;
+}
+
 export function verifyMetaWebhookSignature(
   rawBody: string,
   signatureHeader: string | null | undefined,

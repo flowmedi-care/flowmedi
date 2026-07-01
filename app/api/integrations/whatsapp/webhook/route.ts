@@ -20,9 +20,10 @@ import { logAiEvent } from "@/lib/virtual-assistant/event-log";
 import { excludeInboundFromAiQueue } from "@/lib/virtual-assistant/exclude-from-ai-queue";
 import { parseMetaInboundMessage } from "@/lib/whatsapp-inbound-parse";
 import { tryHandleInboundConfirmationFlow } from "@/lib/virtual-assistant/webhook-inbound-flow";
-import { verifyMetaWebhookSignature } from "@/lib/meta-webhook-signature";
-
-const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
+import {
+  requireMetaWebhookVerifyToken,
+  verifyMetaWebhookSignature,
+} from "@/lib/meta-webhook-signature";
 
 /**
  * GET /api/integrations/whatsapp/webhook
@@ -30,11 +31,19 @@ const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi
  * URL que deve estar configurada no app Meta: https://www.flowmedi.com.br/api/integrations/whatsapp/webhook
  */
 export async function GET(request: NextRequest) {
+  let verifyToken: string;
+  try {
+    verifyToken = requireMetaWebhookVerifyToken();
+  } catch {
+    console.error("[WhatsApp Webhook] META_WHATSAPP_WEBHOOK_VERIFY_TOKEN não configurado");
+    return new NextResponse("Webhook não configurado", { status: 503 });
+  }
+
   const mode = request.nextUrl.searchParams.get("hub.mode");
   const token = request.nextUrl.searchParams.get("hub.verify_token");
   const challenge = request.nextUrl.searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === VERIFY_TOKEN && challenge) {
+  if (mode === "subscribe" && token === verifyToken && challenge) {
     return new NextResponse(challenge, { status: 200 });
   }
   return new NextResponse("Forbidden", { status: 403 });
