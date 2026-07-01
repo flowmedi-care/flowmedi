@@ -95,6 +95,8 @@ export type AiConversationState = {
   audio_transcription_retried_message_ids?: string[];
   /** Loop bot↔bot detectado — IA silenciada sem resposta */
   bot_loop_detected_at?: string;
+  /** Evita processamento duplicado (webhook + cron em paralelo) */
+  ai_processing_started_at?: string;
 };
 
 export const DAY_LABELS: Record<DayKey, string> = {

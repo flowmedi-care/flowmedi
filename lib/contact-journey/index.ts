@@ -12,3 +12,4 @@ export * from "./next-actions";
 export * from "./resolver";
 export * from "./edge-cases";
 export * from "./flow-graph";
+export * from "./journey-for-ai";

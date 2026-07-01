@@ -13,6 +13,7 @@ import {
   Shield,
   Trash2,
   Zap,
+  Wrench,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,10 @@ import type {
 import type { MessageFlowTrace } from "@/lib/virtual-assistant/diagnostics-flow";
 import { AssistenteVirtualFlowTimeline } from "./assistente-virtual-flow-timeline";
 import { cn } from "@/lib/utils";
+import {
+  ASSISTANT_TOOL_CATALOG,
+  ASSISTANT_TOOL_CATALOG_BY_CATEGORY,
+} from "@/lib/virtual-assistant/tools/catalog";
 
 interface DiagnosticsResponse {
   health: AssistantHealthCheck;
@@ -580,11 +585,51 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wrench className="h-5 w-5" />
+            Ferramentas da IA
+          </CardTitle>
+          <CardDescription>
+            {ASSISTANT_TOOL_CATALOG.length} funções que o assistente pode chamar durante a conversa
+            no WhatsApp. A OpenAI decide qual usar conforme a mensagem do paciente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {ASSISTANT_TOOL_CATALOG_BY_CATEGORY.map((group) => (
+            <div key={group.category}>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">{group.label}</h3>
+              <ul className="space-y-2">
+                {group.tools.map((tool) => (
+                  <li
+                    key={tool.name}
+                    className="rounded-lg border bg-muted/30 px-3 py-2.5 text-sm"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{tool.label}</span>
+                      <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                        {tool.name}
+                      </code>
+                    </div>
+                    <p className="mt-1 text-muted-foreground">{tool.description}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground/80">Quando usar:</span>{" "}
+                      {tool.whenToUse}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       {data?.toolLogs && data.toolLogs.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Ferramentas da IA</CardTitle>
-            <CardDescription>Agendar, buscar paciente, etc.</CardDescription>
+            <CardTitle>Uso recente das ferramentas</CardTitle>
+            <CardDescription>Últimas chamadas registradas nas conversas (24h).</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="space-y-1 text-sm">

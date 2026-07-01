@@ -490,10 +490,8 @@ export async function executeAssistantTool(
       }
 
       case "get_contact_journey": {
-        const { getContactJourneyForAi } = await import(
-          "@/app/dashboard/crm/jornada/actions"
-        );
-        const res = await getContactJourneyForAi({
+        const { loadContactJourneyForAi } = await import("@/lib/contact-journey/journey-for-ai");
+        const res = await loadContactJourneyForAi(supabase, {
           clinicId,
           phone: phoneNumber,
           patientId: ctx.aiState.patient_id,

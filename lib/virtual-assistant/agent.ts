@@ -7,7 +7,7 @@ import {
 import { buildBehaviorInstructions, buildKnowledgeContext } from "./knowledge-context";
 import { ASSISTANT_TOOLS, executeAssistantTool } from "./tools";
 import type { AiConversationState, VirtualAssistantSettings } from "./types";
-import { getContactJourneyForAi } from "@/app/dashboard/crm/jornada/actions";
+import { loadContactJourneyForAi } from "@/lib/contact-journey/journey-for-ai";
 import { buildContextualResumePrompt } from "@/lib/contact-journey/contextual-resume";
 import { shouldEscalateToHuman } from "@/lib/virtual-assistant/escalation";
 
@@ -66,11 +66,19 @@ export async function runVirtualAssistantAgent(opts: {
   const behavior = buildBehaviorInstructions(opts.settings);
   const model = opts.settings.ai_model ?? "gpt-4o-mini";
 
-  const journeyRes = await getContactJourneyForAi({
-    clinicId: opts.clinicId,
-    phone: opts.phoneNumber,
-    patientId: opts.aiState.patient_id,
-  });
+  let journeyRes: Awaited<ReturnType<typeof loadContactJourneyForAi>> = {
+    summary: null,
+    journey: null,
+  };
+  try {
+    journeyRes = await loadContactJourneyForAi(opts.supabase, {
+      clinicId: opts.clinicId,
+      phone: opts.phoneNumber,
+      patientId: opts.aiState.patient_id,
+    });
+  } catch (e) {
+    console.warn("[VirtualAssistant] jornada CRM ignorada:", e);
+  }
   const journeyBlock = journeyRes.summary
     ? `\n\nJornada do contato (CRM — use para orientar próximo passo):\n${journeyRes.summary}`
     : "";

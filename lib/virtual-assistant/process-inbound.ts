@@ -171,6 +171,31 @@ async function processConversationAiInner(
 
   if (!pending?.length) return;
 
+  let aiState = (conv.ai_state ?? {}) as AiConversationState;
+  if (aiState.ai_processing_started_at) {
+    const elapsed = Date.now() - new Date(aiState.ai_processing_started_at).getTime();
+    if (elapsed < 90_000) {
+      logAiEvent(supabase, {
+        clinicId: conv.clinic_id,
+        conversationId,
+        stage: "processing_start",
+        level: "info",
+        detail: { skipped: true, reason: "already_processing", elapsedMs: elapsed },
+      });
+      return;
+    }
+  }
+
+  if (conv.patient_id && !aiState.patient_id) {
+    aiState = { ...aiState, patient_id: conv.patient_id };
+  }
+  aiState = { ...aiState, ai_processing_started_at: new Date().toISOString() };
+  await supabase
+    .from("whatsapp_conversations")
+    .update({ ai_state: aiState })
+    .eq("id", conversationId);
+
+  try {
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
     conversationId,
@@ -184,10 +209,6 @@ async function processConversationAiInner(
     },
   });
 
-  let aiState = (conv.ai_state ?? {}) as AiConversationState;
-  if (conv.patient_id && !aiState.patient_id) {
-    aiState = { ...aiState, patient_id: conv.patient_id };
-  }
   const resolved = await resolveInboundTexts(
     supabase,
     conv.clinic_id,
@@ -470,6 +491,21 @@ async function processConversationAiInner(
     stage: handoff ? "handoff" : "reply_sent",
     detail: { replyPreview: reply.slice(0, 80) },
   });
+  } finally {
+    const { data: latest } = await supabase
+      .from("whatsapp_conversations")
+      .select("ai_state")
+      .eq("id", conversationId)
+      .maybeSingle();
+    const latestState = (latest?.ai_state ?? {}) as AiConversationState;
+    if (latestState.ai_processing_started_at) {
+      const { ai_processing_started_at: _removed, ...rest } = latestState;
+      await supabase
+        .from("whatsapp_conversations")
+        .update({ ai_state: rest })
+        .eq("id", conversationId);
+    }
+  }
 }
 
 export async function scheduleAiDebounce(
