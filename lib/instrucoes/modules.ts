@@ -14,7 +14,7 @@ export const INSTRUCTION_MODULES: InstructionModule[] = [
     slug: "jornada-crm",
     title: "Jornada do lead",
     description:
-      "Funil CRM, jornada operacional com ramificações e score de priorização — do primeiro contato ao cliente.",
+      "Do primeiro contato até virar paciente — explicado de forma simples, com mapa visual e exemplos do dia a dia.",
     durationMin: 12,
     status: "available",
     href: "/dashboard/instrucoes/jornada-crm",

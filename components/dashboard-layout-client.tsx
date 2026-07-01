@@ -6,6 +6,7 @@ import { type User } from "@supabase/supabase-js";
 import { DashboardNav } from "./dashboard-nav";
 import { DashboardTopbar } from "./dashboard-topbar";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 
 type Profile = {
   id: string;
@@ -36,6 +37,7 @@ export function DashboardLayoutClient({
   const [hasWhatsAppConnected, setHasWhatsAppConnected] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isWhatsAppPage = pathname === "/dashboard/whatsapp";
+  const isInstrucoesPage = pathname?.startsWith("/dashboard/instrucoes") ?? false;
 
   useEffect(() => {
     async function checkWhatsAppIntegration() {
@@ -83,8 +85,15 @@ export function DashboardLayoutClient({
               profile={profile}
               onMenuClick={() => setMobileNavOpen(true)}
             />
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 md:p-6 lg:p-8">
-              <div className="mx-auto max-w-7xl w-full">{children}</div>
+            <div
+              className={cn(
+                "flex-1 min-h-0 overflow-y-auto overscroll-contain w-full",
+                isInstrucoesPage ? "p-0" : "p-4 md:p-6 lg:p-8"
+              )}
+            >
+              <div className={cn("w-full", !isInstrucoesPage && "mx-auto max-w-7xl")}>
+                {children}
+              </div>
             </div>
           </>
         )}
