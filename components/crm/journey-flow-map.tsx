@@ -5,6 +5,7 @@ import {
   JOURNEY_FLOW_NODES,
   JOURNEY_FLOW_EDGES,
   isOnActiveBranch,
+  FLOW_PHASE_COLS,
   type FlowNodeDef,
 } from "@/lib/contact-journey/flow-graph";
 import { JOURNEY_PHASE_LABELS } from "@/lib/contact-journey/steps";
@@ -15,15 +16,7 @@ type JourneyFlowMapProps = {
   completedSteps: JourneyStepCode[];
 };
 
-const PHASE_COLS: { phase: JourneyPhase; col: number }[] = [
-  { phase: "captacao", col: 0 },
-  { phase: "comercial", col: 1 },
-  { phase: "pre_consulta", col: 2 },
-  { phase: "consulta", col: 3 },
-  { phase: "financeiro", col: 4 },
-  { phase: "pos_consulta", col: 5 },
-  { phase: "reengajamento", col: 6 },
-];
+const PHASE_COLS = FLOW_PHASE_COLS;
 
 function FlowNode({
   node,
@@ -60,7 +53,7 @@ export function JourneyFlowMap({ currentStep, completedSteps }: JourneyFlowMapPr
 
   return (
     <div className="space-y-4 overflow-x-auto pb-2">
-      <div className="flex min-w-[980px] gap-2">
+      <div className="flex min-w-[1120px] gap-2">
         {PHASE_COLS.map(({ phase, col }) => (
           <div key={phase} className="flex-1 min-w-[160px]">
             <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">

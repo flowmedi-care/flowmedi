@@ -5,19 +5,46 @@ export type JourneyPhase =
   | "consulta"
   | "financeiro"
   | "pos_consulta"
+  | "pos_atendimento"
   | "reengajamento";
+
+export type ContactIntent =
+  | "captacao"
+  | "reativacao"
+  | "operacional"
+  | "financeiro"
+  | "suporte"
+  | "pos_atendimento";
 
 export type JourneyStepCode =
   | "primeiro_contato"
+  | "origem_identificada"
   | "aguardando_retorno"
+  | "qualificacao"
+  | "informacoes_enviadas"
+  | "negociacao"
+  | "fechamento_agendamento"
   | "cadastro_pendente"
   | "cadastrado"
+  | "objecao_identificada"
   | "orcamento_rascunho"
   | "orcamento_enviado"
   | "orcamento_aceito"
   | "orcamento_recusado"
+  | "orcamento_vencido"
+  | "pagamento_sinal_pendente"
+  | "comprovante_recebido"
+  | "autorizacao_pendente"
+  | "autorizacao_convenio_pendente"
   | "consulta_agendada"
+  | "agradecimento_agendamento"
+  | "compliance_7d_enviado"
+  | "compliance_2d_enviado"
+  | "sem_resposta_confirmacao"
+  | "motivo_nao_confirmacao"
   | "consulta_confirmada"
+  | "lembrete_dia_enviado"
+  | "reagendamento_confirmado"
   | "formulario_pendente"
   | "formulario_ok"
   | "checkin_pendente"
@@ -31,7 +58,14 @@ export type JourneyStepCode =
   | "retorno_sugerido"
   | "retorno_agendado"
   | "plano_tratamento_ativo"
+  | "pesquisa_nps_enviada"
+  | "feedback_recebido"
   | "jornada_concluida"
+  | "suporte_iniciado"
+  | "suporte_concluido"
+  | "reclamacao_escalada"
+  | "reativacao_iniciada"
+  | "reativacao_concluida"
   | "repescagem_ativa";
 
 export type LifecycleStageCode =
@@ -44,7 +78,45 @@ export type LifecycleStageCode =
 
 export type JourneyContactType = "lead" | "patient";
 
-export type JourneySource = "form" | "whatsapp" | "site" | "manual";
+export type JourneySource =
+  | "form"
+  | "whatsapp"
+  | "whatsapp_direct"
+  | "whatsapp_ads"
+  | "site"
+  | "public_site"
+  | "manual"
+  | "indicacao"
+  | "ligacao"
+  | "campanha"
+  | "reativacao_campanha";
+
+export type LossConfidence = "alta" | "media" | "baixa";
+
+export type ParallelTrackKind = "financeiro" | "suporte" | "pos_atendimento";
+
+export type ParallelTrackStep = {
+  code: JourneyStepCode;
+  label: string;
+  status: "completed" | "current" | "upcoming";
+};
+
+export type ParallelTrack = {
+  kind: ParallelTrackKind;
+  label: string;
+  steps: ParallelTrackStep[];
+};
+
+export type ActivePathStepStatus = "completed" | "current" | "upcoming" | "skipped";
+
+export type ActivePathStep = {
+  code: JourneyStepCode;
+  label: string;
+  shortLabel: string;
+  status: ActivePathStepStatus;
+  awaitsResponse?: boolean;
+  hint?: string;
+};
 
 export type SuggestedActionKind =
   | "register_patient"
@@ -58,6 +130,7 @@ export type SuggestedActionKind =
   | "view_event"
   | "collect_payment"
   | "view_quote"
+  | "escalate_human"
   | "none";
 
 export type SuggestedAction = {
@@ -98,6 +171,7 @@ export type JourneyEventRef = {
 export type ContactJourney = {
   contactKey: string;
   contactType: JourneyContactType;
+  contactIntent: ContactIntent;
   pipelineId?: string;
   patientId?: string;
   displayName: string;
@@ -109,12 +183,17 @@ export type ContactJourney = {
   temperature?: string;
   currentStep: JourneyStepCode;
   completedSteps: JourneyStepCode[];
+  activePathSteps: ActivePathStep[];
+  parallelTracks: ParallelTrack[];
   phase: JourneyPhase;
   pendingEvents: JourneyEventRef[];
   suggestedAction: SuggestedAction | null;
   appointmentId?: string;
   appointmentStatus?: string | null;
   appointmentScheduledAt?: string | null;
+  lossReason?: string | null;
+  motivoProvavel?: string | null;
+  lossConfidence?: LossConfidence | null;
   timeline: JourneyTimelineEntry[];
   updatedAt: string;
 };
@@ -123,7 +202,9 @@ export type JourneyListFilters = {
   phase?: JourneyPhase;
   source?: JourneySource;
   lifecycleStage?: LifecycleStageCode;
+  contactIntent?: ContactIntent;
   withPendingAction?: boolean;
+  awaitingResponse?: boolean;
 };
 
 export type JourneyActionContext = {

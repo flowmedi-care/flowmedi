@@ -81,6 +81,16 @@ export type AiConversationState = {
   pending_step?: string;
   /** Etapa na Jornada do Contato (CRM) */
   journey_step_code?: string;
+  contact_intent?: string;
+  pending_action?: string;
+  motivo_provavel?: string;
+  confianca?: "alta" | "media" | "baixa";
+  active_appointments?: string[];
+  focused_appointment_id?: string;
+  channel?: string;
+  captacao_substep?: number;
+  followup_count?: number;
+  confirmation_completed?: ("7d" | "2d" | "day")[];
   /** IDs de mensagens que já tiveram retry de transcrição após erro 500 */
   audio_transcription_retried_message_ids?: string[];
   /** Loop bot↔bot detectado — IA silenciada sem resposta */

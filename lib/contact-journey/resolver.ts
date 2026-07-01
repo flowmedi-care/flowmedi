@@ -7,9 +7,13 @@ import {
   PIPELINE_STAGE_TO_STEP,
   QUOTE_STATUS_TO_STEP,
 } from "./steps";
+import { buildActivePathSteps, buildParallelTracks } from "./active-path";
+import { classifyContactIntent } from "./intent-classifier";
+import { formatJourneyContextForAi } from "./contextual-resume";
 import { resolveSuggestedAction } from "./next-actions";
 import type {
   ComandaSnapshot,
+  ContactIntent,
   ContactJourney,
   JourneyActionContext,
   JourneyEventRef,
@@ -18,6 +22,7 @@ import type {
   JourneyStepCode,
   JourneyTimelineEntry,
   LifecycleStageCode,
+  LossConfidence,
   QuoteSnapshot,
   RepescagemSnapshot,
   TreatmentPlanSnapshot,
@@ -71,8 +76,22 @@ export type PatientJourneyInput = {
   repescagem?: RepescagemSnapshot | null;
 };
 
+const VALID_SOURCES = new Set<string>([
+  "form",
+  "site",
+  "whatsapp",
+  "whatsapp_direct",
+  "whatsapp_ads",
+  "public_site",
+  "manual",
+  "indicacao",
+  "ligacao",
+  "campanha",
+  "reativacao_campanha",
+]);
+
 function inferLeadSource(lead: PipelineLeadInput): JourneySource {
-  if (lead.source && ["form", "site", "whatsapp", "manual"].includes(lead.source)) {
+  if (lead.source && VALID_SOURCES.has(lead.source)) {
     return lead.source as JourneySource;
   }
   if (lead.hasPublicForm) return "form";
@@ -110,7 +129,7 @@ function pickMostUrgentStep(candidates: (JourneyStepCode | null)[]): JourneyStep
 
 function resolveLeadStep(lead: PipelineLeadInput, pendingEvents: JourneyEventRef[]): JourneyStepCode {
   if (lead.lifecycle_stage === "perdido" || lead.loss_reason) {
-    return "consulta_cancelada";
+    return "objecao_identificada";
   }
 
   const hasPublicFormPending = pendingEvents.some(
@@ -190,6 +209,10 @@ function resolvePatientStep(
         : pickMostUrgentStep(["consulta_agendada", quoteStep]);
     }
 
+    if (appt.status === "agendada") {
+      return pickMostUrgentStep(["compliance_2d_enviado", quoteStep, comandaStep]);
+    }
+
     return pickMostUrgentStep([
       APPOINTMENT_STATUS_TO_STEP[appt.status],
       quoteStep,
@@ -202,6 +225,51 @@ function resolvePatientStep(
   }
 
   return pickMostUrgentStep([quoteStep, "cadastrado"]);
+}
+
+function inferContactIntent(
+  contactType: "lead" | "patient",
+  currentStep: JourneyStepCode,
+  patient?: PatientJourneyInput,
+  lead?: PipelineLeadInput
+): ContactIntent {
+  if (currentStep === "pesquisa_nps_enviada" || currentStep === "feedback_recebido") {
+    return "pos_atendimento";
+  }
+  if (["suporte_iniciado", "suporte_concluido", "reclamacao_escalada"].includes(currentStep)) {
+    return "suporte";
+  }
+  if (
+    ["orcamento_enviado", "pagamento_sinal_pendente", "comprovante_recebido", "pagamento_pendente", "pagamento_parcial"].includes(
+      currentStep
+    )
+  ) {
+    return "financeiro";
+  }
+  if (["repescagem_ativa", "reativacao_iniciada", "reativacao_concluida"].includes(currentStep)) {
+    return "reativacao";
+  }
+
+  const hasFutureAppt =
+    patient?.appointment != null &&
+    ["agendada", "confirmada"].includes(patient.appointment.status) &&
+    new Date(patient.appointment.scheduled_at) > new Date();
+
+  return classifyContactIntent({
+    isNewNumber: contactType === "lead" && lead?.stage === "novo_contato",
+    hasFutureAppointment: hasFutureAppt,
+    hasCompletedAppointment: patient?.hasCompletedAppointment ?? false,
+    isInactivePatient: patient?.hasCompletedAppointment === true && !hasFutureAppt,
+    isLeadInPipeline: contactType === "lead",
+    currentStep,
+  });
+}
+
+function inferLossConfidence(lossReason: string | null | undefined): LossConfidence | null {
+  if (!lossReason) return null;
+  if (lossReason === "nao_respondeu" || lossReason === "motivo_nao_identificado") return "baixa";
+  if (["preco", "horario", "distancia", "indecisao"].includes(lossReason)) return "alta";
+  return "media";
 }
 
 function buildTimelineFromHistory(
@@ -292,9 +360,18 @@ export function buildLeadJourney(
     hasPendingForms: false,
   });
 
-  return {
+  const contactIntent = classifyContactIntent({
+    isNewNumber: lead.stage === "novo_contato",
+    hasFutureAppointment: lead.stage === "agendado",
+    hasCompletedAppointment: false,
+    isInactivePatient: false,
+    isLeadInPipeline: true,
+    currentStep,
+  });
+
+  const base = {
     contactKey: `lead-${lead.id}`,
-    contactType: "lead",
+    contactType: "lead" as const,
     pipelineId: lead.id,
     displayName: lead.name || lead.email,
     email: lead.email,
@@ -310,7 +387,19 @@ export function buildLeadJourney(
     suggestedAction,
     timeline: buildTimelineFromHistory(lead.history, pendingEvents, lead.quotes),
     updatedAt: lead.updated_at,
+    lossReason: lead.loss_reason,
+    contactIntent,
+    activePathSteps: buildActivePathSteps(currentStep, completedSteps, contactIntent),
+    parallelTracks: buildParallelTracks({
+      currentStep,
+      quotes: lead.quotes,
+      contactIntent,
+    }),
+    motivoProvavel: lead.loss_reason,
+    lossConfidence: inferLossConfidence(lead.loss_reason),
   };
+
+  return base;
 }
 
 export function buildPatientJourney(
@@ -335,9 +424,12 @@ export function buildPatientJourney(
     context,
   });
 
+  const contactIntent = inferContactIntent("patient", currentStep, patient);
+
   return {
     contactKey: `patient-${patient.id}`,
     contactType: "patient",
+    contactIntent,
     patientId: patient.id,
     displayName: patient.full_name,
     email: patient.email,
@@ -346,12 +438,22 @@ export function buildPatientJourney(
     lifecycleStage: resolveLifecycleStage(undefined, patient),
     currentStep,
     completedSteps,
+    activePathSteps: buildActivePathSteps(currentStep, completedSteps, contactIntent),
+    parallelTracks: buildParallelTracks({
+      currentStep,
+      quotes: patient.quotes,
+      comandas: patient.comandas,
+      contactIntent,
+    }),
     phase,
     pendingEvents,
     suggestedAction,
     appointmentId: patient.appointment?.id,
     appointmentStatus: patient.appointment?.status ?? null,
     appointmentScheduledAt: patient.appointment?.scheduled_at ?? null,
+    lossReason: null,
+    motivoProvavel: null,
+    lossConfidence: null,
     timeline: buildTimelineFromHistory([], pendingEvents, patient.quotes),
     updatedAt: patient.updated_at,
   };
@@ -363,33 +465,25 @@ export function filterJourneys(
     phase?: JourneyPhase;
     source?: JourneySource;
     lifecycleStage?: LifecycleStageCode;
+    contactIntent?: ContactIntent;
     withPendingAction?: boolean;
+    awaitingResponse?: boolean;
   }
 ): ContactJourney[] {
   return journeys.filter((j) => {
     if (filters?.phase && j.phase !== filters.phase) return false;
     if (filters?.source && j.source !== filters.source) return false;
     if (filters?.lifecycleStage && j.lifecycleStage !== filters.lifecycleStage) return false;
+    if (filters?.contactIntent && j.contactIntent !== filters.contactIntent) return false;
     if (filters?.withPendingAction && !j.suggestedAction) return false;
+    if (filters?.awaitingResponse) {
+      const current = j.activePathSteps.find((s) => s.status === "current");
+      if (!current?.awaitsResponse) return false;
+    }
     return true;
   });
 }
 
 export function formatJourneySummaryForAi(journey: ContactJourney): string {
-  const step = getStepDefinition(journey.currentStep);
-  const action = journey.suggestedAction?.label ?? "Nenhuma ação pendente";
-  return [
-    `Contato: ${journey.displayName}`,
-    `Tipo: ${journey.contactType === "lead" ? "lead" : "paciente"}`,
-    journey.lifecycleStage ? `Funil CRM: ${journey.lifecycleStage}` : null,
-    `Etapa operacional: ${step.label} (${journey.phase})`,
-    `Origem: ${journey.source}`,
-    journey.leadScore != null ? `Score: ${journey.leadScore}` : null,
-    `Próxima ação sugerida: ${action}`,
-    journey.pendingEvents.length > 0
-      ? `Eventos pendentes: ${journey.pendingEvents.map((e) => e.event_name).join(", ")}`
-      : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  return formatJourneyContextForAi(journey);
 }

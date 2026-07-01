@@ -8,6 +8,8 @@ import { buildBehaviorInstructions, buildKnowledgeContext } from "./knowledge-co
 import { ASSISTANT_TOOLS, executeAssistantTool } from "./tools";
 import type { AiConversationState, VirtualAssistantSettings } from "./types";
 import { getContactJourneyForAi } from "@/app/dashboard/crm/jornada/actions";
+import { buildContextualResumePrompt } from "@/lib/contact-journey/contextual-resume";
+import { shouldEscalateToHuman } from "@/lib/virtual-assistant/escalation";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -41,7 +43,8 @@ export async function runVirtualAssistantAgent(opts: {
     return { reply: "Não consegui entender sua mensagem. Pode repetir?" };
   }
 
-  if (shouldAutoHandoff(combinedUserText) && opts.settings.human_handoff_enabled !== false) {
+  const escalation = shouldEscalateToHuman({ messageText: combinedUserText });
+  if (escalation.escalate && opts.settings.human_handoff_enabled !== false) {
     const handoffResult = await executeAssistantTool(
       {
         supabase: opts.supabase,
@@ -51,7 +54,7 @@ export async function runVirtualAssistantAgent(opts: {
         aiState: opts.aiState,
       },
       "transfer_to_human",
-      { reason: "auto_keyword" }
+      { reason: escalation.trigger ?? "auto_keyword" }
     );
     return {
       reply: "Claro! Vou chamar alguém da equipe para te atender. Um momento, por favor.",
@@ -71,11 +74,27 @@ export async function runVirtualAssistantAgent(opts: {
   const journeyBlock = journeyRes.summary
     ? `\n\nJornada do contato (CRM — use para orientar próximo passo):\n${journeyRes.summary}`
     : "";
+  const resumeHint = journeyRes.journey
+    ? `\nAbertura contextual sugerida: ${buildContextualResumePrompt(journeyRes.journey)}`
+    : "";
+
+  const journeyStatePatch: Partial<AiConversationState> = journeyRes.journey
+    ? {
+        journey_step_code: journeyRes.journey.currentStep,
+        contact_intent: journeyRes.journey.contactIntent,
+        motivo_provavel: journeyRes.journey.motivoProvavel ?? undefined,
+        confianca: journeyRes.journey.lossConfidence ?? undefined,
+        focused_appointment_id: journeyRes.journey.appointmentId ?? undefined,
+        active_appointments: journeyRes.journey.appointmentId
+          ? [journeyRes.journey.appointmentId]
+          : undefined,
+      }
+    : {};
 
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `${knowledge}\n\n${behavior}${journeyBlock}\n\nEstado atual da conversa: ${JSON.stringify(opts.aiState)}`,
+      content: `${knowledge}\n\n${behavior}${journeyBlock}${resumeHint}\n\nEstado atual da conversa: ${JSON.stringify(opts.aiState)}`,
     },
   ];
 
@@ -85,7 +104,7 @@ export async function runVirtualAssistantAgent(opts: {
   }
   messages.push({ role: "user", content: combinedUserText });
 
-  let statePatch: Partial<AiConversationState> = { ...opts.aiState };
+  let statePatch: Partial<AiConversationState> = { ...opts.aiState, ...journeyStatePatch };
   let rounds = 0;
 
   while (rounds < MAX_TOOL_ROUNDS) {

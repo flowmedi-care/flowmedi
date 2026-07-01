@@ -4,14 +4,18 @@ import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { JourneyFlowMap } from "@/components/crm/journey-flow-map";
+import { JourneyDetailView } from "@/components/crm/journey-detail-view";
 import { JourneyNextActionCard } from "@/components/crm/journey-next-action-card";
+import { JourneyParallelTracks } from "@/components/crm/journey-parallel-tracks";
 import { JourneyTimeline } from "@/components/crm/journey-list-client";
 import { getJourneyDetail } from "../actions";
 import {
   getStepDefinition,
   JOURNEY_PHASE_LABELS,
+  JOURNEY_SOURCE_LABELS,
 } from "@/lib/contact-journey";
+import { CONTACT_INTENT_LABELS } from "@/lib/contact-journey/intents";
+import { lossReasonLabel } from "@/lib/leads/loss-reasons";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
 type Props = {
@@ -28,6 +32,7 @@ export default async function JornadaDetailPage({ params }: Props) {
   if (!journey) notFound();
 
   const step = getStepDefinition(journey.currentStep);
+  const currentPathStep = journey.activePathSteps.find((s) => s.status === "current");
 
   return (
     <PageShell
@@ -53,13 +58,10 @@ export default async function JornadaDetailPage({ params }: Props) {
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Mapa da jornada</CardTitle>
+              <CardTitle className="text-base">Jornada do contato</CardTitle>
             </CardHeader>
             <CardContent>
-              <JourneyFlowMap
-                currentStep={journey.currentStep}
-                completedSteps={journey.completedSteps}
-              />
+              <JourneyDetailView journey={journey} />
             </CardContent>
           </Card>
 
@@ -87,11 +89,16 @@ export default async function JornadaDetailPage({ params }: Props) {
             <CardContent className="space-y-2 text-sm">
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">
-                  {journey.contactType === "lead" ? "Lead" : "Paciente"}
+                  {journey.contactType === "lead" ? "Contato / Lead" : "Paciente"}
                 </Badge>
-                <Badge variant="secondary">{JOURNEY_PHASE_LABELS[journey.phase]}</Badge>
+                <Badge variant="secondary">{CONTACT_INTENT_LABELS[journey.contactIntent]}</Badge>
+                <Badge variant="outline">{JOURNEY_PHASE_LABELS[journey.phase]}</Badge>
               </div>
-              {journey.email && (
+              <p>
+                <span className="text-muted-foreground">Origem:</span>{" "}
+                {JOURNEY_SOURCE_LABELS[journey.source] ?? journey.source}
+              </p>
+              {journey.email && !journey.email.includes("@lead.flowmedi.local") && (
                 <p>
                   <span className="text-muted-foreground">E-mail:</span> {journey.email}
                 </p>
@@ -107,6 +114,20 @@ export default async function JornadaDetailPage({ params }: Props) {
                   {new Date(journey.appointmentScheduledAt).toLocaleString("pt-BR")}
                 </p>
               )}
+              {journey.motivoProvavel && (
+                <p>
+                  <span className="text-muted-foreground">Motivo provável:</span>{" "}
+                  {lossReasonLabel(journey.motivoProvavel)}
+                  {journey.lossConfidence && (
+                    <span className="text-muted-foreground"> ({journey.lossConfidence})</span>
+                  )}
+                </p>
+              )}
+              {currentPathStep?.awaitsResponse && (
+                <Badge variant="outline" className="text-amber-700 border-amber-300">
+                  Aguardando resposta do contato
+                </Badge>
+              )}
               {journey.patientId && (
                 <Button variant="link" className="h-auto p-0" asChild>
                   <Link href={`/dashboard/contatos/pacientes/${journey.patientId}`}>
@@ -116,6 +137,8 @@ export default async function JornadaDetailPage({ params }: Props) {
               )}
             </CardContent>
           </Card>
+
+          <JourneyParallelTracks tracks={journey.parallelTracks} />
 
           <JourneyNextActionCard journey={journey} />
         </div>

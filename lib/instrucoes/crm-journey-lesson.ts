@@ -229,7 +229,14 @@ export const CRM_JOURNEY_APP_LINKS: AppLinkInfo[] = [
   },
 ];
 
-const NODE_COPY: Record<JourneyStepCode, Omit<FlowNodeInfo, "code">> = {
+const DEFAULT_NODE_COPY: Omit<FlowNodeInfo, "code"> = {
+  description: "Etapa da jornada do contato.",
+  whatToDo: "Acompanhe o próximo passo na Jornada CRM.",
+  appHref: "/dashboard/crm/jornada",
+  appLabel: "Jornada",
+};
+
+const NODE_COPY: Partial<Record<JourneyStepCode, Omit<FlowNodeInfo, "code">>> = {
   primeiro_contato: {
     description: "A pessoa acabou de chegar — formulário, WhatsApp ou indicação.",
     whatToDo: "Entre em contato o quanto antes.",
@@ -378,13 +385,49 @@ const NODE_COPY: Record<JourneyStepCode, Omit<FlowNodeInfo, "code">> = {
     appHref: "/dashboard/contatos/leads",
     appLabel: "Centro de Leads",
   },
+  origem_identificada: {
+    description: "Canal de origem registrado (formulário, WhatsApp, indicação, etc.).",
+    whatToDo: "Use a origem para personalizar a abordagem.",
+    appHref: "/dashboard/crm/captacao",
+    appLabel: "Captação",
+  },
+  qualificacao: {
+    description: "Entendendo o que a pessoa procura.",
+    whatToDo: "Confirme procedimento, urgência e convênio.",
+    appHref: "/dashboard/contatos/leads",
+    appLabel: "Centro de Leads",
+  },
+  negociacao: {
+    description: "Ida e volta sobre valores e condições.",
+    whatToDo: "Responda objeções e avance para o agendamento.",
+    appHref: "/dashboard/vendas/orcamentos",
+    appLabel: "Orçamentos",
+  },
+  fechamento_agendamento: {
+    description: "Escolha de horário e confirmação do agendamento.",
+    whatToDo: "Feche o horário na agenda.",
+    appHref: "/dashboard/agenda",
+    appLabel: "Agenda",
+  },
+  compliance_2d_enviado: {
+    description: "Confirmação formal enviada (2 dias antes).",
+    whatToDo: "Aguarde resposta ou faça reforço.",
+    appHref: "/dashboard/agenda",
+    appLabel: "Agenda",
+  },
+  objecao_identificada: {
+    description: "Desistência ou objeção registrada.",
+    whatToDo: "Revise o motivo e planeje repescagem.",
+    appHref: "/dashboard/contatos/leads",
+    appLabel: "Centro de Leads",
+  },
 };
 
 export const FLOW_NODE_DESCRIPTIONS: Record<JourneyStepCode, FlowNodeInfo> =
   Object.fromEntries(
     JOURNEY_FLOW_NODES.map((node) => [
       node.code,
-      { code: node.code, ...NODE_COPY[node.code] },
+      { code: node.code, ...DEFAULT_NODE_COPY, ...NODE_COPY[node.code] },
     ])
   ) as Record<JourneyStepCode, FlowNodeInfo>;
 

@@ -7,35 +7,43 @@ import { cn } from "@/lib/utils";
 import {
   getStepDefinition,
   JOURNEY_PHASE_LABELS,
+  JOURNEY_SOURCE_LABELS,
   type ContactJourney,
   type JourneyPhase,
   type JourneySource,
   type LifecycleStageCode,
 } from "@/lib/contact-journey";
+import { CONTACT_INTENT_LABELS } from "@/lib/contact-journey/intents";
 import { LIFECYCLE_STAGE_LABELS } from "@/lib/leads/lifecycle";
-import { ChevronRight, FileText, MessageSquare, Globe, User } from "lucide-react";
+import { ChevronRight, Clock, FileText, Globe, MessageSquare, User } from "lucide-react";
 
-const SOURCE_LABELS: Record<JourneySource, string> = {
-  form: "Formulário",
-  whatsapp: "WhatsApp",
-  site: "Site",
-  manual: "Manual",
+const SOURCE_ICONS: Record<string, typeof FileText> = {
+  form: FileText,
+  whatsapp: MessageSquare,
+  whatsapp_direct: MessageSquare,
+  whatsapp_ads: MessageSquare,
+  site: Globe,
+  public_site: Globe,
+  manual: User,
 };
 
 function SourceBadge({ source }: { source: JourneySource }) {
-  const icons = {
-    form: FileText,
-    whatsapp: MessageSquare,
-    site: Globe,
-    manual: User,
-  };
-  const Icon = icons[source];
+  const Icon = SOURCE_ICONS[source] ?? User;
   return (
     <Badge variant="outline" className="gap-1 font-normal">
       <Icon className="h-3 w-3" />
-      {SOURCE_LABELS[source]}
+      {JOURNEY_SOURCE_LABELS[source] ?? source}
     </Badge>
   );
+}
+
+function formatIdleTime(updatedAt: string): string {
+  const diff = Date.now() - new Date(updatedAt).getTime();
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  if (hours < 1) return "Atualizado há pouco";
+  if (hours < 24) return `Parado há ${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `Parado há ${days}d`;
 }
 
 type JourneyListClientProps = {
@@ -45,9 +53,7 @@ type JourneyListClientProps = {
   withActionOnly?: boolean;
 };
 
-export function JourneyListClient({
-  journeys,
-}: JourneyListClientProps) {
+export function JourneyListClient({ journeys }: JourneyListClientProps) {
   if (journeys.length === 0) {
     return (
       <Card>
@@ -62,6 +68,10 @@ export function JourneyListClient({
     <div className="space-y-2">
       {journeys.map((j) => {
         const step = getStepDefinition(j.currentStep);
+        const awaitsResponse = j.activePathSteps.some(
+          (s) => s.status === "current" && s.awaitsResponse
+        );
+
         return (
           <Link key={j.contactKey} href={`/dashboard/crm/jornada/${j.contactKey}`}>
             <Card className="hover:bg-muted/40 transition-colors cursor-pointer">
@@ -69,8 +79,11 @@ export function JourneyListClient({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <p className="font-medium truncate">{j.displayName}</p>
-                    <SourceBadge source={j.source} />
                     <Badge variant="secondary" className="font-normal">
+                      {CONTACT_INTENT_LABELS[j.contactIntent]}
+                    </Badge>
+                    <SourceBadge source={j.source} />
+                    <Badge variant="outline" className="font-normal">
                       {JOURNEY_PHASE_LABELS[j.phase]}
                     </Badge>
                     {j.lifecycleStage && (
@@ -78,21 +91,25 @@ export function JourneyListClient({
                         {LIFECYCLE_STAGE_LABELS[j.lifecycleStage as LifecycleStageCode]}
                       </Badge>
                     )}
-                    {j.leadScore != null && j.leadScore > 0 && (
-                      <Badge variant="outline" className="font-normal">
-                        Score {j.leadScore}
+                    {awaitsResponse && (
+                      <Badge className="font-normal gap-1 bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-200">
+                        <Clock className="h-3 w-3" />
+                        Aguardando resposta
                       </Badge>
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Etapa: <span className="text-foreground">{step.label}</span>
-                    {j.email && <> · {j.email}</>}
+                    {j.phone && <> · {j.phone}</>}
                   </p>
-                  {j.suggestedAction && (
-                    <p className="text-xs text-primary mt-1">
-                      Próximo: {j.suggestedAction.label}
+                  <div className="flex flex-wrap items-center gap-3 mt-1">
+                    {j.suggestedAction && (
+                      <p className="text-xs text-primary">Próximo: {j.suggestedAction.label}</p>
+                    )}
+                    <p className={cn("text-xs text-muted-foreground")}>
+                      {formatIdleTime(j.updatedAt)}
                     </p>
-                  )}
+                  </div>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
               </CardContent>

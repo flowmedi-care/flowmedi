@@ -16,6 +16,16 @@ function formatAppointmentConfirmMessage(appt: {
   return `Olá! Passando para confirmar sua consulta${proc} com ${appt.doctor_name} no dia ${date} às ${time}. Você confirma presença? Responda *sim* ou *não*.`;
 }
 
+function formatLightReminder7d(appt: {
+  scheduled_at: string;
+  doctor_name: string;
+}): string {
+  const dt = new Date(appt.scheduled_at);
+  const date = dt.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" });
+  const time = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return `Olá! Lembrete: você tem consulta com ${appt.doctor_name} no dia ${date} às ${time}. Estamos ansiosos para recebê-lo(a)!`;
+}
+
 /**
  * Envia mensagens proativas de confirmação de consulta via assistente virtual.
  */
@@ -52,6 +62,66 @@ export async function runVirtualAssistantConfirmations(
       .single();
 
     const daysBefore = Number(clinic?.compliance_confirmation_days) || 2;
+
+    // Toque leve 7 dias antes (não bloqueante)
+    const target7Start = new Date();
+    target7Start.setDate(target7Start.getDate() + 7);
+    target7Start.setHours(0, 0, 0, 0);
+    const target7End = new Date(target7Start);
+    target7End.setHours(23, 59, 59, 999);
+
+    const { data: appts7d } = await supabase
+      .from("appointments")
+      .select(
+        "id, patient_id, scheduled_at, status, patients(phone, full_name), profiles!appointments_doctor_id_fkey(full_name)"
+      )
+      .eq("clinic_id", clinicId)
+      .in("status", ["agendada", "confirmada"])
+      .gte("scheduled_at", target7Start.toISOString())
+      .lte("scheduled_at", target7End.toISOString());
+
+    for (const appt of appts7d ?? []) {
+      const { data: existing7 } = await supabase
+        .from("whatsapp_ai_confirmation_outreach")
+        .select("id")
+        .eq("appointment_id", appt.id)
+        .eq("touchpoint", "7d")
+        .maybeSingle();
+      if (existing7) continue;
+
+      const patient = appt.patients as { phone?: string; full_name?: string } | null;
+      const phone = normalizeWhatsAppPhone(patient?.phone ?? "");
+      if (!phone) continue;
+
+      const doctor = appt.profiles as { full_name?: string } | null;
+      const msg = formatLightReminder7d({
+        scheduled_at: appt.scheduled_at,
+        doctor_name: doctor?.full_name ?? "profissional",
+      });
+
+      const { data: conv } = await supabase
+        .from("whatsapp_conversations")
+        .select("id")
+        .eq("clinic_id", clinicId)
+        .eq("phone_number", phone)
+        .maybeSingle();
+
+      if (!conv?.id) continue;
+
+      const sendOk = await sendAssistantReply(supabase, clinicId, conv.id, phone, msg);
+      if (sendOk) {
+        await supabase.from("whatsapp_ai_confirmation_outreach").insert({
+          clinic_id: clinicId,
+          appointment_id: appt.id,
+          conversation_id: conv.id,
+          touchpoint: "7d",
+        });
+        sent++;
+      } else {
+        errors++;
+      }
+    }
+
     const targetStart = new Date();
     targetStart.setDate(targetStart.getDate() + daysBefore);
     targetStart.setHours(0, 0, 0, 0);
@@ -73,6 +143,7 @@ export async function runVirtualAssistantConfirmations(
         .from("whatsapp_ai_confirmation_outreach")
         .select("id")
         .eq("appointment_id", appt.id)
+        .eq("touchpoint", "2d")
         .maybeSingle();
 
       if (existing) continue;
@@ -128,6 +199,7 @@ export async function runVirtualAssistantConfirmations(
           clinic_id: clinicId,
           appointment_id: appt.id,
           conversation_id: conversationId,
+          touchpoint: "2d",
         });
         await supabase
           .from("whatsapp_conversations")

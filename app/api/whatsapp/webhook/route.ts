@@ -14,6 +14,7 @@ import {
 } from "@/lib/virtual-assistant/process-inbound";
 import { handleInboundUserCommand } from "@/lib/virtual-assistant/user-commands";
 import { applyBotLoopSilence, quickBotLoopCheck } from "@/lib/virtual-assistant/bot-loop-guard";
+import { upsertWhatsappPipelineLead } from "@/lib/leads/upsert-whatsapp-lead";
 
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
@@ -157,6 +158,16 @@ export async function POST(request: NextRequest) {
           }
 
           if (isNewConversation) {
+            const contacts = (value as { contacts?: Array<{ profile?: { name?: string } }> }).contacts;
+            const contactName = contacts?.[0]?.profile?.name ?? null;
+            const msgReferral = (msg as { referral?: { source_type?: string; source_url?: string } }).referral;
+            await upsertWhatsappPipelineLead(supabase, {
+              clinicId,
+              phone: from,
+              name: contactName,
+              referral: msgReferral ?? null,
+            });
+
             const referred = await applyReferralRoutingIfMatch(
               supabase,
               clinicId,

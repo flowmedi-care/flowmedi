@@ -5,6 +5,7 @@ import {
   JOURNEY_PHASE_LABELS,
   JOURNEY_STEPS,
   getStepDefinition,
+  type JourneyPhase,
   type JourneyStepCode,
 } from "@/lib/contact-journey";
 
@@ -18,7 +19,15 @@ export function JourneyStepper({ currentStep, completedSteps, compact }: Journey
   const completedSet = new Set(completedSteps);
   const currentOrder = getStepDefinition(currentStep).order;
 
-  const phases = ["captacao", "pre_consulta", "consulta", "pos_consulta"] as const;
+  const phases: JourneyPhase[] = [
+    "captacao",
+    "comercial",
+    "pre_consulta",
+    "consulta",
+    "financeiro",
+    "pos_consulta",
+    "pos_atendimento",
+  ];
 
   return (
     <div className="space-y-6">
