@@ -33,11 +33,15 @@ export function getConfirmationFlowDefinition(): Record<string, unknown> {
             },
             {
               type: "TextBody",
-              text: "${data.data_consulta} às ${data.hora_consulta}",
+              text: "`${data.data_consulta} ' às ' ${data.hora_consulta}`",
             },
             {
               type: "TextBody",
               text: "${data.medico}",
+            },
+            {
+              type: "TextBody",
+              text: "${data.procedimento}",
             },
             {
               type: "RadioButtonsGroup",

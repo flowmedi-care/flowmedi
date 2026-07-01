@@ -90,6 +90,67 @@ async function publishFlow(flowId: string, accessToken: string): Promise<{ succe
   return { success: true };
 }
 
+function formatFlowValidationErrors(errors: unknown): string {
+  if (!Array.isArray(errors) || errors.length === 0) {
+    return "O JSON do Flow foi rejeitado pela Meta.";
+  }
+  return errors
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return "Erro de validação no Flow.";
+      const row = entry as Record<string, unknown>;
+      const message = String(row.message || row.error || "Erro de validação no Flow.");
+      const line = row.line_start ? ` [linha ${row.line_start}]` : "";
+      return `${message}${line}`;
+    })
+    .join(" ");
+}
+
+async function updateFlowJson(
+  flowId: string,
+  accessToken: string,
+  flowJson: string
+): Promise<{ success: boolean; error?: string }> {
+  const form = new FormData();
+  const file = new Blob([flowJson], { type: "application/json" });
+  form.append("file", file, "flow.json");
+  form.append("name", "flow.json");
+  form.append("asset_type", "FLOW_JSON");
+
+  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${flowId}/assets`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: form,
+  });
+
+  const data = (await response.json()) as GraphCreateResponse & {
+    success?: boolean;
+    validation_errors?: unknown[];
+  };
+
+  if (!response.ok) {
+    return {
+      success: false,
+      error: data?.error?.error_user_msg || data?.error?.message || "Falha ao atualizar JSON do Flow na Meta.",
+    };
+  }
+
+  if (Array.isArray(data.validation_errors) && data.validation_errors.length > 0) {
+    return { success: false, error: formatFlowValidationErrors(data.validation_errors) };
+  }
+
+  return { success: true };
+}
+
+async function syncConfirmationFlowJson(
+  flowId: string,
+  accessToken: string
+): Promise<{ success: boolean; error?: string }> {
+  return updateFlowJson(flowId, accessToken, getConfirmationFlowJsonString());
+}
+
 export async function ensureConfirmationFlow(
   clinicId: string,
   supabaseClient?: SupabaseClient
@@ -114,6 +175,11 @@ export async function ensureConfirmationFlow(
 
     const draft = (listed.flows ?? []).find((flow) => flow.name === CONFIRMATION_FLOW_NAME);
     if (draft) {
+      const synced = await syncConfirmationFlowJson(draft.id, credentials.access_token);
+      if (!synced.success) {
+        return { success: false, error: synced.error };
+      }
+
       const published = await publishFlow(draft.id, credentials.access_token);
       if (published.success) {
         return { success: true, flowId: draft.id };
@@ -139,6 +205,11 @@ export async function ensureConfirmationFlow(
     }
 
     const flowId = String(createResult.data.id);
+    const synced = await syncConfirmationFlowJson(flowId, credentials.access_token);
+    if (!synced.success) {
+      return { success: false, error: synced.error, flowId };
+    }
+
     const published = await publishFlow(flowId, credentials.access_token);
     if (!published.success) {
       return { success: false, error: published.error, flowId };

@@ -128,4 +128,6 @@ node scripts/verify-confirmation-flow.mjs
 
 - Corpo com pouco texto fixo em relação às variáveis → use o body recomendado acima (não `Olá {{1}}! {{2}}`).
 - Variável no início ou fim do modelo → termine sempre com texto fixo após `{{2}}`.
-- Flow não publicado → clique novamente em **Solicitar templates do sistema** ou verifique permissões do WABA.
+- Flow não publicado / erro `Missing dynamic data` → o Flow JSON não pode concatenar `${data.campo}` com texto fixo na mesma string. Use expressão aninhada com backticks, ex.: `` `${data.data_consulta} ' às ' ${data.hora_consulta}` ``. O projeto já usa isso em `lib/whatsapp-confirmation-flow-definition.ts`.
+- Flow ficou em rascunho → clique novamente em **Solicitar templates do sistema**; o sistema reenvia o JSON corrigido e tenta publicar de novo.
+- Flow não publicado por permissão → verifique permissões do WABA para criar/publicar Flows.
