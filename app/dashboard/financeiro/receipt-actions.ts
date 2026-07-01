@@ -154,7 +154,7 @@ async function buildReceiptPdfPayload(
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("name")
+    .select("name, address, phone, tax_id")
     .eq("id", receipt.clinic_id)
     .maybeSingle();
 
@@ -162,6 +162,9 @@ async function buildReceiptPdfPayload(
 
   return {
     clinic_name: (clinic as { name?: string })?.name ?? "Flowmedi",
+    clinic_address: (clinic as { address?: string })?.address ?? null,
+    clinic_phone: (clinic as { phone?: string })?.phone ?? null,
+    clinic_tax_id: (clinic as { tax_id?: string })?.tax_id ?? null,
     receipt_number: String(receipt.receipt_number),
     issued_at: String(receipt.issued_at),
     patient_name: (patient as { full_name?: string })?.full_name ?? "—",
@@ -320,6 +323,35 @@ export async function generateReceiptForPayment(paymentId: string, comandaId?: s
     receiptNumber
   );
 
+  try {
+    const cashAmount = Number(payment.gross_amount ?? payment.amount ?? 0);
+    const { data: eventId } = await supabase.rpc("create_event_timeline", {
+      p_clinic_id: profile.clinic_id,
+      p_event_code: "payment_receipt_generated",
+      p_patient_id: payment.patient_id,
+      p_metadata: {
+        receipt_id: String(receipt.id),
+        receipt_number: receiptNumber,
+        pdf_url: pdfUrl,
+        amount: cashAmount,
+      },
+    });
+    if (eventId) {
+      const { runAutoSendForEvent } = await import("@/lib/event-send-logic-server");
+      const { isInsideAutoMessageWindow } = await import("@/lib/whatsapp-ops-controls");
+      if (await isInsideAutoMessageWindow(profile.clinic_id, supabase)) {
+        await runAutoSendForEvent(
+          eventId,
+          profile.clinic_id,
+          "payment_receipt_generated",
+          supabase
+        );
+      }
+    }
+  } catch (e) {
+    console.warn("[payment_receipt_generated]", e);
+  }
+
   revalidatePath("/dashboard/financeiro/receber");
   return {
     error: null,
@@ -403,6 +435,7 @@ export async function getReceiptPrintData(receiptId: string) {
       voided_at,
       pdf_url,
       comanda_id,
+      clinic_id,
       patient:patients ( full_name ),
       payment:patient_payments ( amount, gross_amount, payment_method, paid_at, comanda_id )
     `
@@ -444,6 +477,12 @@ export async function getReceiptPrintData(receiptId: string) {
   const comandaDetails = await loadComandaReceiptDetails(supabase, comandaId);
   const cashAmount = Number(pay.gross_amount ?? pay.amount ?? 0);
 
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("name, address, phone, tax_id")
+    .eq("id", receipt.clinic_id)
+    .maybeSingle();
+
   return {
     error: null,
     data: {
@@ -452,6 +491,10 @@ export async function getReceiptPrintData(receiptId: string) {
       issued_at: String(receipt.issued_at),
       voided_at: receipt.voided_at ? String(receipt.voided_at) : null,
       pdf_url: receipt.pdf_url ? String(receipt.pdf_url) : null,
+      clinic_name: clinic?.name ? String(clinic.name) : "Clínica",
+      clinic_address: clinic?.address ? String(clinic.address) : null,
+      clinic_phone: clinic?.phone ? String(clinic.phone) : null,
+      clinic_tax_id: clinic?.tax_id ? String(clinic.tax_id) : null,
       patient_name: (patient as { full_name?: string })?.full_name ?? "—",
       amount: cashAmount,
       credit_applied: creditApplied > 0 ? creditApplied : null,

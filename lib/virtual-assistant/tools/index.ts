@@ -6,6 +6,7 @@ import {
   confirmAppointmentViaAssistant,
   createAppointmentViaAssistant,
   listPatientAppointmentsViaAssistant,
+  rescheduleAppointmentViaAssistant,
 } from "../services/appointments";
 import {
   linkConversationToPatient,
@@ -201,6 +202,106 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       description:
         "Consulta a jornada do contato no CRM: etapa atual, eventos pendentes e próxima ação sugerida. Use antes de decidir cadastro, agendamento ou follow-up.",
       parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "resolve_quote_offer",
+      description:
+        "Verifica se pode gerar orçamento para um procedimento: se precisa perguntar médico, lista profissionais com preço e validade.",
+      parameters: {
+        type: "object",
+        properties: {
+          procedure_id: { type: "string" },
+          doctor_id: { type: "string" },
+        },
+        required: ["procedure_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_and_send_quote",
+      description:
+        "Cria orçamento, marca como enviado e manda resumo + PDF no WhatsApp. Só use após resolve_quote_offer sem needsDoctorChoice.",
+      parameters: {
+        type: "object",
+        properties: {
+          procedure_id: { type: "string" },
+          doctor_id: { type: "string" },
+        },
+        required: ["procedure_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_quote_status",
+      description: "Consulta status do último orçamento do contato (enviado, expirado, etc.).",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_form_status",
+      description: "Lista formulários pendentes ou respondidos das consultas futuras do paciente.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "resend_form_link",
+      description: "Reenvia link de formulário pendente quando o paciente pedir (não substitui compliance automático).",
+      parameters: {
+        type: "object",
+        properties: { appointment_id: { type: "string" } },
+        required: ["appointment_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_payment_status",
+      description:
+        "Somente leitura: informa se há cobrança pendente no sistema. NUNCA registra pagamento.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "reschedule_appointment",
+      description: "Remarca consulta para novo horário ISO 8601.",
+      parameters: {
+        type: "object",
+        properties: {
+          appointment_id: { type: "string" },
+          new_scheduled_at: { type: "string", description: "ISO 8601" },
+        },
+        required: ["appointment_id", "new_scheduled_at"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "collect_nps_feedback",
+      description: "Registra nota NPS 0-10 e comentário opcional após atendimento.",
+      parameters: {
+        type: "object",
+        properties: {
+          score: { type: "number" },
+          comment: { type: "string" },
+          appointment_id: { type: "string" },
+        },
+        required: ["score"],
+      },
     },
   },
   {
@@ -509,6 +610,119 @@ export async function executeAssistantTool(
             ? { journey_step_code: res.journey.currentStep }
             : {},
         };
+      }
+
+      case "resolve_quote_offer": {
+        const { resolveQuoteOfferViaAssistant } = await import("../services/quotes");
+        const res = await resolveQuoteOfferViaAssistant(supabase, {
+          clinicId,
+          procedureId: String(args.procedure_id),
+          doctorId: args.doctor_id ? String(args.doctor_id) : null,
+        });
+        await logToolCall(supabase, clinicId, conversationId, name, args, res.hint.slice(0, 120), true);
+        return {
+          result: JSON.stringify(res),
+          statePatch: {
+            procedure_id: String(args.procedure_id),
+            doctor_id: res.autoSelectedDoctorId ?? undefined,
+            intent: "quote",
+          },
+        };
+      }
+
+      case "create_and_send_quote": {
+        const { createAndSendQuoteViaAssistant } = await import("../services/quotes");
+        const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        const res = await createAndSendQuoteViaAssistant(supabase, {
+          clinicId,
+          conversationId,
+          phoneNumber,
+          procedureId: String(args.procedure_id),
+          doctorId: args.doctor_id ? String(args.doctor_id) : ctx.aiState.doctor_id,
+          patientId: patient?.id ?? ctx.aiState.patient_id,
+        });
+        await logToolCall(
+          supabase,
+          clinicId,
+          conversationId,
+          name,
+          args,
+          res.error ?? res.quoteId ?? "ok",
+          !res.error
+        );
+        return { result: JSON.stringify(res) };
+      }
+
+      case "get_quote_status": {
+        const { getLatestQuoteStatusForContact } = await import("../services/quotes");
+        const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        const res = await getLatestQuoteStatusForContact(supabase, clinicId, {
+          patientId: patient?.id ?? ctx.aiState.patient_id,
+          phone: phoneNumber,
+        });
+        await logToolCall(supabase, clinicId, conversationId, name, {}, JSON.stringify(res).slice(0, 120), true);
+        return { result: JSON.stringify(res) };
+      }
+
+      case "get_form_status": {
+        const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        if (!patient) return { result: JSON.stringify({ error: "Paciente não encontrado." }) };
+        const { getFormStatusViaAssistant } = await import("../services/forms");
+        const res = await getFormStatusViaAssistant(supabase, clinicId, patient.id);
+        await logToolCall(supabase, clinicId, conversationId, name, {}, `${res.forms.length} forms`, true);
+        return { result: JSON.stringify(res) };
+      }
+
+      case "resend_form_link": {
+        const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        if (!patient) return { result: JSON.stringify({ error: "Paciente não encontrado." }) };
+        const { resendFormLinkViaAssistant } = await import("../services/forms");
+        const res = await resendFormLinkViaAssistant(
+          supabase,
+          clinicId,
+          String(args.appointment_id),
+          patient.id
+        );
+        await logToolCall(supabase, clinicId, conversationId, name, args, `sent:${res.sent}`, !res.error);
+        return { result: JSON.stringify(res) };
+      }
+
+      case "get_payment_status": {
+        const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        if (!patient) return { result: JSON.stringify({ error: "Paciente não encontrado." }) };
+        const { getPaymentStatusViaAssistant } = await import("../services/payments");
+        const res = await getPaymentStatusViaAssistant(supabase, clinicId, patient.id);
+        await logToolCall(supabase, clinicId, conversationId, name, {}, res.message.slice(0, 120), true);
+        return { result: JSON.stringify(res) };
+      }
+
+      case "reschedule_appointment": {
+        const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        if (!patient) return { result: JSON.stringify({ error: "Paciente não encontrado." }) };
+        const res = await rescheduleAppointmentViaAssistant(supabase, {
+          clinicId,
+          appointmentId: String(args.appointment_id),
+          patientId: patient.id,
+          newScheduledAt: String(args.new_scheduled_at),
+        });
+        await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "remarcada", !res.error);
+        return { result: JSON.stringify(res) };
+      }
+
+      case "collect_nps_feedback": {
+        const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        if (!patient) return { result: JSON.stringify({ error: "Paciente não encontrado." }) };
+        const { collectNpsFeedbackViaAssistant } = await import("../services/nps");
+        const res = await collectNpsFeedbackViaAssistant(supabase, {
+          clinicId,
+          patientId: patient.id,
+          conversationId,
+          appointmentId: args.appointment_id ? String(args.appointment_id) : undefined,
+          score: Number(args.score),
+          comment: args.comment ? String(args.comment) : undefined,
+        });
+        await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "nps", !res.error);
+        return { result: JSON.stringify(res) };
       }
 
       case "transfer_to_human": {

@@ -10,6 +10,7 @@ import type { AiConversationState, VirtualAssistantSettings } from "./types";
 import { loadContactJourneyForAi } from "@/lib/contact-journey/journey-for-ai";
 import { buildContextualResumePrompt } from "@/lib/contact-journey/contextual-resume";
 import { shouldEscalateToHuman } from "@/lib/virtual-assistant/escalation";
+import { buildAgentPolicyBlock } from "@/lib/virtual-assistant/agent-policy";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -102,7 +103,7 @@ export async function runVirtualAssistantAgent(opts: {
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `${knowledge}\n\n${behavior}${journeyBlock}${resumeHint}\n\nEstado atual da conversa: ${JSON.stringify(opts.aiState)}`,
+      content: `${knowledge}\n\n${behavior}\n\n${buildAgentPolicyBlock()}${journeyBlock}${resumeHint}\n\nEstado atual da conversa: ${JSON.stringify(opts.aiState)}`,
     },
   ];
 

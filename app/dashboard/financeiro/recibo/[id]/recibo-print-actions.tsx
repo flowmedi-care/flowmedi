@@ -8,13 +8,20 @@ import { toast } from "@/components/ui/toast";
 export function ReciboPrintActions({
   receiptId,
   pdfUrl,
+  imprimirHref,
 }: {
   receiptId: string;
   pdfUrl: string | null;
+  imprimirHref?: string;
 }) {
   const [resending, setResending] = useState(false);
 
   const isExternalPdf = pdfUrl?.startsWith("http");
+  const downloadUrl = isExternalPdf
+    ? pdfUrl!
+    : imprimirHref
+      ? `${typeof window !== "undefined" ? window.location.origin : ""}${imprimirHref}`
+      : null;
 
   async function handleResend() {
     setResending(true);
@@ -29,14 +36,21 @@ export function ReciboPrintActions({
 
   return (
     <div className="flex flex-wrap gap-2 print:hidden">
-      {isExternalPdf && (
+      {downloadUrl && (
         <Button type="button" className="flex-1 min-w-[120px]" asChild>
-          <a href={pdfUrl!} target="_blank" rel="noopener noreferrer">
-            Baixar PDF
+          <a href={downloadUrl} target="_blank" rel="noopener noreferrer">
+            {isExternalPdf ? "Baixar PDF" : "Abrir para impressão"}
           </a>
         </Button>
       )}
-      <Button type="button" onClick={() => window.print()} className="flex-1 min-w-[120px]">
+      <Button
+        type="button"
+        onClick={() => {
+          if (imprimirHref) window.open(imprimirHref, "_blank");
+          else window.print();
+        }}
+        className="flex-1 min-w-[120px]"
+      >
         Imprimir
       </Button>
       <Button

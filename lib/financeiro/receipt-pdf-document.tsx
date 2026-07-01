@@ -15,6 +15,9 @@ export type ReceiptPdfItem = {
 
 export type ReceiptPdfData = {
   clinic_name: string;
+  clinic_address?: string | null;
+  clinic_phone?: string | null;
+  clinic_tax_id?: string | null;
   receipt_number: string;
   issued_at: string;
   patient_name: string;
@@ -67,6 +70,16 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
         {data.voided && <Text style={styles.watermark}>CANCELADO</Text>}
         <Text style={styles.title}>Recibo de pagamento</Text>
         <Text style={styles.subtitle}>{data.clinic_name}</Text>
+        {data.clinic_address ? (
+          <Text style={styles.subtitle}>{data.clinic_address}</Text>
+        ) : null}
+        {(data.clinic_phone || data.clinic_tax_id) && (
+          <Text style={styles.subtitle}>
+            {[data.clinic_phone, data.clinic_tax_id ? `Doc: ${data.clinic_tax_id}` : null]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
+        )}
         <Text style={styles.subtitle}>{data.receipt_number}</Text>
 
         <View style={{ marginBottom: 16 }}>

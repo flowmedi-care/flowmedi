@@ -96,6 +96,26 @@ const MAPPING: Record<string, MetaTemplateConfig> = {
     template: "flowmedi_consulta",
     phrase: "Sua consulta ainda não foi confirmada. Por favor, confirme sua presença ou entre em contato.",
   },
+  appointment_confirmation_request: {
+    template: "flowmedi_consulta",
+    phrase: "Precisamos confirmar sua consulta agendada. Por favor, responda se confirma presença.",
+  },
+  appointment_confirmation_followup: {
+    template: "flowmedi_consulta",
+    phrase: "Lembramos que sua consulta ainda aguarda confirmação. Por favor, responda esta mensagem.",
+  },
+  lead_reengagement: {
+    template: "flowmedi_aviso",
+    phrase: "Estamos à disposição para continuar seu atendimento. Responda quando puder.",
+  },
+  negotiation_followup: {
+    template: "flowmedi_aviso",
+    phrase: "Temos uma atualização sobre sua solicitação. Responda quando puder.",
+  },
+  booking_abandoned_followup: {
+    template: "flowmedi_consulta",
+    phrase: "Podemos ajudar a concluir seu agendamento. Responda quando puder.",
+  },
   appointment_reminder_30d: {
     template: "flowmedi_consulta",
     phrase: "Lembramos que você tem consulta agendada em 30 dias.",
@@ -173,6 +193,10 @@ const MAPPING: Record<string, MetaTemplateConfig> = {
   patient_registered: {
     template: "flowmedi_aviso",
     phrase: "Bem-vindo à nossa clínica. Você foi cadastrado em nosso sistema e em breve poderá agendar sua primeira consulta.",
+  },
+  quote_sent: {
+    template: "flowmedi_aviso",
+    phrase: "Seu orçamento está disponível. Responda quando puder.",
   },
 };
 

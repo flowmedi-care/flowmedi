@@ -33,6 +33,7 @@ export type EventDataForSend = {
   appointment_id: string | null;
   form_instance_id?: string | null;
   sent_channels: string[] | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 /**
@@ -79,7 +80,8 @@ export async function executeSendForEvent(
           channel,
           supabase,
           eventData.form_instance_id || undefined,
-          forceImmediateSend
+          forceImmediateSend,
+          eventData.metadata ?? undefined
         );
         if (!result.success) return { error: result.error ?? "Erro ao enviar." };
         sentThisRound.push(channel);
@@ -123,7 +125,7 @@ export async function runAutoSendForEvent(
 
   const { data: eventRow } = await supabase
     .from("event_timeline")
-    .select("patient_id, appointment_id, form_instance_id, sent_channels")
+    .select("patient_id, appointment_id, form_instance_id, sent_channels, metadata")
     .eq("id", eventId)
     .single();
 
@@ -138,6 +140,7 @@ export async function runAutoSendForEvent(
       appointment_id: eventRow.appointment_id ?? null,
       form_instance_id: eventRow.form_instance_id ?? null,
       sent_channels: (eventRow.sent_channels as string[] | null) ?? null,
+      metadata: (eventRow.metadata as Record<string, unknown> | null) ?? null,
     },
     channels,
     supabase

@@ -37,13 +37,15 @@ export async function processMessageEvent(
   channel: MessageChannel,
   supabaseAdmin?: SupabaseClientType,
   formInstanceId?: string,
-  forceImmediateSend?: boolean
+  forceImmediateSend?: boolean,
+  eventMetadata?: Record<string, unknown>,
+  assistantOriginated?: boolean
 ): Promise<ProcessMessageResult> {
   const supabase = supabaseAdmin ?? (await createClient());
 
   try {
     // 1. Buscar configuração do evento para este canal
-    const { data: setting, error: settingError } = await supabase
+    const { data: enabledSetting, error: settingError } = await supabase
       .from("clinic_message_settings")
       .select("*")
       .eq("clinic_id", clinicId)
@@ -52,7 +54,27 @@ export async function processMessageEvent(
       .eq("enabled", true)
       .single();
 
-    if (settingError || !setting) {
+    let setting = enabledSetting;
+
+    if ((settingError || !setting) && assistantOriginated) {
+      const { data: anySetting } = await supabase
+        .from("clinic_message_settings")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("event_code", eventCode)
+        .eq("channel", channel)
+        .maybeSingle();
+
+      setting = anySetting ?? {
+        clinic_id: clinicId,
+        event_code: eventCode,
+        channel,
+        enabled: true,
+        send_mode: "automatic",
+        send_only_when_ticket_open: false,
+        template_id: null,
+      };
+    } else if (settingError || !setting) {
       return {
         success: false,
         error: "Evento não está ativado ou não encontrado",
@@ -199,6 +221,37 @@ export async function processMessageEvent(
       supabase,
       formInstanceId
     );
+
+    if (eventMetadata) {
+      const fmtBrl = (n: number) =>
+        n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+      if (eventCode === "payment_receipt_generated") {
+        const pdfUrl = eventMetadata.pdf_url ? String(eventMetadata.pdf_url) : "";
+        context.recibo = {
+          numero: String(eventMetadata.receipt_number ?? ""),
+          valor:
+            eventMetadata.amount != null ? fmtBrl(Number(eventMetadata.amount)) : "",
+          pdf_url: pdfUrl,
+          instrucao: pdfUrl ? `Acesse o comprovante: ${pdfUrl}` : "",
+        };
+      }
+      if (eventCode === "quote_sent") {
+        const pdfUrl = eventMetadata.pdf_url ? String(eventMetadata.pdf_url) : "";
+        const validUntil = eventMetadata.valid_until
+          ? new Date(`${String(eventMetadata.valid_until)}T12:00:00`).toLocaleDateString("pt-BR")
+          : "";
+        context.orcamento = {
+          numero: String(eventMetadata.quote_number ?? ""),
+          valor:
+            eventMetadata.total_amount != null
+              ? fmtBrl(Number(eventMetadata.total_amount))
+              : "",
+          validade: validUntil,
+          pdf_url: pdfUrl,
+          instrucao: pdfUrl ? `Veja o PDF: ${pdfUrl}` : "",
+        };
+      }
+    }
 
     // 5. Processar template (substituir variáveis) e montar corpo email
     const processedSubject = template.subject

@@ -35,6 +35,10 @@ import {
   ASSISTANT_TOOL_CATALOG,
   ASSISTANT_TOOL_CATALOG_BY_CATEGORY,
 } from "@/lib/virtual-assistant/tools/catalog";
+import {
+  buildJourneyCoverageMatrix,
+  COVERAGE_LABELS,
+} from "@/lib/virtual-assistant/journey-coverage-matrix";
 
 interface DiagnosticsResponse {
   health: AssistantHealthCheck;
@@ -622,6 +626,42 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
               </ul>
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Cobertura da jornada do cliente</CardTitle>
+          <CardDescription>
+            Mapa de quais etapas a IA cobre, quais são automáticas por evento e o que permanece
+            humano. Recibo e compliance de formulário não são ferramentas da IA.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="max-h-96 overflow-y-auto rounded-lg border">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-muted">
+                <tr>
+                  <th className="p-2 text-left">Etapa</th>
+                  <th className="p-2 text-left">Cobertura</th>
+                  <th className="p-2 text-left hidden sm:table-cell">Detalhe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {buildJourneyCoverageMatrix().map((row) => (
+                  <tr key={row.step} className="border-t">
+                    <td className="p-2 font-medium">{row.label}</td>
+                    <td className="p-2">{COVERAGE_LABELS[row.coverage]}</td>
+                    <td className="p-2 text-muted-foreground hidden sm:table-cell">{row.detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Fora do escopo da IA: register_payment, marcar comanda paga, aceitar comprovante do
+            paciente como prova de pagamento.
+          </p>
         </CardContent>
       </Card>
 

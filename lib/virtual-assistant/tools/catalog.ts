@@ -2,7 +2,10 @@ export type AssistantToolCategory =
   | "paciente"
   | "agendamento"
   | "precos"
+  | "comercial"
   | "crm"
+  | "formulario"
+  | "financeiro"
   | "atendimento";
 
 export type AssistantToolCatalogEntry = {
@@ -17,7 +20,10 @@ export const ASSISTANT_TOOL_CATEGORY_LABELS: Record<AssistantToolCategory, strin
   paciente: "Paciente",
   agendamento: "Agendamento",
   precos: "Preços e serviços",
+  comercial: "Orçamentos",
   crm: "Jornada do cliente (CRM)",
+  formulario: "Formulários",
+  financeiro: "Financeiro (somente leitura)",
   atendimento: "Atendimento",
 };
 
@@ -120,6 +126,62 @@ export const ASSISTANT_TOOL_CATALOG: AssistantToolCatalogEntry[] = [
     category: "crm",
     description: "Etapa atual no CRM, eventos pendentes e próxima ação sugerida.",
     whenToUse: "Para orientar cadastro, agendamento, follow-up ou retomada contextual.",
+  },
+  {
+    name: "resolve_quote_offer",
+    label: "Resolver oferta de orçamento",
+    category: "comercial",
+    description: "Verifica se precisa perguntar médico, lista preços e validade.",
+    whenToUse: "Antes de enviar orçamento quando o paciente pedir preço formal.",
+  },
+  {
+    name: "create_and_send_quote",
+    label: "Criar e enviar orçamento",
+    category: "comercial",
+    description: "Gera orçamento no sistema, PDF e resumo no WhatsApp.",
+    whenToUse: "Após resolve_quote_offer sem necessidade de escolher médico.",
+  },
+  {
+    name: "get_quote_status",
+    label: "Status do orçamento",
+    category: "comercial",
+    description: "Consulta último orçamento enviado (enviado, expirado, etc.).",
+    whenToUse: "Quando o paciente pergunta sobre proposta enviada.",
+  },
+  {
+    name: "get_form_status",
+    label: "Status do formulário",
+    category: "formulario",
+    description: "Lista formulários pendentes/respondidos das consultas futuras.",
+    whenToUse: "Paciente pergunta se já preencheu. Envio automático: Configurações → Compliance.",
+  },
+  {
+    name: "resend_form_link",
+    label: "Reenviar formulário",
+    category: "formulario",
+    description: "Reenvia link quando o paciente pedir (não substitui cron de compliance).",
+    whenToUse: "Somente a pedido do paciente.",
+  },
+  {
+    name: "get_payment_status",
+    label: "Status de pagamento",
+    category: "financeiro",
+    description: "Somente leitura — saldo pendente na comanda. Nunca registra pagamento.",
+    whenToUse: "Paciente pergunta quanto deve; nunca aceitar 'já paguei' como confirmação.",
+  },
+  {
+    name: "reschedule_appointment",
+    label: "Remarcar consulta",
+    category: "agendamento",
+    description: "Altera data/hora de consulta agendada.",
+    whenToUse: "Paciente pede remarcação com novo horário escolhido.",
+  },
+  {
+    name: "collect_nps_feedback",
+    label: "Coletar NPS",
+    category: "crm",
+    description: "Registra nota 0-10 e comentário pós-atendimento.",
+    whenToUse: "Após consulta realizada, na pesquisa de satisfação.",
   },
   {
     name: "transfer_to_human",

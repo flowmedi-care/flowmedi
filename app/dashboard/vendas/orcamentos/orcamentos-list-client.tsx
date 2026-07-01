@@ -29,12 +29,17 @@ export function OrcamentosListClient({ quotes }: { quotes: QuoteListItem[] }) {
         description:
           "Propostas comerciais para pacientes, leads ou contatos avulsos. Gere PDF organizado para envio ao cliente.",
         actions: (
-          <Link href="/dashboard/vendas/orcamentos/novo">
-            <Button>
-              <Plus className="h-4 w-4 mr-1" />
-              Novo orçamento
-            </Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/dashboard/vendas/orcamentos?tab=config">
+              <Button variant="outline">Config. IA</Button>
+            </Link>
+            <Link href="/dashboard/vendas/orcamentos/novo">
+              <Button>
+                <Plus className="h-4 w-4 mr-1" />
+                Novo orçamento
+              </Button>
+            </Link>
+          </div>
         ),
       }}
     >

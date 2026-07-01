@@ -1,12 +1,9 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { AppPageHeader } from "@/components/app-page-header";
 import { getReceiptPrintData } from "@/app/dashboard/financeiro/receipt-actions";
 import { ReceiptBody } from "@/components/financeiro/receipt-body";
-import { ReciboPrintActions } from "./recibo-print-actions";
-import { Button } from "@/components/ui/button";
+import { ReciboPrintActions } from "../recibo-print-actions";
 
-export default async function ReciboPrintPage({
+export default async function ReciboImprimirPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -16,19 +13,14 @@ export default async function ReciboPrintPage({
   if (error || !data) notFound();
 
   return (
-    <div className="max-w-lg mx-auto py-10 px-4 space-y-6 relative">
-      <div className="print:hidden">
-        <AppPageHeader
-          breadcrumbs={[
-            { label: "Financeiro", href: "/dashboard/financeiro" },
-            { label: "Recibo" },
-          ]}
-          backHref="/dashboard/financeiro/receber"
-          title="Recibo de pagamento"
-          description={data.receipt_number}
+    <>
+      <div className="print:hidden p-4 max-w-lg mx-auto border-b">
+        <ReciboPrintActions
+          receiptId={id}
+          pdfUrl={data.pdf_url}
+          imprimirHref={`/dashboard/financeiro/recibo/${id}/imprimir`}
         />
       </div>
-
       <ReceiptBody
         data={{
           receipt_number: data.receipt_number,
@@ -49,19 +41,6 @@ export default async function ReciboPrintPage({
           voided_at: data.voided_at,
         }}
       />
-
-      <div className="print:hidden space-y-2">
-        <ReciboPrintActions
-          receiptId={id}
-          pdfUrl={data.pdf_url}
-          imprimirHref={`/dashboard/financeiro/recibo/${id}/imprimir`}
-        />
-        <Button variant="outline" className="w-full" asChild>
-          <Link href={`/dashboard/financeiro/recibo/${id}/imprimir`} target="_blank">
-            Abrir versão para impressão
-          </Link>
-        </Button>
-      </div>
-    </div>
+    </>
   );
 }

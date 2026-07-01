@@ -41,6 +41,19 @@ export type VariableContext = {
     link_facebook?: string;
     link_instagram?: string;
   };
+  recibo?: {
+    numero?: string;
+    valor?: string;
+    instrucao?: string;
+    pdf_url?: string;
+  };
+  orcamento?: {
+    numero?: string;
+    valor?: string;
+    validade?: string;
+    instrucao?: string;
+    pdf_url?: string;
+  };
 };
 
 /**
@@ -168,6 +181,14 @@ const VARIABLE_MAP: Record<string, (context: VariableContext) => string> = {
   "{{link_whatsapp_clinica}}": (ctx) => ctx.clinica?.link_whatsapp || "",
   "{{link_facebook_clinica}}": (ctx) => ctx.clinica?.link_facebook || "",
   "{{link_instagram_clinica}}": (ctx) => ctx.clinica?.link_instagram || "",
+
+  "{{numero_recibo}}": (ctx) => ctx.recibo?.numero || "",
+  "{{valor_recibo}}": (ctx) => ctx.recibo?.valor || "",
+  "{{instrucao_recibo}}": (ctx) => ctx.recibo?.instrucao || "",
+  "{{numero_orcamento}}": (ctx) => ctx.orcamento?.numero || "",
+  "{{valor_orcamento}}": (ctx) => ctx.orcamento?.valor || "",
+  "{{validade_orcamento}}": (ctx) => ctx.orcamento?.validade || "",
+  "{{instrucao_orcamento}}": (ctx) => ctx.orcamento?.instrucao || "",
 };
 
 /**
@@ -267,6 +288,8 @@ export async function buildVariableContext(data: {
       name?: string | null;
     } | null;
   };
+  recibo?: VariableContext["recibo"];
+  orcamento?: VariableContext["orcamento"];
 }): Promise<VariableContext> {
   const context: VariableContext = {};
 
@@ -334,6 +357,9 @@ export async function buildVariableContext(data: {
       link_instagram: data.clinic.instagram_url || undefined,
     };
   }
+
+  if (data.recibo) context.recibo = data.recibo;
+  if (data.orcamento) context.orcamento = data.orcamento;
 
   return context;
 }

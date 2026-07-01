@@ -1,8 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendAssistantReply } from "./send-reply";
 import { isVirtualAssistantActive } from "./process-inbound";
 import { isInsideAutoMessageWindow } from "@/lib/whatsapp-ops-controls";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
+import {
+  ensureWhatsAppConversation,
+  sendAssistantOrTemplate,
+} from "./send-assistant-or-template";
+import { getTimeoutPolicy } from "@/lib/contact-journey/timeout-policy";
+
+const CONFIRMATION_REQUEST_EVENT = "appointment_confirmation_request";
+const CONFIRMATION_FOLLOWUP_EVENT = "appointment_confirmation_followup";
+const REMINDER_7D_EVENT = "appointment_reminder_7d";
+
+const FOLLOWUP_TOUCHPOINTS = [
+  { hours: 12, touchpoint: "2d_followup_12h" },
+  { hours: 24, touchpoint: "2d_followup_24h" },
+] as const;
 
 function formatAppointmentConfirmMessage(appt: {
   scheduled_at: string;
@@ -24,6 +37,132 @@ function formatLightReminder7d(appt: {
   const date = dt.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" });
   const time = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return `Olá! Lembrete: você tem consulta com ${appt.doctor_name} no dia ${date} às ${time}. Estamos ansiosos para recebê-lo(a)!`;
+}
+
+function formatConfirmationFollowupMessage(appt: {
+  scheduled_at: string;
+  doctor_name: string;
+}): string {
+  const dt = new Date(appt.scheduled_at);
+  const date = dt.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" });
+  const time = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return `Olá! Ainda não recebemos sua confirmação para a consulta com ${appt.doctor_name} no dia ${date} às ${time}. Responda *sim* ou *não*.`;
+}
+
+async function setPendingConfirmationState(
+  supabase: SupabaseClient,
+  conversationId: string,
+  appointmentId: string,
+  patientId: string
+): Promise<void> {
+  await supabase
+    .from("whatsapp_conversations")
+    .update({
+      ai_state: {
+        intent: "confirm_appointment",
+        pending_confirmation_appointment_id: appointmentId,
+        patient_id: patientId,
+      },
+    })
+    .eq("id", conversationId);
+}
+
+/**
+ * Follow-ups de confirmação (+12h / +24h) quando o paciente não respondeu ao toque 2d.
+ */
+async function runConfirmationFollowupsForClinic(
+  supabase: SupabaseClient,
+  clinicId: string
+): Promise<{ sent: number; errors: number }> {
+  let sent = 0;
+  let errors = 0;
+
+  const policy = getTimeoutPolicy("compliance_2d_enviado");
+  const maxFollowups = policy?.maxAutoFollowups ?? 2;
+
+  const { data: pendingOutreach } = await supabase
+    .from("whatsapp_ai_confirmation_outreach")
+    .select("id, appointment_id, conversation_id, sent_at")
+    .eq("clinic_id", clinicId)
+    .eq("touchpoint", "2d")
+    .is("confirmed_at", null);
+
+  const now = Date.now();
+
+  for (const row of pendingOutreach ?? []) {
+    const { data: appt } = await supabase
+      .from("appointments")
+      .select(
+        "id, patient_id, scheduled_at, status, profiles!appointments_doctor_id_fkey(full_name), patients(phone)"
+      )
+      .eq("id", row.appointment_id)
+      .eq("clinic_id", clinicId)
+      .maybeSingle();
+
+    if (!appt || appt.status !== "agendada") continue;
+
+    const hoursSince = (now - new Date(row.sent_at).getTime()) / (60 * 60 * 1000);
+    const doctor = appt.profiles as { full_name?: string } | null;
+    const patient = appt.patients as { phone?: string } | null;
+    const phone = normalizeWhatsAppPhone(patient?.phone ?? "");
+    if (!phone) continue;
+
+    let followupIndex = 0;
+    for (const step of FOLLOWUP_TOUCHPOINTS) {
+      followupIndex++;
+      if (followupIndex > maxFollowups) break;
+      if (hoursSince < step.hours) continue;
+
+      const { data: existing } = await supabase
+        .from("whatsapp_ai_confirmation_outreach")
+        .select("id")
+        .eq("appointment_id", appt.id)
+        .eq("touchpoint", step.touchpoint)
+        .maybeSingle();
+
+      if (existing) continue;
+
+      let conversationId = row.conversation_id;
+      if (!conversationId) {
+        conversationId = await ensureWhatsAppConversation(supabase, clinicId, phone);
+      }
+      if (!conversationId) {
+        errors++;
+        continue;
+      }
+
+      const fallbackText = formatConfirmationFollowupMessage({
+        scheduled_at: appt.scheduled_at,
+        doctor_name: doctor?.full_name ?? "o profissional",
+      });
+
+      const result = await sendAssistantOrTemplate(supabase, {
+        clinicId,
+        conversationId,
+        phoneNumber: phone,
+        patientId: appt.patient_id,
+        appointmentId: appt.id,
+        eventCode: CONFIRMATION_FOLLOWUP_EVENT,
+        fallbackText,
+        eventMetadata: { touchpoint: step.touchpoint, followup_hours: step.hours },
+      });
+
+      if (result.success) {
+        await supabase.from("whatsapp_ai_confirmation_outreach").insert({
+          clinic_id: clinicId,
+          appointment_id: appt.id,
+          conversation_id: conversationId,
+          touchpoint: step.touchpoint,
+        });
+        await setPendingConfirmationState(supabase, conversationId, appt.id, appt.patient_id);
+        sent++;
+      } else {
+        errors++;
+      }
+    }
+  }
+
+  return { sent, errors };
 }
 
 /**
@@ -54,6 +193,10 @@ export async function runVirtualAssistantConfirmations(
     if (!active) continue;
 
     if (!(await isInsideAutoMessageWindow(clinicId, supabase))) continue;
+
+    const followupResult = await runConfirmationFollowupsForClinic(supabase, clinicId);
+    sent += followupResult.sent;
+    errors += followupResult.errors;
 
     const { data: clinic } = await supabase
       .from("clinics")
@@ -91,7 +234,13 @@ export async function runVirtualAssistantConfirmations(
 
       const patient = appt.patients as { phone?: string; full_name?: string } | null;
       const phone = normalizeWhatsAppPhone(patient?.phone ?? "");
-      if (!phone) continue;
+      if (!phone || !appt.patient_id) continue;
+
+      const conversationId = await ensureWhatsAppConversation(supabase, clinicId, phone);
+      if (!conversationId) {
+        errors++;
+        continue;
+      }
 
       const doctor = appt.profiles as { full_name?: string } | null;
       const msg = formatLightReminder7d({
@@ -99,21 +248,22 @@ export async function runVirtualAssistantConfirmations(
         doctor_name: doctor?.full_name ?? "profissional",
       });
 
-      const { data: conv } = await supabase
-        .from("whatsapp_conversations")
-        .select("id")
-        .eq("clinic_id", clinicId)
-        .eq("phone_number", phone)
-        .maybeSingle();
+      const result = await sendAssistantOrTemplate(supabase, {
+        clinicId,
+        conversationId,
+        phoneNumber: phone,
+        patientId: appt.patient_id,
+        appointmentId: appt.id,
+        eventCode: REMINDER_7D_EVENT,
+        fallbackText: msg,
+        eventMetadata: { touchpoint: "7d" },
+      });
 
-      if (!conv?.id) continue;
-
-      const sendOk = await sendAssistantReply(supabase, clinicId, conv.id, phone, msg);
-      if (sendOk) {
+      if (result.success) {
         await supabase.from("whatsapp_ai_confirmation_outreach").insert({
           clinic_id: clinicId,
           appointment_id: appt.id,
-          conversation_id: conv.id,
+          conversation_id: conversationId,
           touchpoint: "7d",
         });
         sent++;
@@ -150,36 +300,10 @@ export async function runVirtualAssistantConfirmations(
 
       const patient = appt.patients as { phone?: string; full_name?: string } | null;
       const phone = patient?.phone;
-      if (!phone) continue;
+      if (!phone || !appt.patient_id) continue;
 
       const normalized = normalizeWhatsAppPhone(phone.replace(/\D/g, ""));
-      const { data: conv } = await supabase
-        .from("whatsapp_conversations")
-        .select("id, status, last_inbound_message_at")
-        .eq("clinic_id", clinicId)
-        .eq("phone_number", normalized)
-        .maybeSingle();
-
-      const lastInbound = conv?.last_inbound_message_at
-        ? new Date(conv.last_inbound_message_at).getTime()
-        : 0;
-      const within24h = Date.now() - lastInbound < 24 * 60 * 60 * 1000;
-      if (!within24h && conv?.status !== "open") continue;
-
-      let conversationId = conv?.id;
-      if (!conversationId) {
-        const { data: newConv } = await supabase
-          .from("whatsapp_conversations")
-          .insert({
-            clinic_id: clinicId,
-            phone_number: normalized,
-            status: "open",
-            last_inbound_message_at: new Date().toISOString(),
-          })
-          .select("id")
-          .single();
-        conversationId = newConv?.id;
-      }
+      const conversationId = await ensureWhatsAppConversation(supabase, clinicId, normalized);
       if (!conversationId) {
         errors++;
         continue;
@@ -193,24 +317,30 @@ export async function runVirtualAssistantConfirmations(
         procedure_name: procedure?.name,
       });
 
-      const ok = await sendAssistantReply(supabase, clinicId, conversationId, normalized, msg);
-      if (ok) {
+      const result = await sendAssistantOrTemplate(supabase, {
+        clinicId,
+        conversationId,
+        phoneNumber: normalized,
+        patientId: appt.patient_id,
+        appointmentId: appt.id,
+        eventCode: CONFIRMATION_REQUEST_EVENT,
+        fallbackText: msg,
+        eventMetadata: { touchpoint: "2d" },
+      });
+
+      if (result.success) {
         await supabase.from("whatsapp_ai_confirmation_outreach").insert({
           clinic_id: clinicId,
           appointment_id: appt.id,
           conversation_id: conversationId,
           touchpoint: "2d",
         });
-        await supabase
-          .from("whatsapp_conversations")
-          .update({
-            ai_state: {
-              intent: "confirm_appointment",
-              pending_confirmation_appointment_id: appt.id,
-              patient_id: appt.patient_id,
-            },
-          })
-          .eq("id", conversationId);
+        await setPendingConfirmationState(
+          supabase,
+          conversationId,
+          appt.id,
+          appt.patient_id
+        );
         sent++;
       } else {
         errors++;

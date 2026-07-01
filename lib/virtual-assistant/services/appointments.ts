@@ -133,6 +133,23 @@ export async function createAppointmentViaAssistant(
     console.error("[VirtualAssistant] appointment_created event:", e);
   }
 
+  try {
+    const { linkFormsToAppointment } = await import("@/lib/forms/link-forms-to-appointment");
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("email")
+      .eq("id", opts.patientId)
+      .maybeSingle();
+    await linkFormsToAppointment(supabase, {
+      clinicId: opts.clinicId,
+      appointmentId: appointment.id,
+      procedureId: opts.procedureId,
+      patientEmail: patient?.email ? String(patient.email) : null,
+    });
+  } catch (e) {
+    console.warn("[VirtualAssistant] link forms:", e);
+  }
+
   return { appointmentId: appointment.id, error: null };
 }
 
@@ -258,4 +275,81 @@ export async function listPatientAppointmentsViaAssistant(
       valor: row.valor != null ? Number(row.valor) : null,
     };
   });
+}
+
+export async function rescheduleAppointmentViaAssistant(
+  supabase: SupabaseClient,
+  opts: {
+    clinicId: string;
+    appointmentId: string;
+    patientId: string;
+    newScheduledAt: string;
+  }
+): Promise<{ error: string | null }> {
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("id, patient_id, doctor_id, procedure_id, status, scheduled_at")
+    .eq("id", opts.appointmentId)
+    .eq("clinic_id", opts.clinicId)
+    .single();
+
+  if (!appt || appt.patient_id !== opts.patientId) {
+    return { error: "Consulta não encontrada." };
+  }
+  if (!["agendada", "confirmada"].includes(String(appt.status))) {
+    return { error: "Esta consulta não pode ser remarcada." };
+  }
+
+  const durationMinutes = await resolveProcedureDurationMinutes(supabase, opts.clinicId, [
+    String(appt.procedure_id),
+  ]);
+  const scheduledEndAt = buildScheduledEndFromDuration(opts.newScheduledAt, durationMinutes);
+  const intervalCheck = validateScheduledInterval(opts.newScheduledAt, scheduledEndAt);
+  if (!intervalCheck.ok) return { error: intervalCheck.error };
+
+  const conflict = await checkAppointmentConflict(supabase, {
+    clinicId: opts.clinicId,
+    doctorId: String(appt.doctor_id),
+    scheduledAt: opts.newScheduledAt,
+    scheduledEndAt,
+    excludeAppointmentId: opts.appointmentId,
+  });
+  if (conflict) return { error: conflict };
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({
+      scheduled_at: opts.newScheduledAt,
+      scheduled_end_at: scheduledEndAt,
+      planned_duration_minutes: plannedDurationMinutes(opts.newScheduledAt, scheduledEndAt),
+      status: "agendada",
+    })
+    .eq("id", opts.appointmentId);
+
+  if (error) return { error: error.message };
+
+  try {
+    const { data: eventId } = await supabase.rpc("create_event_timeline", {
+      p_clinic_id: opts.clinicId,
+      p_event_code: "appointment_rescheduled",
+      p_patient_id: opts.patientId,
+      p_appointment_id: opts.appointmentId,
+      p_metadata: {
+        source: "virtual_assistant",
+        old_scheduled_at: appt.scheduled_at,
+        new_scheduled_at: opts.newScheduledAt,
+      },
+    });
+    if (eventId) {
+      const { runAutoSendForEvent } = await import("@/lib/event-send-logic-server");
+      const { isInsideAutoMessageWindow } = await import("@/lib/whatsapp-ops-controls");
+      if (await isInsideAutoMessageWindow(opts.clinicId, supabase)) {
+        await runAutoSendForEvent(eventId, opts.clinicId, "appointment_rescheduled", supabase);
+      }
+    }
+  } catch (e) {
+    console.warn("[reschedule] event:", e);
+  }
+
+  return { error: null };
 }

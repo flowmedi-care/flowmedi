@@ -65,11 +65,20 @@ const CATEGORY_ORDER: VariableCategory[] = [
   "Redes",
 ];
 
+const PATIENT_CLINIC_EVENTS = new Set<string>([
+  "lead_reengagement",
+  "negotiation_followup",
+  "booking_abandoned_followup",
+  "quote_sent",
+]);
+
 const APPOINTMENT_EVENTS = new Set<string>([
   "appointment_created",
   "appointment_rescheduled",
   "appointment_confirmed",
   "appointment_not_confirmed",
+  "appointment_confirmation_request",
+  "appointment_confirmation_followup",
   "appointment_reminder_30d",
   "appointment_reminder_15d",
   "appointment_reminder_7d",
@@ -106,6 +115,9 @@ function getEventContexts(eventCode: string): Set<VariableContext> {
     return new Set<VariableContext>(["patient", "clinic", "form"]);
   }
   if (PATIENT_ONLY_EVENTS.has(eventCode)) {
+    return new Set<VariableContext>(["patient", "clinic"]);
+  }
+  if (PATIENT_CLINIC_EVENTS.has(eventCode)) {
     return new Set<VariableContext>(["patient", "clinic"]);
   }
   // Fallback conservador para evitar campos vazios inesperados
