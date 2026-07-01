@@ -7,6 +7,7 @@ import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
 import {
   getMessageTemplates,
+  getClinicSystemMetaTemplatesStatus,
   getRemoteMetaTemplates,
   getSystemTemplatesForDisplay,
   getMessageEvents,
@@ -31,10 +32,11 @@ export default async function TemplatesPage() {
     redirect("/dashboard");
   }
 
-  const [savedResult, systemResult, remoteMetaTemplatesResult, eventsResult, whatsappIntegrationResult] = await Promise.all([
+  const [savedResult, systemResult, remoteMetaTemplatesResult, systemMetaTemplatesResult, eventsResult, whatsappIntegrationResult] = await Promise.all([
     getMessageTemplates(),
     getSystemTemplatesForDisplay(),
     getRemoteMetaTemplates(),
+    getClinicSystemMetaTemplatesStatus(),
     getMessageEvents(),
     supabase
       .from("clinic_integrations")
@@ -47,6 +49,7 @@ export default async function TemplatesPage() {
   const savedTemplates = savedResult.data || [];
   const systemTemplates = systemResult.data || [];
   const remoteMetaTemplates = remoteMetaTemplatesResult.data || [];
+  const systemMetaTemplates = systemMetaTemplatesResult.data || [];
   const events = eventsResult.data || [];
   const hasWhatsAppIntegration = (whatsappIntegrationResult.data?.length ?? 0) > 0;
   const planData = await getClinicPlanData();
@@ -130,6 +133,7 @@ export default async function TemplatesPage() {
         savedTemplates={[]}
         systemTemplates={[]}
         remoteMetaTemplates={remoteMetaTemplates}
+        systemMetaTemplates={systemMetaTemplates}
         hasWhatsAppIntegration={hasWhatsAppIntegration}
         canCreateTemplates={canCreateTemplates}
         canUseEmailTemplates={canUseEmailTemplates}

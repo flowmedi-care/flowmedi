@@ -19,16 +19,25 @@ export async function getConfirmationFlowConfig(
     .maybeSingle();
 
   const flowId =
-    (data?.confirmation_flow_id && String(data.confirmation_flow_id).trim()) ||
-    process.env.META_WHATSAPP_CONFIRMATION_FLOW_ID?.trim() ||
-    "";
+    (data?.confirmation_flow_id && String(data.confirmation_flow_id).trim()) || "";
 
-  if (!flowId) return null;
+  if (!flowId) {
+    const envFlowId = process.env.META_WHATSAPP_CONFIRMATION_FLOW_ID?.trim();
+    if (!envFlowId) return null;
+    return {
+      flowId: envFlowId,
+      templateName:
+        (data?.confirmation_flow_template_name &&
+          String(data.confirmation_flow_template_name).trim()) ||
+        process.env.META_WHATSAPP_CONFIRMATION_FLOW_TEMPLATE?.trim() ||
+        DEFAULT_TEMPLATE_NAME,
+      enabled: true,
+    };
+  }
 
   const templateName =
     (data?.confirmation_flow_template_name &&
       String(data.confirmation_flow_template_name).trim()) ||
-    process.env.META_WHATSAPP_CONFIRMATION_FLOW_TEMPLATE?.trim() ||
     DEFAULT_TEMPLATE_NAME;
 
   return {

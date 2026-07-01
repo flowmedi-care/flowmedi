@@ -44,7 +44,7 @@ export interface MetaTemplateSummary {
  *    (evita usar integração legada e puxar dados de conta errada).
  * 2) Caso contrário, respeita `preferSimple` para fallback legado.
  */
-async function getWhatsAppCredentials(clinicId: string, preferSimple = false, supabaseClient?: SupabaseClient) {
+export async function getWhatsAppCredentials(clinicId: string, preferSimple = false, supabaseClient?: SupabaseClient) {
   const supabase = supabaseClient ?? await createClient();
 
   const { data: rows, error } = await supabase

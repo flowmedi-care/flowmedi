@@ -63,6 +63,9 @@ function composeWhatsappText(templateKey: SystemMetaTemplateKey, message: string
   if (templateKey === "flowmedi_mensagem_livre") {
     return `Oi, {{primeiro_nome_paciente}}.\n\n${core}\n\nQualquer dúvida, estamos à disposição.\n\n{{nome_clinica}}`;
   }
+  if (templateKey === "flowmedi_confirmacao_flow") {
+    return `Olá {{primeiro_nome_paciente}}!\n\nPrecisamos confirmar sua presença na consulta agendada:\n\n${core}\n\nToque no botão abaixo para confirmar, cancelar ou remarcar sua consulta.\n\n{{nome_clinica}}`;
+  }
   return `Olá {{primeiro_nome_paciente}}!\n\nTemos uma mensagem importante sobre sua consulta.\n\n${core}\n\nSe precisar, responda esta mensagem.\n\n{{nome_clinica}}`;
 }
 
@@ -617,6 +620,7 @@ export function TemplateWizardModal({
                           <option value="flowmedi_formulario">Formulário</option>
                           <option value="flowmedi_aviso">Aviso</option>
                           <option value="flowmedi_mensagem_livre">Mensagem livre</option>
+                          <option value="flowmedi_confirmacao_flow">Confirmação com Flow</option>
                         </select>
                       </div>
                       <div className="space-y-2">

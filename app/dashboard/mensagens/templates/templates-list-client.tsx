@@ -15,15 +15,26 @@ import {
   deactivateMessageTemplate,
   refreshSystemMetaTemplatesStatus,
   requestSystemMetaTemplates,
+  type ClinicMetaTemplateStatus,
   type EffectiveTemplateItem,
   type MessageEvent,
   type MessageTemplate,
   type RemoteMetaTemplateItem,
+  type SystemMetaTemplateKey,
 } from "../actions";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TemplatePreviewDialog, type TemplatePreviewData } from "./template-preview";
 import { NewTemplateWizardModal, TemplateWizardModal, type SystemSourceData } from "./new-template-wizard-modal";
+
+const SYSTEM_META_TEMPLATE_LABELS: Record<SystemMetaTemplateKey, string> = {
+  flowmedi_consulta: "Consulta",
+  flowmedi_agenda_com_formulario: "Consulta com formulário",
+  flowmedi_formulario: "Formulário",
+  flowmedi_aviso: "Aviso",
+  flowmedi_mensagem_livre: "Mensagem livre",
+  flowmedi_confirmacao_flow: "Confirmação com Flow (Sim / Não / Remarcar)",
+};
 
 const CHANNEL_LABELS: Record<string, string> = {
   email: "Email",
@@ -77,6 +88,7 @@ export function TemplatesListClient({
   savedTemplates,
   systemTemplates,
   remoteMetaTemplates,
+  systemMetaTemplates = [],
   hasWhatsAppIntegration,
   canCreateTemplates,
   canUseEmailTemplates,
@@ -88,6 +100,7 @@ export function TemplatesListClient({
   savedTemplates: MessageTemplate[];
   systemTemplates: EffectiveTemplateItem[];
   remoteMetaTemplates: RemoteMetaTemplateItem[];
+  systemMetaTemplates?: ClinicMetaTemplateStatus[];
   hasWhatsAppIntegration: boolean;
   canCreateTemplates: boolean;
   canUseEmailTemplates: boolean;
@@ -373,6 +386,7 @@ export function TemplatesListClient({
           <h2 className="text-lg font-semibold text-foreground mb-2">Templates aprovados pela Meta</h2>
           <p className="text-sm text-muted-foreground mb-4">
             Solicite os templates padrão uma única vez para permitir envios fora da janela de 24h.
+            O pacote inclui consulta, formulário, avisos e confirmação com Flow (Sim / Não / Remarcar).
           </p>
           <Card className="p-4">
             <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -393,6 +407,27 @@ export function TemplatesListClient({
                 {syncingSystemStatuses ? "Sincronizando..." : "Atualizar status"}
               </Button>
             </div>
+            {systemMetaTemplates.length > 0 && (
+              <div className="mb-4">
+                <p className="text-sm font-medium mb-2">Status dos templates do sistema</p>
+                <div className="space-y-2">
+                  {systemMetaTemplates.map((tpl) => (
+                    <div
+                      key={tpl.template_key}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded border p-2"
+                    >
+                      <div className="text-xs">
+                        <p className="font-medium">{SYSTEM_META_TEMPLATE_LABELS[tpl.template_key]}</p>
+                        <p className="text-muted-foreground font-mono">{tpl.template_name}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {renderMetaStatusBadge(tpl.status)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="pt-1">
               <p className="text-sm font-medium mb-2">Templates existentes na Meta (tempo real)</p>
               {remoteMetaTemplates.length === 0 ? (

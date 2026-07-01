@@ -18,6 +18,12 @@ import {
   getDisallowedVariablesForEventChannel,
 } from "@/lib/message-variable-catalog";
 import { buildSentEmailPreviewHtml } from "@/lib/comunicacao/email-preview-html";
+import { ensureConfirmationFlow } from "@/lib/comunicacao/whatsapp-flows";
+import { validateMetaTemplateBody } from "@/lib/meta-template-body";
+import {
+  buildConfirmationFlowTemplateComponents,
+  CONFIRMATION_FLOW_TEMPLATE_BODY,
+} from "@/lib/whatsapp-confirmation-flow-definition";
 
 // ========== TIPOS ==========
 
@@ -66,7 +72,8 @@ export type SystemMetaTemplateKey =
   | "flowmedi_agenda_com_formulario"
   | "flowmedi_formulario"
   | "flowmedi_aviso"
-  | "flowmedi_mensagem_livre";
+  | "flowmedi_mensagem_livre"
+  | "flowmedi_confirmacao_flow";
 
 export type ClinicMetaTemplateStatus = {
   template_key: SystemMetaTemplateKey;
@@ -115,6 +122,9 @@ const SYSTEM_META_TEMPLATE_DEFS: Array<{
   key: SystemMetaTemplateKey;
   name: string;
   body: string;
+  requiresFlow?: boolean;
+  flowButtonText?: string;
+  components?: Array<Record<string, unknown>>;
 }> = [
   {
     key: "flowmedi_consulta",
@@ -140,6 +150,13 @@ const SYSTEM_META_TEMPLATE_DEFS: Array<{
     key: "flowmedi_mensagem_livre",
     name: "flowmedi_mensagem_livre",
     body: "Oi, {{1}}.\n\nGostaríamos de falar com você sobre {{2}}.\n\nQualquer dúvida, estamos à disposição.",
+  },
+  {
+    key: "flowmedi_confirmacao_flow",
+    name: "flowmedi_confirmacao_flow",
+    body: CONFIRMATION_FLOW_TEMPLATE_BODY,
+    requiresFlow: true,
+    flowButtonText: "Confirmar consulta",
   },
 ];
 
@@ -922,20 +939,60 @@ export async function requestSystemMetaTemplates(): Promise<{ error: string | nu
       let status: WhatsAppTemplateReviewStatus = existingRemote?.status ?? "PENDING";
       let lastError: string | null = null;
 
-      if (!existingRemote) {
-        const created = await createMetaTemplate(
-          clinicId,
-          {
-            name: def.name,
-            bodyText: def.body,
-          },
-          supabase
-        );
-        if (created.success) {
-          metaTemplateId = created.templateId ?? null;
-          status = created.status ?? "PENDING";
-        } else {
-          lastError = created.error || "Falha ao criar template na Meta.";
+      const bodyValidation = validateMetaTemplateBody(def.body);
+      if (!bodyValidation.valid) {
+        lastError = bodyValidation.errors.join(" ");
+      } else if (!existingRemote) {
+        let components = def.components;
+        if (def.requiresFlow) {
+          const flowResult = await ensureConfirmationFlow(clinicId, supabase);
+          if (!flowResult.success || !flowResult.flowId) {
+            lastError = flowResult.error || "Falha ao publicar Flow de confirmação na Meta.";
+          } else {
+            components = buildConfirmationFlowTemplateComponents(
+              def.body,
+              flowResult.flowId,
+              def.flowButtonText ?? "Confirmar consulta"
+            );
+            await supabase.from("clinic_virtual_assistant_settings").upsert(
+              {
+                clinic_id: clinicId,
+                confirmation_flow_id: flowResult.flowId,
+                confirmation_flow_template_name: def.name,
+              },
+              { onConflict: "clinic_id" }
+            );
+          }
+        }
+
+        if (!lastError) {
+          const created = await createMetaTemplate(
+            clinicId,
+            {
+              name: def.name,
+              bodyText: def.body,
+              components,
+            },
+            supabase
+          );
+          if (created.success) {
+            metaTemplateId = created.templateId ?? null;
+            status = created.status ?? "PENDING";
+          } else {
+            lastError = created.error || "Falha ao criar template na Meta.";
+          }
+        }
+      } else if (def.requiresFlow) {
+        const flowResult = await ensureConfirmationFlow(clinicId, supabase);
+        if (flowResult.success && flowResult.flowId) {
+          await supabase.from("clinic_virtual_assistant_settings").upsert(
+            {
+              clinic_id: clinicId,
+              confirmation_flow_id: flowResult.flowId,
+              confirmation_flow_template_name: def.name,
+            },
+            { onConflict: "clinic_id" }
+          );
         }
       }
 

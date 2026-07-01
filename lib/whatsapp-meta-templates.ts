@@ -10,7 +10,8 @@ export type MetaTemplateName =
   | "flowmedi_consulta"
   | "flowmedi_agenda_com_formulario"
   | "flowmedi_formulario"
-  | "flowmedi_aviso";
+  | "flowmedi_aviso"
+  | "flowmedi_confirmacao_flow";
 
 export interface MetaTemplateConfig {
   template: MetaTemplateName;
@@ -47,6 +48,8 @@ export function renderFallbackMetaTemplateText(
     }
     case "flowmedi_aviso":
       return `Olá ${safeNome},\n\n${safeMensagem}\n\nEstamos à disposição para qualquer dúvida.`;
+    case "flowmedi_confirmacao_flow":
+      return `Olá ${safeNome},\n\n${safeMensagem}\n\nToque no botão abaixo para confirmar, cancelar ou remarcar sua consulta.`;
     case "flowmedi_consulta":
     default:
       return `Olá ${safeNome},\n\n${safeMensagem}\n\nQualquer dúvida, estamos à disposição.`;
@@ -256,6 +259,16 @@ export function getMetaTemplateParams(
         template: "flowmedi_aviso",
         params: [nome, phrase],
       };
+    case "flowmedi_confirmacao_flow": {
+      const blocos: string[] = [phrase];
+      if (dataHora) blocos.push(`Data e hora: ${dataHora}.`);
+      if (medico) blocos.push(`Profissional: ${medico}.`);
+      const mensagemCompleta = blocos.join("\n\n");
+      return {
+        template: "flowmedi_confirmacao_flow",
+        params: [nome, mensagemCompleta],
+      };
+    }
     default:
       return undefined;
   }

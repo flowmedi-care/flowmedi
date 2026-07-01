@@ -1,5 +1,83 @@
 -- Eventos do assistente virtual para envio fora da janela de 24h (templates Meta)
+--
+-- Pré-requisito ideal (ambiente completo):
+--   1. migration-message-system.sql
+--   2. migration-system-templates-and-email-header-footer.sql
+--   3. migration-whatsapp-ticket-open-only.sql
+--
+-- Se public.message_events ainda não existir, o bloco abaixo cria o mínimo
+-- necessário para esta migration rodar (bootstrap).
 
+-- ========== BOOTSTRAP MÍNIMO (somente se tabelas não existirem) ==========
+CREATE TABLE IF NOT EXISTS public.message_events (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  code text UNIQUE NOT NULL,
+  name text NOT NULL,
+  description text,
+  category text NOT NULL CHECK (category IN ('agendamento', 'lembrete', 'formulario', 'pos_consulta', 'outros')),
+  default_enabled_email boolean DEFAULT false,
+  default_enabled_whatsapp boolean DEFAULT false,
+  can_be_automatic boolean DEFAULT true,
+  requires_appointment boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.message_templates (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  clinic_id uuid NOT NULL REFERENCES public.clinics(id) ON DELETE CASCADE,
+  event_code text NOT NULL REFERENCES public.message_events(code) ON DELETE CASCADE,
+  name text NOT NULL,
+  channel text NOT NULL CHECK (channel IN ('email', 'whatsapp')),
+  subject text,
+  body_html text,
+  body_text text,
+  variables_used jsonb DEFAULT '[]',
+  is_active boolean DEFAULT true,
+  is_default boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.system_message_templates (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  event_code text NOT NULL REFERENCES public.message_events(code) ON DELETE CASCADE,
+  channel text NOT NULL CHECK (channel IN ('email', 'whatsapp')),
+  name text NOT NULL,
+  subject text,
+  body_html text NOT NULL DEFAULT '',
+  body_text text,
+  email_header text,
+  email_footer text,
+  variables_used jsonb DEFAULT '[]',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(event_code, channel)
+);
+
+CREATE TABLE IF NOT EXISTS public.clinic_message_settings (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  clinic_id uuid NOT NULL REFERENCES public.clinics(id) ON DELETE CASCADE,
+  event_code text NOT NULL REFERENCES public.message_events(code) ON DELETE CASCADE,
+  channel text NOT NULL CHECK (channel IN ('email', 'whatsapp')),
+  enabled boolean DEFAULT false,
+  send_mode text NOT NULL DEFAULT 'manual' CHECK (send_mode IN ('automatic', 'manual')),
+  template_id uuid REFERENCES public.message_templates(id) ON DELETE SET NULL,
+  conditions jsonb DEFAULT '{}',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(clinic_id, event_code, channel)
+);
+
+ALTER TABLE public.system_message_templates
+  ADD COLUMN IF NOT EXISTS whatsapp_meta_phrase text;
+
+ALTER TABLE public.message_templates
+  ADD COLUMN IF NOT EXISTS whatsapp_meta_phrase text;
+
+ALTER TABLE public.clinic_message_settings
+  ADD COLUMN IF NOT EXISTS send_only_when_ticket_open boolean DEFAULT false;
+
+-- ========== NOVOS EVENTOS ==========
 INSERT INTO public.message_events (
   code, name, description, category,
   default_enabled_email, default_enabled_whatsapp,
