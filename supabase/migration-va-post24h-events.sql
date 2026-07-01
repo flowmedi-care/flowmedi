@@ -59,7 +59,14 @@ VALUES
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO public.system_message_templates (
-  event_code, channel, name, subject, body_text, whatsapp_meta_phrase, is_system
+  event_code,
+  channel,
+  name,
+  subject,
+  body_html,
+  body_text,
+  whatsapp_meta_phrase,
+  variables_used
 )
 VALUES
   (
@@ -68,8 +75,9 @@ VALUES
     'Solicitação de confirmação (WhatsApp)',
     NULL,
     'Olá {{nome_paciente}}! Passando para confirmar sua consulta com {{nome_medico}} em {{data_hora_consulta}}. Você confirma presença? Responda *sim* ou *não*.',
+    'Olá {{nome_paciente}}! Passando para confirmar sua consulta com {{nome_medico}} em {{data_hora_consulta}}. Você confirma presença? Responda *sim* ou *não*.',
     'Precisamos confirmar sua consulta agendada. Por favor, responda se confirma presença.',
-    true
+    '["nome_paciente","nome_medico","data_hora_consulta"]'::jsonb
   ),
   (
     'appointment_confirmation_followup',
@@ -77,8 +85,9 @@ VALUES
     'Follow-up confirmação (WhatsApp)',
     NULL,
     'Olá {{nome_paciente}}! Ainda não recebemos sua confirmação para a consulta com {{nome_medico}} em {{data_hora_consulta}}. Responda *sim* ou *não*.',
+    'Olá {{nome_paciente}}! Ainda não recebemos sua confirmação para a consulta com {{nome_medico}} em {{data_hora_consulta}}. Responda *sim* ou *não*.',
     'Lembramos que sua consulta ainda aguarda confirmação. Por favor, responda esta mensagem.',
-    true
+    '["nome_paciente","nome_medico","data_hora_consulta"]'::jsonb
   ),
   (
     'lead_reengagement',
@@ -86,8 +95,9 @@ VALUES
     'Reengajamento de lead (WhatsApp)',
     NULL,
     'Olá {{nome_paciente}}! A {{nome_clinica}} está à disposição para ajudar. Podemos continuar seu atendimento?',
+    'Olá {{nome_paciente}}! A {{nome_clinica}} está à disposição para ajudar. Podemos continuar seu atendimento?',
     'Estamos à disposição para continuar seu atendimento. Responda quando puder.',
-    true
+    '["nome_paciente","nome_clinica"]'::jsonb
   ),
   (
     'negotiation_followup',
@@ -95,8 +105,9 @@ VALUES
     'Follow-up negociação (WhatsApp)',
     NULL,
     'Olá {{nome_paciente}}! Passando para saber se ficou alguma dúvida sobre valores ou condições. Podemos ajudar?',
+    'Olá {{nome_paciente}}! Passando para saber se ficou alguma dúvida sobre valores ou condições. Podemos ajudar?',
     'Temos uma atualização sobre sua solicitação. Responda quando puder.',
-    true
+    '["nome_paciente"]'::jsonb
   ),
   (
     'booking_abandoned_followup',
@@ -104,10 +115,11 @@ VALUES
     'Agendamento abandonado (WhatsApp)',
     NULL,
     'Olá {{nome_paciente}}! Notamos que você estava agendando uma consulta na {{nome_clinica}}. Posso ajudar a concluir?',
+    'Olá {{nome_paciente}}! Notamos que você estava agendando uma consulta na {{nome_clinica}}. Posso ajudar a concluir?',
     'Podemos ajudar a concluir seu agendamento. Responda quando puder.',
-    true
+    '["nome_paciente","nome_clinica"]'::jsonb
   )
-ON CONFLICT DO NOTHING;
+ON CONFLICT (event_code, channel) DO NOTHING;
 
 -- Configuração padrão para clínicas existentes (WhatsApp automático)
 INSERT INTO public.clinic_message_settings (

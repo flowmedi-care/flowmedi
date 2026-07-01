@@ -30,7 +30,14 @@ VALUES
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO public.system_message_templates (
-  event_code, channel, name, subject, body_text, whatsapp_meta_phrase, is_system
+  event_code,
+  channel,
+  name,
+  subject,
+  body_html,
+  body_text,
+  whatsapp_meta_phrase,
+  variables_used
 )
 VALUES
   (
@@ -39,8 +46,9 @@ VALUES
     'Recibo de pagamento (WhatsApp)',
     NULL,
     'Olá {{nome_paciente}}! Segue o comprovante do pagamento de {{valor_recibo}} referente ao recibo {{numero_recibo}}. {{instrucao_recibo}}',
+    'Olá {{nome_paciente}}! Segue o comprovante do pagamento de {{valor_recibo}} referente ao recibo {{numero_recibo}}. {{instrucao_recibo}}',
     'Seu recibo de pagamento está disponível.',
-    true
+    '["nome_paciente","valor_recibo","numero_recibo","instrucao_recibo"]'::jsonb
   ),
   (
     'quote_sent',
@@ -48,10 +56,30 @@ VALUES
     'Orçamento enviado (WhatsApp)',
     NULL,
     'Olá {{nome_paciente}}! Enviamos seu orçamento {{numero_orcamento}} no valor de {{valor_orcamento}}. Válido até {{validade_orcamento}}. {{instrucao_orcamento}}',
+    'Olá {{nome_paciente}}! Enviamos seu orçamento {{numero_orcamento}} no valor de {{valor_orcamento}}. Válido até {{validade_orcamento}}. {{instrucao_orcamento}}',
     'Seu orçamento está disponível.',
-    true
+    '["nome_paciente","numero_orcamento","valor_orcamento","validade_orcamento","instrucao_orcamento"]'::jsonb
   )
-ON CONFLICT DO NOTHING;
+ON CONFLICT (event_code, channel) DO NOTHING;
+
+-- Configuração padrão para clínicas existentes
+INSERT INTO public.clinic_message_settings (
+  clinic_id, event_code, channel, enabled, send_mode, send_only_when_ticket_open
+)
+SELECT c.id, me.code, 'whatsapp', me.default_enabled_whatsapp, 'automatic', false
+FROM public.clinics c
+CROSS JOIN public.message_events me
+WHERE me.code IN ('payment_receipt_generated', 'quote_sent')
+ON CONFLICT (clinic_id, event_code, channel) DO NOTHING;
+
+INSERT INTO public.clinic_message_settings (
+  clinic_id, event_code, channel, enabled, send_mode, send_only_when_ticket_open
+)
+SELECT c.id, me.code, 'email', me.default_enabled_email, 'automatic', false
+FROM public.clinics c
+CROSS JOIN public.message_events me
+WHERE me.code IN ('payment_receipt_generated', 'quote_sent')
+ON CONFLICT (clinic_id, event_code, channel) DO NOTHING;
 
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('receipts', 'receipts', true)
