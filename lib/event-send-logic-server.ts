@@ -1,6 +1,6 @@
 /**
  * Execução de envio por evento (apenas servidor).
- * Usado por actions (eventos) e API (process-public-form-event).
+ * Usado por actions (eventos) e API (public/form/submit).
  * Não importar em componentes com "use client".
  */
 
@@ -118,11 +118,6 @@ export async function runAutoSendForEvent(
     return { sent: false, error: null };
   }
 
-  const channels: ("email" | "whatsapp")[] = [
-    ...(toSend.email ? (["email"] as const) : []),
-    ...(toSend.whatsapp ? (["whatsapp"] as const) : []),
-  ];
-
   const { data: eventRow } = await supabase
     .from("event_timeline")
     .select("patient_id, appointment_id, form_instance_id, sent_channels, metadata")
@@ -130,6 +125,16 @@ export async function runAutoSendForEvent(
     .single();
 
   if (!eventRow) return { sent: false, error: "Evento não encontrado." };
+
+  const sent = (eventRow.sent_channels as string[] | null) ?? [];
+  const channels: ("email" | "whatsapp")[] = [
+    ...(toSend.email && !sent.includes("email") ? (["email"] as const) : []),
+    ...(toSend.whatsapp && !sent.includes("whatsapp") ? (["whatsapp"] as const) : []),
+  ];
+
+  if (channels.length === 0) {
+    return { sent: false, error: null };
+  }
 
   const result = await executeSendForEvent(
     eventId,

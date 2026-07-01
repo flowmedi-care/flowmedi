@@ -1086,7 +1086,7 @@ export async function processEventByIdForPublicForm(
 
     const { data: event, error: eventError } = await supabase
       .from("event_timeline")
-      .select("id, clinic_id, event_code, status, channels, template_ids, metadata")
+      .select("id, clinic_id, event_code, status, channels, template_ids, metadata, sent_channels")
       .eq("id", eventId)
       .single();
 
@@ -1096,6 +1096,11 @@ export async function processEventByIdForPublicForm(
 
   if (event.status !== "pending") {
     return { success: false, error: "Evento já foi processado." };
+  }
+
+  const sentChannels = (event.sent_channels as string[] | null) ?? [];
+  if (sentChannels.includes("email")) {
+    return { success: true };
   }
 
   const metadata = (event.metadata as Record<string, unknown>) || {};

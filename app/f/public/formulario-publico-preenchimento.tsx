@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase/client";
 import type { FormFieldDefinition } from "@/lib/form-types";
 import { formatPhoneBrInput, parsePhoneBr } from "@/lib/format-phone";
 import { Check } from "lucide-react";
@@ -85,8 +84,7 @@ export function FormularioPublicoPreenchimento({
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const supabase = createClient();
-    
+
     // Separar campos customizados das respostas do formulário
     const formResponses: Record<string, unknown> = {};
     const customFieldsData: Record<string, unknown> = {};
@@ -105,42 +103,46 @@ export function FormularioPublicoPreenchimento({
       }
     });
     
-    // Criar nova instância pública para esta resposta
-    const { data, error: rpcError } = await supabase.rpc("create_public_form_instance", {
-      p_template_id: templateId,
-      p_submitter_name: basicForm.name.trim(),
-      p_submitter_email: basicForm.email.trim(),
-      p_submitter_phone: parsePhoneBr(basicForm.phone) || null,
-      p_submitter_birth_date: basicForm.birth_date || null,
-      p_responses: formResponses,
-      p_custom_fields: Object.keys(customFieldsData).length > 0 ? customFieldsData : null,
-    });
-    if (rpcError) {
-      setError(rpcError.message);
-      setLoading(false);
-      return;
-    }
-    if (data?.success) {
-      setSuccess(true);
-      const instanceId = (data as { instance_id?: string })?.instance_id;
-      if (instanceId) {
-        fetch("/api/process-public-form-event", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ form_instance_id: instanceId }),
-        })
-          .then(async (res) => {
-            if (!res.ok) {
-              const data = await res.json().catch(() => ({}));
-              console.error("[FlowMedi] process-public-form-event falhou:", res.status, data);
-            }
-          })
-          .catch((err) => console.error("[FlowMedi] process-public-form-event erro:", err));
+    try {
+      const res = await fetch("/api/public/form/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          template_id: templateId,
+          submitter_name: basicForm.name.trim(),
+          submitter_email: basicForm.email.trim(),
+          submitter_phone: parsePhoneBr(basicForm.phone) || null,
+          submitter_birth_date: basicForm.birth_date || null,
+          responses: formResponses,
+          custom_fields: Object.keys(customFieldsData).length > 0 ? customFieldsData : null,
+        }),
+      });
+
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        error?: string;
+      };
+
+      if (res.status === 429) {
+        setError(data.error ?? "Limite de envios atingido. Tente mais tarde.");
+        return;
       }
-    } else {
-      setError((data as { error?: string })?.error ?? "Erro ao enviar.");
+
+      if (!res.ok) {
+        setError(data.error ?? "Erro ao enviar.");
+        return;
+      }
+
+      if (data.success) {
+        setSuccess(true);
+      } else {
+        setError(data.error ?? "Erro ao enviar.");
+      }
+    } catch {
+      setError("Erro ao enviar. Tente novamente.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   if (success) {
