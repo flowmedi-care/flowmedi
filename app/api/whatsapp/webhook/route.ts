@@ -17,6 +17,7 @@ import { applyBotLoopSilence, quickBotLoopCheck } from "@/lib/virtual-assistant/
 import { upsertWhatsappPipelineLead } from "@/lib/leads/upsert-whatsapp-lead";
 import { parseMetaInboundMessage } from "@/lib/whatsapp-inbound-parse";
 import { tryHandleInboundConfirmationFlow } from "@/lib/virtual-assistant/webhook-inbound-flow";
+import { verifyMetaWebhookSignature } from "@/lib/meta-webhook-signature";
 
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
@@ -47,6 +48,18 @@ export async function POST(request: NextRequest) {
     rawBody = await request.text();
   } catch {
     return new NextResponse(null, { status: 200 });
+  }
+
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appSecret) {
+    console.error("[WhatsApp Webhook] META_APP_SECRET não configurado");
+    return new NextResponse("Webhook não configurado", { status: 500 });
+  }
+
+  const signature = request.headers.get("x-hub-signature-256");
+  if (!verifyMetaWebhookSignature(rawBody, signature, appSecret)) {
+    console.warn("[WhatsApp Webhook] Assinatura inválida ou ausente");
+    return new NextResponse("Unauthorized", { status: 401 });
   }
 
   // Debug: logar e armazenar para /api/whatsapp/webhook/debug

@@ -1,0 +1,74 @@
+{
+    "findings": [
+        {
+            "title": "Unauthenticated WhatsApp webhook POST accepts forged Meta payloads without signature verification",
+            "status": "active",
+            "commit_hash": "de4a9143fa3ccb256411947629eb80dde62ea544",
+            "detected_at_pst": "2026-07-01T14:55:44-07:00",
+            "reported_link": "",
+            "severity": "critical",
+            "location": "app/api/integrations/whatsapp/webhook/route.ts",
+            "attacker": "Any unauthenticated remote user on the internet",
+            "controlled_input": "Arbitrary JSON mimicking Meta entry[].changes[].value.messages[] (from, text.body, metadata.phone_number_id)",
+            "attack_path": "POST handler reads body with no X-Hub-Signature-256 check, calls createServiceRoleClient(), resolves clinic by phone_number_id or single-integration fallback, inserts inbound messages, and triggers chatbot routing, AI debounce, and sendChatbotReply outbound WhatsApp.",
+            "impact": "Inject fake patient conversations, force outbound WhatsApp replies to attacker numbers, trigger OpenAI/virtual-assistant cost abuse, and manipulate routing/handoff state.",
+            "evidence": "app/api/integrations/whatsapp/webhook/route.ts POST handler (lines 47-428) processes JSON with service role and never validates X-Hub-Signature-256; duplicate unsigned handler at app/api/whatsapp/webhook/route.ts; grep shows only Stripe webhook verifies signatures under app/api."
+        },
+        {
+            "title": "Unauthenticated replay of automatic message sends via process-public-form-event",
+            "status": "active",
+            "commit_hash": "de4a9143fa3ccb256411947629eb80dde62ea544",
+            "detected_at_pst": "2026-07-01T14:55:44-07:00",
+            "reported_link": "",
+            "severity": "high",
+            "location": "app/api/process-public-form-event/route.ts",
+            "attacker": "Anyone who obtains a form_instance_id from public form submit network traffic",
+            "controlled_input": "form_instance_id UUID in POST JSON body",
+            "attack_path": "Unauthenticated POST uses service role to query event_timeline where status=pending, calls runAutoSendForEvent -> executeSendForEvent -> processMessageEvent/processEventByIdForPublicForm without checking sent_channels; event status stays pending after send.",
+            "impact": "Unlimited duplicate emails and WhatsApp messages to real patients; harassment, deliverability damage, and messaging cost abuse.",
+            "evidence": "app/api/process-public-form-event/route.ts has no auth; lib/event-send-logic-server.ts executeSendForEvent does not skip channels already in sent_channels; lib/message-processor.ts line 1216 keeps event status pending after send; form_instance_id exposed client-side in app/f/public/[token]/formulario-publico-preenchimento.tsx lines 127-130."
+        },
+        {
+            "title": "Default Meta webhook verify token enables webhook hijack when env var is unset",
+            "status": "active",
+            "commit_hash": "de4a9143fa3ccb256411947629eb80dde62ea544",
+            "detected_at_pst": "2026-07-01T14:55:44-07:00",
+            "reported_link": "",
+            "severity": "high",
+            "location": "app/api/whatsapp/webhook/route.ts",
+            "attacker": "Anyone who knows the public webhook URL documented in code and Meta config",
+            "controlled_input": "hub.verify_token=flowmedi-verify during Meta subscription GET handshake",
+            "attack_path": "GET handler accepts verify token from hardcoded fallback META_WHATSAPP_WEBHOOK_VERIFY_TOKEN or flowmedi-verify and returns hub.challenge, allowing attacker to complete Meta webhook registration before legitimate operator.",
+            "impact": "Intercept or block real WhatsApp inbound traffic; combined with unsigned POST enables full message pipeline control.",
+            "evidence": "app/api/whatsapp/webhook/route.ts line 24 and app/api/integrations/whatsapp/webhook/route.ts line 24 both use process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || flowmedi-verify; GET handler returns challenge when token matches (lines 31-38)."
+        },
+        {
+            "title": "Stored XSS in clinic staff event email preview via unescaped template variables",
+            "status": "active",
+            "commit_hash": "de4a9143fa3ccb256411947629eb80dde62ea544",
+            "detected_at_pst": "2026-07-01T14:55:44-07:00",
+            "reported_link": "",
+            "severity": "medium",
+            "location": "lib/message-variables.ts",
+            "attacker": "Public user submitting a booking or public form with malicious field values",
+            "controlled_input": "Patient full_name, email, or form submitter fields containing HTML/JS payloads without spaces to bypass extractFirstName on nome_paciente variable",
+            "attack_path": "Malicious value stored via public booking endpoint -> getMessagePreview builds context -> replaceVariables inserts raw values without HTML escaping -> dangerouslySetInnerHTML in eventos-client.tsx renders preview when clinic staff views event.",
+            "impact": "JavaScript execution in authenticated clinic staff browser session (session theft, actions-as-victim).",
+            "evidence": "lib/message-variables.ts replaceVariables (lines 215-226) performs unescaped string substitution; app/dashboard/eventos/eventos-client.tsx line 1077 uses dangerouslySetInnerHTML on item.body; public input accepted at app/api/public/booking/[slug]/appointments/route.ts line 57."
+        },
+        {
+            "title": "Public Supabase storage buckets expose clinical media and sequential financial PDFs",
+            "status": "active",
+            "commit_hash": "de4a9143fa3ccb256411947629eb80dde62ea544",
+            "detected_at_pst": "2026-07-01T14:55:44-07:00",
+            "reported_link": "",
+            "severity": "medium",
+            "location": "supabase/migration-journey-tools-events.sql",
+            "attacker": "Anyone with a leaked or guessed storage URL",
+            "controlled_input": "N/A (design flaw); receipt paths use sequential REC-year-seq numbering under clinicId/year/",
+            "attack_path": "Buckets receipts and quotes created with public=true; getPublicUrl returns permanently accessible URLs; one leaked URL reveals clinicId enabling enumeration of sequential receipt PDFs; whatsapp-media bucket is also public for any holder of media URL.",
+            "impact": "Unauthorized access to financial receipts/quotes and clinical WhatsApp media containing PHI.",
+            "evidence": "supabase/migration-journey-tools-events.sql lines 84-89 sets receipts and quotes buckets public; app/dashboard/financeiro/receipt-actions.ts line 293 uses sequential REC-year-seq paths; supabase/migration-whatsapp-media-bucket.sql creates public read policy for whatsapp-media."
+        }
+    ]
+}
