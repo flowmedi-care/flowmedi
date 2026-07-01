@@ -35,6 +35,7 @@ export type AuthMechanism =
   | "cron-secret"
   | "stripe-signature"
   | "meta-verify"
+  | "meta-signature"
   | "service-role"
   | "edit-token"
   | "oauth-callback";
