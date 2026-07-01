@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   WHATSAPP_HANDLER_FILTER_STORAGE_KEY,
   isValidHandlerFilter,
+  VIRTUAL_ASSISTANT_ASSIGNEE_ID,
   type HandlerFilter,
   type ConversationHandler,
 } from "@/lib/whatsapp-ai-state";
@@ -968,6 +969,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           conversationId={selectedConversation.id}
           assignedSecretary={selectedConversation.assigned_secretary}
           eligibleSecretaries={selectedConversation.eligible_secretaries ?? []}
+          conversationHandler={selectedConversation.handler}
           secretaries={secretaries}
           onAssignConversation={async (secretaryId) => {
             const res = await fetch("/api/whatsapp/assign-conversation", {
@@ -982,18 +984,36 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
               const data = await res.json();
               throw new Error(data.error ?? "Erro ao encaminhar");
             }
+            const data = (await res.json()) as { handler?: ConversationHandler };
+            const isVirtualAssistant = secretaryId === VIRTUAL_ASSISTANT_ASSIGNEE_ID;
             await loadConversations(false);
             setConversations((prev) =>
               prev.map((c) =>
                 c.id === selectedConversation.id
-                  ? {
-                      ...c,
-                      assigned_secretary_id: secretaryId,
-                      assigned_secretary: secretaries.find((s) => s.id === secretaryId)
-                        ? { id: secretaryId, full_name: secretaries.find((s) => s.id === secretaryId)!.full_name }
-                        : null,
-                      assigned_at: new Date().toISOString(),
-                    }
+                  ? isVirtualAssistant || data.handler === "ai"
+                    ? {
+                        ...c,
+                        assigned_secretary_id: null,
+                        assigned_secretary: null,
+                        assigned_at: null,
+                        ai_handoff_at: null,
+                        ai_enabled: true,
+                        handler: "ai" as const,
+                        eligible_secretaries: [],
+                      }
+                    : {
+                        ...c,
+                        assigned_secretary_id: secretaryId,
+                        assigned_secretary: secretaries.find((s) => s.id === secretaryId)
+                          ? {
+                              id: secretaryId,
+                              full_name: secretaries.find((s) => s.id === secretaryId)!.full_name,
+                            }
+                          : null,
+                        assigned_at: new Date().toISOString(),
+                        handler: "human" as const,
+                        eligible_secretaries: [],
+                      }
                   : c
               )
             );

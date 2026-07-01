@@ -1,5 +1,8 @@
 export type ConversationHandler = "ai" | "human";
 
+/** Valor enviado ao encaminhar conversa de volta para o assistente virtual. */
+export const VIRTUAL_ASSISTANT_ASSIGNEE_ID = "__virtual_assistant__";
+
 export type ConversationAiFields = {
   ai_enabled: boolean | null;
   ai_handoff_at: string | null;

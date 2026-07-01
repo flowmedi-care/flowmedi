@@ -10,6 +10,10 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select } from "@/components/ui/select";
 import { formatPhoneBr, formatPhoneBrInput, parsePhoneBr } from "@/lib/format-phone";
+import {
+  VIRTUAL_ASSISTANT_ASSIGNEE_ID,
+  type ConversationHandler,
+} from "@/lib/whatsapp-ai-state";
 import { createPatient, type PatientInsert } from "@/app/dashboard/pacientes/actions";
 import { getPatientExams, getExamSignedUrl } from "@/app/dashboard/exames/actions";
 import type { PatientExam } from "@/app/dashboard/exames/actions";
@@ -49,6 +53,7 @@ interface WhatsAppContactSidebarProps {
   conversationId?: string | null;
   assignedSecretary?: AssignedSecretary;
   eligibleSecretaries?: Array<{ id: string; full_name: string | null }>;
+  conversationHandler?: ConversationHandler;
   onAssignConversation?: (secretaryId: string) => Promise<void>;
   secretaries?: { id: string; full_name: string }[];
 }
@@ -76,6 +81,7 @@ export function WhatsAppContactSidebar({
   conversationId,
   assignedSecretary,
   eligibleSecretaries = [],
+  conversationHandler,
   onAssignConversation,
   secretaries = [],
 }: WhatsAppContactSidebarProps) {
@@ -225,7 +231,9 @@ export function WhatsAppContactSidebar({
             {conversationId && (
               <div className="mb-4 p-3 rounded-lg bg-muted/50 border border-border">
                 <p className="text-xs font-medium text-muted-foreground mb-1">Atendente responsável</p>
-                {assignedSecretary ? (
+                {conversationHandler === "ai" ? (
+                  <p className="text-sm font-medium">Assistente Virtual (IA)</p>
+                ) : assignedSecretary ? (
                   <p className="text-sm font-medium">{assignedSecretary.full_name ?? "Sem nome"}</p>
                 ) : eligibleSecretaries.length > 0 ? (
                   <p className="text-sm font-medium">
@@ -234,14 +242,21 @@ export function WhatsAppContactSidebar({
                 ) : (
                   <p className="text-sm text-muted-foreground italic">Em pool (disponível para todas)</p>
                 )}
-                {onAssignConversation && secretaries.length > 0 && (
+                {onAssignConversation && (
                   <div className="mt-2 flex gap-2">
                     <Select
                       value={forwardSecretaryId}
                       onChange={(e) => setForwardSecretaryId(e.target.value)}
                       className="flex-1"
                     >
-                      <option value="">Selecionar Secretário(a)...</option>
+                      <option value="">Encaminhar para...</option>
+                      <option
+                        value={VIRTUAL_ASSISTANT_ASSIGNEE_ID}
+                        disabled={conversationHandler === "ai"}
+                      >
+                        Assistente Virtual (IA)
+                        {conversationHandler === "ai" ? " (atual)" : ""}
+                      </option>
                       {secretaries.map((s) => (
                         <option
                           key={s.id}
@@ -256,14 +271,24 @@ export function WhatsAppContactSidebar({
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={!forwardSecretaryId || forwarding}
+                      disabled={
+                        !forwardSecretaryId ||
+                        forwarding ||
+                        (forwardSecretaryId === VIRTUAL_ASSISTANT_ASSIGNEE_ID &&
+                          conversationHandler === "ai")
+                      }
                       onClick={async () => {
                         if (!forwardSecretaryId) return;
                         setForwarding(true);
                         try {
                           await onAssignConversation(forwardSecretaryId);
                           setForwardSecretaryId("");
-                          toast("Conversa encaminhada com sucesso.", "success");
+                          toast(
+                            forwardSecretaryId === VIRTUAL_ASSISTANT_ASSIGNEE_ID
+                              ? "Conversa devolvida ao assistente virtual."
+                              : "Conversa encaminhada com sucesso.",
+                            "success"
+                          );
                         } catch (e) {
                           toast(e instanceof Error ? e.message : "Erro ao encaminhar.", "error");
                         } finally {
