@@ -427,6 +427,16 @@ export type SendWhatsAppResult = {
   debug?: { status: number; metaResponse: unknown };
 };
 
+export type WhatsAppFlowTemplateOptions = {
+  to: string;
+  templateName: string;
+  flowId: string;
+  flowToken: string;
+  bodyParams?: string[];
+  flowActionData?: Record<string, unknown>;
+  buttonText?: string;
+};
+
 function sanitizeTemplateParam(value: string): string {
   return String(value ?? "")
     .replace(/[\r\n\t]+/g, " ")
@@ -553,6 +563,93 @@ export async function sendWhatsAppMessage(
       success: false,
       error: error instanceof Error ? error.message : "Erro desconhecido ao enviar mensagem WhatsApp",
       debug: { status: 0, metaResponse: String(error) },
+    };
+  }
+}
+
+/**
+ * Envia template Meta com botão WhatsApp Flow (confirmação de consulta).
+ */
+export async function sendWhatsAppFlowTemplate(
+  clinicId: string,
+  options: WhatsAppFlowTemplateOptions,
+  supabaseClient?: SupabaseClient
+): Promise<SendWhatsAppResult> {
+  try {
+    const { credentials, phoneNumberId } = await getWhatsAppCredentials(
+      clinicId,
+      false,
+      supabaseClient
+    );
+
+    if (!phoneNumberId) {
+      throw new Error("Phone Number ID não configurado. Configure um número no Meta Business Manager.");
+    }
+
+    const apiUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+    const bodyParams = (options.bodyParams ?? []).map((param) => sanitizeTemplateParam(param));
+
+    const components: Array<Record<string, unknown>> = [];
+    if (bodyParams.length > 0) {
+      components.push({
+        type: "body",
+        parameters: bodyParams.map((text) => ({ type: "text", text })),
+      });
+    }
+
+    components.push({
+      type: "button",
+      sub_type: "flow",
+      index: "0",
+      parameters: [
+        {
+          type: "action",
+          action: {
+            flow_token: options.flowToken,
+            flow_action_data: options.flowActionData ?? {},
+          },
+        },
+      ],
+    });
+
+    const payload: Record<string, unknown> = {
+      messaging_product: "whatsapp",
+      to: options.to,
+      type: "template",
+      template: {
+        name: options.templateName,
+        language: { code: "pt_BR" },
+        components,
+      },
+    };
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${credentials.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+    const debugPayload = { status: response.status, metaResponse: data };
+
+    if (!response.ok) {
+      const errorMessage =
+        (data as { error?: { message?: string } })?.error?.message || "Erro ao enviar template Flow";
+      return { success: false, error: errorMessage, debug: debugPayload };
+    }
+
+    return {
+      success: true,
+      messageId: (data as { messages?: { id?: string }[] })?.messages?.[0]?.id,
+      debug: debugPayload,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Erro ao enviar WhatsApp Flow",
     };
   }
 }

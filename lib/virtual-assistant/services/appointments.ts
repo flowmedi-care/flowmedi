@@ -205,7 +205,11 @@ export async function confirmAppointmentViaAssistant(
   return { error: null, recommendations };
 }
 
-export async function cancelAppointmentViaAssistant(
+/**
+ * Cancelamento via assistente (webhook/cron) — usa service-role, sem wizard humano.
+ * Não dispara WhatsApp de cancelamento (paciente acabou de interagir).
+ */
+export async function cancelAppointmentViaAssistantOperational(
   supabase: SupabaseClient,
   clinicId: string,
   appointmentId: string,
@@ -221,11 +225,69 @@ export async function cancelAppointmentViaAssistant(
   if (!appt || appt.patient_id !== patientId) {
     return { error: "Consulta não encontrada." };
   }
+  if (appt.status === "cancelada") return { error: null };
 
-  const { cancelAppointmentOperational } = await import(
-    "@/app/dashboard/agenda/appointment-status-change"
+  const { data: comanda } = await supabase
+    .from("comandas")
+    .select("id, paid_amount, status")
+    .eq("appointment_id", appointmentId)
+    .neq("status", "cancelada")
+    .maybeSingle();
+
+  if (comanda && Number(comanda.paid_amount) > 0) {
+    return {
+      error:
+        "Consulta com pagamento registrado. Cancele pelo dashboard da clínica para definir estorno ou crédito.",
+    };
+  }
+
+  if (comanda) {
+    const now = new Date().toISOString();
+    const { error: comandaErr } = await supabase
+      .from("comandas")
+      .update({
+        status: "cancelada",
+        cancelled_at: now,
+        cancelled_reason: "Cancelamento via assistente virtual",
+      })
+      .eq("id", comanda.id);
+    if (comandaErr) return { error: comandaErr.message };
+  }
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({ status: "cancelada" })
+    .eq("id", appointmentId);
+
+  if (error) return { error: error.message };
+
+  try {
+    await supabase.rpc("create_event_timeline", {
+      p_clinic_id: clinicId,
+      p_event_code: "appointment_canceled",
+      p_patient_id: patientId,
+      p_appointment_id: appointmentId,
+      p_metadata: { source: "virtual_assistant", skip_whatsapp_send: true },
+    });
+  } catch (e) {
+    console.error("[VirtualAssistant] appointment_canceled event:", e);
+  }
+
+  return { error: null };
+}
+
+export async function cancelAppointmentViaAssistant(
+  supabase: SupabaseClient,
+  clinicId: string,
+  appointmentId: string,
+  patientId: string
+): Promise<{ error: string | null }> {
+  return cancelAppointmentViaAssistantOperational(
+    supabase,
+    clinicId,
+    appointmentId,
+    patientId
   );
-  return cancelAppointmentOperational(appointmentId, patientId);
 }
 
 export async function listPatientAppointmentsViaAssistant(

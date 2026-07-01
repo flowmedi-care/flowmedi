@@ -18,6 +18,8 @@ import { handleInboundUserCommand } from "@/lib/virtual-assistant/user-commands"
 import { applyBotLoopSilence, quickBotLoopCheck } from "@/lib/virtual-assistant/bot-loop-guard";
 import { logAiEvent } from "@/lib/virtual-assistant/event-log";
 import { excludeInboundFromAiQueue } from "@/lib/virtual-assistant/exclude-from-ai-queue";
+import { parseMetaInboundMessage } from "@/lib/whatsapp-inbound-parse";
+import { tryHandleInboundConfirmationFlow } from "@/lib/virtual-assistant/webhook-inbound-flow";
 
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
@@ -144,15 +146,16 @@ export async function POST(request: NextRequest) {
           let bodyText: string | null = null;
           let mediaUrl: string | null = null;
           let mediaMimeType: string | null = null;
-          const text = (msg as { text?: { body?: string } }).text;
-          const msgType = (msg as { type?: string }).type || "text";
+          const parsedInbound = parseMetaInboundMessage(msg as Record<string, unknown>);
+          const msgType = parsedInbound.msgType;
+          const flowInbound = parsedInbound.flowInbound;
           const image = (msg as { image?: { id?: string; mime_type?: string } }).image;
           const audio = (msg as { audio?: { id?: string; mime_type?: string } }).audio;
           const video = (msg as { video?: { id?: string; mime_type?: string } }).video;
           const document = (msg as { document?: { id?: string; mime_type?: string } }).document;
 
-          if (text?.body) {
-            bodyText = String(text.body);
+          if (parsedInbound.bodyText || flowInbound) {
+            bodyText = parsedInbound.bodyText;
           } else if (image?.id && accessToken) {
             mediaMimeType = normalizeMimeType(image.mime_type ?? "image/jpeg");
             mediaUrl = await fetchAndStoreWhatsAppMedia(
@@ -287,6 +290,29 @@ export async function POST(request: NextRequest) {
 
           const messageId = insertMsg.data?.id ?? undefined;
 
+          const { data: vaSettingsRow } = await supabase
+            .from("clinic_virtual_assistant_settings")
+            .select("human_handoff_enabled, message_debounce_seconds")
+            .eq("clinic_id", clinicId)
+            .maybeSingle();
+
+          if (flowInbound) {
+            const flowHandled = await tryHandleInboundConfirmationFlow(supabase, {
+              clinicId,
+              conversationId,
+              phoneNumber: from,
+              messageId,
+              flowInbound,
+            });
+            if (flowHandled.handled) {
+              if (flowHandled.scheduleAi) {
+                const debounceSec = Number(vaSettingsRow?.message_debounce_seconds) || 5;
+                await scheduleAiDebounce(supabase, conversationId, clinicId, debounceSec, messageId);
+              }
+              continue;
+            }
+          }
+
           logAiEvent(supabase, {
             clinicId,
             conversationId,
@@ -298,12 +324,6 @@ export async function POST(request: NextRequest) {
               bodyPreview: (bodyText ?? "").slice(0, 80),
             },
           });
-
-          const { data: vaSettingsRow } = await supabase
-            .from("clinic_virtual_assistant_settings")
-            .select("human_handoff_enabled, message_debounce_seconds")
-            .eq("clinic_id", clinicId)
-            .maybeSingle();
 
           const commandResult = await handleInboundUserCommand({
             supabase,

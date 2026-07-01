@@ -63,7 +63,7 @@ export async function sendCommercialFollowup(
     fallbackText?: string;
     appointmentId?: string | null;
   }
-): Promise<{ success: boolean; mode?: "free_text" | "template"; error?: string }> {
+): Promise<{ success: boolean; mode?: "free_text" | "template" | "flow"; error?: string }> {
   const eventCode = JOURNEY_STEP_TO_EVENT[opts.journeyStep];
   const fallbackText = opts.fallbackText ?? DEFAULT_FALLBACK[opts.journeyStep];
 
@@ -97,7 +97,7 @@ export async function sendBookingAbandonedFollowup(
     patientId: string;
     fallbackText?: string;
   }
-): Promise<{ success: boolean; mode?: "free_text" | "template"; error?: string }> {
+): Promise<{ success: boolean; mode?: "free_text" | "template" | "flow"; error?: string }> {
   const fallbackText =
     opts.fallbackText ??
     "Olá! Notamos que você estava agendando uma consulta. Posso ajudar a concluir?";

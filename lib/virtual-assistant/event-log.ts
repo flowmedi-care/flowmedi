@@ -10,6 +10,7 @@ export const AI_EVENT_STAGES = [
   "openai_start",
   "openai_end",
   "reply_sent",
+  "confirmation_flow_handled",
   "handoff",
   "cron_batch_start",
   "cron_conversation_processed",

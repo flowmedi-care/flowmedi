@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { processMessageEvent } from "@/lib/message-processor";
 import { getEffectiveTicketStatus } from "@/lib/whatsapp-ticket-status";
 import { sendAssistantReply } from "./send-reply";
+import { isConfirmationFlowEvent } from "./confirmation-flow-config";
+import { sendConfirmationFlowTemplate } from "./send-confirmation-flow";
 
 export type SendAssistantOrTemplateParams = {
   clinicId: string;
@@ -20,7 +22,7 @@ export type SendAssistantOrTemplateParams = {
 
 export type SendAssistantOrTemplateResult = {
   success: boolean;
-  mode: "free_text" | "template";
+  mode: "free_text" | "template" | "flow";
   error?: string;
 };
 
@@ -88,6 +90,25 @@ export async function sendAssistantOrTemplate(
     } catch (e) {
       console.warn("[VirtualAssistant] create_event_timeline:", e);
     }
+  }
+
+  if (
+    isConfirmationFlowEvent(eventCode) &&
+    appointmentId &&
+    patientId
+  ) {
+    const flowResult = await sendConfirmationFlowTemplate(supabase, {
+      clinicId,
+      conversationId,
+      phoneNumber,
+      patientId,
+      appointmentId,
+      eventCode,
+    });
+    if (flowResult.success) {
+      return { success: true, mode: "flow" };
+    }
+    console.warn("[VirtualAssistant] Flow fallback para template:", flowResult.error);
   }
 
   const result = await processMessageEvent(

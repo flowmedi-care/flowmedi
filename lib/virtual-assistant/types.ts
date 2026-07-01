@@ -41,6 +41,8 @@ export type VirtualAssistantSettings = {
   max_context_messages: number;
   bot_active_start: string | null;
   bot_active_end: string | null;
+  confirmation_flow_id?: string | null;
+  confirmation_flow_template_name?: string | null;
 };
 
 export type VirtualAssistantLocation = {
@@ -76,6 +78,8 @@ export type AiConversationState = {
   dimension_value_ids?: string[];
   patient_id?: string;
   pending_confirmation_appointment_id?: string;
+  /** Consulta a remarcar após resposta "Remarcar" no WhatsApp Flow */
+  pending_reschedule_appointment_id?: string;
   pending_transcription_jobs?: PendingTranscriptionJob[];
   /** Etapa atual do fluxo guiado (booking, price, etc.) */
   pending_step?: string;

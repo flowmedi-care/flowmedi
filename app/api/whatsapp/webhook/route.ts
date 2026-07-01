@@ -15,6 +15,8 @@ import {
 import { handleInboundUserCommand } from "@/lib/virtual-assistant/user-commands";
 import { applyBotLoopSilence, quickBotLoopCheck } from "@/lib/virtual-assistant/bot-loop-guard";
 import { upsertWhatsappPipelineLead } from "@/lib/leads/upsert-whatsapp-lead";
+import { parseMetaInboundMessage } from "@/lib/whatsapp-inbound-parse";
+import { tryHandleInboundConfirmationFlow } from "@/lib/virtual-assistant/webhook-inbound-flow";
 
 const VERIFY_TOKEN = process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN || "flowmedi-verify";
 
@@ -113,10 +115,12 @@ export async function POST(request: NextRequest) {
           if (!from) continue;
 
           let bodyText: string | null = null;
-          const text = (msg as { text?: { body?: string } }).text;
-          const msgType = (msg as { type?: string }).type;
-          if (text?.body) bodyText = String(text.body);
-          else if (msgType) bodyText = `[${msgType}]`;
+          const parsedInbound = parseMetaInboundMessage(msg as Record<string, unknown>);
+          const msgType = parsedInbound.msgType;
+          const flowInbound = parsedInbound.flowInbound;
+          if (parsedInbound.bodyText || flowInbound) {
+            bodyText = parsedInbound.bodyText;
+          } else if (msgType) bodyText = `[${msgType}]`;
 
           const conversationRes = await supabase
             .from("whatsapp_conversations")
@@ -202,6 +206,23 @@ export async function POST(request: NextRequest) {
             .select("human_handoff_enabled, message_debounce_seconds")
             .eq("clinic_id", clinicId)
             .maybeSingle();
+
+          if (flowInbound) {
+            const flowHandled = await tryHandleInboundConfirmationFlow(supabase, {
+              clinicId,
+              conversationId,
+              phoneNumber: from,
+              messageId,
+              flowInbound,
+            });
+            if (flowHandled.handled) {
+              if (flowHandled.scheduleAi) {
+                const debounceSec = Number(vaSettingsRow?.message_debounce_seconds) || 5;
+                await scheduleAiDebounce(supabase, conversationId, clinicId, debounceSec, messageId);
+              }
+              continue;
+            }
+          }
 
           const commandResult = await handleInboundUserCommand({
             supabase,
