@@ -18,6 +18,7 @@ import {
   type HandlerFilter,
   type ConversationHandler,
 } from "@/lib/whatsapp-ai-state";
+import { extractFirstName } from "@/lib/whatsapp-sender-display";
 
 type Conversation = {
   id: string;
@@ -34,6 +35,7 @@ type Conversation = {
   ai_handoff_at: string | null;
   ai_user_opt_out: boolean | null;
   handler: ConversationHandler;
+  assistant_name?: string;
 };
 
 type Message = {
@@ -43,6 +45,10 @@ type Message = {
   media_url: string | null;
   message_type: string;
   sent_at: string;
+  sender_type?: string | null;
+  sender_name?: string | null;
+  sender_user_id?: string | null;
+  ai_processed_at?: string | null;
 };
 
 type WhatsAppUsageLimit = {
@@ -116,6 +122,26 @@ function formatPhone(phone: string) {
   if (digits.length === 12) return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
   if (digits.length >= 10) return `+${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4)}`;
   return phone;
+}
+
+function getHandlerSubtitle(conv: Conversation): string {
+  if (conv.ai_user_opt_out) return "IA desativada pelo paciente";
+  if (conv.handler === "ai") {
+    return `${conv.assistant_name ?? "Assistente"} · Assistente virtual`;
+  }
+  const secretaryName = conv.assigned_secretary?.full_name;
+  if (secretaryName) {
+    return `${extractFirstName(secretaryName)} · Atendimento humano`;
+  }
+  return "Aguardando atendente";
+}
+
+function getOutboundSenderLabel(message: Message, assistantName: string): string | null {
+  if (message.direction !== "outbound") return null;
+  if (message.sender_name) return message.sender_name;
+  if (message.ai_processed_at) return assistantName;
+  if (message.sender_type === "system") return "Sistema";
+  return "Equipe";
 }
 
 export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
@@ -774,13 +800,25 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                       )}
                     />
                   </div>
-                  <span className="font-semibold truncate min-w-0">
-                    {selectedConversation
-                      ? patientByPhone[selectedConversation.phone_number]?.full_name ??
-                        selectedConversation.contact_name ??
-                        formatPhone(selectedConversation.phone_number)
-                      : selectedId}
-                  </span>
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="font-semibold truncate min-w-0">
+                      {selectedConversation
+                        ? patientByPhone[selectedConversation.phone_number]?.full_name ??
+                          selectedConversation.contact_name ??
+                          formatPhone(selectedConversation.phone_number)
+                        : selectedId}
+                    </span>
+                    {selectedConversation && (
+                      <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                        {selectedConversation.handler === "ai" && !selectedConversation.ai_user_opt_out ? (
+                          <Bot className="h-3 w-3 shrink-0" />
+                        ) : (
+                          <Headphones className="h-3 w-3 shrink-0" />
+                        )}
+                        {getHandlerSubtitle(selectedConversation)}
+                      </span>
+                    )}
+                  </div>
                 </button>
                 <Button
                   variant="ghost"
@@ -858,7 +896,12 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                             </div>
                           </div>
                           {/* Mensagens do grupo */}
-                          {group.messages.map((m) => (
+                          {group.messages.map((m) => {
+                            const assistantName =
+                              selectedConversation?.assistant_name ?? "Assistente";
+                            const senderLabel = getOutboundSenderLabel(m, assistantName);
+
+                            return (
                             <div
                               key={m.id}
                               className={cn(
@@ -866,6 +909,11 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                                 m.direction === "outbound" ? "ml-auto items-end" : "items-start"
                               )}
                             >
+                              {senderLabel && (
+                                <span className="text-[11px] text-muted-foreground mb-0.5 px-1">
+                                  {senderLabel}
+                                </span>
+                              )}
                               <div
                                 className={cn(
                                   "rounded-lg px-3 py-2 text-[14.5px] leading-snug shadow-sm max-w-full break-words overflow-hidden",
@@ -902,7 +950,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                                 {formatTime(m.sent_at)}
                               </span>
                             </div>
-                          ))}
+                            );
+                          })}
                         </React.Fragment>
                       ));
                     })()}

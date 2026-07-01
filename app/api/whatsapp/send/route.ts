@@ -4,6 +4,10 @@ import { requireClinicMemberWithRole } from "@/lib/auth-helpers";
 import { sendWhatsAppMessage } from "@/lib/comunicacao/whatsapp";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 import { getAndSyncEffectiveTicketStatus } from "@/lib/whatsapp-ticket-status";
+import {
+  ensurePatientVisibleMessage,
+  resolveHumanDisplayName,
+} from "@/lib/whatsapp-sender-display";
 
 const FREE_MESSAGE_TEMPLATE_KEY = "flowmedi_mensagem_livre";
 
@@ -41,6 +45,14 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient();
+
+    const { data: actorProfile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", userId)
+      .maybeSingle();
+    const humanDisplayName = resolveHumanDisplayName(actorProfile?.full_name);
+
     const { data: existing } = await supabase
       .from("whatsapp_conversations")
       .select("id, status, assigned_secretary_id, last_inbound_message_at, contact_name")
@@ -62,8 +74,13 @@ export async function POST(request: NextRequest) {
 
     const sanitizedText = text.trim();
     const useTemplateMode = conversationStatus !== "open";
+    const visibleFreeText = ensurePatientVisibleMessage(humanDisplayName, sanitizedText);
 
     let result;
+    let storedContent = visibleFreeText;
+    let senderType: "human" | "system" = "human";
+    let senderName = humanDisplayName;
+
     if (useTemplateMode) {
       const { data: clinicTemplate } = await supabase
         .from("clinic_whatsapp_meta_templates")
@@ -112,10 +129,11 @@ export async function POST(request: NextRequest) {
         false,
         supabase
       );
+      storedContent = sanitizedText;
     } else {
       result = await sendWhatsAppMessage(
         clinicId,
-        { to: normalizedTo, text: sanitizedText },
+        { to: normalizedTo, text: visibleFreeText },
         false,
         supabase
       );
@@ -152,8 +170,11 @@ export async function POST(request: NextRequest) {
       clinic_id: clinicId,
       direction: "outbound",
       message_type: "text",
-      content: sanitizedText,
+      content: storedContent,
       sent_at: new Date().toISOString(),
+      sender_type: senderType,
+      sender_name: senderName,
+      sender_user_id: senderType === "human" ? userId : null,
     } as Record<string, unknown>);
 
     try {

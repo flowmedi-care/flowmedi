@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyRoutingOnNewConversation } from "@/lib/whatsapp-routing";
 import { logAiEvent } from "./event-log";
-import { sendAssistantReply } from "./send-reply";
+import { sendAssistantReply, sendHandoffReply } from "./send-reply";
 
 export type UserAiCommand = "opt_in" | "opt_out" | "handoff";
 
@@ -172,12 +172,11 @@ export async function handleInboundUserCommand(opts: {
         .eq("id", opts.messageId);
     }
 
-    await sendAssistantReply(
+    await sendHandoffReply(
       opts.supabase,
       opts.clinicId,
       opts.conversationId,
-      opts.phoneNumber,
-      "Claro! Vou chamar alguém da equipe para te atender. Um momento, por favor."
+      opts.phoneNumber
     );
 
     logAiEvent(opts.supabase, {

@@ -868,6 +868,8 @@ export async function sendMessage(
       }
 
       if (conversationId && textContent) {
+        const systemDisplayName =
+          String(variables?.clinica?.nome || "").trim() || senderName || "Sistema";
         await supabase.from("whatsapp_messages").insert({
           conversation_id: conversationId,
           clinic_id: clinicId,
@@ -875,6 +877,8 @@ export async function sendMessage(
           message_type: "text",
           content: textContent,
           sent_at: new Date().toISOString(),
+          sender_type: "system",
+          sender_name: systemDisplayName,
         } as Record<string, unknown>);
       }
     }

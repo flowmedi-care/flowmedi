@@ -11,6 +11,7 @@ import { loadContactJourneyForAi } from "@/lib/contact-journey/journey-for-ai";
 import { buildContextualResumePrompt } from "@/lib/contact-journey/contextual-resume";
 import { shouldEscalateToHuman } from "@/lib/virtual-assistant/escalation";
 import { buildAgentPolicyBlock } from "@/lib/virtual-assistant/agent-policy";
+import { HANDOFF_REPLY_BODY } from "@/lib/whatsapp-sender-display";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -58,7 +59,7 @@ export async function runVirtualAssistantAgent(opts: {
       { reason: escalation.trigger ?? "auto_keyword" }
     );
     return {
-      reply: "Claro! Vou chamar alguém da equipe para te atender. Um momento, por favor.",
+      reply: HANDOFF_REPLY_BODY,
       handoff: handoffResult.handoff,
     };
   }
@@ -158,9 +159,7 @@ export async function runVirtualAssistantAgent(opts: {
 
         if (toolResult.handoff) {
           return {
-            reply:
-              completion.content?.trim() ||
-              "Transferindo você para nossa equipe. Em breve alguém vai te atender!",
+            reply: HANDOFF_REPLY_BODY,
             handoff: true,
             statePatch,
           };

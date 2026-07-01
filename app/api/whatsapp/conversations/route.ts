@@ -56,6 +56,14 @@ export async function GET(request: Request) {
       .not("last_inbound_message_at", "is", null)
       .lt("last_inbound_message_at", twentyFourHoursAgo);
 
+    const { data: vaSettings } = await supabase
+      .from("clinic_virtual_assistant_settings")
+      .select("assistant_name")
+      .eq("clinic_id", clinicId)
+      .maybeSingle();
+
+    const assistantName = vaSettings?.assistant_name?.trim() || "Assistente";
+
     const selectFields =
       "id, phone_number, contact_name, status, last_inbound_message_at, created_at, assigned_secretary_id, patient_id, assigned_at, ai_enabled, ai_handoff_at, ai_user_opt_out";
 
@@ -177,6 +185,7 @@ export async function GET(request: Request) {
         ai_handoff_at: c.ai_handoff_at,
         ai_user_opt_out: c.ai_user_opt_out,
         handler: getConversationHandler(aiFields),
+        assistant_name: assistantName,
         eligible_secretaries: (() => {
           if (c.assigned_secretary_id) return [];
           const details = eligibleDetailsByConv?.get(c.id) ?? [];

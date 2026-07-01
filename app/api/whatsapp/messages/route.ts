@@ -35,7 +35,9 @@ export async function GET(request: NextRequest) {
 
     const { data: rows, error } = await supabase
       .from("whatsapp_messages")
-      .select("id, direction, content, media_url, message_type, sent_at")
+      .select(
+        "id, direction, content, media_url, message_type, sent_at, sender_type, sender_name, sender_user_id, ai_processed_at"
+      )
       .eq("conversation_id", conversationId)
       .order("sent_at", { ascending: true });
 
@@ -44,14 +46,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const messages = (rows || []).map((r: { content?: string; media_url?: string | null; message_type?: string; [k: string]: unknown }) => ({
-      id: r.id,
-      direction: r.direction,
-      body: r.content ?? null,
-      media_url: r.media_url ?? null,
-      message_type: r.message_type ?? "text",
-      sent_at: r.sent_at,
-    }));
+    const messages = (rows || []).map(
+      (r: {
+        content?: string;
+        media_url?: string | null;
+        message_type?: string;
+        sender_type?: string | null;
+        sender_name?: string | null;
+        sender_user_id?: string | null;
+        ai_processed_at?: string | null;
+        [k: string]: unknown;
+      }) => ({
+        id: r.id,
+        direction: r.direction,
+        body: r.content ?? null,
+        media_url: r.media_url ?? null,
+        message_type: r.message_type ?? "text",
+        sent_at: r.sent_at,
+        sender_type: r.sender_type ?? null,
+        sender_name: r.sender_name ?? null,
+        sender_user_id: r.sender_user_id ?? null,
+        ai_processed_at: r.ai_processed_at ?? null,
+      })
+    );
     return NextResponse.json(messages);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao listar mensagens";
