@@ -1,4 +1,12 @@
 {
   "installCommand": "npm install",
-  "buildCommand": "npm run build"
+  "buildCommand": "npm run build",
+  "functions": {
+    "app/api/integrations/whatsapp/webhook/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/whatsapp/webhook/route.ts": {
+      "maxDuration": 60
+    }
+  }
 }
