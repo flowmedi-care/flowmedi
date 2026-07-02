@@ -1,5 +1,4 @@
-import { headers } from "next/headers";
-import { extractClinicSubdomain, getSubdomainSiteUrl } from "./host";
+import { getSubdomainSiteUrl } from "./host";
 
 export function publicSiteHomePath(
   slug: string,
@@ -26,9 +25,4 @@ export function publicSiteBookingPath(
 /** URL canônica preferida do site público (subdomínio). */
 export function getPreferredPublicSiteUrl(slug: string): string {
   return getSubdomainSiteUrl(slug);
-}
-
-export async function isOnClinicSubdomain(): Promise<boolean> {
-  const headersList = await headers();
-  return !!extractClinicSubdomain(headersList.get("host") ?? "");
 }

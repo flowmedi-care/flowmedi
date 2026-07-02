@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { PublicClinicSite } from "@/lib/public-site/types";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getSegmentCopy } from "@/lib/public-site/presentation";
-import { isOnClinicSubdomain, publicSiteBookingPath } from "@/lib/public-site/urls";
+import { isOnClinicSubdomain } from "@/lib/public-site/urls-server";
+import { publicSiteBookingPath } from "@/lib/public-site/urls";
 import { RevealSection } from "./reveal-section";
 
 export async function PremiumCta({

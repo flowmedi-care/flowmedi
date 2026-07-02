@@ -5,7 +5,8 @@ import type { PublicClinicSite } from "@/lib/public-site/types";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getHeroImageUrl, getHeroSubtitle, getHeroTitle } from "@/lib/public-site/load-site";
 import { getSegmentCopy } from "@/lib/public-site/presentation";
-import { isOnClinicSubdomain, publicSiteBookingPath } from "@/lib/public-site/urls";
+import { isOnClinicSubdomain } from "@/lib/public-site/urls-server";
+import { publicSiteBookingPath } from "@/lib/public-site/urls";
 import { PremiumHeroImage } from "./premium-hero-image";
 
 export async function PremiumHero({

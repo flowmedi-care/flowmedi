@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import type { PublicClinicSite } from "@/lib/public-site/types";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getSegmentCopy, normalizeSegment } from "@/lib/public-site/presentation";
-import { isOnClinicSubdomain, publicSiteBookingPath } from "@/lib/public-site/urls";
+import { isOnClinicSubdomain } from "@/lib/public-site/urls-server";
+import { publicSiteBookingPath } from "@/lib/public-site/urls";
 
 export async function SiteCtaBand({
   site,

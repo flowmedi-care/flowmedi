@@ -1,7 +1,7 @@
 import type { PublicClinicSite } from "@/lib/public-site/types";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getSegmentCopy, getServiceGridClass } from "@/lib/public-site/presentation";
-import { isOnClinicSubdomain } from "@/lib/public-site/urls";
+import { isOnClinicSubdomain } from "@/lib/public-site/urls-server";
 import { ServiceCard } from "@/components/public-site/service-card";
 import { RevealSection } from "./reveal-section";
 
