@@ -28,7 +28,7 @@ export function shouldEscalateToHuman(input: EscalationInput): {
   trigger?: EscalationTrigger;
   reason?: string;
 } {
-  const text = input.messageText ?? "";
+  const text = (input.messageText ?? "").toLowerCase();
 
   if (COMPLAINT.some((p) => p.test(text))) {
     return { escalate: true, trigger: "complaint", reason: "Reclamação detectada" };
@@ -52,6 +52,17 @@ export function shouldEscalateToHuman(input: EscalationInput): {
 
   if (input.lossConfidence === "baixa") {
     return { escalate: true, trigger: "low_confidence_objection", reason: "Motivo de desistência incerto" };
+  }
+
+  if (
+    /(enviei|mandei).{0,25}(comprovante|pix|pagamento)/.test(text) ||
+    /^(já paguei|ja paguei)\b/.test(text.trim())
+  ) {
+    return {
+      escalate: true,
+      trigger: "payment_proof_missing",
+      reason: "Paciente indica pagamento enviado — equipe deve validar comprovante",
+    };
   }
 
   return { escalate: false };

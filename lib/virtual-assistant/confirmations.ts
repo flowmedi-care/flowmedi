@@ -351,9 +351,31 @@ export async function runVirtualAssistantConfirmations(
   return { sent, errors };
 }
 
-export function parseConfirmationReply(text: string): "yes" | "no" | null {
+export type ConfirmationReply =
+  | "yes"
+  | "no_cancel"
+  | "no_reschedule"
+  | "clarify"
+  | null;
+
+/** Respostas à confirmação de presença — evita cancelar consulta por \"não\" ambíguo. */
+export function parseConfirmationReply(text: string): ConfirmationReply {
   const t = text.toLowerCase().trim();
-  if (/^(sim|confirmo|confirmado|ok|pode ser|vou|estarei)/.test(t)) return "yes";
-  if (/^(não|nao|cancelar|cancela|não vou|nao vou)/.test(t)) return "no";
+  if (/^(sim|confirmo|confirmado|ok|pode ser|vou|estarei|compareço|compareco)/.test(t)) {
+    return "yes";
+  }
+  if (
+    /(não vou|nao vou|não posso|nao posso|não consigo|nao consigo|cancelar|cancela|desmarcar|desmarca)/.test(
+      t
+    )
+  ) {
+    return "no_cancel";
+  }
+  if (/(remarcar|reagendar|outro horário|outro horario|mudar (o )?dia)/.test(t)) {
+    return "no_reschedule";
+  }
+  if (/^(não|nao)$/.test(t)) {
+    return "clarify";
+  }
   return null;
 }

@@ -10,10 +10,38 @@ import { logAiEvent } from "./event-log";
 import { sendAssistantReply } from "./send-reply";
 import type { AiConversationState, VirtualAssistantSettings } from "./types";
 import { isInsideAutoMessageWindow } from "@/lib/whatsapp-ops-controls";
+import {
+  detectInboundIntent,
+  hasClearIntent,
+  intentToAiStatePatch,
+} from "./detect-inbound-intent";
+import { tryReactivateAiAfterHandoff } from "./handoff-reactivation";
 
 export interface SkipMenuChatbotResult {
   skipMenu: boolean;
   reason?: string;
+}
+
+async function shouldSkipAssistantHeader(
+  supabase: SupabaseClient,
+  conversationId: string
+): Promise<boolean> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from("whatsapp_messages")
+    .select("id")
+    .eq("conversation_id", conversationId)
+    .eq("direction", "outbound")
+    .eq("sender_type", "assistant")
+    .gte("sent_at", since)
+    .limit(1)
+    .maybeSingle();
+  return Boolean(data?.id);
+}
+
+function formatOutsideHoursReply(settings: Partial<VirtualAssistantSettings>): string {
+  const start = settings.bot_active_start ?? settings.operating_hours?.mon?.open ?? "08:00";
+  return `Estamos fora do horário automático agora (retornamos às ${start}). Pode deixar sua dúvida que respondemos assim que abrir — ou digite o que precisa que eu já adianto.`;
 }
 
 function parseTimeToMinutes(value: string | null | undefined, fallback: number): number {
@@ -241,13 +269,15 @@ async function processConversationAiInner(
       supabase,
       conversationId,
       conv.clinic_id,
-      combinedInbound
+      combinedInbound,
+      aiState
     );
     if (loopRisk.block) {
       await applyBotLoopSilence({
         supabase,
         clinicId: conv.clinic_id,
         conversationId,
+        phoneNumber: conv.phone_number,
         messageIds: pending.map((m) => m.id),
         reason: loopRisk.reason ?? "process_inbound",
         aiState,
@@ -308,7 +338,7 @@ async function processConversationAiInner(
         conv.clinic_id,
         conversationId,
         conv.phone_number,
-        "No momento estamos fora do horário de atendimento automático. Deixe sua mensagem que retornamos em breve!"
+        formatOutsideHoursReply(settings)
       );
       logAiEvent(supabase, {
         clinicId: conv.clinic_id,
@@ -323,21 +353,36 @@ async function processConversationAiInner(
   const maxHistory = settings.max_context_messages ?? 20;
   const { data: historyRows } = await supabase
     .from("whatsapp_messages")
-    .select("direction, content, sent_at")
+    .select("direction, content, sent_at, sender_type, ai_processed_at")
     .eq("conversation_id", conversationId)
-    .not("ai_processed_at", "is", null)
     .order("sent_at", { ascending: false })
     .limit(maxHistory * 2);
 
   const history = (historyRows ?? [])
     .reverse()
+    .filter((m) => {
+      const content = String(m.content ?? "").trim();
+      if (!content) return false;
+      if (m.direction === "inbound") return Boolean(m.ai_processed_at);
+      return true;
+    })
     .map((m) => ({
-      role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
+      role:
+        m.direction === "inbound"
+          ? ("user" as const)
+          : m.sender_type === "human"
+            ? ("assistant" as const)
+            : ("assistant" as const),
       content: String(m.content ?? ""),
-    }))
-    .filter((m) => m.content.trim());
+    }));
 
   const combinedText = userTexts.join(" ").toLowerCase();
+
+  const inboundIntent = detectInboundIntent(userTexts.join("\n"));
+  if (hasClearIntent(inboundIntent) && !aiState.intent) {
+    aiState = { ...aiState, ...intentToAiStatePatch(inboundIntent) };
+  }
+
   if (aiState.pending_confirmation_appointment_id && aiState.patient_id) {
     const { parseConfirmationReply } = await import("./confirmations");
     const { confirmAppointmentViaAssistant, cancelAppointmentViaAssistant } = await import(
@@ -384,7 +429,7 @@ async function processConversationAiInner(
       });
       return;
     }
-    if (reply === "no") {
+    if (reply === "no_cancel") {
       await cancelAppointmentViaAssistant(
         supabase,
         conv.clinic_id,
@@ -418,7 +463,76 @@ async function processConversationAiInner(
         clinicId: conv.clinic_id,
         conversationId,
         stage: "reply_sent",
-        detail: { type: "confirmation_no" },
+        detail: { type: "confirmation_no_cancel" },
+      });
+      return;
+    }
+    if (reply === "no_reschedule") {
+      const appointmentId = aiState.pending_confirmation_appointment_id;
+      const now = new Date().toISOString();
+      await supabase
+        .from("whatsapp_messages")
+        .update({ ai_processed_at: now })
+        .in(
+          "id",
+          pending.map((m) => m.id)
+        );
+      await supabase
+        .from("whatsapp_conversations")
+        .update({
+          ai_last_processed_message_at: now,
+          ai_state: {
+            ...aiState,
+            pending_confirmation_appointment_id: undefined,
+            pending_reschedule_appointment_id: appointmentId,
+            intent: "booking",
+          },
+          ai_debounce_until: null,
+        })
+        .eq("id", conversationId);
+      await sendAssistantReply(
+        supabase,
+        conv.clinic_id,
+        conversationId,
+        conv.phone_number,
+        "Sem problema! Vamos remarcar. Qual dia ou turno funciona melhor para você?"
+      );
+      logAiEvent(supabase, {
+        clinicId: conv.clinic_id,
+        conversationId,
+        stage: "reply_sent",
+        detail: { type: "confirmation_reschedule" },
+      });
+      return;
+    }
+    if (reply === "clarify") {
+      const now = new Date().toISOString();
+      await supabase
+        .from("whatsapp_messages")
+        .update({ ai_processed_at: now })
+        .in(
+          "id",
+          pending.map((m) => m.id)
+        );
+      await supabase
+        .from("whatsapp_conversations")
+        .update({
+          ai_last_processed_message_at: now,
+          ai_debounce_until: null,
+        })
+        .eq("id", conversationId);
+      await sendAssistantReply(
+        supabase,
+        conv.clinic_id,
+        conversationId,
+        conv.phone_number,
+        "Você confirma presença na consulta? Responda *sim*, ou diga se quer *cancelar* ou *remarcar*."
+      );
+      logAiEvent(supabase, {
+        clinicId: conv.clinic_id,
+        conversationId,
+        stage: "reply_sent",
+        detail: { type: "confirmation_clarify" },
       });
       return;
     }
@@ -484,7 +598,14 @@ async function processConversationAiInner(
     })
     .eq("id", conversationId);
 
-  await sendAssistantReply(supabase, conv.clinic_id, conversationId, conv.phone_number, reply);
+  await sendAssistantReply(
+    supabase,
+    conv.clinic_id,
+    conversationId,
+    conv.phone_number,
+    reply,
+    { skipHeader: await shouldSkipAssistantHeader(supabase, conversationId) }
+  );
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
     conversationId,

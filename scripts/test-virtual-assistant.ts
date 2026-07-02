@@ -7,15 +7,19 @@ import { normalizePhoneForMatch, phonesMatch } from "../lib/virtual-assistant/pa
 import { parseConfirmationReply } from "../lib/virtual-assistant/confirmations";
 import { shouldAutoHandoff } from "../lib/virtual-assistant/agent";
 import { parseUserAiCommand } from "../lib/virtual-assistant/user-commands";
-import { looksLikeAutomatedMessage } from "../lib/virtual-assistant/bot-loop-guard";
+import { looksLikeAutomatedMessage, isMenuNumericReply } from "../lib/virtual-assistant/bot-loop-guard";
+import { detectInboundIntent } from "../lib/virtual-assistant/detect-inbound-intent";
 
 assert.equal(normalizePhoneForMatch("5562999999999"), "62999999999");
 assert.equal(phonesMatch("62999999999", "5562999999999"), true);
 assert.equal(parseConfirmationReply("sim"), "yes");
-assert.equal(parseConfirmationReply("não vou"), "no");
+assert.equal(parseConfirmationReply("não vou"), "no_cancel");
+assert.equal(parseConfirmationReply("não"), "clarify");
 assert.equal(parseConfirmationReply("talvez"), null);
 assert.equal(shouldAutoHandoff("quero falar com atendente"), true);
 assert.equal(shouldAutoHandoff("qual o horário?"), false);
+assert.equal(detectInboundIntent("quero agendar"), "booking");
+assert.equal(isMenuNumericReply("2"), true);
 
 assert.equal(parseUserAiCommand("DESATIVE as respostas de IA"), "opt_out");
 assert.equal(parseUserAiCommand("ATIVAR"), "opt_in");

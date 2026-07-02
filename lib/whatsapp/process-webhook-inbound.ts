@@ -12,7 +12,11 @@ import {
   scheduleAiDebounce,
   shouldSkipMenuChatbot,
 } from "@/lib/virtual-assistant/process-inbound";
-import { handleInboundUserCommand } from "@/lib/virtual-assistant/user-commands";
+import { handleInboundUserCommand, parseUserAiCommand } from "@/lib/virtual-assistant/user-commands";
+import { tryReactivateAiAfterHandoff } from "@/lib/virtual-assistant/handoff-reactivation";
+import { sendAssistantReply } from "@/lib/virtual-assistant/send-reply";
+import type { VirtualAssistantSettings } from "@/lib/virtual-assistant/types";
+import type { AiConversationState } from "@/lib/virtual-assistant/types";
 import { applyBotLoopSilence, quickBotLoopCheck } from "@/lib/virtual-assistant/bot-loop-guard";
 import { logAiEvent } from "@/lib/virtual-assistant/event-log";
 import { excludeInboundFromAiQueue } from "@/lib/virtual-assistant/exclude-from-ai-queue";
@@ -283,7 +287,7 @@ export async function processWhatsAppWebhookInbound(rawBody: string): Promise<vo
 
           const { data: vaSettingsRow } = await supabase
             .from("clinic_virtual_assistant_settings")
-            .select("human_handoff_enabled, message_debounce_seconds")
+            .select("*")
             .eq("clinic_id", clinicId)
             .maybeSingle();
 
@@ -316,6 +320,43 @@ export async function processWhatsAppWebhookInbound(rawBody: string): Promise<vo
             },
           });
 
+          const { data: convAiRow } = await supabase
+            .from("whatsapp_conversations")
+            .select("ai_handoff_at, ai_user_opt_out, ai_state")
+            .eq("id", conversationId)
+            .maybeSingle();
+
+          if (convAiRow?.ai_user_opt_out) {
+            const cmd = parseUserAiCommand(bodyText ?? "");
+            if (!cmd) {
+              await sendAssistantReply(
+                supabase,
+                clinicId,
+                conversationId,
+                from,
+                "Respostas automáticas estão desligadas. Envie ATIVAR para religar ou aguarde a equipe.",
+                { skipHeader: true }
+              );
+              if (messageId) {
+                await supabase
+                  .from("whatsapp_messages")
+                  .update({ ai_processed_at: new Date().toISOString() })
+                  .eq("id", messageId);
+              }
+              continue;
+            }
+          }
+
+          if (convAiRow?.ai_handoff_at) {
+            await tryReactivateAiAfterHandoff({
+              supabase,
+              clinicId,
+              conversationId,
+              bodyText: bodyText ?? "",
+              settings: (vaSettingsRow ?? null) as Partial<VirtualAssistantSettings> | null,
+            });
+          }
+
           const commandResult = await handleInboundUserCommand({
             supabase,
             clinicId,
@@ -324,25 +365,31 @@ export async function processWhatsAppWebhookInbound(rawBody: string): Promise<vo
             messageId,
             bodyText: bodyText ?? "",
             humanHandoffEnabled: vaSettingsRow?.human_handoff_enabled !== false,
+            vaSettings: (vaSettingsRow ?? null) as Partial<VirtualAssistantSettings> | null,
           });
 
           if (commandResult.handled) {
             continue;
           }
 
+          const convAiState = (convAiRow?.ai_state ?? {}) as AiConversationState;
+
           const botLoop = await quickBotLoopCheck(
             supabase,
             conversationId,
             clinicId,
-            bodyText ?? ""
+            bodyText ?? "",
+            convAiState
           );
           if (botLoop.block) {
             await applyBotLoopSilence({
               supabase,
               clinicId,
               conversationId,
+              phoneNumber: from,
               messageIds: messageId ? [messageId] : undefined,
               reason: botLoop.reason ?? "webhook_prefilter",
+              aiState: convAiState,
             });
             continue;
           }

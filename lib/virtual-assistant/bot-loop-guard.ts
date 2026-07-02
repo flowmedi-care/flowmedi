@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAiEvent } from "./event-log";
+import { sendHandoffReply } from "./send-reply";
 import type { AiConversationState } from "./types";
 
 const AUTOMATED_MESSAGE_PATTERNS = [
@@ -19,9 +20,18 @@ const PING_PONG_OUTBOUND_THRESHOLD = 4;
 const SIMILAR_INBOUND_COUNT = 3;
 const SIMILAR_INBOUND_MIN_LENGTH = 20;
 
-export function looksLikeAutomatedMessage(text: string): boolean {
+/** Resposta numérica curta a menu (1, 2, etc.) — não é bot automatizado. */
+export function isMenuNumericReply(text: string): boolean {
+  return /^\d{1,2}$/.test(text.trim());
+}
+
+export function looksLikeAutomatedMessage(text: string, aiState?: AiConversationState): boolean {
   const normalized = text.trim();
   if (!normalized) return false;
+  if (isMenuNumericReply(normalized)) return false;
+  if (aiState?.intent || aiState?.pending_step) {
+    if (normalized.length <= 3) return false;
+  }
   return AUTOMATED_MESSAGE_PATTERNS.some((p) => p.test(normalized));
 }
 
@@ -64,7 +74,8 @@ export async function checkBotLoopRisk(
   supabase: SupabaseClient,
   conversationId: string,
   clinicId: string,
-  inboundText: string
+  inboundText: string,
+  aiState?: AiConversationState
 ): Promise<BotLoopCheckResult> {
   const since = new Date(Date.now() - PING_PONG_WINDOW_MS).toISOString();
 
@@ -78,7 +89,7 @@ export async function checkBotLoopRisk(
     .order("sent_at", { ascending: false });
 
   const outboundCount = recentOutbound?.length ?? 0;
-  const inboundLooksAutomated = looksLikeAutomatedMessage(inboundText);
+  const inboundLooksAutomated = looksLikeAutomatedMessage(inboundText, aiState);
 
   if (outboundCount >= PING_PONG_OUTBOUND_THRESHOLD && inboundLooksAutomated) {
     return {
@@ -128,6 +139,7 @@ export async function applyBotLoopSilence(opts: {
   supabase: SupabaseClient;
   clinicId: string;
   conversationId: string;
+  phoneNumber?: string;
   messageIds?: string[];
   reason: string;
   aiState?: AiConversationState;
@@ -137,6 +149,19 @@ export async function applyBotLoopSilence(opts: {
     ...(opts.aiState ?? {}),
     bot_loop_detected_at: now,
   };
+
+  const { data: conv } = await opts.supabase
+    .from("whatsapp_conversations")
+    .select("phone_number")
+    .eq("id", opts.conversationId)
+    .maybeSingle();
+
+  const phone = opts.phoneNumber ?? conv?.phone_number;
+  if (phone) {
+    const { applyRoutingOnNewConversation } = await import("@/lib/whatsapp-routing");
+    await applyRoutingOnNewConversation(opts.supabase, opts.clinicId, opts.conversationId);
+    await sendHandoffReply(opts.supabase, opts.clinicId, opts.conversationId, phone);
+  }
 
   await opts.supabase
     .from("whatsapp_conversations")
@@ -167,7 +192,7 @@ export async function applyBotLoopSilence(opts: {
     conversationId: opts.conversationId,
     stage: "handoff",
     level: "warn",
-    detail: { type: "bot_loop_detected", reason: opts.reason, silent: true },
+    detail: { type: "bot_loop_detected", reason: opts.reason, silent: false },
   });
 }
 
@@ -175,9 +200,11 @@ export async function quickBotLoopCheck(
   supabase: SupabaseClient,
   conversationId: string,
   clinicId: string,
-  inboundText: string
+  inboundText: string,
+  aiState?: AiConversationState
 ): Promise<BotLoopCheckResult> {
   if (!inboundText.trim()) return { block: false };
-  if (!looksLikeAutomatedMessage(inboundText)) return { block: false };
-  return checkBotLoopRisk(supabase, conversationId, clinicId, inboundText);
+  if (isMenuNumericReply(inboundText)) return { block: false };
+  if (!looksLikeAutomatedMessage(inboundText, aiState)) return { block: false };
+  return checkBotLoopRisk(supabase, conversationId, clinicId, inboundText, aiState);
 }

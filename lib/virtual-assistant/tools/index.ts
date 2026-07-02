@@ -846,6 +846,32 @@ export async function executeAssistantTool(
           };
         }
 
+        const { data: vaSettings } = await supabase
+          .from("clinic_virtual_assistant_settings")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .maybeSingle();
+        const { isInsideHandoffWindow, handoffOutsideHoursMessage } = await import(
+          "../handoff-hours"
+        );
+        if (vaSettings && !isInsideHandoffWindow(vaSettings)) {
+          await logToolCall(
+            supabase,
+            clinicId,
+            conversationId,
+            name,
+            args,
+            "fora do horário de handoff",
+            false
+          );
+          return {
+            result: JSON.stringify({
+              error: handoffOutsideHoursMessage(vaSettings),
+              outside_handoff_hours: true,
+            }),
+          };
+        }
+
         await supabase
           .from("whatsapp_conversations")
           .update({

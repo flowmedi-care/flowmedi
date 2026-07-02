@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     const { data: vaSettings } = await supabase
       .from("clinic_virtual_assistant_settings")
-      .select("message_debounce_seconds, human_handoff_enabled")
+      .select("*")
       .eq("clinic_id", clinicId)
       .maybeSingle();
 
@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
       messageId: msg?.id,
       bodyText: text,
       humanHandoffEnabled: vaSettings?.human_handoff_enabled !== false,
+      vaSettings: vaSettings ?? null,
     });
 
     if (commandResult.handled) {

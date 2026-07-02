@@ -2,6 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyRoutingOnNewConversation } from "@/lib/whatsapp-routing";
 import { logAiEvent } from "./event-log";
 import { sendAssistantReply, sendHandoffReply } from "./send-reply";
+import {
+  handoffOutsideHoursMessage,
+  isInsideHandoffWindow,
+} from "./handoff-hours";
+import type { VirtualAssistantSettings } from "./types";
 
 export type UserAiCommand = "opt_in" | "opt_out" | "handoff";
 
@@ -67,6 +72,7 @@ export async function handleInboundUserCommand(opts: {
   messageId?: string;
   bodyText: string;
   humanHandoffEnabled?: boolean;
+  vaSettings?: Partial<VirtualAssistantSettings> | null;
 }): Promise<HandleUserCommandResult> {
   const command = parseUserAiCommand(opts.bodyText);
   if (!command) return { handled: false };
@@ -133,7 +139,7 @@ export async function handleInboundUserCommand(opts: {
       opts.clinicId,
       opts.conversationId,
       opts.phoneNumber,
-      "Assistente reativado! Como posso ajudar?"
+      "Voltei! Quer continuar de onde paramos ou é outro assunto?"
     );
 
     logAiEvent(opts.supabase, {
@@ -151,6 +157,25 @@ export async function handleInboundUserCommand(opts: {
     if (opts.humanHandoffEnabled === false) {
       return { handled: false };
     }
+
+    if (opts.vaSettings && !isInsideHandoffWindow(opts.vaSettings)) {
+      await sendAssistantReply(
+        opts.supabase,
+        opts.clinicId,
+        opts.conversationId,
+        opts.phoneNumber,
+        handoffOutsideHoursMessage(opts.vaSettings)
+      );
+      if (opts.messageId) {
+        await opts.supabase
+          .from("whatsapp_messages")
+          .update({ ai_processed_at: new Date().toISOString() })
+          .eq("id", opts.messageId);
+      }
+      return { handled: true, command, allowAiSchedule: true };
+    }
+
+    const now = new Date().toISOString();
 
     await opts.supabase
       .from("whatsapp_conversations")

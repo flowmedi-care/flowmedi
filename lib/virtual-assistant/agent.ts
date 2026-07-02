@@ -12,8 +12,26 @@ import { buildContextualResumePrompt } from "@/lib/contact-journey/contextual-re
 import { shouldEscalateToHuman } from "@/lib/virtual-assistant/escalation";
 import { buildAgentPolicyBlock } from "@/lib/virtual-assistant/agent-policy";
 import { HANDOFF_REPLY_BODY } from "@/lib/whatsapp-sender-display";
+import {
+  detectInboundIntent,
+  hasClearIntent,
+  intentToAiStatePatch,
+} from "@/lib/virtual-assistant/detect-inbound-intent";
+import {
+  buildToolRoundLimitFallback,
+  formatAiStateForPrompt,
+} from "@/lib/virtual-assistant/format-ai-state";
+import { isInsideHandoffWindow } from "@/lib/virtual-assistant/handoff-hours";
 
-const MAX_TOOL_ROUNDS = 5;
+const MAX_TOOL_ROUNDS_DEFAULT = 5;
+const MAX_TOOL_ROUNDS_BOOKING = 8;
+
+function resolveMaxToolRounds(state: AiConversationState): number {
+  if (state.intent === "booking" || state.pending_confirmation_appointment_id) {
+    return MAX_TOOL_ROUNDS_BOOKING;
+  }
+  return MAX_TOOL_ROUNDS_DEFAULT;
+}
 
 const HANDOFF_PATTERNS = [
   /falar com (um(a)? )?(atendente|humano|pessoa)/i,
@@ -39,15 +57,30 @@ export async function runVirtualAssistantAgent(opts: {
 }): Promise<{ reply: string; handoff?: boolean; statePatch?: Partial<AiConversationState> }> {
   const combinedUserText = opts.userMessages.join("\n").trim();
   if (!combinedUserText) {
-    return { reply: "Não consegui entender sua mensagem. Pode repetir?" };
+    return {
+      reply:
+        "Não entendi bem. Você quer agendar, saber preços ou falar com a equipe?",
+    };
   }
 
-  const escalation = shouldEscalateToHuman({ messageText: combinedUserText });
-  const inActiveBooking = opts.aiState.intent === "booking";
+  const detectedIntent = detectInboundIntent(combinedUserText);
+  let workingState: AiConversationState = { ...opts.aiState };
+  if (hasClearIntent(detectedIntent) && !workingState.intent) {
+    workingState = { ...workingState, ...intentToAiStatePatch(detectedIntent) };
+  }
+
+  const escalation = shouldEscalateToHuman({
+    messageText: combinedUserText,
+    lossConfidence: workingState.confianca ?? null,
+    followupCount: workingState.followup_count,
+    confirmationStep: Boolean(workingState.pending_confirmation_appointment_id),
+  });
+  const inActiveBooking = workingState.intent === "booking";
   if (
     escalation.escalate &&
     opts.settings.human_handoff_enabled !== false &&
-    !inActiveBooking
+    !inActiveBooking &&
+    isInsideHandoffWindow(opts.settings)
   ) {
     const handoffResult = await executeAssistantTool(
       {
@@ -55,7 +88,7 @@ export async function runVirtualAssistantAgent(opts: {
         clinicId: opts.clinicId,
         conversationId: opts.conversationId,
         phoneNumber: opts.phoneNumber,
-        aiState: opts.aiState,
+        aiState: workingState,
       },
       "transfer_to_human",
       { reason: escalation.trigger ?? "auto_keyword" }
@@ -78,7 +111,7 @@ export async function runVirtualAssistantAgent(opts: {
     journeyRes = await loadContactJourneyForAi(opts.supabase, {
       clinicId: opts.clinicId,
       phone: opts.phoneNumber,
-      patientId: opts.aiState.patient_id,
+      patientId: workingState.patient_id,
     });
   } catch (e) {
     console.warn("[VirtualAssistant] jornada CRM ignorada:", e);
@@ -103,10 +136,12 @@ export async function runVirtualAssistantAgent(opts: {
       }
     : {};
 
+  const stateForPrompt = formatAiStateForPrompt({ ...workingState, ...journeyStatePatch });
+
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `${knowledge}\n\n${behavior}\n\n${buildAgentPolicyBlock()}${journeyBlock}${resumeHint}\n\nEstado atual da conversa: ${JSON.stringify(opts.aiState)}`,
+      content: `${knowledge}\n\n${behavior}\n\n${buildAgentPolicyBlock()}${journeyBlock}${resumeHint}\n\nEstado da conversa:\n${stateForPrompt}`,
     },
   ];
 
@@ -116,16 +151,17 @@ export async function runVirtualAssistantAgent(opts: {
   }
   messages.push({ role: "user", content: combinedUserText });
 
-  let statePatch: Partial<AiConversationState> = { ...opts.aiState, ...journeyStatePatch };
+  let statePatch: Partial<AiConversationState> = { ...workingState, ...journeyStatePatch };
+  const maxRounds = resolveMaxToolRounds(statePatch as AiConversationState);
   let rounds = 0;
 
-  while (rounds < MAX_TOOL_ROUNDS) {
+  while (rounds < maxRounds) {
     rounds++;
     const completion = await createChatCompletion({
       model,
       messages,
       tools: ASSISTANT_TOOLS,
-      temperature: 0.5,
+      temperature: 0.2,
     });
     logTokenUsage(opts.clinicId, completion.usage);
 
@@ -180,12 +216,12 @@ export async function runVirtualAssistantAgent(opts: {
 
     const reply =
       completion.content?.trim() ||
-      "Desculpe, não consegui processar. Pode reformular sua mensagem?";
+      "Não entendi bem. Você quer agendar, saber preços ou falar com a equipe?";
     return { reply, statePatch };
   }
 
   return {
-    reply: "Preciso de mais informações. Pode me contar um pouco mais?",
+    reply: buildToolRoundLimitFallback(statePatch as AiConversationState),
     statePatch,
   };
 }
