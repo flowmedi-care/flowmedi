@@ -92,8 +92,8 @@ WHERE clinic_id = 'UUID_DA_CLINICA';
 | Situação | Envio |
 |----------|--------|
 | Ticket aberto (< 24h) | Texto livre com instrução sim/não |
-| Ticket fechado + Flow configurado | Template + botão Flow |
-| Ticket fechado sem Flow | Template `flowmedi_consulta` via Central de Eventos |
+| Ticket fechado + Flow configurado e publicado | Template + botão Flow |
+| Ticket fechado sem Flow (ou Flow indisponível) | Template `flowmedi_consulta` (sim/não por texto) |
 
 Respostas do Flow são tratadas em:
 
@@ -101,6 +101,8 @@ Respostas do Flow são tratadas em:
 - Webhook: [`app/api/integrations/whatsapp/webhook/route.ts`](../app/api/integrations/whatsapp/webhook/route.ts)
 
 Fallback: paciente pode ainda responder **sim** / **não** por texto (`parseConfirmationReply`).
+
+Se a Meta bloquear Flows (ex.: empresa não verificada), o sistema **não interrompe** o envio: tenta o Flow uma vez e, se falhar, usa automaticamente o template `flowmedi_consulta` e limpa o `confirmation_flow_id` da clínica.
 
 ## Migrations
 

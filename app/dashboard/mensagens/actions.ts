@@ -24,6 +24,7 @@ import {
   buildConfirmationFlowTemplateComponents,
   CONFIRMATION_FLOW_TEMPLATE_BODY,
 } from "@/lib/whatsapp-confirmation-flow-definition";
+import { disableConfirmationFlowForClinic } from "@/lib/virtual-assistant/confirmation-flow-fallback";
 
 // ========== TIPOS ==========
 
@@ -947,7 +948,10 @@ export async function requestSystemMetaTemplates(): Promise<{ error: string | nu
         if (def.requiresFlow) {
           const flowResult = await ensureConfirmationFlow(clinicId, supabase);
           if (!flowResult.success || !flowResult.flowId) {
-            lastError = flowResult.error || "Falha ao publicar Flow de confirmação na Meta.";
+            lastError =
+              (flowResult.error || "Falha ao publicar Flow de confirmação na Meta.") +
+              " O envio de confirmação usará o template flowmedi_consulta.";
+            await disableConfirmationFlowForClinic(supabase, clinicId);
           } else {
             components = buildConfirmationFlowTemplateComponents(
               def.body,
@@ -965,7 +969,7 @@ export async function requestSystemMetaTemplates(): Promise<{ error: string | nu
           }
         }
 
-        if (!lastError) {
+        if (!lastError && !(def.requiresFlow && !components)) {
           const created = await createMetaTemplate(
             clinicId,
             {
@@ -993,6 +997,11 @@ export async function requestSystemMetaTemplates(): Promise<{ error: string | nu
             },
             { onConflict: "clinic_id" }
           );
+        } else {
+          lastError =
+            (flowResult.error || "Flow de confirmação indisponível na Meta.") +
+            " O envio usará o template flowmedi_consulta.";
+          await disableConfirmationFlowForClinic(supabase, clinicId);
         }
       }
 

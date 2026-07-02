@@ -4,6 +4,10 @@ import { getMetaTemplateParams } from "@/lib/whatsapp-meta-templates";
 import { checkWhatsAppIntegration, sendWhatsAppFlowTemplate } from "@/lib/comunicacao/whatsapp";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 import { encodeConfirmationFlowToken } from "./confirmation-flow-token";
+import {
+  disableConfirmationFlowForClinic,
+  shouldDisableConfirmationFlow,
+} from "./confirmation-flow-fallback";
 import { getConfirmationFlowConfig } from "./confirmation-flow-config";
 
 async function loadConfirmationTemplateContext(
@@ -72,7 +76,7 @@ export async function sendConfirmationFlowTemplate(
     eventCode: string;
     customPhrase?: string | null;
   }
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; disableFlow?: boolean }> {
   const flowConfig = await getConfirmationFlowConfig(supabase, opts.clinicId);
   if (!flowConfig) {
     return { success: false, error: "Flow de confirmação não configurado" };
@@ -141,7 +145,13 @@ export async function sendConfirmationFlowTemplate(
       sent_at: new Date().toISOString(),
       ai_processed_at: new Date().toISOString(),
     } as Record<string, unknown>);
+    return { success: true };
   }
 
-  return { success: result.success, error: result.error };
+  const disableFlow = shouldDisableConfirmationFlow(result.error);
+  if (disableFlow) {
+    await disableConfirmationFlowForClinic(supabase, opts.clinicId);
+  }
+
+  return { success: false, error: result.error, disableFlow };
 }

@@ -2,8 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { processMessageEvent } from "@/lib/message-processor";
 import { getEffectiveTicketStatus } from "@/lib/whatsapp-ticket-status";
 import { sendAssistantReply } from "./send-reply";
-import { isConfirmationFlowEvent } from "./confirmation-flow-config";
+import { isConfirmationFlowEvent, getConfirmationFlowConfig } from "./confirmation-flow-config";
 import { sendConfirmationFlowTemplate } from "./send-confirmation-flow";
+import { CONFIRMATION_FLOW_FALLBACK_TEMPLATE } from "./confirmation-flow-fallback";
 
 export type SendAssistantOrTemplateParams = {
   clinicId: string;
@@ -29,7 +30,7 @@ export type SendAssistantOrTemplateResult = {
 /**
  * Envia mensagem proativa do assistente virtual:
  * - Ticket aberto (inbound < 24h): texto livre
- * - Ticket fechado: template Meta via Central de Eventos
+ * - Ticket fechado: tenta Flow de confirmação (se configurado) → fallback template flowmedi_consulta
  */
 export async function sendAssistantOrTemplate(
   supabase: SupabaseClient,
@@ -97,18 +98,24 @@ export async function sendAssistantOrTemplate(
     appointmentId &&
     patientId
   ) {
-    const flowResult = await sendConfirmationFlowTemplate(supabase, {
-      clinicId,
-      conversationId,
-      phoneNumber,
-      patientId,
-      appointmentId,
-      eventCode,
-    });
-    if (flowResult.success) {
-      return { success: true, mode: "flow" };
+    const flowConfig = await getConfirmationFlowConfig(supabase, clinicId);
+    if (flowConfig?.flowId) {
+      const flowResult = await sendConfirmationFlowTemplate(supabase, {
+        clinicId,
+        conversationId,
+        phoneNumber,
+        patientId,
+        appointmentId,
+        eventCode,
+      });
+      if (flowResult.success) {
+        return { success: true, mode: "flow" };
+      }
+      console.warn(
+        `[VirtualAssistant] Flow indisponível (${flowResult.error ?? "erro desconhecido"}). ` +
+          `Usando template ${CONFIRMATION_FLOW_FALLBACK_TEMPLATE}.`
+      );
     }
-    console.warn("[VirtualAssistant] Flow fallback para template:", flowResult.error);
   }
 
   const result = await processMessageEvent(
@@ -120,7 +127,11 @@ export async function sendAssistantOrTemplate(
     supabase,
     undefined,
     true,
-    eventMetadata,
+    {
+      ...eventMetadata,
+      confirmation_send_mode:
+        isConfirmationFlowEvent(eventCode) ? CONFIRMATION_FLOW_FALLBACK_TEMPLATE : undefined,
+    },
     true
   );
 
