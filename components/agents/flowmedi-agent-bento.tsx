@@ -85,7 +85,7 @@ export function FlowmediAgentBento({ compact, pollMs = 8000 }: Props) {
 
   return (
     <AgentBentoGrid
-      activePipelineStep={data.activePipelineStep}
+      pipelineTrace={data.pipelineTrace}
       metrics={{
         pending: data.health.pendingInboundCount,
         stuck: data.health.stuckDebounceCount,

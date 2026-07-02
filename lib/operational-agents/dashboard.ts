@@ -2,14 +2,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { gatherAssistantDiagnostics } from "@/lib/virtual-assistant/diagnostics";
 import { listRecentAgentRuns } from "./agent-runs";
 import { countPendingByPhase } from "./journey-list";
+import { resolvePipelineTrace, type PipelineTrace } from "./pipeline-trace";
 
 export type AgentDashboardData = {
   health: Awaited<ReturnType<typeof gatherAssistantDiagnostics>>["health"];
   agentRuns: Awaited<ReturnType<typeof listRecentAgentRuns>>;
   pendingByPhase: Record<string, number>;
   toolStats: Array<{ tool_name: string; calls: number; success_rate: number }>;
+  pipelineTrace: PipelineTrace;
+  /** @deprecated use pipelineTrace.activeStep */
   activePipelineStep: string;
   flows: Awaited<ReturnType<typeof gatherAssistantDiagnostics>>["flows"];
+  events: Awaited<ReturnType<typeof gatherAssistantDiagnostics>>["events"];
 };
 
 export async function gatherAgentDashboard(
@@ -45,22 +49,30 @@ export async function gatherAgentDashboard(
     .sort((a, b) => b.calls - a.calls)
     .slice(0, 8);
 
-  const latestRun = agentRuns[0];
-  let activePipelineStep = "request";
-  if (latestRun) {
-    if (latestRun.agent_type === "booking") activePipelineStep = "tools";
-    else if (latestRun.agent_type === "journey") activePipelineStep = "memory";
-    else if (latestRun.agent_type === "queue") activePipelineStep = "router";
-    else if (latestRun.status === "running") activePipelineStep = "agent";
-    else activePipelineStep = "response";
-  }
+  const events = diagnostics.events;
+  const lastEventAt = events[0]?.created_at ?? diagnostics.health.lastEventAt;
+  const lastRunAt = agentRuns[0]?.created_at;
+  const lastActivityAt =
+    lastEventAt && lastRunAt
+      ? new Date(lastEventAt) > new Date(lastRunAt)
+        ? lastEventAt
+        : lastRunAt
+      : lastEventAt ?? lastRunAt ?? null;
+
+  const pipelineTrace = resolvePipelineTrace({
+    events,
+    agentRuns,
+    lastActivityAt,
+  });
 
   return {
     health: diagnostics.health,
     agentRuns,
     pendingByPhase,
     toolStats,
-    activePipelineStep,
+    pipelineTrace,
+    activePipelineStep: pipelineTrace.activeStep,
     flows: diagnostics.flows.slice(0, 20),
+    events,
   };
 }

@@ -3,20 +3,15 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  MessageCircle,
-  Brain,
-  Database,
-  Terminal,
-  Code,
-  FileText,
   Check,
   Loader2,
   Clock,
   Minus,
-  Globe,
   Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AgentPipelineGraph } from "@/components/agents/agent-pipeline-graph";
+import type { PipelineTrace } from "@/lib/operational-agents/pipeline-trace";
 
 export interface FeatCardProps {
   title: string;
@@ -39,114 +34,14 @@ export function FeatCard({ title, description, children, className = "" }: FeatC
         className
       )}
     >
-      <div>
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="text-xs text-muted-foreground">{description}</p>
+      <div className="z-10 flex flex-col gap-1.5">
+        <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
+        <p className="max-w-[90%] text-xs leading-relaxed text-muted-foreground">{description}</p>
       </div>
-      <div className="relative min-h-0 flex-1">{children}</div>
+      <div className="relative mt-2 flex-1 w-full overflow-hidden rounded-[14px] border border-border/50 bg-background/50 dark:bg-neutral-950/50">
+        {children}
+      </div>
     </motion.div>
-  );
-}
-
-type PipelineStep = "request" | "router" | "agent" | "memory" | "tools" | "response";
-
-const PIPELINE_STEPS: PipelineStep[] = [
-  "request",
-  "router",
-  "agent",
-  "memory",
-  "tools",
-  "response",
-];
-
-const STEP_LABELS: Record<PipelineStep, string> = {
-  request: "Inbound",
-  router: "Router",
-  agent: "Agent",
-  memory: "Jornada",
-  tools: "Tools",
-  response: "Reply",
-};
-
-export function PipelineCard({ activeStep }: { activeStep: string }) {
-  const step = (PIPELINE_STEPS.includes(activeStep as PipelineStep)
-    ? activeStep
-    : "agent") as PipelineStep;
-  const idx = PIPELINE_STEPS.indexOf(step);
-
-  return (
-    <div className="flex h-full flex-col justify-center gap-3 px-1">
-      <div className="flex items-center justify-between gap-1">
-        {PIPELINE_STEPS.map((s, i) => {
-          const active = i <= idx;
-          return (
-            <div key={s} className="flex flex-1 flex-col items-center gap-1">
-              <motion.div
-                className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-full border text-[10px] font-bold",
-                  active
-                    ? "border-primary bg-primary/15 text-primary"
-                    : "border-border bg-muted/30 text-muted-foreground"
-                )}
-                animate={i === idx ? { scale: [1, 1.08, 1] } : {}}
-                transition={{ repeat: i === idx ? Infinity : 0, duration: 2 }}
-              >
-                {i + 1}
-              </motion.div>
-              <span className="text-[9px] text-muted-foreground">{STEP_LABELS[s]}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-        <motion.div
-          className="h-full rounded-full bg-primary"
-          animate={{ width: `${((idx + 1) / PIPELINE_STEPS.length) * 100}%` }}
-          transition={{ duration: 0.6 }}
-        />
-      </div>
-    </div>
-  );
-}
-
-export function MetricsCard({
-  pending,
-  stuck,
-  blocked,
-  throughput,
-}: {
-  pending: number;
-  stuck: number;
-  blocked: number;
-  throughput: number;
-}) {
-  const stats = [
-    { label: "Fila pendente", value: String(pending), trend: pending > 10 ? "alta" : "ok" },
-    { label: "Debounce travado", value: String(stuck), trend: stuck > 0 ? "alerta" : "ok" },
-    { label: "Bloqueadas", value: String(blocked), trend: blocked > 0 ? "alerta" : "ok" },
-    { label: "Proc./hora", value: String(throughput), trend: "ok" },
-  ];
-
-  return (
-    <div className="grid h-full grid-cols-2 gap-2">
-      {stats.map((s) => (
-        <div
-          key={s.label}
-          className="rounded-xl border border-border/50 bg-muted/20 p-2.5 dark:bg-neutral-950/80"
-        >
-          <p className="text-[10px] text-muted-foreground">{s.label}</p>
-          <p className="text-lg font-semibold">{s.value}</p>
-          <p
-            className={cn(
-              "text-[10px]",
-              s.trend === "alerta" ? "text-amber-600" : "text-emerald-600"
-            )}
-          >
-            {s.trend === "alerta" ? "atenção" : "estável"}
-          </p>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -166,16 +61,32 @@ const STATUS_ICONS = {
   failed: { icon: Minus, color: "text-red-400", bg: "bg-red-400/15" },
 };
 
-export function ActivityFeedCard({ items }: { items: ActivityItem[] }) {
+export function ActivityFeedCard({
+  items,
+  highlightAction,
+}: {
+  items: ActivityItem[];
+  highlightAction?: string;
+}) {
   const [activeIdx, setActiveIdx] = useState(0);
 
   useEffect(() => {
+    if (highlightAction) {
+      const idx = items.findIndex(
+        (it) =>
+          it.action === highlightAction ||
+          it.action.includes(highlightAction) ||
+          highlightAction.includes(it.action)
+      );
+      if (idx >= 0) setActiveIdx(idx);
+      return;
+    }
     if (items.length <= 1) return;
     const interval = setInterval(() => {
       setActiveIdx((prev) => (prev + 1) % items.length);
     }, 3000);
     return () => clearInterval(interval);
-  }, [items.length]);
+  }, [items, highlightAction]);
 
   if (items.length === 0) {
     return (
@@ -232,6 +143,47 @@ export function ActivityFeedCard({ items }: { items: ActivityItem[] }) {
           </motion.div>
         );
       })}
+    </div>
+  );
+}
+
+export function MetricsCard({
+  pending,
+  stuck,
+  blocked,
+  throughput,
+}: {
+  pending: number;
+  stuck: number;
+  blocked: number;
+  throughput: number;
+}) {
+  const stats = [
+    { label: "Fila pendente", value: String(pending), trend: pending > 10 ? "alta" : "ok" },
+    { label: "Debounce travado", value: String(stuck), trend: stuck > 0 ? "alerta" : "ok" },
+    { label: "Bloqueadas", value: String(blocked), trend: blocked > 0 ? "alerta" : "ok" },
+    { label: "Proc./hora", value: String(throughput), trend: "ok" },
+  ];
+
+  return (
+    <div className="grid h-full grid-cols-2 gap-2">
+      {stats.map((s) => (
+        <div
+          key={s.label}
+          className="rounded-xl border border-border/50 bg-muted/20 p-2.5 dark:bg-neutral-950/80"
+        >
+          <p className="text-[10px] text-muted-foreground">{s.label}</p>
+          <p className="text-lg font-semibold">{s.value}</p>
+          <p
+            className={cn(
+              "text-[10px]",
+              s.trend === "alerta" ? "text-amber-600" : "text-emerald-600"
+            )}
+          >
+            {s.trend === "alerta" ? "atenção" : "estável"}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -301,7 +253,7 @@ export function ToolInspectorCard({
 }
 
 export interface AgentBentoGridProps {
-  activePipelineStep?: string;
+  pipelineTrace?: PipelineTrace | null;
   metrics?: {
     pending: number;
     stuck: number;
@@ -315,7 +267,7 @@ export interface AgentBentoGridProps {
 }
 
 export function AgentBentoGrid({
-  activePipelineStep = "agent",
+  pipelineTrace,
   metrics = { pending: 0, stuck: 0, blocked: 0, throughput: 0 },
   activityItems = [],
   journeyPhases = [],
@@ -331,16 +283,16 @@ export function AgentBentoGrid({
     >
       <FeatCard
         title="Agent Pipeline"
-        description="Fluxo em tempo real: inbound → router → agentes → tools → resposta"
-        className="h-[240px] lg:col-span-1"
+        description="Visualize como as tarefas fluem entre mensagem, roteador, agente, jornada e ferramentas."
+        className="h-[260px] lg:col-span-1"
       >
-        <PipelineCard activeStep={activePipelineStep} />
+        <AgentPipelineGraph trace={pipelineTrace} />
       </FeatCard>
 
       <FeatCard
         title="Fila operacional"
         description="Mensagens pendentes, debounce e conversas bloqueadas"
-        className="h-[240px] lg:col-span-1"
+        className="h-[260px] lg:col-span-1"
       >
         <MetricsCard {...metrics} />
       </FeatCard>
@@ -348,15 +300,18 @@ export function AgentBentoGrid({
       <FeatCard
         title="Activity Feed"
         description="Ações dos agentes e processamento WhatsApp"
-        className="h-[240px] lg:col-span-1"
+        className="h-[260px] lg:col-span-1"
       >
-        <ActivityFeedCard items={activityItems} />
+        <ActivityFeedCard
+          items={activityItems}
+          highlightAction={pipelineTrace?.lastAction}
+        />
       </FeatCard>
 
       <FeatCard
         title="Jornada por fase"
         description="Contatos com ação pendente em cada fase do CRM"
-        className="h-[240px] lg:col-span-2"
+        className="h-[260px] lg:col-span-2"
       >
         <JourneyPhasesCard phases={journeyPhases} />
       </FeatCard>
