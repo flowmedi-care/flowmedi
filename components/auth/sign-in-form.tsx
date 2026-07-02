@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { resolvePostAuthRedirect } from "@/lib/auth/post-auth-redirect";
 import { needsMfaVerificationAtLogin, verifyTotpLogin } from "@/lib/compliance/mfa-service";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import { AuthRecoveryHandler } from "@/components/auth/auth-recovery-handler";
 import { cn } from "@/lib/utils";
 
 interface SignInFormProps {
@@ -169,6 +170,9 @@ export function SignInForm({ redirectTo, oauthError, recoveryError }: SignInForm
 
   return (
     <div className="space-y-6">
+      <Suspense fallback={null}>
+        <AuthRecoveryHandler onRecoveryError={setError} />
+      </Suspense>
       <GoogleSignInButton redirectTo={redirectTo} />
 
       <div className="relative">

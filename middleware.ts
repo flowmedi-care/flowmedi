@@ -19,7 +19,8 @@ function shouldSkipLegacyRedirect(pathname: string): boolean {
   return (
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/auth/callback")
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/auth/recuperar")
   );
 }
 

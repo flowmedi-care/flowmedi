@@ -25,6 +25,7 @@ export const MFA_EXEMPT_PATH_PREFIXES = [
   "/convite",
   "/redefinir-senha",
   "/esqueci-senha",
+  "/auth/recuperar",
 ];
 
 export function isMfaExemptPath(pathname: string): boolean {
