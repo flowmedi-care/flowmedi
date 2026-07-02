@@ -1,14 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import {
+  CANONICAL_APEX_HOST,
   extractClinicSubdomain,
   isLegacyComBrHost,
   mapLegacyHostToCanonical,
 } from "@/lib/public-site/host";
 import { blockDevRoutesInProduction } from "@/lib/api-audit/guard";
 
-const CANONICAL_ORIGIN =
-  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://flowmed.app";
+const LEGACY_REDIRECT_ORIGIN = `https://${CANONICAL_APEX_HOST}`;
 
 /** Rotas que não devem ser redirecionadas do domínio legado (webhooks, OAuth, assets). */
 function shouldSkipLegacyRedirect(pathname: string): boolean {
@@ -29,7 +29,14 @@ function redirectLegacyDomainToCanonical(
   if (shouldSkipLegacyRedirect(pathname)) return null;
 
   const canonicalHost = mapLegacyHostToCanonical(host);
-  const target = new URL(`${pathname}${search}`, CANONICAL_ORIGIN);
+  const normalized = host.split(":")[0].toLowerCase();
+
+  // Evita loop se destino coincidir com origem (ex.: env ainda em .com.br)
+  if (normalized === canonicalHost || normalized === `www.${canonicalHost}`) {
+    return null;
+  }
+
+  const target = new URL(`${pathname}${search}`, LEGACY_REDIRECT_ORIGIN);
   target.host = canonicalHost;
 
   return NextResponse.redirect(target, 301);

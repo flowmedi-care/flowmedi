@@ -12,6 +12,8 @@ Manter nameservers da Hostinger. **Não** trocar para `ns1.vercel-dns.com` se j�
 
 **Importante:** o registro `@` deve ser `76.76.21.21`, não `216.198.79.1`.
 
+**Redirect loop (`ERR_TOO_MANY_REDIRECTS`):** não configure redirect global de `flowmedi.com.br` → `flowmed.app` no painel Vercel **e** no middleware ao mesmo tempo. O redirect de UI é só no middleware. Se o loop persistir após deploy, confira se `NEXT_PUBLIC_APP_URL` na Vercel já é `https://flowmed.app`.
+
 ### Vercel → projeto → Settings → Domains
 
 Adicionar (não usar redirect global no painel Vercel):
