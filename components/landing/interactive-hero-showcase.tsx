@@ -45,25 +45,25 @@ const MENU_ITEMS: MenuItem[] = [
     id: "dashboard",
     icon: LayoutDashboard,
     title: "Dashboard",
-    description: "Painéis analíticos modernos.",
+    description: "Visão analítica da sua clínica.",
   },
   {
     id: "crm",
     icon: Users,
     title: "CRM",
-    description: "Gestão completa de clientes.",
+    description: "Gestão completa de pacientes e leads.",
   },
   {
     id: "chat",
     icon: MessageCircle,
     title: "Chat IA",
-    description: "Atendimento inteligente.",
+    description: "Atendimento inteligente via WhatsApp.",
   },
   {
     id: "reports",
     icon: BarChart3,
     title: "Relatórios",
-    description: "Insights em tempo real.",
+    description: "Financeiro, agenda e performance.",
   },
 ];
 
@@ -166,7 +166,7 @@ function FloatingScreen({
       <motion.button
         type="button"
         onClick={() => onSelect(screen.id)}
-        className="h-full w-full cursor-pointer will-change-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+        className="h-full w-full cursor-pointer will-change-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 focus-visible:ring-offset-2"
         style={{ x: px, y: py }}
         whileHover={hasFocus ? undefined : { scale: isActive ? 1.02 : 1.01 }}
       >
@@ -174,22 +174,22 @@ function FloatingScreen({
         className={cn(
           "relative h-full w-full overflow-hidden rounded-[28px] border border-white/60 bg-white/80 backdrop-blur-md transition-shadow duration-500",
           isFocused
-            ? "shadow-[0_50px_120px_rgba(0,0,0,0.25)] ring-2 ring-blue-500/40"
+            ? "shadow-xl ring-2 ring-sage-500/40"
             : elevated
-              ? "shadow-[0_10px_30px_rgba(59,130,246,0.20)] ring-2 ring-blue-500/30"
-              : "shadow-[0_40px_80px_rgba(15,23,42,0.12)]"
+              ? "shadow-md ring-2 ring-sage-500/30"
+              : "shadow-lg"
         )}
       >
         <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-br from-white/30 via-transparent to-transparent" />
-        <div className="flex items-center gap-2 border-b border-slate-200/60 bg-slate-50/80 px-4 py-2.5">
+        <div className="flex items-center gap-2 border-b border-stone-200/60 bg-stone-50/80 px-4 py-2.5">
           <div className="flex gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-red-400/80" />
             <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+            <span className="h-2.5 w-2.5 rounded-full bg-sage-400/80" />
           </div>
-          <span className="ml-1 text-xs font-medium text-slate-500">{screen.title}</span>
+          <span className="ml-1 text-xs font-medium text-stone-500">{screen.title}</span>
         </div>
-        <div className="relative h-[calc(100%-41px)] w-full overflow-hidden bg-slate-100">
+        <div className="relative h-[calc(100%-41px)] w-full overflow-hidden bg-stone-100">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={screen.image}
@@ -266,11 +266,11 @@ export function InteractiveHeroShowcase() {
   }, [mouseX, mouseY, restoreLayout]);
 
   return (
-    <section className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-[#F8FAFC]">
+    <section className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-stone-50">
       {/* Background effects */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-0 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-blue-500/10 blur-[80px]" />
-        <div className="absolute bottom-0 right-0 h-[400px] w-[500px] rounded-full bg-indigo-400/8 blur-[80px]" />
+        <div className="absolute left-1/2 top-0 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-sage-500/8 blur-[80px]" />
+        <div className="absolute bottom-0 right-0 h-[400px] w-[500px] rounded-full bg-sage-400/5 blur-[80px]" />
         <div
           className="absolute inset-0 opacity-[0.02]"
           style={{
@@ -287,34 +287,33 @@ export function InteractiveHeroShowcase() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
           >
-            <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-[#2563EB]">
-              Produtos
+            <span className="inline-flex items-center rounded-full bg-sage-50 px-3 py-1 text-sm font-semibold text-sage-600">
+              Plataforma
             </span>
           </motion.div>
 
           <motion.h1
-            className="mt-6 text-4xl font-bold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl lg:text-[3.25rem]"
+            className="mt-6 text-4xl font-bold leading-[1.1] tracking-tight text-stone-900 sm:text-5xl lg:text-[3.25rem]"
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
           >
-            Tudo que você precisa
+            Tudo que sua clínica precisa
             <br />
-            <span className="text-[#2563EB]">para produção</span>
+            <span className="text-sage-600">em um só lugar</span>
           </motion.h1>
 
           <motion.p
-            className="mt-5 max-w-md text-lg leading-relaxed text-slate-600"
+            className="mt-5 max-w-md text-lg leading-relaxed text-stone-600"
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
           >
-            Desenvolva mais rápido utilizando componentes prontos, mantendo flexibilidade e
-            controle total.
+            Agenda, pacientes, comunicação e financeiro — centralizados em uma plataforma moderna, segura e feita para equipes de saúde.
           </motion.p>
 
           {/* Interactive menu — desktop/tablet */}
-          <nav className="mt-10 hidden space-y-2 md:block" aria-label="Produtos">
+          <nav className="mt-10 hidden space-y-2 md:block" aria-label="Módulos da plataforma">
             {MENU_ITEMS.map((item, index) => {
               const Icon = item.icon;
               const isActive = activeId === item.id;
@@ -326,8 +325,8 @@ export function InteractiveHeroShowcase() {
                   className={cn(
                     "group flex w-full items-start gap-4 rounded-2xl border-2 px-4 py-3.5 text-left transition-colors duration-300",
                     isActive
-                      ? "border-[#3B82F6] bg-[#EFF6FF] shadow-[0_10px_30px_rgba(59,130,246,0.20)]"
-                      : "border-transparent bg-transparent hover:scale-[1.02] hover:bg-[#EFF6FF]"
+                      ? "border-sage-500 bg-sage-50 shadow-md"
+                      : "border-transparent bg-transparent hover:scale-[1.02] hover:bg-sage-50"
                   )}
                   initial={{ opacity: 0, x: -16 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -337,14 +336,14 @@ export function InteractiveHeroShowcase() {
                   <div
                     className={cn(
                       "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors",
-                      isActive ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-600"
+                      isActive ? "bg-sage-600 text-white" : "bg-stone-100 text-stone-600 group-hover:bg-sage-100 group-hover:text-sage-600"
                     )}
                   >
                     <Icon className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900">{item.title}</p>
-                    <p className="mt-0.5 text-sm text-slate-500">{item.description}</p>
+                    <p className="font-semibold text-stone-900">{item.title}</p>
+                    <p className="mt-0.5 text-sm text-stone-500">{item.description}</p>
                   </div>
                 </motion.button>
               );
@@ -363,8 +362,8 @@ export function InteractiveHeroShowcase() {
                   className={cn(
                     "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors",
                     activeId === item.id
-                      ? "bg-blue-500 text-white"
-                      : "bg-white text-slate-600 shadow-sm ring-1 ring-slate-200"
+                      ? "bg-sage-600 text-white"
+                      : "bg-white text-stone-600 shadow-sm ring-1 ring-stone-200"
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -449,17 +448,17 @@ export function InteractiveHeroShowcase() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -40 }}
               transition={{ duration: 0.35, ease: "easeInOut" }}
-              className="overflow-hidden rounded-[28px] border border-white/60 bg-white shadow-[0_40px_80px_rgba(15,23,42,0.12)]"
+              className="overflow-hidden rounded-[28px] border border-stone-200/60 bg-white shadow-lg"
             >
-              <div className="flex items-center gap-2 border-b border-slate-200/60 bg-slate-50/80 px-4 py-2.5">
+              <div className="flex items-center gap-2 border-b border-stone-200/60 bg-stone-50/80 px-4 py-2.5">
                 <div className="flex gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-full bg-red-400/80" />
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-sage-400/80" />
                 </div>
-                <span className="ml-1 text-xs font-medium text-slate-500">{activeScreen.title}</span>
+                <span className="ml-1 text-xs font-medium text-stone-500">{activeScreen.title}</span>
               </div>
-              <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100">
+              <div className="relative aspect-[16/10] w-full overflow-hidden bg-stone-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={activeScreen.image}

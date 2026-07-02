@@ -28,7 +28,7 @@ export function Accordion({
 
   return (
     <AccordionContext.Provider value={{ openId, toggle }}>
-      <div className={cn("divide-y divide-[#f0f5f3]", className)}>{children}</div>
+      <div className={cn("divide-y divide-border", className)}>{children}</div>
     </AccordionContext.Provider>
   );
 }
@@ -52,8 +52,8 @@ export function AccordionItem({
       <button
         type="button"
         className={cn(
-          "flex w-full items-center justify-between gap-4 px-5 sm:px-6 py-4 text-left text-[#1a2e28] font-medium hover:bg-[#f7faf9] transition-colors",
-          isOpen && "bg-[#f7faf9]"
+          "flex w-full items-center justify-between gap-4 px-5 py-4 text-left font-medium text-foreground transition-colors duration-micro hover:bg-muted sm:px-6",
+          isOpen && "bg-muted"
         )}
         onClick={() => ctx.toggle(id)}
         aria-expanded={isOpen}
@@ -67,7 +67,7 @@ export function AccordionItem({
         />
       </button>
       {isOpen && (
-        <div className="px-5 sm:px-6 pb-5 text-[#5c6f68] leading-relaxed whitespace-pre-wrap">
+        <div className="whitespace-pre-wrap px-5 pb-5 leading-relaxed text-muted-foreground sm:px-6">
           {answer}
         </div>
       )}

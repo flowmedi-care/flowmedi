@@ -27,8 +27,8 @@ const Switch = React.forwardRef<HTMLInputElement, SwitchProps>(
           {...props}
         />
         <div className={cn(
-          "relative w-11 h-6 bg-gray-200 dark:bg-gray-700 rounded-full peer peer-checked:bg-primary transition-colors",
-          "after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all",
+          "relative w-11 h-6 bg-stone-200 dark:bg-stone-700 rounded-full peer peer-checked:bg-primary transition-colors duration-micro",
+          "after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all duration-micro",
           "peer-checked:after:translate-x-full peer-checked:after:border-white",
           disabled && "opacity-50"
         )} />

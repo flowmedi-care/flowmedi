@@ -4,68 +4,97 @@
 
 @layer base {
   :root {
-    --background: 40 10% 98%;
-    --foreground: 30 8% 12%;
+    /* Stone + Sage — FlowMed Design System v1 */
+    --background: 60 9% 98%;
+    --foreground: 24 10% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 30 8% 12%;
-    --primary: 160 84% 39%;
+    --card-foreground: 24 10% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 10% 10%;
+    --primary: 162 29% 34%;
+    --primary-hover: 162 29% 28%;
+    --primary-active: 162 27% 23%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 160 30% 95%;
-    --secondary-foreground: 160 60% 25%;
-    --muted: 40 8% 95%;
-    --muted-foreground: 30 6% 46%;
-    --accent: 160 40% 92%;
-    --accent-foreground: 160 60% 22%;
-    --destructive: 0 84% 60%;
+    --secondary: 162 20% 94%;
+    --secondary-foreground: 162 29% 22%;
+    --muted: 60 5% 96%;
+    --muted-foreground: 25 5% 45%;
+    --accent: 162 25% 92%;
+    --accent-foreground: 162 29% 22%;
+    --destructive: 0 45% 55%;
     --destructive-foreground: 0 0% 100%;
-    --success: 142 71% 45%;
+    --success: 158 38% 39%;
     --success-foreground: 0 0% 100%;
-    --success-muted: 142 76% 94%;
-    --success-muted-foreground: 142 64% 28%;
-    --warning: 38 92% 50%;
+    --success-muted: 152 40% 93%;
+    --success-muted-foreground: 158 48% 24%;
+    --warning: 32 55% 50%;
     --warning-foreground: 0 0% 100%;
-    --warning-muted: 48 96% 93%;
-    --warning-muted-foreground: 32 81% 29%;
-    --info: 217 91% 60%;
+    --warning-muted: 36 60% 94%;
+    --warning-muted-foreground: 32 65% 32%;
+    --info: 210 14% 42%;
     --info-foreground: 0 0% 100%;
-    --info-muted: 214 95% 93%;
-    --info-muted-foreground: 224 64% 33%;
-    --border: 40 8% 90%;
-    --input: 40 8% 90%;
-    --ring: 160 84% 39%;
+    --info-muted: 210 20% 94%;
+    --info-muted-foreground: 210 18% 29%;
+    --border: 20 6% 90%;
+    --input: 20 6% 90%;
+    --ring: 162 28% 42%;
+    --surface: 0 0% 100%;
+    --surface-elevated: 0 0% 100%;
+    --surface-muted: 60 5% 96%;
+    --divider: 20 6% 90%;
+    --overlay: 24 10% 10%;
+    --disabled: 25 5% 65%;
+    --skeleton: 60 5% 96%;
+    --focus-ring: 162 28% 42%;
     --radius: 0.75rem;
+    --shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.04), 0 1px 3px rgba(28, 25, 23, 0.06);
+    --shadow-md: 0 2px 8px rgba(28, 25, 23, 0.06), 0 4px 16px rgba(28, 25, 23, 0.04);
+    --shadow-lg: 0 4px 16px rgba(28, 25, 23, 0.08), 0 12px 40px rgba(28, 25, 23, 0.06);
+    --shadow-xl: 0 8px 32px rgba(28, 25, 23, 0.10), 0 24px 64px rgba(28, 25, 23, 0.08);
   }
 
   .dark {
-    --background: 220 15% 10%;
-    --foreground: 0 0% 96%;
-    --card: 220 15% 12%;
-    --card-foreground: 0 0% 96%;
-    --primary: 160 70% 45%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 0 0% 96%;
-    --muted: 220 12% 18%;
-    --muted-foreground: 220 10% 60%;
-    --accent: 160 40% 20%;
-    --accent-foreground: 160 50% 85%;
-    --destructive: 0 62% 50%;
+    --background: 24 10% 4%;
+    --foreground: 60 9% 98%;
+    --card: 24 10% 6%;
+    --card-foreground: 60 9% 98%;
+    --popover: 24 10% 8%;
+    --popover-foreground: 60 9% 98%;
+    --primary: 162 22% 56%;
+    --primary-hover: 162 22% 62%;
+    --primary-active: 162 25% 50%;
+    --primary-foreground: 162 29% 10%;
+    --secondary: 24 10% 12%;
+    --secondary-foreground: 60 9% 98%;
+    --muted: 24 10% 12%;
+    --muted-foreground: 25 5% 60%;
+    --accent: 162 20% 14%;
+    --accent-foreground: 162 22% 75%;
+    --destructive: 0 50% 50%;
     --destructive-foreground: 0 0% 100%;
-    --success: 142 60% 45%;
+    --success: 158 35% 45%;
     --success-foreground: 0 0% 100%;
-    --success-muted: 142 40% 18%;
-    --success-muted-foreground: 142 50% 75%;
-    --warning: 38 80% 50%;
+    --success-muted: 158 20% 14%;
+    --success-muted-foreground: 152 40% 70%;
+    --warning: 32 50% 48%;
     --warning-foreground: 0 0% 100%;
-    --warning-muted: 38 40% 18%;
-    --warning-muted-foreground: 48 80% 75%;
-    --info: 217 70% 55%;
+    --warning-muted: 32 25% 14%;
+    --warning-muted-foreground: 36 60% 70%;
+    --info: 210 14% 55%;
     --info-foreground: 0 0% 100%;
-    --info-muted: 217 40% 18%;
-    --info-muted-foreground: 214 70% 75%;
-    --border: 220 12% 22%;
-    --input: 220 12% 22%;
-    --ring: 160 70% 45%;
+    --info-muted: 210 15% 14%;
+    --info-muted-foreground: 210 20% 70%;
+    --border: 24 10% 16%;
+    --input: 24 10% 16%;
+    --ring: 162 22% 56%;
+    --surface: 24 10% 6%;
+    --surface-elevated: 24 10% 8%;
+    --surface-muted: 24 10% 10%;
+    --divider: 24 10% 16%;
+    --overlay: 24 10% 4%;
+    --disabled: 25 5% 40%;
+    --skeleton: 24 10% 12%;
+    --focus-ring: 162 22% 56%;
   }
 }
 
@@ -89,15 +118,13 @@
   }
   .gradient-mesh {
     background:
-      radial-gradient(ellipse 80% 50% at 50% -20%, hsl(var(--primary) / 0.15), transparent),
-      radial-gradient(ellipse 60% 40% at 100% 0%, hsl(var(--primary) / 0.08), transparent),
-      radial-gradient(ellipse 60% 40% at 0% 50%, hsl(var(--primary) / 0.06), transparent);
+      radial-gradient(ellipse 80% 50% at 50% -20%, hsl(var(--primary) / 0.08), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 0%, hsl(var(--primary) / 0.04), transparent),
+      radial-gradient(ellipse 60% 40% at 0% 50%, hsl(var(--primary) / 0.03), transparent);
   }
   .surface-elevated {
     @apply rounded-xl border border-border/60 bg-card text-card-foreground;
-    box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.04),
-      0 4px 12px rgba(0, 0, 0, 0.03);
+    box-shadow: var(--shadow-sm);
   }
   .surface-muted {
     @apply rounded-xl border border-border/40 bg-muted/50;

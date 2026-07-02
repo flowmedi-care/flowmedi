@@ -28,14 +28,14 @@ export function ConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-black/10"
+        className="absolute inset-0 bg-overlay/50"
         onClick={onCancel}
         aria-hidden
       />
-      <div className="relative bg-white border border-gray-200 rounded-lg shadow-xl max-w-sm w-full p-4 z-10">
-        <h3 className="font-semibold text-gray-900 mb-1">{title}</h3>
-        <p className="text-sm text-gray-600 mb-4">{message}</p>
-        <div className="flex gap-2 justify-end">
+      <div className="relative z-10 w-full max-w-sm rounded-xl border border-border bg-card p-4 shadow-lg">
+        <h3 className="mb-1 font-semibold text-foreground">{title}</h3>
+        <p className="mb-4 text-sm text-muted-foreground">{message}</p>
+        <div className="flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={onCancel} disabled={loading}>
             {cancelLabel}
           </Button>
