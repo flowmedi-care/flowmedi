@@ -224,8 +224,11 @@ export function FlowCanvas() {
   }, [dimensions]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden">
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+    <div className="relative z-0 w-full h-full overflow-hidden pointer-events-none">
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 z-0 w-full h-full pointer-events-none"
+      />
     </div>
   );
 }

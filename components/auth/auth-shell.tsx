@@ -42,10 +42,10 @@ export function AuthShell({
       >
         {/* Left panel — animated flows */}
         <div className="hidden md:block w-1/2 h-[600px] relative overflow-hidden border-r border-border/60">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-secondary/40 to-accent/30">
+          <div className="absolute inset-0 z-0 bg-gradient-to-br from-primary/10 via-secondary/40 to-accent/30">
             <FlowCanvas />
 
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 z-10">
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-8">
               <motion.div
                 initial={{ opacity: 0, y: -16 }}
                 animate={{ opacity: 1, y: 0 }}
