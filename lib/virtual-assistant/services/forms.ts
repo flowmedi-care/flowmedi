@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.flowmedi.com.br";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://flowmed.app";
 
 export async function getFormStatusViaAssistant(
   supabase: SupabaseClient,

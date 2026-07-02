@@ -26,7 +26,7 @@ export default async function DashboardPage({
           Complete seu cadastro
         </h1>
         <p className="text-muted-foreground text-sm">
-          Crie sua clínica para começar a usar o FlowMedi. Você será o
+          Crie sua clínica para começar a usar o FlowMed. Você será o
           administrador e poderá convidar profissionais e Secretário(a)s depois.
         </p>
         <p className="text-muted-foreground text-sm">

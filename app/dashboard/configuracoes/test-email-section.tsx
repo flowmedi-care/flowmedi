@@ -10,9 +10,9 @@ import { Mail, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 export function TestEmailSection() {
   const [to, setTo] = useState("");
-  const [subject, setSubject] = useState("Teste de Email - FlowMedi");
+  const [subject, setSubject] = useState("Teste de Email - FlowMed");
   const [body, setBody] = useState(
-    "Olá!\n\nEste é um email de teste enviado através do FlowMedi.\n\nSe você recebeu esta mensagem, significa que a integração com o Google está funcionando corretamente!\n\nAtenciosamente,\nEquipe FlowMedi"
+    "Olá!\n\nEste é um email de teste enviado através do FlowMed.\n\nSe você recebeu esta mensagem, significa que a integração com o Google está funcionando corretamente!\n\nAtenciosamente,\nEquipe FlowMed"
   );
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message?: string; error?: string } | null>(null);
@@ -43,9 +43,9 @@ export function TestEmailSection() {
         setResult({ success: true, message: data.message || "Email enviado com sucesso!" });
         // Limpar campos após sucesso
         setTo("");
-        setSubject("Teste de Email - FlowMedi");
+        setSubject("Teste de Email - FlowMed");
         setBody(
-          "Olá!\n\nEste é um email de teste enviado através do FlowMedi.\n\nSe você recebeu esta mensagem, significa que a integração com o Google está funcionando corretamente!\n\nAtenciosamente,\nEquipe FlowMedi"
+          "Olá!\n\nEste é um email de teste enviado através do FlowMed.\n\nSe você recebeu esta mensagem, significa que a integração com o Google está funcionando corretamente!\n\nAtenciosamente,\nEquipe FlowMed"
         );
       }
     } catch (error) {

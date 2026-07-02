@@ -169,7 +169,7 @@ export async function POST(request: Request) {
     if (process.env.VERCEL_URL) {
       origin = `https://${process.env.VERCEL_URL}`;
     } else {
-      origin = "https://flowmedi.com.br"; // Fallback para produção
+      origin = "https://flowmed.app"; // Fallback para produção
     }
   }
   

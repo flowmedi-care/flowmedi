@@ -9,7 +9,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "FlowMedi — Agenda e formulários para sua clínica",
+  title: "FlowMed — Agenda e formulários para sua clínica",
   description:
     "Centralize agenda, formulários clínicos e comunicação com o paciente. Autenticação, papéis e LGPD.",
   manifest: "/brand/site.webmanifest",

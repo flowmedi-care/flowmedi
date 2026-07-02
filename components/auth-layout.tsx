@@ -58,7 +58,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
           </div>
         </div>
         <p className="relative z-10 text-sm text-primary-foreground/70">
-          © {new Date().getFullYear()} FlowMedi
+          © {new Date().getFullYear()} FlowMed
         </p>
       </div>
 

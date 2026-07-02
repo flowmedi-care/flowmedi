@@ -1115,7 +1115,7 @@ export function IntegrationsSection({
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="text-xs font-medium">WABA: {waba.name || waba.id}</p>
                                 {metaAssets.selected_waba_id === waba.id && (
-                                  <Badge className="bg-emerald-600 hover:bg-emerald-600">Selecionada no FlowMedi</Badge>
+                                  <Badge className="bg-emerald-600 hover:bg-emerald-600">Selecionada no FlowMed</Badge>
                                 )}
                               </div>
                               {waba.phone_numbers.length === 0 ? (
@@ -1129,7 +1129,7 @@ export function IntegrationsSection({
                                       {phone.quality_rating && <Badge variant="outline">Qualidade: {phone.quality_rating}</Badge>}
                                       {phone.status && <Badge variant="outline">Status: {phone.status}</Badge>}
                                       {metaAssets.selected_phone_number_id === phone.id && (
-                                        <Badge className="bg-emerald-600 hover:bg-emerald-600">Usado no FlowMedi</Badge>
+                                        <Badge className="bg-emerald-600 hover:bg-emerald-600">Usado no FlowMed</Badge>
                                       )}
                                     </div>
                                   ))}

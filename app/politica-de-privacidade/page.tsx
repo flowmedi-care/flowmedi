@@ -3,7 +3,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata = {
-  title: "Política de Privacidade — FlowMedi",
+  title: "Política de Privacidade — FlowMed",
 };
 
 export default function PoliticaPrivacidadePage() {
@@ -20,7 +20,7 @@ export default function PoliticaPrivacidadePage() {
 
           <div className="space-y-6 text-sm leading-relaxed text-muted-foreground">
             <p>
-              O FlowMedi é uma plataforma de gestão de agenda, formulários clínicos e
+              O FlowMed é uma plataforma de gestão de agenda, formulários clínicos e
               comunicação entre clínicas médicas e seus pacientes. Esta Política de
               Privacidade descreve como tratamos os dados pessoais dentro do sistema.
             </p>
@@ -71,7 +71,7 @@ export default function PoliticaPrivacidadePage() {
             <p>
               O paciente pode solicitar acesso, correção ou exclusão de seus dados
               pessoais entrando em contato diretamente com a clínica usuária do
-              FlowMedi. A clínica é a controladora dos dados e nós atuamos como
+              FlowMed. A clínica é a controladora dos dados e nós atuamos como
               operadores de tratamento.
             </p>
 
@@ -80,7 +80,7 @@ export default function PoliticaPrivacidadePage() {
             </h2>
             <p>
               Para dúvidas sobre esta política, entre em contato com a clínica que
-              lhe atende ou com o suporte do FlowMedi pelo canal informado na
+              lhe atende ou com o suporte do FlowMed pelo canal informado na
               própria aplicação.
             </p>
 

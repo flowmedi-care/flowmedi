@@ -59,8 +59,8 @@ export function EmailSettingsClient() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     to: testEmailTo.trim(),
-                    subject: "Teste FlowMedi",
-                    body: "Este é um email de teste enviado pelo FlowMedi. Se você recebeu esta mensagem, a integração com o Gmail está funcionando.",
+                    subject: "Teste FlowMed",
+                    body: "Este é um email de teste enviado pelo FlowMed. Se você recebeu esta mensagem, a integração com o Gmail está funcionando.",
                   }),
                 });
                 const data = await res.json();

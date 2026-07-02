@@ -4,7 +4,7 @@ import { PublicHeader } from "@/components/public-header";
 import { SugestoesClient } from "./sugestoes-client";
 
 export const metadata: Metadata = {
-  title: "Sugestões & Melhorias | FlowMedi",
+  title: "Sugestões & Melhorias | FlowMed",
   description:
     "Envie sugestões e melhorias para o produto. Edição e exclusão disponíveis por 5 minutos, sem login.",
 };

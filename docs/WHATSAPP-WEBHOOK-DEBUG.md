@@ -6,14 +6,14 @@ Requer autenticação com **CRON_SECRET** (mesmo segredo dos crons):
 
 ```bash
 curl -H "Authorization: Bearer SEU_CRON_SECRET" \
-  "https://www.flowmedi.com.br/api/whatsapp/webhook/debug"
+  "https://www.flowmed.app/api/whatsapp/webhook/debug"
 ```
 
 Ou `?secret=SEU_CRON_SECRET` na query string.
 
 Sem token válido, retorna **401**. Se `CRON_SECRET` não estiver configurado no servidor, retorna **503**.
 
-**Importante:** O webhook recebe mensagens **inbound** (quando alguém envia DO celular PARA o número do negócio). Quando você digita no FlowMedi e envia, isso é **outbound** e não aciona o webhook.
+**Importante:** O webhook recebe mensagens **inbound** (quando alguém envia DO celular PARA o número do negócio). Quando você digita no FlowMed e envia, isso é **outbound** e não aciona o webhook.
 
 ## Diagnóstico visual (recomendado)
 
@@ -63,6 +63,6 @@ O webhook faz `console.log` do payload. Para ver:
 
 ## Configuração na Meta
 
-1. **URL do webhook:** `https://www.flowmedi.com.br/api/integrations/whatsapp/webhook`
+1. **URL do webhook:** `https://www.flowmed.app/api/integrations/whatsapp/webhook` (ou `www.flowmedi.com.br` — mesmo deploy)
 2. **Token de verificação:** o mesmo valor de `META_WHATSAPP_WEBHOOK_VERIFY_TOKEN` no `.env`
 3. **Assinatura:** marcar o campo `messages` (mensagens recebidas)

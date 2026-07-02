@@ -34,20 +34,20 @@ Cadastre a URI **exata** que o app envia ao Google. O path é sempre:
 
 | Ambiente | Exemplo de URI |
 |----------|----------------|
-| Produção | `https://flowmedi.com.br/api/integrations/google/callback` |
-| Produção (www) | `https://www.flowmedi.com.br/api/integrations/google/callback` |
+| Produção | `https://flowmed.app/api/integrations/google/callback` |
+| Produção (legado) | `https://flowmedi.com.br/api/integrations/google/callback` |
 | Local | `http://localhost:3000/api/integrations/google/callback` |
 | Preview Vercel | `https://seu-projeto.vercel.app/api/integrations/google/callback` |
 
-**Recomendação:** defina `NEXT_PUBLIC_APP_URL` com o domínio canônico (ex.: `https://flowmedi.com.br`) e cadastre **apenas** essa URI no Google Console. O app sempre usará essa origem, independente de o usuário acessar com `www` ou sem.
+**Recomendação:** defina `NEXT_PUBLIC_APP_URL` com o domínio canônico (ex.: `https://flowmed.app`) e cadastre essa URI no Google Console. Mantenha `flowmedi.com.br` durante a transição se já estiver cadastrado.
 
-Se ainda não tiver `NEXT_PUBLIC_APP_URL` em produção, cadastre **ambas** as variantes (`flowmedi.com.br` e `www.flowmedi.com.br`) até padronizar a variável.
+Se ainda não tiver `NEXT_PUBLIC_APP_URL` em produção, cadastre **ambas** as variantes (`flowmed.app` e `flowmedi.com.br`) até padronizar a variável.
 
 ### 3. Variáveis de ambiente (Vercel / `.env.local`)
 
 | Variável | Descrição |
 |----------|-----------|
-| `NEXT_PUBLIC_APP_URL` | URL canônica do app (sem barra final). Ex.: `https://flowmedi.com.br` |
+| `NEXT_PUBLIC_APP_URL` | URL canônica do app (sem barra final). Ex.: `https://flowmed.app` |
 | `GOOGLE_CLIENT_ID` | Client ID do OAuth 2.0 criado acima |
 | `GOOGLE_CLIENT_SECRET` | Client Secret do mesmo client |
 

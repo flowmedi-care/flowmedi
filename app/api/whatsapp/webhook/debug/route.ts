@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     ok: true,
     message: lastPayload
       ? "Último payload recebido (webhook está sendo chamado pela Meta)"
-      : "Nenhum payload recebido ainda. O webhook só é chamado quando alguém envia mensagem DO celular/WhatsApp PARA o número do negócio — NÃO quando você envia pela interface FlowMedi.",
+      : "Nenhum payload recebido ainda. O webhook só é chamado quando alguém envia mensagem DO celular/WhatsApp PARA o número do negócio — NÃO quando você envia pela interface FlowMed.",
     lastPayload: lastPayload?.body ?? null,
     lastReceivedAt: lastPayload?.receivedAt ?? null,
     recentAiEvents: recentEvents ?? [],

@@ -3,7 +3,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata = {
-  title: "Exclusão de Dados — FlowMedi",
+  title: "Exclusão de Dados — FlowMed",
 };
 
 export default function ExclusaoDadosPage() {
@@ -21,7 +21,7 @@ export default function ExclusaoDadosPage() {
           <div className="space-y-6 text-sm leading-relaxed text-muted-foreground">
             <p>
               Esta página explica como um titular de dados pode solicitar a exclusão
-              de informações pessoais associadas ao uso do FlowMedi, incluindo
+              de informações pessoais associadas ao uso do FlowMed, incluindo
               integrações com terceiros como Meta / WhatsApp.
             </p>
 
@@ -29,7 +29,7 @@ export default function ExclusaoDadosPage() {
               1. Dados armazenados
             </h2>
             <p>
-              O FlowMedi armazena dados de pacientes e usuários para fins de agenda,
+              O FlowMed armazena dados de pacientes e usuários para fins de agenda,
               formulários clínicos, consentimento LGPD e comunicação. Esses dados
               pertencem à clínica que utiliza o sistema e são tratados conforme nossa{" "}
               <Link
@@ -52,7 +52,7 @@ export default function ExclusaoDadosPage() {
             </p>
             <p>
               Após a solicitação, a clínica poderá excluir ou anonimizar os dados
-              dentro do FlowMedi, respeitando obrigações legais de guarda de
+              dentro do FlowMed, respeitando obrigações legais de guarda de
               prontuário e registros médicos.
             </p>
 
@@ -62,7 +62,7 @@ export default function ExclusaoDadosPage() {
             <p>
               Caso você tenha autorizado o uso de seu número de telefone para
               recebimento de mensagens via WhatsApp ou outros canais, a exclusão de
-              dados no FlowMedi não impede que existam registros técnicos mínimos
+              dados no FlowMed não impede que existam registros técnicos mínimos
               mantidos pelos provedores de comunicação (como Meta Platforms, Inc.)
               conforme as políticas deles.
             </p>
@@ -77,7 +77,7 @@ export default function ExclusaoDadosPage() {
             <p>
               Se você é responsável por uma clínica e precisa de suporte para
               atender a pedidos de exclusão de dados feitos por pacientes, entre em
-              contato com o suporte do FlowMedi pelos canais indicados na aplicação.
+              contato com o suporte do FlowMed pelos canais indicados na aplicação.
             </p>
           </div>
         </section>

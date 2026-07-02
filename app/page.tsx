@@ -62,7 +62,7 @@ export default function HomePage() {
                     <span className="h-2.5 w-2.5 rounded-full bg-border" />
                     <span className="h-2.5 w-2.5 rounded-full bg-border" />
                   </div>
-                  <span className="ml-2 text-xs text-muted-foreground">FlowMedi Dashboard</span>
+                  <span className="ml-2 text-xs text-muted-foreground">FlowMed Dashboard</span>
                 </div>
                 <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4 bg-muted/20">
                   {[

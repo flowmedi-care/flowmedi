@@ -34,7 +34,7 @@ export function FlowmediLogo({
       {!hasImageError ? (
         <img
           src={brandIconSrc}
-          alt="FlowMedi"
+          alt="FlowMed"
           width={iconSize}
           height={iconSize}
           className={cn(
@@ -71,7 +71,7 @@ export function FlowmediLogo({
             textClass
           )}
         >
-          FlowMedi
+          FlowMed
         </span>
       )}
     </>
@@ -85,7 +85,7 @@ export function FlowmediLogo({
 
   if (href) {
     return (
-      <Link href={href} className={wrapperClass} aria-label="FlowMedi - Início">
+      <Link href={href} className={wrapperClass} aria-label="FlowMed - Início">
         {content}
       </Link>
     );

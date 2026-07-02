@@ -90,12 +90,12 @@ export function SiteFooter({ site }: { site: PublicClinicSite }) {
           <p>
             Site por{" "}
             <a
-              href="https://flowmedi.com.br"
+              href="https://flowmed.app"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-white/70 transition-colors"
             >
-              FlowMedi
+              FlowMed
             </a>
           </p>
         </div>

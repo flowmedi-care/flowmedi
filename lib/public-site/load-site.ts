@@ -140,6 +140,6 @@ export function getHeroImageUrl(site: PublicClinicSite): string {
 }
 
 export function getPublicSiteUrl(slug: string, baseUrl?: string): string {
-  const base = baseUrl ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://flowmedi.com.br";
+  const base = baseUrl ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://flowmed.app";
   return `${base.replace(/\/$/, "")}/c/${slug}`;
 }

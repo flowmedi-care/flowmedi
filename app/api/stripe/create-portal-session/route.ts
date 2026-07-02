@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     if (process.env.VERCEL_URL) {
       returnUrl = `https://${process.env.VERCEL_URL}`;
     } else {
-      returnUrl = "https://flowmedi.com.br"; // Fallback para produção
+      returnUrl = "https://flowmed.app"; // Fallback para produção
     }
   }
   

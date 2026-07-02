@@ -8,7 +8,7 @@ function getOrigin(): string {
   if (!origin && process.env.VERCEL_URL) {
     origin = `https://${process.env.VERCEL_URL}`;
   }
-  if (!origin) origin = "https://flowmedi.com.br";
+  if (!origin) origin = "https://flowmed.app";
   if (!origin.startsWith("http")) origin = `https://${origin}`;
   return origin;
 }

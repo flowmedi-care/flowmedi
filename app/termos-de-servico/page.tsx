@@ -3,7 +3,7 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
 export const metadata = {
-  title: "Termos de Serviço — FlowMedi",
+  title: "Termos de Serviço — FlowMed",
 };
 
 export default function TermosServicoPage() {
@@ -20,7 +20,7 @@ export default function TermosServicoPage() {
 
           <div className="space-y-6 text-sm leading-relaxed text-muted-foreground">
             <p>
-              Estes Termos de Serviço regem o uso da plataforma FlowMedi. Ao acessar ou
+              Estes Termos de Serviço regem o uso da plataforma FlowMed. Ao acessar ou
               utilizar nossos serviços, você concorda em cumprir e estar vinculado a
               estes termos.
             </p>
@@ -29,7 +29,7 @@ export default function TermosServicoPage() {
               1. Aceitação dos Termos
             </h2>
             <p>
-              Ao criar uma conta, acessar ou usar o FlowMedi, você confirma que leu,
+              Ao criar uma conta, acessar ou usar o FlowMed, você confirma que leu,
               compreendeu e concorda em estar vinculado a estes Termos de Serviço e a
               nossa Política de Privacidade. Se você não concordar com algum destes
               termos, não deve usar nossos serviços.
@@ -39,7 +39,7 @@ export default function TermosServicoPage() {
               2. Descrição do Serviço
             </h2>
             <p>
-              O FlowMedi é uma plataforma de gestão para clínicas médicas que oferece
+              O FlowMed é uma plataforma de gestão para clínicas médicas que oferece
               funcionalidades de agendamento, formulários clínicos, comunicação com
               pacientes e gestão de dados conforme a LGPD. Os serviços são fornecidos
               mediante assinatura de planos conforme disponibilidade.
@@ -59,7 +59,7 @@ export default function TermosServicoPage() {
               4. Uso Aceitável
             </h2>
             <p>
-              Você concorda em usar o FlowMedi apenas para fins legais e de acordo com
+              Você concorda em usar o FlowMed apenas para fins legais e de acordo com
               estes termos. É proibido usar a plataforma para atividades ilegais,
               fraudulentas ou que violem direitos de terceiros. Você não deve tentar
               acessar áreas restritas, interferir no funcionamento do sistema ou
@@ -73,7 +73,7 @@ export default function TermosServicoPage() {
               A clínica é responsável pelo tratamento adequado dos dados dos pacientes
               conforme a LGPD e demais legislações aplicáveis. A clínica deve obter os
               consentimentos necessários dos pacientes antes de coletar e processar seus
-              dados pessoais. O FlowMedi atua como operador de tratamento de dados.
+              dados pessoais. O FlowMed atua como operador de tratamento de dados.
             </p>
 
             <h2 className="text-lg font-semibold text-foreground">
@@ -91,7 +91,7 @@ export default function TermosServicoPage() {
               7. Disponibilidade do Serviço
             </h2>
             <p>
-              Nos esforçamos para manter o FlowMedi disponível, mas não garantimos
+              Nos esforçamos para manter o FlowMed disponível, mas não garantimos
               disponibilidade ininterrupta. Podemos realizar manutenções programadas ou
               de emergência que podem resultar em indisponibilidade temporária. Não nos
               responsabilizamos por perdas decorrentes de indisponibilidade do serviço.
@@ -101,8 +101,8 @@ export default function TermosServicoPage() {
               8. Propriedade Intelectual
             </h2>
             <p>
-              Todo o conteúdo, design, código e funcionalidades do FlowMedi são de
-              propriedade do FlowMedi ou de seus licenciadores e estão protegidos por
+              Todo o conteúdo, design, código e funcionalidades do FlowMed são de
+              propriedade do FlowMed ou de seus licenciadores e estão protegidos por
               leis de propriedade intelectual. Você não pode copiar, modificar,
               distribuir ou criar trabalhos derivados sem autorização expressa.
             </p>
@@ -111,7 +111,7 @@ export default function TermosServicoPage() {
               9. Limitação de Responsabilidade
             </h2>
             <p>
-              O FlowMedi é fornecido "como está", sem garantias expressas ou implícitas.
+              O FlowMed é fornecido "como está", sem garantias expressas ou implícitas.
               Não nos responsabilizamos por danos diretos, indiretos, incidentais ou
               consequenciais decorrentes do uso ou impossibilidade de uso do serviço.
               Nossa responsabilidade total está limitada ao valor pago nos últimos 12
@@ -151,7 +151,7 @@ export default function TermosServicoPage() {
             </h2>
             <p>
               Para questões sobre estes Termos de Serviço, entre em contato através dos
-              canais de suporte disponíveis na plataforma FlowMedi.
+              canais de suporte disponíveis na plataforma FlowMed.
             </p>
           </div>
         </section>

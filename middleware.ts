@@ -1,7 +1,39 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { extractClinicSubdomain } from "@/lib/public-site/host";
+import {
+  extractClinicSubdomain,
+  isLegacyComBrHost,
+  mapLegacyHostToCanonical,
+} from "@/lib/public-site/host";
 import { blockDevRoutesInProduction } from "@/lib/api-audit/guard";
+
+const CANONICAL_ORIGIN =
+  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://flowmed.app";
+
+/** Rotas que não devem ser redirecionadas do domínio legado (webhooks, OAuth, assets). */
+function shouldSkipLegacyRedirect(pathname: string): boolean {
+  return (
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/auth/callback")
+  );
+}
+
+function redirectLegacyDomainToCanonical(
+  request: NextRequest
+): NextResponse | null {
+  const host = request.headers.get("host") ?? "";
+  if (!isLegacyComBrHost(host)) return null;
+
+  const { pathname, search } = request.nextUrl;
+  if (shouldSkipLegacyRedirect(pathname)) return null;
+
+  const canonicalHost = mapLegacyHostToCanonical(host);
+  const target = new URL(`${pathname}${search}`, CANONICAL_ORIGIN);
+  target.host = canonicalHost;
+
+  return NextResponse.redirect(target, 301);
+}
 
 function rewriteSubdomainToPublicSite(request: NextRequest): NextResponse | null {
   const host = request.headers.get("host") ?? "";
@@ -33,6 +65,11 @@ function rewriteSubdomainToPublicSite(request: NextRequest): NextResponse | null
 export async function middleware(request: NextRequest) {
   if (blockDevRoutesInProduction(request.nextUrl.pathname)) {
     return new NextResponse(null, { status: 404 });
+  }
+
+  const legacyRedirect = redirectLegacyDomainToCanonical(request);
+  if (legacyRedirect) {
+    return legacyRedirect;
   }
 
   const subdomainRewrite = rewriteSubdomainToPublicSite(request);

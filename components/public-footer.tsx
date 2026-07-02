@@ -79,7 +79,7 @@ export function PublicFooter() {
         </div>
         <div className="mt-12 border-t border-border pt-8">
           <p className="text-center text-sm text-muted-foreground">
-            © {new Date().getFullYear()} FlowMedi. Todos os direitos reservados.
+            © {new Date().getFullYear()} FlowMed. Todos os direitos reservados.
           </p>
         </div>
       </div>

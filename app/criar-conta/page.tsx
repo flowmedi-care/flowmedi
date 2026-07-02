@@ -14,7 +14,7 @@ export default async function CriarContaPage({
   return (
     <AuthShell
       title="Criar conta"
-      subtitle="Comece a usar o FlowMedi na sua clínica"
+      subtitle="Comece a usar o FlowMed na sua clínica"
     >
       <SignUpForm redirectTo={redirect} prefilledEmail={prefilledEmail} />
       <p className="mt-6 text-center text-sm text-muted-foreground">

@@ -127,7 +127,7 @@ export function PremiumFooter({ site }: { site: PublicClinicSite }) {
           <p>
             Tecnologia{" "}
             <a
-              href="https://flowmedi.com.br"
+              href="https://flowmed.app"
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-400 hover:text-white transition-colors"

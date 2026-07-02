@@ -9,7 +9,8 @@ export const maxDuration = 60;
 /**
  * GET /api/integrations/whatsapp/webhook
  * Verificação do webhook pela Meta (hub.mode, hub.verify_token, hub.challenge).
- * URL que deve estar configurada no app Meta: https://www.flowmedi.com.br/api/integrations/whatsapp/webhook
+ * URL no app Meta: https://www.flowmed.app/api/integrations/whatsapp/webhook
+ * (https://www.flowmedi.com.br/... continua válido no mesmo deploy — sem redirect em /api)
  */
 export async function GET(request: NextRequest) {
   let verifyToken: string;

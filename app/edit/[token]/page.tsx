@@ -4,8 +4,8 @@ import { PublicHeader } from "@/components/public-header";
 import { EditTokenClient } from "./token-edit-client";
 
 export const metadata: Metadata = {
-  title: "Editar sugestão | FlowMedi",
-  description: "Edite ou exclua sua sugestão enviada para a caixa de ideias da FlowMedi.",
+  title: "Editar sugestão | FlowMed",
+  description: "Edite ou exclua sua sugestão enviada para a caixa de ideias da FlowMed.",
 };
 
 export default async function EditTokenPage({
