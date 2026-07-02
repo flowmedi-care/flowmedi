@@ -17,11 +17,12 @@ import { cn } from "@/lib/utils";
 interface SignInFormProps {
   redirectTo?: string;
   oauthError?: boolean;
+  recoveryError?: boolean;
 }
 
 type LoginStep = "credentials" | "mfa";
 
-export function SignInForm({ redirectTo, oauthError }: SignInFormProps) {
+export function SignInForm({ redirectTo, oauthError, recoveryError }: SignInFormProps) {
   const router = useRouter();
   const [step, setStep] = useState<LoginStep>("credentials");
   const [email, setEmail] = useState("");
@@ -29,11 +30,15 @@ export function SignInForm({ redirectTo, oauthError }: SignInFormProps) {
   const [mfaCode, setMfaCode] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [error, setError] = useState<string | null>(
-    oauthError
-      ? "Não foi possível entrar com Google. Tente novamente ou use e-mail e senha."
-      : null
-  );
+  const [error, setError] = useState<string | null>(() => {
+    if (recoveryError) {
+      return "O link de redefinição expirou ou já foi usado. Solicite um novo link em Esqueci minha senha.";
+    }
+    if (oauthError) {
+      return "Não foi possível entrar com Google. Tente novamente ou use e-mail e senha.";
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(false);
 
   async function finishLogin(supabase: ReturnType<typeof createClient>, userId: string) {

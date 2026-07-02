@@ -23,6 +23,8 @@ export const MFA_EXEMPT_PATH_PREFIXES = [
   "/acesso-removido",
   "/criar-conta",
   "/convite",
+  "/redefinir-senha",
+  "/esqueci-senha",
 ];
 
 export function isMfaExemptPath(pathname: string): boolean {

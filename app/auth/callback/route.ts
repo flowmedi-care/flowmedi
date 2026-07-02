@@ -21,7 +21,11 @@ export async function GET(request: Request) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(`${origin}/entrar?error=oauth`);
+    const params = new URLSearchParams({ error: "recovery" });
+    if (error.message.toLowerCase().includes("expired")) {
+      params.set("error_code", "otp_expired");
+    }
+    return NextResponse.redirect(`${origin}/entrar?${params.toString()}`);
   }
 
   const {
@@ -30,6 +34,10 @@ export async function GET(request: Request) {
 
   if (!user) {
     return NextResponse.redirect(`${origin}/entrar?error=oauth`);
+  }
+
+  if (next === "/redefinir-senha") {
+    return NextResponse.redirect(`${origin}/redefinir-senha`);
   }
 
   const redirectPath = await resolvePostAuthRedirect(supabase, user.id, next);

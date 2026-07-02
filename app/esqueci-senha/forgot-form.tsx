@@ -19,7 +19,7 @@ export function ForgotPasswordForm() {
     setLoading(true);
     const supabase = createClient();
     const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/entrar?reset=1`,
+      redirectTo: `${window.location.origin}/auth/callback?next=/redefinir-senha`,
     });
     setLoading(false);
     if (err) {
