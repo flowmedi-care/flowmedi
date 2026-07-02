@@ -383,6 +383,18 @@ async function processConversationAiInner(
     aiState = { ...aiState, ...intentToAiStatePatch(inboundIntent) };
   }
 
+  const { routeInboundFlow } = await import("./intent-router");
+  const routed = routeInboundFlow({
+    messageText: userTexts.join("\n"),
+    detectedIntent: inboundIntent,
+    aiState,
+  });
+  if (routed.flow === "booking" || routed.useBookingMachine) {
+    if (!aiState.booking_step) {
+      aiState = { ...aiState, booking_step: "procedure", intent: "booking" };
+    }
+  }
+
   if (aiState.pending_confirmation_appointment_id && aiState.patient_id) {
     const { parseConfirmationReply } = await import("./confirmations");
     const { confirmAppointmentViaAssistant, cancelAppointmentViaAssistant } = await import(

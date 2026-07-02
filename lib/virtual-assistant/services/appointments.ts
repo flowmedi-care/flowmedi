@@ -153,6 +153,39 @@ export async function createAppointmentViaAssistant(
   return { appointmentId: appointment.id, error: null };
 }
 
+export async function formatAppointmentConfirmationMessage(
+  supabase: SupabaseClient,
+  opts: { clinicId: string; appointmentId: string; patientId: string }
+): Promise<string> {
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select(
+      "scheduled_at, profiles!appointments_doctor_id_fkey(full_name), procedures(name), recommendations"
+    )
+    .eq("id", opts.appointmentId)
+    .eq("clinic_id", opts.clinicId)
+    .eq("patient_id", opts.patientId)
+    .maybeSingle();
+
+  if (!appt) {
+    return "Sua consulta foi registrada no sistema. Em breve você recebe os detalhes por aqui.";
+  }
+
+  const dt = new Date(appt.scheduled_at as string);
+  const date = dt.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" });
+  const time = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const doctor = (appt.profiles as { full_name?: string } | null)?.full_name ?? "o profissional";
+  const procedure = (appt.procedures as { name?: string } | null)?.name;
+  const procPart = procedure ? ` de ${procedure}` : "";
+
+  let msg = `Pronto! Sua consulta${procPart} com ${doctor} está confirmada para ${date} às ${time}.`;
+  const rec = appt.recommendations as string | null;
+  if (rec?.trim()) {
+    msg += `\n\nRecomendações:\n${rec.trim()}`;
+  }
+  return msg;
+}
+
 export async function confirmAppointmentViaAssistant(
   supabase: SupabaseClient,
   clinicId: string,

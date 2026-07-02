@@ -1,4 +1,5 @@
 import type { AiConversationState } from "./types";
+import type { BookingStep } from "./types";
 
 const INTENT_LABELS: Record<string, string> = {
   booking: "agendamento em andamento",
@@ -10,6 +11,21 @@ const INTENT_LABELS: Record<string, string> = {
   form: "formulário",
 };
 
+const STEP_LABELS: Record<BookingStep, string> = {
+  procedure: "escolher procedimento",
+  doctor: "escolher profissional",
+  day: "escolher dia",
+  slot: "escolher horário",
+  patient: "confirmar nome/dados",
+  confirm: "finalizar no sistema",
+  done: "concluído",
+};
+
+export function getBookingStepLabel(step?: BookingStep): string {
+  if (!step) return "início do agendamento";
+  return STEP_LABELS[step] ?? step;
+}
+
 /** Formata ai_state para o prompt sem expor JSON cru nem UUIDs desnecessários. */
 export function formatAiStateForPrompt(state: AiConversationState): string {
   const lines: string[] = [];
@@ -17,8 +33,11 @@ export function formatAiStateForPrompt(state: AiConversationState): string {
   if (state.intent) {
     lines.push(`Fluxo: ${INTENT_LABELS[state.intent] ?? state.intent}`);
   }
-  if (state.pending_step) {
-    lines.push(`Etapa pendente: ${state.pending_step}`);
+  if (state.booking_step) {
+    lines.push(`Etapa do agendamento: ${getBookingStepLabel(state.booking_step)}`);
+  }
+  if (state.last_created_appointment_id) {
+    lines.push("Agendamento já registrado no sistema — não ofereça outros horários para o mesmo pedido.");
   }
   if (state.patient_id) {
     lines.push("Paciente já identificado no sistema.");

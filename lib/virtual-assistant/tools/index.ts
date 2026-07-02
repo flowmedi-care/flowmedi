@@ -30,6 +30,8 @@ import {
 } from "../services/pricing";
 import { applyRoutingOnNewConversation } from "@/lib/whatsapp-routing";
 import type { AiConversationState } from "../types";
+import { patchBookingStepFromTool } from "../booking-flow";
+import { formatAppointmentConfirmationMessage } from "../services/appointments";
 
 export const ASSISTANT_TOOLS: ToolDefinition[] = [
   {
@@ -380,7 +382,9 @@ export async function executeAssistantTool(
         await logToolCall(supabase, clinicId, conversationId, name, {}, summary, true);
         return {
           result: JSON.stringify(patient ?? { found: false }),
-          statePatch: patient ? { patient_id: patient.id } : {},
+          statePatch: patient
+            ? { patient_id: patient.id, ...patchBookingStepFromTool(name, {}, patient as Record<string, unknown>, ctx.aiState) }
+            : patchBookingStepFromTool(name, {}, { found: false }, ctx.aiState),
         };
       }
 
@@ -400,7 +404,9 @@ export async function executeAssistantTool(
         await logToolCall(supabase, clinicId, conversationId, name, { full_name: fullName }, res.error ?? "ok", !res.error);
         return {
           result: JSON.stringify(res),
-          statePatch: res.patientId ? { patient_id: res.patientId } : {},
+          statePatch: res.patientId
+            ? { patient_id: res.patientId, ...patchBookingStepFromTool(name, args, res as Record<string, unknown>, ctx.aiState) }
+            : patchBookingStepFromTool(name, args, res as Record<string, unknown>, ctx.aiState),
         };
       }
 
@@ -463,6 +469,8 @@ export async function executeAssistantTool(
             procedureId,
             date,
             period,
+            excludeAppointmentId: ctx.aiState.last_created_appointment_id ?? null,
+            patientId: ctx.aiState.patient_id ?? null,
           });
           const availablePeriods = await findAvailablePeriodsForDay(supabase, {
             clinicId,
@@ -499,7 +507,12 @@ export async function executeAssistantTool(
           );
           return {
             result: JSON.stringify(payload),
-            statePatch: { doctor_id: doctorId, procedure_id: procedureId, intent: "booking" },
+            statePatch: {
+              doctor_id: doctorId,
+              procedure_id: procedureId,
+              intent: "booking",
+              ...patchBookingStepFromTool(name, args, payload as Record<string, unknown>, ctx.aiState),
+            },
           };
         }
 
@@ -540,7 +553,12 @@ export async function executeAssistantTool(
         );
         return {
           result: JSON.stringify(payload),
-          statePatch: { doctor_id: doctorId, procedure_id: procedureId, intent: "booking" },
+          statePatch: {
+            doctor_id: doctorId,
+            procedure_id: procedureId,
+            intent: "booking",
+            ...patchBookingStepFromTool(name, args, payload as Record<string, unknown>, ctx.aiState),
+          },
         };
       }
 
@@ -554,9 +572,33 @@ export async function executeAssistantTool(
           dimensionValueIds: (args.dimension_value_ids as string[]) ?? [],
         });
         await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? res.appointmentId ?? "ok", !res.error);
+
+        const stepPatch = patchBookingStepFromTool(name, args, res as Record<string, unknown>, ctx.aiState);
+
+        if (res.appointmentId && !res.error) {
+          const confirmationText = await formatAppointmentConfirmationMessage(supabase, {
+            clinicId,
+            appointmentId: res.appointmentId,
+            patientId: String(args.patient_id),
+          });
+          return {
+            result: JSON.stringify({
+              ...res,
+              confirmation_message: confirmationText,
+              hint: "Use confirmation_message como resposta ao paciente — não reescreva como confirmado antes disso.",
+            }),
+            statePatch: stepPatch,
+          };
+        }
+
         return {
-          result: JSON.stringify(res),
-          statePatch: res.appointmentId ? { intent: undefined, pending_slot: undefined } : {},
+          result: JSON.stringify({
+            ...res,
+            hint: res.error?.includes("já tem consulta")
+              ? "Chame list_patient_appointments — pode ser a consulta deste paciente."
+              : undefined,
+          }),
+          statePatch: stepPatch,
         };
       }
 

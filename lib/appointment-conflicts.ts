@@ -335,6 +335,7 @@ async function scanDaySlots(
     maxSlots: number;
     period?: SlotPeriod;
     timeOnlyLabel?: boolean;
+    excludeAppointmentId?: string | null;
   }
 ): Promise<AvailableSlot[]> {
   const slots: AvailableSlot[] = [];
@@ -363,7 +364,7 @@ async function scanDaySlots(
       doctorId: ctx.doctorId,
       scheduledAt,
       scheduledEndAt,
-      excludeAppointmentId: null,
+      excludeAppointmentId: opts.excludeAppointmentId ?? null,
     });
 
     if (!conflict) {
@@ -520,6 +521,8 @@ export async function findSlotsForDay(
     period?: SlotPeriod;
     maxSlots?: number;
     slotStepMinutes?: number;
+    excludeAppointmentId?: string | null;
+    patientId?: string | null;
   }
 ): Promise<AvailableSlot[]> {
   const ctx = await loadSlotSearchContext(supabase, opts);
@@ -527,11 +530,28 @@ export async function findSlotsForDay(
   const dayConfig = getDayOperatingConfig(ctx, dayDate);
   if (!dayConfig) return [];
 
+  let excludeId = opts.excludeAppointmentId ?? null;
+  if (!excludeId && opts.patientId) {
+    const { data: patientAppts } = await supabase
+      .from("appointments")
+      .select("id, scheduled_at")
+      .eq("clinic_id", opts.clinicId)
+      .eq("patient_id", opts.patientId)
+      .eq("doctor_id", opts.doctorId)
+      .neq("status", "cancelada")
+      .gte("scheduled_at", `${opts.date}T00:00:00`)
+      .lte("scheduled_at", `${opts.date}T23:59:59`);
+    if (patientAppts?.length === 1) {
+      excludeId = patientAppts[0].id;
+    }
+  }
+
   return scanDaySlots(supabase, ctx, dayDate, dayConfig, {
     slotStep: opts.slotStepMinutes ?? 30,
     maxSlots: opts.maxSlots ?? 6,
     period: opts.period,
     timeOnlyLabel: true,
+    excludeAppointmentId: excludeId,
   });
 }
 

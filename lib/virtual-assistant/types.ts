@@ -69,8 +69,19 @@ export type PendingTranscriptionJob = {
   jobId: string;
 };
 
+export type BookingStep =
+  | "procedure"
+  | "doctor"
+  | "day"
+  | "slot"
+  | "patient"
+  | "confirm"
+  | "done";
+
 export type AiConversationState = {
   intent?: string;
+  booking_step?: BookingStep;
+  last_created_appointment_id?: string;
   doctor_id?: string;
   procedure_id?: string;
   service_id?: string;

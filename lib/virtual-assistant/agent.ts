@@ -4,34 +4,30 @@ import {
   logTokenUsage,
   type ChatMessage,
 } from "./openai-client";
-import { buildBehaviorInstructions, buildKnowledgeContext } from "./knowledge-context";
 import { ASSISTANT_TOOLS, executeAssistantTool } from "./tools";
 import type { AiConversationState, VirtualAssistantSettings } from "./types";
 import { loadContactJourneyForAi } from "@/lib/contact-journey/journey-for-ai";
 import { buildContextualResumePrompt } from "@/lib/contact-journey/contextual-resume";
 import { shouldEscalateToHuman } from "@/lib/virtual-assistant/escalation";
-import { buildAgentPolicyBlock } from "@/lib/virtual-assistant/agent-policy";
 import { HANDOFF_REPLY_BODY } from "@/lib/whatsapp-sender-display";
 import {
   detectInboundIntent,
   hasClearIntent,
   intentToAiStatePatch,
 } from "@/lib/virtual-assistant/detect-inbound-intent";
-import {
-  buildToolRoundLimitFallback,
-  formatAiStateForPrompt,
-} from "@/lib/virtual-assistant/format-ai-state";
+import { buildToolRoundLimitFallback } from "@/lib/virtual-assistant/format-ai-state";
 import { isInsideHandoffWindow } from "@/lib/virtual-assistant/handoff-hours";
+import { buildClinicContext } from "@/lib/virtual-assistant/clinic-context";
+import { composeSystemPrompt } from "@/lib/virtual-assistant/prompt/prompt-compose";
+import { routeInboundFlow } from "@/lib/virtual-assistant/intent-router";
+import {
+  bootstrapPatientForBooking,
+  tryHandleBookingMeta,
+} from "@/lib/virtual-assistant/booking-flow";
+import { applyReplyGuards } from "@/lib/virtual-assistant/reply-guards";
 
 const MAX_TOOL_ROUNDS_DEFAULT = 5;
 const MAX_TOOL_ROUNDS_BOOKING = 8;
-
-function resolveMaxToolRounds(state: AiConversationState): number {
-  if (state.intent === "booking" || state.pending_confirmation_appointment_id) {
-    return MAX_TOOL_ROUNDS_BOOKING;
-  }
-  return MAX_TOOL_ROUNDS_DEFAULT;
-}
 
 const HANDOFF_PATTERNS = [
   /falar com (um(a)? )?(atendente|humano|pessoa)/i,
@@ -43,6 +39,27 @@ const HANDOFF_PATTERNS = [
 
 export function shouldAutoHandoff(text: string): boolean {
   return HANDOFF_PATTERNS.some((p) => p.test(text));
+}
+
+function resolveMaxToolRounds(state: AiConversationState): number {
+  if (state.intent === "booking" || state.booking_step || state.pending_confirmation_appointment_id) {
+    return MAX_TOOL_ROUNDS_BOOKING;
+  }
+  return MAX_TOOL_ROUNDS_DEFAULT;
+}
+
+function extractConfirmationFromToolResults(messages: ChatMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "tool" || m.name !== "create_appointment") continue;
+    try {
+      const parsed = JSON.parse(m.content ?? "{}") as { confirmation_message?: string };
+      if (parsed.confirmation_message) return parsed.confirmation_message;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
 }
 
 export async function runVirtualAssistantAgent(opts: {
@@ -58,15 +75,34 @@ export async function runVirtualAssistantAgent(opts: {
   const combinedUserText = opts.userMessages.join("\n").trim();
   if (!combinedUserText) {
     return {
-      reply:
-        "Não entendi bem. Você quer agendar, saber preços ou falar com a equipe?",
+      reply: "Não entendi bem. Você quer agendar, saber preços ou falar com a equipe?",
     };
   }
 
   const detectedIntent = detectInboundIntent(combinedUserText);
   let workingState: AiConversationState = { ...opts.aiState };
-  if (hasClearIntent(detectedIntent) && !workingState.intent) {
+  if (hasClearIntent(detectedIntent) && !workingState.intent && !workingState.booking_step) {
     workingState = { ...workingState, ...intentToAiStatePatch(detectedIntent) };
+  }
+
+  const routed = routeInboundFlow({
+    messageText: combinedUserText,
+    detectedIntent,
+    aiState: workingState,
+  });
+  workingState = { ...workingState, intent: routed.intent };
+
+  if (routed.useBookingMachine) {
+    const meta = await tryHandleBookingMeta(opts.supabase, {
+      clinicId: opts.clinicId,
+      conversationId: opts.conversationId,
+      phoneNumber: opts.phoneNumber,
+      messageText: combinedUserText,
+      aiState: workingState,
+    });
+    if (meta.handled) {
+      return { reply: meta.reply, statePatch: { ...workingState, ...meta.statePatch } };
+    }
   }
 
   const escalation = shouldEscalateToHuman({
@@ -75,7 +111,8 @@ export async function runVirtualAssistantAgent(opts: {
     followupCount: workingState.followup_count,
     confirmationStep: Boolean(workingState.pending_confirmation_appointment_id),
   });
-  const inActiveBooking = workingState.intent === "booking";
+  const inActiveBooking =
+    workingState.intent === "booking" && workingState.booking_step !== "done";
   if (
     escalation.escalate &&
     opts.settings.human_handoff_enabled !== false &&
@@ -99,8 +136,23 @@ export async function runVirtualAssistantAgent(opts: {
     };
   }
 
-  const knowledge = await buildKnowledgeContext(opts.supabase, opts.clinicId);
-  const behavior = buildBehaviorInstructions(opts.settings);
+  const clinicCtx = await buildClinicContext(opts.supabase, opts.clinicId);
+  const assistantName = clinicCtx.settings.assistant_name ?? "assistente virtual";
+
+  let patientBootstrap = "";
+  let bootstrapPatch: Partial<AiConversationState> = {};
+  if (routed.flow === "booking" || routed.useBookingMachine) {
+    const boot = await bootstrapPatientForBooking(opts.supabase, {
+      clinicId: opts.clinicId,
+      conversationId: opts.conversationId,
+      phoneNumber: opts.phoneNumber,
+      aiState: workingState,
+    });
+    patientBootstrap = boot.promptLine;
+    bootstrapPatch = boot.statePatch;
+    workingState = { ...workingState, ...bootstrapPatch };
+  }
+
   const model = opts.settings.ai_model ?? "gpt-4o-mini";
 
   let journeyRes: Awaited<ReturnType<typeof loadContactJourneyForAi>> = {
@@ -117,10 +169,10 @@ export async function runVirtualAssistantAgent(opts: {
     console.warn("[VirtualAssistant] jornada CRM ignorada:", e);
   }
   const journeyBlock = journeyRes.summary
-    ? `\n\nJornada do contato (CRM — use para orientar próximo passo):\n${journeyRes.summary}`
+    ? `Jornada do contato (CRM):\n${journeyRes.summary}`
     : "";
   const resumeHint = journeyRes.journey
-    ? `\nAbertura contextual sugerida: ${buildContextualResumePrompt(journeyRes.journey)}`
+    ? `Abertura contextual sugerida: ${buildContextualResumePrompt(journeyRes.journey)}`
     : "";
 
   const journeyStatePatch: Partial<AiConversationState> = journeyRes.journey
@@ -136,14 +188,20 @@ export async function runVirtualAssistantAgent(opts: {
       }
     : {};
 
-  const stateForPrompt = formatAiStateForPrompt({ ...workingState, ...journeyStatePatch });
+  const systemContent = composeSystemPrompt({
+    clinicName: clinicCtx.clinicName,
+    assistantName,
+    settings: clinicCtx.settings,
+    clinicData: clinicCtx.text,
+    flow: routed.flow,
+    aiState: { ...workingState, ...journeyStatePatch },
+    journeyBlock: journeyBlock || undefined,
+    resumeHint: resumeHint || undefined,
+    whatsappPhone: opts.phoneNumber,
+    patientBootstrap: patientBootstrap || undefined,
+  });
 
-  const messages: ChatMessage[] = [
-    {
-      role: "system",
-      content: `${knowledge}\n\n${behavior}\n\n${buildAgentPolicyBlock()}${journeyBlock}${resumeHint}\n\nEstado da conversa:\n${stateForPrompt}`,
-    },
-  ];
+  const messages: ChatMessage[] = [{ role: "system", content: systemContent }];
 
   const maxHistory = opts.settings.max_context_messages ?? 20;
   for (const h of opts.history.slice(-maxHistory)) {
@@ -151,7 +209,10 @@ export async function runVirtualAssistantAgent(opts: {
   }
   messages.push({ role: "user", content: combinedUserText });
 
-  let statePatch: Partial<AiConversationState> = { ...workingState, ...journeyStatePatch };
+  let statePatch: Partial<AiConversationState> = {
+    ...workingState,
+    ...journeyStatePatch,
+  };
   const maxRounds = resolveMaxToolRounds(statePatch as AiConversationState);
   let rounds = 0;
 
@@ -211,17 +272,26 @@ export async function runVirtualAssistantAgent(opts: {
           name: tc.function.name,
         });
       }
+
+      const confirmationMsg = extractConfirmationFromToolResults(messages);
+      if (confirmationMsg) {
+        return {
+          reply: applyReplyGuards(confirmationMsg, statePatch as AiConversationState),
+          statePatch,
+        };
+      }
+
       continue;
     }
 
-    const reply =
+    let reply =
       completion.content?.trim() ||
       "Não entendi bem. Você quer agendar, saber preços ou falar com a equipe?";
+    reply = applyReplyGuards(reply, statePatch as AiConversationState);
     return { reply, statePatch };
   }
 
-  return {
-    reply: buildToolRoundLimitFallback(statePatch as AiConversationState),
-    statePatch,
-  };
+  let fallback = buildToolRoundLimitFallback(statePatch as AiConversationState);
+  fallback = applyReplyGuards(fallback, statePatch as AiConversationState);
+  return { reply: fallback, statePatch };
 }
