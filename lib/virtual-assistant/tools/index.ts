@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolDefinition } from "../openai-client";
-import { findAvailableSlots } from "@/lib/appointment-conflicts";
+import { findAvailableDays, findSlotsForDay } from "@/lib/appointment-conflicts";
 import {
   cancelAppointmentViaAssistant,
   confirmAppointmentViaAssistant,
@@ -72,13 +72,24 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "find_available_slots",
-      description: "Busca horários disponíveis para agendamento.",
+      description:
+        "Busca horários disponíveis para agendamento. Sem date: retorna dias disponíveis. Com date: retorna horários do dia (opcionalmente filtrados por turno manhã/tarde).",
       parameters: {
         type: "object",
         properties: {
           doctor_id: { type: "string" },
           procedure_id: { type: "string" },
-          days_ahead: { type: "number" },
+          days_ahead: { type: "number", description: "Quantos dias à frente buscar (padrão 14)" },
+          date: { type: "string", description: "Data escolhida pelo paciente no formato YYYY-MM-DD" },
+          period: {
+            type: "string",
+            enum: ["manha", "tarde"],
+            description: "Turno preferido: manhã ou tarde",
+          },
+          skip_days: {
+            type: "number",
+            description: "Pular N dias disponíveis (quando paciente pede outros dias)",
+          },
         },
         required: ["doctor_id", "procedure_id"],
       },
@@ -431,19 +442,78 @@ export async function executeAssistantTool(
         const doctorId = String(args.doctor_id);
         const procedureId = String(args.procedure_id);
         const daysAhead = Number(args.days_ahead) || 14;
-        const slots = await findAvailableSlots(supabase, {
+        const date = args.date ? String(args.date) : undefined;
+        const period =
+          args.period === "manha" || args.period === "tarde" ? args.period : undefined;
+        const skipDays = Number(args.skip_days) || 0;
+
+        if (date) {
+          const slots = await findSlotsForDay(supabase, {
+            clinicId,
+            doctorId,
+            procedureId,
+            date,
+            period,
+          });
+          const periodLabel = period === "manha" ? "manhã" : period === "tarde" ? "tarde" : null;
+          const payload = {
+            mode: "times" as const,
+            date,
+            period: period ?? null,
+            slots,
+            hint: periodLabel
+              ? `Apresente os horários da ${periodLabel} em lista numerada (1, 2, 3...). Se nenhum servir, ofereça outro turno ou outro dia.`
+              : "Apresente os horários em lista numerada (1, 2, 3...). Se o paciente preferir manhã ou tarde, chame novamente com period. Se nenhum servir, ofereça outro dia.",
+          };
+          await logToolCall(
+            supabase,
+            clinicId,
+            conversationId,
+            name,
+            args,
+            `${slots.length} horários em ${date}`,
+            true
+          );
+          return {
+            result: JSON.stringify(payload),
+            statePatch: { doctor_id: doctorId, procedure_id: procedureId, intent: "booking" },
+          };
+        }
+
+        const { days, hasMore } = await findAvailableDays(supabase, {
           clinicId,
           doctorId,
           procedureId,
           daysAhead,
+          skipDays,
         });
-        const limited = slots.slice(0, 8);
         const payload = {
-          slots: limited,
-          total_available: slots.length,
-          hint: "Apresente os horários em lista numerada (1, 2, 3...) para o paciente escolher.",
+          mode: "days" as const,
+          days: days.map((d) => ({
+            ...d,
+            periods_label:
+              d.periods.length === 2
+                ? "manhã e tarde"
+                : d.periods[0] === "manha"
+                  ? "manhã"
+                  : "tarde",
+          })),
+          has_more: hasMore,
+          skip_days_used: skipDays,
+          next_skip_days: skipDays + days.length,
+          hint: hasMore
+            ? "Apresente os dias em lista numerada (1, 2, 3...). Pergunte qual dia prefere. Se o paciente disser não ou pedir outros dias, chame novamente com skip_days igual a next_skip_days."
+            : "Apresente os dias em lista numerada (1, 2, 3...). Pergunte qual dia prefere. Depois chame novamente com date para mostrar horários.",
         };
-        await logToolCall(supabase, clinicId, conversationId, name, args, `${slots.length} slots`, true);
+        await logToolCall(
+          supabase,
+          clinicId,
+          conversationId,
+          name,
+          args,
+          `${days.length} dias`,
+          true
+        );
         return {
           result: JSON.stringify(payload),
           statePatch: { doctor_id: doctorId, procedure_id: procedureId, intent: "booking" },

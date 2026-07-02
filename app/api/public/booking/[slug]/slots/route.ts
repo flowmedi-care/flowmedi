@@ -45,6 +45,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     clinicId: ctx.site.clinic_id,
     doctorId,
     procedureId,
+    maxSlots: 30,
+    slotStepMinutes: 30,
   });
 
   return NextResponse.json({ slots });

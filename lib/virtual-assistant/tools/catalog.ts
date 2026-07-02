@@ -61,8 +61,10 @@ export const ASSISTANT_TOOL_CATALOG: AssistantToolCatalogEntry[] = [
     name: "find_available_slots",
     label: "Buscar horários",
     category: "agendamento",
-    description: "Busca horários disponíveis para médico + procedimento.",
-    whenToUse: "Depois que médico e procedimento estão definidos.",
+    description:
+      "Busca dias ou horários disponíveis para médico + procedimento. Sem date: lista dias. Com date: lista horários do dia (opcionalmente por turno manhã/tarde).",
+    whenToUse:
+      "Depois que médico e procedimento estão definidos. Primeiro sem date (dias), depois com date quando o paciente escolher dia ou turno.",
   },
   {
     name: "create_appointment",
