@@ -11,7 +11,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: "FlowMed — Agenda e formulários para sua clínica",
   description:
-    "Centralize agenda, formulários clínicos e comunicação com o paciente. Autenticação, papéis e LGPD.",
+    "Centralize agenda, formulários clínicos e comunicação com o paciente. Autenticação, papéis e recursos de privacidade.",
   manifest: "/brand/site.webmanifest",
   icons: {
     icon: [

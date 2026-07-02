@@ -123,11 +123,22 @@ export async function deletePatient(id: string) {
   const supabase = await createClient();
   const { data: patient } = await supabase
     .from("patients")
-    .select("clinic_id, email, full_name")
+    .select("clinic_id, email, full_name, photo_url")
     .eq("id", id)
     .single();
   const { error } = await supabase.from("patients").delete().eq("id", id);
   if (error) return { error: error.message };
+
+  if (patient?.clinic_id && patient.photo_url) {
+    const { patientPhotoStoragePath, PATIENT_PHOTOS_BUCKET } = await import(
+      "@/lib/storage/patient-photo"
+    );
+    const photoPath = patientPhotoStoragePath(patient.photo_url);
+    if (photoPath) {
+      await supabase.storage.from(PATIENT_PHOTOS_BUCKET).remove([photoPath]);
+    }
+  }
+
   try {
     if (patient?.clinic_id) {
       const { data: { user } } = await supabase.auth.getUser();

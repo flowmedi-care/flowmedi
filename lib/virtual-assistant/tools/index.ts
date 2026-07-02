@@ -22,6 +22,7 @@ import {
   lookupPatientByPhone,
   registerPatientViaAssistant,
 } from "../services/patients";
+import { minimizePatientForAiToolResult } from "../minimize-patient-for-ai";
 import {
   getProcedureInfo,
   listPriceOptionsForClinic,
@@ -378,10 +379,11 @@ export async function executeAssistantTool(
     switch (name) {
       case "lookup_patient_by_phone": {
         const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
-        const summary = patient ? `Paciente: ${patient.full_name}` : "Paciente não cadastrado";
+        const minimized = minimizePatientForAiToolResult(patient);
+        const summary = patient ? `Paciente: ${minimized.display_name}` : "Paciente não cadastrado";
         await logToolCall(supabase, clinicId, conversationId, name, {}, summary, true);
         return {
-          result: JSON.stringify(patient ?? { found: false }),
+          result: JSON.stringify(minimized),
           statePatch: patient
             ? { patient_id: patient.id, ...patchBookingStepFromTool(name, {}, patient as Record<string, unknown>, ctx.aiState) }
             : patchBookingStepFromTool(name, {}, { found: false }, ctx.aiState),

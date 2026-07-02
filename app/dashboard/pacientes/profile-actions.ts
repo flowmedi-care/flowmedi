@@ -10,6 +10,10 @@ import {
   type ClinicalDocItem,
   type RecommendationItem,
 } from "./profile-types";
+import {
+  patientPhotoObjectPath,
+  resolvePatientPhotoDisplayUrl,
+} from "@/lib/storage/patient-photo";
 
 export type { PatientProfileBundle } from "./profile-types";
 
@@ -37,6 +41,19 @@ export async function getPatientProfileBundle(
     .single();
 
   if (patientErr || !patient) return { error: "Paciente não encontrado.", data: null };
+
+  const resolvedPhotoUrl = await resolvePatientPhotoDisplayUrl(supabase, patient.photo_url);
+
+  try {
+    const { insertAuditLog } = await import("@/lib/audit-log");
+    await insertAuditLog(supabase, {
+      clinic_id: profile.clinic_id,
+      user_id: user.id,
+      action: "patient_profile_viewed",
+      entity_type: "patient",
+      entity_id: patientId,
+    });
+  } catch (_) {}
 
   const { data: customFieldsRaw } = await supabase
     .from("patient_custom_fields")
@@ -266,7 +283,7 @@ export async function getPatientProfileBundle(
         birth_date: patient.birth_date,
         cpf: patient.cpf,
         notes: patient.notes,
-        photo_url: patient.photo_url,
+        photo_url: resolvedPhotoUrl,
         custom_fields: (patient.custom_fields as Record<string, unknown>) ?? {},
         created_at: patient.created_at,
       },
@@ -321,7 +338,7 @@ export async function uploadPatientPhoto(patientId: string, formData: FormData) 
   if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
 
   const ext = file.name.split(".").pop() || "jpg";
-  const path = `${profile.clinic_id}/${patientId}/avatar.${ext}`;
+  const path = patientPhotoObjectPath(profile.clinic_id, patientId, ext);
   const buffer = await file.arrayBuffer();
 
   const { error: uploadErr } = await supabase.storage.from("patient-photos").upload(path, buffer, {
@@ -332,24 +349,24 @@ export async function uploadPatientPhoto(patientId: string, formData: FormData) 
   if (uploadErr) {
     return {
       error: uploadErr.message.includes("Bucket not found")
-        ? "Configure o bucket patient-photos no Supabase Storage."
+        ? "Configure o bucket patient-photos no Supabase Storage (rode migration-patient-photos-private.sql)."
         : uploadErr.message,
     };
   }
 
-  const { data: urlData } = supabase.storage.from("patient-photos").getPublicUrl(path);
-
   const { error: updateErr } = await supabase
     .from("patients")
-    .update({ photo_url: urlData.publicUrl, updated_at: new Date().toISOString() })
+    .update({ photo_url: path, updated_at: new Date().toISOString() })
     .eq("id", patientId)
     .eq("clinic_id", profile.clinic_id);
 
   if (updateErr) return { error: updateErr.message };
 
+  const displayUrl = await resolvePatientPhotoDisplayUrl(supabase, path);
+
   revalidatePath(`/dashboard/contatos/pacientes/${patientId}`);
   revalidatePath(`/dashboard/pacientes/${patientId}`);
   revalidatePath("/dashboard/contatos/pacientes");
   revalidatePath("/dashboard/pacientes");
-  return { error: null, photoUrl: urlData.publicUrl };
+  return { error: null, photoUrl: displayUrl };
 }

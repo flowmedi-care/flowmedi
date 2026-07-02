@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 interface SignUpFormProps {
@@ -25,6 +26,7 @@ export function SignUpForm({ redirectTo, prefilledEmail }: SignUpFormProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const finalRedirect =
@@ -42,6 +44,10 @@ export function SignUpForm({ redirectTo, prefilledEmail }: SignUpFormProps) {
     }
     if (password.length < 6) {
       setError("A senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+    if (!acceptedTerms) {
+      setError("Você precisa aceitar os Termos de Serviço e a Política de Privacidade.");
       return;
     }
 
@@ -152,6 +158,26 @@ export function SignUpForm({ redirectTo, prefilledEmail }: SignUpFormProps) {
           />
         </div>
 
+        <label className="flex items-start gap-2 text-sm text-muted-foreground cursor-pointer">
+          <input
+            type="checkbox"
+            checked={acceptedTerms}
+            onChange={(e) => setAcceptedTerms(e.target.checked)}
+            className="mt-1 rounded border-border"
+          />
+          <span>
+            Li e aceito os{" "}
+            <Link href="/termos-de-servico" className="text-primary underline-offset-2 hover:underline" target="_blank">
+              Termos de Serviço
+            </Link>{" "}
+            e a{" "}
+            <Link href="/politica-de-privacidade" className="text-primary underline-offset-2 hover:underline" target="_blank">
+              Política de Privacidade
+            </Link>
+            .
+          </span>
+        </label>
+
         <motion.div
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
@@ -161,7 +187,7 @@ export function SignUpForm({ redirectTo, prefilledEmail }: SignUpFormProps) {
         >
           <Button
             type="submit"
-            disabled={loading}
+            disabled={loading || !acceptedTerms}
             className={cn(
               "w-full h-10 relative overflow-hidden",
               isHovered && "shadow-lg shadow-primary/20"

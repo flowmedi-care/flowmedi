@@ -14,7 +14,7 @@ const features = [
   { icon: Calendar, label: "Agenda central" },
   { icon: FileText, label: "Formulários clínicos" },
   { icon: MessageSquare, label: "Comunicação" },
-  { icon: Shield, label: "LGPD" },
+  { icon: Shield, label: "Privacidade" },
 ];
 
 interface AuthShellProps {

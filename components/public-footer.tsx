@@ -9,7 +9,7 @@ export function PublicFooter() {
           <div className="space-y-4">
             <FlowmediLogo href="/" showText={true} size="sm" />
             <p className="max-w-xs text-sm text-muted-foreground">
-              Agenda, formulários e comunicação para sua clínica. Simples e em conformidade com a LGPD.
+              Agenda, formulários e comunicação para sua clínica. Recursos que auxiliam a gestão de dados pessoais.
             </p>
           </div>
           <div className="grid gap-8 sm:grid-cols-2 md:flex md:gap-12">
@@ -71,6 +71,38 @@ export function PublicFooter() {
                     className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                   >
                     Exclusão de dados
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/encarregado-dados"
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Encarregado de dados
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/acordo-tratamento-dados"
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Acordo de tratamento (DPA)
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/politica-de-cookies"
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Política de cookies
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/subprocessadores"
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Subprocessadores
                   </Link>
                 </li>
               </ul>

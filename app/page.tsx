@@ -33,7 +33,7 @@ export default function HomePage() {
               </h1>
               <p className="mt-6 text-lg text-muted-foreground sm:text-xl max-w-2xl mx-auto leading-relaxed">
                 Centralize a agenda por profissional, envie formulários clínicos ao paciente
-                e mantenha tudo organizado com confirmações e LGPD em dia.
+                e mantenha tudo organizado com confirmações e recursos de privacidade.
               </p>
               <div className="mt-10 flex flex-wrap gap-4 justify-center">
                 <Link href="/criar-conta">
@@ -104,7 +104,7 @@ export default function HomePage() {
                 Tudo que sua clínica precisa
               </h2>
               <p className="mt-4 text-lg text-muted-foreground">
-                Fluxo completo: da agenda ao paciente, com segurança e conformidade.
+                Fluxo completo: da agenda ao paciente, com segurança e controles de acesso.
               </p>
             </div>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto">
@@ -142,10 +142,10 @@ export default function HomePage() {
                 <div className="mb-4 inline-flex rounded-xl bg-primary/10 p-3">
                   <Shield className="h-6 w-6 text-primary" />
                 </div>
-                <h3 className="font-semibold text-foreground">LGPD</h3>
+                <h3 className="font-semibold text-foreground">Privacidade</h3>
                 <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                  Consentimento do paciente registrado. Bloqueio de envio sem
-                  aceite explícito.
+                  Registro de consentimento, isolamento de dados por clínica e
+                  canal para solicitações de titulares.
                 </p>
               </div>
             </div>

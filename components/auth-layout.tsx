@@ -16,7 +16,7 @@ const features = [
   { icon: Calendar, label: "Agenda central" },
   { icon: FileText, label: "Formulários clínicos" },
   { icon: MessageSquare, label: "Comunicação" },
-  { icon: Shield, label: "LGPD" },
+  { icon: Shield, label: "Privacidade" },
 ];
 
 export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
@@ -42,7 +42,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
               Tudo para sua clínica em um só lugar
             </h2>
             <p className="mt-3 text-primary-foreground/90 text-lg">
-              Agenda, formulários e comunicação integrados. Simples e em conformidade.
+              Agenda, formulários e comunicação integrados. Dados isolados por clínica.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">

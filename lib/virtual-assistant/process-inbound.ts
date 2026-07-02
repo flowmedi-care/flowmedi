@@ -16,6 +16,8 @@ import {
   intentToAiStatePatch,
 } from "./detect-inbound-intent";
 import { tryReactivateAiAfterHandoff } from "./handoff-reactivation";
+import { ensureAiPrivacyNoticeSent } from "./ai-privacy-notice";
+import { buildClinicContext } from "./clinic-context";
 
 export interface SkipMenuChatbotResult {
   skipMenu: boolean;
@@ -131,7 +133,7 @@ async function processConversationAiInner(
   const { data: conv } = await supabase
     .from("whatsapp_conversations")
     .select(
-      "id, clinic_id, phone_number, ai_enabled, ai_handoff_at, ai_user_opt_out, ai_debounce_until, ai_state, patient_id"
+      "id, clinic_id, phone_number, ai_enabled, ai_handoff_at, ai_user_opt_out, ai_debounce_until, ai_state, patient_id, ai_privacy_notice_sent_at"
     )
     .eq("id", conversationId)
     .single();
@@ -609,6 +611,17 @@ async function processConversationAiInner(
       ai_debounce_until: null,
     })
     .eq("id", conversationId);
+
+  const clinicCtx = await buildClinicContext(supabase, conv.clinic_id);
+  await ensureAiPrivacyNoticeSent(supabase, {
+    conversationId,
+    clinicId: conv.clinic_id,
+    phoneNumber: conv.phone_number,
+    clinicName: clinicCtx.clinicName,
+    alreadySent: Boolean(
+      (conv as { ai_privacy_notice_sent_at?: string | null }).ai_privacy_notice_sent_at
+    ),
+  });
 
   await sendAssistantReply(
     supabase,

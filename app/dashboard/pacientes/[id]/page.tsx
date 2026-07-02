@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import { getPatientProfileBundle } from "../profile-actions";
 import { PacientePerfilClient } from "./paciente-perfil-client";
+import { getPatientConsentsAction } from "../consent-actions";
+import { getClinicConsentSettings } from "@/lib/consent/consent-service";
 
 export default async function PacientePerfilPage({
   params,
@@ -28,12 +30,22 @@ export default async function PacientePerfilPage({
   const canEdit = profile.role === "admin" || profile.role === "secretaria" || profile.role === "medico";
   const canCancelComanda = profile.role === "admin" || profile.role === "secretaria";
 
+  const [consentsRes, consentSettings] = await Promise.all([
+    getPatientConsentsAction(id),
+    getClinicConsentSettings(supabase, profile.clinic_id),
+  ]);
+
   return (
     <PacientePerfilClient
       bundle={bundle}
       canEdit={canEdit}
       canCancelComanda={canCancelComanda}
       userRole={profile.role}
+      patientConsents={consentsRes.data ?? []}
+      defaultConsentText={
+        consentSettings.default_consent_text ??
+        "Autorizo o recebimento de comunicações de marketing e promoções da clínica por e-mail e WhatsApp."
+      }
     />
   );
 }

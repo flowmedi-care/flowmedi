@@ -240,6 +240,7 @@ export const DASHBOARD_CONFIG_GROUP: NavGroupItem = {
     { href: "/dashboard/configuracoes/campos-personalizados", label: "Campos personalizados" },
     { href: "/dashboard/configuracoes/contas-bancarias", label: "Contas bancárias" },
     { href: "/dashboard/configuracoes/site", label: "Site da clínica" },
+    { href: "/dashboard/configuracoes/seguranca", label: "Segurança (MFA)" },
     { href: "/dashboard/configuracoes/assinatura", label: "Assinatura" },
   ],
 };
@@ -257,6 +258,13 @@ export const DASHBOARD_UTILITY_NAV: NavLinkItem[] = [
     label: "Meu Perfil",
     icon: "users",
     roles: ["medico"],
+  },
+  {
+    type: "link",
+    href: "/dashboard/privacidade/solicitacoes",
+    label: "Privacidade (DSAR)",
+    icon: "shield-check",
+    roles: ["admin", "secretaria"],
   },
   {
     type: "link",

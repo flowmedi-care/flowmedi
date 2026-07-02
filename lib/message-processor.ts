@@ -174,9 +174,16 @@ export async function processMessageEvent(
       }
     }
 
-    // 2. Consentimento LGPD: não bloqueamos envio de mensagens transacionais (lembretes, confirmações, etc.).
-    // A base legal é execução de contrato/legítimo interesse — paciente já se relaciona com a clínica ao agendar.
-    // A tabela consents permanece disponível para clínicas que quiserem registrar consentimento explícito.
+    // 2. Consentimento LGPD: mensagens transacionais seguem base legal da clínica;
+    // comunicações de marketing exigem consentimento quando configurado.
+    const { canSendMessageToPatient } = await import("@/lib/consent/consent-service");
+    const consentCheck = await canSendMessageToPatient(supabase, clinicId, patientId, eventCode);
+    if (!consentCheck.allowed) {
+      return {
+        success: false,
+        error: consentCheck.reason ?? "Envio bloqueado por falta de consentimento.",
+      };
+    }
 
     // 3. Buscar template: primeiro customizado (message_templates), senão padrão do sistema (system_message_templates)
     let template: { id?: string; subject?: string | null; body_html: string; email_header?: string | null; email_footer?: string | null; whatsapp_meta_phrase?: string | null; channel: string } | null = null;

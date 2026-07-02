@@ -16,6 +16,7 @@ import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 import { StatCard } from "@/components/dashboard-ui/stat-card";
 import { ListPanel, ListPanelItem } from "@/components/dashboard-ui/list-panel";
 import { uploadPatientPhoto } from "../profile-actions";
+import { PatientConsentCard } from "@/components/patients/patient-consent-card";
 import { getComandaDetail, type ComandaDetail } from "../../agenda/encounter-actions";
 import { CancelComandaDialog } from "../../financeiro/components/cancel-comanda-dialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -122,11 +123,21 @@ export function PacientePerfilClient({
   canEdit,
   canCancelComanda = false,
   userRole,
+  patientConsents = [],
+  defaultConsentText = "",
 }: {
   bundle: PatientProfileBundle;
   canEdit: boolean;
   canCancelComanda?: boolean;
   userRole?: string;
+  patientConsents?: {
+    id: string;
+    purpose: string;
+    text_accepted: string | null;
+    accepted_at: string;
+    revoked_at: string | null;
+  }[];
+  defaultConsentText?: string;
 }) {
   const router = useRouter();
   const { patient, customFields, timeline, consultations, payments, comandas, forms, clinicalDocuments, recommendations, financial } =
@@ -356,6 +367,15 @@ export function PacientePerfilClient({
                   <p className="text-xs text-muted-foreground mt-4">
                     Cadastrado em {new Date(patient.created_at).toLocaleDateString("pt-BR")}
                   </p>
+                  {canEdit && (
+                    <div className="mt-6">
+                      <PatientConsentCard
+                        patientId={patient.id}
+                        initialConsents={patientConsents}
+                        defaultConsentText={defaultConsentText}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 

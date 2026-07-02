@@ -41,7 +41,7 @@ export default function TermosServicoPage() {
             <p>
               O FlowMed é uma plataforma de gestão para clínicas médicas que oferece
               funcionalidades de agendamento, formulários clínicos, comunicação com
-              pacientes e gestão de dados conforme a LGPD. Os serviços são fornecidos
+              pacientes e gestão de dados pessoais com recursos de privacidade. Os serviços são fornecidos
               mediante assinatura de planos conforme disponibilidade.
             </p>
 
@@ -73,7 +73,11 @@ export default function TermosServicoPage() {
               A clínica é responsável pelo tratamento adequado dos dados dos pacientes
               conforme a LGPD e demais legislações aplicáveis. A clínica deve obter os
               consentimentos necessários dos pacientes antes de coletar e processar seus
-              dados pessoais. O FlowMed atua como operador de tratamento de dados.
+              dados pessoais, definir as bases legais aplicáveis e utilizar a plataforma de acordo com o{" "}
+              <Link href="/acordo-tratamento-dados" className="text-primary underline-offset-2 hover:underline">
+                Acordo de Tratamento de Dados (DPA)
+              </Link>
+              . O FlowMed atua como operador de tratamento de dados.
             </p>
 
             <h2 className="text-lg font-semibold text-foreground">
