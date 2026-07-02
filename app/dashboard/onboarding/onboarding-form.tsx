@@ -77,7 +77,7 @@ export function OnboardingForm({ initialFullName = "" }: { initialFullName?: str
     router.refresh();
     // Pequeno delay para garantir que o refresh seja processado
     setTimeout(() => {
-      window.location.href = "/dashboard";
+      window.location.href = "/dashboard/onboarding/mfa";
     }, 100);
   }
 

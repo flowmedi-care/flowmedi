@@ -4,12 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { resolvePostAuthRedirect } from "@/lib/auth/post-auth-redirect";
+import { needsMfaVerificationAtLogin, verifyTotpLogin } from "@/lib/compliance/mfa-service";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { cn } from "@/lib/utils";
 
@@ -18,10 +19,14 @@ interface SignInFormProps {
   oauthError?: boolean;
 }
 
+type LoginStep = "credentials" | "mfa";
+
 export function SignInForm({ redirectTo, oauthError }: SignInFormProps) {
   const router = useRouter();
+  const [step, setStep] = useState<LoginStep>("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [error, setError] = useState<string | null>(
@@ -31,7 +36,14 @@ export function SignInForm({ redirectTo, oauthError }: SignInFormProps) {
   );
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function finishLogin(supabase: ReturnType<typeof createClient>, userId: string) {
+    const path = await resolvePostAuthRedirect(supabase, userId, redirectTo);
+    router.refresh();
+    router.push(path);
+    setLoading(false);
+  }
+
+  async function handleCredentialsSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
@@ -58,10 +70,96 @@ export function SignInForm({ redirectTo, oauthError }: SignInFormProps) {
       return;
     }
 
-    const path = await resolvePostAuthRedirect(supabase, user.id, redirectTo);
-    router.refresh();
-    router.push(path);
-    setLoading(false);
+    const needsMfa = await needsMfaVerificationAtLogin(supabase);
+    if (needsMfa) {
+      setLoading(false);
+      setStep("mfa");
+      return;
+    }
+
+    await finishLogin(supabase, user.id);
+  }
+
+  async function handleMfaSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (!mfaCode.trim()) {
+      setError("Informe o código de 6 dígitos do aplicativo.");
+      return;
+    }
+
+    setLoading(true);
+    const supabase = createClient();
+    const verify = await verifyTotpLogin(supabase, mfaCode.trim());
+    if (verify.error) {
+      setLoading(false);
+      setError(verify.error);
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setLoading(false);
+      setError("Erro ao obter sessão. Tente novamente.");
+      return;
+    }
+
+    await finishLogin(supabase, user.id);
+  }
+
+  if (step === "mfa") {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-lg border border-border bg-muted/30 p-4 flex gap-3">
+          <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-foreground">Verificação em dois fatores</p>
+            <p className="text-muted-foreground mt-1">
+              Abra o Google Authenticator ou Authy e digite o código de 6 dígitos.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleMfaSubmit} className="space-y-5">
+          {error && (
+            <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">{error}</p>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="mfa-code">Código do autenticador</Label>
+            <Input
+              id="mfa-code"
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value)}
+              placeholder="000000"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              className="bg-muted/30 tracking-widest text-center text-lg"
+            />
+          </div>
+
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? "Verificando…" : "Verificar e entrar"}
+          </Button>
+
+          <button
+            type="button"
+            className="w-full text-sm text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setStep("credentials");
+              setMfaCode("");
+              setError(null);
+            }}
+          >
+            Voltar para senha
+          </button>
+        </form>
+      </div>
+    );
   }
 
   return (
@@ -77,7 +175,7 @@ export function SignInForm({ redirectTo, oauthError }: SignInFormProps) {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleCredentialsSubmit} className="space-y-5">
         {error && (
           <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
             {error}

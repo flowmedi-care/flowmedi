@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { isMfaEnrolled, type MfaFactorsList } from "@/lib/compliance/mfa-helpers";
 import { MfaSetupClient } from "./mfa-setup-client";
 
 export default async function SegurancaPage() {
@@ -11,7 +12,7 @@ export default async function SegurancaPage() {
   if (!user) redirect("/entrar");
 
   const { data: factors } = await supabase.auth.mfa.listFactors();
-  const hasTotp = (factors?.totp?.length ?? 0) > 0;
+  const hasVerifiedTotp = isMfaEnrolled(factors as MfaFactorsList);
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -22,7 +23,7 @@ export default async function SegurancaPage() {
         </p>
       </div>
       <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}>
-        <MfaSetupClient hasTotp={hasTotp} />
+        <MfaSetupClient initialEnrolled={hasVerifiedTotp} />
       </Suspense>
     </div>
   );

@@ -1,18 +1,49 @@
-# MFA — Configuração Supabase Auth
+# MFA — Configuração Supabase Auth e fluxo FlowMed
 
 ## Dashboard Supabase
 
 1. Authentication → Providers → confirmar e-mail obrigatório
 2. Authentication → MFA → habilitar TOTP para o projeto
-3. (Opcional) Política de senha mínima 8+ caracteres no Dashboard
+3. Política de senha mínima 8+ caracteres no Dashboard (complementa validação no signup)
 
-## Aplicação FlowMed
+## Fluxo no FlowMed
 
-- Página `/dashboard/configuracoes/seguranca` — enrollment TOTP via Supabase MFA API
-- Banner `MfaReminderBanner` no dashboard quando MFA ausente
+### Configuração única (wizard)
 
-## Recomendação
+- Rota: `/dashboard/onboarding/mfa`
+- **Quando:** admin após criar clínica; médico/admin sem MFA ao acessar o dashboard (middleware)
+- Passos: por quê → instalar app → QR + código → conclusão
+- Fatores TOTP incompletos (`unverified`) são removidos automaticamente antes de novo enrollment
 
-Exigir MFA para perfis `admin` e `medico` após período de adaptação (comunicar clínicas com 30 dias de antecedência).
+### Login (cada sessão)
 
-**Lacuna:** enforcement obrigatório no login ainda não implementado — apenas lembrete e página de setup.
+- Rota: `/entrar`
+- Após e-mail + senha, se MFA verificado: passo 2 com código de 6 dígitos do app
+- Não reescaneia QR — só o código rápido
+
+### Gestão (opcional)
+
+- `/dashboard/configuracoes/seguranca` — reconfigurar ou ver status
+- Banner no dashboard se MFA ausente (link para wizard se obrigatório)
+
+## Papéis
+
+| Papel | MFA obrigatório |
+|-------|-----------------|
+| admin | Sim |
+| medico | Sim |
+| secretaria | Não (opcional) |
+
+## Arquivos principais
+
+- `lib/compliance/mfa-helpers.ts` — fatores verified vs unverified
+- `lib/compliance/mfa-service.ts` — enroll, unenroll, verify
+- `lib/compliance/mfa-middleware.ts` — bloqueio só sem enrollment
+- `components/compliance/mfa-wizard.tsx` — wizard step-by-step
+- `components/auth/sign-in-form.tsx` — código TOTP pós-senha
+
+## Troubleshooting
+
+**Erro "A factor with the friendly name already exists"**
+
+Configuração anterior não foi concluída. No wizard ou em Segurança, use **"Remover e recomeçar"** — chama `mfa.unenroll` nos fatores pendentes.

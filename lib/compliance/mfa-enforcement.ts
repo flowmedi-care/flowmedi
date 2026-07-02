@@ -1,4 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isMfaEnrolled } from "@/lib/compliance/mfa-helpers";
+import type { MfaFactorsList } from "@/lib/compliance/mfa-helpers";
+import { MFA_WIZARD_PATH } from "@/lib/compliance/mfa-helpers";
 
 /** Papéis com MFA obrigatório (LGPD art. 46 — dados de saúde). */
 export const MFA_REQUIRED_ROLES = ["admin", "medico"] as const;
@@ -9,13 +12,16 @@ export function requiresMfaForRole(role: string | null | undefined): boolean {
   return Boolean(role && MFA_REQUIRED_ROLES.includes(role as MfaRequiredRole));
 }
 
-/** Rotas do dashboard isentas do bloqueio MFA (configuração e logout). */
+/** Rotas isentas do bloqueio de enrollment MFA. */
 export const MFA_EXEMPT_PATH_PREFIXES = [
+  MFA_WIZARD_PATH,
   "/dashboard/configuracoes/seguranca",
+  "/dashboard/onboarding",
   "/entrar",
   "/auth",
   "/acesso-removido",
   "/criar-conta",
+  "/convite",
 ];
 
 export function isMfaExemptPath(pathname: string): boolean {
@@ -29,7 +35,7 @@ export async function getMfaComplianceStatus(
   needsVerification: boolean;
 }> {
   const { data: factors } = await supabase.auth.mfa.listFactors();
-  const enrolled = (factors?.totp?.length ?? 0) > 0;
+  const enrolled = isMfaEnrolled(factors as MfaFactorsList);
 
   if (!enrolled) {
     return { enrolled: false, needsVerification: false };

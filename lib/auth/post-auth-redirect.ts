@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveMfaWizardRedirect } from "@/lib/compliance/mfa-redirect";
 
 /**
  * Resolve o path de redirect após login (email/senha ou OAuth).
- * system_admin → /admin/system; caso contrário redirectTo ou /dashboard.
+ * system_admin → /admin/system; admin/medico sem MFA → wizard.
  */
 export async function resolvePostAuthRedirect(
   supabase: SupabaseClient,
@@ -19,11 +20,12 @@ export async function resolvePostAuthRedirect(
     return "/admin/system";
   }
 
-  if (redirectTo && redirectTo.startsWith("/")) {
-    return redirectTo;
-  }
+  const safeRedirect =
+    redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
+      ? redirectTo
+      : undefined;
 
-  return "/dashboard";
+  return resolveMfaWizardRedirect(supabase, userId, safeRedirect);
 }
 
 /**

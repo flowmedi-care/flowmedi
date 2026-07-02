@@ -1,14 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  getMfaComplianceStatus,
   isMfaExemptPath,
   requiresMfaForRole,
 } from "@/lib/compliance/mfa-enforcement";
+import { checkMfaEnrolled } from "@/lib/compliance/mfa-service";
+import { MFA_WIZARD_PATH } from "@/lib/compliance/mfa-helpers";
 
 /**
- * Redireciona admin/médico sem MFA para a página de segurança.
- * Retorna null se não houver redirecionamento.
+ * Redireciona admin/médico sem MFA verificado para o wizard.
+ * Verificação por login (código TOTP) não é feita aqui.
  */
 export async function enforceMfaMiddleware(
   request: NextRequest,
@@ -31,21 +32,10 @@ export async function enforceMfaMiddleware(
 
   if (!requiresMfaForRole(profile?.role)) return null;
 
-  const { enrolled, needsVerification } = await getMfaComplianceStatus(supabase);
+  const enrolled = await checkMfaEnrolled(supabase);
+  if (enrolled) return null;
 
-  if (!enrolled) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard/configuracoes/seguranca";
-    url.searchParams.set("mfa_required", "1");
-    return NextResponse.redirect(url);
-  }
-
-  if (needsVerification) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard/configuracoes/seguranca";
-    url.searchParams.set("mfa_verify", "1");
-    return NextResponse.redirect(url);
-  }
-
-  return null;
+  const url = request.nextUrl.clone();
+  url.pathname = MFA_WIZARD_PATH;
+  return NextResponse.redirect(url);
 }
