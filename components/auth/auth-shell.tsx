@@ -54,23 +54,20 @@ export function AuthShell({
               >
                 <FlowmediLogo href="/" showText={false} size="lg" />
               </motion.div>
-              <motion.h2
+              <motion.div
                 initial={{ opacity: 0, y: -16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6, duration: 0.45 }}
-                className="text-3xl font-bold mb-2 text-center text-primary"
+                transition={{ delay: 0.62, duration: 0.45 }}
+                className="mb-8 rounded-xl bg-background/70 backdrop-blur-sm px-4 py-3 border border-border/40 shadow-sm"
               >
-                FlowMedi
-              </motion.h2>
-              <motion.p
-                initial={{ opacity: 0, y: -16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7, duration: 0.45 }}
-                className="text-sm text-center text-muted-foreground max-w-xs mb-8"
-              >
-                Tudo para sua clínica em um só lugar. Agenda, formulários e
-                comunicação integrados.
-              </motion.p>
+                <h2 className="text-3xl font-bold mb-2 text-center text-primary">
+                  FlowMedi
+                </h2>
+                <p className="text-sm text-center text-muted-foreground max-w-xs">
+                  Tudo para sua clínica em um só lugar. Agenda, formulários e
+                  comunicação integrados.
+                </p>
+              </motion.div>
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}

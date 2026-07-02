@@ -12,7 +12,6 @@ type FlowCurve = {
 };
 
 const FLOW_COLOR = "#22C55E";
-const FLOW_COLOR_LIGHT = "rgba(34, 197, 94, 0.35)";
 
 function cubicBezierPoint(
   t: number,
@@ -125,18 +124,19 @@ export function FlowCanvas() {
     const curves = buildCurves(dimensions.width, dimensions.height);
     const dots = generateDots(dimensions.width, dimensions.height);
     let animationFrameId: number;
-    let startTime = Date.now();
+    const startTime = Date.now();
+    const introFadeDuration = 1.4;
 
-    function drawDots() {
+    function drawDots(alpha: number) {
       dots.forEach((dot) => {
         ctx!.beginPath();
         ctx!.arc(dot.x, dot.y, 1, 0, Math.PI * 2);
-        ctx!.fillStyle = `rgba(34, 197, 94, ${dot.opacity})`;
+        ctx!.fillStyle = `rgba(34, 197, 94, ${dot.opacity * alpha})`;
         ctx!.fill();
       });
     }
 
-    function drawFlows() {
+    function drawFlows(alpha: number) {
       const currentTime = (Date.now() - startTime) / 1000;
 
       curves.forEach((curve) => {
@@ -156,7 +156,7 @@ export function FlowCanvas() {
           curve.end.x,
           curve.end.y
         );
-        ctx!.strokeStyle = FLOW_COLOR_LIGHT;
+        ctx!.strokeStyle = `rgba(34, 197, 94, ${0.35 * alpha})`;
         ctx!.lineWidth = 1.5;
         ctx!.stroke();
 
@@ -178,29 +178,29 @@ export function FlowCanvas() {
           partialEnd.x,
           partialEnd.y
         );
-        ctx!.strokeStyle = curve.color;
+        ctx!.strokeStyle = `rgba(34, 197, 94, ${alpha})`;
         ctx!.lineWidth = 2;
         ctx!.stroke();
 
         ctx!.beginPath();
         ctx!.arc(curve.start.x, curve.start.y, 3, 0, Math.PI * 2);
-        ctx!.fillStyle = curve.color;
+        ctx!.fillStyle = `rgba(34, 197, 94, ${alpha})`;
         ctx!.fill();
 
         ctx!.beginPath();
         ctx!.arc(partialEnd.x, partialEnd.y, 4, 0, Math.PI * 2);
-        ctx!.fillStyle = FLOW_COLOR;
+        ctx!.fillStyle = `rgba(34, 197, 94, ${alpha})`;
         ctx!.fill();
 
         ctx!.beginPath();
         ctx!.arc(partialEnd.x, partialEnd.y, 8, 0, Math.PI * 2);
-        ctx!.fillStyle = "rgba(34, 197, 94, 0.3)";
+        ctx!.fillStyle = `rgba(34, 197, 94, ${0.3 * alpha})`;
         ctx!.fill();
 
         if (progress === 1) {
           ctx!.beginPath();
           ctx!.arc(curve.end.x, curve.end.y, 3, 0, Math.PI * 2);
-          ctx!.fillStyle = curve.color;
+          ctx!.fillStyle = `rgba(34, 197, 94, ${alpha})`;
           ctx!.fill();
         }
       });
@@ -208,13 +208,10 @@ export function FlowCanvas() {
 
     function animate() {
       ctx!.clearRect(0, 0, dimensions.width, dimensions.height);
-      drawDots();
-      drawFlows();
-
       const currentTime = (Date.now() - startTime) / 1000;
-      if (currentTime > 18) {
-        startTime = Date.now();
-      }
+      const alpha = Math.min(currentTime / introFadeDuration, 1);
+      drawDots(alpha);
+      drawFlows(alpha);
 
       animationFrameId = requestAnimationFrame(animate);
     }
