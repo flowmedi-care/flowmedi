@@ -8,30 +8,30 @@ export function buildContextualResumePrompt(journey: ContactJourney): string {
 
   if (journey.contactIntent === "operacional" && journey.appointmentScheduledAt) {
     const date = new Date(journey.appointmentScheduledAt).toLocaleString("pt-BR");
-    return `Olá ${journey.displayName}, vi que você tem uma consulta marcada para ${date}. Quer falar sobre isso ou outro assunto?`;
+    return `Cumprimente ${journey.displayName} e mencione a consulta de ${date}; pergunte se é sobre essa consulta ou outro assunto.`;
   }
 
   if (journey.contactIntent === "reativacao") {
-    return `Olá ${journey.displayName}, faz um tempo que não nos vemos! Como podemos ajudar você hoje?`;
+    return `Cumprimente ${journey.displayName} e pergunte diretamente o que precisa — sem frases genéricas de reativação.`;
   }
 
   if (journey.contactIntent === "captacao" && journey.motivoProvavel === "preco") {
-    return `Olá ${journey.displayName}, na nossa última conversa estávamos falando de valores. Gostaria de retomar?`;
+    return `Retome com ${journey.displayName} o assunto de valores da conversa anterior; pergunte se quer continuar.`;
   }
 
   if (journey.contactIntent === "captacao") {
-    return `Olá ${journey.displayName}, vimos que na última conversa estávamos em "${step.label}". Quer continuar de onde paramos?`;
+    return `Retome com ${journey.displayName} a etapa "${step.label}" da conversa anterior; pergunte se quer continuar.`;
   }
 
   if (journey.contactIntent === "financeiro") {
-    return `Olá ${journey.displayName}, posso ajudar com questões de pagamento ou comprovante?`;
+    return `Pergunte a ${journey.displayName} se precisa de ajuda com pagamento ou comprovante.`;
   }
 
   if (journey.contactIntent === "pos_atendimento") {
-    return `Olá ${journey.displayName}, gostaríamos de saber como foi sua experiência conosco. Pode nos contar?`;
+    return `Pergunte a ${journey.displayName} como foi o atendimento — de forma direta, sem rodeios.`;
   }
 
-  return `Olá ${journey.displayName}, como posso ajudar? (Contexto: ${intentLabel} — ${step.label})`;
+  return `Atenda ${journey.displayName} conforme o contexto: ${intentLabel}, etapa "${step.label}".`;
 }
 
 export function formatJourneyContextForAi(journey: ContactJourney): string {

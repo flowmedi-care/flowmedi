@@ -123,6 +123,7 @@ export async function runVirtualAssistantAgent(opts: {
       model,
       messages,
       tools: ASSISTANT_TOOLS,
+      temperature: 0.5,
     });
     logTokenUsage(opts.clinicId, completion.usage);
 

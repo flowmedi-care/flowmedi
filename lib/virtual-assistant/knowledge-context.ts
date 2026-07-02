@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { VirtualAssistantFaq, VirtualAssistantLocation, VirtualAssistantSettings } from "./types";
 import { DAY_LABELS, type DayKey } from "./types";
+import { buildResponseStyleBlock, getEmojiRule, getToneLabel } from "./response-style";
 
 type ClinicRow = {
   name: string;
@@ -216,8 +217,8 @@ export async function buildKnowledgeContext(
     return parts.join("\n");
   });
 
-  const tone = s.tone === "formal" ? "formal e respeitoso" : "casual e acolhedor";
-  const emojiRule = s.use_emojis !== false ? "Pode usar emojis com moderação." : "Não use emojis.";
+  const tone = getToneLabel(s);
+  const emojiRule = getEmojiRule(s);
 
   const sections = [
     `# Identidade`,
@@ -225,6 +226,8 @@ export async function buildKnowledgeContext(
     `Tom: ${tone}. ${emojiRule}`,
     s.short_description ? `Sobre: ${s.short_description}` : "",
     `Segmento: ${s.segment ?? "clínica"}`,
+
+    buildResponseStyleBlock(s),
 
     `# Localização e contato`,
     c.address ? `Endereço principal: ${c.address}` : "",
@@ -277,7 +280,7 @@ export async function buildKnowledgeContext(
       : "",
 
     `# Regras de atendimento`,
-    "- Respostas curtas (máx. 3 parágrafos), naturais para WhatsApp.",
+    "- Respostas curtas (1–2 parágrafos na maioria dos casos), naturais para WhatsApp.",
     "- NUNCA mostre UUIDs ao paciente — use apenas nomes, datas e valores. IDs são só para ferramentas internas.",
     "- Se não souber, diga que vai verificar ou ofereça transferir para humano.",
     "- Nunca invente preços ou horários: use as ferramentas disponíveis.",
@@ -297,7 +300,7 @@ export function buildBehaviorInstructions(settings: Partial<VirtualAssistantSett
   return [
     "Você está atendendo via WhatsApp.",
     `O paciente pode enviar várias mensagens seguidas; você recebe o lote após ~${debounce}s de pausa.`,
-    "Responda de forma conversacional, como uma secretária experiente da clínica.",
+    "Responda de forma conversacional, objetiva e específica — como uma secretária experiente da clínica.",
     "",
     "## Primeira mensagem ou saudação",
     "Cumprimente e ofereça um menu numerado curto, por exemplo:",
