@@ -1,37 +1,83 @@
-# Bases legais — mensagens automáticas
+# Bases legais por módulo
 
 **Versão:** 2026-07-02  
-**Escopo:** comportamento implementado em `lib/message-processor.ts` e `lib/consent/consent-service.ts`
+**Aviso:** bases sugeridas — **validação jurídica obrigatória** pela clínica controladora.
 
-## Mensagens transacionais (não bloqueadas por consentimento de marketing)
+## Mensagens automáticas
 
-Eventos de agenda, formulários vinculados à consulta e lembretes operacionais, incluindo:
+Ver `lib/message-processor.ts`, `lib/consent/consent-service.ts`, `lib/consent/event-categories.ts`.
 
-- `appointment_*` (criação, confirmação, cancelamento, lembretes)
-- `form_*` (link, lembrete, preenchimento)
-- `public_form_completed`
+### Transacionais (não bloqueadas por consentimento marketing)
 
-**Base legal sugerida (avaliação jurídica da clínica):** art. 7º, V (execução de contrato/prestação de saúde) e/ou art. 7º, IX (legítimo interesse para lembretes necessários ao atendimento).
+- `appointment_*`, `form_*`, `public_form_completed`
+- **Base sugerida:** art. 7º, V e/ou art. 7º, IX
 
-A clínica controladora deve documentar a base escolhida no seu ROPA.
+### Marketing
 
-## Mensagens sujeitas a consentimento
+- `patient_registered`, `patient_nps`, `promotional`, `newsletter`
+- **Base:** art. 7º, I — consentimento em `consents` (opt-in)
 
-Quando `clinic_consent_settings.block_marketing_without_consent = true` (padrão), eventos como:
+---
 
-- `patient_registered`
-- `patient_nps`
-- `promotional`, `newsletter`
-- demais eventos não classificados como transacionais em `lib/consent/event-categories.ts`
+## Formulários públicos (`/f/public/...`)
 
-**Exigem** registro ativo em `consents` com finalidade `marketing` ou `communications`.
+| Dado | Finalidade | Base sugerida |
+|------|------------|---------------|
+| Identificação + respostas clínicas | Anamnese / captação | Art. 11, II, f |
+| Aviso checkbox | Transparência | Art. 9º |
 
-## Registro de consentimento
+Texto UI: aviso Art. 11 no preenchimento (`formulario-publico-preenchimento.tsx`).
 
-- Tabela `consents` com `purpose`, `text_accepted`, `ip_address`, `revoked_at`
-- UI no perfil do paciente (`PatientConsentCard`)
-- Revogação disponível no painel
+---
+
+## Prontuário e atendimento
+
+| Módulo | Dados | Base sugerida |
+|--------|-------|---------------|
+| Fichas clínicas | Saúde sensível | Art. 11, II, f |
+| Notas de consulta | Saúde sensível | Art. 11, II, f |
+| Transcrição (ViaProve) | Áudio/texto | Art. 11, II, f |
+
+---
+
+## Exames (`patient_exams`, bucket `exams`)
+
+| Dado | Finalidade | Base sugerida |
+|------|------------|---------------|
+| Arquivos de exame | Diagnóstico / histórico | Art. 11, II, f |
+
+Armazenamento privado por clínica (RLS + bucket policy).
+
+---
+
+## CRM / captação (`lead-hub`, formulários públicos)
+
+| Dado | Finalidade | Base sugerida |
+|------|------------|---------------|
+| Lead (nome, contato) | Pré-agendamento | Legítimo interesse art. 7º, IX ou consentimento |
+| Marketing pós-cadastro | Promoções | Art. 7º, I — consentimento |
+
+---
+
+## IA WhatsApp
+
+| Tratamento | Base sugerida |
+|------------|---------------|
+| Interpretação de mensagens | Execução de contrato + informação prévia |
+| Opt-out DESATIVE | Art. 18 / transparência |
+
+Ver `lib/virtual-assistant/ai-privacy-notice.ts` e RIPD.
+
+---
+
+## Staff (médico, secretária, admin)
+
+| Dado | Papel FlowMed | Base sugerida |
+|------|---------------|---------------|
+| Conta, e-mail, role | Co-controlador provável | Contrato + política staff |
+
+---
 
 ## Responsabilidade
 
-A clínica define se comunicações específicas são transacionais ou marketing. O FlowMed fornece ferramentas técnicas; a adequação da base legal é do controlador.
+A clínica documenta a base escolhida no ROPA. O FlowMed implementa controles técnicos (consentimento, bloqueios, DSAR, auditoria).

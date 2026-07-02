@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { PASSWORD_HINT, validatePassword } from "@/lib/compliance/password-policy";
+import { getDpaDocumentUrl } from "@/lib/compliance/dpa";
 
 interface SignUpFormProps {
   redirectTo?: string;
@@ -42,8 +44,9 @@ export function SignUpForm({ redirectTo, prefilledEmail }: SignUpFormProps) {
       setError("As duas senhas não coincidem.");
       return;
     }
-    if (password.length < 6) {
-      setError("A senha deve ter no mínimo 6 caracteres.");
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     if (!acceptedTerms) {
@@ -136,11 +139,11 @@ export function SignUpForm({ redirectTo, prefilledEmail }: SignUpFormProps) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={6}
+            minLength={8}
             autoComplete="new-password"
             className="bg-muted/30"
           />
-          <p className="text-xs text-muted-foreground">Mínimo 6 caracteres</p>
+          <p className="text-xs text-muted-foreground">{PASSWORD_HINT}</p>
         </div>
 
         <div className="space-y-2">
@@ -151,7 +154,7 @@ export function SignUpForm({ redirectTo, prefilledEmail }: SignUpFormProps) {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            minLength={6}
+            minLength={8}
             autoComplete="new-password"
             placeholder="Digite a senha novamente"
             className="bg-muted/30"
@@ -173,6 +176,11 @@ export function SignUpForm({ redirectTo, prefilledEmail }: SignUpFormProps) {
             e a{" "}
             <Link href="/politica-de-privacidade" className="text-primary underline-offset-2 hover:underline" target="_blank">
               Política de Privacidade
+            </Link>
+            .
+            {" "}Ao criar uma clínica, você também aceitará o{" "}
+            <Link href={getDpaDocumentUrl()} className="text-primary underline-offset-2 hover:underline" target="_blank">
+              Acordo de Tratamento de Dados (DPA)
             </Link>
             .
           </span>

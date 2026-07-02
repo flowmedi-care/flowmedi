@@ -10,11 +10,14 @@ import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import {
   createDataSubjectRequest,
+  exportPatientDataForDsar,
   listDataSubjectRequests,
+  processPatientDeletionRequest,
   updateDataSubjectRequestStatus,
   type DsarRequestType,
 } from "../dsar-actions";
 import { Badge } from "@/components/ui/badge";
+import { formatDsarDueAt, isDsarOverdue } from "@/lib/compliance/dsar-sla";
 
 const TYPE_LABELS: Record<DsarRequestType, string> = {
   access: "Acesso",
@@ -40,6 +43,9 @@ type RequestRow = {
   requester_email: string | null;
   created_at: string;
   notes: string | null;
+  due_at: string | null;
+  source: string | null;
+  patient_id: string | null;
 };
 
 export function DsarClient({
@@ -92,6 +98,43 @@ export function DsarClient({
       return;
     }
     toast("Status atualizado.", "success");
+    refresh();
+  }
+
+  async function handleExport(patientId: string) {
+    const res = await exportPatientDataForDsar(patientId);
+    if (res.error || !res.data) {
+      toast(res.error ?? "Erro ao exportar.", "error");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(res.data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `paciente-${patientId}-export.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast("Exportação concluída.", "success");
+  }
+
+  async function handleDeletionProcess(request: RequestRow) {
+    if (!request.patient_id) {
+      toast("Vincule um paciente à solicitação antes de processar eliminação.", "error");
+      return;
+    }
+    const res = await processPatientDeletionRequest(request.patient_id, request.id);
+    if (res.error) {
+      toast(res.error, "error");
+      return;
+    }
+    toast(
+      res.action === "anonymized"
+        ? "Paciente anonimizado (prontuário retido conforme CFM)."
+        : "Paciente excluído.",
+      "success"
+    );
     refresh();
   }
 
@@ -156,10 +199,17 @@ export function DsarClient({
                     <span className="font-medium text-foreground">{r.requester_name}</span>
                     <Badge variant="outline">{TYPE_LABELS[r.request_type as DsarRequestType] ?? r.request_type}</Badge>
                     <Badge>{STATUS_LABELS[r.status] ?? r.status}</Badge>
+                    {r.source === "public_portal" && (
+                      <Badge variant="secondary">Portal público</Badge>
+                    )}
+                    {isDsarOverdue(r.due_at, r.status) && (
+                      <Badge variant="destructive">Prazo vencido</Badge>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {new Date(r.created_at).toLocaleString("pt-BR")}
                     {r.requester_email ? ` · ${r.requester_email}` : ""}
+                    {r.due_at ? ` · Prazo: ${formatDsarDueAt(r.due_at)}` : ""}
                   </p>
                   {r.notes && <p className="text-sm text-muted-foreground">{r.notes}</p>}
                   {isAdmin && r.status !== "completed" && r.status !== "rejected" && (
@@ -172,6 +222,26 @@ export function DsarClient({
                           onClick={() => handleStatus(r.id, "in_progress")}
                         >
                           Iniciar
+                        </Button>
+                      )}
+                      {r.request_type === "portability" && r.patient_id && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => handleExport(r.patient_id!)}
+                        >
+                          Exportar JSON
+                        </Button>
+                      )}
+                      {r.request_type === "deletion" && r.patient_id && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => handleDeletionProcess(r)}
+                        >
+                          Processar eliminação
                         </Button>
                       )}
                       <Button

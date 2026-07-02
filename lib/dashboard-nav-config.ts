@@ -261,8 +261,15 @@ export const DASHBOARD_UTILITY_NAV: NavLinkItem[] = [
   },
   {
     type: "link",
+    href: "/dashboard/privacidade",
+    label: "Privacidade (LGPD)",
+    icon: "shield-check",
+    roles: ["admin"],
+  },
+  {
+    type: "link",
     href: "/dashboard/privacidade/solicitacoes",
-    label: "Privacidade (DSAR)",
+    label: "Solicitações DSAR",
     icon: "shield-check",
     roles: ["admin", "secretaria"],
   },

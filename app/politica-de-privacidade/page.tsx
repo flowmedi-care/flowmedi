@@ -12,106 +12,180 @@ export default function PoliticaPrivacidadePage() {
   return (
     <LegalPageShell title="Política de Privacidade" lastUpdated={getPrivacyPolicyVersion()}>
       <p>
-        O {company} (&quot;FlowMed&quot;) é uma plataforma de gestão para clínicas médicas. Esta
-        Política de Privacidade descreve como tratamos dados pessoais no site institucional, nas
-        contas de usuários da plataforma e nos dados processados em nome das clínicas clientes.
+        O {company} (&quot;FlowMed&quot;, &quot;nós&quot;) é uma plataforma SaaS de gestão para
+        clínicas médicas. Esta Política de Privacidade descreve como tratamos dados pessoais no site
+        institucional, nas contas de usuários da plataforma e nos dados processados em nome das
+        clínicas clientes, em conformidade com a Lei nº 13.709/2018 (LGPD).
       </p>
 
-      <LegalH2>1. Papéis na LGPD</LegalH2>
+      <LegalH2>1. Veracidade das informações</LegalH2>
+      <p>
+        O titular é responsável pela veracidade dos dados informados. Dados incorretos podem
+        prejudicar o atendimento e o exercício de direitos. A clínica controladora e o FlowMed podem
+        solicitar confirmação ou correção quando necessário.
+      </p>
+
+      <LegalH2>2. Definições</LegalH2>
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          <strong className="text-foreground">Dados pessoais:</strong> informação relacionada a
+          pessoa natural identificada ou identificável (art. 5º, I).
+        </li>
+        <li>
+          <strong className="text-foreground">Dados sensíveis:</strong> dados sobre saúde, entre
+          outros listados no art. 5º, II — comuns em formulários e prontuário.
+        </li>
+        <li>
+          <strong className="text-foreground">Controlador:</strong> quem decide sobre o tratamento
+          (em regra, a clínica para dados de pacientes).
+        </li>
+        <li>
+          <strong className="text-foreground">Operador:</strong> quem trata em nome do controlador
+          (FlowMed, para dados de pacientes conforme instruções da clínica).
+        </li>
+        <li>
+          <strong className="text-foreground">Titular:</strong> pessoa a quem se referem os dados.
+        </li>
+      </ul>
+
+      <LegalH2>3. Papéis na LGPD</LegalH2>
       <ul className="list-disc pl-5 space-y-1">
         <li>
           <strong className="text-foreground">Clínica usuária:</strong> controladora dos dados de
-          pacientes e da equipe clínica tratados no contexto do atendimento.
+          pacientes e da equipe clínica no contexto do atendimento.
         </li>
         <li>
           <strong className="text-foreground">FlowMed:</strong> operador em relação aos dados de
-          pacientes tratados conforme instruções da clínica; controlador em relação a dados de
-          cadastro da clínica, cobrança, suporte e visitantes do site.
+          pacientes; controlador em relação a cadastro da clínica, cobrança, suporte e visitantes do
+          site.
         </li>
       </ul>
 
-      <LegalH2>2. Dados coletados</LegalH2>
-      <p>
-        Conforme o uso da plataforma: identificação e contato (nome, e-mail, telefone, CPF quando
-        informado), dados de saúde inseridos em formulários e prontuário, histórico de consultas,
-        comunicações (e-mail/WhatsApp), arquivos clínicos, registros de consentimento, logs de
-        auditoria e dados técnicos de acesso.
-      </p>
-
-      <LegalH2>3. Finalidades e bases legais</LegalH2>
+      <LegalH2>4. Inventário por finalidade</LegalH2>
       <ul className="list-disc pl-5 space-y-1">
-        <li>Prestação do serviço contratado (art. 7º, V — execução de contrato).</li>
+        <li>
+          <strong className="text-foreground">Conta e cobrança:</strong> nome, e-mail, telefone,
+          dados de faturamento — prestação do serviço contratado.
+        </li>
+        <li>
+          <strong className="text-foreground">Gestão clínica:</strong> dados de pacientes, agenda,
+          prontuário, exames, comunicações — conforme instrução da clínica.
+        </li>
+        <li>
+          <strong className="text-foreground">Comunicações:</strong> e-mail e WhatsApp transacionais
+          e, quando habilitado, marketing com consentimento.
+        </li>
+        <li>
+          <strong className="text-foreground">Segurança:</strong> logs de acesso, auditoria, MFA.
+        </li>
+        <li>
+          <strong className="text-foreground">Site institucional:</strong> cookies de sessão e dados
+          técnicos de navegação.
+        </li>
+      </ul>
+
+      <LegalH2>5. Bases legais</LegalH2>
+      <ul className="list-disc pl-5 space-y-1">
+        <li>Prestação do serviço contratado (art. 7º, V).</li>
         <li>Comunicações transacionais de agenda e formulários (art. 7º, V ou VII).</li>
-        <li>Comunicações de marketing, quando habilitadas: consentimento (art. 7º, I) ou outra base definida pela clínica.</li>
-        <li>Dados sensíveis de saúde: tratamento pela clínica para tutela da saúde (art. 11, II, f) e/ou consentimento específico (art. 11, I), conforme instrução do controlador.</li>
-        <li>Segurança, prevenção a fraudes e logs (art. 7º, IX — legítimo interesse, com avaliação de impacto).</li>
+        <li>Marketing: consentimento (art. 7º, I), com opt-in quando aplicável.</li>
+        <li>
+          Dados sensíveis de saúde: tutela da saúde por profissionais (art. 11, II, f) e/ou
+          consentimento específico (art. 11, I), conforme instrução do controlador.
+        </li>
+        <li>Segurança e prevenção a fraudes (art. 7º, IX — legítimo interesse).</li>
         <li>Cumprimento de obrigações legais (art. 7º, II).</li>
       </ul>
 
-      <LegalH2>4. Compartilhamento e subprocessadores</LegalH2>
+      <LegalH2>6. Compartilhamento e subprocessadores</LegalH2>
       <p>
-        Compartilhamos dados com prestadores estritamente necessários ao funcionamento do serviço,
-        listados em <LegalLink href="/subprocessadores">Subprocessadores</LegalLink>. Não vendemos
-        dados pessoais.
+        Compartilhamos dados com prestadores estritamente necessários, listados em{" "}
+        <LegalLink href="/subprocessadores">Subprocessadores</LegalLink>. Alterações relevantes são
+        comunicadas conforme o{" "}
+        <LegalLink href="/acordo-tratamento-dados">DPA</LegalLink>. Não vendemos dados pessoais.
       </p>
 
-      <LegalH2>5. Transferência internacional</LegalH2>
+      <LegalH2>7. Transferência internacional (arts. 33–36)</LegalH2>
       <p>
-        Alguns subprocessadores podem processar dados fora do Brasil (ex.: hospedagem, mensageria,
-        IA). Adotamos cláusulas e medidas compatíveis com os arts. 33 a 36 da LGPD. Detalhes no{" "}
-        <LegalLink href="/acordo-tratamento-dados">Acordo de Tratamento de Dados (DPA)</LegalLink>.
+        Alguns subprocessadores (hospedagem, mensageria, IA) podem processar dados fora do Brasil.
+        Adotamos cláusulas contratuais e medidas compatíveis com a LGPD. Detalhes no DPA e na lista
+        de subprocessadores.
       </p>
 
-      <LegalH2>6. Uso de inteligência artificial</LegalH2>
+      <LegalH2>8. Decisões automatizadas e IA (art. 20)</LegalH2>
       <p>
         O assistente virtual via WhatsApp (quando habilitado) utiliza modelos de linguagem de
-        terceiros para interpretar mensagens e auxiliar em agendamentos. Enviamos apenas o contexto
-        mínimo necessário. O titular pode digitar DESATIVE para desligar a IA na conversa. Mensagens
-        podem incluir aviso de privacidade na primeira interação automatizada.
+        terceiros. Enviamos contexto mínimo necessário. O titular pode digitar DESATIVE para
+        desligar a IA. Aviso de privacidade pode ser enviado na primeira interação automatizada.
+        Reclamações são encaminhadas a atendimento humano.
       </p>
 
-      <LegalH2>7. Segurança</LegalH2>
+      <LegalH2>9. Segurança (arts. 46–49)</LegalH2>
       <p>
-        Empregamos HTTPS, autenticação, isolamento de dados por clínica, perfis de acesso,
-        armazenamento privado para arquivos sensíveis e registros de auditoria. Recomendamos
-        autenticação em dois fatores (MFA) para usuários da clínica.
+        HTTPS, autenticação, isolamento por clínica (RLS), perfis de acesso, armazenamento privado
+        para arquivos sensíveis, auditoria e MFA obrigatório para administradores e médicos.
+        Recomendamos senhas fortes e revisão periódica de acessos.
       </p>
 
-      <LegalH2>8. Retenção</LegalH2>
+      <LegalH2>10. Retenção (arts. 15–16)</LegalH2>
       <p>
-        Mantemos dados enquanto a conta estiver ativa e pelo tempo necessário para obrigações
-        legais, resolução de disputas e backup. Dados de prontuário médico seguem prazos definidos
-        pelo controlador e legislação aplicável à saúde.
+        Dados de conta: vigência do contrato mais até 3 anos para obrigações legais e disputas,
+        salvo prazo maior exigido por lei. Dados de prontuário médico: prazos definidos pelo
+        controlador e legislação de saúde (ex.: CFM Res. 1.821/2007 — guarda mínima de 20 anos para
+        prontuário em suporte físico; prontuário eletrônico permanente). Logs operacionais: política
+        interna de retenção (padrão 24 meses para logs de mensagens e IA, configurável).
       </p>
 
-      <LegalH2>9. Direitos do titular (art. 18)</LegalH2>
+      <LegalH2>11. Direitos do titular (art. 18)</LegalH2>
       <p>
-        Pacientes devem contatar a clínica controladora. Clínicas e titulares de contas FlowMed
-        podem solicitar acesso, correção, exclusão, portabilidade e informações sobre
-        compartilhamento via{" "}
-        <LegalLink href="/exclusao-de-dados">Exclusão de Dados</LegalLink>, painel da clínica
-        (solicitações de privacidade) ou e-mail do Encarregado.
+        Acesso, confirmação, correção, anonimização, portabilidade, eliminação, informação sobre
+        compartilhamento e oposição, nos termos da lei.
+      </p>
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          <strong className="text-foreground">Pacientes:</strong> contatar a clínica controladora ou
+          usar o{" "}
+          <LegalLink href="/privacidade-titular">Portal de Direitos do Titular</LegalLink>.
+        </li>
+        <li>
+          <strong className="text-foreground">Prazos (art. 18 §1):</strong> confirmação/acesso
+          simples em até 5 dias úteis; demais pedidos em até 15 dias úteis.
+        </li>
+        <li>
+          <strong className="text-foreground">Contas FlowMed:</strong>{" "}
+          <LegalLink href="/exclusao-de-dados">Exclusão de Dados</LegalLink>, painel da clínica
+          (solicitações de privacidade) ou e-mail do Encarregado.
+        </li>
+      </ul>
+
+      <LegalH2>12. Marketing</LegalH2>
+      <p>
+        Comunicações promocionais dependem de consentimento específico quando exigido, com opção de
+        revogação a qualquer momento. Mensagens transacionais de saúde não substituem consentimento
+        de marketing.
       </p>
 
-      <LegalH2>10. Cookies</LegalH2>
+      <LegalH2>13. Cookies</LegalH2>
       <p>
-        Utilizamos cookies essenciais de sessão. Detalhes em{" "}
+        Utilizamos cookies essenciais de sessão. Não utilizamos cookies de analytics ou publicidade
+        no painel. Detalhes em{" "}
         <LegalLink href="/politica-de-cookies">Política de Cookies</LegalLink>.
       </p>
 
-      <LegalH2>11. Encarregado de dados</LegalH2>
+      <LegalH2>14. Encarregado de dados (art. 41)</LegalH2>
       <p>
-        Contato:{" "}
+        {dpo.name ? `${dpo.name} — ` : ""}
         <a href={`mailto:${dpo.email}`} className="text-primary underline-offset-2 hover:underline">
           {dpo.email}
         </a>
-        . Página dedicada: <LegalLink href="/encarregado-dados">Encarregado de Dados</LegalLink>.
+        . Página: <LegalLink href="/encarregado-dados">Encarregado de Dados</LegalLink>.
       </p>
 
-      <LegalH2>12. Alterações</LegalH2>
+      <LegalH2>15. Alterações (art. 8º §6)</LegalH2>
       <p>
-        Podemos atualizar esta política. A data da versão vigente aparece no topo desta página.
-        Alterações relevantes serão comunicadas por canais apropriados.
+        Podemos atualizar esta política. A versão vigente consta no topo desta página. Alterações
+        relevantes serão comunicadas por e-mail ou aviso no painel, com antecedência razoável quando
+        a mudança exigir nova base legal ou consentimento.
       </p>
     </LegalPageShell>
   );

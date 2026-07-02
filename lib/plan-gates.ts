@@ -232,8 +232,9 @@ export function getUpgradeMessage(resourceName: string): string {
   return messages[resourceName] || "Upgrade para Pro para desbloquear este recurso";
 }
 
-export function canAccessAudit(planLimits: PlanLimits): boolean {
-  return Boolean(planLimits.audit_log_enabled);
+export function canAccessAudit(_planLimits?: PlanLimits): boolean {
+  // Auditoria disponível em todos os planos — requisito LGPD (accountability).
+  return true;
 }
 
 export function canAccessVisaoGeral(_planLimits?: PlanLimits): boolean {

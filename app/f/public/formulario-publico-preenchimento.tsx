@@ -65,6 +65,7 @@ export function FormularioPublicoPreenchimento({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [acceptedHealthNotice, setAcceptedHealthNotice] = useState(false);
 
   function setResponse(fieldId: string, value: unknown) {
     setResponses((prev) => ({ ...prev, [fieldId]: value }));
@@ -76,6 +77,10 @@ export function FormularioPublicoPreenchimento({
       setError("Nome e email são obrigatórios.");
       return;
     }
+    if (!acceptedHealthNotice) {
+      setError("É necessário confirmar o aviso sobre dados de saúde.");
+      return;
+    }
     setError(null);
     setStep("form");
   }
@@ -84,6 +89,12 @@ export function FormularioPublicoPreenchimento({
     e.preventDefault();
     setError(null);
     setLoading(true);
+
+    if (!acceptedHealthNotice) {
+      setError("É necessário confirmar o aviso sobre dados de saúde.");
+      setLoading(false);
+      return;
+    }
 
     // Separar campos customizados das respostas do formulário
     const formResponses: Record<string, unknown> = {};
@@ -115,6 +126,7 @@ export function FormularioPublicoPreenchimento({
           submitter_birth_date: basicForm.birth_date || null,
           responses: formResponses,
           custom_fields: Object.keys(customFieldsData).length > 0 ? customFieldsData : null,
+          health_data_notice_accepted: true,
         }),
       });
 
@@ -323,7 +335,21 @@ export function FormularioPublicoPreenchimento({
               </div>
             )}
             
-            <Button type="submit" className="w-full">
+            <label className="flex items-start gap-2 text-sm text-muted-foreground cursor-pointer pt-2 border-t border-border">
+              <input
+                type="checkbox"
+                checked={acceptedHealthNotice}
+                onChange={(e) => setAcceptedHealthNotice(e.target.checked)}
+                className="mt-1 rounded border-border"
+              />
+              <span>
+                Estou ciente de que meus dados de saúde serão tratados pela clínica para fins de
+                atendimento, nos termos da LGPD (Art. 11). A clínica é a controladora responsável
+                pelo tratamento.
+              </span>
+            </label>
+
+            <Button type="submit" className="w-full" disabled={!acceptedHealthNotice}>
               Continuar
             </Button>
           </form>
@@ -363,7 +389,20 @@ export function FormularioPublicoPreenchimento({
               readOnly={false}
             />
           ))}
-          <Button type="submit" disabled={loading} className="w-full">
+          <label className="flex items-start gap-2 text-sm text-muted-foreground cursor-pointer pt-2 border-t border-border">
+            <input
+              type="checkbox"
+              checked={acceptedHealthNotice}
+              onChange={(e) => setAcceptedHealthNotice(e.target.checked)}
+              className="mt-1 rounded border-border"
+              required
+            />
+            <span>
+              Confirmo o aviso sobre tratamento de dados de saúde pela clínica controladora (LGPD
+              Art. 11).
+            </span>
+          </label>
+          <Button type="submit" disabled={loading || !acceptedHealthNotice} className="w-full">
             {loading ? "Enviando…" : "Enviar formulário"}
           </Button>
         </form>

@@ -1,7 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function updateSession(request: NextRequest) {
+type SessionHook = (
+  request: NextRequest,
+  supabase: ReturnType<typeof createServerClient>
+) => Promise<NextResponse | null>;
+
+export async function updateSession(
+  request: NextRequest,
+  afterAuth?: SessionHook
+) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -22,5 +30,11 @@ export async function updateSession(request: NextRequest) {
   );
 
   await supabase.auth.getUser();
+
+  if (afterAuth) {
+    const redirect = await afterAuth(request, supabase);
+    if (redirect) return redirect;
+  }
+
   return response;
 }

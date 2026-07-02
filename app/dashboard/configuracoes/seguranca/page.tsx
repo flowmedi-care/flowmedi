@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { MfaSetupClient } from "./mfa-setup-client";
 
 export default async function SegurancaPage() {
@@ -20,7 +21,9 @@ export default async function SegurancaPage() {
           Autenticação em dois fatores e boas práticas de acesso (LGPD art. 46).
         </p>
       </div>
-      <MfaSetupClient hasTotp={hasTotp} />
+      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}>
+        <MfaSetupClient hasTotp={hasTotp} />
+      </Suspense>
     </div>
   );
 }

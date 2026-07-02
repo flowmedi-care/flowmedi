@@ -75,6 +75,14 @@ export function PublicFooter() {
                 </li>
                 <li>
                   <Link
+                    href="/privacidade-titular"
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Direitos do titular
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     href="/encarregado-dados"
                     className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                   >

@@ -33,7 +33,7 @@ export default function EncarregadoDadosPage() {
         auxiliar na mediação quando a solicitação envolver sistemas operados por nós.
       </p>
 
-      <LegalH2>3. Contato</LegalH2>
+      <LegalH2>3. Contato e ANPD</LegalH2>
       <ul className="list-disc pl-5 space-y-1">
         {dpo.name && (
           <li>
@@ -46,10 +46,22 @@ export default function EncarregadoDadosPage() {
             {dpo.email}
           </a>
         </li>
+        <li>
+          <span className="text-foreground">ANPD:</span>{" "}
+          <a
+            href="https://www.gov.br/anpd"
+            className="text-primary underline-offset-2 hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            www.gov.br/anpd
+          </a>
+        </li>
       </ul>
       <p>
         Consulte também a{" "}
-        <LegalLink href="/politica-de-privacidade">Política de Privacidade</LegalLink>, a página de{" "}
+        <LegalLink href="/politica-de-privacidade">Política de Privacidade</LegalLink>, o{" "}
+        <LegalLink href="/privacidade-titular">Portal de Direitos do Titular</LegalLink>, a página de{" "}
         <LegalLink href="/exclusao-de-dados">Exclusão de Dados</LegalLink> e o{" "}
         <LegalLink href="/acordo-tratamento-dados">Acordo de Tratamento de Dados</LegalLink>.
       </p>

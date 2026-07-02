@@ -13,6 +13,7 @@ type SubmitBody = {
   submitter_birth_date?: string | null;
   responses?: Record<string, unknown>;
   custom_fields?: Record<string, unknown> | null;
+  health_data_notice_accepted?: boolean;
 };
 
 export async function POST(request: NextRequest) {
@@ -44,6 +45,12 @@ export async function POST(request: NextRequest) {
   }
   if (!submitterEmail) {
     return NextResponse.json({ error: "E-mail é obrigatório." }, { status: 400 });
+  }
+  if (!body.health_data_notice_accepted) {
+    return NextResponse.json(
+      { error: "É necessário aceitar o aviso sobre dados de saúde." },
+      { status: 400 }
+    );
   }
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
+import { recordDpaAcceptance } from "@/lib/compliance/dpa-actions";
+import { getDpaDocumentUrl } from "@/lib/compliance/dpa";
 
 export function OnboardingForm({ initialFullName = "" }: { initialFullName?: string }) {
   const router = useRouter();
@@ -13,12 +16,19 @@ export function OnboardingForm({ initialFullName = "" }: { initialFullName?: str
   const [fullName, setFullName] = useState(initialFullName);
   const [clinicPhone, setClinicPhone] = useState("");
   const [clinicEmail, setClinicEmail] = useState("");
+  const [acceptedDpa, setAcceptedDpa] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!acceptedDpa) {
+      setError("Você precisa aceitar o Acordo de Tratamento de Dados (DPA).");
+      return;
+    }
+
     setLoading(true);
     const supabase = createClient();
 
@@ -53,6 +63,13 @@ export function OnboardingForm({ initialFullName = "" }: { initialFullName?: str
         setLoading(false);
         return;
       }
+    }
+
+    const dpaRes = await recordDpaAcceptance(String(clinicId));
+    if (dpaRes.error) {
+      setError(dpaRes.error);
+      setLoading(false);
+      return;
     }
 
     // Forçar refresh completo e redirecionar
@@ -120,7 +137,26 @@ export function OnboardingForm({ initialFullName = "" }: { initialFullName?: str
           />
         </div>
       )}
-      <Button type="submit" className="w-full" disabled={loading}>
+      <label className="flex items-start gap-2 text-sm text-muted-foreground cursor-pointer">
+        <input
+          type="checkbox"
+          checked={acceptedDpa}
+          onChange={(e) => setAcceptedDpa(e.target.checked)}
+          className="mt-1 rounded border-border"
+        />
+        <span>
+          Li e aceito o{" "}
+          <Link
+            href={getDpaDocumentUrl()}
+            className="text-primary underline-offset-2 hover:underline"
+            target="_blank"
+          >
+            Acordo de Tratamento de Dados (DPA)
+          </Link>{" "}
+          como controladora dos dados de pacientes tratados na plataforma.
+        </span>
+      </label>
+      <Button type="submit" className="w-full" disabled={loading || !acceptedDpa}>
         {loading ? "Criando…" : "Criar clínica e continuar"}
       </Button>
     </form>
