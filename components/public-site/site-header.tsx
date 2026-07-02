@@ -8,6 +8,7 @@ import { Menu, X } from "lucide-react";
 import type { PublicClinicSite } from "@/lib/public-site/types";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getSegmentCopy } from "@/lib/public-site/presentation";
+import { usePublicSitePaths } from "@/components/public-site/public-site-path-context";
 import { cn } from "@/lib/utils";
 
 export function SiteHeader({
@@ -19,6 +20,7 @@ export function SiteHeader({
 }) {
   const booking = checkPublicBookingReadiness(site);
   const copy = getSegmentCopy(site.segment);
+  const { home, booking: bookingPath } = usePublicSitePaths();
   const [open, setOpen] = useState(false);
 
   const links = [
@@ -40,7 +42,7 @@ export function SiteHeader({
   return (
     <header className="sticky top-0 z-50 border-b border-[#e8efec]/80 bg-white/90 backdrop-blur-lg shadow-sm shadow-[#1a2e28]/[0.03]">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-        <Link href={`/c/${slug}`} className="flex items-center gap-3 min-w-0 shrink-0">
+        <Link href={home()} className="flex items-center gap-3 min-w-0 shrink-0">
           {site.logo_url ? (
             <LogoImage
               src={site.logo_url}
@@ -67,7 +69,7 @@ export function SiteHeader({
 
         <div className="flex items-center gap-2">
           {booking.available && (
-            <Link href={`/c/${slug}/agendar`} className="hidden sm:block">
+            <Link href={bookingPath()} className="hidden sm:block">
               <Button
                 size="sm"
                 className="rounded-full px-5 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/25 transition-shadow"
@@ -100,7 +102,7 @@ export function SiteHeader({
             </a>
           ))}
           {booking.available && (
-            <Link href={`/c/${slug}/agendar`} className="block pt-2" onClick={() => setOpen(false)}>
+            <Link href={bookingPath()} className="block pt-2" onClick={() => setOpen(false)}>
               <Button className="w-full rounded-full">Agendar consulta</Button>
             </Link>
           )}
@@ -118,6 +120,7 @@ export function SiteMobileBar({
   slug: string;
 }) {
   const booking = checkPublicBookingReadiness(site);
+  const { booking: bookingPath } = usePublicSitePaths();
   if (!booking.available && !site.whatsapp_url) return null;
 
   return (
@@ -140,7 +143,7 @@ export function SiteMobileBar({
           </a>
         )}
         {booking.available && (
-          <Link href={`/c/${slug}/agendar`} className="flex-1">
+          <Link href={bookingPath()} className="flex-1">
             <Button className="w-full rounded-full py-3.5 h-auto text-sm shadow-lg">Agendar</Button>
           </Link>
         )}

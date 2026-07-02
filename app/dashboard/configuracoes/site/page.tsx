@@ -20,6 +20,7 @@ export default async function ConfiguracoesSitePage() {
         slug={data.slug ?? ""}
         siteUrl={data.siteUrl ?? null}
         subdomainUrl={data.subdomainUrl ?? null}
+        primarySiteUrl={data.primarySiteUrl ?? null}
         dataReadiness={
           data.dataReadiness ?? {
             ok: false,

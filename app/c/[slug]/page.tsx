@@ -14,8 +14,8 @@ import {
   loadPublicClinicSite,
   getHeroTitle,
   getHeroSubtitle,
-  getPublicSiteUrl,
 } from "@/lib/public-site/load-site";
+import { getPreferredPublicSiteUrl } from "@/lib/public-site/urls";
 import { RESERVED_CLINIC_SLUGS } from "@/lib/public-site/types";
 import { siteThemeCssVars } from "@/lib/public-site/theme";
 
@@ -33,6 +33,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = `${getHeroTitle(site)} | ${site.name}`;
   const description = getHeroSubtitle(site) ?? `Site de ${site.name}`;
 
+  const canonicalUrl = getPreferredPublicSiteUrl(slug);
+
   return {
     title,
     description,
@@ -43,11 +45,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       "agendamento",
       ...(site.procedures.slice(0, 5).map((p) => p.name) ?? []),
     ],
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
       title,
       description,
       type: "website",
-      url: getPublicSiteUrl(slug),
+      url: canonicalUrl,
       siteName: site.name,
       locale: "pt_BR",
       ...(site.logo_url ? { images: [{ url: site.logo_url, alt: site.name }] } : {}),
@@ -61,12 +66,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-function buildJsonLd(site: Awaited<ReturnType<typeof loadPublicClinicSite>> & { found: true }) {
+function buildJsonLd(
+  site: Awaited<ReturnType<typeof loadPublicClinicSite>> & { found: true }
+) {
   return {
     "@context": "https://schema.org",
     "@type": "MedicalClinic",
     name: site.name,
-    url: getPublicSiteUrl(site.slug),
+    url: getPreferredPublicSiteUrl(site.slug),
     ...(site.logo_url ? { image: site.logo_url } : {}),
     ...(site.phone ? { telephone: site.phone } : {}),
     ...(site.email ? { email: site.email } : {}),

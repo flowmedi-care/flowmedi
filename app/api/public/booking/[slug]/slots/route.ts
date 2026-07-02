@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findAvailableSlots } from "@/lib/appointment-conflicts";
+import { findAvailableDays, findDaySlotGrid } from "@/lib/appointment-conflicts";
 import { resolvePublicBookingContext } from "@/lib/public-site/api-helpers";
 import { checkRateLimit } from "@/lib/public-site/rate-limit";
 
 export const dynamic = "force-dynamic";
+
+const DAYS_AHEAD = 30;
 
 type RouteParams = { params: Promise<{ slug: string }> };
 
@@ -17,6 +19,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   const procedureId = request.nextUrl.searchParams.get("procedureId");
   const doctorId = request.nextUrl.searchParams.get("doctorId");
+  const date = request.nextUrl.searchParams.get("date");
 
   if (!procedureId || !doctorId) {
     return NextResponse.json({ error: "procedureId e doctorId são obrigatórios." }, { status: 400 });
@@ -41,13 +44,26 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Profissional não atende este procedimento." }, { status: 400 });
   }
 
-  const slots = await findAvailableSlots(ctx.supabase, {
+  const baseOpts = {
     clinicId: ctx.site.clinic_id,
     doctorId,
     procedureId,
-    maxSlots: 30,
-    slotStepMinutes: 30,
+  };
+
+  if (date) {
+    const grid = await findDaySlotGrid(ctx.supabase, {
+      ...baseOpts,
+      date,
+      slotStepMinutes: 30,
+    });
+    return NextResponse.json(grid);
+  }
+
+  const { days } = await findAvailableDays(ctx.supabase, {
+    ...baseOpts,
+    daysAhead: DAYS_AHEAD,
+    maxDays: DAYS_AHEAD,
   });
 
-  return NextResponse.json({ slots });
+  return NextResponse.json({ days, daysAhead: DAYS_AHEAD });
 }

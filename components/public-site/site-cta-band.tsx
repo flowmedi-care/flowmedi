@@ -4,14 +4,16 @@ import { Button } from "@/components/ui/button";
 import type { PublicClinicSite } from "@/lib/public-site/types";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getSegmentCopy, normalizeSegment } from "@/lib/public-site/presentation";
+import { isOnClinicSubdomain, publicSiteBookingPath } from "@/lib/public-site/urls";
 
-export function SiteCtaBand({
+export async function SiteCtaBand({
   site,
   slug,
 }: {
   site: PublicClinicSite;
   slug: string;
 }) {
+  const onClinicSubdomain = await isOnClinicSubdomain();
   const booking = checkPublicBookingReadiness(site);
   const copy = getSegmentCopy(site.segment);
   if (!booking.available && !site.whatsapp_url && !site.phone) return null;
@@ -33,7 +35,7 @@ export function SiteCtaBand({
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           {booking.available && (
-            <Link href={`/c/${slug}/agendar`}>
+            <Link href={publicSiteBookingPath(slug, onClinicSubdomain)}>
               <Button
                 size="lg"
                 className="rounded-full px-8 bg-white text-primary hover:bg-white/95 shadow-lg h-12"

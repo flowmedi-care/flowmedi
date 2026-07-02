@@ -1,10 +1,11 @@
 import type { PublicClinicSite } from "@/lib/public-site/types";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getSegmentCopy, getServiceGridClass } from "@/lib/public-site/presentation";
+import { isOnClinicSubdomain } from "@/lib/public-site/urls";
 import { ServiceCard } from "@/components/public-site/service-card";
 import { RevealSection } from "./reveal-section";
 
-export function PremiumSpecialties({
+export async function PremiumSpecialties({
   site,
   slug,
 }: {
@@ -13,6 +14,7 @@ export function PremiumSpecialties({
 }) {
   if (!site.site.show_services || site.procedures.length === 0) return null;
 
+  const onClinicSubdomain = await isOnClinicSubdomain();
   const booking = checkPublicBookingReadiness(site);
   const copy = getSegmentCopy(site.segment);
 
@@ -35,6 +37,7 @@ export function PremiumSpecialties({
               key={procedure.id}
               procedure={procedure}
               slug={slug}
+              onClinicSubdomain={onClinicSubdomain}
               actionLabel={copy.cardActionLabel}
               bookingAvailable={booking.available}
               whatsappUrl={site.whatsapp_url}

@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
+import { usePublicSitePaths } from "@/components/public-site/public-site-path-context";
+import { BookingCalendar } from "@/components/public-site/booking-calendar";
 import { cn } from "@/lib/utils";
 
 type CatalogDoctor = {
@@ -35,6 +37,7 @@ const STEPS: Step[] = ["procedure", "doctor", "slot", "patient", "confirm"];
 
 export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: string }) {
   const searchParams = useSearchParams();
+  const { home } = usePublicSitePaths();
   const preselectApplied = useRef(false);
 
   const [step, setStep] = useState<Step>("procedure");
@@ -44,8 +47,6 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
 
   const [doctors, setDoctors] = useState<CatalogDoctor[]>([]);
   const [procedures, setProcedures] = useState<CatalogProcedure[]>([]);
-  const [slots, setSlots] = useState<Slot[]>([]);
-  const [slotsLoading, setSlotsLoading] = useState(false);
 
   const [procedureId, setProcedureId] = useState<string | null>(null);
   const [doctorId, setDoctorId] = useState<string | null>(null);
@@ -109,25 +110,6 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
   const selectedProcedure = procedures.find((p) => p.id === procedureId);
   const selectedDoctor = doctors.find((d) => d.id === doctorId);
 
-  const loadSlots = async (procId: string, docId: string) => {
-    setSlotsLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({ procedureId: procId, doctorId: docId });
-      const res = await fetch(`/api/public/booking/${slug}/slots?${params}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Erro ao buscar horários.");
-      setSlots(data.slots ?? []);
-      if ((data.slots ?? []).length === 0) {
-        setError("Nenhum horário disponível nos próximos dias. Tente outro profissional ou entre em contato.");
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao buscar horários.");
-    } finally {
-      setSlotsLoading(false);
-    }
-  };
-
   const handleSubmit = async () => {
     if (!procedureId || !doctorId || !selectedSlot) return;
     setSubmitting(true);
@@ -178,7 +160,7 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
             Sua solicitação foi registrada em {clinicName}.
             {appointmentId && " Você receberá confirmação pelos canais da clínica."}
           </p>
-          <Link href={`/c/${slug}`} className="mt-6 inline-block">
+          <Link href={home()} className="mt-6 inline-block">
             <Button variant="outline" className="rounded-full">Voltar ao site</Button>
           </Link>
         </CardContent>
@@ -187,9 +169,9 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-6">
+    <div className="max-w-xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <Link href={`/c/${slug}`}>
+        <Link href={home()}>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" />
             Voltar
@@ -264,12 +246,11 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
                   "w-full text-left rounded-2xl border border-[#e8efec] px-4 py-4 transition-all hover:border-primary/30 hover:bg-[#f7faf9]",
                   doctorId === doc.id && "border-primary bg-primary/5 shadow-sm"
                 )}
-                onClick={async () => {
+                onClick={() => {
                   setDoctorId(doc.id);
                   setSelectedSlot(null);
                   if (procedureId) {
                     setStep("slot");
-                    await loadSlots(procedureId, doc.id);
                   }
                 }}
               >
@@ -286,39 +267,17 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
         </Card>
       )}
 
-      {step === "slot" && (
-        <Card className="rounded-3xl border-[#e8efec] shadow-sm">
-          <CardHeader>
-            <CardTitle>Escolha o horário</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {slotsLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : (
-              slots.map((slot) => (
-                <button
-                  key={slot.scheduled_at}
-                  type="button"
-                  className={cn(
-                    "w-full text-left rounded-2xl border border-[#e8efec] px-4 py-4 transition-all hover:border-primary/30 hover:bg-[#f7faf9]",
-                    selectedSlot?.scheduled_at === slot.scheduled_at && "border-primary bg-primary/5 shadow-sm"
-                  )}
-                  onClick={() => {
-                    setSelectedSlot(slot);
-                    setStep("patient");
-                  }}
-                >
-                  {slot.label}
-                </button>
-              ))
-            )}
-            <Button variant="ghost" size="sm" onClick={() => setStep("doctor")}>
-              Voltar
-            </Button>
-          </CardContent>
-        </Card>
+      {step === "slot" && procedureId && doctorId && (
+        <BookingCalendar
+          slug={slug}
+          procedureId={procedureId}
+          doctorId={doctorId}
+          onSelectSlot={(slot) => {
+            setSelectedSlot(slot);
+            setStep("patient");
+          }}
+          onBack={() => setStep("doctor")}
+        />
       )}
 
       {step === "patient" && (

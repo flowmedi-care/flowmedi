@@ -6,14 +6,16 @@ import type { PublicClinicSite } from "@/lib/public-site/types";
 import { getHeroSubtitle, getHeroTitle } from "@/lib/public-site/load-site";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getSegmentCopy, getTodayHoursLabel } from "@/lib/public-site/presentation";
+import { isOnClinicSubdomain, publicSiteBookingPath } from "@/lib/public-site/urls";
 
-export function SiteHero({
+export async function SiteHero({
   site,
   slug,
 }: {
   site: PublicClinicSite;
   slug: string;
 }) {
+  const onClinicSubdomain = await isOnClinicSubdomain();
   const copy = getSegmentCopy(site.segment);
   const title = getHeroTitle(site);
   const subtitle = getHeroSubtitle(site) ?? copy.heroSubtitleFallback;
@@ -55,7 +57,7 @@ export function SiteHero({
 
             <div className="mt-9 flex flex-wrap items-center justify-center lg:justify-start gap-3">
               {booking.available && (
-                <Link href={`/c/${slug}/agendar`}>
+                <Link href={publicSiteBookingPath(slug, onClinicSubdomain)}>
                   <Button
                     size="lg"
                     className="rounded-full px-8 h-12 text-base shadow-md shadow-primary/20"

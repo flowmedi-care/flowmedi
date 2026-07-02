@@ -35,6 +35,11 @@ function extractSubdomainFromSuffix(
   return null;
 }
 
+/** true se o host é apex (flowmed.app, www, legado .com.br, localhost). */
+export function isApexHost(host: string): boolean {
+  return DEFAULT_APEX_HOSTS.has(normalizeHost(host));
+}
+
 export function extractClinicSubdomain(host: string): string | null {
   const normalized = normalizeHost(host);
 

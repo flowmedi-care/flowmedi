@@ -2,15 +2,17 @@ import Link from "next/link";
 import type { PublicClinicSite } from "@/lib/public-site/types";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getSegmentCopy } from "@/lib/public-site/presentation";
+import { isOnClinicSubdomain, publicSiteBookingPath } from "@/lib/public-site/urls";
 import { RevealSection } from "./reveal-section";
 
-export function PremiumCta({
+export async function PremiumCta({
   site,
   slug,
 }: {
   site: PublicClinicSite;
   slug: string;
 }) {
+  const onClinicSubdomain = await isOnClinicSubdomain();
   const booking = checkPublicBookingReadiness(site);
   const copy = getSegmentCopy(site.segment);
 
@@ -28,7 +30,7 @@ export function PremiumCta({
         <div className="mt-8 flex flex-wrap justify-center gap-4">
           {booking.available && (
             <Link
-              href={`/c/${slug}/agendar`}
+              href={publicSiteBookingPath(slug, onClinicSubdomain)}
               className="inline-flex items-center justify-center rounded-lg bg-[var(--site-accent)] px-8 py-3.5 text-sm font-semibold text-white shadow-lg hover:brightness-105 transition-all"
             >
               {copy.ctaLabel}

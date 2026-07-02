@@ -2,10 +2,12 @@ import Link from "next/link";
 import { Clock } from "lucide-react";
 import type { PublicSiteProcedure } from "@/lib/public-site/types";
 import { truncateText } from "@/lib/public-site/presentation";
+import { publicSiteBookingPath } from "@/lib/public-site/urls";
 
 type ServiceCardProps = {
   procedure: PublicSiteProcedure;
   slug: string;
+  onClinicSubdomain: boolean;
   actionLabel: string;
   bookingAvailable: boolean;
   whatsappUrl?: string | null;
@@ -14,6 +16,7 @@ type ServiceCardProps = {
 export function ServiceCard({
   procedure,
   slug,
+  onClinicSubdomain,
   actionLabel,
   bookingAvailable,
   whatsappUrl,
@@ -23,7 +26,7 @@ export function ServiceCard({
     : null;
 
   const href = bookingAvailable
-    ? `/c/${slug}/agendar?procedure=${procedure.id}`
+    ? publicSiteBookingPath(slug, onClinicSubdomain, { procedure: procedure.id })
     : whatsappUrl ?? `#contato`;
 
   const canBook = bookingAvailable || Boolean(whatsappUrl);

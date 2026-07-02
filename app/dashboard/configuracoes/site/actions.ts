@@ -62,8 +62,9 @@ export async function getPublicSitePageData() {
   ]);
 
   const slug = clinicRes.data?.slug ?? "";
-  const siteUrl = slug ? getPublicSiteUrl(slug) : null;
   const subdomainUrl = slug ? getSubdomainSiteUrl(slug) : null;
+  const siteUrl = slug ? getPublicSiteUrl(slug) : null;
+  const primarySiteUrl = subdomainUrl ?? siteUrl;
 
   let bookingReadiness: { available: boolean; reason: string | null } = {
     available: false,
@@ -90,6 +91,7 @@ export async function getPublicSitePageData() {
     slug,
     siteUrl,
     subdomainUrl,
+    primarySiteUrl,
     dataReadiness: readiness,
     bookingReadiness,
     hasActiveRooms: (roomCount ?? 0) > 0,

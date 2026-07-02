@@ -8,9 +8,11 @@ Manter nameservers da Hostinger. **Não** trocar para `ns1.vercel-dns.com` se j�
 |------|------|-------|
 | `@` | A | `76.76.21.21` |
 | `www` | CNAME | `cname.vercel-dns.com` |
-| `*` | CNAME | `cname.vercel-dns.com` |
+| `*` | CNAME | `cname.vercel-dns.com` (ou o CNAME específico exibido na Vercel) |
 
-**Importante:** o registro `@` deve ser `76.76.21.21`, não `216.198.79.1`.
+**Alternativa mais rápida para wildcard:** nameservers na Hostinger → `ns1.vercel-dns.com` e `ns2.vercel-dns.com` (DNS gerido na Vercel). Útil para validar `*.flowmed.app` sem esperar propagação de CNAME externo.
+
+**Importante:** o registro `@` deve apontar para o IP exibido no painel Vercel do projeto (pode ser `76.76.21.21` ou `216.198.79.1` conforme a expansão de IPs).
 
 **Redirect loop (`ERR_TOO_MANY_REDIRECTS`):** não configure redirect global de `flowmedi.com.br` → `flowmed.app` no painel Vercel **e** no middleware ao mesmo tempo. O redirect de UI é só no middleware. Se o loop persistir após deploy, confira se `NEXT_PUBLIC_APP_URL` na Vercel já é `https://flowmed.app`.
 

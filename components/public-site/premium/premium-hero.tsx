@@ -5,15 +5,17 @@ import type { PublicClinicSite } from "@/lib/public-site/types";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getHeroImageUrl, getHeroSubtitle, getHeroTitle } from "@/lib/public-site/load-site";
 import { getSegmentCopy } from "@/lib/public-site/presentation";
+import { isOnClinicSubdomain, publicSiteBookingPath } from "@/lib/public-site/urls";
 import { PremiumHeroImage } from "./premium-hero-image";
 
-export function PremiumHero({
+export async function PremiumHero({
   site,
   slug,
 }: {
   site: PublicClinicSite;
   slug: string;
 }) {
+  const onClinicSubdomain = await isOnClinicSubdomain();
   const booking = checkPublicBookingReadiness(site);
   const copy = getSegmentCopy(site.segment);
   const title = getHeroTitle(site);
@@ -58,7 +60,7 @@ export function PremiumHero({
             <div className="mt-8 flex flex-wrap gap-3">
               {booking.available && (
                 <Link
-                  href={`/c/${slug}/agendar`}
+                  href={publicSiteBookingPath(slug, onClinicSubdomain)}
                   className="inline-flex items-center justify-center rounded-lg bg-[var(--site-accent)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 hover:brightness-105 transition-all"
                 >
                   {copy.ctaLabel}

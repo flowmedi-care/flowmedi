@@ -24,6 +24,7 @@ type Props = {
   slug: string;
   siteUrl: string | null;
   subdomainUrl: string | null;
+  primarySiteUrl: string | null;
   dataReadiness: DataReadinessReport;
   bookingReadiness: { available: boolean; reason: string | null };
   hasActiveRooms: boolean;
@@ -35,6 +36,7 @@ export function SiteConfigClient({
   slug,
   siteUrl,
   subdomainUrl,
+  primarySiteUrl,
   dataReadiness,
   bookingReadiness,
   hasActiveRooms,
@@ -86,8 +88,8 @@ export function SiteConfigClient({
   };
 
   const copyUrl = async () => {
-    if (!siteUrl) return;
-    await navigator.clipboard.writeText(siteUrl);
+    if (!primarySiteUrl) return;
+    await navigator.clipboard.writeText(primarySiteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -99,10 +101,15 @@ export function SiteConfigClient({
           <CardTitle className="text-base">Publicação</CardTitle>
           <CardDescription>
             Quando ativo, o site fica acessível em{" "}
-            {siteUrl ? (
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">/c/{slug}</code>
+            {primarySiteUrl ? (
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">{primarySiteUrl}</code>
             ) : (
               "—"
+            )}
+            {siteUrl && subdomainUrl && (
+              <span className="block mt-1 text-xs">
+                URL alternativa: <code className="bg-muted px-1 py-0.5 rounded">/c/{slug}</code>
+              </span>
             )}
           </CardDescription>
         </CardHeader>
@@ -112,9 +119,9 @@ export function SiteConfigClient({
             checked={siteEnabled}
             onChange={setSiteEnabled}
           />
-          {siteEnabled && siteUrl && (
+          {siteEnabled && primarySiteUrl && (
             <div className="flex flex-wrap items-center gap-2">
-              <a href={siteUrl} target="_blank" rel="noopener noreferrer">
+              <a href={primarySiteUrl} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" size="sm">
                   <ExternalLink className="h-4 w-4 mr-1.5" />
                   Abrir site
@@ -128,11 +135,6 @@ export function SiteConfigClient({
                 )}
                 Copiar link
               </Button>
-              {subdomainUrl && (
-                <span className="text-xs text-muted-foreground">
-                  Subdomínio (quando DNS configurado): {subdomainUrl}
-                </span>
-              )}
             </div>
           )}
         </CardContent>
@@ -271,11 +273,11 @@ export function SiteConfigClient({
               disabled={!siteEnabled}
             />
           </div>
-          {siteEnabled && siteUrl && (
+          {siteEnabled && primarySiteUrl && (
             <div className="rounded-lg border bg-muted/30 p-3">
               <p className="text-sm font-medium mb-2">Preview ao vivo</p>
               <a
-                href={siteUrl}
+                href={primarySiteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-primary hover:underline inline-flex items-center gap-1"

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { BookingWizard } from "@/components/public-site/booking-wizard";
 import { SiteHeader } from "@/components/public-site/site-header";
 import { loadPublicClinicSite } from "@/lib/public-site/load-site";
+import { getPreferredPublicSiteUrl } from "@/lib/public-site/urls";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getSegmentCopy } from "@/lib/public-site/presentation";
 import { RESERVED_CLINIC_SLUGS } from "@/lib/public-site/types";
@@ -18,7 +19,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const site = await loadPublicClinicSite(slug);
   if (!site.found) return { title: "Agendar" };
   const copy = getSegmentCopy(site.segment);
-  return { title: `${copy.ctaLabel} — ${site.name}` };
+  const canonicalUrl = `${getPreferredPublicSiteUrl(slug)}/agendar`;
+  return {
+    title: `${copy.ctaLabel} — ${site.name}`,
+    alternates: { canonical: canonicalUrl },
+    openGraph: {
+      title: `${copy.ctaLabel} — ${site.name}`,
+      url: canonicalUrl,
+      type: "website",
+    },
+  };
 }
 
 function BookingWizardFallback() {
@@ -57,9 +67,11 @@ export default async function PublicBookingPage({ params }: Props) {
           <h1 className="text-3xl font-semibold text-[#1a2e28] tracking-tight">{copy.ctaLabel}</h1>
           <p className="text-[#5c6f68] mt-2">{site.name}</p>
         </div>
-        <Suspense fallback={<BookingWizardFallback />}>
-          <BookingWizard slug={slug} clinicName={site.name} />
-        </Suspense>
+        <div className="mx-auto max-w-xl">
+          <Suspense fallback={<BookingWizardFallback />}>
+            <BookingWizard slug={slug} clinicName={site.name} />
+          </Suspense>
+        </div>
       </div>
     </div>
   );

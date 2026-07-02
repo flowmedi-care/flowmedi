@@ -7,6 +7,7 @@ import { Menu, X } from "lucide-react";
 import type { PublicClinicSite } from "@/lib/public-site/types";
 import { checkPublicBookingReadiness } from "@/lib/public-site/booking-readiness";
 import { getSegmentCopy } from "@/lib/public-site/presentation";
+import { usePublicSitePaths } from "@/components/public-site/public-site-path-context";
 import { cn } from "@/lib/utils";
 
 export function PremiumHeader({
@@ -18,6 +19,7 @@ export function PremiumHeader({
 }) {
   const booking = checkPublicBookingReadiness(site);
   const copy = getSegmentCopy(site.segment);
+  const { home, booking: bookingPath } = usePublicSitePaths();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -54,7 +56,7 @@ export function PremiumHeader({
       )}
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 lg:h-[4.5rem] flex items-center justify-between gap-4">
-        <Link href={`/c/${slug}#inicio`} className="flex items-center gap-3 min-w-0 shrink-0">
+        <Link href={home("#inicio")} className="flex items-center gap-3 min-w-0 shrink-0">
           {site.logo_url ? (
             <LogoImage
               src={site.logo_url}
@@ -88,7 +90,7 @@ export function PremiumHeader({
 
         <div className="flex items-center gap-2">
           {booking.available && (
-            <Link href={`/c/${slug}/agendar`} className="hidden sm:block">
+            <Link href={bookingPath()} className="hidden sm:block">
               <span className="inline-flex items-center justify-center rounded-lg bg-[var(--site-accent)] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/25 hover:brightness-105 transition-all">
                 {copy.ctaLabel}
               </span>
@@ -119,7 +121,7 @@ export function PremiumHeader({
           ))}
           {booking.available && (
             <Link
-              href={`/c/${slug}/agendar`}
+              href={bookingPath()}
               className="block mt-2 text-center rounded-lg bg-[var(--site-accent)] px-4 py-3 text-sm font-semibold text-white"
               onClick={() => setOpen(false)}
             >
@@ -141,6 +143,7 @@ export function PremiumMobileBar({
 }) {
   const booking = checkPublicBookingReadiness(site);
   const copy = getSegmentCopy(site.segment);
+  const { booking: bookingPath } = usePublicSitePaths();
 
   if (!booking.available && !site.whatsapp_url) return null;
 
@@ -158,7 +161,7 @@ export function PremiumMobileBar({
       )}
       {booking.available && (
         <Link
-          href={`/c/${slug}/agendar`}
+          href={bookingPath()}
           className="flex-1 text-center rounded-lg bg-[var(--site-accent)] py-3 text-sm font-semibold text-white shadow-md"
         >
           {copy.ctaLabel}

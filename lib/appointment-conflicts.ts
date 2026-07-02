@@ -172,6 +172,12 @@ export type AvailableDay = {
   periods: ("manha" | "tarde")[];
 };
 
+export type DaySlot = AvailableSlot & {
+  available: boolean;
+  reason?: "booked" | "past" | "lunch";
+  period: SlotPeriod;
+};
+
 export type SlotPeriod = "manha" | "tarde";
 
 type OperatingHoursMap = Record<
@@ -381,6 +387,68 @@ async function scanDaySlots(
   return slots;
 }
 
+function getSlotPeriod(dayConfig: DayOperatingConfig, minute: number): SlotPeriod {
+  const lunchStart = dayConfig.lunchStart ?? 12 * 60;
+  return minute < lunchStart ? "manha" : "tarde";
+}
+
+async function scanDaySlotGrid(
+  supabase: SupabaseClient,
+  ctx: SlotSearchContext,
+  dayDate: Date,
+  dayConfig: DayOperatingConfig,
+  slotStep: number
+): Promise<DaySlot[]> {
+  const slots: DaySlot[] = [];
+  const { startMinute, endMinute } = getPeriodMinuteBounds(dayConfig);
+  let minute = startMinute;
+  const now = Date.now();
+
+  while (minute + ctx.durationMinutes <= endMinute) {
+    const slotStart = new Date(dayDate);
+    slotStart.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
+    const scheduledAt = slotStart.toISOString();
+    const scheduledEndAt = buildScheduledEndFromDuration(scheduledAt, ctx.durationMinutes);
+    const period = getSlotPeriod(dayConfig, minute);
+
+    let available = true;
+    let reason: DaySlot["reason"];
+
+    if (slotStart.getTime() <= now) {
+      available = false;
+      reason = "past";
+    } else if (isMinuteInLunch(dayConfig, minute, ctx.durationMinutes)) {
+      available = false;
+      reason = "lunch";
+    } else {
+      const conflict = await checkAppointmentConflict(supabase, {
+        clinicId: ctx.clinicId,
+        doctorId: ctx.doctorId,
+        scheduledAt,
+        scheduledEndAt,
+        excludeAppointmentId: null,
+      });
+      if (conflict) {
+        available = false;
+        reason = "booked";
+      }
+    }
+
+    slots.push({
+      scheduled_at: scheduledAt,
+      scheduled_end_at: scheduledEndAt,
+      label: formatTimeLabel(scheduledAt),
+      available,
+      reason,
+      period,
+    });
+
+    minute += slotStep;
+  }
+
+  return slots;
+}
+
 async function dayHasAvailability(
   supabase: SupabaseClient,
   ctx: SlotSearchContext,
@@ -553,6 +621,33 @@ export async function findSlotsForDay(
     timeOnlyLabel: true,
     excludeAppointmentId: excludeId,
   });
+}
+
+export async function findDaySlotGrid(
+  supabase: SupabaseClient,
+  opts: {
+    clinicId: string;
+    doctorId: string;
+    procedureId: string;
+    date: string;
+    slotStepMinutes?: number;
+  }
+): Promise<{ date: string; periods: SlotPeriod[]; slots: DaySlot[] }> {
+  const ctx = await loadSlotSearchContext(supabase, opts);
+  const dayDate = parseDateLocal(opts.date);
+  const dayConfig = getDayOperatingConfig(ctx, dayDate);
+
+  if (!dayConfig) {
+    return { date: opts.date, periods: [], slots: [] };
+  }
+
+  const slotStep = opts.slotStepMinutes ?? 30;
+  const slots = await scanDaySlotGrid(supabase, ctx, dayDate, dayConfig, slotStep);
+  const periods = (["manha", "tarde"] as SlotPeriod[]).filter((p) =>
+    slots.some((s) => s.period === p)
+  );
+
+  return { date: opts.date, periods, slots };
 }
 
 export async function findAvailableSlots(
