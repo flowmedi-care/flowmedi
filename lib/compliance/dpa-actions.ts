@@ -61,6 +61,7 @@ export async function recordDpaAcceptance(clinicId: string) {
     new_values: { dpa_version: version },
   });
 
+  revalidatePath("/dashboard/configuracoes/privacidade");
   revalidatePath("/dashboard/privacidade");
   return { error: null, version };
 }

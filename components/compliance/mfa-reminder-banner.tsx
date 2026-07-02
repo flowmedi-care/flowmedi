@@ -34,7 +34,7 @@ export async function MfaReminderBanner() {
         </p>
       </div>
       <Link
-        href={mandatory ? MFA_WIZARD_PATH : "/dashboard/configuracoes/seguranca"}
+        href={mandatory ? MFA_WIZARD_PATH : "/dashboard/configuracoes/privacidade#mfa"}
         className="text-sm font-medium text-primary underline-offset-2 hover:underline shrink-0"
       >
         {mandatory ? "Configurar agora" : "Configurar MFA"}

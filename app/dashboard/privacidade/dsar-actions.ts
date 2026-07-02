@@ -96,6 +96,7 @@ export async function createDataSubjectRequest(input: {
     new_values: { request_type: input.requestType, requester_name: input.requesterName },
   });
 
+  revalidatePath("/dashboard/configuracoes/privacidade");
   revalidatePath("/dashboard/privacidade/solicitacoes");
   return { error: null };
 }
@@ -143,6 +144,7 @@ export async function updateDataSubjectRequestStatus(
     new_values: { status },
   });
 
+  revalidatePath("/dashboard/configuracoes/privacidade");
   revalidatePath("/dashboard/privacidade/solicitacoes");
   return { error: null };
 }
@@ -299,7 +301,8 @@ export async function processPatientDeletionRequest(patientId: string, requestId
         .eq("clinic_id", profile.clinic_id);
     }
 
-    revalidatePath("/dashboard/privacidade/solicitacoes");
+    revalidatePath("/dashboard/configuracoes/privacidade");
+  revalidatePath("/dashboard/privacidade/solicitacoes");
     revalidatePath("/dashboard/contatos/pacientes");
     return { action: "anonymized" as const, error: null };
   }
@@ -317,6 +320,7 @@ export async function processPatientDeletionRequest(patientId: string, requestId
     new_values: { request_id: requestId ?? null },
   });
 
+  revalidatePath("/dashboard/configuracoes/privacidade");
   revalidatePath("/dashboard/privacidade/solicitacoes");
   return { action: "deleted" as const, error: null };
 }

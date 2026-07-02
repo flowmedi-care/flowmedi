@@ -15,6 +15,7 @@ export function requiresMfaForRole(role: string | null | undefined): boolean {
 /** Rotas isentas do bloqueio de enrollment MFA. */
 export const MFA_EXEMPT_PATH_PREFIXES = [
   MFA_WIZARD_PATH,
+  "/dashboard/configuracoes/privacidade",
   "/dashboard/configuracoes/seguranca",
   "/dashboard/onboarding",
   "/entrar",

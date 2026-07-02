@@ -29,12 +29,9 @@ export function SignUpForm({ redirectTo, prefilledEmail }: SignUpFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [awaitingEmailConfirmation, setAwaitingEmailConfirmation] = useState(false);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const finalRedirect =
-    redirectTo && redirectTo.startsWith("/")
-      ? `${origin}${redirectTo}`
-      : `${origin}/dashboard`;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,12 +53,16 @@ export function SignUpForm({ redirectTo, prefilledEmail }: SignUpFormProps) {
 
     setLoading(true);
     const supabase = createClient();
-    const { error: err } = await supabase.auth.signUp({
+    const emailCallback =
+      redirectTo && redirectTo.startsWith("/")
+        ? `${origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`
+        : `${origin}/auth/callback?next=/dashboard`;
+    const { data, error: err } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: finalRedirect,
+        emailRedirectTo: emailCallback,
       },
     });
     setLoading(false);
@@ -71,9 +72,44 @@ export function SignUpForm({ redirectTo, prefilledEmail }: SignUpFormProps) {
       return;
     }
 
+    if (data.user && !data.session) {
+      setAwaitingEmailConfirmation(true);
+      return;
+    }
+
     router.refresh();
     router.push(
       redirectTo && redirectTo.startsWith("/") ? redirectTo : "/dashboard"
+    );
+  }
+
+  if (awaitingEmailConfirmation) {
+    return (
+      <div className="space-y-4 text-center">
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-6 space-y-3">
+          <h2 className="text-lg font-semibold">Confirme seu e-mail</h2>
+          <p className="text-sm text-muted-foreground">
+            Enviamos um link de confirmação para <strong className="text-foreground">{email}</strong>.
+            Abra o e-mail e clique no link para ativar sua conta.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Não recebeu? Verifique o spam ou aguarde alguns minutos.
+          </p>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Já confirmou?{" "}
+          <Link
+            href={
+              redirectTo
+                ? `/entrar?redirect=${encodeURIComponent(redirectTo)}`
+                : "/entrar"
+            }
+            className="font-medium text-primary hover:underline"
+          >
+            Entrar
+          </Link>
+        </p>
+      </div>
     );
   }
 
