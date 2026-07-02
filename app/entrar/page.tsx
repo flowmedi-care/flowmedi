@@ -1,40 +1,35 @@
 import Link from "next/link";
-import { LoginForm } from "./login-form";
-import { AuthLayout } from "@/components/auth-layout";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { SignInForm } from "@/components/auth/sign-in-form";
 
 export default async function EntrarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ redirect?: string }>;
+  searchParams: Promise<{ redirect?: string; error?: string }>;
 }) {
   const params = await searchParams;
   const redirect = typeof params.redirect === "string" ? params.redirect : undefined;
+  const oauthError = params.error === "oauth";
 
   return (
-    <AuthLayout
-      title="Entrar"
+    <AuthShell
+      title="Bem-vindo de volta"
       subtitle="Acesse o dashboard da sua clínica"
     >
-      <LoginForm redirectTo={redirect} />
-      <div className="mt-6 space-y-3 text-center text-sm">
-        <p className="text-muted-foreground">
-          Não tem conta?{" "}
-          <Link
-            href={redirect ? `/criar-conta?redirect=${encodeURIComponent(redirect)}` : "/criar-conta"}
-            className="font-medium text-primary hover:underline"
-          >
-            Criar conta
-          </Link>
-        </p>
-        <p>
-          <Link
-            href="/esqueci-senha"
-            className="text-muted-foreground hover:text-primary hover:underline"
-          >
-            Esqueci minha senha
-          </Link>
-        </p>
-      </div>
-    </AuthLayout>
+      <SignInForm redirectTo={redirect} oauthError={oauthError} />
+      <p className="mt-6 text-center text-sm text-muted-foreground">
+        Não tem conta?{" "}
+        <Link
+          href={
+            redirect
+              ? `/criar-conta?redirect=${encodeURIComponent(redirect)}`
+              : "/criar-conta"
+          }
+          className="font-medium text-primary hover:underline"
+        >
+          Criar conta
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

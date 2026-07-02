@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { SignUpForm } from "./signup-form";
-import { AuthLayout } from "@/components/auth-layout";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { SignUpForm } from "@/components/auth/sign-up-form";
 
 export default async function CriarContaPage({
   searchParams,
@@ -12,7 +12,7 @@ export default async function CriarContaPage({
   const prefilledEmail = typeof params.email === "string" ? params.email : undefined;
 
   return (
-    <AuthLayout
+    <AuthShell
       title="Criar conta"
       subtitle="Comece a usar o FlowMedi na sua clínica"
     >
@@ -20,12 +20,16 @@ export default async function CriarContaPage({
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Já tem conta?{" "}
         <Link
-          href={redirect ? `/entrar?redirect=${encodeURIComponent(redirect)}` : "/entrar"}
+          href={
+            redirect
+              ? `/entrar?redirect=${encodeURIComponent(redirect)}`
+              : "/entrar"
+          }
           className="font-medium text-primary hover:underline"
         >
           Entrar
         </Link>
       </p>
-    </AuthLayout>
+    </AuthShell>
   );
 }
