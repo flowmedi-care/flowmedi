@@ -81,7 +81,7 @@ export function buildToolRoundLimitFallback(state: AiConversationState): string 
     if (!state.doctor_id) {
       return "Com qual profissional você prefere agendar?";
     }
-    if (!state.pending_slot) {
+    if (!state.offered_slots?.length && !state.offered_days?.length && !state.pending_slot) {
       return "Qual dia ou turno (manhã/tarde) funciona melhor para você?";
     }
     return "Falta só confirmar o horário escolhido. Pode repetir qual opção você prefere?";

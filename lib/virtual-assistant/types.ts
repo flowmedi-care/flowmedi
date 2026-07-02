@@ -78,6 +78,21 @@ export type BookingStep =
   | "confirm"
   | "done";
 
+export type OfferedDay = {
+  date: string;
+  label: string;
+};
+
+export type OfferedSlot = {
+  scheduled_at: string;
+  display: string;
+};
+
+export type LastSlotQuery = {
+  date?: string;
+  period?: "manha" | "tarde";
+};
+
 export type AiConversationState = {
   intent?: string;
   booking_step?: BookingStep;
@@ -86,6 +101,9 @@ export type AiConversationState = {
   procedure_id?: string;
   service_id?: string;
   pending_slot?: string;
+  offered_days?: OfferedDay[];
+  offered_slots?: OfferedSlot[];
+  last_slot_query?: LastSlotQuery;
   dimension_value_ids?: string[];
   patient_id?: string;
   pending_confirmation_appointment_id?: string;

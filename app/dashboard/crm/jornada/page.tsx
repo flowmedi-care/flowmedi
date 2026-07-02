@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { JourneyListClient } from "@/components/crm/journey-list-client";
+import { Button } from "@/components/ui/button";
 import { getJourneyList } from "./actions";
 import { JOURNEY_PHASE_LABELS } from "@/lib/contact-journey";
 import type { JourneyPhase, JourneySource } from "@/lib/contact-journey";
+import { Sparkles } from "lucide-react";
 
 type Props = {
   searchParams: Promise<{
@@ -43,6 +46,21 @@ export default async function JornadaListPage({ searchParams }: Props) {
       {error && (
         <p className="text-sm text-destructive mb-4">{error}</p>
       )}
+
+      <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+        <div>
+          <p className="text-sm font-medium">Centro de Jornada imersivo</p>
+          <p className="text-xs text-muted-foreground">
+            Agentes operacionais, fluxo visual e activity feed ao vivo
+          </p>
+        </div>
+        <Button size="sm" asChild>
+          <Link href="/dashboard/crm/jornada/centro">
+            <Sparkles className="mr-1.5 h-4 w-4" />
+            Abrir centro
+          </Link>
+        </Button>
+      </div>
 
       <div className="flex flex-wrap gap-2 mb-6 text-sm">
         <FilterLink href="/dashboard/crm/jornada" active={!params.phase && !params.source && !withPendingAction}>

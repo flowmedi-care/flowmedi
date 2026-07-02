@@ -11,6 +11,10 @@ import {
   normalizeSlotPeriod,
 } from "@/lib/appointment-conflicts";
 import {
+  buildOfferedStateFromSlotsTool,
+  isActiveBookingState,
+} from "@/lib/operational-agents/booking-executor";
+import {
   cancelAppointmentViaAssistant,
   confirmAppointmentViaAssistant,
   createAppointmentViaAssistant,
@@ -510,10 +514,13 @@ export async function executeAssistantTool(
           return {
             result: JSON.stringify(payload),
             statePatch: {
-              doctor_id: doctorId,
-              procedure_id: procedureId,
-              intent: "booking",
-              ...patchBookingStepFromTool(name, args, payload as Record<string, unknown>, ctx.aiState),
+              ...buildOfferedStateFromSlotsTool(
+                "times",
+                { date, period, slots },
+                doctorId,
+                procedureId,
+                ctx.aiState
+              ),
             },
           };
         }
@@ -556,10 +563,13 @@ export async function executeAssistantTool(
         return {
           result: JSON.stringify(payload),
           statePatch: {
-            doctor_id: doctorId,
-            procedure_id: procedureId,
-            intent: "booking",
-            ...patchBookingStepFromTool(name, args, payload as Record<string, unknown>, ctx.aiState),
+            ...buildOfferedStateFromSlotsTool(
+              "days",
+              { days: daysForDisplay },
+              doctorId,
+              procedureId,
+              ctx.aiState
+            ),
           },
         };
       }
@@ -865,7 +875,7 @@ export async function executeAssistantTool(
 
       case "transfer_to_human": {
         const reason = String(args.reason ?? "").toLowerCase();
-        const inBooking = ctx.aiState.intent === "booking";
+        const inBooking = isActiveBookingState(ctx.aiState);
         const explicitHumanRequest =
           reason.includes("human_request") ||
           reason.includes("user_handoff") ||

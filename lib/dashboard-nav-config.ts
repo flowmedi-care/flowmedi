@@ -137,6 +137,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     children: [
       { href: "/dashboard/crm/pipeline", label: "Pipeline CRM" },
       { href: "/dashboard/crm/jornada", label: "Jornada" },
+      { href: "/dashboard/crm/jornada/centro", label: "Centro de Jornada" },
       { href: "/dashboard/crm/captacao", label: "Formulários de captação" },
     ],
   },

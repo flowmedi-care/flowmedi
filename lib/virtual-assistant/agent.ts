@@ -24,6 +24,10 @@ import {
   bootstrapPatientForBooking,
   tryHandleBookingMeta,
 } from "@/lib/virtual-assistant/booking-flow";
+import {
+  isActiveBookingState,
+  tryExecuteBookingSlotSelection,
+} from "@/lib/operational-agents/booking-executor";
 import { applyReplyGuards } from "@/lib/virtual-assistant/reply-guards";
 
 const MAX_TOOL_ROUNDS_DEFAULT = 5;
@@ -103,6 +107,25 @@ export async function runVirtualAssistantAgent(opts: {
     if (meta.handled) {
       return { reply: meta.reply, statePatch: { ...workingState, ...meta.statePatch } };
     }
+
+    const boot = await bootstrapPatientForBooking(opts.supabase, {
+      clinicId: opts.clinicId,
+      conversationId: opts.conversationId,
+      phoneNumber: opts.phoneNumber,
+      aiState: workingState,
+    });
+    workingState = { ...workingState, ...boot.statePatch };
+
+    const slotExec = await tryExecuteBookingSlotSelection(opts.supabase, {
+      clinicId: opts.clinicId,
+      conversationId: opts.conversationId,
+      phoneNumber: opts.phoneNumber,
+      messageText: combinedUserText,
+      aiState: workingState,
+    });
+    if (slotExec.handled) {
+      return { reply: slotExec.reply, statePatch: { ...workingState, ...slotExec.statePatch } };
+    }
   }
 
   const escalation = shouldEscalateToHuman({
@@ -110,9 +133,9 @@ export async function runVirtualAssistantAgent(opts: {
     lossConfidence: workingState.confianca ?? null,
     followupCount: workingState.followup_count,
     confirmationStep: Boolean(workingState.pending_confirmation_appointment_id),
+    activeBooking: isActiveBookingState(workingState),
   });
-  const inActiveBooking =
-    workingState.intent === "booking" && workingState.booking_step !== "done";
+  const inActiveBooking = isActiveBookingState(workingState);
   if (
     escalation.escalate &&
     opts.settings.human_handoff_enabled !== false &&
@@ -292,6 +315,26 @@ export async function runVirtualAssistantAgent(opts: {
   }
 
   let fallback = buildToolRoundLimitFallback(statePatch as AiConversationState);
+
+  if (isActiveBookingState(statePatch as AiConversationState)) {
+    const slotExec = await tryExecuteBookingSlotSelection(opts.supabase, {
+      clinicId: opts.clinicId,
+      conversationId: opts.conversationId,
+      phoneNumber: opts.phoneNumber,
+      messageText: combinedUserText,
+      aiState: statePatch as AiConversationState,
+    });
+    if (slotExec.handled) {
+      return {
+        reply: applyReplyGuards(slotExec.reply, {
+          ...(statePatch as AiConversationState),
+          ...slotExec.statePatch,
+        }),
+        statePatch: { ...statePatch, ...slotExec.statePatch },
+      };
+    }
+  }
+
   fallback = applyReplyGuards(fallback, statePatch as AiConversationState);
   return { reply: fallback, statePatch };
 }

@@ -13,6 +13,7 @@ export type EscalationInput = {
   followupCount?: number;
   confirmationStep?: boolean;
   lossConfidence?: "alta" | "media" | "baixa" | null;
+  activeBooking?: boolean;
 };
 
 const COMPLAINT = [/reclama[çc][aã]o/i, /procon/i, /advogado/i, /processo/i];
@@ -50,7 +51,7 @@ export function shouldEscalateToHuman(input: EscalationInput): {
     return { escalate: true, trigger: "confirmation_no_response", reason: "Sem resposta na confirmação" };
   }
 
-  if (input.lossConfidence === "baixa") {
+  if (input.lossConfidence === "baixa" && !input.activeBooking) {
     return { escalate: true, trigger: "low_confidence_objection", reason: "Motivo de desistência incerto" };
   }
 

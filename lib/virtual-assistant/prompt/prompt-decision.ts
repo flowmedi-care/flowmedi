@@ -20,6 +20,8 @@ export function buildPromptDecision(flow: PromptFlow): string {
       `NUNCA diga "confirmado" ou "agendamento feito" antes de create_appointment retornar appointmentId.`,
       `NUNCA peça telefone — o WhatsApp já fornece.`,
       `Use SOMENTE display_message de find_available_slots para horários.`,
+      `Se o paciente escolheu dia ou turno e há slots oferecidos, chame create_appointment imediatamente.`,
+      `NUNCA transfer_to_human durante agendamento ativo — finalize com create_appointment.`,
       `Se create_appointment falhar com conflito, chame list_patient_appointments antes de oferecer outro horário.`,
     ],
     pricing: [

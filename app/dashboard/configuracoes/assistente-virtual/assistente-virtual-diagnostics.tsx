@@ -39,6 +39,8 @@ import {
   buildJourneyCoverageMatrix,
   COVERAGE_LABELS,
 } from "@/lib/virtual-assistant/journey-coverage-matrix";
+import { FlowmediAgentBento } from "@/components/agents/flowmedi-agent-bento";
+import Link from "next/link";
 
 interface DiagnosticsResponse {
   health: AssistantHealthCheck;
@@ -264,6 +266,16 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
 
   return (
     <div className="space-y-6">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">Agentes operacionais</p>
+          <Button variant="link" size="sm" className="h-auto p-0" asChild>
+            <Link href="/dashboard/crm/jornada/centro">Abrir Centro de Jornada</Link>
+          </Button>
+        </div>
+        <FlowmediAgentBento compact pollMs={10000} />
+      </div>
+
       <Card className="overflow-hidden border-0 shadow-md">
         <div className="border-b bg-gradient-to-r from-slate-50 to-slate-100/80 px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">

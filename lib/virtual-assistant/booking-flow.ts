@@ -142,6 +142,9 @@ export function patchBookingStepFromTool(
           last_created_appointment_id: String(result.appointmentId),
           intent: undefined,
           pending_slot: undefined,
+          offered_slots: undefined,
+          offered_days: undefined,
+          last_slot_query: undefined,
         };
       }
       return { booking_step: "confirm", intent: "booking" };
