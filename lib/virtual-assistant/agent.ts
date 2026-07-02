@@ -15,19 +15,16 @@ import { HANDOFF_REPLY_BODY } from "@/lib/whatsapp-sender-display";
 
 const MAX_TOOL_ROUNDS = 5;
 
-const HANDOFF_KEYWORDS = [
-  "atendente",
-  "humano",
-  "pessoa",
-  "reclamação",
-  "reclamacao",
-  "falar com alguém",
-  "falar com alguem",
+const HANDOFF_PATTERNS = [
+  /falar com (um(a)? )?(atendente|humano|pessoa)/i,
+  /quero (um )?atendente/i,
+  /quero falar com (algu[eé]m|uma pessoa)/i,
+  /\batendente humano\b/i,
+  /reclama[çc][aã]o/,
 ];
 
 export function shouldAutoHandoff(text: string): boolean {
-  const lower = text.toLowerCase();
-  return HANDOFF_KEYWORDS.some((kw) => lower.includes(kw));
+  return HANDOFF_PATTERNS.some((p) => p.test(text));
 }
 
 export async function runVirtualAssistantAgent(opts: {
@@ -46,7 +43,12 @@ export async function runVirtualAssistantAgent(opts: {
   }
 
   const escalation = shouldEscalateToHuman({ messageText: combinedUserText });
-  if (escalation.escalate && opts.settings.human_handoff_enabled !== false) {
+  const inActiveBooking = opts.aiState.intent === "booking";
+  if (
+    escalation.escalate &&
+    opts.settings.human_handoff_enabled !== false &&
+    !inActiveBooking
+  ) {
     const handoffResult = await executeAssistantTool(
       {
         supabase: opts.supabase,
@@ -178,7 +180,7 @@ export async function runVirtualAssistantAgent(opts: {
 
     const reply =
       completion.content?.trim() ||
-      "Desculpe, não consegui processar. Quer que eu chame um atendente?";
+      "Desculpe, não consegui processar. Pode reformular sua mensagem?";
     return { reply, statePatch };
   }
 

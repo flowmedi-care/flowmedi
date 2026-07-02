@@ -5,14 +5,12 @@ import { sendAssistantReply, sendHandoffReply } from "./send-reply";
 
 export type UserAiCommand = "opt_in" | "opt_out" | "handoff";
 
-const HANDOFF_KEYWORDS = [
-  "atendente",
-  "humano",
-  "pessoa",
-  "reclamação",
-  "reclamacao",
-  "falar com alguém",
-  "falar com alguem",
+const HANDOFF_PATTERNS = [
+  /falar com (um(a)? )?(atendente|humano|pessoa)/i,
+  /quero (um )?atendente/i,
+  /quero falar com (algu[eé]m|uma pessoa)/i,
+  /\batendente humano\b/i,
+  /reclama[çc][aã]o/,
 ];
 
 const OPT_OUT_PATTERNS = [
@@ -47,7 +45,7 @@ export function parseUserAiCommand(text: string | null | undefined): UserAiComma
   }
 
   const lower = normalized.toLowerCase();
-  if (HANDOFF_KEYWORDS.some((kw) => lower.includes(kw))) {
+  if (HANDOFF_PATTERNS.some((p) => p.test(lower))) {
     return "handoff";
   }
 

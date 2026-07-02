@@ -388,21 +388,63 @@ async function dayHasAvailability(
 ): Promise<SlotPeriod[]> {
   const periods: SlotPeriod[] = [];
 
-  const morningSlots = await scanDaySlots(supabase, ctx, dayDate, dayConfig, {
-    slotStep: 30,
-    maxSlots: 1,
-    period: "manha",
-  });
-  if (morningSlots.length > 0) periods.push("manha");
-
-  const afternoonSlots = await scanDaySlots(supabase, ctx, dayDate, dayConfig, {
-    slotStep: 30,
-    maxSlots: 1,
-    period: "tarde",
-  });
-  if (afternoonSlots.length > 0) periods.push("tarde");
+  for (const period of ["manha", "tarde"] as SlotPeriod[]) {
+    const slots = await scanDaySlots(supabase, ctx, dayDate, dayConfig, {
+      slotStep: 15,
+      maxSlots: 1,
+      period,
+      timeOnlyLabel: true,
+    });
+    if (slots.length > 0) periods.push(period);
+  }
 
   return periods;
+}
+
+export async function findAvailablePeriodsForDay(
+  supabase: SupabaseClient,
+  opts: {
+    clinicId: string;
+    doctorId: string;
+    procedureId: string;
+    date: string;
+  }
+): Promise<SlotPeriod[]> {
+  const ctx = await loadSlotSearchContext(supabase, opts);
+  const dayDate = parseDateLocal(opts.date);
+  const dayConfig = getDayOperatingConfig(ctx, dayDate);
+  if (!dayConfig) return [];
+  return dayHasAvailability(supabase, ctx, dayDate, dayConfig);
+}
+
+export function normalizeSlotPeriod(raw: unknown): SlotPeriod | undefined {
+  const p = String(raw ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (p === "manha" || p === "morning") return "manha";
+  if (p === "tarde" || p === "afternoon") return "tarde";
+  return undefined;
+}
+
+export function formatSlotPeriodLabel(period: SlotPeriod): string {
+  return period === "manha" ? "manhã" : "tarde";
+}
+
+export function formatPeriodsLabel(periods: SlotPeriod[]): string {
+  if (periods.length === 2) return "manhã e tarde";
+  if (periods[0] === "manha") return "manhã";
+  return "tarde";
+}
+
+export function buildSlotsDisplayMessage(slots: AvailableSlot[]): string {
+  return slots.map((s, i) => `${i + 1}) ${s.label}`).join("\n");
+}
+
+export function buildDaysDisplayMessage(
+  days: Array<{ label: string; periods_label: string }>
+): string {
+  return days.map((d, i) => `${i + 1}) ${d.label} — ${d.periods_label}`).join("\n");
 }
 
 export async function findAvailableDays(

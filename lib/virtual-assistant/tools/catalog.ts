@@ -64,7 +64,7 @@ export const ASSISTANT_TOOL_CATALOG: AssistantToolCatalogEntry[] = [
     description:
       "Busca dias ou horários disponíveis para médico + procedimento. Sem date: lista dias. Com date: lista horários do dia (opcionalmente por turno manhã/tarde).",
     whenToUse:
-      "Depois que médico e procedimento estão definidos. Primeiro sem date (dias), depois com date quando o paciente escolher dia ou turno.",
+      "Depois que médico e procedimento estão definidos. Primeiro sem date (dias), depois com date quando o paciente escolher dia ou turno. Use display_message retornado — nunca invente horários.",
   },
   {
     name: "create_appointment",
@@ -190,7 +190,8 @@ export const ASSISTANT_TOOL_CATALOG: AssistantToolCatalogEntry[] = [
     label: "Transferir para humano",
     category: "atendimento",
     description: "Encaminha a conversa para atendimento humano.",
-    whenToUse: "Reclamação, pedido explícito ou situação fora do escopo do bot.",
+    whenToUse:
+      "Somente quando o paciente pedir explicitamente atendente humano ou houver reclamação grave — nunca durante agendamento.",
   },
 ];
 

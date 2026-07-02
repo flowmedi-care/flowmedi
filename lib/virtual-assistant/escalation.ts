@@ -15,8 +15,13 @@ export type EscalationInput = {
   lossConfidence?: "alta" | "media" | "baixa" | null;
 };
 
-const COMPLAINT = [/reclamação/i, /reclamacao/i, /procon/i, /advogado/i, /processo/i];
-const HUMAN = [/atendente/i, /humano/i, /falar com (uma )?pessoa/i];
+const COMPLAINT = [/reclama[çc][aã]o/i, /procon/i, /advogado/i, /processo/i];
+const HUMAN = [
+  /falar com (um(a)? )?(atendente|humano|pessoa)/i,
+  /quero (um )?atendente/i,
+  /quero falar com (algu[eé]m|uma pessoa)/i,
+  /\batendente humano\b/i,
+];
 
 export function shouldEscalateToHuman(input: EscalationInput): {
   escalate: boolean;

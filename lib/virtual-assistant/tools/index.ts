@@ -1,6 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolDefinition } from "../openai-client";
-import { findAvailableDays, findSlotsForDay } from "@/lib/appointment-conflicts";
+import {
+  buildDaysDisplayMessage,
+  buildSlotsDisplayMessage,
+  findAvailableDays,
+  findAvailablePeriodsForDay,
+  findSlotsForDay,
+  formatPeriodsLabel,
+  formatSlotPeriodLabel,
+  normalizeSlotPeriod,
+} from "@/lib/appointment-conflicts";
 import {
   cancelAppointmentViaAssistant,
   confirmAppointmentViaAssistant,
@@ -319,7 +328,8 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "transfer_to_human",
-      description: "Transfere conversa para atendimento humano.",
+      description:
+        "Transfere para atendente humano. Use SOMENTE se o paciente pedir EXPLICITAMENTE para falar com atendente/pessoa humana. NUNCA use durante agendamento, dúvidas de horário ou quando não souber uma resposta — use as ferramentas.",
       parameters: {
         type: "object",
         properties: { reason: { type: "string" } },
@@ -443,8 +453,7 @@ export async function executeAssistantTool(
         const procedureId = String(args.procedure_id);
         const daysAhead = Number(args.days_ahead) || 14;
         const date = args.date ? String(args.date) : undefined;
-        const period =
-          args.period === "manha" || args.period === "tarde" ? args.period : undefined;
+        const period = normalizeSlotPeriod(args.period);
         const skipDays = Number(args.skip_days) || 0;
 
         if (date) {
@@ -455,15 +464,29 @@ export async function executeAssistantTool(
             date,
             period,
           });
-          const periodLabel = period === "manha" ? "manhã" : period === "tarde" ? "tarde" : null;
+          const availablePeriods = await findAvailablePeriodsForDay(supabase, {
+            clinicId,
+            doctorId,
+            procedureId,
+            date,
+          });
+          const periodLabel = period ? formatSlotPeriodLabel(period) : null;
           const payload = {
             mode: "times" as const,
             date,
             period: period ?? null,
             slots,
-            hint: periodLabel
-              ? `Apresente os horários da ${periodLabel} em lista numerada (1, 2, 3...). Se nenhum servir, ofereça outro turno ou outro dia.`
-              : "Apresente os horários em lista numerada (1, 2, 3...). Se o paciente preferir manhã ou tarde, chame novamente com period. Se nenhum servir, ofereça outro dia.",
+            available_periods: availablePeriods.map(formatSlotPeriodLabel),
+            display_message:
+              slots.length > 0 ? buildSlotsDisplayMessage(slots) : null,
+            hint:
+              slots.length > 0
+                ? periodLabel
+                  ? `Use display_message como lista de horários (pode adicionar uma frase curta antes). NUNCA invente ou altere horários.`
+                  : "Use display_message como lista de horários. NUNCA invente horários. Se o paciente preferir turno, chame novamente com period."
+                : periodLabel
+                  ? `Nenhum horário na ${periodLabel}. available_periods indica turnos livres neste dia. NUNCA invente horários — ofereça os turnos de available_periods ou outro dia.`
+                  : "Nenhum horário neste dia. NUNCA invente horários — sugira outro dia da lista anterior.",
           };
           await logToolCall(
             supabase,
@@ -487,23 +510,24 @@ export async function executeAssistantTool(
           daysAhead,
           skipDays,
         });
+        const daysForDisplay = days.map((d) => ({
+          ...d,
+          periods_label: formatPeriodsLabel(d.periods),
+        }));
         const payload = {
           mode: "days" as const,
-          days: days.map((d) => ({
-            ...d,
-            periods_label:
-              d.periods.length === 2
-                ? "manhã e tarde"
-                : d.periods[0] === "manha"
-                  ? "manhã"
-                  : "tarde",
-          })),
+          days: daysForDisplay,
           has_more: hasMore,
           skip_days_used: skipDays,
           next_skip_days: skipDays + days.length,
-          hint: hasMore
-            ? "Apresente os dias em lista numerada (1, 2, 3...). Pergunte qual dia prefere. Se o paciente disser não ou pedir outros dias, chame novamente com skip_days igual a next_skip_days."
-            : "Apresente os dias em lista numerada (1, 2, 3...). Pergunte qual dia prefere. Depois chame novamente com date para mostrar horários.",
+          display_message:
+            daysForDisplay.length > 0 ? buildDaysDisplayMessage(daysForDisplay) : null,
+          hint:
+            daysForDisplay.length > 0
+              ? hasMore
+                ? "Use display_message como lista de dias (pode adicionar frase curta antes). NUNCA invente datas ou turnos. Se o paciente disser não, chame com skip_days = next_skip_days."
+                : "Use display_message como lista de dias. Depois chame com date para horários. NUNCA invente datas ou turnos."
+              : "Nenhum dia disponível no período. NUNCA invente datas — sugira outro procedimento/médico ou peça para tentar mais tarde.",
         };
         await logToolCall(
           supabase,
@@ -796,6 +820,32 @@ export async function executeAssistantTool(
       }
 
       case "transfer_to_human": {
+        const reason = String(args.reason ?? "").toLowerCase();
+        const inBooking = ctx.aiState.intent === "booking";
+        const explicitHumanRequest =
+          reason.includes("human_request") ||
+          reason.includes("user_handoff") ||
+          reason.includes("complaint") ||
+          reason.includes("pedido explícito");
+
+        if (inBooking && !explicitHumanRequest) {
+          await logToolCall(
+            supabase,
+            clinicId,
+            conversationId,
+            name,
+            args,
+            "bloqueado durante agendamento",
+            false
+          );
+          return {
+            result: JSON.stringify({
+              error:
+                "Transferência bloqueada durante agendamento. Continue ajudando com find_available_slots e create_appointment. Só transfira se o paciente pedir explicitamente atendente humano.",
+            }),
+          };
+        }
+
         await supabase
           .from("whatsapp_conversations")
           .update({
