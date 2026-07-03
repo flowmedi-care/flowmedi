@@ -193,7 +193,7 @@ export function AssistenteVirtualPipelineTab({ initialToolModes }: Props) {
             key={displayMode}
             canvasViewMode={displayMode}
             initialJourneyMode={displayMode === "reference" ? "full" : "active"}
-            disableDemoCycle={displayMode === "conversation"}
+            disableDemoCycle
             currentStage={pipelineState?.currentStage ?? null}
             parallelStages={pipelineState?.parallelStages ?? []}
             visitedStages={pipelineState?.visitedStages ?? []}

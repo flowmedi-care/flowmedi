@@ -66,7 +66,10 @@ function swimlanesForTab(tab: PipelineViewTab): SwimlaneId[] {
 }
 
 function nodeVisibleInTab(node: UnifiedGraphNode, tab: PipelineViewTab): boolean {
+  if (node.kind === "tool") return false;
+
   if (node.kind === "swimlane") {
+    if (tab === "journey") return false;
     return swimlanesForTab(tab).includes(node.laneId as SwimlaneId);
   }
   if (node.kind === "anchor") {
@@ -86,7 +89,7 @@ function nodeVisibleInTab(node: UnifiedGraphNode, tab: PipelineViewTab): boolean
     }
     return false;
   }
-  if (node.kind === "stage" || node.kind === "tool") {
+  if (node.kind === "stage") {
     return tab === "journey" || tab === "exits";
   }
   return false;
@@ -95,9 +98,12 @@ function nodeVisibleInTab(node: UnifiedGraphNode, tab: PipelineViewTab): boolean
 function edgeVisibleInTab(
   edge: UnifiedGraphEdge,
   tab: PipelineViewTab,
-  journeyMode: JourneyDisplayMode,
+  _journeyMode: JourneyDisplayMode,
   visibleNodeIds: Set<string>
 ): boolean {
+  if (edge.kind === "tool_filter" || edge.kind === "tool_dependency") return false;
+  if (edge.id.startsWith("esc-bus-")) return false;
+
   const dynResolver = ["dyn-switch-stage", "dyn-stage-tools"];
   const resolverParallel = edge.id.startsWith("par-");
 
@@ -109,17 +115,12 @@ function edgeVisibleInTab(
   }
 
   if (tab === "journey") {
-    if (edge.kind === "runtime" || edge.kind === "context" || edge.kind === "return") return false;
-    if (edge.kind === "transversal") return false;
-    if (dynResolver.includes(edge.id) || resolverParallel) return false;
+    if (edge.kind !== "stage_transition") return false;
     return visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to);
   }
 
   if (tab === "exits") {
     if (edge.kind === "stage_transition" || edge.kind === "parallel") return false;
-    if (edge.kind === "tool_filter" || edge.kind === "tool_dependency") {
-      return visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to);
-    }
     if (edge.kind === "transversal" || edge.kind === "runtime" || edge.kind === "return") {
       return visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to);
     }
@@ -159,9 +160,6 @@ export function filterGraphForView(
     if (!nodeVisibleInTab(n, tab)) return false;
 
     if (tab === "journey" && n.kind === "stage" && n.stageCode && visibleStageIds) {
-      return visibleStageIds.has(n.stageCode);
-    }
-    if (tab === "journey" && n.kind === "tool" && n.stageCode && visibleStageIds) {
       return visibleStageIds.has(n.stageCode);
     }
     if (tab === "exits" && n.kind === "stage") {

@@ -8,6 +8,7 @@ import {
   PARALLEL_RULE_COUNT,
   RESOLVER_SWITCH_OUTPUT_COUNT,
 } from "../flow-model";
+import { applyDagreLayout, getMainJourneyStageNodes } from "../dagre-layout";
 import { buildUnifiedGraph, validateUnifiedGraphIntegrity } from "../unified-flow-graph";
 import { filterGraphForView, getJourneyVisibleStageIds } from "../view-filter";
 
@@ -25,10 +26,18 @@ describe("unified-flow-graph integrity", () => {
   it("includes all CRM main/parallel edges from flow-graph", () => {
     const graph = buildUnifiedGraph({
       activeStage: "agendamento",
+      includeTools: true,
       expandedStages: new Set(["agendamento"]),
     });
     const result = validateUnifiedGraphIntegrity(graph);
     assert.equal(result.ok, true, result.errors.join("\n"));
+  });
+
+  it("default graph excludes tool nodes", () => {
+    const graph = buildUnifiedGraph({ activeStage: "agendamento" });
+    assert.equal(graph.nodes.filter((n) => n.kind === "tool").length, 0);
+    assert.ok(!graph.edges.some((e) => e.from.startsWith("tool_") || e.to.startsWith("tool_")));
+    assert.ok(!graph.edges.some((e) => e.id.startsWith("sf-") || e.id.startsWith("dep-")));
   });
 
   it("has execution nodes including switch and new runtime nodes", () => {
@@ -41,13 +50,19 @@ describe("unified-flow-graph integrity", () => {
     assert.ok(graph.nodes.some((n) => n.id === "runtime_resolver_switch"));
   });
 
-  it("has 17 CRM transitions plus escalation bus", () => {
+  it("has 17 CRM transitions; fan-out bus only with includeEscalationBus", () => {
     const graph = buildUnifiedGraph({ activeStage: "captacao" });
     const crm = graph.edges.filter((e) => e.kind === "stage_transition" || e.kind === "parallel");
     const expected = AGENT_PIPELINE_FLOW_EDGES.filter((e) => e.kind !== "transversal");
     assert.equal(crm.length, expected.length);
 
-    const toBus = graph.edges.filter(
+    const toBusDefault = graph.edges.filter(
+      (e) => e.kind === "transversal" && e.to === "anchor_escalation_bus" && e.from.startsWith("stage_")
+    );
+    assert.equal(toBusDefault.length, 0);
+
+    const graphWithBus = buildUnifiedGraph({ activeStage: "captacao", includeEscalationBus: true });
+    const toBus = graphWithBus.edges.filter(
       (e) => e.kind === "transversal" && e.to === "anchor_escalation_bus" && e.from.startsWith("stage_")
     );
     assert.equal(toBus.length, 7);
@@ -56,13 +71,21 @@ describe("unified-flow-graph integrity", () => {
   it("creates dynamic switch edges when activeStage set", () => {
     const graph = buildUnifiedGraph({ activeStage: "agendamento" });
     assert.ok(graph.edges.some((e) => e.id === "dyn-switch-stage"));
-    assert.ok(graph.edges.some((e) => e.id === "dyn-stage-tools"));
+    assert.ok(!graph.edges.some((e) => e.id === "dyn-stage-tools"));
+
+    const withTools = buildUnifiedGraph({
+      activeStage: "agendamento",
+      includeTools: true,
+      expandedStages: new Set(["agendamento"]),
+    });
+    assert.ok(withTools.edges.some((e) => e.id === "dyn-stage-tools"));
   });
 
   it("references only existing nodes", () => {
     const graph = buildUnifiedGraph({
       activeStage: "confirmacao_pre_consulta",
       parallelStages: ["formularios"],
+      includeTools: true,
       expandedStages: new Set(["confirmacao_pre_consulta"]),
     });
     const ids = new Set(graph.nodes.map((n) => n.id));
@@ -104,15 +127,16 @@ describe("view-filter", () => {
     assert.ok(!visible.has("satisfacao"));
   });
 
-  it("journey view hides escalation bus edges", () => {
+  it("journey view hides parallel and transversal edges", () => {
     const graph = buildUnifiedGraph({ activeStage: "agendamento" });
     const filtered = filterGraphForView(graph.nodes, graph.edges, {
       tab: "journey",
       journeyMode: "full",
       activeStage: "agendamento",
     });
-    const transversal = filtered.edges.filter((e) => e.kind === "transversal");
-    assert.equal(transversal.length, 0);
+    assert.equal(filtered.edges.filter((e) => e.kind === "parallel").length, 0);
+    assert.equal(filtered.edges.filter((e) => e.kind === "transversal").length, 0);
+    assert.ok(filtered.edges.every((e) => e.kind === "stage_transition"));
   });
 
   it("execution view hides CRM stage nodes", () => {
@@ -135,5 +159,47 @@ describe("view-filter", () => {
     assert.equal(stages.length, 1);
     assert.equal(stages[0]?.stageCode, "escalonamento");
     assert.ok(filtered.nodes.some((n) => n.id === "runtime_handoff"));
+  });
+});
+
+describe("dagre-layout", () => {
+  it("main journey stages have monotonic X after LR layout", () => {
+    const graph = buildUnifiedGraph({});
+    const filtered = filterGraphForView(graph.nodes, graph.edges, {
+      tab: "journey",
+      journeyMode: "full",
+    });
+    const laidOut = applyDagreLayout(filtered.nodes, filtered.edges, { tab: "journey" });
+    const main = getMainJourneyStageNodes(laidOut).sort((a, b) => a.position.x - b.position.x);
+
+    assert.ok(main.length >= 7);
+    for (let i = 1; i < main.length; i++) {
+      assert.ok(
+        main[i]!.position.x >= main[i - 1]!.position.x,
+        `${main[i]!.id} should be right of ${main[i - 1]!.id}`
+      );
+    }
+  });
+
+  it("global stages sit below main row", () => {
+    const graph = buildUnifiedGraph({});
+    const filtered = filterGraphForView(graph.nodes, graph.edges, {
+      tab: "journey",
+      journeyMode: "full",
+    });
+    const laidOut = applyDagreLayout(filtered.nodes, filtered.edges, { tab: "journey" });
+    const main = getMainJourneyStageNodes(laidOut);
+    const globals = laidOut.filter(
+      (n) =>
+        n.kind === "stage" &&
+        (n.stageCode === "financeiro" ||
+          n.stageCode === "formularios" ||
+          n.stageCode === "escalonamento")
+    );
+
+    const mainMaxY = Math.max(...main.map((n) => n.position.y));
+    for (const g of globals) {
+      assert.ok(g.position.y > mainMaxY, `${g.id} should be below main row`);
+    }
   });
 });

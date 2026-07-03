@@ -182,9 +182,12 @@ export function buildExecutionEdges(): UnifiedGraphEdge[] {
   );
 }
 
-export function buildSwitchToStageEdges(activeStage?: AgentPipelineStage | null): UnifiedGraphEdge[] {
+export function buildSwitchToStageEdges(
+  activeStage?: AgentPipelineStage | null,
+  includeTools = false
+): UnifiedGraphEdge[] {
   if (!activeStage) return [];
-  return [
+  const edges: UnifiedGraphEdge[] = [
     withRouting({
       id: "dyn-switch-stage",
       from: "runtime_resolver_switch",
@@ -193,14 +196,19 @@ export function buildSwitchToStageEdges(activeStage?: AgentPipelineStage | null)
       label: RESOLVER_SWITCH_RULES.find((r) => r.targetStage === activeStage)?.label ?? "etapa ativa",
       triggerType: "resolver",
     }),
-    withRouting({
-      id: "dyn-stage-tools",
-      from: `stage_${activeStage}`,
-      to: "runtime_tools_hub",
-      kind: "tool_filter",
-      label: "filterToolsForStage",
-    }),
   ];
+  if (includeTools) {
+    edges.push(
+      withRouting({
+        id: "dyn-stage-tools",
+        from: `stage_${activeStage}`,
+        to: "runtime_tools_hub",
+        kind: "tool_filter",
+        label: "filterToolsForStage",
+      })
+    );
+  }
+  return edges;
 }
 
 export function buildParallelOverlayEdges(
@@ -248,15 +256,19 @@ export function buildEscalationBusEdges(): UnifiedGraphEdge[] {
       label: i === 0 ? "Escalar" : undefined,
     })
   );
-  edges.push(
+  edges.push(...buildEscalationDestinationEdges());
+  return edges;
+}
+
+export function buildEscalationDestinationEdges(): UnifiedGraphEdge[] {
+  return [
     withRouting({
       id: "esc-bus-dest",
       from: "anchor_escalation_bus",
       to: "stage_escalonamento",
       kind: "transversal",
-    })
-  );
-  return edges;
+    }),
+  ];
 }
 
 export function buildTransversalRuntimeEdges(): UnifiedGraphEdge[] {
@@ -335,6 +347,10 @@ export type BuildUnifiedGraphOptions = {
   expandedStages?: Set<string>;
   activeStage?: AgentPipelineStage | null;
   parallelStages?: AgentPipelineStage[];
+  /** Incluir nós/arestas de ferramentas (diagnóstico/testes). Canvas usa false. */
+  includeTools?: boolean;
+  /** Incluir bus de escalonamento fan-out. Canvas usa false. */
+  includeEscalationBus?: boolean;
 };
 
 export function buildUnifiedGraph(opts: BuildUnifiedGraphOptions = {}): {
@@ -342,16 +358,21 @@ export function buildUnifiedGraph(opts: BuildUnifiedGraphOptions = {}): {
   edges: UnifiedGraphEdge[];
 } {
   const expanded = opts.expandedStages ?? new Set<string>();
+  const includeTools = opts.includeTools ?? false;
+  const includeEscalationBus = opts.includeEscalationBus ?? false;
+
   const edges: UnifiedGraphEdge[] = [
     ...buildExecutionEdges(),
     ...buildStageTransitionEdges(),
-    ...buildEscalationBusEdges(),
-    ...buildSwitchToStageEdges(opts.activeStage),
+    ...(includeEscalationBus ? buildEscalationBusEdges() : buildEscalationDestinationEdges()),
+    ...buildSwitchToStageEdges(opts.activeStage, includeTools),
     ...buildParallelOverlayEdges(opts.activeStage, opts.parallelStages ?? []),
     ...buildTransversalRuntimeEdges(),
-    ...buildStageToToolFilterEdges(expanded),
-    ...buildToolDependencyEdges(expanded),
+    ...(includeTools ? buildStageToToolFilterEdges(expanded) : []),
+    ...(includeTools ? buildToolDependencyEdges(expanded) : []),
   ];
+
+  const toolNodes = includeTools ? buildToolNodes(expanded) : [];
 
   return {
     nodes: [
@@ -359,7 +380,7 @@ export function buildUnifiedGraph(opts: BuildUnifiedGraphOptions = {}): {
       ...buildExecutionNodes(),
       ...ROUTE_ANCHOR_NODES,
       ...buildStageNodes(),
-      ...buildToolNodes(expanded),
+      ...toolNodes,
     ],
     edges,
   };

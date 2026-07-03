@@ -19,7 +19,7 @@ import { Maximize2, Minimize2, Pause, Play, SkipForward } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { PipelineTrace } from "@/lib/operational-agents/pipeline-trace";
-import { buildDemoTrace, DEMO_CYCLE } from "@/lib/operational-agents/pipeline-trace";
+import { buildDemoTrace } from "@/lib/operational-agents/pipeline-trace";
 import {
   buildUnifiedGraph,
   EDGE_KIND_LABELS,
@@ -27,7 +27,10 @@ import {
   FLOW_EXPLANATION,
   PLAYBACK_STEPS,
   resolveUnifiedPipelineHighlight,
-  getDemoStageForTick,
+  applyDagreLayout,
+  getEdgeStroke,
+  getEdgeStrokeWidth,
+  JOURNEY_LEGEND_ITEMS,
   type AgentPipelineStage,
 } from "@/lib/virtual-assistant/agent-pipeline";
 import {
@@ -112,7 +115,7 @@ function UnifiedPipelineCanvasInner({
   demoStage,
   canvasViewMode = "reference",
   initialJourneyMode = "active",
-  disableDemoCycle = false,
+  disableDemoCycle = true,
   variant = "full",
   showExpandButton = true,
   showLegend = true,
@@ -122,8 +125,6 @@ function UnifiedPipelineCanvasInner({
   const { fitView } = useReactFlow();
   const [expanded, setExpanded] = useState(false);
   const [mobileMapOpen, setMobileMapOpen] = useState(false);
-  const [expandedStages, setExpandedStages] = useState<Set<string>>(() => new Set());
-  const [demoTick, setDemoTick] = useState(0);
   const [viewTab, setViewTab] = useState<PipelineViewTab>("journey");
   const [journeyMode, setJourneyMode] = useState<JourneyDisplayMode>(initialJourneyMode);
   const [playbackIndex, setPlaybackIndex] = useState(0);
@@ -133,26 +134,12 @@ function UnifiedPipelineCanvasInner({
 
   const isLive = trace?.isLive ?? false;
   const isConversation = canvasViewMode === "conversation";
-  const demoTrace = buildDemoTrace(demoTick);
-  const effectiveTrace = isLive && trace ? trace : demoTrace;
-  const activeStage =
-    demoStage ??
-    currentStage ??
-    (isLive || isConversation || disableDemoCycle ? currentStage : getDemoStageForTick(demoTick));
+  const effectiveTrace = isLive && trace ? trace : buildDemoTrace(0);
+  const activeStage = demoStage ?? currentStage ?? null;
 
   useEffect(() => {
     setJourneyMode(initialJourneyMode);
   }, [initialJourneyMode]);
-
-  useEffect(() => {
-    if (isLive || viewTab === "playback" || disableDemoCycle || isConversation) return;
-    const interval = setInterval(() => setDemoTick((p) => (p + 1) % DEMO_CYCLE.length), 2200);
-    return () => clearInterval(interval);
-  }, [isLive, viewTab, disableDemoCycle, isConversation]);
-
-  useEffect(() => {
-    if (activeStage) setExpandedStages((prev) => new Set(prev).add(activeStage));
-  }, [activeStage]);
 
   useEffect(() => {
     if (!playbackPlaying || viewTab !== "playback") return;
@@ -180,10 +167,6 @@ function UnifiedPipelineCanvasInner({
   const toggleStage = useCallback((stageId: string) => {
     setSelectedStage(stageId as AgentPipelineStage);
     setFocusStage(stageId as AgentPipelineStage);
-    setExpandedStages((prev) => {
-      if (prev.has(stageId)) return new Set();
-      return new Set([stageId]);
-    });
   }, []);
 
   const handleStepperSelect = useCallback(
@@ -214,7 +197,7 @@ function UnifiedPipelineCanvasInner({
   }, [focusStage, journeyMode, viewTab, fitView]);
 
   const { nodes, edges } = useMemo(() => {
-    const graph = buildUnifiedGraph({ expandedStages, activeStage, parallelStages });
+    const graph = buildUnifiedGraph({ activeStage, parallelStages });
     const filtered = filterGraphForView(graph.nodes, graph.edges, {
       tab: viewTab,
       journeyMode,
@@ -224,11 +207,12 @@ function UnifiedPipelineCanvasInner({
           : activeStage,
       parallelStages,
     });
+    const laidOut = applyDagreLayout(filtered.nodes, filtered.edges, { tab: viewTab });
 
     const scale = compact ? 0.55 : 1;
     const flowNodes: Node[] = [];
 
-    for (const n of filtered.nodes) {
+    for (const n of laidOut) {
       const pos = { x: n.position.x * scale, y: n.position.y * scale };
 
       if (n.kind === "swimlane") {
@@ -304,11 +288,9 @@ function UnifiedPipelineCanvasInner({
           data: {
             node: n,
             state,
-            expanded: expandedStages.has(stageKey),
             toolCount: stageTools.length,
             tools: stageTools,
             compact,
-            showEscalateBadge: viewTab === "journey",
             isGlobalOverlay,
             onToggle: toggleStage,
           },
@@ -316,32 +298,17 @@ function UnifiedPipelineCanvasInner({
         });
         continue;
       }
-
-      flowNodes.push({
-        id: n.id,
-        type: "tool",
-        position: pos,
-        data: {
-          node: n,
-          state: highlight.activeToolIds.includes(n.id) ? "active" : "idle",
-          confirmMode: n.toolName && toolModes ? toolModes[n.toolName] : undefined,
-          compact,
-        },
-        zIndex: 6,
-      });
     }
 
     const flowEdges: Edge[] = filtered.edges.map((e) => {
-      const style = EDGE_STYLES[e.kind];
       const isVisited = highlight.visitedEdgeIds.includes(e.id);
       const isActive =
         highlight.activeEdgeIds.includes(e.id) &&
         (e.kind === "runtime" || e.kind === "context" || e.kind === "return" || !isVisited);
-      const strokeColor = isActive
-        ? "hsl(var(--primary))"
-        : isVisited
-          ? "#22c55e"
-          : style.stroke;
+      const edgeState = isActive ? "active" : isVisited ? "visited" : "neutral";
+      const strokeColor = getEdgeStroke(e.kind, edgeState);
+      const strokeWidth = getEdgeStrokeWidth(e.kind, isActive || isVisited);
+      const baseStyle = EDGE_STYLES[e.kind];
       return {
         id: e.id,
         source: e.from,
@@ -357,8 +324,8 @@ function UnifiedPipelineCanvasInner({
         },
         style: {
           stroke: strokeColor,
-          strokeWidth: isActive || isVisited ? style.strokeWidth + 0.5 : style.strokeWidth,
-          strokeDasharray: isVisited && !isActive ? "4 2" : style.strokeDasharray,
+          strokeWidth,
+          strokeDasharray: isVisited && !isActive ? "4 2" : baseStyle.strokeDasharray,
         },
         markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: strokeColor },
         zIndex: 0,
@@ -367,11 +334,9 @@ function UnifiedPipelineCanvasInner({
 
     return { nodes: flowNodes, edges: flowEdges };
   }, [
-    expandedStages,
     compact,
     highlight,
     parallelStages,
-    toolModes,
     toggleStage,
     activeStage,
     viewTab,
@@ -397,7 +362,7 @@ function UnifiedPipelineCanvasInner({
       nodesConnectable={false}
       proOptions={{ hideAttribution: true }}
     >
-      <FitViewOnChange deps={[expandedStages, compact, viewTab, journeyMode, playbackIndex, nodes.length]} />
+      <FitViewOnChange deps={[compact, viewTab, journeyMode, playbackIndex, nodes.length]} />
       <Background gap={compact ? 16 : 24} size={1} />
       {!compact && <Controls showInteractive={false} />}
       {!compact && <MiniMap zoomable pannable className="!bg-background/80" />}
@@ -488,6 +453,20 @@ function UnifiedPipelineCanvasInner({
               </p>
               <p className="text-[9px] text-muted-foreground leading-snug">{highlight.playbackNarrative}</p>
             </div>
+          </div>
+        )}
+
+        {showLegend && !compact && viewTab === "journey" && (
+          <div className="absolute left-2 bottom-2 z-10 rounded-lg border bg-background/95 p-2 text-[9px] shadow-sm backdrop-blur-sm">
+            <p className="font-semibold mb-1.5">Legenda</p>
+            <ul className="space-y-1">
+              {JOURNEY_LEGEND_ITEMS.map((item) => (
+                <li key={item.key} className="flex items-center gap-2 text-muted-foreground">
+                  <span className={cn("inline-block h-4 w-6 shrink-0 rounded", item.swatch)} />
+                  {item.label}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

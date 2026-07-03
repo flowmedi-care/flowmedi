@@ -113,6 +113,19 @@ export {
 } from "./view-filter";
 
 export {
+  applyDagreLayout,
+  getMainJourneyStageNodes,
+  type DagreLayoutOptions,
+} from "./dagre-layout";
+
+export {
+  PIPELINE_THEME,
+  JOURNEY_LEGEND_ITEMS,
+  getEdgeStroke,
+  getEdgeStrokeWidth,
+} from "./pipeline-theme";
+
+export {
   SWIMLANE_BOUNDS,
   LANE_Y,
   nodeBelongsToView,
