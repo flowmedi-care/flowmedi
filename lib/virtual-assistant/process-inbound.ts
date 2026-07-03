@@ -552,6 +552,143 @@ async function processConversationAiInner(
     }
   }
 
+  if (aiState.pending_tool_confirmation) {
+    const {
+      parseToolConfirmationReply,
+      isPendingToolConfirmationExpired,
+    } = await import("./agent-pipeline/confirmation-policy");
+    const { executeAssistantTool } = await import("./tools");
+
+    const pendingTool = aiState.pending_tool_confirmation;
+    if (isPendingToolConfirmationExpired(pendingTool)) {
+      aiState = { ...aiState, pending_tool_confirmation: undefined };
+    } else {
+      const toolReply = parseToolConfirmationReply(combinedText);
+      if (toolReply === "yes") {
+        const toolResult = await executeAssistantTool(
+          {
+            supabase,
+            clinicId: conv.clinic_id,
+            conversationId,
+            phoneNumber: conv.phone_number,
+            aiState,
+            skipPipelineValidation: true,
+          },
+          pendingTool.tool,
+          pendingTool.args
+        );
+        const now = new Date().toISOString();
+        await supabase
+          .from("whatsapp_messages")
+          .update({ ai_processed_at: now })
+          .in(
+            "id",
+            pending.map((m) => m.id)
+          );
+        let replyText = "Pronto! Ação confirmada.";
+        try {
+          const parsed = JSON.parse(toolResult.result) as {
+            confirmation_message?: string;
+            display_message?: string;
+            error?: string;
+          };
+          if (parsed.error) replyText = parsed.error;
+          else if (parsed.confirmation_message) replyText = parsed.confirmation_message;
+          else if (parsed.display_message) replyText = parsed.display_message;
+        } catch {
+          /* keep default */
+        }
+        await supabase
+          .from("whatsapp_conversations")
+          .update({
+            ai_last_processed_message_at: now,
+            ai_state: {
+              ...aiState,
+              ...toolResult.statePatch,
+              pending_tool_confirmation: undefined,
+            },
+            ai_debounce_until: null,
+          })
+          .eq("id", conversationId);
+        await sendAssistantReply(
+          supabase,
+          conv.clinic_id,
+          conversationId,
+          conv.phone_number,
+          replyText
+        );
+        logAiEvent(supabase, {
+          clinicId: conv.clinic_id,
+          conversationId,
+          stage: "reply_sent",
+          detail: { type: "pipeline_tool_confirmed", tool: pendingTool.tool },
+        });
+        return;
+      }
+      if (toolReply === "no") {
+        const now = new Date().toISOString();
+        await supabase
+          .from("whatsapp_messages")
+          .update({ ai_processed_at: now })
+          .in(
+            "id",
+            pending.map((m) => m.id)
+          );
+        await supabase
+          .from("whatsapp_conversations")
+          .update({
+            ai_last_processed_message_at: now,
+            ai_state: { ...aiState, pending_tool_confirmation: undefined },
+            ai_debounce_until: null,
+          })
+          .eq("id", conversationId);
+        await sendAssistantReply(
+          supabase,
+          conv.clinic_id,
+          conversationId,
+          conv.phone_number,
+          "Tudo bem, não executei a ação. Como posso ajudar?"
+        );
+        logAiEvent(supabase, {
+          clinicId: conv.clinic_id,
+          conversationId,
+          stage: "reply_sent",
+          detail: { type: "pipeline_tool_cancelled", tool: pendingTool.tool },
+        });
+        return;
+      }
+      if (toolReply === null) {
+        const now = new Date().toISOString();
+        await supabase
+          .from("whatsapp_messages")
+          .update({ ai_processed_at: now })
+          .in(
+            "id",
+            pending.map((m) => m.id)
+          );
+        await supabase
+          .from("whatsapp_conversations")
+          .update({ ai_last_processed_message_at: now, ai_debounce_until: null })
+          .eq("id", conversationId);
+        await sendAssistantReply(
+          supabase,
+          conv.clinic_id,
+          conversationId,
+          conv.phone_number,
+          pendingTool.prompt_message ??
+            "Confirma esta ação? Responda *sim* ou *não*."
+        );
+        logAiEvent(supabase, {
+          clinicId: conv.clinic_id,
+          conversationId,
+          stage: "reply_sent",
+          detail: { type: "pipeline_tool_clarify", tool: pendingTool.tool },
+        });
+        return;
+      }
+    }
+  }
+
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
     conversationId,

@@ -39,6 +39,15 @@ const TEXT_STEP_DEFS: { key: string; title: string; stages: string[] }[] = [
   { key: "debounce", title: "Aguardando debounce", stages: ["debounce_scheduled"] },
   { key: "processing", title: "Processamento iniciado", stages: ["processing_start", "cron_conversation_processed"] },
   { key: "openai_send", title: "Enviando para OpenAI", stages: ["openai_start"] },
+  {
+    key: "pipeline",
+    title: "Pipeline do agente",
+    stages: [
+      "pipeline_stage_enter",
+      "pipeline_tool_blocked",
+      "pipeline_confirmation_pending",
+    ],
+  },
   { key: "openai_reply", title: "Resposta da IA", stages: ["openai_end"] },
   { key: "whatsapp_send", title: "Enviando para o paciente", stages: ["reply_sent", "handoff"] },
   { key: "done", title: "Concluído", stages: [] },

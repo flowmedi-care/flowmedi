@@ -23,6 +23,10 @@ export const AI_EVENT_STAGES = [
   "queue_cleared",
   "flow_discarded",
   "error",
+  "pipeline_stage_enter",
+  "pipeline_stage_exit",
+  "pipeline_tool_blocked",
+  "pipeline_confirmation_pending",
 ] as const;
 
 export type AiEventStage = (typeof AI_EVENT_STAGES)[number];

@@ -19,6 +19,7 @@ export type ComposeSystemPromptOpts = {
   resumeHint?: string;
   whatsappPhone?: string;
   patientBootstrap?: string;
+  pipelineBlock?: string;
 };
 
 export function resolvePromptFlow(aiState: AiConversationState, intent?: string): PromptFlow {
@@ -58,6 +59,7 @@ export function composeSystemPrompt(opts: ComposeSystemPromptOpts): string {
 
   if (opts.journeyBlock) parts.push(opts.journeyBlock);
   if (opts.resumeHint) parts.push(opts.resumeHint);
+  if (opts.pipelineBlock) parts.push(`# Pipeline\n${opts.pipelineBlock}`);
 
   parts.push(`# Estado da conversa\n${formatAiStateForPrompt(opts.aiState)}`);
 

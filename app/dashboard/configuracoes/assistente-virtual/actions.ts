@@ -106,6 +106,7 @@ export type SaveVirtualAssistantInput = {
   max_context_messages?: number;
   bot_active_start?: string | null;
   bot_active_end?: string | null;
+  tool_execution_modes?: import("@/lib/virtual-assistant/agent-pipeline/confirmation-policy").ToolExecutionModesConfig;
   clinic_contact?: {
     phone?: string | null;
     email?: string | null;
@@ -176,6 +177,7 @@ export async function saveVirtualAssistantSettings(input: SaveVirtualAssistantIn
     "max_context_messages",
     "bot_active_start",
     "bot_active_end",
+    "tool_execution_modes",
   ];
 
   for (const key of fields) {

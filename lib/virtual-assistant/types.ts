@@ -1,5 +1,11 @@
 export type AssistantTone = "formal" | "informal";
 
+import type { AgentPipelineStage } from "./agent-pipeline/stages";
+import type {
+  PendingToolConfirmation,
+  ToolExecutionModesConfig,
+} from "./agent-pipeline/confirmation-policy";
+
 export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
 export type DayHours = {
@@ -43,6 +49,8 @@ export type VirtualAssistantSettings = {
   bot_active_end: string | null;
   confirmation_flow_id?: string | null;
   confirmation_flow_template_name?: string | null;
+  /** Modo de execução por ferramenta: auto | human_confirm */
+  tool_execution_modes?: ToolExecutionModesConfig | null;
 };
 
 export type VirtualAssistantLocation = {
@@ -130,6 +138,16 @@ export type AiConversationState = {
   bot_loop_detected_at?: string;
   /** Evita processamento duplicado (webhook + cron em paralelo) */
   ai_processing_started_at?: string;
+  /** Etapa atual do pipeline do agente */
+  pipeline_stage?: AgentPipelineStage;
+  pipeline_stage_entered_at?: string;
+  pipeline_last_transition_trigger?: string;
+  /** Confirmação pendente de ferramenta mutável (modo human_confirm) */
+  pending_tool_confirmation?: PendingToolConfirmation;
+  /** resolve_quote_offer executado nesta conversa */
+  resolve_quote_offer_done?: boolean;
+  /** Falhas consecutivas de ferramenta (para escalação) */
+  consecutive_tool_failures?: number;
 };
 
 export const DAY_LABELS: Record<DayKey, string> = {

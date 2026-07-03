@@ -191,7 +191,7 @@ export const ASSISTANT_TOOL_CATALOG: AssistantToolCatalogEntry[] = [
     category: "atendimento",
     description: "Encaminha a conversa para atendimento humano.",
     whenToUse:
-      "Somente quando o paciente pedir explicitamente atendente humano ou houver reclamação grave — nunca durante agendamento.",
+      "Quando o paciente pedir explicitamente atendente humano, houver reclamação grave, ou falhas repetidas — disponível em qualquer etapa (exceto durante agendamento ativo sem pedido explícito).",
   },
 ];
 

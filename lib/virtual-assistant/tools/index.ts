@@ -39,6 +39,17 @@ import { applyRoutingOnNewConversation } from "@/lib/whatsapp-routing";
 import type { AiConversationState } from "../types";
 import { patchBookingStepFromTool } from "../booking-flow";
 import { formatAppointmentConfirmationMessage } from "../services/appointments";
+import type { AgentPipelineStage } from "../agent-pipeline/stages";
+import type { ToolExecutionModesConfig } from "../agent-pipeline/confirmation-policy";
+import {
+  validateToolExecution,
+  patchStateFromToolResult,
+  isToolAllowedInStage,
+  logPipelineToolBlocked,
+  incrementToolFailureCount,
+  resetToolFailureCount,
+  MAX_CONSECUTIVE_TOOL_FAILURES,
+} from "../agent-pipeline";
 
 async function logToolCall(
   supabase: SupabaseClient,
@@ -65,6 +76,16 @@ export type ToolContext = {
   conversationId: string;
   phoneNumber: string;
   aiState: AiConversationState;
+  pipelineStage?: AgentPipelineStage;
+  parallelStages?: AgentPipelineStage[];
+  toolExecutionModes?: ToolExecutionModesConfig;
+  skipPipelineValidation?: boolean;
+};
+
+export type FilterToolsContext = {
+  mainStage: AgentPipelineStage;
+  parallelStages?: AgentPipelineStage[];
+  includeFinanceRead?: boolean;
 };
 
 export async function executeAssistantTool(
@@ -73,6 +94,60 @@ export async function executeAssistantTool(
   args: Record<string, unknown>
 ): Promise<{ result: string; handoff?: boolean; statePatch?: Partial<AiConversationState> }> {
   const { supabase, clinicId, conversationId, phoneNumber } = ctx;
+
+  if (ctx.pipelineStage && !ctx.skipPipelineValidation) {
+    const filterCtx = {
+      mainStage: ctx.pipelineStage,
+      parallelStages: ctx.parallelStages,
+      includeFinanceRead: ctx.aiState.intent === "payment",
+    };
+    if (!isToolAllowedInStage(name, filterCtx)) {
+      logPipelineToolBlocked(supabase, {
+        clinicId,
+        conversationId,
+        toolName: name,
+        stage: ctx.pipelineStage,
+        reason: "Ferramenta não permitida nesta etapa do pipeline",
+      });
+      await logToolCall(
+        supabase,
+        clinicId,
+        conversationId,
+        name,
+        args,
+        "bloqueada pelo pipeline",
+        false
+      );
+      return {
+        result: JSON.stringify({
+          error: "Ferramenta não disponível nesta etapa da conversa.",
+          hint: "Use apenas as ferramentas permitidas para a etapa atual ou peça esclarecimento ao paciente.",
+          pipeline_stage: ctx.pipelineStage,
+        }),
+      };
+    }
+
+    const validation = validateToolExecution(name, args, ctx.aiState, ctx.pipelineStage);
+    if (!validation.ok) {
+      await logToolCall(
+        supabase,
+        clinicId,
+        conversationId,
+        name,
+        args,
+        validation.error,
+        false
+      );
+      return {
+        result: JSON.stringify({
+          error: validation.error,
+          hint: validation.hint,
+          missing: validation.missing,
+        }),
+        statePatch: incrementToolFailureCount(ctx.aiState),
+      };
+    }
+  }
 
   try {
     switch (name) {
@@ -469,6 +544,7 @@ export async function executeAssistantTool(
             procedure_id: String(args.procedure_id),
             doctor_id: res.autoSelectedDoctorId ?? undefined,
             intent: "quote",
+            resolve_quote_offer_done: true,
           },
         };
       }

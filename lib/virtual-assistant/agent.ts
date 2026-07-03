@@ -4,7 +4,7 @@ import {
   logTokenUsage,
   type ChatMessage,
 } from "./openai-client";
-import { ASSISTANT_TOOLS, executeAssistantTool } from "./tools";
+import { executeAssistantTool } from "./tools";
 import type { AiConversationState, VirtualAssistantSettings } from "./types";
 import { loadContactJourneyForAi } from "@/lib/contact-journey/journey-for-ai";
 import { buildContextualResumePrompt } from "@/lib/contact-journey/contextual-resume";
@@ -29,6 +29,21 @@ import {
   tryExecuteBookingSlotSelection,
 } from "@/lib/operational-agents/booking-executor";
 import { applyReplyGuards } from "@/lib/virtual-assistant/reply-guards";
+import {
+  resolveAgentPipelineStage,
+  resolveParallelStages,
+  filterToolsForStage,
+  applyPipelineStageTransition,
+  logPipelineStageTransition,
+  extractToolExecutionModesFromSettings,
+  requiresHumanConfirm,
+  createPendingToolConfirmation,
+  logPipelineConfirmationPending,
+  patchStateFromToolResult,
+  resetToolFailureCount,
+  incrementToolFailureCount,
+  MAX_CONSECUTIVE_TOOL_FAILURES,
+} from "@/lib/virtual-assistant/agent-pipeline";
 
 const MAX_TOOL_ROUNDS_DEFAULT = 5;
 const MAX_TOOL_ROUNDS_BOOKING = 8;
@@ -211,17 +226,59 @@ export async function runVirtualAssistantAgent(opts: {
       }
     : {};
 
+  const mergedForStage = { ...workingState, ...journeyStatePatch };
+  const pipelineStage = resolveAgentPipelineStage({
+    aiState: mergedForStage,
+    journey: journeyRes.journey,
+    detectedIntent,
+    routedFlow: routed.flow,
+    patientFound: Boolean(mergedForStage.patient_id),
+  });
+  const parallelStages = resolveParallelStages(
+    pipelineStage,
+    journeyRes.journey,
+    detectedIntent
+  );
+  const stageTransition = applyPipelineStageTransition(
+    mergedForStage,
+    pipelineStage,
+    mergedForStage.pipeline_stage ? "journey_step" : "initial"
+  );
+  if (stageTransition.pipeline_stage) {
+    logPipelineStageTransition(opts.supabase, {
+      clinicId: opts.clinicId,
+      conversationId: opts.conversationId,
+      fromStage: mergedForStage.pipeline_stage,
+      toStage: pipelineStage,
+      trigger: stageTransition.pipeline_last_transition_trigger as "initial" | "journey_step",
+      journeyStepCode: journeyRes.journey?.currentStep,
+    });
+  }
+
+  const toolExecutionModes = extractToolExecutionModesFromSettings(opts.settings);
+  const allowedTools = filterToolsForStage({
+    mainStage: pipelineStage,
+    parallelStages,
+    includeFinanceRead:
+      detectedIntent === "payment" || mergedForStage.intent === "payment",
+  });
+
+  const pipelineBlock = `Pipeline do agente (etapa atual): ${pipelineStage}${
+    parallelStages.length ? ` (+ paralelo: ${parallelStages.join(", ")})` : ""
+  }. Use apenas as ferramentas disponíveis nesta etapa.`;
+
   const systemContent = composeSystemPrompt({
     clinicName: clinicCtx.clinicName,
     assistantName,
     settings: clinicCtx.settings,
     clinicData: clinicCtx.text,
     flow: routed.flow,
-    aiState: { ...workingState, ...journeyStatePatch },
+    aiState: { ...mergedForStage, ...stageTransition },
     journeyBlock: journeyBlock || undefined,
     resumeHint: resumeHint || undefined,
     whatsappPhone: opts.phoneNumber,
     patientBootstrap: patientBootstrap || undefined,
+    pipelineBlock,
   });
 
   const messages: ChatMessage[] = [{ role: "system", content: systemContent }];
@@ -235,6 +292,8 @@ export async function runVirtualAssistantAgent(opts: {
   let statePatch: Partial<AiConversationState> = {
     ...workingState,
     ...journeyStatePatch,
+    ...stageTransition,
+    pipeline_stage: pipelineStage,
   };
   const maxRounds = resolveMaxToolRounds(statePatch as AiConversationState);
   let rounds = 0;
@@ -244,7 +303,7 @@ export async function runVirtualAssistantAgent(opts: {
     const completion = await createChatCompletion({
       model,
       messages,
-      tools: ASSISTANT_TOOLS,
+      tools: allowedTools,
       temperature: 0.2,
     });
     logTokenUsage(opts.clinicId, completion.usage);
@@ -264,6 +323,23 @@ export async function runVirtualAssistantAgent(opts: {
           args = {};
         }
 
+        if (requiresHumanConfirm(tc.function.name, toolExecutionModes)) {
+          const pending = createPendingToolConfirmation(tc.function.name, args);
+          logPipelineConfirmationPending(opts.supabase, {
+            clinicId: opts.clinicId,
+            conversationId: opts.conversationId,
+            toolName: tc.function.name,
+            stage: pipelineStage,
+          });
+          return {
+            reply: pending.prompt_message ?? "Confirma esta ação? Responda sim ou não.",
+            statePatch: {
+              ...statePatch,
+              pending_tool_confirmation: pending,
+            },
+          };
+        }
+
         const toolResult = await executeAssistantTool(
           {
             supabase: opts.supabase,
@@ -271,13 +347,62 @@ export async function runVirtualAssistantAgent(opts: {
             conversationId: opts.conversationId,
             phoneNumber: opts.phoneNumber,
             aiState: statePatch as AiConversationState,
+            pipelineStage,
+            parallelStages,
+            toolExecutionModes,
           },
           tc.function.name,
           args
         );
 
+        let parsedResult: Record<string, unknown> = {};
+        try {
+          parsedResult = JSON.parse(toolResult.result) as Record<string, unknown>;
+        } catch {
+          parsedResult = {};
+        }
+
+        const toolFailed = Boolean(parsedResult.error);
+        const resultPatch = patchStateFromToolResult(
+          tc.function.name,
+          args,
+          parsedResult,
+          statePatch as AiConversationState
+        );
+
         if (toolResult.statePatch) {
           statePatch = { ...statePatch, ...toolResult.statePatch };
+        }
+        if (Object.keys(resultPatch).length) {
+          statePatch = { ...statePatch, ...resultPatch };
+        }
+        statePatch = {
+          ...statePatch,
+          ...(toolFailed
+            ? incrementToolFailureCount(statePatch as AiConversationState)
+            : resetToolFailureCount()),
+        };
+
+        if (
+          toolFailed &&
+          (statePatch.consecutive_tool_failures ?? 0) >= MAX_CONSECUTIVE_TOOL_FAILURES &&
+          opts.settings.human_handoff_enabled !== false
+        ) {
+          const handoffResult = await executeAssistantTool(
+            {
+              supabase: opts.supabase,
+              clinicId: opts.clinicId,
+              conversationId: opts.conversationId,
+              phoneNumber: opts.phoneNumber,
+              aiState: statePatch as AiConversationState,
+              skipPipelineValidation: true,
+            },
+            "transfer_to_human",
+            { reason: "repeated_tool_failures" }
+          );
+          if (handoffResult.handoff) {
+            return { reply: HANDOFF_REPLY_BODY, handoff: true, statePatch };
+          }
         }
 
         if (toolResult.handoff) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   Bot,
@@ -41,6 +41,8 @@ import {
   COVERAGE_LABELS,
 } from "@/lib/virtual-assistant/journey-coverage-matrix";
 import { FlowmediAgentBento } from "@/components/agents/flowmedi-agent-bento";
+import { AgentPipelineCanvas } from "@/components/agents/agent-pipeline-canvas";
+import type { AgentPipelineStage } from "@/lib/virtual-assistant/agent-pipeline/stages";
 import Link from "next/link";
 
 interface DiagnosticsResponse {
@@ -205,6 +207,15 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
     { label: "Minha consulta", text: "Quando é minha consulta?" },
     { label: "O que vocês fazem?", text: "Quais procedimentos vocês fazem?" },
   ] as const;
+
+  const livePipelineStage = useMemo((): AgentPipelineStage | null => {
+    for (const ev of data?.events ?? []) {
+      if (ev.stage !== "pipeline_stage_enter") continue;
+      const detail = ev.detail as { to_stage?: string } | undefined;
+      if (detail?.to_stage) return detail.to_stage as AgentPipelineStage;
+    }
+    return null;
+  }, [data?.events]);
 
   const load = useCallback(async () => {
     try {
@@ -630,6 +641,27 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
           </div>
         </CardContent>
       </Card>
+
+      {livePipelineStage && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pipeline em tempo real</CardTitle>
+            <CardDescription>
+              Última etapa registrada nos eventos recentes. Mapa completo em{" "}
+              <Link
+                href="/dashboard/configuracoes/assistente-virtual"
+                className="text-primary hover:underline"
+              >
+                Configurações → Pipeline
+              </Link>
+              .
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AgentPipelineCanvas currentStage={livePipelineStage} className="h-[480px]" />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

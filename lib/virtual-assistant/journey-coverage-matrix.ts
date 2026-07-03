@@ -1,5 +1,7 @@
 import { JOURNEY_STEPS } from "@/lib/contact-journey/steps";
 
+/** Matriz de cobertura CRM — alinhada com lib/virtual-assistant/agent-pipeline/stages.ts */
+
 export type JourneyCoverageKind =
   | "ia_tool"
   | "ia_partial"

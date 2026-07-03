@@ -60,6 +60,12 @@ export function formatAiStateForPrompt(state: AiConversationState): string {
   if (state.journey_step_code) {
     lines.push(`Etapa CRM: ${state.journey_step_code}`);
   }
+  if (state.pipeline_stage) {
+    lines.push(`Pipeline agente: ${state.pipeline_stage}`);
+  }
+  if (state.pending_tool_confirmation) {
+    lines.push("Aguardando confirmação sim/não para ação pendente.");
+  }
   if (state.contact_intent) {
     lines.push(`Intenção do contato: ${state.contact_intent}`);
   }

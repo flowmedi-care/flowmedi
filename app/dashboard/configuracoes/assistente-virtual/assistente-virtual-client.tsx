@@ -13,11 +13,12 @@ import { saveVirtualAssistantSettings } from "./actions";
 import { AssistenteVirtualDiagnostics } from "./assistente-virtual-diagnostics";
 import { AssistenteVirtualFaqTab } from "./assistente-virtual-faq-tab";
 import { AssistenteVirtualToolsPlayground } from "./assistente-virtual-tools-playground";
+import { AssistenteVirtualPipelineTab } from "./assistente-virtual-pipeline-tab";
 import type { ToolDefinition } from "@/lib/virtual-assistant/openai-client";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 
-type TabId = "geral" | "politicas" | "faq" | "comportamento" | "ferramentas" | "diagnostico";
+type TabId = "geral" | "politicas" | "faq" | "comportamento" | "ferramentas" | "pipeline" | "diagnostico";
 
 interface Props {
   canUse: boolean;
@@ -65,6 +66,7 @@ export function AssistenteVirtualClient({
     { id: "faq", label: "FAQ" },
     { id: "comportamento", label: "Comportamento" },
     { id: "ferramentas", label: "Ferramentas" },
+    { id: "pipeline", label: "Pipeline" },
     { id: "diagnostico", label: "Diagnóstico" },
   ];
 
@@ -262,6 +264,12 @@ export function AssistenteVirtualClient({
 
       {tab === "ferramentas" && (
         <AssistenteVirtualToolsPlayground toolDefinitions={toolDefinitions} />
+      )}
+
+      {tab === "pipeline" && (
+        <AssistenteVirtualPipelineTab
+          initialToolModes={initialSettings?.tool_execution_modes ?? null}
+        />
       )}
 
       {tab === "diagnostico" && <AssistenteVirtualDiagnostics active={tab === "diagnostico"} />}
