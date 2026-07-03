@@ -1,0 +1,17 @@
+[Unit]
+Description=ViaProve Whisper Streaming Service
+After=network.target
+
+[Service]
+Type=simple
+User=viaprove
+Group=viaprove
+WorkingDirectory=/opt/viaprove-stream
+EnvironmentFile=/opt/viaprove-stream/.env
+ExecStart=/opt/viaprove-stream/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+Restart=on-failure
+RestartSec=5
+CPUQuota=70%
+
+[Install]
+WantedBy=multi-user.target

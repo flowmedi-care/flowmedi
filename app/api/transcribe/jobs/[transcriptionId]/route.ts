@@ -24,7 +24,7 @@ export async function GET(
     const { data: row, error } = await supabase
       .from("appointment_transcriptions")
       .select(
-        "id, clinic_id, external_job_id, status, transcript, error_message, duration_seconds, processing_time_seconds"
+        "id, clinic_id, external_job_id, status, transcription_mode, transcript, live_transcript, error_message, duration_seconds, processing_time_seconds, post_processing_status"
       )
       .eq("id", transcriptionId)
       .maybeSingle();
@@ -42,9 +42,23 @@ export async function GET(
       return NextResponse.json({
         status: row.status,
         transcript: row.transcript,
+        live_transcript: row.live_transcript,
         error_message: row.error_message,
         duration_seconds: row.duration_seconds,
         processing_time_seconds: row.processing_time_seconds,
+        post_processing_status: row.post_processing_status,
+      });
+    }
+
+    if (row.status === "streaming" || row.transcription_mode === "streaming") {
+      return NextResponse.json({
+        status: row.status,
+        transcript: row.transcript,
+        live_transcript: row.live_transcript,
+        error_message: row.error_message,
+        duration_seconds: row.duration_seconds,
+        processing_time_seconds: row.processing_time_seconds,
+        post_processing_status: row.post_processing_status,
       });
     }
 

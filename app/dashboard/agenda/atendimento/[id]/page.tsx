@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { loadAppointmentGate } from "@/lib/appointment-gate";
 import { SchemaErrorBanner } from "../../schema-error-banner";
 import { AtendimentoClinicoClient } from "../atendimento-clinico-client";
+import { getClinicalStreamingServerConfig } from "@/lib/clinical-transcription/server-config";
 
 export default async function AtendimentoPage({
   params,
@@ -94,6 +95,8 @@ export default async function AtendimentoPage({
     }
   }
 
+  const streamingConfig = getClinicalStreamingServerConfig();
+
   return (
     <AtendimentoClinicoClient
       appointmentId={id}
@@ -109,6 +112,8 @@ export default async function AtendimentoPage({
       currentUserId={user.id}
       autoFinalize={finalize === "1"}
       fichaProcedureMap={fichaProcedureMap}
+      streamingEnabled={streamingConfig.streamingEnabled}
+      fallbackToBatch={streamingConfig.fallbackToBatch}
     />
   );
 }

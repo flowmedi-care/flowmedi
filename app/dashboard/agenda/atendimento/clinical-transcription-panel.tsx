@@ -8,19 +8,43 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, Circle, Loader2, Mic, Square, XCircle } from "lucide-react";
+import type {
+  ClinicalSummary,
+  DialogueTurn,
+  TranscriptSegment,
+} from "@/lib/clinical-transcription/types";
+import {
+  buildLiveTranscriptFromSegments,
+  ClinicalStreamConnection,
+} from "@/lib/clinical-transcription/streaming-client";
+import { ClinicalTranscriptionDetail } from "./clinical-transcription-detail";
 
 type TranscriptionRecord = {
   id: string;
   status: string;
+  transcription_mode?: string;
   transcript: string | null;
+  live_transcript?: string | null;
+  dialogue?: DialogueTurn[] | null;
+  clinical_summary?: ClinicalSummary | null;
+  post_processing_status?: string | null;
+  post_processing_error?: string | null;
   error_message: string | null;
   duration_seconds: number | null;
   processing_time_seconds: number | null;
   created_at: string;
   completed_at: string | null;
+  summarized_at?: string | null;
 };
 
-type PanelPhase = "idle" | "recording" | "uploading" | "transcribing";
+type PanelPhase =
+  | "idle"
+  | "recording"
+  | "streaming"
+  | "uploading"
+  | "transcribing"
+  | "finalizing"
+  | "post_processing";
 
 type LogEntry = {
   id: string;
@@ -29,6 +53,7 @@ type LogEntry = {
 };
 
 const POLL_INTERVAL_MS = 3000;
+const LIVE_BACKUP_INTERVAL_MS = 5000;
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -51,7 +76,11 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function statusLabel(status: string): string {
+function statusLabel(status: string, postProcessingStatus?: string | null): string {
+  if (status === "streaming") return "Ao vivo";
+  if (postProcessingStatus === "processing" || postProcessingStatus === "pending") {
+    return "Gerando relatório";
+  }
   switch (status) {
     case "completed":
       return "Concluída";
@@ -91,9 +120,13 @@ function LogIcon({ level }: { level: LogEntry["level"] }) {
 export function ClinicalTranscriptionPanel({
   appointmentId,
   canRecord,
+  streamingEnabled = false,
+  fallbackToBatch = true,
 }: {
   appointmentId: string;
   canRecord: boolean;
+  streamingEnabled?: boolean;
+  fallbackToBatch?: boolean;
 }) {
   const [transcriptions, setTranscriptions] = useState<TranscriptionRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,26 +134,27 @@ export function ClinicalTranscriptionPanel({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [activeTranscriptionId, setActiveTranscriptionId] = useState<string | null>(null);
   const [activityLog, setActivityLog] = useState<LogEntry[]>([]);
+  const [liveTranscript, setLiveTranscript] = useState("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const liveBackupTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingSecondsRef = useRef(0);
   const logIdRef = useRef(0);
+  const streamConnectionRef = useRef<ClinicalStreamConnection | null>(null);
+  const streamSessionRef = useRef<{ transcriptionId: string; wsUrl: string } | null>(null);
+  const streamSegmentsRef = useRef<TranscriptSegment[]>([]);
+  const liveTranscriptRef = useRef("");
 
   const appendLog = useCallback((message: string, level: LogEntry["level"] = "info") => {
     logIdRef.current += 1;
-    setActivityLog((prev) => [
-      ...prev,
-      { id: String(logIdRef.current), message, level },
-    ]);
+    setActivityLog((prev) => [...prev, { id: String(logIdRef.current), message, level }]);
   }, []);
 
-  const clearActivityLog = useCallback(() => {
-    setActivityLog([]);
-  }, []);
+  const clearActivityLog = useCallback(() => setActivityLog([]), []);
 
   const stopMediaTracks = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -141,6 +175,13 @@ export function ClinicalTranscriptionPanel({
     }
   }, []);
 
+  const clearLiveBackupTimer = useCallback(() => {
+    if (liveBackupTimerRef.current) {
+      clearInterval(liveBackupTimerRef.current);
+      liveBackupTimerRef.current = null;
+    }
+  }, []);
+
   const loadTranscriptions = useCallback(async () => {
     setLoading(true);
     try {
@@ -156,11 +197,26 @@ export function ClinicalTranscriptionPanel({
       setTranscriptions(data.transcriptions ?? []);
 
       const inProgress = (data.transcriptions ?? []).find(
-        (t) => t.status === "processing" || t.status === "queued"
+        (t) =>
+          t.status === "processing" ||
+          t.status === "queued" ||
+          t.status === "streaming" ||
+          t.post_processing_status === "pending" ||
+          t.post_processing_status === "processing"
       );
       if (inProgress) {
         setActiveTranscriptionId(inProgress.id);
-        setPhase("transcribing");
+        if (
+          inProgress.post_processing_status === "pending" ||
+          inProgress.post_processing_status === "processing"
+        ) {
+          setPhase("post_processing");
+        } else if (inProgress.status === "streaming") {
+          setPhase("streaming");
+          setLiveTranscript(inProgress.live_transcript ?? "");
+        } else {
+          setPhase("transcribing");
+        }
       }
     } catch {
       toast("Erro ao carregar transcrições.", "error");
@@ -169,14 +225,92 @@ export function ClinicalTranscriptionPanel({
     }
   }, [appointmentId]);
 
-  const pollTranscription = useCallback(
+  const backupLiveTranscript = useCallback(async () => {
+    const session = streamSessionRef.current;
+    if (!session) return;
+    const transcript = liveTranscriptRef.current.trim();
+    if (!transcript && streamSegmentsRef.current.length === 0) return;
+
+    try {
+      await fetch(
+        `/api/appointments/${appointmentId}/transcriptions/${session.transcriptionId}/live`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            liveTranscript: transcript,
+            transcriptSegments: streamSegmentsRef.current,
+            recordingDurationSeconds: recordingSecondsRef.current,
+          }),
+        }
+      );
+    } catch {
+      // backup silencioso
+    }
+  }, [appointmentId]);
+
+  const pollTranscriptionDetail = useCallback(
     async (transcriptionId: string, pollCount = 0) => {
       try {
-        if (pollCount === 0) {
-          appendLog("Consultando status na API de transcrição…");
-        } else if (pollCount % 5 === 0) {
-          appendLog(`Ainda transcrevendo… (${pollCount * (POLL_INTERVAL_MS / 1000)}s)`);
+        const res = await fetch(
+          `/api/appointments/${appointmentId}/transcriptions/${transcriptionId}`
+        );
+        const data = (await res.json()) as TranscriptionRecord & { error?: string };
+
+        if (!res.ok) {
+          appendLog(data.error ?? "Erro ao consultar transcrição.", "error");
+          setPhase("idle");
+          setActiveTranscriptionId(null);
+          await loadTranscriptions();
+          return;
         }
+
+        if (data.post_processing_status === "completed") {
+          appendLog("Relatório clínico gerado com sucesso.", "success");
+          toast("Transcrição e relatório concluídos.", "success");
+          setPhase("idle");
+          setActiveTranscriptionId(null);
+          await loadTranscriptions();
+          return;
+        }
+
+        if (data.post_processing_status === "failed") {
+          appendLog(data.post_processing_error ?? "Pós-processamento falhou.", "error");
+          toast(data.post_processing_error ?? "Relatório clínico falhou.", "error");
+          setPhase("idle");
+          setActiveTranscriptionId(null);
+          await loadTranscriptions();
+          return;
+        }
+
+        if (data.status === "completed" && !data.post_processing_status) {
+          appendLog("Transcrição concluída.", "success");
+          setPhase("idle");
+          setActiveTranscriptionId(null);
+          await loadTranscriptions();
+          return;
+        }
+
+        if (pollCount % 5 === 0) {
+          appendLog("Gerando diálogo e resumo clínico…");
+        }
+
+        pollTimerRef.current = setTimeout(() => {
+          void pollTranscriptionDetail(transcriptionId, pollCount + 1);
+        }, POLL_INTERVAL_MS);
+      } catch {
+        appendLog("Erro de rede ao consultar transcrição.", "error");
+        setPhase("idle");
+        setActiveTranscriptionId(null);
+      }
+    },
+    [appointmentId, appendLog, loadTranscriptions]
+  );
+
+  const pollBatchJob = useCallback(
+    async (transcriptionId: string, pollCount = 0) => {
+      try {
+        if (pollCount === 0) appendLog("Consultando status na API de transcrição…");
 
         const res = await fetch(`/api/transcribe/jobs/${transcriptionId}`);
         const data = (await res.json()) as {
@@ -184,13 +318,10 @@ export function ClinicalTranscriptionPanel({
           status?: string;
           transcript?: string | null;
           error_message?: string | null;
-          duration_seconds?: number | null;
-          processing_time_seconds?: number | null;
         };
 
         if (!res.ok) {
           appendLog(data.error ?? "Erro ao consultar transcrição.", "error");
-          toast(data.error ?? "Erro ao consultar transcrição.", "error");
           setPhase("idle");
           setActiveTranscriptionId(null);
           await loadTranscriptions();
@@ -199,12 +330,6 @@ export function ClinicalTranscriptionPanel({
 
         if (data.status === "completed") {
           appendLog("Transcrição concluída com sucesso.", "success");
-          if (data.duration_seconds != null) {
-            appendLog(
-              `Áudio: ${Math.round(data.duration_seconds)}s · Processamento: ${Math.round(data.processing_time_seconds ?? 0)}s`,
-              "success"
-            );
-          }
           toast("Transcrição concluída.", "success");
           setPhase("idle");
           setActiveTranscriptionId(null);
@@ -214,21 +339,17 @@ export function ClinicalTranscriptionPanel({
 
         if (data.status === "failed") {
           appendLog(data.error_message ?? "Transcrição falhou.", "error");
-          toast(data.error_message ?? "Transcrição falhou.", "error");
           setPhase("idle");
           setActiveTranscriptionId(null);
           await loadTranscriptions();
           return;
         }
 
-        appendLog(`Status: ${data.status ?? "processando"}…`);
-
         pollTimerRef.current = setTimeout(() => {
-          void pollTranscription(transcriptionId, pollCount + 1);
+          void pollBatchJob(transcriptionId, pollCount + 1);
         }, POLL_INTERVAL_MS);
       } catch {
         appendLog("Erro de rede ao consultar transcrição.", "error");
-        toast("Erro ao consultar transcrição.", "error");
         setPhase("idle");
         setActiveTranscriptionId(null);
       }
@@ -241,23 +362,101 @@ export function ClinicalTranscriptionPanel({
   }, [loadTranscriptions]);
 
   useEffect(() => {
+    if (phase === "post_processing" && activeTranscriptionId) {
+      clearPollTimer();
+      void pollTranscriptionDetail(activeTranscriptionId);
+    }
     if (phase === "transcribing" && activeTranscriptionId) {
       clearPollTimer();
-      void pollTranscription(activeTranscriptionId);
+      void pollBatchJob(activeTranscriptionId);
     }
     return () => clearPollTimer();
-  }, [phase, activeTranscriptionId, pollTranscription, clearPollTimer]);
+  }, [
+    phase,
+    activeTranscriptionId,
+    pollTranscriptionDetail,
+    pollBatchJob,
+    clearPollTimer,
+  ]);
 
   useEffect(() => {
     return () => {
       clearRecordingTimer();
       clearPollTimer();
+      clearLiveBackupTimer();
+      streamConnectionRef.current?.close();
       if (mediaRecorderRef.current?.state === "recording") {
         mediaRecorderRef.current.stop();
       }
       stopMediaTracks();
     };
-  }, [clearRecordingTimer, clearPollTimer, stopMediaTracks]);
+  }, [clearRecordingTimer, clearPollTimer, clearLiveBackupTimer, stopMediaTracks]);
+
+  async function startStreamingSession(mimeType: string): Promise<boolean> {
+    appendLog("Iniciando sessão de transcrição em tempo real…");
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}/transcribe/stream/session`, {
+        method: "POST",
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        transcriptionId?: string;
+        wsUrl?: string;
+        log?: string[];
+      };
+
+      if (Array.isArray(data.log)) {
+        for (const line of data.log) appendLog(line, res.ok ? "info" : "error");
+      }
+
+      if (!res.ok || !data.transcriptionId || !data.wsUrl) {
+        appendLog(data.error ?? "Falha ao criar sessão de streaming.", "error");
+        return false;
+      }
+
+      streamSessionRef.current = {
+        transcriptionId: data.transcriptionId,
+        wsUrl: data.wsUrl,
+      };
+      setActiveTranscriptionId(data.transcriptionId);
+      streamSegmentsRef.current = [];
+      liveTranscriptRef.current = "";
+      setLiveTranscript("");
+
+      const connection = new ClinicalStreamConnection(data.wsUrl, mimeType, {
+        onPartial: (text) => {
+          liveTranscriptRef.current = `${liveTranscriptRef.current} ${text}`.trim();
+          setLiveTranscript(liveTranscriptRef.current);
+        },
+        onSegmentFinal: (segment) => {
+          streamSegmentsRef.current = [...streamSegmentsRef.current, segment];
+          liveTranscriptRef.current = buildLiveTranscriptFromSegments(streamSegmentsRef.current);
+          setLiveTranscript(liveTranscriptRef.current);
+        },
+        onSessionComplete: (fullText) => {
+          liveTranscriptRef.current = fullText.trim();
+          setLiveTranscript(liveTranscriptRef.current);
+          appendLog("Sessão de streaming finalizada na VPS.", "success");
+        },
+        onError: (message) => appendLog(message, "error"),
+        onOpen: () => appendLog("Conexão de streaming estabelecida.", "success"),
+        onClose: () => appendLog("Conexão de streaming encerrada."),
+      });
+
+      streamConnectionRef.current = connection;
+      await connection.connect();
+
+      liveBackupTimerRef.current = setInterval(() => {
+        void backupLiveTranscript();
+      }, LIVE_BACKUP_INTERVAL_MS);
+
+      appendLog("Transcrição ao vivo ativa.");
+      return true;
+    } catch {
+      appendLog("Erro ao conectar streaming.", "error");
+      return false;
+    }
+  }
 
   async function handleStartRecording() {
     if (!canRecord) return;
@@ -270,37 +469,61 @@ export function ClinicalTranscriptionPanel({
       mediaStreamRef.current = stream;
       chunksRef.current = [];
 
-      const mimeType = pickMimeType();
-      appendLog(`Microfone ok. Formato: ${mimeType ?? "padrão do navegador"}.`);
+      const mimeType = pickMimeType() ?? "audio/webm";
+      appendLog(`Microfone ok. Formato: ${mimeType}.`);
 
-      const recorder = mimeType
+      let streamingActive = false;
+      if (streamingEnabled) {
+        streamingActive = await startStreamingSession(mimeType);
+        if (!streamingActive && !fallbackToBatch) {
+          toast("Streaming indisponível.", "error");
+          stopMediaTracks();
+          setPhase("idle");
+          return;
+        }
+        if (!streamingActive && fallbackToBatch) {
+          appendLog("Streaming indisponível — usando modo batch (fallback).", "error");
+        }
+      }
+
+      const recorder = MediaRecorder.isTypeSupported(mimeType)
         ? new MediaRecorder(stream, { mimeType })
         : new MediaRecorder(stream);
 
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+          if (streamSessionRef.current) {
+            streamConnectionRef.current?.sendAudioChunk(e.data);
+          }
+        }
       };
 
       recorder.onstop = () => {
         clearRecordingTimer();
+        clearLiveBackupTimer();
         stopMediaTracks();
-        void uploadRecording(recorder.mimeType || mimeType || "audio/webm");
+        if (streamSessionRef.current) {
+          void finalizeStreamingRecording(recorder.mimeType || mimeType);
+        } else {
+          void uploadRecording(recorder.mimeType || mimeType);
+        }
       };
 
-      recorder.start(1000);
+      recorder.start(streamingActive ? 500 : 1000);
       recordingSecondsRef.current = 0;
       setRecordingSeconds(0);
-      setPhase("recording");
-      appendLog("Gravação iniciada.");
+      setPhase(streamingActive ? "streaming" : "recording");
       recordingTimerRef.current = setInterval(() => {
         recordingSecondsRef.current += 1;
         setRecordingSeconds(recordingSecondsRef.current);
       }, 1000);
+      appendLog(streamingActive ? "Gravação ao vivo iniciada." : "Gravação iniciada.");
     } catch {
       appendLog("Microfone bloqueado ou indisponível.", "error");
-      toast("Não foi possível acessar o microfone. Verifique as permissões do navegador.", "error");
+      toast("Não foi possível acessar o microfone.", "error");
       stopMediaTracks();
       setPhase("idle");
     }
@@ -313,7 +536,7 @@ export function ClinicalTranscriptionPanel({
       try {
         recorder.requestData();
       } catch {
-        // ignore — nem todo browser suporta
+        // ignore
       }
       recorder.stop();
     } else {
@@ -322,44 +545,93 @@ export function ClinicalTranscriptionPanel({
     }
   }
 
+  async function finalizeStreamingRecording(mimeType: string) {
+    setPhase("finalizing");
+    const session = streamSessionRef.current;
+    const durationSeconds = recordingSecondsRef.current;
+
+    try {
+      await streamConnectionRef.current?.end();
+      streamConnectionRef.current?.close();
+      streamConnectionRef.current = null;
+      await backupLiveTranscript();
+
+      if (!session) {
+        throw new Error("Sessão de streaming não encontrada.");
+      }
+
+      const res = await fetch(`/api/appointments/${appointmentId}/transcribe/stream/finalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcriptionId: session.transcriptionId,
+          recordingDurationSeconds: durationSeconds,
+          liveTranscript: liveTranscriptRef.current,
+          transcriptSegments: streamSegmentsRef.current,
+        }),
+      });
+
+      const data = (await res.json()) as { error?: string; log?: string[]; postProcessingStatus?: string };
+      if (Array.isArray(data.log)) {
+        for (const line of data.log) appendLog(line, res.ok ? "info" : "error");
+      }
+
+      if (!res.ok) {
+        if (fallbackToBatch && chunksRef.current.length > 0) {
+          appendLog("Finalize falhou — tentando fallback batch…", "error");
+          await uploadRecording(mimeType);
+          return;
+        }
+        throw new Error(data.error ?? "Erro ao finalizar streaming.");
+      }
+
+      appendLog("Transcrição salva. Gerando relatório clínico…", "success");
+      setActiveTranscriptionId(session.transcriptionId);
+      setPhase(data.postProcessingStatus === "skipped" ? "idle" : "post_processing");
+      await loadTranscriptions();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro ao finalizar.";
+      appendLog(message, "error");
+      if (fallbackToBatch && chunksRef.current.length > 0) {
+        await uploadRecording(mimeType);
+        return;
+      }
+      toast(message, "error");
+      setPhase("idle");
+    } finally {
+      streamSessionRef.current = null;
+    }
+  }
+
   async function prepareAudioBlob(mimeType: string, durationSeconds: number): Promise<Blob> {
     let blob = new Blob(chunksRef.current, { type: mimeType });
     chunksRef.current = [];
-
     if (mimeType.includes("webm") && durationSeconds > 0) {
-      appendLog("Corrigindo metadados de duração do WebM…");
       try {
         blob = await fixWebmDuration(blob, durationSeconds * 1000);
-        appendLog("Metadados de duração corrigidos.", "success");
       } catch {
-        appendLog("Não foi possível corrigir duração do WebM; enviando mesmo assim.", "error");
+        // ignore
       }
     }
-
     return blob;
   }
 
   async function uploadRecording(mimeType: string) {
     setPhase("uploading");
     const durationSeconds = recordingSecondsRef.current;
-
     const blob = await prepareAudioBlob(mimeType, durationSeconds);
 
     if (blob.size === 0) {
       appendLog("Arquivo de áudio vazio.", "error");
-      toast("Gravação vazia. Tente novamente.", "error");
+      toast("Gravação vazia.", "error");
       setPhase("idle");
       return;
     }
 
     appendLog(`Áudio pronto: ${formatBytes(blob.size)}, ${durationSeconds}s.`);
-
-    const ext = extensionForMime(mimeType);
     const formData = new FormData();
-    formData.append("file", blob, `recording.${ext}`);
+    formData.append("file", blob, `recording.${extensionForMime(mimeType)}`);
     formData.append("recording_duration_seconds", String(durationSeconds));
-
-    appendLog("Enviando para transcrição…");
 
     try {
       const res = await fetch(`/api/appointments/${appointmentId}/transcribe`, {
@@ -369,26 +641,18 @@ export function ClinicalTranscriptionPanel({
       const data = (await res.json()) as {
         error?: string;
         transcriptionId?: string;
-        status?: string;
-        jobId?: string;
         log?: string[];
       };
 
       if (Array.isArray(data.log)) {
-        for (const line of data.log) {
-          appendLog(line, res.ok ? "info" : "error");
-        }
+        for (const line of data.log) appendLog(line, res.ok ? "info" : "error");
       }
 
       if (!res.ok) {
         appendLog(data.error ?? "Erro ao enviar áudio.", "error");
-        toast(data.error ?? "Erro ao enviar áudio.", "error");
         setPhase("idle");
-        await loadTranscriptions();
         return;
       }
-
-      appendLog("Enviado com sucesso. Aguardando transcrição…", "success");
 
       if (data.transcriptionId) {
         setActiveTranscriptionId(data.transcriptionId);
@@ -399,20 +663,24 @@ export function ClinicalTranscriptionPanel({
       }
     } catch {
       appendLog("Erro de rede ao enviar áudio.", "error");
-      toast("Erro ao enviar áudio.", "error");
       setPhase("idle");
     }
   }
 
-  const isBusy = phase === "uploading" || phase === "transcribing";
+  const isBusy =
+    phase === "uploading" ||
+    phase === "transcribing" ||
+    phase === "finalizing" ||
+    phase === "post_processing";
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="font-semibold text-lg">Transcrição de áudio</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Grave o áudio da consulta e converta em texto. O áudio não é armazenado — apenas a
-          transcrição.
+          {streamingEnabled
+            ? "Grave a consulta com transcrição em tempo real. Ao finalizar, um relatório clínico é gerado automaticamente."
+            : "Grave o áudio da consulta e converta em texto. O áudio não é armazenado — apenas a transcrição."}
         </p>
       </div>
 
@@ -425,33 +693,50 @@ export function ClinicalTranscriptionPanel({
             </Button>
           )}
 
-          {phase === "recording" && (
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive" />
-                </span>
-                Gravando {formatDuration(recordingSeconds)}
+          {(phase === "recording" || phase === "streaming") && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive" />
+                  </span>
+                  {phase === "streaming" ? "Ao vivo" : "Gravando"} {formatDuration(recordingSeconds)}
+                </div>
+                <Button type="button" variant="destructive" onClick={handleStopRecording}>
+                  <Square className="h-4 w-4 mr-2 fill-current" />
+                  Parar
+                </Button>
               </div>
-              <Button type="button" variant="destructive" onClick={handleStopRecording}>
-                <Square className="h-4 w-4 mr-2 fill-current" />
-                Parar e transcrever
-              </Button>
+              {phase === "streaming" && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Texto aparece com pequeno atraso (~3–5s). Revise o conteúdo ao final.
+                  </p>
+                  <Textarea
+                    readOnly
+                    value={liveTranscript}
+                    placeholder="A transcrição aparecerá aqui conforme você fala…"
+                    className="min-h-[140px] resize-y bg-muted/30"
+                  />
+                </div>
+              )}
             </div>
           )}
 
-          {phase === "uploading" && (
+          {(phase === "uploading" || phase === "finalizing") && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Enviando para transcrição…
+              {phase === "finalizing" ? "Finalizando transcrição…" : "Enviando para transcrição…"}
             </div>
           )}
 
-          {phase === "transcribing" && (
+          {(phase === "transcribing" || phase === "post_processing") && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Transcrevendo… Isso pode levar alguns minutos para áudios longos.
+              {phase === "post_processing"
+                ? "Gerando diálogo e resumo clínico…"
+                : "Transcrevendo… Isso pode levar alguns minutos."}
             </div>
           )}
 
@@ -480,12 +765,6 @@ export function ClinicalTranscriptionPanel({
         </div>
       )}
 
-      {!canRecord && (
-        <p className="text-sm text-muted-foreground">
-          Apenas profissionais autorizados podem gravar e transcrever áudio neste atendimento.
-        </p>
-      )}
-
       <div className="space-y-4">
         <h3 className="text-sm font-medium">Transcrições deste atendimento</h3>
 
@@ -504,7 +783,14 @@ export function ClinicalTranscriptionPanel({
           transcriptions.map((t) => (
             <div key={t.id} className="rounded-lg border bg-card p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-muted-foreground">{formatDateTime(t.created_at)}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-muted-foreground">{formatDateTime(t.created_at)}</p>
+                  {t.transcription_mode === "streaming" && (
+                    <Badge variant="outline" className="text-[10px]">
+                      Streaming
+                    </Badge>
+                  )}
+                </div>
                 <Badge
                   variant={
                     t.status === "completed"
@@ -515,14 +801,21 @@ export function ClinicalTranscriptionPanel({
                   }
                   className="text-[10px]"
                 >
-                  {statusLabel(t.status)}
+                  {statusLabel(t.status, t.post_processing_status)}
                 </Badge>
               </div>
 
-              {(t.status === "processing" || t.status === "queued") && (
+              {(t.status === "processing" ||
+                t.status === "queued" ||
+                t.status === "streaming" ||
+                t.post_processing_status === "pending" ||
+                t.post_processing_status === "processing") && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Transcrevendo…
+                  {t.post_processing_status === "pending" ||
+                  t.post_processing_status === "processing"
+                    ? "Gerando relatório clínico…"
+                    : "Transcrevendo…"}
                 </div>
               )}
 
@@ -530,24 +823,23 @@ export function ClinicalTranscriptionPanel({
                 <p className="text-sm text-destructive">{t.error_message}</p>
               )}
 
-              {t.status === "completed" && t.transcript && (
-                <Textarea
-                  readOnly
-                  value={t.transcript}
-                  className={cn("min-h-[120px] resize-y bg-muted/30")}
+              {(t.status === "completed" || t.live_transcript) && (
+                <ClinicalTranscriptionDetail
+                  transcript={t.transcript}
+                  liveTranscript={t.live_transcript}
+                  dialogue={t.dialogue ?? null}
+                  clinicalSummary={t.clinical_summary ?? null}
+                  postProcessingStatus={t.post_processing_status}
+                  postProcessingError={t.post_processing_error}
                 />
               )}
 
-              {t.status === "completed" &&
-                (t.duration_seconds != null || t.processing_time_seconds != null) && (
-                  <p className="text-xs text-muted-foreground">
-                    {t.duration_seconds != null &&
-                      `Áudio: ${Math.round(t.duration_seconds)}s`}
-                    {t.duration_seconds != null && t.processing_time_seconds != null && " · "}
-                    {t.processing_time_seconds != null &&
-                      `Processamento: ${Math.round(t.processing_time_seconds)}s`}
-                  </p>
-                )}
+              {t.status === "completed" && t.duration_seconds != null && (
+                <p className="text-xs text-muted-foreground">
+                  Áudio: {Math.round(t.duration_seconds)}s
+                  {t.summarized_at ? ` · Relatório: ${formatDateTime(t.summarized_at)}` : ""}
+                </p>
+              )}
             </div>
           ))}
       </div>

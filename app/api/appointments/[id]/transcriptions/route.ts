@@ -30,7 +30,7 @@ export async function GET(
     const { data, error } = await supabase
       .from("appointment_transcriptions")
       .select(
-        "id, status, transcript, error_message, duration_seconds, processing_time_seconds, created_at, completed_at"
+        "id, status, transcription_mode, transcript, live_transcript, dialogue, clinical_summary, post_processing_status, post_processing_error, error_message, duration_seconds, processing_time_seconds, created_at, completed_at, summarized_at"
       )
       .eq("appointment_id", appointmentId)
       .eq("clinic_id", clinicId)
