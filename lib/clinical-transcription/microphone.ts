@@ -87,7 +87,7 @@ export function startMediaRecorder(recorder: MediaRecorder, timesliceMs?: number
       recorder.start(timesliceMs);
       return;
     } catch {
-      if (recorder.state === "recording") {
+      if (recorder.state !== "inactive") {
         return;
       }
     }
