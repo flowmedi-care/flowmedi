@@ -17,7 +17,13 @@ import {
   buildLiveTranscriptFromSegments,
   ClinicalStreamConnection,
 } from "@/lib/clinical-transcription/streaming-client";
+import {
+  createMediaRecorder,
+  getMicrophoneErrorMessage,
+  requestMicrophoneStream,
+} from "@/lib/clinical-transcription/microphone";
 import { ClinicalTranscriptionDetail } from "./clinical-transcription-detail";
+import { ClinicalAudioWaveform } from "./clinical-audio-waveform";
 
 type TranscriptionRecord = {
   id: string;
@@ -135,6 +141,7 @@ export function ClinicalTranscriptionPanel({
   const [activeTranscriptionId, setActiveTranscriptionId] = useState<string | null>(null);
   const [activityLog, setActivityLog] = useState<LogEntry[]>([]);
   const [liveTranscript, setLiveTranscript] = useState("");
+  const [audioPreviewStream, setAudioPreviewStream] = useState<MediaStream | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -159,6 +166,7 @@ export function ClinicalTranscriptionPanel({
   const stopMediaTracks = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
     mediaStreamRef.current = null;
+    setAudioPreviewStream(null);
   }, []);
 
   const clearRecordingTimer = useCallback(() => {
@@ -462,11 +470,17 @@ export function ClinicalTranscriptionPanel({
     if (!canRecord) return;
 
     clearActivityLog();
+    streamConnectionRef.current?.close();
+    streamConnectionRef.current = null;
+    streamSessionRef.current = null;
+    stopMediaTracks();
+
     appendLog("Solicitando acesso ao microfone…");
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await requestMicrophoneStream();
       mediaStreamRef.current = stream;
+      setAudioPreviewStream(stream);
       chunksRef.current = [];
 
       const mimeType = pickMimeType() ?? "audio/webm";
@@ -486,10 +500,7 @@ export function ClinicalTranscriptionPanel({
         }
       }
 
-      const recorder = MediaRecorder.isTypeSupported(mimeType)
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
-
+      const recorder = createMediaRecorder(stream, mimeType);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -512,7 +523,12 @@ export function ClinicalTranscriptionPanel({
         }
       };
 
-      recorder.start(streamingActive ? 500 : 1000);
+      try {
+        recorder.start(streamingActive ? 500 : 1000);
+      } catch {
+        recorder.start();
+      }
+
       recordingSecondsRef.current = 0;
       setRecordingSeconds(0);
       setPhase(streamingActive ? "streaming" : "recording");
@@ -521,9 +537,10 @@ export function ClinicalTranscriptionPanel({
         setRecordingSeconds(recordingSecondsRef.current);
       }, 1000);
       appendLog(streamingActive ? "Gravação ao vivo iniciada." : "Gravação iniciada.");
-    } catch {
-      appendLog("Microfone bloqueado ou indisponível.", "error");
-      toast("Não foi possível acessar o microfone.", "error");
+    } catch (error) {
+      const message = getMicrophoneErrorMessage(error);
+      appendLog(message, "error");
+      toast(message, "error");
       stopMediaTracks();
       setPhase("idle");
     }
@@ -708,7 +725,13 @@ export function ClinicalTranscriptionPanel({
                   Parar
                 </Button>
               </div>
-              {phase === "streaming" && (
+
+              <ClinicalAudioWaveform
+                stream={audioPreviewStream}
+                active={phase === "recording" || phase === "streaming"}
+              />
+
+              {phase === "streaming" ? (
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">
                     Texto aparece com pequeno atraso (~3–5s). Revise o conteúdo ao final.
@@ -720,6 +743,10 @@ export function ClinicalTranscriptionPanel({
                     className="min-h-[140px] resize-y bg-muted/30"
                   />
                 </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  O áudio está sendo capturado. A transcrição completa será gerada ao parar a gravação.
+                </p>
               )}
             </div>
           )}

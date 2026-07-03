@@ -118,10 +118,17 @@ export async function createStreamSession(opts: {
 
   return {
     session_id: data.session_id,
-    ws_url: data.ws_url ?? getStreamWsUrl(),
+    ws_url: resolveStreamWsBaseUrl(data.ws_url),
     ws_token: data.ws_token,
     expires_at: data.expires_at ?? new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
   };
+}
+
+function resolveStreamWsBaseUrl(wsUrlFromApi?: string | null): string {
+  if (wsUrlFromApi && (wsUrlFromApi.startsWith("ws://") || wsUrlFromApi.startsWith("wss://"))) {
+    return wsUrlFromApi;
+  }
+  return getStreamWsUrl();
 }
 
 export async function getStreamSessionArtifact(sessionId: string): Promise<StreamSessionArtifact> {
