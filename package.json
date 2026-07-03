@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:clinical": "npx tsx --test lib/clinical-documents/validate.test.ts",
-    "test:pipeline": "npx tsx --test lib/virtual-assistant/agent-pipeline/__tests__/unified-flow-graph.test.ts",
+    "test:pipeline": "npx tsx --test lib/virtual-assistant/agent-pipeline/__tests__/unified-flow-graph.test.ts lib/virtual-assistant/agent-pipeline/__tests__/conversation-pipeline-state.test.ts",
     "verify:subdomain": "node scripts/verify-subdomain-setup.mjs"
   },
   "dependencies": {

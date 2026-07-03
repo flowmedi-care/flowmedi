@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { AgentUnifiedPipelineCanvas } from "@/components/agents/agent-unified-pipeline-canvas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toast";
 import {
   AGENT_PIPELINE_STAGES,
-  type AgentPipelineStage,
   MUTATING_TOOL_NAMES,
   buildDefaultToolExecutionModes,
   mergeToolExecutionModes,
@@ -16,11 +16,16 @@ import {
   type ToolExecutionModesConfig,
 } from "@/lib/virtual-assistant/agent-pipeline";
 import { ASSISTANT_TOOL_CATALOG } from "@/lib/virtual-assistant/tools/catalog";
+import { useConversationPipeline } from "@/hooks/use-conversation-pipeline";
 import { saveVirtualAssistantSettings } from "./actions";
 
-const DEMO_STAGES: { id: AgentPipelineStage; label: string }[] = AGENT_PIPELINE_STAGES.filter(
-  (s) => s.kind === "main"
-).map((s) => ({ id: s.code, label: s.shortLabel }));
+type PipelineDisplayMode = "reference" | "conversation";
+
+type ConversationOption = {
+  id: string;
+  phone_number: string;
+  contact_name: string | null;
+};
 
 type Props = {
   initialToolModes?: ToolExecutionModesConfig | null;
@@ -31,7 +36,36 @@ export function AssistenteVirtualPipelineTab({ initialToolModes }: Props) {
     mergeToolExecutionModes(initialToolModes)
   );
   const [saving, setSaving] = useState(false);
-  const [demoStage, setDemoStage] = useState<AgentPipelineStage | null>("agendamento");
+  const [displayMode, setDisplayMode] = useState<PipelineDisplayMode>("reference");
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationOption[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(false);
+
+  const { data: pipelineState, loading: loadingPipeline, refresh } = useConversationPipeline(
+    displayMode === "conversation" ? conversationId : null,
+    { pollIntervalMs: displayMode === "conversation" && conversationId ? 30_000 : 0 }
+  );
+
+  const loadConversations = useCallback(async () => {
+    setLoadingConversations(true);
+    try {
+      const res = await fetch("/api/whatsapp/conversations?status=open");
+      const json = (await res.json()) as ConversationOption[] | { error?: string };
+      if (!res.ok || !Array.isArray(json)) {
+        toast("Erro ao carregar conversas", "error");
+        return;
+      }
+      setConversations(json.slice(0, 50));
+    } catch {
+      toast("Falha ao carregar conversas", "error");
+    } finally {
+      setLoadingConversations(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (displayMode === "conversation") void loadConversations();
+  }, [displayMode, loadConversations]);
 
   const mutatingCatalog = ASSISTANT_TOOL_CATALOG.filter((t) =>
     (MUTATING_TOOL_NAMES as readonly string[]).includes(t.name)
@@ -53,39 +87,122 @@ export function AssistenteVirtualPipelineTab({ initialToolModes }: Props) {
     setToolModes(buildDefaultToolExecutionModes());
   }
 
+  const selectedConversation = conversations.find((c) => c.id === conversationId);
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Mapa unificado do pipeline</CardTitle>
+          <CardTitle>Mapa do pipeline do agente</CardTitle>
           <CardDescription>
-            Fluxo completo conectado: Mensagem → Roteador → Agente → Jornada → Etapas CRM →
-            Ferramentas → Resposta. Clique numa etapa para expandir tools e ver dependências.
+            Visualização estilo n8n: etapas CRM, ferramentas e transições. Somente leitura — a
+            configuração do fluxo é definida pelo código do agente.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Label className="w-full text-xs text-muted-foreground">Simular etapa:</Label>
-            {DEMO_STAGES.map((s) => (
-              <Button
-                key={s.id}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex rounded-lg border bg-muted/30 p-0.5">
+              <button
                 type="button"
-                size="sm"
-                variant={demoStage === s.id ? "default" : "outline"}
-                onClick={() => setDemoStage(s.id)}
+                onClick={() => {
+                  setDisplayMode("reference");
+                  setConversationId(null);
+                }}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+                  displayMode === "reference"
+                    ? "bg-background shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                {s.label}
-              </Button>
-            ))}
-            <Button type="button" size="sm" variant="ghost" onClick={() => setDemoStage(null)}>
-              Limpar
-            </Button>
+                Mapa completo
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisplayMode("conversation")}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+                  displayMode === "conversation"
+                    ? "bg-background shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Conversa específica
+              </button>
+            </div>
+
+            {displayMode === "conversation" && (
+              <div className="flex flex-1 flex-wrap items-center gap-2 min-w-[200px]">
+                <Label htmlFor="pipeline-conversation" className="sr-only">
+                  Conversa
+                </Label>
+                <select
+                  id="pipeline-conversation"
+                  className="flex-1 min-w-[180px] rounded-md border bg-background px-2 py-1.5 text-sm"
+                  value={conversationId ?? ""}
+                  onChange={(e) => setConversationId(e.target.value || null)}
+                  disabled={loadingConversations}
+                >
+                  <option value="">
+                    {loadingConversations ? "Carregando…" : "Selecione uma conversa"}
+                  </option>
+                  {conversations.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.contact_name ?? c.phone_number} ({c.phone_number})
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => void refresh()}
+                  disabled={!conversationId || loadingPipeline}
+                  aria-label="Atualizar pipeline"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loadingPipeline ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+            )}
           </div>
+
+          {displayMode === "conversation" && selectedConversation && pipelineState && (
+            <p className="text-xs text-muted-foreground">
+              Etapa atual:{" "}
+              <strong>{pipelineState.currentStage ?? "—"}</strong>
+              {pipelineState.currentStageEnteredAt && (
+                <>
+                  {" "}
+                  · desde{" "}
+                  {new Date(pipelineState.currentStageEnteredAt).toLocaleString("pt-BR")}
+                </>
+              )}
+              {pipelineState.visitedStages.length > 0 && (
+                <> · trilha: {pipelineState.visitedStages.join(" → ")}</>
+              )}
+            </p>
+          )}
+
+          {displayMode === "conversation" && !conversationId && (
+            <p className="text-xs text-muted-foreground rounded-lg border border-dashed p-3">
+              Selecione uma conversa para ver a etapa atual destacada e o caminho percorrido
+              (verde).
+            </p>
+          )}
+
           <AgentUnifiedPipelineCanvas
-            demoStage={demoStage}
+            key={displayMode}
+            canvasViewMode={displayMode}
+            initialJourneyMode={displayMode === "reference" ? "full" : "active"}
+            disableDemoCycle={displayMode === "conversation"}
+            currentStage={pipelineState?.currentStage ?? null}
+            parallelStages={pipelineState?.parallelStages ?? []}
+            visitedStages={pipelineState?.visitedStages ?? []}
+            stageHistory={pipelineState?.stageHistory ?? []}
+            currentStageEnteredAt={pipelineState?.currentStageEnteredAt ?? null}
+            lastToolName={pipelineState?.lastToolName ?? null}
             toolModes={toolModes}
             variant="full"
-            showLegend
+            showLegend={displayMode === "reference"}
             className="h-[1000px]"
           />
         </CardContent>

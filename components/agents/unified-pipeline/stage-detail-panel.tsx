@@ -12,10 +12,15 @@ import {
 } from "@/lib/virtual-assistant/agent-pipeline/flow-model";
 import type { AgentPipelineStage } from "@/lib/virtual-assistant/agent-pipeline/stages";
 import { MAIN_STAGE_CODES } from "@/lib/virtual-assistant/agent-pipeline/swimlane-layout";
+import { ASSISTANT_TOOL_CATALOG } from "@/lib/virtual-assistant/tools/catalog";
+import type { PipelineStageHistoryEntry } from "@/lib/virtual-assistant/conversation-pipeline-state";
 
 type Props = {
   stageCode: AgentPipelineStage | "escalonamento" | null;
   parallelActive?: AgentPipelineStage[];
+  conversationCurrentStage?: AgentPipelineStage | null;
+  currentStageEnteredAt?: string | null;
+  stageHistory?: PipelineStageHistoryEntry[];
   onClose?: () => void;
   onSelectStage?: (code: AgentPipelineStage | "escalonamento") => void;
   className?: string;
@@ -38,6 +43,9 @@ function formatTriggerLabel(type: string, label: string): string {
 export function StageDetailPanel({
   stageCode,
   parallelActive = [],
+  conversationCurrentStage,
+  currentStageEnteredAt,
+  stageHistory = [],
   onClose,
   onSelectStage,
   className,
@@ -61,6 +69,9 @@ export function StageDetailPanel({
   const relatedParallels =
     stageCode !== "escalonamento" ? getRelatedParallelStages(stageCode) : [];
   const isMainStage = MAIN_STAGE_CODES.includes(stageCode as (typeof MAIN_STAGE_CODES)[number]);
+  const isConversationStage = conversationCurrentStage === stageCode;
+  const stageEntries = stageHistory.filter((h) => h.stage === stageCode);
+  const allToolNames = [...def.readTools, ...def.mutatingTools];
 
   return (
     <div className={cn("rounded-lg border bg-card p-3 text-xs overflow-y-auto max-h-full", className)}>
@@ -75,6 +86,52 @@ export function StageDetailPanel({
           </button>
         )}
       </div>
+
+      {isConversationStage && (
+        <section className="mb-3 rounded-md border border-primary/30 bg-primary/5 p-2">
+          <p className="font-semibold text-[10px] uppercase tracking-wide text-primary mb-1">
+            Etapa atual desta conversa
+          </p>
+          {currentStageEnteredAt && (
+            <p className="text-[10px] text-muted-foreground">
+              Entrou em:{" "}
+              {new Date(currentStageEnteredAt).toLocaleString("pt-BR")}
+            </p>
+          )}
+          {stageEntries.length > 0 && (
+            <ul className="mt-1 space-y-0.5">
+              {stageEntries.map((entry, i) => (
+                <li key={`${entry.enteredAt}-${i}`} className="text-[10px] text-muted-foreground">
+                  {new Date(entry.enteredAt).toLocaleString("pt-BR")}
+                  {entry.fromStage && (
+                    <span>
+                      {" "}
+                      ← de {entry.fromStage}
+                      {entry.trigger ? ` (${entry.trigger})` : ""}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {!isConversationStage && stageEntries.length > 0 && (
+        <section className="mb-3">
+          <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+            Histórico nesta conversa
+          </p>
+          <ul className="space-y-0.5">
+            {stageEntries.map((entry, i) => (
+              <li key={`${entry.enteredAt}-${i}`} className="text-[10px] text-muted-foreground">
+                {new Date(entry.enteredAt).toLocaleString("pt-BR")}
+                {entry.fromStage && ` ← ${entry.fromStage}`}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="mb-3">
         <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Pré-condições</p>
@@ -156,15 +213,21 @@ export function StageDetailPanel({
 
       <section className="mb-3">
         <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Tools permitidas</p>
-        {def.readTools.length > 0 && (
-          <p className="text-[10px] mb-0.5">
-            <span className="text-muted-foreground">Leitura:</span> {def.readTools.join(", ")}
-          </p>
-        )}
-        {def.mutatingTools.length > 0 && (
-          <p className="text-[10px] text-amber-800">
-            <span className="text-muted-foreground">Mutáveis:</span> {def.mutatingTools.join(", ")}
-          </p>
+        {allToolNames.length > 0 && (
+          <ul className="space-y-1">
+            {allToolNames.map((toolName) => {
+              const catalog = ASSISTANT_TOOL_CATALOG.find((t) => t.name === toolName);
+              return (
+                <li key={toolName} className="text-[10px] rounded bg-muted/40 px-1.5 py-1">
+                  <span className="font-medium">{catalog?.label ?? toolName}</span>
+                  <code className="ml-1 text-[9px] text-muted-foreground">{toolName}</code>
+                  {catalog?.whenToUse && (
+                    <p className="text-[9px] text-muted-foreground mt-0.5">{catalog.whenToUse}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         )}
         {def.requiredOrder && def.requiredOrder.length > 1 && (
           <p className="text-[10px] mt-1 text-orange-700">Ordem: {def.requiredOrder.join(" → ")}</p>

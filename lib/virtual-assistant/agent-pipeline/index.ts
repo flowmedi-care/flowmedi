@@ -120,6 +120,12 @@ export {
 } from "./swimlane-layout";
 
 export {
+  getPipelineConfigJson,
+  getStageToolsFromFlowGraph,
+  type PipelineConfigStage,
+} from "./pipeline-config";
+
+export {
   resolveUnifiedPipelineHighlight,
   getDemoStageForTick,
   DEMO_STAGE_CYCLE,

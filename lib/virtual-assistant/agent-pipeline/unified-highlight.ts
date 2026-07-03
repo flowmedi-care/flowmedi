@@ -1,4 +1,6 @@
 import type { PipelineTrace, PipelineStep } from "@/lib/operational-agents/pipeline-trace";
+import { mapHistoryToCrmEdgeIds } from "@/lib/virtual-assistant/conversation-pipeline-state";
+import type { PipelineStageHistoryEntry } from "@/lib/virtual-assistant/conversation-pipeline-state";
 import { PLAYBACK_STEPS } from "./flow-model";
 import type { AgentPipelineStage } from "./stages";
 import { RUNTIME_PATH_MAP } from "./unified-flow-graph";
@@ -8,9 +10,11 @@ export type UnifiedPipelineHighlight = {
   activeRuntimeNodeIds: string[];
   activeStageId: string | null;
   activeStageNodeId: string | null;
+  visitedStageNodeIds: string[];
   activeToolIds: string[];
   activeParallelStageIds: AgentPipelineStage[];
   activeEdgeIds: string[];
+  visitedEdgeIds: string[];
   activeResolverEdgeId: string | null;
   activeStageToHubEdgeId: string | null;
   playbackNarrative: string | null;
@@ -20,11 +24,25 @@ export function resolveUnifiedPipelineHighlight(opts: {
   trace?: PipelineTrace | null;
   currentStage?: AgentPipelineStage | null;
   parallelStages?: AgentPipelineStage[];
+  visitedStages?: AgentPipelineStage[];
+  stageHistory?: PipelineStageHistoryEntry[];
   lastToolName?: string | null;
   playbackStepIndex?: number | null;
   playbackMode?: boolean;
 }): UnifiedPipelineHighlight {
-  const { trace, currentStage, parallelStages = [], lastToolName, playbackStepIndex, playbackMode } = opts;
+  const {
+    trace,
+    currentStage,
+    parallelStages = [],
+    visitedStages = [],
+    stageHistory = [],
+    lastToolName,
+    playbackStepIndex,
+    playbackMode,
+  } = opts;
+
+  const visitedStageNodeIds = visitedStages.map((s) => `stage_${s}`);
+  const visitedEdgeIds = mapHistoryToCrmEdgeIds(stageHistory);
 
   if (playbackMode && playbackStepIndex != null) {
     const step = PLAYBACK_STEPS[playbackStepIndex % PLAYBACK_STEPS.length]!;
@@ -34,9 +52,11 @@ export function resolveUnifiedPipelineHighlight(opts: {
       activeRuntimeNodeIds: [...step.nodeIds],
       activeStageId: currentStage ?? null,
       activeStageNodeId: currentStage ? `stage_${currentStage}` : null,
+      visitedStageNodeIds,
       activeToolIds: lastToolName ? [`tool_${lastToolName}`] : [],
       activeParallelStageIds: parallelStages,
       activeEdgeIds: [...edgeIds],
+      visitedEdgeIds,
       activeResolverEdgeId: edgeIds.includes("dyn-switch-stage") ? "dyn-switch-stage" : null,
       activeStageToHubEdgeId: edgeIds.includes("dyn-stage-tools") ? "dyn-stage-tools" : null,
       playbackNarrative: step.narrative,
@@ -59,7 +79,7 @@ export function resolveUnifiedPipelineHighlight(opts: {
 
   const activeStageNodeId = currentStage ? `stage_${currentStage}` : null;
   const activeToolIds = lastToolName ? [`tool_${lastToolName}`] : [];
-  const activeEdgeIds = [...activeRuntimeEdgeIds];
+  const activeEdgeIds = [...activeRuntimeEdgeIds, ...visitedEdgeIds];
 
   if (activeStageNodeId) {
     activeEdgeIds.push("dyn-switch-stage", "dyn-stage-tools");
@@ -73,9 +93,11 @@ export function resolveUnifiedPipelineHighlight(opts: {
     activeRuntimeNodeIds,
     activeStageId: currentStage ?? null,
     activeStageNodeId,
+    visitedStageNodeIds,
     activeToolIds,
     activeParallelStageIds: parallelStages,
     activeEdgeIds,
+    visitedEdgeIds,
     activeResolverEdgeId: activeStageNodeId ? "dyn-switch-stage" : null,
     activeStageToHubEdgeId: activeStageNodeId ? "dyn-stage-tools" : null,
     playbackNarrative: null,
