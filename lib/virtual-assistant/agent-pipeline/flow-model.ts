@@ -251,6 +251,9 @@ function mapCrmTrigger(from: string, to: string, label?: string): TransitionTrig
     "confirmacao_pre_consulta->captacao:Cancelado": { type: "tool_result", tool: "cancel_appointment", outcome: "success", label: "Cancelado" },
     "pos_consulta->agendamento:Retorno": { type: "journey_step", steps: ["retorno_sugerido"], label: "Retorno necessário" },
     "pos_consulta->satisfacao:NPS": { type: "journey_step", steps: ["pesquisa_nps_enviada"], label: "NPS" },
+    "identificacao->financeiro:": { type: "intent", intent: "payment", label: "Consulta financeira" },
+    "confirmacao_pre_consulta->formularios:": { type: "intent", intent: "form", label: "Formulário pendente" },
+    "agendamento->formularios:": { type: "journey_step", steps: ["formulario_pendente"], label: "Formulário pendente" },
   };
   return maps[key] ?? { type: "human_action", description: label ?? `${from} → ${to}`, label: label ?? "transição" };
 }
@@ -290,6 +293,22 @@ export function getStageEntryTriggers(stage: AgentPipelineStage | "escalonamento
 
 export function getStageExitTransitions(stage: AgentPipelineStage | "escalonamento") {
   return CRM_TRANSITIONS.filter((t) => t.from === stage);
+}
+
+export function getStageInboundTransitions(stage: AgentPipelineStage | "escalonamento") {
+  return CRM_TRANSITIONS.filter((t) => t.to === stage);
+}
+
+export function getRelatedParallelStages(stage: AgentPipelineStage): ParallelActivationRule[] {
+  const links: Partial<Record<AgentPipelineStage, AgentPipelineStage[]>> = {
+    identificacao: ["financeiro"],
+    captacao: ["financeiro"],
+    orcamento: ["financeiro"],
+    agendamento: ["financeiro", "formularios"],
+    confirmacao_pre_consulta: ["formularios"],
+  };
+  const codes = links[stage] ?? [];
+  return PARALLEL_ACTIVATION_RULES.filter((r) => codes.includes(r.stage));
 }
 
 export function getStageDefinitionForPanel(stage: AgentPipelineStage | "escalonamento") {

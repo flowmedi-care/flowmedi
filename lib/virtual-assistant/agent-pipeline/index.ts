@@ -95,10 +95,22 @@ export {
   EXIT_FLOW_RULES,
   getStageEntryTriggers,
   getStageExitTransitions,
+  getStageInboundTransitions,
+  getRelatedParallelStages,
   getStageDefinitionForPanel,
   type TransitionTrigger,
   type SwimlaneId,
 } from "./flow-model";
+
+export {
+  filterGraphForView,
+  getJourneyVisibleStageIds,
+  PIPELINE_STAGE_STEPPER,
+  stageNodeId,
+  type PipelineViewTab,
+  type JourneyDisplayMode,
+  type FilterGraphOptions,
+} from "./view-filter";
 
 export {
   SWIMLANE_BOUNDS,

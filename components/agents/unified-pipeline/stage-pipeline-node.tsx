@@ -11,11 +11,12 @@ export type StagePipelineNodeData = {
   expanded: boolean;
   toolCount: number;
   compact?: boolean;
+  showEscalateBadge?: boolean;
   onToggle?: (stageId: string) => void;
 };
 
 export function StagePipelineNode({ data }: { data: StagePipelineNodeData }) {
-  const { node, state, expanded, toolCount, compact, onToggle } = data;
+  const { node, state, expanded, toolCount, compact, showEscalateBadge, onToggle } = data;
   const stageId = node.stageCode ?? "";
 
   return (
@@ -58,6 +59,11 @@ export function StagePipelineNode({ data }: { data: StagePipelineNodeData }) {
         {state === "current" && (
           <span className="mt-1 inline-block rounded-full bg-primary px-1.5 py-0.5 text-[8px] font-medium text-primary-foreground">
             etapa atual
+          </span>
+        )}
+        {showEscalateBadge && node.stageCode !== "escalonamento" && (
+          <span className="mt-1 ml-1 inline-block rounded-full border border-red-300 bg-red-50 px-1.5 py-0.5 text-[8px] font-medium text-red-700">
+            Escalar
           </span>
         )}
         {toolCount > 0 && (

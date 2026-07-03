@@ -42,7 +42,8 @@ const EXECUTION_ROW_Y = LANE_Y.execution.y + 70;
 const JOURNEY_ROW_Y = LANE_Y.journey.y + 90;
 const PARALLEL_ROW_Y = LANE_Y.parallel.y + 60;
 const EXITS_ROW_Y = LANE_Y.exits.y + 60;
-const JOURNEY_STEP_X = 220;
+export const JOURNEY_STEP_X = 280;
+const JOURNEY_BRANCH_Y_OFFSET = 55;
 
 export type NodeLayout = { x: number; y: number; lane: SwimlaneId; width?: number; height?: number };
 
@@ -60,16 +61,16 @@ export const SWIMLANE_BOUNDS = Object.entries(LANE_Y).map(([id, v]) => ({
 }));
 
 const STAGE_JOURNEY_X: Record<string, number> = {
-  stage_identificacao: 40,
-  stage_captacao: 40 + JOURNEY_STEP_X,
+  stage_identificacao: 40 + JOURNEY_STEP_X * 0,
+  stage_captacao: 40 + JOURNEY_STEP_X * 1,
   stage_orcamento: 40 + JOURNEY_STEP_X * 2,
   stage_agendamento: 40 + JOURNEY_STEP_X * 2.5,
   stage_confirmacao_pre_consulta: 40 + JOURNEY_STEP_X * 3.5,
-  stage_pos_consulta: 40 + JOURNEY_STEP_X * 4.5,
-  stage_satisfacao: 40 + JOURNEY_STEP_X * 5.5,
+  stage_pos_consulta: 40 + JOURNEY_STEP_X * 5,
+  stage_satisfacao: 40 + JOURNEY_STEP_X * 6,
   stage_financeiro: 40 + JOURNEY_STEP_X * 2,
-  stage_formularios: 40 + JOURNEY_STEP_X * 4,
-  stage_escalonamento: 40 + JOURNEY_STEP_X * 6,
+  stage_formularios: 40 + JOURNEY_STEP_X * 3.5,
+  stage_escalonamento: 40 + JOURNEY_STEP_X * 6.5,
 };
 
 export function buildNodeLayoutMap(): Record<string, NodeLayout> {
@@ -105,9 +106,9 @@ export function buildNodeLayoutMap(): Record<string, NodeLayout> {
         : lane === "exits"
           ? EXITS_ROW_Y
           : id.includes("orcamento")
-            ? JOURNEY_ROW_Y - 50
+            ? JOURNEY_ROW_Y - JOURNEY_BRANCH_Y_OFFSET
             : id.includes("agendamento")
-              ? JOURNEY_ROW_Y + 50
+              ? JOURNEY_ROW_Y + JOURNEY_BRANCH_Y_OFFSET
               : JOURNEY_ROW_Y;
     map[id] = { x, y, lane };
   }

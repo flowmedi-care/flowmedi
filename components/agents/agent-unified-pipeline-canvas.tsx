@@ -31,6 +31,12 @@ import {
   getDemoStageForTick,
   type AgentPipelineStage,
 } from "@/lib/virtual-assistant/agent-pipeline";
+import {
+  filterGraphForView,
+  stageNodeId,
+  type JourneyDisplayMode,
+  type PipelineViewTab,
+} from "@/lib/virtual-assistant/agent-pipeline/view-filter";
 import type { ToolExecutionModesConfig } from "@/lib/virtual-assistant/agent-pipeline/confirmation-policy";
 import { ASSISTANT_TOOL_CATALOG } from "@/lib/virtual-assistant/tools/catalog";
 import { RuntimePipelineNode } from "./unified-pipeline/runtime-pipeline-node";
@@ -41,8 +47,7 @@ import { OrthogonalEdge } from "./unified-pipeline/orthogonal-edge";
 import { SwimlaneBackgroundNode } from "./unified-pipeline/swimlane-background";
 import { SwitchPipelineNode } from "./unified-pipeline/switch-pipeline-node";
 import { StageDetailPanel } from "./unified-pipeline/stage-detail-panel";
-
-export type CanvasViewMode = "full" | "playback";
+import { StageStepper } from "./unified-pipeline/stage-stepper";
 
 export type AgentUnifiedPipelineCanvasProps = {
   trace?: PipelineTrace | null;
@@ -70,6 +75,13 @@ const nodeTypes = {
 
 const edgeTypes = { orthogonal: OrthogonalEdge };
 
+const VIEW_TABS: { id: PipelineViewTab; label: string }[] = [
+  { id: "journey", label: "Jornada CRM" },
+  { id: "execution", label: "Execução" },
+  { id: "exits", label: "Saídas" },
+  { id: "playback", label: "Passo a passo" },
+];
+
 function countToolsForStage(stageKey: string): number {
   return ASSISTANT_TOOL_CATALOG.filter((t) => {
     const s = getToolPrimaryStage(t.name);
@@ -81,7 +93,7 @@ function countToolsForStage(stageKey: string): number {
 function FitViewOnChange({ deps }: { deps: unknown[] }) {
   const { fitView } = useReactFlow();
   useEffect(() => {
-    const t = setTimeout(() => void fitView({ padding: 0.15, duration: 320 }), 120);
+    const t = setTimeout(() => void fitView({ padding: 0.18, duration: 320 }), 120);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
@@ -101,13 +113,16 @@ function UnifiedPipelineCanvasInner({
   className,
 }: AgentUnifiedPipelineCanvasProps) {
   const compact = variant === "compact";
+  const { fitView } = useReactFlow();
   const [expanded, setExpanded] = useState(false);
   const [expandedStages, setExpandedStages] = useState<Set<string>>(() => new Set());
   const [demoTick, setDemoTick] = useState(0);
-  const [viewMode, setViewMode] = useState<CanvasViewMode>("full");
+  const [viewTab, setViewTab] = useState<PipelineViewTab>("journey");
+  const [journeyMode, setJourneyMode] = useState<JourneyDisplayMode>("active");
   const [playbackIndex, setPlaybackIndex] = useState(0);
   const [playbackPlaying, setPlaybackPlaying] = useState(false);
   const [selectedStage, setSelectedStage] = useState<AgentPipelineStage | "escalonamento" | null>(null);
+  const [focusStage, setFocusStage] = useState<AgentPipelineStage | "escalonamento" | null>(null);
 
   const isLive = trace?.isLive ?? false;
   const demoTrace = buildDemoTrace(demoTick);
@@ -115,22 +130,22 @@ function UnifiedPipelineCanvasInner({
   const activeStage = demoStage ?? currentStage ?? (isLive ? currentStage : getDemoStageForTick(demoTick));
 
   useEffect(() => {
-    if (isLive || viewMode === "playback") return;
+    if (isLive || viewTab === "playback") return;
     const interval = setInterval(() => setDemoTick((p) => (p + 1) % DEMO_CYCLE.length), 2200);
     return () => clearInterval(interval);
-  }, [isLive, viewMode]);
+  }, [isLive, viewTab]);
 
   useEffect(() => {
     if (activeStage) setExpandedStages((prev) => new Set(prev).add(activeStage));
   }, [activeStage]);
 
   useEffect(() => {
-    if (!playbackPlaying || viewMode !== "playback") return;
+    if (!playbackPlaying || viewTab !== "playback") return;
     const interval = setInterval(() => {
       setPlaybackIndex((p) => (p + 1) % PLAYBACK_STEPS.length);
     }, 2800);
     return () => clearInterval(interval);
-  }, [playbackPlaying, viewMode]);
+  }, [playbackPlaying, viewTab]);
 
   const highlight = useMemo(
     () =>
@@ -139,26 +154,65 @@ function UnifiedPipelineCanvasInner({
         currentStage: activeStage,
         parallelStages,
         lastToolName,
-        playbackStepIndex: viewMode === "playback" ? playbackIndex : null,
-        playbackMode: viewMode === "playback",
+        playbackStepIndex: viewTab === "playback" ? playbackIndex : null,
+        playbackMode: viewTab === "playback",
       }),
-    [effectiveTrace, activeStage, parallelStages, lastToolName, viewMode, playbackIndex]
+    [effectiveTrace, activeStage, parallelStages, lastToolName, viewTab, playbackIndex]
   );
 
   const toggleStage = useCallback((stageId: string) => {
     setSelectedStage(stageId as AgentPipelineStage);
+    setFocusStage(stageId as AgentPipelineStage);
     setExpandedStages((prev) => {
       if (prev.has(stageId)) return new Set();
       return new Set([stageId]);
     });
   }, []);
 
+  const handleStepperSelect = useCallback(
+    (code: AgentPipelineStage | "escalonamento") => {
+      setSelectedStage(code);
+      setFocusStage(code);
+      if (code === "escalonamento") {
+        setViewTab("exits");
+        return;
+      }
+      setViewTab("journey");
+      setJourneyMode("active");
+      const nodeId = stageNodeId(code);
+      setTimeout(() => {
+        void fitView({ nodes: [{ id: nodeId }], padding: 0.4, duration: 400 });
+      }, 80);
+    },
+    [fitView]
+  );
+
+  useEffect(() => {
+    if (!focusStage || viewTab !== "journey") return;
+    const nodeId = stageNodeId(focusStage);
+    const t = setTimeout(() => {
+      void fitView({ nodes: [{ id: nodeId }], padding: 0.35, duration: 300 });
+    }, 100);
+    return () => clearTimeout(t);
+  }, [focusStage, journeyMode, viewTab, fitView]);
+
   const { nodes, edges } = useMemo(() => {
     const graph = buildUnifiedGraph({ expandedStages, activeStage, parallelStages });
+    const filtered = filterGraphForView(graph.nodes, graph.edges, {
+      tab: viewTab,
+      journeyMode,
+      activeStage:
+        focusStage && focusStage !== "escalonamento"
+          ? focusStage
+          : activeStage,
+      parallelStages,
+    });
+
     const scale = compact ? 0.55 : 1;
     const flowNodes: Node[] = [];
+    const showEscalateBadge = viewTab === "journey";
 
-    for (const n of graph.nodes) {
+    for (const n of filtered.nodes) {
       const pos = { x: n.position.x * scale, y: n.position.y * scale };
 
       if (n.kind === "swimlane") {
@@ -231,6 +285,7 @@ function UnifiedPipelineCanvasInner({
             expanded: expandedStages.has(stageKey),
             toolCount: countToolsForStage(stageKey),
             compact,
+            showEscalateBadge,
             onToggle: toggleStage,
           },
           zIndex: 8,
@@ -252,7 +307,7 @@ function UnifiedPipelineCanvasInner({
       });
     }
 
-    const flowEdges: Edge[] = graph.edges.map((e) => {
+    const flowEdges: Edge[] = filtered.edges.map((e) => {
       const style = EDGE_STYLES[e.kind];
       const isActive = highlight.activeEdgeIds.includes(e.id);
       const strokeColor = isActive ? "hsl(var(--primary))" : style.stroke;
@@ -261,27 +316,40 @@ function UnifiedPipelineCanvasInner({
         source: e.from,
         target: e.to,
         type: "orthogonal",
-        label: compact ? undefined : e.label,
         animated: isActive,
-        data: { routing: e.routing, triggerType: e.triggerType },
+        data: {
+          routing: e.routing,
+          triggerType: e.triggerType,
+          label: e.label,
+          highlighted: isActive,
+          showLabelAlways: false,
+        },
         style: {
           stroke: strokeColor,
           strokeWidth: isActive ? style.strokeWidth + 1 : style.strokeWidth,
           strokeDasharray: style.strokeDasharray,
         },
         markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: strokeColor },
-        labelStyle: { fontSize: 9, fill: "#475569", fontWeight: 500 },
-        labelBgStyle: { fill: "hsl(var(--background))", fillOpacity: 0.95 },
-        labelBgPadding: [4, 6] as [number, number],
-        labelBgBorderRadius: 4,
         zIndex: 0,
       } satisfies Edge;
     });
 
     return { nodes: flowNodes, edges: flowEdges };
-  }, [expandedStages, compact, highlight, parallelStages, toolModes, toggleStage, activeStage, playbackIndex, viewMode]);
+  }, [
+    expandedStages,
+    compact,
+    highlight,
+    parallelStages,
+    toolModes,
+    toggleStage,
+    activeStage,
+    viewTab,
+    journeyMode,
+    focusStage,
+  ]);
 
   const detailStage = selectedStage ?? activeStage ?? null;
+  const stepperStage = focusStage ?? activeStage ?? detailStage;
 
   const canvasInner = (
     <ReactFlow
@@ -291,14 +359,14 @@ function UnifiedPipelineCanvasInner({
       edgeTypes={edgeTypes}
       defaultEdgeOptions={{ type: "orthogonal", markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12 } }}
       fitView
-      fitViewOptions={{ padding: compact ? 0.1 : 0.15 }}
-      minZoom={compact ? 0.05 : 0.07}
-      maxZoom={compact ? 0.9 : 1.4}
+      fitViewOptions={{ padding: compact ? 0.12 : 0.18 }}
+      minZoom={compact ? 0.05 : 0.08}
+      maxZoom={compact ? 0.95 : 1.5}
       nodesDraggable={false}
       nodesConnectable={false}
       proOptions={{ hideAttribution: true }}
     >
-      <FitViewOnChange deps={[expandedStages, compact, viewMode, playbackIndex, nodes.length]} />
+      <FitViewOnChange deps={[expandedStages, compact, viewTab, journeyMode, playbackIndex, nodes.length]} />
       <Background gap={compact ? 16 : 24} size={1} />
       {!compact && <Controls showInteractive={false} />}
       {!compact && <MiniMap zoomable pannable className="!bg-background/80" />}
@@ -308,24 +376,55 @@ function UnifiedPipelineCanvasInner({
   const canvas = (
     <div className={cn("relative flex h-full w-full gap-0", className)}>
       <div className="relative min-w-0 flex-1 [&_.react-flow__edge-path]:stroke-[inherit]">
-        <div className="absolute left-2 top-2 z-10 flex gap-1 rounded-lg border bg-background/95 p-0.5 shadow-sm backdrop-blur-sm">
-          <button
-            type="button"
-            onClick={() => { setViewMode("full"); setPlaybackPlaying(false); }}
-            className={cn("rounded-md px-2 py-1 text-[9px] font-medium", viewMode === "full" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
-          >
-            Mapa completo
-          </button>
-          <button
-            type="button"
-            onClick={() => { setViewMode("playback"); setPlaybackIndex(0); }}
-            className={cn("rounded-md px-2 py-1 text-[9px] font-medium", viewMode === "playback" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
-          >
-            Passo a passo
-          </button>
+        <div className="absolute left-2 top-2 z-10 flex flex-wrap gap-1 rounded-lg border bg-background/95 p-0.5 shadow-sm backdrop-blur-sm max-w-[calc(100%-1rem)]">
+          {VIEW_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setViewTab(tab.id);
+                if (tab.id !== "playback") setPlaybackPlaying(false);
+                if (tab.id === "playback") setPlaybackIndex(0);
+              }}
+              className={cn(
+                "rounded-md px-2 py-1 text-[9px] font-medium whitespace-nowrap",
+                viewTab === tab.id ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {viewMode === "playback" && !compact && (
+        {viewTab === "journey" && !compact && (
+          <div className="absolute left-2 right-2 top-10 z-10 flex flex-col gap-1.5">
+            <StageStepper activeStage={stepperStage} onSelect={handleStepperSelect} />
+            <div className="flex gap-1 self-start rounded-md border bg-background/95 p-0.5 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setJourneyMode("active")}
+                className={cn(
+                  "rounded px-2 py-0.5 text-[9px] font-medium",
+                  journeyMode === "active" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                )}
+              >
+                Etapa ativa
+              </button>
+              <button
+                type="button"
+                onClick={() => setJourneyMode("full")}
+                className={cn(
+                  "rounded px-2 py-0.5 text-[9px] font-medium",
+                  journeyMode === "full" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                )}
+              >
+                Jornada completa
+              </button>
+            </div>
+          </div>
+        )}
+
+        {viewTab === "playback" && !compact && (
           <div className="absolute left-2 top-10 z-10 flex max-w-[320px] items-start gap-2 rounded-lg border bg-background/95 p-2 shadow-sm backdrop-blur-sm">
             <div className="flex gap-1">
               <Button type="button" size="icon" variant="outline" className="h-7 w-7" onClick={() => setPlaybackPlaying((p) => !p)}>
@@ -342,13 +441,15 @@ function UnifiedPipelineCanvasInner({
               </Button>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[9px] font-semibold">Passo {playbackIndex + 1}/{PLAYBACK_STEPS.length}</p>
+              <p className="text-[9px] font-semibold">
+                Passo {playbackIndex + 1}/{PLAYBACK_STEPS.length}
+              </p>
               <p className="text-[9px] text-muted-foreground leading-snug">{highlight.playbackNarrative}</p>
             </div>
           </div>
         )}
 
-        {showLegend && !compact && (
+        {showLegend && !compact && viewTab !== "journey" && (
           <div className="absolute left-2 bottom-2 z-10 max-w-[220px] rounded-lg border bg-background/95 p-2 text-[9px] shadow-sm backdrop-blur-sm">
             <p className="font-semibold mb-1">{FLOW_EXPLANATION.title}</p>
             <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground mb-2">
@@ -375,6 +476,7 @@ function UnifiedPipelineCanvasInner({
           <StageDetailPanel
             stageCode={detailStage}
             parallelActive={parallelStages}
+            onSelectStage={handleStepperSelect}
             className="flex-1 min-h-0"
           />
         </div>
@@ -408,7 +510,7 @@ function UnifiedPipelineCanvasInner({
             <div className="flex items-center justify-between border-b px-4 py-2">
               <div>
                 <p className="text-sm font-semibold">Mapa do pipeline — swimlanes n8n</p>
-                <p className="text-xs text-muted-foreground">Execução → Switch → Jornada → Paralelas → Saídas</p>
+                <p className="text-xs text-muted-foreground">Jornada CRM · Execução · Saídas · Passo a passo</p>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={() => setExpanded(false)}>
                 <Minimize2 className="h-4 w-4 mr-1" />

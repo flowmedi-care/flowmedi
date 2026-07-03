@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { AGENT_PIPELINE_FLOW_EDGES } from "../flow-graph";
+import { AGENT_PIPELINE_FLOW_EDGES, AGENT_PIPELINE_FLOW_NODES } from "../flow-graph";
 import {
   CRM_TRANSITION_COUNT,
   EXECUTION_NODE_COUNT,
@@ -9,6 +9,7 @@ import {
   RESOLVER_SWITCH_OUTPUT_COUNT,
 } from "../flow-model";
 import { buildUnifiedGraph, validateUnifiedGraphIntegrity } from "../unified-flow-graph";
+import { filterGraphForView, getJourneyVisibleStageIds } from "../view-filter";
 
 describe("flow-model counts", () => {
   it("has expected execution nodes and switch rules", () => {
@@ -46,8 +47,10 @@ describe("unified-flow-graph integrity", () => {
     const expected = AGENT_PIPELINE_FLOW_EDGES.filter((e) => e.kind !== "transversal");
     assert.equal(crm.length, expected.length);
 
-    const toBus = graph.edges.filter((e) => e.kind === "transversal" && e.to === "anchor_escalation_bus");
-    assert.equal(toBus.length, 9);
+    const toBus = graph.edges.filter(
+      (e) => e.kind === "transversal" && e.to === "anchor_escalation_bus" && e.from.startsWith("stage_")
+    );
+    assert.equal(toBus.length, 7);
   });
 
   it("creates dynamic switch edges when activeStage set", () => {
@@ -75,5 +78,62 @@ describe("unified-flow-graph integrity", () => {
     const graph = buildUnifiedGraph({});
     const lanes = graph.nodes.filter((n) => n.kind === "swimlane");
     assert.equal(lanes.length, 5);
+  });
+});
+
+describe("view-filter", () => {
+  it("journey full view includes all 10 stage nodes", () => {
+    const graph = buildUnifiedGraph({ activeStage: "agendamento" });
+    const filtered = filterGraphForView(graph.nodes, graph.edges, {
+      tab: "journey",
+      journeyMode: "full",
+      activeStage: "agendamento",
+    });
+    const stages = filtered.nodes.filter((n) => n.kind === "stage");
+    assert.equal(stages.length, AGENT_PIPELINE_FLOW_NODES.length);
+  });
+
+  it("journey active view filters to neighbors of active stage", () => {
+    const visible = getJourneyVisibleStageIds("active", "agendamento", []);
+    assert.ok(visible.has("agendamento"));
+    assert.ok(visible.has("confirmacao_pre_consulta"));
+    assert.ok(visible.has("orcamento"));
+    assert.ok(visible.has("captacao"));
+    assert.ok(visible.has("financeiro"));
+    assert.ok(visible.has("formularios"));
+    assert.ok(!visible.has("satisfacao"));
+  });
+
+  it("journey view hides escalation bus edges", () => {
+    const graph = buildUnifiedGraph({ activeStage: "agendamento" });
+    const filtered = filterGraphForView(graph.nodes, graph.edges, {
+      tab: "journey",
+      journeyMode: "full",
+      activeStage: "agendamento",
+    });
+    const transversal = filtered.edges.filter((e) => e.kind === "transversal");
+    assert.equal(transversal.length, 0);
+  });
+
+  it("execution view hides CRM stage nodes", () => {
+    const graph = buildUnifiedGraph({ activeStage: "agendamento" });
+    const filtered = filterGraphForView(graph.nodes, graph.edges, {
+      tab: "execution",
+      activeStage: "agendamento",
+    });
+    assert.equal(
+      filtered.nodes.filter((n) => n.kind === "stage").length,
+      0
+    );
+    assert.ok(filtered.nodes.some((n) => n.id === "runtime_resolver_switch"));
+  });
+
+  it("exits view shows escalonamento without main CRM stages", () => {
+    const graph = buildUnifiedGraph({});
+    const filtered = filterGraphForView(graph.nodes, graph.edges, { tab: "exits" });
+    const stages = filtered.nodes.filter((n) => n.kind === "stage");
+    assert.equal(stages.length, 1);
+    assert.equal(stages[0]?.stageCode, "escalonamento");
+    assert.ok(filtered.nodes.some((n) => n.id === "runtime_handoff"));
   });
 });

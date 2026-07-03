@@ -1,6 +1,7 @@
 "use client";
 
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from "@xyflow/react";
+import { useState } from "react";
 import { computeOrthogonalPath } from "@/lib/virtual-assistant/agent-pipeline/edge-routing";
 import type { EdgeRoutingMode } from "@/lib/virtual-assistant/agent-pipeline/swimlane-layout";
 
@@ -8,6 +9,8 @@ export type TriggerEdgeData = {
   routing?: EdgeRoutingMode;
   label?: string;
   triggerType?: string;
+  highlighted?: boolean;
+  showLabelAlways?: boolean;
 };
 
 const TRIGGER_PREFIX: Record<string, string> = {
@@ -21,10 +24,21 @@ const TRIGGER_PREFIX: Record<string, string> = {
   resolver: "resolver",
 };
 
+const KNOWN_PREFIXES = new Set(Object.values(TRIGGER_PREFIX));
+
+function hasKnownPrefix(label: string): boolean {
+  const lower = label.toLowerCase();
+  for (const p of KNOWN_PREFIXES) {
+    if (lower.startsWith(`${p}:`) || lower.startsWith(`${p} `)) return true;
+  }
+  return false;
+}
+
 function formatTriggerLabel(label?: string, triggerType?: string): string | undefined {
   if (!label) return undefined;
+  if (hasKnownPrefix(label)) return label;
   const prefix = triggerType ? TRIGGER_PREFIX[triggerType] : undefined;
-  if (prefix && !label.startsWith(prefix)) return `${prefix}: ${label}`;
+  if (prefix) return `${prefix}: ${label}`;
   return label;
 }
 
@@ -45,6 +59,7 @@ export function OrthogonalEdge({
   labelBgPadding,
   labelBgBorderRadius,
 }: EdgeProps) {
+  const [hovered, setHovered] = useState(false);
   const edgeData = data as TriggerEdgeData | undefined;
   const routing = edgeData?.routing ?? "direct";
   const edgePath = computeOrthogonalPath(sourceX, sourceY, targetX, targetY, routing, source, target);
@@ -56,10 +71,23 @@ export function OrthogonalEdge({
     edgeData?.triggerType
   );
 
+  const showLabel =
+    !!displayLabel &&
+    (edgeData?.showLabelAlways || edgeData?.highlighted || hovered);
+
   return (
     <>
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={16}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className="react-flow__edge-interaction"
+      />
       <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
-      {displayLabel && (
+      {showLabel && (
         <EdgeLabelRenderer>
           <div
             style={{
@@ -75,7 +103,7 @@ export function OrthogonalEdge({
               padding: labelBgPadding ? `${labelBgPadding[1]}px ${labelBgPadding[0]}px` : "4px 6px",
               borderRadius: labelBgBorderRadius ?? 4,
             }}
-            className="nodrag nopan max-w-[120px] truncate"
+            className="nodrag nopan max-w-[140px] truncate"
             title={displayLabel}
           >
             {displayLabel}
