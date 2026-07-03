@@ -12,22 +12,31 @@ import type { VirtualAssistantFaq, VirtualAssistantSettings } from "@/lib/virtua
 import { saveVirtualAssistantSettings } from "./actions";
 import { AssistenteVirtualDiagnostics } from "./assistente-virtual-diagnostics";
 import { AssistenteVirtualFaqTab } from "./assistente-virtual-faq-tab";
+import { AssistenteVirtualToolsPlayground } from "./assistente-virtual-tools-playground";
+import type { ToolDefinition } from "@/lib/virtual-assistant/openai-client";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 
-type TabId = "geral" | "politicas" | "faq" | "comportamento" | "diagnostico";
+type TabId = "geral" | "politicas" | "faq" | "comportamento" | "ferramentas" | "diagnostico";
 
 interface Props {
   canUse: boolean;
   initialSettings: Partial<VirtualAssistantSettings> | null;
   initialFaq: VirtualAssistantFaq[];
+  toolDefinitions: ToolDefinition[];
   clinic: {
     auto_message_send_start: string | null;
     auto_message_send_end: string | null;
   } | null;
 }
 
-export function AssistenteVirtualClient({ canUse, initialSettings, initialFaq, clinic }: Props) {
+export function AssistenteVirtualClient({
+  canUse,
+  initialSettings,
+  initialFaq,
+  toolDefinitions,
+  clinic,
+}: Props) {
   const [tab, setTab] = useState<TabId>("geral");
   const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(initialSettings?.enabled ?? false);
@@ -55,6 +64,7 @@ export function AssistenteVirtualClient({ canUse, initialSettings, initialFaq, c
     { id: "politicas", label: "Políticas" },
     { id: "faq", label: "FAQ" },
     { id: "comportamento", label: "Comportamento" },
+    { id: "ferramentas", label: "Ferramentas" },
     { id: "diagnostico", label: "Diagnóstico" },
   ];
 
@@ -248,6 +258,10 @@ export function AssistenteVirtualClient({ canUse, initialSettings, initialFaq, c
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {tab === "ferramentas" && (
+        <AssistenteVirtualToolsPlayground toolDefinitions={toolDefinitions} />
       )}
 
       {tab === "diagnostico" && <AssistenteVirtualDiagnostics active={tab === "diagnostico"} />}

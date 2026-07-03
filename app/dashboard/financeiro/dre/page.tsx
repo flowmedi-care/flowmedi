@@ -4,6 +4,7 @@ import { parseMonthYear } from "@/lib/financeiro/date-utils";
 import { getClinicFinancialSettings } from "@/lib/financeiro/analytics";
 import { FinanceiroDreClient } from "../financeiro-dre-client";
 import { loadFinanceiroAuth } from "../load-financeiro-data";
+import { PageShellSkeleton } from "@/components/dashboard-ui/loading/page-shell-skeleton";
 
 export default async function FinanceiroDrePage({
   searchParams,
@@ -28,7 +29,7 @@ export default async function FinanceiroDrePage({
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {data && (
-        <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}>
+        <Suspense fallback={<PageShellSkeleton withTable={false} />}>
           <FinanceiroDreClient report={data} initialSettings={settings} />
         </Suspense>
       )}

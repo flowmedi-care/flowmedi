@@ -1,11 +1,12 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { Bell, Menu, Search } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useDashboardNavigation } from "@/components/dashboard-navigation-context";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Visão Geral",
@@ -60,8 +61,8 @@ export function DashboardTopbar({
   onMenuClick?: () => void;
   className?: string;
 }) {
-  const pathname = usePathname();
-  const title = getPageTitle(pathname);
+  const { displayPathname, isNavigating } = useDashboardNavigation();
+  const title = getPageTitle(displayPathname);
 
   return (
     <header
@@ -83,7 +84,11 @@ export function DashboardTopbar({
       )}
 
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
+        {isNavigating ? (
+          <Skeleton className="h-6 w-36" />
+        ) : (
+          <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
+        )}
       </div>
 
       <div className="hidden max-w-xs flex-1 lg:flex">

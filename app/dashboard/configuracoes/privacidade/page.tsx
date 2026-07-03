@@ -11,6 +11,7 @@ import { DsarClient } from "@/app/dashboard/privacidade/solicitacoes/dsar-client
 import { MfaSetupClient } from "../seguranca/mfa-setup-client";
 import { EmailVerificationCard } from "@/components/compliance/email-verification-card";
 import { Suspense } from "react";
+import { SettingsPageSkeleton } from "@/components/dashboard-ui/loading/settings-page-skeleton";
 
 export default async function ConfiguracoesPrivacidadePage() {
   const supabase = await createClient();
@@ -55,7 +56,7 @@ export default async function ConfiguracoesPrivacidadePage() {
           <EmailVerificationCard email={userEmail} verified={emailVerified} />
 
           <div id="mfa">
-            <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}>
+            <Suspense fallback={<SettingsPageSkeleton />}>
               <MfaSetupClient initialEnrolled={hasVerifiedTotp} />
             </Suspense>
           </div>

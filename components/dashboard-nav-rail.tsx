@@ -27,6 +27,7 @@ import {
   type NavLinkItem,
   type NavTopItem,
 } from "@/lib/dashboard-nav-config";
+import { useDashboardNavigation } from "@/components/dashboard-navigation-context";
 
 type Profile = {
   id: string;
@@ -48,6 +49,7 @@ function navItemClass(active: boolean, expanded: boolean) {
 
 function RailNavItem({
   active,
+  pending,
   label,
   onClick,
   href,
@@ -56,6 +58,7 @@ function RailNavItem({
   expanded,
 }: {
   active: boolean;
+  pending?: boolean;
   label: string;
   onClick?: () => void;
   href?: string;
@@ -63,7 +66,10 @@ function RailNavItem({
   badge?: boolean;
   expanded: boolean;
 }) {
-  const className = navItemClass(active, expanded);
+  const className = cn(
+    navItemClass(active, expanded),
+    pending && !active && "bg-primary/5 text-primary/80"
+  );
 
   const inner = (
     <>
@@ -123,9 +129,10 @@ export function DashboardNavRail({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { displayPathname, startNavigation } = useDashboardNavigation();
   const [mobileExpandedGroupId, setMobileExpandedGroupId] = useState<string | null>(null);
   const role = profile?.role ?? "";
-  const activeGroupId = getActiveNavGroupId(pathname);
+  const activeGroupId = getActiveNavGroupId(displayPathname);
   const showConfig =
     !DASHBOARD_CONFIG_GROUP.roles || DASHBOARD_CONFIG_GROUP.roles.includes(role);
   const showServicosValores = canAccessServicosValoresNav(role, servicesPricingMode);
@@ -164,6 +171,7 @@ export function DashboardNavRail({
     }
 
     router.push(children[0].href);
+    startNavigation(children[0].href);
     onMobileOpenChange(false);
   }
 
@@ -176,17 +184,23 @@ export function DashboardNavRail({
     return (
       <div className="flex flex-col gap-0.5 pl-3 pb-1 md:hidden">
         {children.map((child) => {
-          const active = isLinkActive(pathname, child.href);
+          const active = isLinkActive(displayPathname, child.href);
+          const pending = displayPathname === child.href && pathname !== child.href;
           return (
             <Link
               key={child.href}
               href={child.href}
-              onClick={() => onMobileOpenChange(false)}
+              onClick={() => {
+                startNavigation(child.href);
+                onMobileOpenChange(false);
+              }}
               className={cn(
                 "rounded-md px-3 py-2 text-sm transition-colors",
                 active
                   ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                  : pending
+                    ? "bg-primary/5 text-primary/80"
+                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
               )}
             >
               {child.label}
@@ -211,16 +225,21 @@ export function DashboardNavRail({
   const middleGroups = filterNavByRole(DASHBOARD_MIDDLE_NAV_GROUPS, role);
 
   function renderLink(item: NavLinkItem) {
-    const active = isLinkActive(pathname, item.href);
+    const active = isLinkActive(displayPathname, item.href);
+    const pending = displayPathname === item.href && pathname !== item.href;
 
     return (
       <RailNavItem
         key={item.href}
         href={item.href}
         active={active}
+        pending={pending}
         label={item.label}
         expanded={showLabels}
-        onClick={() => onMobileOpenChange(false)}
+        onClick={() => {
+          startNavigation(item.href);
+          onMobileOpenChange(false);
+        }}
       >
         <DashboardNavIcon name={item.icon} />
       </RailNavItem>

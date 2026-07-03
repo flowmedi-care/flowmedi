@@ -1,55 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { PacientesClient, type Patient } from "./pacientes-client";
-import { getNonRegisteredSubmitters } from "../formularios/actions";
+import { loadPacientesShell } from "./load-pacientes-data";
+import { PacientesPageContent } from "./pacientes-page-content";
 
 export default async function PacientesPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/entrar");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("clinic_id, role")
-    .eq("id", user.id)
-    .single();
-  if (!profile?.clinic_id) redirect("/dashboard");
-
-  const { data: rows } = await supabase
-    .from("patients")
-    .select("id, full_name, email, phone, birth_date, cpf, notes, photo_url, custom_fields, created_at")
-    .eq("clinic_id", profile.clinic_id)
-    .order("full_name");
-
-  const { data: customFields } = await supabase
-    .from("patient_custom_fields")
-    .select("id, field_name, field_type, field_label, required, options, display_order")
-    .eq("clinic_id", profile.clinic_id)
-    .order("display_order");
-
-  const patients: Patient[] = (rows ?? []).map((r) => ({
-    id: r.id,
-    full_name: r.full_name,
-    email: r.email,
-    phone: r.phone,
-    birth_date: r.birth_date,
-    cpf: r.cpf ?? null,
-    notes: r.notes,
-    photo_url: r.photo_url ?? null,
-    custom_fields: (r.custom_fields as Record<string, unknown>) || {},
-    created_at: r.created_at,
-  }));
-
-  // Buscar não-cadastrados
-  const nonRegisteredRes = await getNonRegisteredSubmitters();
-  const nonRegistered = nonRegisteredRes.data || [];
-
-  return (
-    <PacientesClient
-      initialPatients={patients}
-      customFields={customFields ?? []}
-      nonRegistered={nonRegistered}
-      userRole={profile?.role || "admin"}
-    />
-  );
+  const shell = await loadPacientesShell();
+  return <PacientesPageContent shell={shell} />;
 }

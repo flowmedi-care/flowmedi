@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { IntegracoesPageClient } from "./integracoes-page-client";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseEmail, canUseWhatsApp } from "@/lib/plan-gates";
+import { SettingsPageSkeleton } from "@/components/dashboard-ui/loading/settings-page-skeleton";
 
 export default async function ConfiguracoesIntegracoesPage() {
   const supabase = await createClient();
@@ -27,7 +28,7 @@ export default async function ConfiguracoesIntegracoesPage() {
   );
 
   return (
-    <Suspense fallback={<div>Carregando...</div>}>
+    <Suspense fallback={<SettingsPageSkeleton />}>
       <IntegracoesPageClient
         clinicId={profile.clinic_id}
         canUseWhatsApp={canUseWhatsAppByPlan}

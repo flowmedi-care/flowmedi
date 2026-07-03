@@ -22,6 +22,7 @@ import {
 } from "./medico-dashboard-actions";
 import { getDoctorPreferences } from "./medico-preferences-actions";
 import { StatusToggle } from "./medico-dashboard-status-toggle";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Appointment = {
   id: string;
@@ -285,7 +286,7 @@ export function MedicoDashboardClient({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {loadingMetrics ? "..." : metrics.total}
+              {loadingMetrics ? <Skeleton className="h-8 w-12" /> : metrics.total}
             </div>
           </CardContent>
         </Card>
@@ -301,7 +302,7 @@ export function MedicoDashboardClient({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {loadingMetrics ? "..." : metrics.completed}
+              {loadingMetrics ? <Skeleton className="h-8 w-12" /> : metrics.completed}
             </div>
           </CardContent>
         </Card>
@@ -317,7 +318,7 @@ export function MedicoDashboardClient({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {loadingMetrics ? "..." : metrics.remaining}
+              {loadingMetrics ? <Skeleton className="h-8 w-12" /> : metrics.remaining}
             </div>
           </CardContent>
         </Card>
@@ -333,7 +334,7 @@ export function MedicoDashboardClient({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {loadingMetrics ? "..." : metrics.pendingForms}
+              {loadingMetrics ? <Skeleton className="h-8 w-12" /> : metrics.pendingForms}
             </div>
           </CardContent>
         </Card>
@@ -726,8 +727,10 @@ function WeeklyCalendar({
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="text-center py-8 text-muted-foreground">
-            Carregando calendário...
+          <div className="grid grid-cols-7 gap-2 min-w-[720px]">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <Skeleton key={i} className="min-h-[120px] w-full rounded-lg" />
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">

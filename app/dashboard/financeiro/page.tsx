@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { FinanceiroOverviewClient } from "./financeiro-overview-client";
 import { loadFinanceiroOverview } from "./load-financeiro-data";
+import { PageShellSkeleton } from "@/components/dashboard-ui/loading/page-shell-skeleton";
 
 export default async function FinanceiroPage({
   searchParams,
@@ -19,7 +20,7 @@ export default async function FinanceiroPage({
         </p>
       </div>
       {data.error && <p className="text-sm text-destructive">{data.error}</p>}
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}>
+      <Suspense fallback={<PageShellSkeleton withTable={false} />}>
         <FinanceiroOverviewClient
           year={data.year}
           month={data.month}

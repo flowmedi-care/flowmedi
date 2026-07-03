@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AssistenteVirtualClient } from "./assistente-virtual-client";
 import { getVirtualAssistantPageData } from "./actions";
+import { ASSISTANT_TOOLS } from "@/lib/virtual-assistant/tools/definitions";
 
 export default async function AssistenteVirtualPage() {
   const data = await getVirtualAssistantPageData();
@@ -15,6 +16,7 @@ export default async function AssistenteVirtualPage() {
         > | null
       }
       initialFaq={data.faq ?? []}
+      toolDefinitions={ASSISTANT_TOOLS}
       clinic={
         data.clinic
           ? {

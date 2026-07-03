@@ -19,6 +19,8 @@ import {
   type ConversationHandler,
 } from "@/lib/whatsapp-ai-state";
 import { extractFirstName } from "@/lib/whatsapp-sender-display";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TableRowsSkeleton } from "@/components/dashboard-ui/loading/table-page-skeleton";
 
 type Conversation = {
   id: string;
@@ -688,7 +690,9 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
-              <p className="p-4 text-muted-foreground text-sm">Carregando...</p>
+              <div className="p-2">
+                <TableRowsSkeleton count={6} />
+              </div>
             ) : conversations.length === 0 ? (
               <p className="p-4 text-muted-foreground text-sm">
                 Nenhuma conversa ainda. Use o botão acima para iniciar.
@@ -854,7 +858,21 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
               </div>
               <div className="flex-1 overflow-y-auto p-3 sm:p-4 whatsapp-chat-wallpaper min-h-0">
                 {loadingMessages ? (
-                  <p className="text-muted-foreground text-sm">Carregando mensagens...</p>
+                  <div className="space-y-4 py-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={cn("flex", i % 2 === 0 ? "justify-start" : "justify-end")}
+                      >
+                        <Skeleton
+                          className={cn(
+                            "h-12 rounded-2xl",
+                            i % 2 === 0 ? "w-2/3 max-w-sm" : "w-1/2 max-w-xs"
+                          )}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 ) : messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <MessageSquare className="h-16 w-16 text-muted-foreground/50 mb-3" />

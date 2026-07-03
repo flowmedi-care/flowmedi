@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { FinanceiroFluxoCaixaClient } from "../financeiro-fluxo-caixa-client";
 import { loadFinanceiroFluxoCaixa } from "../load-financeiro-data";
+import { PageShellSkeleton } from "@/components/dashboard-ui/loading/page-shell-skeleton";
 
 export default async function FinanceiroFluxoCaixaPage() {
   const data = await loadFinanceiroFluxoCaixa();
@@ -13,7 +14,7 @@ export default async function FinanceiroFluxoCaixaPage() {
           Entradas e saídas com granularidade livre, gráficos e origem de cada movimentação.
         </p>
       </div>
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}>
+      <Suspense fallback={<PageShellSkeleton withTable={false} />}>
         <FinanceiroFluxoCaixaClient
           initialPeriod={data.period}
           initialBuckets={data.buckets}

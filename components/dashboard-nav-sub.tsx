@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -9,6 +8,7 @@ import {
   filterGroupChildren,
   isLinkActive,
 } from "@/lib/dashboard-nav-config";
+import { useDashboardNavigation } from "@/components/dashboard-navigation-context";
 
 export function DashboardNavSub({
   group,
@@ -21,7 +21,7 @@ export function DashboardNavSub({
   open: boolean;
   onToggle: () => void;
 }) {
-  const pathname = usePathname();
+  const { displayPathname, pathname, startNavigation } = useDashboardNavigation();
   const children = filterGroupChildren(group, role);
 
   if (!open) {
@@ -49,16 +49,20 @@ export function DashboardNavSub({
       </div>
       <nav className="flex-1 min-h-0 px-2 py-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {children.map((child) => {
-          const active = isLinkActive(pathname, child.href);
+          const active = isLinkActive(displayPathname, child.href);
+          const pending = displayPathname === child.href && pathname !== child.href;
           return (
             <Link
               key={child.href}
               href={child.href}
+              onClick={() => startNavigation(child.href)}
               className={cn(
                 "relative flex items-center rounded-lg px-3 py-2 text-sm transition-colors",
                 active
                   ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  : pending
+                    ? "bg-primary/5 text-primary/80"
+                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
               )}
             >
               {active && (

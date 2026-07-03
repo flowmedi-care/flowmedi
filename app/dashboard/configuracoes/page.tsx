@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { ConfiguracoesClient } from "./configuracoes-client";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseWhatsApp } from "@/lib/plan-gates";
+import { SettingsPageSkeleton } from "@/components/dashboard-ui/loading/settings-page-skeleton";
 
 export default async function ConfiguracoesPage() {
   const supabase = await createClient();
@@ -39,7 +40,7 @@ export default async function ConfiguracoesPage() {
   );
 
   return (
-    <Suspense fallback={<div>Carregando...</div>}>
+    <Suspense fallback={<SettingsPageSkeleton />}>
       <ConfiguracoesClient
         complianceConfirmationDays={clinic?.compliance_confirmation_days ?? null}
         complianceFormDays={clinic?.compliance_form_days ?? null}

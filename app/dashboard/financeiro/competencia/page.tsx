@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { FinanceiroCompetenciaClient } from "../financeiro-competencia-client";
 import { loadFinanceiroCompetencia } from "../load-financeiro-data";
+import { PageShellSkeleton } from "@/components/dashboard-ui/loading/page-shell-skeleton";
 
 export default async function FinanceiroCompetenciaPage() {
   const data = await loadFinanceiroCompetencia();
@@ -13,7 +14,7 @@ export default async function FinanceiroCompetenciaPage() {
           P&L por competência — receitas, despesas e lucro mensal.
         </p>
       </div>
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}>
+      <Suspense fallback={<PageShellSkeleton withTable={false} />}>
         <FinanceiroCompetenciaClient rows={data.rows} />
       </Suspense>
     </div>

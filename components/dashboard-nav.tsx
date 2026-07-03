@@ -10,6 +10,7 @@ import {
   getActiveNavGroupId,
   getNavGroupById,
 } from "@/lib/dashboard-nav-config";
+import { useDashboardNavigation } from "@/components/dashboard-navigation-context";
 
 const SIDEBAR_EXPANDED_KEY = "flowmedi-sidebar-expanded";
 
@@ -41,6 +42,7 @@ export function DashboardNav({
   onMobileOpenChange?: (open: boolean) => void;
 }) {
   const pathname = usePathname();
+  const { displayPathname } = useDashboardNavigation();
   const [whatsappUnreadCount, setWhatsappUnreadCount] = useState(0);
   const [internalMobileOpen, setInternalMobileOpen] = useState(false);
   const mobileOpen = controlledMobileOpen ?? internalMobileOpen;
@@ -48,7 +50,7 @@ export function DashboardNav({
   const [railExpanded, setRailExpanded] = useState(false);
   const [subPanelOpen, setSubPanelOpen] = useState(true);
   const role = profile?.role ?? "";
-  const activeGroupId = getActiveNavGroupId(pathname);
+  const activeGroupId = getActiveNavGroupId(displayPathname);
   const activeGroup = activeGroupId ? getNavGroupById(activeGroupId) : undefined;
   const hasSubPanel =
     !!activeGroup && filterGroupChildren(activeGroup, role).length > 0;

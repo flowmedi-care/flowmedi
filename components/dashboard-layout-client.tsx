@@ -7,6 +7,10 @@ import { DashboardNav } from "./dashboard-nav";
 import { DashboardTopbar } from "./dashboard-topbar";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import {
+  DashboardNavigationProvider,
+  useDashboardNavigation,
+} from "./dashboard-navigation-context";
 
 type Profile = {
   id: string;
@@ -33,7 +37,31 @@ export function DashboardLayoutClient({
   canUseWhatsApp,
   servicesPricingMode,
 }: DashboardLayoutClientProps) {
+  return (
+    <DashboardNavigationProvider>
+      <DashboardLayoutInner
+        user={user}
+        profile={profile}
+        canAccessAudit={canAccessAudit}
+        canUseWhatsApp={canUseWhatsApp}
+        servicesPricingMode={servicesPricingMode}
+      >
+        {children}
+      </DashboardLayoutInner>
+    </DashboardNavigationProvider>
+  );
+}
+
+function DashboardLayoutInner({
+  user,
+  profile,
+  children,
+  canAccessAudit,
+  canUseWhatsApp,
+  servicesPricingMode,
+}: DashboardLayoutClientProps) {
   const pathname = usePathname();
+  const { isNavigating } = useDashboardNavigation();
   const [hasWhatsAppConnected, setHasWhatsAppConnected] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isWhatsAppPage = pathname === "/dashboard/whatsapp";
@@ -74,7 +102,13 @@ export function DashboardLayoutClient({
         mobileOpen={mobileNavOpen}
         onMobileOpenChange={setMobileNavOpen}
       />
-      <main className="flex-1 flex flex-col min-h-0 overflow-hidden bg-background">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden bg-background relative">
+        {isNavigating && (
+          <div
+            className="absolute top-0 left-0 right-0 z-30 h-0.5 bg-primary animate-pulse"
+            aria-hidden
+          />
+        )}
         {isWhatsAppPage ? (
           <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
             {children}

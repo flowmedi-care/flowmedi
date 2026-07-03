@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { FinanceiroExtratoClient } from "../financeiro-extrato-client";
 import { loadFinanceiroExtrato } from "../load-financeiro-data";
+import { PageShellSkeleton } from "@/components/dashboard-ui/loading/page-shell-skeleton";
 
 export default async function FinanceiroExtratoPage({
   searchParams,
@@ -18,7 +19,7 @@ export default async function FinanceiroExtratoPage({
           Movimentações unificadas com origem, saldo acumulado e comprovantes Flowmedi.
         </p>
       </div>
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}>
+      <Suspense fallback={<PageShellSkeleton />}>
         <FinanceiroExtratoClient
           year={data.year}
           month={data.month}
