@@ -70,8 +70,8 @@ function FitViewOnChange({ deps }: { deps: unknown[] }) {
   const { fitView } = useReactFlow();
   useEffect(() => {
     const t = setTimeout(() => {
-      void fitView({ padding: 0.14, duration: 280 });
-    }, 100);
+      void fitView({ padding: 0.22, duration: 320 });
+    }, 120);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refit when graph layout changes
   }, deps);
@@ -210,14 +210,15 @@ function UnifiedPipelineCanvasInner({
 
     const verticalEdges = new Set([
       "rt-agent-journey",
-      "rt-journey-agent",
-      "rt-agent-resolver",
       "rt-journey-resolver",
-      "rt-tools-agent",
+      "rt-agent-resolver",
+      "rt-resolver-tools",
       "rt-confirm-agent",
       "res-stage-entry",
       "res-stage-bridge",
     ]);
+
+    const loopEdges = new Set(["rt-confirm-agent"]);
 
     const flowEdges: Edge[] = graph.edges.map((e) => {
       const style = EDGE_STYLES[e.kind];
@@ -229,7 +230,13 @@ function UnifiedPipelineCanvasInner({
 
       const strokeColor = isActive ? "hsl(var(--primary))" : style.stroke;
 
-      const edge: Edge = {
+      const pathOptions = loopEdges.has(e.id)
+        ? { borderRadius: 28, offset: 72 }
+        : e.kind === "transversal" && e.to === "stage_escalonamento"
+          ? { borderRadius: 32, offset: 48 }
+          : { borderRadius: 28, offset: 24 };
+
+      const edge = {
         id: e.id,
         source: e.from,
         target: e.to,
@@ -252,19 +259,29 @@ function UnifiedPipelineCanvasInner({
         labelBgPadding: [4, 6] as [number, number],
         labelBgBorderRadius: 4,
         zIndex: 0,
-      };
+        pathOptions,
+      } as Edge;
 
-      if (verticalEdges.has(e.id)) {
+      if (loopEdges.has(e.id)) {
+        edge.sourceHandle = "top-src";
+        edge.targetHandle = "top";
+      } else if (verticalEdges.has(e.id)) {
         if (e.from === "runtime_agent" || e.from === "runtime_journey" || e.from === "runtime_resolver") {
-          edge.sourceHandle = e.from === "runtime_agent" && e.to.includes("journey") ? "bottom" : "bottom";
+          edge.sourceHandle = "bottom";
         }
-        if (e.to === "runtime_journey" || e.to === "runtime_agent" || e.to.startsWith("stage_")) {
+        if (
+          e.to === "runtime_journey" ||
+          e.to === "runtime_resolver" ||
+          e.to === "runtime_tools_hub" ||
+          e.to.startsWith("stage_")
+        ) {
           edge.targetHandle = "top";
         }
-        if (e.id === "rt-journey-agent") {
-          edge.sourceHandle = undefined;
-          edge.targetHandle = "top";
-        }
+      }
+
+      if (e.kind === "transversal" && e.to === "stage_escalonamento") {
+        edge.sourceHandle = "bottom";
+        edge.targetHandle = "top";
       }
 
       if (e.from.startsWith("stage_") && e.to.startsWith("tool_")) {
@@ -326,8 +343,8 @@ function UnifiedPipelineCanvasInner({
           markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12 },
         }}
         fitView
-        fitViewOptions={{ padding: compact ? 0.1 : 0.14 }}
-        minZoom={compact ? 0.12 : 0.15}
+        fitViewOptions={{ padding: compact ? 0.12 : 0.22 }}
+        minZoom={compact ? 0.08 : 0.1}
         maxZoom={compact ? 0.9 : 1.5}
         nodesDraggable={false}
         nodesConnectable={false}
@@ -336,7 +353,7 @@ function UnifiedPipelineCanvasInner({
         proOptions={{ hideAttribution: true }}
       >
         <FitViewOnChange deps={[expandedStages, compact, nodes.length, edges.length]} />
-        <Background gap={compact ? 12 : 20} size={1} />
+        <Background gap={compact ? 16 : 28} size={1} />
         {!compact && <Controls showInteractive={false} />}
         {!compact && <MiniMap zoomable pannable className="!bg-background/80" />}
       </ReactFlow>

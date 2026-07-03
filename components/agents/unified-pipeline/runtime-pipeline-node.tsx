@@ -69,6 +69,7 @@ export function RuntimePipelineNode({ data }: { data: RuntimePipelineNodeData })
       <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-slate-400" />
       <Handle type="source" position={Position.Bottom} id="bottom" className="!w-2 !h-2 !bg-slate-400" />
       <Handle type="target" position={Position.Top} id="top" className="!w-2 !h-2 !bg-slate-400" />
+      <Handle type="source" position={Position.Top} id="top-src" className="!w-2 !h-2 !bg-slate-400" />
       <IconComp className={cn(compact ? "h-4 w-4" : "h-5 w-5")} weight="duotone" />
       <span className={cn("font-semibold mt-0.5 leading-tight", compact ? "text-[8px]" : "text-[10px]")}>
         {node.shortLabel ?? node.label}
