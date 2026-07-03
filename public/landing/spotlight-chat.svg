@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" fill="none">
+  <rect width="800" height="600" fill="#F3F8F6"/>
+  <rect x="40" y="40" width="720" height="520" rx="16" fill="#FFFFFF" stroke="#E7E5E4"/>
+  <rect x="40" y="40" width="720" height="48" rx="16" fill="#F5F5F4"/>
+  <rect x="40" y="72" width="720" height="16" fill="#F5F5F4"/>
+  <circle cx="68" cy="64" r="8" fill="#F87171"/>
+  <circle cx="92" cy="64" r="8" fill="#FBBF24"/>
+  <circle cx="116" cy="64" r="8" fill="#4F8A78"/>
+  <rect x="64" y="120" width="320" height="400" rx="12" fill="#FAFAF9" stroke="#E7E5E4"/>
+  <rect x="88" y="148" width="200" height="48" rx="12" fill="#E4EFEA"/>
+  <text x="104" y="178" font-family="system-ui,sans-serif" font-size="14" fill="#325A4E">Olá! Como posso ajudar?</text>
+  <rect x="200" y="216" width="160" height="40" rx="12" fill="#3D6F60"/>
+  <text x="220" y="242" font-family="system-ui,sans-serif" font-size="13" fill="#FFFFFF">Agendar consulta</text>
+  <rect x="88" y="272" width="240" height="56" rx="12" fill="#F5F5F4"/>
+  <text x="104" y="296" font-family="system-ui,sans-serif" font-size="13" fill="#57534E">Qual especialidade você</text>
+  <text x="104" y="316" font-family="system-ui,sans-serif" font-size="13" fill="#57534E">procura?</text>
+  <rect x="408" y="120" width="328" height="400" rx="12" fill="#FAFAF9" stroke="#E7E5E4"/>
+  <text x="432" y="156" font-family="system-ui,sans-serif" font-size="16" font-weight="600" fill="#1C1917">WhatsApp + Chat IA</text>
+  <rect x="432" y="180" width="280" height="48" rx="8" fill="#E4EFEA"/>
+  <rect x="432" y="244" width="280" height="40" rx="8" fill="#FFFFFF" stroke="#E7E5E4"/>
+  <rect x="432" y="300" width="280" height="40" rx="8" fill="#FFFFFF" stroke="#E7E5E4"/>
+  <rect x="432" y="356" width="280" height="40" rx="8" fill="#FFFFFF" stroke="#E7E5E4"/>
+</svg>

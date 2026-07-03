@@ -150,12 +150,12 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
 
   if (step === "done") {
     return (
-      <Card className="max-w-lg mx-auto rounded-3xl border-[#e8efec] shadow-lg">
+      <Card className="max-w-lg mx-auto rounded-2xl border-slate-200/80 shadow-elevated-lg">
         <CardContent className="pt-10 pb-10 text-center">
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--site-primary)]/10 text-[var(--site-primary)]">
             <Check className="h-8 w-8" />
           </div>
-          <h2 className="text-2xl font-semibold text-[#1a2e28]">Consulta agendada!</h2>
+          <h2 className="text-2xl font-semibold text-[var(--site-text)]">Consulta agendada!</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Sua solicitação foi registrada em {clinicName}.
             {appointmentId && " Você receberá confirmação pelos canais da clínica."}
@@ -184,7 +184,7 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
                 key={s}
                 className={cn(
                   "h-1 flex-1 rounded-full transition-colors",
-                  i <= stepIndex ? "bg-primary" : "bg-muted"
+                  i <= stepIndex ? "bg-[var(--site-primary)]" : "bg-muted"
                 )}
               />
             ))}
@@ -199,7 +199,7 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
       )}
 
       {step === "procedure" && (
-        <Card className="rounded-3xl border-[#e8efec] shadow-sm">
+        <Card className="rounded-2xl border-slate-200/80 shadow-elevated">
           <CardHeader>
             <CardTitle>Escolha o procedimento</CardTitle>
           </CardHeader>
@@ -209,8 +209,8 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
                 key={proc.id}
                 type="button"
                 className={cn(
-                  "w-full text-left rounded-2xl border border-[#e8efec] px-4 py-4 transition-all hover:border-primary/30 hover:bg-[#f7faf9]",
-                  procedureId === proc.id && "border-primary bg-primary/5 shadow-sm"
+                  "w-full text-left rounded-xl border border-slate-200/80 px-4 py-4 transition-all hover:border-[var(--site-primary)]/30 hover:bg-[var(--site-bg)]",
+                  procedureId === proc.id && "border-[var(--site-primary)] bg-[var(--site-primary)]/5 shadow-sm"
                 )}
                 onClick={() => {
                   setProcedureId(proc.id);
@@ -228,7 +228,7 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
       )}
 
       {step === "doctor" && (
-        <Card className="rounded-3xl border-[#e8efec] shadow-sm">
+        <Card className="rounded-2xl border-slate-200/80 shadow-elevated">
           <CardHeader>
             <CardTitle>Escolha o profissional</CardTitle>
             {selectedProcedure && (
@@ -243,8 +243,8 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
                 key={doc.id}
                 type="button"
                 className={cn(
-                  "w-full text-left rounded-2xl border border-[#e8efec] px-4 py-4 transition-all hover:border-primary/30 hover:bg-[#f7faf9]",
-                  doctorId === doc.id && "border-primary bg-primary/5 shadow-sm"
+                  "w-full text-left rounded-xl border border-slate-200/80 px-4 py-4 transition-all hover:border-[var(--site-primary)]/30 hover:bg-[var(--site-bg)]",
+                  doctorId === doc.id && "border-[var(--site-primary)] bg-[var(--site-primary)]/5 shadow-sm"
                 )}
                 onClick={() => {
                   setDoctorId(doc.id);
@@ -281,7 +281,7 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
       )}
 
       {step === "patient" && (
-        <Card className="rounded-3xl border-[#e8efec] shadow-sm">
+        <Card className="rounded-2xl border-slate-200/80 shadow-elevated">
           <CardHeader>
             <CardTitle>Seus dados</CardTitle>
           </CardHeader>
@@ -331,7 +331,7 @@ export function BookingWizard({ slug, clinicName }: { slug: string; clinicName: 
       )}
 
       {step === "confirm" && selectedProcedure && selectedDoctor && selectedSlot && (
-        <Card className="rounded-3xl border-[#e8efec] shadow-sm">
+        <Card className="rounded-2xl border-slate-200/80 shadow-elevated">
           <CardHeader>
             <CardTitle>Confirmar agendamento</CardTitle>
           </CardHeader>

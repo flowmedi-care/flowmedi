@@ -141,16 +141,18 @@ async function renderForm(data: any, templateId: string) {
       : null;
 
   return (
-    <div className="min-h-screen bg-muted/30 py-8 px-4">
+    <div className="min-h-screen bg-stone-50 py-8 px-4">
       <div className="max-w-xl mx-auto">
         {clinicLogoUrl && (
-          <div className="flex justify-center mb-12">
-            <LogoImage
-              src={clinicLogoUrl}
-              alt="Logo da clínica"
-              className="max-h-24 max-w-full object-contain"
-              scale={clinicLogoScale}
-            />
+          <div className="flex justify-center mb-8">
+            <div className="rounded-2xl border border-border bg-card px-6 py-4 shadow-elevated">
+              <LogoImage
+                src={clinicLogoUrl}
+                alt="Logo da clínica"
+                className="max-h-20 max-w-full object-contain"
+                scale={clinicLogoScale}
+              />
+            </div>
           </div>
         )}
         <div className={clinicLogoUrl ? "mt-4" : ""}>

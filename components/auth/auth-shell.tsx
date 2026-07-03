@@ -29,7 +29,7 @@ export function AuthShell({
   subtitle,
 }: AuthShellProps) {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/30 p-4">
+    <div className="min-h-screen w-full flex items-center justify-center bg-stone-50 p-4">
       <div className="md:hidden w-full max-w-md mb-4 absolute top-4 left-4 right-4">
         <FlowmediLogo size="sm" />
       </div>
@@ -42,7 +42,7 @@ export function AuthShell({
       >
         {/* Left panel — animated flows */}
         <div className="hidden md:block w-1/2 h-[600px] relative overflow-hidden border-r border-border/60">
-          <div className="absolute inset-0 z-0 bg-gradient-to-br from-primary/10 via-secondary/40 to-accent/30">
+          <div className="absolute inset-0 z-0 bg-gradient-to-br from-sage-50 via-stone-50 to-sage-100/80">
             <FlowCanvas />
 
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-8">
@@ -64,8 +64,8 @@ export function AuthShell({
                   FlowMed
                 </h2>
                 <p className="text-sm text-center text-muted-foreground max-w-xs">
-                  Tudo para sua clínica em um só lugar. Agenda, formulários e
-                  comunicação integrados.
+                  Tudo para sua clínica em um só lugar. Agenda, formulários,
+                  comunicação e site público integrados.
                 </p>
               </motion.div>
               <motion.div

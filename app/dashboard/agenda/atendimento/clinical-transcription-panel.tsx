@@ -157,6 +157,8 @@ export function ClinicalTranscriptionPanel({
   const streamSegmentsRef = useRef<TranscriptSegment[]>([]);
   const liveTranscriptRef = useRef("");
   const isStartingRef = useRef(false);
+  const sessionAbortRef = useRef<AbortController | null>(null);
+  const userCancelledStartRef = useRef(false);
 
   const appendLog = useCallback((message: string, level: LogEntry["level"] = "info") => {
     logIdRef.current += 1;
@@ -400,10 +402,19 @@ export function ClinicalTranscriptionPanel({
 
   async function startStreamingSession(mimeType: string): Promise<boolean> {
     appendLog("Iniciando sessão de transcrição em tempo real…");
+    sessionAbortRef.current?.abort();
+    const controller = new AbortController();
+    sessionAbortRef.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), 25_000);
+
     try {
       const res = await fetch(`/api/appointments/${appointmentId}/transcribe/stream/session`, {
         method: "POST",
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+      sessionAbortRef.current = null;
+
       const data = (await res.json()) as {
         error?: string;
         transcriptionId?: string;
@@ -419,6 +430,8 @@ export function ClinicalTranscriptionPanel({
         appendLog(data.error ?? "Falha ao criar sessão de streaming.", "error");
         return false;
       }
+
+      appendLog("Sessão criada. Conectando WebSocket…");
 
       streamSessionRef.current = {
         transcriptionId: data.transcriptionId,
@@ -458,14 +471,32 @@ export function ClinicalTranscriptionPanel({
 
       appendLog("Transcrição ao vivo ativa.");
       return true;
-    } catch {
-      appendLog("Erro ao conectar streaming.", "error");
+    } catch (error) {
+      clearTimeout(timeoutId);
+      sessionAbortRef.current = null;
+      if (userCancelledStartRef.current) {
+        userCancelledStartRef.current = false;
+        return false;
+      }
+      const message =
+        error instanceof Error && error.name === "AbortError"
+          ? "Tempo esgotado ao criar sessão de streaming (25s)."
+          : error instanceof Error
+            ? error.message
+            : "Erro ao conectar streaming.";
+      appendLog(message, "error");
+      streamConnectionRef.current?.close();
+      streamConnectionRef.current = null;
+      streamSessionRef.current = null;
       return false;
     }
   }
 
   function handleCancelStarting() {
+    userCancelledStartRef.current = true;
     appendLog("Preparação cancelada.", "error");
+    sessionAbortRef.current?.abort();
+    sessionAbortRef.current = null;
     streamConnectionRef.current?.close();
     streamConnectionRef.current = null;
     streamSessionRef.current = null;
@@ -483,6 +514,7 @@ export function ClinicalTranscriptionPanel({
   async function handleStartRecording() {
     if (!canRecord || isStartingRef.current) return;
     isStartingRef.current = true;
+    userCancelledStartRef.current = false;
 
     clearActivityLog();
     streamConnectionRef.current?.close();
@@ -506,6 +538,11 @@ export function ClinicalTranscriptionPanel({
       if (streamingEnabled) {
         appendLog("Conectando transcrição em tempo real…");
         streamingActive = await startStreamingSession(mimeType);
+        if (userCancelledStartRef.current) {
+          userCancelledStartRef.current = false;
+          isStartingRef.current = false;
+          return;
+        }
         if (!streamingActive && !fallbackToBatch) {
           toast("Streaming indisponível.", "error");
           stopMediaTracks();
@@ -514,7 +551,8 @@ export function ClinicalTranscriptionPanel({
           return;
         }
         if (!streamingActive && fallbackToBatch) {
-          appendLog("Streaming indisponível — usando modo batch (fallback).", "error");
+          appendLog("Streaming indisponível — continuando em modo batch (gravação local).", "error");
+          toast("Streaming indisponível. Gravando para transcrição ao final.", "error");
         }
       }
 

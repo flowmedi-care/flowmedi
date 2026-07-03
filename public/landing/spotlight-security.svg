@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" fill="none">
+  <rect width="800" height="600" fill="#F3F8F6"/>
+  <rect x="80" y="80" width="280" height="440" rx="16" fill="#FFFFFF" stroke="#E7E5E4"/>
+  <rect x="104" y="108" width="48" height="48" rx="12" fill="#E4EFEA"/>
+  <path d="M120 132 L128 140 L144 120" stroke="#3D6F60" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <text x="104" y="184" font-family="system-ui,sans-serif" font-size="16" font-weight="600" fill="#1C1917">Isolamento por clínica</text>
+  <text x="104" y="212" font-family="system-ui,sans-serif" font-size="13" fill="#78716C">Dados separados por conta</text>
+  <rect x="104" y="240" width="232" height="8" rx="4" fill="#E7E5E4"/>
+  <rect x="104" y="260" width="200" height="8" rx="4" fill="#E7E5E4"/>
+  <rect x="400" y="80" width="280" height="200" rx="16" fill="#FFFFFF" stroke="#E7E5E4"/>
+  <rect x="424" y="108" width="48" height="48" rx="12" fill="#E4EFEA"/>
+  <text x="424" y="184" font-family="system-ui,sans-serif" font-size="16" font-weight="600" fill="#1C1917">LGPD</text>
+  <text x="424" y="212" font-family="system-ui,sans-serif" font-size="13" fill="#78716C">Políticas e consentimento</text>
+  <rect x="400" y="300" width="280" height="220" rx="16" fill="#3D6F60"/>
+  <text x="424" y="340" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">Canal do titular</text>
+  <text x="424" y="372" font-family="system-ui,sans-serif" font-size="13" fill="#C9DED4">Exercício de direitos LGPD</text>
+  <rect x="424" y="400" width="160" height="36" rx="8" fill="#FFFFFF" opacity="0.2"/>
+  <text x="440" y="424" font-family="system-ui,sans-serif" font-size="13" fill="#FFFFFF">privacidade@flowmed.app</text>
+  <rect x="80" y="300" width="280" height="220" rx="16" fill="#FFFFFF" stroke="#E7E5E4"/>
+  <text x="104" y="340" font-family="system-ui,sans-serif" font-size="16" font-weight="600" fill="#1C1917">Documentação legal</text>
+  <rect x="104" y="360" width="232" height="28" rx="6" fill="#F5F5F4"/>
+  <rect x="104" y="400" width="232" height="28" rx="6" fill="#F5F5F4"/>
+  <rect x="104" y="440" width="232" height="28" rx="6" fill="#E4EFEA"/>
+  <rect x="104" y="480" width="180" height="28" rx="6" fill="#F5F5F4"/>
+</svg>

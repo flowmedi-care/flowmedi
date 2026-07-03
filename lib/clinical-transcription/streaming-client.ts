@@ -19,26 +19,53 @@ export type StreamConnectionCallbacks = {
 export class ClinicalStreamConnection {
   private ws: WebSocket | null = null;
   private closed = false;
-  private reconnectAttempts = 0;
-  private readonly maxReconnectAttempts = 3;
+  private opened = false;
 
   constructor(
     private readonly wsUrl: string,
     private readonly mimeType: string,
-    private readonly callbacks: StreamConnectionCallbacks
+    private readonly callbacks: StreamConnectionCallbacks,
+    private readonly connectTimeoutMs = 15_000
   ) {}
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.closed = false;
-      this.ws = new WebSocket(this.wsUrl);
+      this.opened = false;
+      let settled = false;
+
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        fn();
+      };
+
+      const timeoutId = setTimeout(() => {
+        this.closed = true;
+        this.ws?.close();
+        this.ws = null;
+        const message = `Timeout ao conectar streaming (${this.connectTimeoutMs / 1000}s).`;
+        this.callbacks.onError(message);
+        settle(() => reject(new Error(message)));
+      }, this.connectTimeoutMs);
+
+      try {
+        this.ws = new WebSocket(this.wsUrl);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Não foi possível abrir WebSocket.";
+        settle(() => reject(new Error(message)));
+        return;
+      }
+
       this.ws.binaryType = "arraybuffer";
 
       this.ws.onopen = () => {
-        this.reconnectAttempts = 0;
+        this.opened = true;
         this.sendJson({ type: "start", mime: this.mimeType, sample_rate: 48000 });
         this.callbacks.onOpen?.();
-        resolve();
+        settle(() => resolve());
       };
 
       this.ws.onmessage = (event) => {
@@ -52,15 +79,17 @@ export class ClinicalStreamConnection {
       };
 
       this.ws.onerror = () => {
-        const message = "Erro na conexão de streaming.";
+        const message = "Erro na conexão de streaming com o servidor.";
         this.callbacks.onError(message);
-        reject(new Error(message));
+        settle(() => reject(new Error(message)));
       };
 
       this.ws.onclose = () => {
         this.callbacks.onClose?.();
-        if (!this.closed && this.reconnectAttempts < this.maxReconnectAttempts) {
-          this.reconnectAttempts += 1;
+        if (!this.opened) {
+          const message = "Conexão de streaming fechada antes de estabelecer.";
+          this.callbacks.onError(message);
+          settle(() => reject(new Error(message)));
         }
       };
     });

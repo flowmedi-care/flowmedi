@@ -20,8 +20,9 @@ export async function PremiumCta({
   if (!booking.available && !site.whatsapp_url) return null;
 
   return (
-    <RevealSection className="py-16 lg:py-20 bg-[var(--site-primary)]">
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 text-center">
+    <RevealSection className="py-16 lg:py-20">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6">
+        <div className="rounded-2xl bg-[var(--site-primary)] p-10 lg:p-14 text-center shadow-xl shadow-[var(--site-primary)]/20">
         <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">
           Agende sua consulta hoje mesmo
         </h2>
@@ -32,7 +33,7 @@ export async function PremiumCta({
           {booking.available && (
             <Link
               href={publicSiteBookingPath(slug, onClinicSubdomain)}
-              className="inline-flex items-center justify-center rounded-lg bg-[var(--site-accent)] px-8 py-3.5 text-sm font-semibold text-white shadow-lg hover:brightness-105 transition-all"
+              className="inline-flex items-center justify-center rounded-xl bg-[var(--site-accent)] px-8 py-3.5 text-sm font-semibold text-white shadow-lg hover:brightness-105 transition-all"
             >
               {copy.ctaLabel}
             </Link>
@@ -42,11 +43,12 @@ export async function PremiumCta({
               href={site.whatsapp_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-lg border-2 border-white/80 px-8 py-3.5 text-sm font-semibold text-white hover:bg-white/10 transition-colors"
+              className="inline-flex items-center justify-center rounded-xl border-2 border-white/80 px-8 py-3.5 text-sm font-semibold text-white hover:bg-white/10 transition-colors"
             >
               Falar no WhatsApp
             </a>
           )}
+        </div>
         </div>
       </div>
     </RevealSection>

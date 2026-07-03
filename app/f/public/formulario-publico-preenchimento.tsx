@@ -159,7 +159,7 @@ export function FormularioPublicoPreenchimento({
 
   if (success) {
     return (
-      <Card>
+      <Card className="rounded-2xl border-border shadow-elevated-lg">
         <CardContent className="pt-6">
           <p className="text-center text-foreground font-medium">
             Formulário enviado com sucesso. Obrigado!
@@ -186,7 +186,7 @@ export function FormularioPublicoPreenchimento({
 
   if (step === "basic") {
     return (
-      <Card>
+      <Card className="rounded-2xl border-border shadow-elevated-lg">
         <CardHeader>
           <CardTitle>{templateName}</CardTitle>
           <p className="text-sm text-muted-foreground">

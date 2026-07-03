@@ -57,6 +57,8 @@ async function parseErrorResponse(res: Response): Promise<string> {
   return `Erro na API de streaming (${res.status})`;
 }
 
+const STREAM_HTTP_TIMEOUT_MS = 20_000;
+
 async function fetchStreamWithRetry(
   url: string,
   init: RequestInit,
@@ -65,7 +67,10 @@ async function fetchStreamWithRetry(
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const res = await fetch(url, init);
+    const res = await fetch(url, {
+      ...init,
+      signal: init.signal ?? AbortSignal.timeout(STREAM_HTTP_TIMEOUT_MS),
+    });
     if (res.ok || !RETRYABLE_STATUSES.has(res.status) || attempt === maxRetries) {
       return res;
     }

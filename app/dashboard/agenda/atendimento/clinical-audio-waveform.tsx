@@ -9,6 +9,12 @@ type ClinicalAudioWaveformProps = {
   className?: string;
 };
 
+function cssHsl(variable: string, alpha = 1): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+  if (!value) return alpha < 1 ? `rgba(128,128,128,${alpha})` : "rgb(128,128,128)";
+  return alpha < 1 ? `hsl(${value} / ${alpha})` : `hsl(${value})`;
+}
+
 export function ClinicalAudioWaveform({ stream, active, className }: ClinicalAudioWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
@@ -61,7 +67,7 @@ export function ClinicalAudioWaveform({ stream, active, className }: ClinicalAud
           analyser.getByteFrequencyData(freqData);
 
           // Fundo suave
-          context.fillStyle = "hsl(var(--muted) / 0.35)";
+          context.fillStyle = cssHsl("--muted", 0.35);
           context.fillRect(0, 0, width, height);
 
           // Barras de frequência
@@ -82,8 +88,8 @@ export function ClinicalAudioWaveform({ stream, active, className }: ClinicalAud
             const y = (height - barHeight) / 2;
 
             const gradient = context.createLinearGradient(0, y, 0, y + barHeight);
-            gradient.addColorStop(0, "hsl(var(--primary) / 0.95)");
-            gradient.addColorStop(1, "hsl(var(--primary) / 0.35)");
+            gradient.addColorStop(0, cssHsl("--primary", 0.95));
+            gradient.addColorStop(1, cssHsl("--primary", 0.35));
             context.fillStyle = gradient;
             context.fillRect(x, y, barWidth, barHeight);
           }
@@ -91,8 +97,8 @@ export function ClinicalAudioWaveform({ stream, active, className }: ClinicalAud
           // Linha de onda
           context.lineWidth = 2;
           context.strokeStyle = hasSignal
-            ? "hsl(var(--destructive) / 0.9)"
-            : "hsl(var(--muted-foreground) / 0.35)";
+            ? cssHsl("--destructive", 0.9)
+            : cssHsl("--muted-foreground", 0.35);
           context.beginPath();
 
           const sliceWidth = width / bufferLength;
@@ -107,7 +113,7 @@ export function ClinicalAudioWaveform({ stream, active, className }: ClinicalAud
           context.stroke();
 
           if (!hasSignal) {
-            context.fillStyle = "hsl(var(--muted-foreground) / 0.7)";
+            context.fillStyle = cssHsl("--muted-foreground", 0.7);
             context.font = "12px system-ui, sans-serif";
             context.textAlign = "center";
             context.fillText("Fale algo para ver o nível do áudio…", width / 2, height / 2 + 4);

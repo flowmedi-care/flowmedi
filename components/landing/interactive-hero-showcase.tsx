@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HERO_SCREEN_IMAGES } from "@/lib/landing/content";
 import { cn } from "@/lib/utils";
 
 type ScreenId = "dashboard" | "crm" | "chat" | "reports";
@@ -71,7 +72,7 @@ const SCREENS: ScreenConfig[] = [
   {
     id: "dashboard",
     title: "Dashboard",
-    image: "https://picsum.photos/seed/flowmedi-dashboard/580/360",
+    image: HERO_SCREEN_IMAGES.dashboard,
     position: { x: 120, y: 260, z: 20, rotation: -12 },
     size: { width: 580, height: 360 },
     animation: { speed: 2.4, amplitude: 12 },
@@ -79,7 +80,7 @@ const SCREENS: ScreenConfig[] = [
   {
     id: "crm",
     title: "CRM",
-    image: "https://picsum.photos/seed/flowmedi-crm/520/330",
+    image: HERO_SCREEN_IMAGES.crm,
     position: { x: 540, y: 120, z: 40, rotation: 16 },
     size: { width: 520, height: 330 },
     animation: { speed: 2, amplitude: 10 },
@@ -87,7 +88,7 @@ const SCREENS: ScreenConfig[] = [
   {
     id: "chat",
     title: "Chat",
-    image: "https://picsum.photos/seed/flowmedi-chat/420/280",
+    image: HERO_SCREEN_IMAGES.chat,
     position: { x: 760, y: 420, z: 15, rotation: -18 },
     size: { width: 420, height: 280 },
     animation: { speed: 1.7, amplitude: 9 },
@@ -95,7 +96,7 @@ const SCREENS: ScreenConfig[] = [
   {
     id: "reports",
     title: "Reports",
-    image: "https://picsum.photos/seed/flowmedi-reports/470/300",
+    image: HERO_SCREEN_IMAGES.reports,
     position: { x: 300, y: 560, z: 5, rotation: 12 },
     size: { width: 470, height: 300 },
     animation: { speed: 2.8, amplitude: 11 },

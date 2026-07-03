@@ -25,7 +25,10 @@ export async function PremiumHero({
   const imageAlt = `${site.name} — atendimento em saúde`;
 
   return (
-    <section id="inicio" className="relative pt-16 lg:pt-[4.5rem] overflow-hidden bg-white">
+    <section id="inicio" className="relative pt-16 lg:pt-[4.5rem] overflow-hidden bg-[var(--site-bg)]">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-[var(--site-primary)]/8 blur-[80px]" />
+      </div>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-12 lg:py-20">
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           <div className="order-2 lg:order-1">
@@ -62,7 +65,7 @@ export async function PremiumHero({
               {booking.available && (
                 <Link
                   href={publicSiteBookingPath(slug, onClinicSubdomain)}
-                  className="inline-flex items-center justify-center rounded-lg bg-[var(--site-accent)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 hover:brightness-105 transition-all"
+                  className="inline-flex items-center justify-center rounded-xl bg-[var(--site-accent)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 hover:brightness-105 transition-all"
                 >
                   {copy.ctaLabel}
                 </Link>
@@ -72,7 +75,7 @@ export async function PremiumHero({
                   href={site.whatsapp_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg border-2 border-[var(--site-primary)] px-6 py-3 text-sm font-semibold text-[var(--site-primary)] hover:bg-[var(--site-primary)]/5 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-xl border-2 border-[var(--site-primary)] px-6 py-3 text-sm font-semibold text-[var(--site-primary)] hover:bg-[var(--site-primary)]/5 transition-colors"
                 >
                   <MessageCircle className="h-4 w-4" />
                   WhatsApp
@@ -82,7 +85,7 @@ export async function PremiumHero({
           </div>
 
           <div className="order-1 lg:order-2 relative">
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-[var(--site-primary)]/15 bg-[var(--site-bg)] border border-slate-200/60">
+            <div className="relative rounded-2xl overflow-hidden shadow-xl shadow-[var(--site-primary)]/10 bg-white border border-slate-200/60">
               <PremiumHeroImage src={heroImage} alt={imageAlt} />
               <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[var(--site-primary)]/20 to-transparent pointer-events-none" />
 

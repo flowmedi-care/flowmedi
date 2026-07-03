@@ -41,7 +41,7 @@ export function PremiumAbout({ site }: { site: PublicClinicSite }) {
           {(hasMission || hasVision || hasValues) && (
             <div className="space-y-4">
               {hasMission && (
-                <div className="rounded-xl border border-slate-200 bg-[var(--site-bg)] p-5">
+                <div className="rounded-2xl border border-slate-200/60 bg-[var(--site-bg)] p-5 shadow-sm">
                   <h4 className="font-semibold text-[var(--site-primary)] mb-2">Missão</h4>
                   <p className="text-sm text-[var(--site-muted)] leading-relaxed whitespace-pre-line">
                     {site.site.mission}
@@ -49,7 +49,7 @@ export function PremiumAbout({ site }: { site: PublicClinicSite }) {
                 </div>
               )}
               {hasVision && (
-                <div className="rounded-xl border border-slate-200 bg-[var(--site-bg)] p-5">
+                <div className="rounded-2xl border border-slate-200/60 bg-[var(--site-bg)] p-5 shadow-sm">
                   <h4 className="font-semibold text-[var(--site-primary)] mb-2">Visão</h4>
                   <p className="text-sm text-[var(--site-muted)] leading-relaxed whitespace-pre-line">
                     {site.site.vision}
@@ -57,7 +57,7 @@ export function PremiumAbout({ site }: { site: PublicClinicSite }) {
                 </div>
               )}
               {hasValues && (
-                <div className="rounded-xl border border-slate-200 bg-[var(--site-bg)] p-5">
+                <div className="rounded-2xl border border-slate-200/60 bg-[var(--site-bg)] p-5 shadow-sm">
                   <h4 className="font-semibold text-[var(--site-primary)] mb-2">Valores</h4>
                   <p className="text-sm text-[var(--site-muted)] leading-relaxed whitespace-pre-line">
                     {site.site.values_text}
