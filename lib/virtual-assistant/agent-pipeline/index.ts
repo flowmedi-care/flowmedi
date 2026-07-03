@@ -74,14 +74,14 @@ export {
   buildUnifiedGraph,
   buildStageNodes,
   buildToolNodes,
-  RUNTIME_NODES,
-  RUNTIME_EDGES,
-  RUNTIME_PATH_MAP,
   EDGE_STYLES,
   EDGE_KIND_LABELS,
   FLOW_EXPLANATION,
   validateUnifiedGraphIntegrity,
   getToolPrimaryStage,
+  PLAYBACK_STEPS,
+  EXECUTION_NODES,
+  RESOLVER_SWITCH_RULES,
   type UnifiedGraphNode,
   type UnifiedGraphEdge,
   type UnifiedNodeKind,
@@ -89,12 +89,23 @@ export {
 } from "./unified-flow-graph";
 
 export {
-  POOL_BOUNDS,
-  CORRIDORS,
+  EXECUTION_EDGES,
+  CRM_TRANSITIONS,
+  PARALLEL_ACTIVATION_RULES,
+  EXIT_FLOW_RULES,
+  getStageEntryTriggers,
+  getStageExitTransitions,
+  getStageDefinitionForPanel,
+  type TransitionTrigger,
+  type SwimlaneId,
+} from "./flow-model";
+
+export {
+  SWIMLANE_BOUNDS,
+  LANE_Y,
   nodeBelongsToView,
-  type PipelinePoolId,
   type EdgeRoutingMode,
-} from "./pool-layout";
+} from "./swimlane-layout";
 
 export {
   resolveUnifiedPipelineHighlight,

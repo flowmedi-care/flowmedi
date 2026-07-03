@@ -86,7 +86,7 @@ export function AssistenteVirtualPipelineTab({ initialToolModes }: Props) {
             toolModes={toolModes}
             variant="full"
             showLegend
-            className="h-[980px]"
+            className="h-[1000px]"
           />
         </CardContent>
       </Card>

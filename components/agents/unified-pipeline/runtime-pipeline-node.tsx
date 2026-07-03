@@ -11,6 +11,10 @@ import {
   CalendarCheck,
   ShieldCheck,
   PaperPlaneTilt,
+  UserSwitch,
+  CheckCircle,
+  Play,
+  ShieldWarning,
   type Icon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -22,7 +26,7 @@ export type RuntimePipelineNodeData = {
   compact?: boolean;
 };
 
-const ICON_MAP: Record<NonNullable<UnifiedGraphNode["runtimeIcon"]>, Icon> = {
+const ICON_MAP: Record<string, Icon> = {
   message: ChatCircle,
   debounce: Timer,
   router: GitBranch,
@@ -33,9 +37,13 @@ const ICON_MAP: Record<NonNullable<UnifiedGraphNode["runtimeIcon"]>, Icon> = {
   response: PaperPlaneTilt,
   confirm: ShieldCheck,
   resolver: GitBranch,
+  gate: ShieldWarning,
+  execute: Play,
+  handoff: UserSwitch,
+  end: CheckCircle,
 };
 
-const COLOR_MAP: Record<NonNullable<UnifiedGraphNode["runtimeIcon"]>, string> = {
+const COLOR_MAP: Record<string, string> = {
   message: "border-cyan-400 bg-cyan-50 text-cyan-800",
   debounce: "border-slate-300 bg-slate-50 text-slate-700",
   router: "border-violet-400 bg-violet-50 text-violet-800",
@@ -46,13 +54,17 @@ const COLOR_MAP: Record<NonNullable<UnifiedGraphNode["runtimeIcon"]>, string> = 
   response: "border-amber-400 bg-amber-50 text-amber-800",
   confirm: "border-orange-300 bg-orange-50 text-orange-800",
   resolver: "border-purple-300 bg-purple-50 text-purple-800",
+  gate: "border-red-300 bg-red-50 text-red-800",
+  execute: "border-teal-400 bg-teal-50 text-teal-800",
+  handoff: "border-red-400 bg-red-50 text-red-900",
+  end: "border-green-400 bg-green-50 text-green-800",
 };
 
 export function RuntimePipelineNode({ data }: { data: RuntimePipelineNodeData }) {
   const { node, state, compact } = data;
   const iconKey = node.runtimeIcon ?? "agent";
-  const IconComp = ICON_MAP[iconKey];
-  const colors = COLOR_MAP[iconKey];
+  const IconComp = ICON_MAP[iconKey] ?? Brain;
+  const colors = COLOR_MAP[iconKey] ?? COLOR_MAP.agent!;
 
   return (
     <div
