@@ -45,6 +45,7 @@ type TranscriptionRecord = {
 
 type PanelPhase =
   | "idle"
+  | "starting"
   | "recording"
   | "streaming"
   | "uploading"
@@ -155,6 +156,7 @@ export function ClinicalTranscriptionPanel({
   const streamSessionRef = useRef<{ transcriptionId: string; wsUrl: string } | null>(null);
   const streamSegmentsRef = useRef<TranscriptSegment[]>([]);
   const liveTranscriptRef = useRef("");
+  const isStartingRef = useRef(false);
 
   const appendLog = useCallback((message: string, level: LogEntry["level"] = "info") => {
     logIdRef.current += 1;
@@ -208,7 +210,6 @@ export function ClinicalTranscriptionPanel({
         (t) =>
           t.status === "processing" ||
           t.status === "queued" ||
-          t.status === "streaming" ||
           t.post_processing_status === "pending" ||
           t.post_processing_status === "processing"
       );
@@ -219,9 +220,6 @@ export function ClinicalTranscriptionPanel({
           inProgress.post_processing_status === "processing"
         ) {
           setPhase("post_processing");
-        } else if (inProgress.status === "streaming") {
-          setPhase("streaming");
-          setLiveTranscript(inProgress.live_transcript ?? "");
         } else {
           setPhase("transcribing");
         }
@@ -466,8 +464,25 @@ export function ClinicalTranscriptionPanel({
     }
   }
 
+  function handleCancelStarting() {
+    appendLog("Preparação cancelada.", "error");
+    streamConnectionRef.current?.close();
+    streamConnectionRef.current = null;
+    streamSessionRef.current = null;
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    clearRecordingTimer();
+    clearLiveBackupTimer();
+    stopMediaTracks();
+    setPhase("idle");
+    isStartingRef.current = false;
+  }
+
   async function handleStartRecording() {
-    if (!canRecord) return;
+    if (!canRecord || isStartingRef.current) return;
+    isStartingRef.current = true;
 
     clearActivityLog();
     streamConnectionRef.current?.close();
@@ -481,6 +496,7 @@ export function ClinicalTranscriptionPanel({
       const stream = await requestMicrophoneStream();
       mediaStreamRef.current = stream;
       setAudioPreviewStream(stream);
+      setPhase("starting");
       chunksRef.current = [];
 
       const mimeType = pickMimeType() ?? "audio/webm";
@@ -488,11 +504,13 @@ export function ClinicalTranscriptionPanel({
 
       let streamingActive = false;
       if (streamingEnabled) {
+        appendLog("Conectando transcrição em tempo real…");
         streamingActive = await startStreamingSession(mimeType);
         if (!streamingActive && !fallbackToBatch) {
           toast("Streaming indisponível.", "error");
           stopMediaTracks();
           setPhase("idle");
+          isStartingRef.current = false;
           return;
         }
         if (!streamingActive && fallbackToBatch) {
@@ -516,6 +534,7 @@ export function ClinicalTranscriptionPanel({
         clearRecordingTimer();
         clearLiveBackupTimer();
         stopMediaTracks();
+        isStartingRef.current = false;
         if (streamSessionRef.current) {
           void finalizeStreamingRecording(recorder.mimeType || mimeType);
         } else {
@@ -537,12 +556,14 @@ export function ClinicalTranscriptionPanel({
         setRecordingSeconds(recordingSecondsRef.current);
       }, 1000);
       appendLog(streamingActive ? "Gravação ao vivo iniciada." : "Gravação iniciada.");
+      isStartingRef.current = false;
     } catch (error) {
       const message = getMicrophoneErrorMessage(error);
       appendLog(message, "error");
       toast(message, "error");
       stopMediaTracks();
       setPhase("idle");
+      isStartingRef.current = false;
     }
   }
 
@@ -557,6 +578,7 @@ export function ClinicalTranscriptionPanel({
       }
       recorder.stop();
     } else {
+      isStartingRef.current = false;
       setPhase("idle");
       stopMediaTracks();
     }
@@ -684,7 +706,11 @@ export function ClinicalTranscriptionPanel({
     }
   }
 
+  const isRecordingActive =
+    phase === "starting" || phase === "recording" || phase === "streaming";
+
   const isBusy =
+    isRecordingActive ||
     phase === "uploading" ||
     phase === "transcribing" ||
     phase === "finalizing" ||
@@ -708,6 +734,24 @@ export function ClinicalTranscriptionPanel({
               <Mic className="h-4 w-4 mr-2" />
               Iniciar gravação
             </Button>
+          )}
+
+          {phase === "starting" && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Preparando gravação…
+                </div>
+                <Button type="button" variant="outline" onClick={handleCancelStarting}>
+                  Cancelar
+                </Button>
+              </div>
+              <ClinicalAudioWaveform stream={audioPreviewStream} active />
+              <p className="text-xs text-muted-foreground">
+                Conectando ao serviço de transcrição. Isso pode levar alguns segundos.
+              </p>
+            </div>
           )}
 
           {(phase === "recording" || phase === "streaming") && (
@@ -839,10 +883,12 @@ export function ClinicalTranscriptionPanel({
                 t.post_processing_status === "processing") && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  {t.post_processing_status === "pending" ||
-                  t.post_processing_status === "processing"
-                    ? "Gerando relatório clínico…"
-                    : "Transcrevendo…"}
+                  {t.status === "streaming" && !isRecordingActive
+                    ? "Gravação anterior interrompida — inicie uma nova ou aguarde limpeza."
+                    : t.post_processing_status === "pending" ||
+                        t.post_processing_status === "processing"
+                      ? "Gerando relatório clínico…"
+                      : "Transcrevendo…"}
                 </div>
               )}
 
