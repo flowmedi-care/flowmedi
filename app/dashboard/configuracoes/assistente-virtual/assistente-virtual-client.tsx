@@ -9,12 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import type { VirtualAssistantFaq, VirtualAssistantSettings } from "@/lib/virtual-assistant/types";
-import {
-  deleteVirtualAssistantFaq,
-  saveVirtualAssistantSettings,
-  upsertVirtualAssistantFaq,
-} from "./actions";
+import { saveVirtualAssistantSettings } from "./actions";
 import { AssistenteVirtualDiagnostics } from "./assistente-virtual-diagnostics";
+import { AssistenteVirtualFaqTab } from "./assistente-virtual-faq-tab";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 
@@ -53,8 +50,6 @@ export function AssistenteVirtualClient({ canUse, initialSettings, initialFaq, c
   const [botEnd, setBotEnd] = useState(
     String(initialSettings?.bot_active_end ?? clinic?.auto_message_send_end ?? "20:00:00").slice(0, 5)
   );
-  const [faq, setFaq] = useState(initialFaq);
-
   const tabs: { id: TabId; label: string }[] = [
     { id: "geral", label: "Geral" },
     { id: "politicas", label: "Políticas" },
@@ -227,44 +222,7 @@ export function AssistenteVirtualClient({ canUse, initialSettings, initialFaq, c
         </Card>
       )}
 
-      {tab === "faq" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Perguntas frequentes</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {faq.map((item) => (
-              <div key={item.id} className="border rounded-md p-3 space-y-2">
-                <p className="text-sm font-medium">{item.question}</p>
-                <p className="text-sm text-muted-foreground">{item.answer}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    await deleteVirtualAssistantFaq(item.id);
-                    setFaq((prev) => prev.filter((f) => f.id !== item.id));
-                    toast("FAQ removida.", "success");
-                  }}
-                >
-                  Remover
-                </Button>
-              </div>
-            ))}
-            <Button
-              variant="outline"
-              onClick={async () => {
-                const question = prompt("Pergunta");
-                if (!question) return;
-                const answer = prompt("Resposta") ?? "";
-                await upsertVirtualAssistantFaq(null, question, answer, faq.length);
-                toast("FAQ adicionada. Recarregue para ver.", "success");
-              }}
-            >
-              Adicionar FAQ
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {tab === "faq" && <AssistenteVirtualFaqTab initialFaq={initialFaq} />}
 
       {tab === "comportamento" && (
         <Card>

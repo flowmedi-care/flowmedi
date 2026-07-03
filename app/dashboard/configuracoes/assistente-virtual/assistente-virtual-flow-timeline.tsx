@@ -69,6 +69,8 @@ function formatTime(iso?: string): string {
   });
 }
 
+const INITIAL_FLOW_LIMIT = 5;
+
 function FlowTraceCard({
   trace,
   rawEvents,
@@ -76,15 +78,30 @@ function FlowTraceCard({
   trace: MessageFlowTrace;
   rawEvents: AiEventRow[];
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [stepsExpanded, setStepsExpanded] = useState(false);
+  const [rawExpanded, setRawExpanded] = useState(false);
   const Icon = channelIcon(trace.channel);
   const status = TRACE_STATUS[trace.status];
 
   const traceEvents = rawEvents.filter((e) => trace.eventIds.includes(e.id));
+  const completedSteps = trace.steps.filter((s) => s.status === "completed").length;
+  const activeStep = trace.steps.find((s) => s.status === "in_progress" || s.status === "failed");
 
   return (
     <article className="overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b bg-muted/30 px-4 py-3">
+      <header
+        className="flex cursor-pointer flex-wrap items-start justify-between gap-3 bg-muted/30 px-4 py-3"
+        onClick={() => setStepsExpanded((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setStepsExpanded((v) => !v);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-expanded={stepsExpanded}
+      >
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <div
             className={cn(
@@ -120,19 +137,22 @@ function FlowTraceCard({
                 </>
               )}
             </p>
+            {!stepsExpanded && (
+              <p className="text-xs text-muted-foreground">
+                {completedSteps}/{trace.steps.length} passos
+                {activeStep ? ` · ${activeStep.title}` : ""}
+              </p>
+            )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
-        >
-          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          Detalhes
-        </button>
+        <span className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground">
+          {stepsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          {stepsExpanded ? "Recolher" : "Expandir"}
+        </span>
       </header>
 
-      <div className="px-4 py-4">
+      {stepsExpanded && (
+      <div className="border-t px-4 py-4">
         <ol className="relative space-y-0">
           {trace.steps.map((step, index) => {
             const isLast = index === trace.steps.length - 1;
@@ -175,19 +195,32 @@ function FlowTraceCard({
           })}
         </ol>
       </div>
+      )}
 
-      {expanded && traceEvents.length > 0 && (
+      {stepsExpanded && traceEvents.length > 0 && (
         <footer className="border-t bg-muted/20 px-4 py-3">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Eventos brutos</p>
-          <ul className="space-y-1">
-            {traceEvents.map((ev) => (
-              <li key={ev.id} className="rounded-md bg-background px-2 py-1.5 text-xs">
-                <span className="font-mono text-muted-foreground">{ev.stage}</span>
-                <span className="mx-2 text-muted-foreground">·</span>
-                <span>{formatTime(ev.created_at)}</span>
-              </li>
-            ))}
-          </ul>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setRawExpanded((v) => !v);
+            }}
+            className="mb-2 flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            {rawExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            Eventos brutos ({traceEvents.length})
+          </button>
+          {rawExpanded && (
+            <ul className="max-h-40 space-y-1 overflow-y-auto">
+              {traceEvents.map((ev) => (
+                <li key={ev.id} className="rounded-md bg-background px-2 py-1.5 text-xs">
+                  <span className="font-mono text-muted-foreground">{ev.stage}</span>
+                  <span className="mx-2 text-muted-foreground">·</span>
+                  <span>{formatTime(ev.created_at)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </footer>
       )}
     </article>
@@ -232,6 +265,10 @@ function levelDot(level: string): string {
 
 export function AssistenteVirtualFlowTimeline({ flows, events, showRaw, onToggleRaw }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showAllFlows, setShowAllFlows] = useState(false);
+
+  const visibleFlows = showAllFlows ? flows : flows.slice(0, INITIAL_FLOW_LIMIT);
+  const hiddenFlowCount = flows.length - INITIAL_FLOW_LIMIT;
 
   return (
     <div className="space-y-4">
@@ -252,14 +289,32 @@ export function AssistenteVirtualFlowTimeline({ flows, events, showRaw, onToggle
             Nenhum fluxo recente. Envie uma mensagem ou áudio pelo WhatsApp para ver o passo a passo aqui.
           </p>
         ) : (
-          <div className="space-y-4">
-            {flows.map((trace) => (
+          <div className="space-y-3">
+            {visibleFlows.map((trace) => (
               <FlowTraceCard key={trace.id} trace={trace} rawEvents={events} />
             ))}
+            {hiddenFlowCount > 0 && !showAllFlows && (
+              <button
+                type="button"
+                onClick={() => setShowAllFlows(true)}
+                className="w-full rounded-lg border border-dashed py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+              >
+                Ver mais {hiddenFlowCount} fluxo{hiddenFlowCount === 1 ? "" : "s"}
+              </button>
+            )}
+            {showAllFlows && flows.length > INITIAL_FLOW_LIMIT && (
+              <button
+                type="button"
+                onClick={() => setShowAllFlows(false)}
+                className="w-full rounded-lg border border-dashed py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+              >
+                Mostrar menos
+              </button>
+            )}
           </div>
         )
       ) : (
-        <ul className="space-y-2">
+        <ul className="max-h-[min(28rem,60vh)] space-y-2 overflow-y-auto pr-1">
           {events.map((ev) => (
             <li key={ev.id} className="rounded-lg border bg-card p-3 text-sm">
               <button
@@ -268,12 +323,17 @@ export function AssistenteVirtualFlowTimeline({ flows, events, showRaw, onToggle
                 onClick={() => setExpandedId(expandedId === ev.id ? null : ev.id)}
               >
                 <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${levelDot(ev.level)}`} />
-                <span className="flex-1">
+                <span className="min-w-0 flex-1">
                   <span className="font-medium">{STAGE_LABELS[ev.stage] ?? ev.stage}</span>
                   <span className="ml-2 text-xs text-muted-foreground">
                     {new Date(ev.created_at).toLocaleString("pt-BR")}
                   </span>
                 </span>
+                {expandedId === ev.id ? (
+                  <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
               </button>
               {expandedId === ev.id && (
                 <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted p-2 text-xs">

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
   Bot,
+  ChevronDown,
   ClipboardList,
   Clock,
   Mic,
@@ -53,6 +54,97 @@ interface DiagnosticsResponse {
 
 interface Props {
   active: boolean;
+}
+
+function CollapsibleCard({
+  title,
+  description,
+  icon: Icon,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  description?: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <Card>
+      <button
+        type="button"
+        className="flex w-full items-start justify-between gap-3 p-6 text-left"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <div className="min-w-0 space-y-1">
+          <CardTitle className="flex items-center gap-2 text-base">
+            {Icon && <Icon className="h-5 w-5 shrink-0" />}
+            {title}
+          </CardTitle>
+          {description && (
+            <CardDescription className={cn(!open && "line-clamp-2")}>{description}</CardDescription>
+          )}
+        </div>
+        <ChevronDown
+          className={cn(
+            "mt-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+      {open && <CardContent className="border-t pt-4">{children}</CardContent>}
+    </Card>
+  );
+}
+
+function ToolCategoryAccordion({
+  label,
+  tools,
+}: {
+  label: string;
+  tools: (typeof ASSISTANT_TOOL_CATALOG)[number][];
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-lg border">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm font-semibold hover:bg-muted/50"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span>
+          {label}
+          <span className="ml-2 font-normal text-muted-foreground">({tools.length})</span>
+        </span>
+        <ChevronDown
+          className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
+        />
+      </button>
+      {open && (
+        <ul className="max-h-72 space-y-2 overflow-y-auto border-t p-2">
+          {tools.map((tool) => (
+            <li key={tool.name} className="rounded-lg bg-muted/30 px-3 py-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{tool.label}</span>
+                <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                  {tool.name}
+                </code>
+              </div>
+              <p className="mt-1 text-muted-foreground">{tool.description}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground/80">Quando usar:</span> {tool.whenToUse}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function HealthStat({
@@ -466,7 +558,7 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
                 agendamentos.
               </p>
             ) : (
-              <ul className="space-y-2 text-sm">
+              <ul className="max-h-48 space-y-2 overflow-y-auto pr-1 text-sm">
                 {data.dataReadiness.issues.map((issue, i) => (
                   <li
                     key={i}
@@ -488,71 +580,9 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Passo a passo das mensagens</CardTitle>
-          <CardDescription>
-            Cada card mostra o caminho completo. Mensagens com badge{" "}
-            <strong>Descartado</strong> não receberão resposta da IA — use <em>Zerar fila</em> antes
-            de ativar o assistente para limpar o restante.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AssistenteVirtualFlowTimeline
-            flows={data?.flows ?? []}
-            events={data?.events ?? []}
-            showRaw={showRawEvents}
-            onToggleRaw={setShowRawEvents}
-          />
-        </CardContent>
-      </Card>
-
-      {data?.blockedConversations && data.blockedConversations.length > 0 && (
-        <Card className="border-amber-200">
-          <CardHeader>
-            <CardTitle>Conversas sem IA ativa</CardTitle>
-            <CardDescription>
-              Handoff humano, opt-out permanente do paciente ou IA pausada. Use Reativar IA no painel para
-              voltar a atender automaticamente.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm">
-              {data.blockedConversations.map((c) => (
-                <li
-                  key={c.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
-                >
-                  <span>
-                    <strong>{c.phone_number}</strong>
-                    {c.ai_user_opt_out && (
-                      <span className="ml-2 text-red-700">opt-out permanente (DESATIVE)</span>
-                    )}
-                    {c.ai_handoff_at && !c.ai_user_opt_out && (
-                      <span className="ml-2 text-amber-700">handoff humano</span>
-                    )}
-                    {c.ai_enabled === false && !c.ai_user_opt_out && !c.ai_handoff_at && (
-                      <span className="ml-2 text-amber-700">IA pausada</span>
-                    )}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={reactivatingId === c.id}
-                    onClick={() => void handleReactivate(c.id)}
-                  >
-                    {reactivatingId === c.id ? "Reativando…" : "Reativar IA"}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
           <CardTitle>Simular mensagem</CardTitle>
           <CardDescription>
-            Testa o pipeline sem o celular. O fluxo aparece na timeline acima.
+            Testa o pipeline sem o celular. O fluxo aparece na timeline abaixo.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -603,79 +633,63 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wrench className="h-5 w-5" />
-            Ferramentas da IA
-          </CardTitle>
+          <CardTitle>Passo a passo das mensagens</CardTitle>
           <CardDescription>
-            {ASSISTANT_TOOL_CATALOG.length} funções que o assistente pode chamar durante a conversa
-            no WhatsApp. A OpenAI decide qual usar conforme a mensagem do paciente.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {ASSISTANT_TOOL_CATALOG_BY_CATEGORY.map((group) => (
-            <div key={group.category}>
-              <h3 className="mb-2 text-sm font-semibold text-foreground">{group.label}</h3>
-              <ul className="space-y-2">
-                {group.tools.map((tool) => (
-                  <li
-                    key={tool.name}
-                    className="rounded-lg border bg-muted/30 px-3 py-2.5 text-sm"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{tool.label}</span>
-                      <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                        {tool.name}
-                      </code>
-                    </div>
-                    <p className="mt-1 text-muted-foreground">{tool.description}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground/80">Quando usar:</span>{" "}
-                      {tool.whenToUse}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Cobertura da jornada do cliente</CardTitle>
-          <CardDescription>
-            Mapa de quais etapas a IA cobre, quais são automáticas por evento e o que permanece
-            humano. Recibo e compliance de formulário não são ferramentas da IA.
+            Clique em um fluxo para ver os passos. Mensagens com badge <strong>Descartado</strong>{" "}
+            não receberão resposta da IA — use <em>Zerar fila</em> antes de ativar o assistente.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="max-h-96 overflow-y-auto rounded-lg border">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-muted">
-                <tr>
-                  <th className="p-2 text-left">Etapa</th>
-                  <th className="p-2 text-left">Cobertura</th>
-                  <th className="p-2 text-left hidden sm:table-cell">Detalhe</th>
-                </tr>
-              </thead>
-              <tbody>
-                {buildJourneyCoverageMatrix().map((row) => (
-                  <tr key={row.step} className="border-t">
-                    <td className="p-2 font-medium">{row.label}</td>
-                    <td className="p-2">{COVERAGE_LABELS[row.coverage]}</td>
-                    <td className="p-2 text-muted-foreground hidden sm:table-cell">{row.detail}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Fora do escopo da IA: register_payment, marcar comanda paga, aceitar comprovante do
-            paciente como prova de pagamento.
-          </p>
+          <AssistenteVirtualFlowTimeline
+            flows={data?.flows ?? []}
+            events={data?.events ?? []}
+            showRaw={showRawEvents}
+            onToggleRaw={setShowRawEvents}
+          />
         </CardContent>
       </Card>
+
+      {data?.blockedConversations && data.blockedConversations.length > 0 && (
+        <Card className="border-amber-200">
+          <CardHeader>
+            <CardTitle>Conversas sem IA ativa</CardTitle>
+            <CardDescription>
+              Handoff humano, opt-out permanente do paciente ou IA pausada.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="max-h-64 space-y-2 overflow-y-auto pr-1 text-sm">
+              {data.blockedConversations.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
+                >
+                  <span>
+                    <strong>{c.phone_number}</strong>
+                    {c.ai_user_opt_out && (
+                      <span className="ml-2 text-red-700">opt-out permanente (DESATIVE)</span>
+                    )}
+                    {c.ai_handoff_at && !c.ai_user_opt_out && (
+                      <span className="ml-2 text-amber-700">handoff humano</span>
+                    )}
+                    {c.ai_enabled === false && !c.ai_user_opt_out && !c.ai_handoff_at && (
+                      <span className="ml-2 text-amber-700">IA pausada</span>
+                    )}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={reactivatingId === c.id}
+                    onClick={() => void handleReactivate(c.id)}
+                  >
+                    {reactivatingId === c.id ? "Reativando…" : "Reativar IA"}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {data?.toolLogs && data.toolLogs.length > 0 && (
         <Card>
@@ -684,10 +698,10 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
             <CardDescription>Últimas chamadas registradas nas conversas (24h).</CardDescription>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-1 text-sm">
+            <ul className="max-h-56 space-y-1 overflow-y-auto pr-1 text-sm">
               {data.toolLogs.map((t) => (
                 <li key={t.id} className="flex justify-between gap-2 border-b py-2 last:border-0">
-                  <span>
+                  <span className="min-w-0 truncate">
                     {t.success ? "✓" : "✗"} {t.tool_name}
                     {t.result_summary ? ` — ${t.result_summary}` : ""}
                   </span>
@@ -700,6 +714,52 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
           </CardContent>
         </Card>
       )}
+
+      <CollapsibleCard
+        title="Ferramentas da IA"
+        description={`${ASSISTANT_TOOL_CATALOG.length} funções que o assistente pode chamar no WhatsApp. Expanda cada categoria para ver detalhes.`}
+        icon={Wrench}
+      >
+        <div className="space-y-2">
+          {ASSISTANT_TOOL_CATALOG_BY_CATEGORY.map((group) => (
+            <ToolCategoryAccordion
+              key={group.category}
+              label={group.label}
+              tools={group.tools}
+            />
+          ))}
+        </div>
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title="Cobertura da jornada do cliente"
+        description="Mapa de quais etapas a IA cobre, quais são automáticas por evento e o que permanece humano."
+      >
+        <div className="max-h-80 overflow-y-auto rounded-lg border">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 z-10 bg-muted">
+              <tr>
+                <th className="p-2 text-left">Etapa</th>
+                <th className="p-2 text-left">Cobertura</th>
+                <th className="hidden p-2 text-left sm:table-cell">Detalhe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {buildJourneyCoverageMatrix().map((row) => (
+                <tr key={row.step} className="border-t">
+                  <td className="p-2 font-medium">{row.label}</td>
+                  <td className="p-2">{COVERAGE_LABELS[row.coverage]}</td>
+                  <td className="hidden p-2 text-muted-foreground sm:table-cell">{row.detail}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Fora do escopo da IA: register_payment, marcar comanda paga, aceitar comprovante do paciente
+          como prova de pagamento.
+        </p>
+      </CollapsibleCard>
     </div>
   );
 }

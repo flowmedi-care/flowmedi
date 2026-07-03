@@ -201,25 +201,34 @@ export async function upsertVirtualAssistantFaq(
   if (ctx.error || !ctx.supabase || !ctx.clinicId) return { error: ctx.error };
 
   if (id) {
-    const { error } = await ctx.supabase
+    const { data, error } = await ctx.supabase
       .from("clinic_virtual_assistant_faq")
       .update({ question, answer, display_order: displayOrder })
       .eq("id", id)
-      .eq("clinic_id", ctx.clinicId);
+      .eq("clinic_id", ctx.clinicId)
+      .select("*")
+      .single();
     if (error) return { error: error.message };
-  } else {
-    const { error } = await ctx.supabase.from("clinic_virtual_assistant_faq").insert({
+    revalidatePath("/dashboard/configuracoes/assistente-virtual");
+    revalidatePath("/dashboard/configuracoes/clinica");
+    return { error: null, item: data as VirtualAssistantFaq };
+  }
+
+  const { data, error } = await ctx.supabase
+    .from("clinic_virtual_assistant_faq")
+    .insert({
       clinic_id: ctx.clinicId,
       question,
       answer,
       display_order: displayOrder,
-    });
-    if (error) return { error: error.message };
-  }
+    })
+    .select("*")
+    .single();
+  if (error) return { error: error.message };
 
   revalidatePath("/dashboard/configuracoes/assistente-virtual");
   revalidatePath("/dashboard/configuracoes/clinica");
-  return { error: null };
+  return { error: null, item: data as VirtualAssistantFaq };
 }
 
 export async function deleteVirtualAssistantFaq(id: string) {
