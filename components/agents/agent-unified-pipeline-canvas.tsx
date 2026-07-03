@@ -37,6 +37,7 @@ import { ASSISTANT_TOOL_CATALOG } from "@/lib/virtual-assistant/tools/catalog";
 import { RuntimePipelineNode } from "./unified-pipeline/runtime-pipeline-node";
 import { StagePipelineNode } from "./unified-pipeline/stage-pipeline-node";
 import { ToolPipelineNode } from "./unified-pipeline/tool-pipeline-node";
+import { RouteAnchorNode } from "./unified-pipeline/route-anchor-node";
 
 export type AgentUnifiedPipelineCanvasProps = {
   trace?: PipelineTrace | null;
@@ -56,7 +57,97 @@ const nodeTypes = {
   hub: RuntimePipelineNode,
   stage: StagePipelineNode,
   tool: ToolPipelineNode,
+  anchor: RouteAnchorNode,
 };
+
+type Pos = { x: number; y: number };
+
+function applyEdgeRouting(
+  edge: Edge,
+  e: { id: string; from: string; to: string; kind: string },
+  pos: Record<string, Pos>
+): void {
+  const fp = pos[e.from];
+  const tp = pos[e.to];
+  if (!fp || !tp) return;
+
+  const dx = tp.x - fp.x;
+  const dy = tp.y - fp.y;
+
+  // Loop CONFIRM → bus → AGENTE (corredor superior direito)
+  if (e.id === "rt-confirm-loopbus") {
+    edge.sourceHandle = "top-src";
+    edge.targetHandle = "top";
+    return;
+  }
+  if (e.id === "rt-loopbus-agent") {
+    edge.sourceHandle = "left";
+    edge.targetHandle = "top";
+    return;
+  }
+
+  // Runtime vertical
+  if (e.id === "rt-router-booking") {
+    edge.sourceHandle = "top-src";
+    edge.targetHandle = "left";
+    return;
+  }
+  if (e.id === "rt-booking-agent") {
+    edge.sourceHandle = "right";
+    edge.targetHandle = "top";
+    return;
+  }
+  if (e.id === "rt-agent-journey" || e.id === "rt-journey-resolver") {
+    edge.sourceHandle = "bottom";
+    edge.targetHandle = "top";
+    return;
+  }
+  if (e.id === "res-stage-entry" || e.id === "res-stage-bridge") {
+    edge.sourceHandle = "bottom";
+    edge.targetHandle = "top";
+    return;
+  }
+
+  // Escalonamento via bus inferior
+  if (e.to === "anchor_escalation_bus") {
+    edge.sourceHandle = "bottom";
+    edge.targetHandle = "top";
+    return;
+  }
+  if (e.from === "anchor_escalation_bus") {
+    edge.sourceHandle = "right";
+    edge.targetHandle = "top";
+    return;
+  }
+
+  if (e.from.startsWith("stage_") && e.to.startsWith("tool_")) {
+    edge.sourceHandle = "bottom";
+    return;
+  }
+
+  if (e.kind === "stage_transition" || e.kind === "parallel") {
+    if (dx < -40) {
+      edge.sourceHandle = "bottom";
+      edge.targetHandle = "bottom";
+      return;
+    }
+    if (dy > 50) {
+      edge.sourceHandle = "bottom";
+      edge.targetHandle = "top";
+      return;
+    }
+    if (dy < -50) {
+      edge.sourceHandle = "top-src";
+      edge.targetHandle = "top";
+      return;
+    }
+    if (dx > 350) {
+      edge.sourceHandle = "bottom";
+      edge.targetHandle = "bottom";
+      return;
+    }
+  }
+}
 
 function countToolsForStage(stageKey: string): number {
   return ASSISTANT_TOOL_CATALOG.filter((t) => {
@@ -156,6 +247,19 @@ function UnifiedPipelineCanvasInner({
           },
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
+          zIndex: 10,
+        };
+      }
+
+      if (n.kind === "anchor") {
+        return {
+          id: n.id,
+          type: "anchor",
+          position: basePosition,
+          data: {},
+          selectable: false,
+          draggable: false,
+          zIndex: 0,
         };
       }
 
@@ -187,6 +291,7 @@ function UnifiedPipelineCanvasInner({
           },
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
+          zIndex: 8,
         };
       }
 
@@ -205,20 +310,16 @@ function UnifiedPipelineCanvasInner({
         },
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top,
+        zIndex: 6,
       };
     });
 
-    const verticalEdges = new Set([
-      "rt-agent-journey",
-      "rt-journey-resolver",
-      "rt-agent-resolver",
-      "rt-resolver-tools",
-      "rt-confirm-agent",
-      "res-stage-entry",
-      "res-stage-bridge",
-    ]);
+    const posMap: Record<string, Pos> = {};
+    for (const n of flowNodes) {
+      posMap[n.id] = n.position;
+    }
 
-    const loopEdges = new Set(["rt-confirm-agent"]);
+    const loopEdges = new Set(["rt-confirm-loopbus", "rt-loopbus-agent"]);
 
     const flowEdges: Edge[] = graph.edges.map((e) => {
       const style = EDGE_STYLES[e.kind];
@@ -231,10 +332,19 @@ function UnifiedPipelineCanvasInner({
       const strokeColor = isActive ? "hsl(var(--primary))" : style.stroke;
 
       const pathOptions = loopEdges.has(e.id)
-        ? { borderRadius: 28, offset: 72 }
-        : e.kind === "transversal" && e.to === "stage_escalonamento"
-          ? { borderRadius: 32, offset: 48 }
-          : { borderRadius: 28, offset: 24 };
+        ? { borderRadius: 16, offset: 8 }
+        : e.to === "anchor_escalation_bus" || e.from === "anchor_escalation_bus"
+          ? { borderRadius: 24, offset: 32 }
+          : e.kind === "stage_transition" && posMap[e.from] && posMap[e.to]
+            ? {
+                borderRadius: 32,
+                offset:
+                  Math.abs(posMap[e.to]!.x - posMap[e.from]!.x) > 350 ||
+                  posMap[e.to]!.x < posMap[e.from]!.x
+                    ? 80
+                    : 28,
+              }
+            : { borderRadius: 24, offset: 20 };
 
       const edge = {
         id: e.id,
@@ -262,31 +372,7 @@ function UnifiedPipelineCanvasInner({
         pathOptions,
       } as Edge;
 
-      if (loopEdges.has(e.id)) {
-        edge.sourceHandle = "top-src";
-        edge.targetHandle = "top";
-      } else if (verticalEdges.has(e.id)) {
-        if (e.from === "runtime_agent" || e.from === "runtime_journey" || e.from === "runtime_resolver") {
-          edge.sourceHandle = "bottom";
-        }
-        if (
-          e.to === "runtime_journey" ||
-          e.to === "runtime_resolver" ||
-          e.to === "runtime_tools_hub" ||
-          e.to.startsWith("stage_")
-        ) {
-          edge.targetHandle = "top";
-        }
-      }
-
-      if (e.kind === "transversal" && e.to === "stage_escalonamento") {
-        edge.sourceHandle = "bottom";
-        edge.targetHandle = "top";
-      }
-
-      if (e.from.startsWith("stage_") && e.to.startsWith("tool_")) {
-        edge.sourceHandle = "bottom";
-      }
+      applyEdgeRouting(edge, e, posMap);
 
       return edge;
     });

@@ -9,7 +9,7 @@ import {
   type AgentPipelineStage,
 } from "./stages";
 
-export type UnifiedNodeKind = "runtime" | "stage" | "tool" | "hub";
+export type UnifiedNodeKind = "runtime" | "stage" | "tool" | "hub" | "anchor";
 
 export type UnifiedEdgeKind =
   | "runtime"
@@ -47,44 +47,62 @@ export type UnifiedGraphEdge = {
   label?: string;
 };
 
-/** Swimlanes — espaçamento generoso para evitar linhas sobre nós */
+/** Swimlanes — runtime no topo, CRM abaixo com colunas separadas */
 const LAYOUT = {
-  /** Faixa 1: runtime horizontal */
-  runtimeY: 0,
-  runtimeStepX: 240,
-  /** Faixa 2: contexto (jornada, resolver, tools) */
-  contextY: 220,
-  /** Faixa 3: etapas CRM — linha principal */
-  stageMainY: 520,
-  /** Faixa 4: trilhas paralelas */
-  parallelY: 740,
-  /** Faixa 5: tools expandidas */
-  toolRowY: 960,
-  /** Coluna principal entre etapas */
-  stageStepX: 420,
-  /** Coluna lateral (orçamento / agendamento / financeiro) */
-  branchX: 880,
-  branchOrcamentoY: 440,
-  branchAgendamentoY: 640,
-  branchFinanceiroY: 740,
-  /** Offset vertical entre grupos de tools */
-  toolGroupGapY: 180,
-  toolColGapX: 130,
-  toolRowGapY: 56,
+  runtimeY: 60,
+  runtimeStepX: 300,
+  bookingY: -130,
+  contextY: 360,
+  loopBusX: 2580,
+  loopBusY: -180,
+
+  stageMainY: 760,
+  stageStepX: 540,
+
+  branchColX: 1080,
+  branchOrcamentoY: 620,
+  branchAgendamentoY: 860,
+  branchFinanceiroY: 1020,
+
+  parallelY: 1020,
+  formulariosX: 2160,
+  escalonamentoX: 2760,
+  escalationBusX: 1400,
+  escalationBusY: 1200,
+
+  toolRowY: 1240,
+  toolGroupGapY: 220,
+  toolColGapX: 140,
+  toolRowGapY: 58,
 } as const;
 
 const STAGE_POSITIONS: Record<string, { x: number; y: number }> = {
   identificacao: { x: 0, y: LAYOUT.stageMainY },
   captacao: { x: LAYOUT.stageStepX, y: LAYOUT.stageMainY },
-  orcamento: { x: LAYOUT.branchX, y: LAYOUT.branchOrcamentoY },
-  agendamento: { x: LAYOUT.branchX, y: LAYOUT.branchAgendamentoY },
+  orcamento: { x: LAYOUT.branchColX, y: LAYOUT.branchOrcamentoY },
+  agendamento: { x: LAYOUT.branchColX + 280, y: LAYOUT.branchAgendamentoY },
   confirmacao_pre_consulta: { x: LAYOUT.stageStepX * 3, y: LAYOUT.stageMainY },
   pos_consulta: { x: LAYOUT.stageStepX * 4, y: LAYOUT.stageMainY },
   satisfacao: { x: LAYOUT.stageStepX * 5, y: LAYOUT.stageMainY },
-  financeiro: { x: LAYOUT.branchX, y: LAYOUT.branchFinanceiroY },
-  formularios: { x: LAYOUT.stageStepX * 3, y: LAYOUT.parallelY },
-  escalonamento: { x: LAYOUT.stageStepX * 4, y: LAYOUT.parallelY },
+  financeiro: { x: LAYOUT.branchColX, y: LAYOUT.branchFinanceiroY },
+  formularios: { x: LAYOUT.formulariosX, y: LAYOUT.parallelY },
+  escalonamento: { x: LAYOUT.escalonamentoX, y: LAYOUT.parallelY },
 };
+
+export const ROUTE_ANCHOR_NODES: UnifiedGraphNode[] = [
+  {
+    id: "anchor_loop_bus",
+    kind: "anchor",
+    label: "",
+    position: { x: LAYOUT.loopBusX, y: LAYOUT.loopBusY },
+  },
+  {
+    id: "anchor_escalation_bus",
+    kind: "anchor",
+    label: "",
+    position: { x: LAYOUT.escalationBusX, y: LAYOUT.escalationBusY },
+  },
+];
 
 export const RUNTIME_NODES: UnifiedGraphNode[] = [
   {
@@ -120,7 +138,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Booking Machine",
     shortLabel: "BOOKING",
     description: "Fluxo determinístico de agendamento",
-    position: { x: LAYOUT.runtimeStepX * 3, y: LAYOUT.runtimeY - 90 },
+    position: { x: LAYOUT.runtimeStepX * 3, y: LAYOUT.bookingY },
     runtimeIcon: "booking",
   },
   {
@@ -129,7 +147,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Agente",
     shortLabel: "AGENTE",
     description: "OpenAI function calling loop",
-    position: { x: LAYOUT.runtimeStepX * 3, y: LAYOUT.runtimeY + 90 },
+    position: { x: LAYOUT.runtimeStepX * 4, y: LAYOUT.runtimeY },
     runtimeIcon: "agent",
   },
   {
@@ -138,7 +156,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Jornada CRM",
     shortLabel: "JORNADA",
     description: "loadContactJourneyForAi preload",
-    position: { x: LAYOUT.runtimeStepX * 2 - 40, y: LAYOUT.contextY },
+    position: { x: LAYOUT.runtimeStepX * 3, y: LAYOUT.contextY },
     runtimeIcon: "journey",
   },
   {
@@ -147,7 +165,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Resolver etapa",
     shortLabel: "RESOLVER",
     description: "resolveAgentPipelineStage",
-    position: { x: LAYOUT.runtimeStepX * 4, y: LAYOUT.contextY },
+    position: { x: LAYOUT.runtimeStepX * 5, y: LAYOUT.contextY },
     runtimeIcon: "resolver",
   },
   {
@@ -156,7 +174,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Ferramentas filtradas",
     shortLabel: "TOOLS",
     description: "filterToolsForStage — subset por etapa",
-    position: { x: LAYOUT.runtimeStepX * 5, y: LAYOUT.contextY },
+    position: { x: LAYOUT.runtimeStepX * 6, y: LAYOUT.contextY },
     runtimeIcon: "tools",
   },
   {
@@ -165,7 +183,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Confirmação",
     shortLabel: "CONFIRM",
     description: "human_confirm gate por tool",
-    position: { x: LAYOUT.runtimeStepX * 6, y: LAYOUT.contextY },
+    position: { x: LAYOUT.runtimeStepX * 7, y: LAYOUT.contextY },
     runtimeIcon: "confirm",
   },
   {
@@ -174,7 +192,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Resposta",
     shortLabel: "RESPOSTA",
     description: "send-reply WhatsApp",
-    position: { x: LAYOUT.runtimeStepX * 7, y: LAYOUT.runtimeY + 90 },
+    position: { x: LAYOUT.runtimeStepX * 8, y: LAYOUT.runtimeY },
     runtimeIcon: "response",
   },
 ];
@@ -187,10 +205,10 @@ export const RUNTIME_EDGES: UnifiedGraphEdge[] = [
   { id: "rt-booking-agent", from: "runtime_booking", to: "runtime_agent", kind: "runtime" },
   { id: "rt-agent-journey", from: "runtime_agent", to: "runtime_journey", kind: "context" },
   { id: "rt-journey-resolver", from: "runtime_journey", to: "runtime_resolver", kind: "context" },
-  { id: "rt-agent-resolver", from: "runtime_agent", to: "runtime_resolver", kind: "context" },
   { id: "rt-resolver-tools", from: "runtime_resolver", to: "runtime_tools_hub", kind: "tool_filter" },
   { id: "rt-tools-confirm", from: "runtime_tools_hub", to: "runtime_confirm_gate", kind: "runtime" },
-  { id: "rt-confirm-agent", from: "runtime_confirm_gate", to: "runtime_agent", kind: "return", label: "loop" },
+  { id: "rt-confirm-loopbus", from: "runtime_confirm_gate", to: "anchor_loop_bus", kind: "return", label: "loop" },
+  { id: "rt-loopbus-agent", from: "anchor_loop_bus", to: "runtime_agent", kind: "return" },
   { id: "rt-agent-response", from: "runtime_agent", to: "runtime_response", kind: "return" },
 ];
 
@@ -270,24 +288,32 @@ export function buildToolNodes(expandedStages: Set<string>): UnifiedGraphNode[] 
 }
 
 export function buildStageTransitionEdges(): UnifiedGraphEdge[] {
-  const edges = AGENT_PIPELINE_FLOW_EDGES.map((e, i) => ({
+  return AGENT_PIPELINE_FLOW_EDGES.filter((e) => e.kind !== "transversal").map((e, i) => ({
     id: `st-${i}`,
     from: `stage_${e.from}`,
     to: `stage_${e.to}`,
-    kind:
-      e.kind === "transversal"
-        ? ("transversal" as const)
-        : e.kind === "parallel"
-          ? ("parallel" as const)
-          : ("stage_transition" as const),
+    kind: e.kind === "parallel" ? ("parallel" as const) : ("stage_transition" as const),
     label: e.label,
   }));
+}
 
-  // Reduz linhas transversais — só 3 entradas principais para escalonamento
-  const transversalFrom = new Set(["captacao", "agendamento", "confirmacao_pre_consulta"]);
-  return edges.filter(
-    (e) => e.kind !== "transversal" || transversalFrom.has(e.from.replace("stage_", ""))
-  );
+/** Escalonamento via corredor inferior — evita linhas vermelhas cruzando etapas */
+export function buildEscalationBusEdges(): UnifiedGraphEdge[] {
+  const fromStages = ["captacao", "agendamento", "confirmacao_pre_consulta"] as const;
+  const edges: UnifiedGraphEdge[] = fromStages.map((id, i) => ({
+    id: `esc-bus-${i}`,
+    from: `stage_${id}`,
+    to: "anchor_escalation_bus",
+    kind: "transversal" as const,
+    label: i === 0 ? "Escalar" : undefined,
+  }));
+  edges.push({
+    id: "esc-bus-dest",
+    from: "anchor_escalation_bus",
+    to: "stage_escalonamento",
+    kind: "transversal",
+  });
+  return edges;
 }
 
 export function buildResolverToStageEdges(): UnifiedGraphEdge[] {
@@ -386,14 +412,14 @@ export function buildTransversalRuntimeEdges(): UnifiedGraphEdge[] {
     {
       id: "rt-agent-esc",
       from: "runtime_agent",
-      to: "stage_escalonamento",
+      to: "anchor_escalation_bus",
       kind: "transversal",
       label: "escalar",
     },
     {
       id: "rt-resp-esc",
       from: "runtime_response",
-      to: "stage_escalonamento",
+      to: "anchor_escalation_bus",
       kind: "transversal",
     },
   ];
@@ -415,6 +441,7 @@ export function buildUnifiedGraph(opts: BuildUnifiedGraphOptions = {}): {
   const edges: UnifiedGraphEdge[] = [
     ...RUNTIME_EDGES,
     ...buildStageTransitionEdges(),
+    ...buildEscalationBusEdges(),
     ...buildResolverToStageEdges(),
     ...buildStageToToolsHubEdges(),
     ...buildTransversalRuntimeEdges(),
@@ -424,7 +451,7 @@ export function buildUnifiedGraph(opts: BuildUnifiedGraphOptions = {}): {
   ];
 
   return {
-    nodes: [...RUNTIME_NODES, ...stageNodes, ...toolNodes],
+    nodes: [...RUNTIME_NODES, ...ROUTE_ANCHOR_NODES, ...stageNodes, ...toolNodes],
     edges,
   };
 }
@@ -434,8 +461,16 @@ export const RUNTIME_PATH_MAP: Record<string, string[]> = {
   request: ["rt-msg-debounce", "rt-debounce-router"],
   router: ["rt-msg-debounce", "rt-debounce-router", "rt-router-agent"],
   agent: ["rt-router-agent"],
-  memory: ["rt-router-agent", "rt-agent-journey", "rt-journey-resolver", "rt-agent-resolver"],
-  tools: ["rt-router-agent", "rt-agent-resolver", "rt-resolver-tools", "rt-tools-confirm"],
+  memory: ["rt-router-agent", "rt-agent-journey", "rt-journey-resolver"],
+  tools: [
+    "rt-router-agent",
+    "rt-agent-journey",
+    "rt-journey-resolver",
+    "rt-resolver-tools",
+    "rt-tools-confirm",
+    "rt-confirm-loopbus",
+    "rt-loopbus-agent",
+  ],
   response: ["rt-agent-response"],
   handoff: ["rt-agent-response", "rt-agent-esc"],
   retry: ["rt-msg-debounce", "rt-debounce-router", "rt-router-agent"],
