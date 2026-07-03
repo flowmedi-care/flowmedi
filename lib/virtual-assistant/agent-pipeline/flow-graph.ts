@@ -18,6 +18,8 @@ export type AgentPipelineFlowEdge = {
   to: AgentPipelineFlowNode["id"];
   label?: string;
   kind: "main" | "parallel" | "transversal";
+  /** Hint para roteamento ortogonal no canvas (derivado automaticamente se omitido) */
+  routingHint?: "direct" | "bus-bottom" | "bus-top" | "bus-escalation";
 };
 
 const catalogByName = new Map(ASSISTANT_TOOL_CATALOG.map((t) => [t.name, t]));

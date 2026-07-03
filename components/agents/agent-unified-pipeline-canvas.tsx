@@ -27,7 +27,9 @@ import {
   buildUnifiedGraph,
   EDGE_KIND_LABELS,
   EDGE_STYLES,
+  FLOW_EXPLANATION,
   getToolPrimaryStage,
+  nodeBelongsToView,
   resolveUnifiedPipelineHighlight,
   getDemoStageForTick,
   type AgentPipelineStage,
@@ -38,6 +40,10 @@ import { RuntimePipelineNode } from "./unified-pipeline/runtime-pipeline-node";
 import { StagePipelineNode } from "./unified-pipeline/stage-pipeline-node";
 import { ToolPipelineNode } from "./unified-pipeline/tool-pipeline-node";
 import { RouteAnchorNode } from "./unified-pipeline/route-anchor-node";
+import { OrthogonalEdge } from "./unified-pipeline/orthogonal-edge";
+import { PoolGroupNode } from "./unified-pipeline/pool-group-node";
+
+export type PipelineViewMode = "unified" | "runtime" | "journey";
 
 export type AgentUnifiedPipelineCanvasProps = {
   trace?: PipelineTrace | null;
@@ -50,6 +56,8 @@ export type AgentUnifiedPipelineCanvasProps = {
   showExpandButton?: boolean;
   showLegend?: boolean;
   className?: string;
+  viewMode?: PipelineViewMode;
+  onViewModeChange?: (mode: PipelineViewMode) => void;
 };
 
 const nodeTypes = {
@@ -58,96 +66,12 @@ const nodeTypes = {
   stage: StagePipelineNode,
   tool: ToolPipelineNode,
   anchor: RouteAnchorNode,
+  pool: PoolGroupNode,
 };
 
-type Pos = { x: number; y: number };
-
-function applyEdgeRouting(
-  edge: Edge,
-  e: { id: string; from: string; to: string; kind: string },
-  pos: Record<string, Pos>
-): void {
-  const fp = pos[e.from];
-  const tp = pos[e.to];
-  if (!fp || !tp) return;
-
-  const dx = tp.x - fp.x;
-  const dy = tp.y - fp.y;
-
-  // Loop CONFIRM → bus → AGENTE (corredor superior direito)
-  if (e.id === "rt-confirm-loopbus") {
-    edge.sourceHandle = "top-src";
-    edge.targetHandle = "top";
-    return;
-  }
-  if (e.id === "rt-loopbus-agent") {
-    edge.sourceHandle = "left";
-    edge.targetHandle = "top";
-    return;
-  }
-
-  // Runtime vertical
-  if (e.id === "rt-router-booking") {
-    edge.sourceHandle = "top-src";
-    edge.targetHandle = "left";
-    return;
-  }
-  if (e.id === "rt-booking-agent") {
-    edge.sourceHandle = "right";
-    edge.targetHandle = "top";
-    return;
-  }
-  if (e.id === "rt-agent-journey" || e.id === "rt-journey-resolver") {
-    edge.sourceHandle = "bottom";
-    edge.targetHandle = "top";
-    return;
-  }
-  if (e.id === "res-stage-entry" || e.id === "res-stage-bridge") {
-    edge.sourceHandle = "bottom";
-    edge.targetHandle = "top";
-    return;
-  }
-
-  // Escalonamento via bus inferior
-  if (e.to === "anchor_escalation_bus") {
-    edge.sourceHandle = "bottom";
-    edge.targetHandle = "top";
-    return;
-  }
-  if (e.from === "anchor_escalation_bus") {
-    edge.sourceHandle = "right";
-    edge.targetHandle = "top";
-    return;
-  }
-
-  if (e.from.startsWith("stage_") && e.to.startsWith("tool_")) {
-    edge.sourceHandle = "bottom";
-    return;
-  }
-
-  if (e.kind === "stage_transition" || e.kind === "parallel") {
-    if (dx < -40) {
-      edge.sourceHandle = "bottom";
-      edge.targetHandle = "bottom";
-      return;
-    }
-    if (dy > 50) {
-      edge.sourceHandle = "bottom";
-      edge.targetHandle = "top";
-      return;
-    }
-    if (dy < -50) {
-      edge.sourceHandle = "top-src";
-      edge.targetHandle = "top";
-      return;
-    }
-    if (dx > 350) {
-      edge.sourceHandle = "bottom";
-      edge.targetHandle = "bottom";
-      return;
-    }
-  }
-}
+const edgeTypes = {
+  orthogonal: OrthogonalEdge,
+};
 
 function countToolsForStage(stageKey: string): number {
   return ASSISTANT_TOOL_CATALOG.filter((t) => {
@@ -161,12 +85,48 @@ function FitViewOnChange({ deps }: { deps: unknown[] }) {
   const { fitView } = useReactFlow();
   useEffect(() => {
     const t = setTimeout(() => {
-      void fitView({ padding: 0.22, duration: 320 });
+      void fitView({ padding: 0.18, duration: 320 });
     }, 120);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refit when graph layout changes
   }, deps);
   return null;
+}
+
+function ViewModeToggle({
+  value,
+  onChange,
+  compact,
+}: {
+  value: PipelineViewMode;
+  onChange: (m: PipelineViewMode) => void;
+  compact?: boolean;
+}) {
+  if (compact) return null;
+  const modes: { id: PipelineViewMode; label: string }[] = [
+    { id: "unified", label: "Unificado" },
+    { id: "runtime", label: "Execução" },
+    { id: "journey", label: "Jornada CRM" },
+  ];
+  return (
+    <div className="absolute right-2 top-2 z-10 flex gap-1 rounded-lg border bg-background/95 p-0.5 shadow-sm backdrop-blur-sm">
+      {modes.map((m) => (
+        <button
+          key={m.id}
+          type="button"
+          onClick={() => onChange(m.id)}
+          className={cn(
+            "rounded-md px-2 py-1 text-[9px] font-medium transition-colors",
+            value === m.id
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted"
+          )}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function UnifiedPipelineCanvasInner({
@@ -180,11 +140,16 @@ function UnifiedPipelineCanvasInner({
   showExpandButton = true,
   showLegend = true,
   className,
+  viewMode: viewModeProp,
+  onViewModeChange,
 }: AgentUnifiedPipelineCanvasProps) {
   const compact = variant === "compact";
   const [expanded, setExpanded] = useState(false);
   const [expandedStages, setExpandedStages] = useState<Set<string>>(() => new Set());
   const [demoTick, setDemoTick] = useState(0);
+  const [internalViewMode, setInternalViewMode] = useState<PipelineViewMode>("unified");
+  const viewMode = viewModeProp ?? internalViewMode;
+  const setViewMode = onViewModeChange ?? setInternalViewMode;
 
   const isLive = trace?.isLive ?? false;
   const demoTrace = buildDemoTrace(demoTick);
@@ -225,18 +190,60 @@ function UnifiedPipelineCanvasInner({
   }, []);
 
   const { nodes, edges } = useMemo(() => {
-    const graph = buildUnifiedGraph({ expandedStages });
+    const graph = buildUnifiedGraph({
+      expandedStages,
+      activeStage,
+      parallelStages,
+    });
     const compactScale = compact ? 0.55 : 1;
 
-    const flowNodes: Node[] = graph.nodes.map((n) => {
+    const flowNodes: Node[] = [];
+
+    for (const n of graph.nodes) {
+      const pool = n.poolId ?? null;
+      if (!nodeBelongsToView(n.id, pool as Parameters<typeof nodeBelongsToView>[1], viewMode)) {
+        continue;
+      }
+
       const basePosition = {
         x: n.position.x * compactScale,
         y: n.position.y * compactScale,
       };
 
+      if (n.kind === "pool") {
+        flowNodes.push({
+          id: n.id,
+          type: "pool",
+          position: basePosition,
+          data: {
+            label: n.label,
+            width: (n.poolWidth ?? 400) * compactScale,
+            height: (n.poolHeight ?? 200) * compactScale,
+          },
+          draggable: false,
+          selectable: false,
+          zIndex: -1,
+        });
+        continue;
+      }
+
+      if (n.kind === "anchor") {
+        if (viewMode !== "unified") continue;
+        flowNodes.push({
+          id: n.id,
+          type: "anchor",
+          position: basePosition,
+          data: {},
+          selectable: false,
+          draggable: false,
+          zIndex: 0,
+        });
+        continue;
+      }
+
       if (n.kind === "runtime" || n.kind === "hub") {
         const isActive = highlight.activeRuntimeNodeIds.includes(n.id);
-        return {
+        flowNodes.push({
           id: n.id,
           type: n.kind === "hub" ? "hub" : "runtime",
           position: basePosition,
@@ -248,19 +255,8 @@ function UnifiedPipelineCanvasInner({
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
           zIndex: 10,
-        };
-      }
-
-      if (n.kind === "anchor") {
-        return {
-          id: n.id,
-          type: "anchor",
-          position: basePosition,
-          data: {},
-          selectable: false,
-          draggable: false,
-          zIndex: 0,
-        };
+        });
+        continue;
       }
 
       if (n.kind === "stage") {
@@ -271,13 +267,11 @@ function UnifiedPipelineCanvasInner({
         if (stageKey === "escalonamento") state = "transversal";
         else if (isCurrent) state = "current";
         else if (isParallel) state = "parallel";
-        else if (n.stageCode && parallelStages.includes(n.stageCode as AgentPipelineStage))
-          state = "parallel";
 
         const toolCount = countToolsForStage(stageKey);
         const isExpanded = expandedStages.has(stageKey);
 
-        return {
+        flowNodes.push({
           id: n.id,
           type: "stage",
           position: basePosition,
@@ -292,13 +286,13 @@ function UnifiedPipelineCanvasInner({
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
           zIndex: 8,
-        };
+        });
+        continue;
       }
 
-      // tool — posição global (sem parentId)
       const isActive = highlight.activeToolIds.includes(n.id);
       const confirmMode = n.toolName && toolModes ? toolModes[n.toolName] : undefined;
-      return {
+      flowNodes.push({
         id: n.id,
         type: "tool",
         position: basePosition,
@@ -311,71 +305,68 @@ function UnifiedPipelineCanvasInner({
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top,
         zIndex: 6,
-      };
-    });
-
-    const posMap: Record<string, Pos> = {};
-    for (const n of flowNodes) {
-      posMap[n.id] = n.position;
+      });
     }
 
-    const loopEdges = new Set(["rt-confirm-loopbus", "rt-loopbus-agent"]);
+    const visibleNodeIds = new Set(flowNodes.map((n) => n.id));
 
-    const flowEdges: Edge[] = graph.edges.map((e) => {
-      const style = EDGE_STYLES[e.kind];
-      const isActive =
-        highlight.activeRuntimeEdgeIds.includes(e.id) ||
-        highlight.activeEdgeIds.includes(e.id) ||
-        (highlight.activeStageNodeId &&
-          (e.from === highlight.activeStageNodeId || e.to === highlight.activeStageNodeId));
+    const flowEdges: Edge[] = graph.edges
+      .filter((e) => {
+        if (!visibleNodeIds.has(e.from) || !visibleNodeIds.has(e.to)) return false;
+        if (viewMode === "runtime") {
+          return (
+            e.from.startsWith("runtime_") ||
+            e.to.startsWith("runtime_") ||
+            e.from.startsWith("anchor_") ||
+            e.to.startsWith("anchor_") ||
+            e.id.startsWith("dyn-")
+          );
+        }
+        if (viewMode === "journey") {
+          return (
+            !e.from.startsWith("runtime_") ||
+            e.id.startsWith("dyn-") ||
+            e.from === "runtime_resolver"
+          );
+        }
+        return true;
+      })
+      .map((e) => {
+        const style = EDGE_STYLES[e.kind];
+        const isActive =
+          highlight.activeRuntimeEdgeIds.includes(e.id) ||
+          highlight.activeEdgeIds.includes(e.id) ||
+          e.id === highlight.activeResolverEdgeId ||
+          e.id === highlight.activeStageToHubEdgeId;
 
-      const strokeColor = isActive ? "hsl(var(--primary))" : style.stroke;
+        const strokeColor = isActive ? "hsl(var(--primary))" : style.stroke;
 
-      const pathOptions = loopEdges.has(e.id)
-        ? { borderRadius: 16, offset: 8 }
-        : e.to === "anchor_escalation_bus" || e.from === "anchor_escalation_bus"
-          ? { borderRadius: 24, offset: 32 }
-          : e.kind === "stage_transition" && posMap[e.from] && posMap[e.to]
-            ? {
-                borderRadius: 32,
-                offset:
-                  Math.abs(posMap[e.to]!.x - posMap[e.from]!.x) > 350 ||
-                  posMap[e.to]!.x < posMap[e.from]!.x
-                    ? 80
-                    : 28,
-              }
-            : { borderRadius: 24, offset: 20 };
-
-      const edge = {
-        id: e.id,
-        source: e.from,
-        target: e.to,
-        type: "smoothstep",
-        label: compact ? undefined : e.label,
-        animated: Boolean(isActive),
-        style: {
-          stroke: strokeColor,
-          strokeWidth: isActive ? style.strokeWidth + 1 : style.strokeWidth,
-          strokeDasharray: style.strokeDasharray,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 12,
-          height: 12,
-          color: strokeColor,
-        },
-        labelStyle: { fontSize: 9, fill: "#475569", fontWeight: 500 },
-        labelBgStyle: { fill: "hsl(var(--background))", fillOpacity: 0.95 },
-        labelBgPadding: [4, 6] as [number, number],
-        labelBgBorderRadius: 4,
-        zIndex: 0,
-        pathOptions,
-      } as Edge;
-
-      applyEdgeRouting(edge, e, posMap);
-
-      return edge;
-    });
+        return {
+          id: e.id,
+          source: e.from,
+          target: e.to,
+          type: "orthogonal",
+          label: compact ? undefined : e.label,
+          animated: Boolean(isActive),
+          data: { routing: e.routing },
+          style: {
+            stroke: strokeColor,
+            strokeWidth: isActive ? style.strokeWidth + 1 : style.strokeWidth,
+            strokeDasharray: style.strokeDasharray,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 12,
+            height: 12,
+            color: strokeColor,
+          },
+          labelStyle: { fontSize: 9, fill: "#475569", fontWeight: 500 },
+          labelBgStyle: { fill: "hsl(var(--background))", fillOpacity: 0.95 },
+          labelBgPadding: [4, 6] as [number, number],
+          labelBgBorderRadius: 4,
+          zIndex: 0,
+        } satisfies Edge;
+      });
 
     return { nodes: flowNodes, edges: flowEdges };
   }, [
@@ -385,13 +376,23 @@ function UnifiedPipelineCanvasInner({
     parallelStages,
     toolModes,
     toggleStage,
+    activeStage,
+    viewMode,
   ]);
 
   const canvas = (
     <div className={cn("relative h-full w-full [&_.react-flow__edge-path]:stroke-[inherit]", className)}>
+      <ViewModeToggle value={viewMode} onChange={setViewMode} compact={compact} />
+
       {showLegend && !compact && (
-        <div className="absolute left-2 top-2 z-10 max-w-[200px] rounded-lg border bg-background/95 p-2 text-[9px] shadow-sm backdrop-blur-sm">
-          <p className="font-semibold mb-1">Legenda</p>
+        <div className="absolute left-2 top-2 z-10 max-w-[240px] rounded-lg border bg-background/95 p-2.5 text-[9px] shadow-sm backdrop-blur-sm">
+          <p className="font-semibold mb-1">{FLOW_EXPLANATION.title}</p>
+          <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground mb-2">
+            {FLOW_EXPLANATION.steps.map((s) => (
+              <li key={s}>{s}</li>
+            ))}
+          </ol>
+          <p className="font-semibold mb-1 border-t pt-1.5">Tipos de linha</p>
           <ul className="space-y-0.5 text-muted-foreground">
             {(Object.keys(EDGE_KIND_LABELS) as (keyof typeof EDGE_KIND_LABELS)[]).map((k) => (
               <li key={k} className="flex items-center gap-1.5">
@@ -408,8 +409,13 @@ function UnifiedPipelineCanvasInner({
               </li>
             ))}
           </ul>
+          {activeStage && (
+            <p className="mt-2 rounded bg-primary/10 px-1.5 py-1 text-[8px] text-primary font-medium">
+              Etapa ativa: {activeStage.replace(/_/g, " ")}
+            </p>
+          )}
           <p className="mt-1.5 text-[8px] text-muted-foreground">
-            Clique numa etapa para expandir tools e ver dependências.
+            Clique numa etapa para expandir tools e dependências.
           </p>
         </div>
       )}
@@ -417,6 +423,7 @@ function UnifiedPipelineCanvasInner({
       {!isLive && !compact && (
         <span className="absolute bottom-2 right-2 z-10 rounded bg-muted/80 px-1.5 py-0.5 text-[8px] font-mono text-muted-foreground">
           demo · {effectiveTrace.activeStep}
+          {activeStage ? ` · ${activeStage}` : ""}
         </span>
       )}
 
@@ -424,13 +431,14 @@ function UnifiedPipelineCanvasInner({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         defaultEdgeOptions={{
-          type: "smoothstep",
+          type: "orthogonal",
           markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12 },
         }}
         fitView
-        fitViewOptions={{ padding: compact ? 0.12 : 0.22 }}
-        minZoom={compact ? 0.08 : 0.1}
+        fitViewOptions={{ padding: compact ? 0.12 : 0.18 }}
+        minZoom={compact ? 0.06 : 0.08}
         maxZoom={compact ? 0.9 : 1.5}
         nodesDraggable={false}
         nodesConnectable={false}
@@ -438,7 +446,7 @@ function UnifiedPipelineCanvasInner({
         elevateEdgesOnSelect={false}
         proOptions={{ hideAttribution: true }}
       >
-        <FitViewOnChange deps={[expandedStages, compact, nodes.length, edges.length]} />
+        <FitViewOnChange deps={[expandedStages, compact, viewMode, nodes.length, edges.length, activeStage]} />
         <Background gap={compact ? 16 : 28} size={1} />
         {!compact && <Controls showInteractive={false} />}
         {!compact && <MiniMap zoomable pannable className="!bg-background/80" />}
@@ -461,7 +469,7 @@ function UnifiedPipelineCanvasInner({
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute right-2 top-2 z-20 h-7 w-7 bg-background/70 backdrop-blur-sm"
+          className="absolute right-2 top-12 z-20 h-7 w-7 bg-background/70 backdrop-blur-sm"
           onClick={() => setExpanded(true)}
           aria-label="Expandir mapa do pipeline"
         >
@@ -481,7 +489,7 @@ function UnifiedPipelineCanvasInner({
               <div>
                 <p className="text-sm font-semibold">Mapa unificado do pipeline</p>
                 <p className="text-xs text-muted-foreground">
-                  Mensagem → Roteador → Agente → Jornada → Etapas → Ferramentas → Resposta
+                  Pools: Ingresso → Execução → Jornada → Ramificações → Escalonamento
                 </p>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={() => setExpanded(false)}>

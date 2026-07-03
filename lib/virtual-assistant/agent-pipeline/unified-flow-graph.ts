@@ -8,8 +8,16 @@ import {
   AGENT_PIPELINE_STAGES,
   type AgentPipelineStage,
 } from "./stages";
+import {
+  deriveEdgeRouting,
+  getNodePosition,
+  getToolPosition,
+  MAIN_STAGE_CODES,
+  NODE_POSITIONS,
+  POOL_BOUNDS,
+} from "./pool-layout";
 
-export type UnifiedNodeKind = "runtime" | "stage" | "tool" | "hub" | "anchor";
+export type UnifiedNodeKind = "runtime" | "stage" | "tool" | "hub" | "anchor" | "pool";
 
 export type UnifiedEdgeKind =
   | "runtime"
@@ -29,14 +37,15 @@ export type UnifiedGraphNode = {
   description?: string;
   position: { x: number; y: number };
   parentId?: string;
-  /** stage code for stage nodes */
   stageCode?: AgentPipelineStage | "escalonamento";
-  /** tool name for tool nodes */
   toolName?: string;
   toolCategory?: string;
   mutating?: boolean;
   crmPhase?: string;
   runtimeIcon?: "message" | "router" | "agent" | "journey" | "tools" | "response" | "debounce" | "booking" | "confirm" | "resolver";
+  poolId?: string;
+  poolWidth?: number;
+  poolHeight?: number;
 };
 
 export type UnifiedGraphEdge = {
@@ -45,64 +54,8 @@ export type UnifiedGraphEdge = {
   to: string;
   kind: UnifiedEdgeKind;
   label?: string;
+  routing?: import("./pool-layout").EdgeRoutingMode;
 };
-
-/** Swimlanes — runtime no topo, CRM abaixo com colunas separadas */
-const LAYOUT = {
-  runtimeY: 60,
-  runtimeStepX: 300,
-  bookingY: -130,
-  contextY: 360,
-  loopBusX: 2580,
-  loopBusY: -180,
-
-  stageMainY: 760,
-  stageStepX: 540,
-
-  branchColX: 1080,
-  branchOrcamentoY: 620,
-  branchAgendamentoY: 860,
-  branchFinanceiroY: 1020,
-
-  parallelY: 1020,
-  formulariosX: 2160,
-  escalonamentoX: 2760,
-  escalationBusX: 1400,
-  escalationBusY: 1200,
-
-  toolRowY: 1240,
-  toolGroupGapY: 220,
-  toolColGapX: 140,
-  toolRowGapY: 58,
-} as const;
-
-const STAGE_POSITIONS: Record<string, { x: number; y: number }> = {
-  identificacao: { x: 0, y: LAYOUT.stageMainY },
-  captacao: { x: LAYOUT.stageStepX, y: LAYOUT.stageMainY },
-  orcamento: { x: LAYOUT.branchColX, y: LAYOUT.branchOrcamentoY },
-  agendamento: { x: LAYOUT.branchColX + 280, y: LAYOUT.branchAgendamentoY },
-  confirmacao_pre_consulta: { x: LAYOUT.stageStepX * 3, y: LAYOUT.stageMainY },
-  pos_consulta: { x: LAYOUT.stageStepX * 4, y: LAYOUT.stageMainY },
-  satisfacao: { x: LAYOUT.stageStepX * 5, y: LAYOUT.stageMainY },
-  financeiro: { x: LAYOUT.branchColX, y: LAYOUT.branchFinanceiroY },
-  formularios: { x: LAYOUT.formulariosX, y: LAYOUT.parallelY },
-  escalonamento: { x: LAYOUT.escalonamentoX, y: LAYOUT.parallelY },
-};
-
-export const ROUTE_ANCHOR_NODES: UnifiedGraphNode[] = [
-  {
-    id: "anchor_loop_bus",
-    kind: "anchor",
-    label: "",
-    position: { x: LAYOUT.loopBusX, y: LAYOUT.loopBusY },
-  },
-  {
-    id: "anchor_escalation_bus",
-    kind: "anchor",
-    label: "",
-    position: { x: LAYOUT.escalationBusX, y: LAYOUT.escalationBusY },
-  },
-];
 
 export const RUNTIME_NODES: UnifiedGraphNode[] = [
   {
@@ -111,8 +64,9 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Mensagem",
     shortLabel: "MENSAGEM",
     description: "Webhook WhatsApp inbound",
-    position: { x: 0, y: LAYOUT.runtimeY },
+    position: getNodePosition("runtime_msg"),
     runtimeIcon: "message",
+    poolId: "ingress",
   },
   {
     id: "runtime_debounce",
@@ -120,8 +74,9 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Debounce",
     shortLabel: "DEBOUNCE",
     description: "Aguarda mensagens agrupadas",
-    position: { x: LAYOUT.runtimeStepX, y: LAYOUT.runtimeY },
+    position: getNodePosition("runtime_debounce"),
     runtimeIcon: "debounce",
+    poolId: "ingress",
   },
   {
     id: "runtime_router",
@@ -129,8 +84,9 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Roteador",
     shortLabel: "ROTEADOR",
     description: "intent-router + detect-inbound-intent",
-    position: { x: LAYOUT.runtimeStepX * 2, y: LAYOUT.runtimeY },
+    position: getNodePosition("runtime_router"),
     runtimeIcon: "router",
+    poolId: "ingress",
   },
   {
     id: "runtime_booking",
@@ -138,8 +94,9 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Booking Machine",
     shortLabel: "BOOKING",
     description: "Fluxo determinístico de agendamento",
-    position: { x: LAYOUT.runtimeStepX * 3, y: LAYOUT.bookingY },
+    position: getNodePosition("runtime_booking"),
     runtimeIcon: "booking",
+    poolId: "execution",
   },
   {
     id: "runtime_agent",
@@ -147,8 +104,9 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Agente",
     shortLabel: "AGENTE",
     description: "OpenAI function calling loop",
-    position: { x: LAYOUT.runtimeStepX * 4, y: LAYOUT.runtimeY },
+    position: getNodePosition("runtime_agent"),
     runtimeIcon: "agent",
+    poolId: "execution",
   },
   {
     id: "runtime_journey",
@@ -156,8 +114,9 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Jornada CRM",
     shortLabel: "JORNADA",
     description: "loadContactJourneyForAi preload",
-    position: { x: LAYOUT.runtimeStepX * 3, y: LAYOUT.contextY },
+    position: getNodePosition("runtime_journey"),
     runtimeIcon: "journey",
+    poolId: "execution",
   },
   {
     id: "runtime_resolver",
@@ -165,8 +124,9 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Resolver etapa",
     shortLabel: "RESOLVER",
     description: "resolveAgentPipelineStage",
-    position: { x: LAYOUT.runtimeStepX * 5, y: LAYOUT.contextY },
+    position: getNodePosition("runtime_resolver"),
     runtimeIcon: "resolver",
+    poolId: "execution",
   },
   {
     id: "runtime_tools_hub",
@@ -174,8 +134,9 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Ferramentas filtradas",
     shortLabel: "TOOLS",
     description: "filterToolsForStage — subset por etapa",
-    position: { x: LAYOUT.runtimeStepX * 6, y: LAYOUT.contextY },
+    position: getNodePosition("runtime_tools_hub"),
     runtimeIcon: "tools",
+    poolId: "execution",
   },
   {
     id: "runtime_confirm_gate",
@@ -183,8 +144,9 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Confirmação",
     shortLabel: "CONFIRM",
     description: "human_confirm gate por tool",
-    position: { x: LAYOUT.runtimeStepX * 7, y: LAYOUT.contextY },
+    position: getNodePosition("runtime_confirm_gate"),
     runtimeIcon: "confirm",
+    poolId: "execution",
   },
   {
     id: "runtime_response",
@@ -192,27 +154,42 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Resposta",
     shortLabel: "RESPOSTA",
     description: "send-reply WhatsApp",
-    position: { x: LAYOUT.runtimeStepX * 8, y: LAYOUT.runtimeY },
+    position: getNodePosition("runtime_response"),
     runtimeIcon: "response",
+    poolId: "execution",
+  },
+];
+
+export const ROUTE_ANCHOR_NODES: UnifiedGraphNode[] = [
+  {
+    id: "anchor_loop_bus",
+    kind: "anchor",
+    label: "",
+    position: getNodePosition("anchor_loop_bus"),
+  },
+  {
+    id: "anchor_escalation_bus",
+    kind: "anchor",
+    label: "",
+    position: getNodePosition("anchor_escalation_bus"),
   },
 ];
 
 export const RUNTIME_EDGES: UnifiedGraphEdge[] = [
-  { id: "rt-msg-debounce", from: "runtime_msg", to: "runtime_debounce", kind: "runtime" },
-  { id: "rt-debounce-router", from: "runtime_debounce", to: "runtime_router", kind: "runtime" },
-  { id: "rt-router-booking", from: "runtime_router", to: "runtime_booking", kind: "runtime", label: "booking" },
-  { id: "rt-router-agent", from: "runtime_router", to: "runtime_agent", kind: "runtime" },
-  { id: "rt-booking-agent", from: "runtime_booking", to: "runtime_agent", kind: "runtime" },
-  { id: "rt-agent-journey", from: "runtime_agent", to: "runtime_journey", kind: "context" },
-  { id: "rt-journey-resolver", from: "runtime_journey", to: "runtime_resolver", kind: "context" },
-  { id: "rt-resolver-tools", from: "runtime_resolver", to: "runtime_tools_hub", kind: "tool_filter" },
-  { id: "rt-tools-confirm", from: "runtime_tools_hub", to: "runtime_confirm_gate", kind: "runtime" },
-  { id: "rt-confirm-loopbus", from: "runtime_confirm_gate", to: "anchor_loop_bus", kind: "return", label: "loop" },
-  { id: "rt-loopbus-agent", from: "anchor_loop_bus", to: "runtime_agent", kind: "return" },
-  { id: "rt-agent-response", from: "runtime_agent", to: "runtime_response", kind: "return" },
+  { id: "rt-msg-debounce", from: "runtime_msg", to: "runtime_debounce", kind: "runtime", routing: "direct" },
+  { id: "rt-debounce-router", from: "runtime_debounce", to: "runtime_router", kind: "runtime", routing: "direct" },
+  { id: "rt-router-booking", from: "runtime_router", to: "runtime_booking", kind: "runtime", label: "booking", routing: "vertical-up" },
+  { id: "rt-router-agent", from: "runtime_router", to: "runtime_agent", kind: "runtime", routing: "direct" },
+  { id: "rt-booking-agent", from: "runtime_booking", to: "runtime_agent", kind: "runtime", routing: "vertical-down" },
+  { id: "rt-agent-journey", from: "runtime_agent", to: "runtime_journey", kind: "context", routing: "vertical-down" },
+  { id: "rt-journey-resolver", from: "runtime_journey", to: "runtime_resolver", kind: "context", routing: "direct" },
+  { id: "rt-resolver-tools", from: "runtime_resolver", to: "runtime_tools_hub", kind: "tool_filter", routing: "direct" },
+  { id: "rt-tools-confirm", from: "runtime_tools_hub", to: "runtime_confirm_gate", kind: "runtime", routing: "direct" },
+  { id: "rt-confirm-loopbus", from: "runtime_confirm_gate", to: "anchor_loop_bus", kind: "return", label: "loop", routing: "loop" },
+  { id: "rt-loopbus-agent", from: "anchor_loop_bus", to: "runtime_agent", kind: "return", routing: "loop" },
+  { id: "rt-agent-response", from: "runtime_agent", to: "runtime_response", kind: "return", routing: "direct" },
 ];
 
-/** Dependências obrigatórias entre tools (além de requiredOrder em stages). */
 export const EXTRA_TOOL_DEPENDENCIES: { from: string; to: string }[] = [
   { from: "list_patient_appointments", to: "confirm_appointment" },
   { from: "list_patient_appointments", to: "cancel_appointment" },
@@ -221,7 +198,6 @@ export const EXTRA_TOOL_DEPENDENCIES: { from: string; to: string }[] = [
 
 const mutatingSet = new Set<string>(MUTATING_TOOL_NAMES);
 
-/** Mapeia tool → etapa principal (primeira ocorrência). */
 export function getToolPrimaryStage(toolName: string): AgentPipelineStage | "escalonamento" | null {
   if (toolName === "transfer_to_human") return "escalonamento";
   for (const stage of AGENT_PIPELINE_STAGES) {
@@ -232,16 +208,33 @@ export function getToolPrimaryStage(toolName: string): AgentPipelineStage | "esc
   return null;
 }
 
-export function buildStageNodes(): UnifiedGraphNode[] {
-  return AGENT_PIPELINE_FLOW_NODES.map((n) => ({
-    id: `stage_${n.id}`,
-    kind: "stage" as const,
-    label: n.label,
-    shortLabel: n.shortLabel,
-    stageCode: n.id,
-    crmPhase: n.crmPhase,
-    position: STAGE_POSITIONS[n.id] ?? { x: n.col * LAYOUT.stageStepX, y: LAYOUT.stageMainY },
+export function buildPoolNodes(): UnifiedGraphNode[] {
+  return POOL_BOUNDS.map((p) => ({
+    id: `pool_${p.id}`,
+    kind: "pool" as const,
+    label: p.label,
+    position: { x: p.x, y: p.y },
+    poolId: p.id,
+    poolWidth: p.width,
+    poolHeight: p.height,
   }));
+}
+
+export function buildStageNodes(): UnifiedGraphNode[] {
+  return AGENT_PIPELINE_FLOW_NODES.map((n) => {
+    const nodeId = `stage_${n.id}`;
+    const pos = NODE_POSITIONS[nodeId];
+    return {
+      id: nodeId,
+      kind: "stage" as const,
+      label: n.label,
+      shortLabel: n.shortLabel,
+      stageCode: n.id,
+      crmPhase: n.crmPhase,
+      position: pos ? { x: pos.x, y: pos.y } : getNodePosition(nodeId),
+      poolId: pos?.pool,
+    };
+  });
 }
 
 export function buildToolNodes(expandedStages: Set<string>): UnifiedGraphNode[] {
@@ -259,14 +252,9 @@ export function buildToolNodes(expandedStages: Set<string>): UnifiedGraphNode[] 
   let expandedIndex = 0;
   for (const [stageKey, toolNames] of toolsByStage) {
     if (!expandedStages.has(stageKey)) continue;
-    const basePos = STAGE_POSITIONS[stageKey] ?? { x: 0, y: LAYOUT.stageMainY };
-    const rowOffset = expandedIndex * LAYOUT.toolGroupGapY;
-    expandedIndex++;
 
     toolNames.forEach((toolName, i) => {
       const entry = ASSISTANT_TOOL_CATALOG.find((t) => t.name === toolName)!;
-      const col = i % 3;
-      const row = Math.floor(i / 3);
       nodes.push({
         id: `tool_${toolName}`,
         kind: "tool",
@@ -275,68 +263,94 @@ export function buildToolNodes(expandedStages: Set<string>): UnifiedGraphNode[] 
         toolName,
         toolCategory: entry.category,
         mutating: mutatingSet.has(toolName),
-        position: {
-          x: basePos.x + col * LAYOUT.toolColGapX,
-          y: LAYOUT.toolRowY + rowOffset + row * LAYOUT.toolRowGapY,
-        },
+        position: getToolPosition(stageKey, i, expandedIndex),
         stageCode: stageKey === "escalonamento" ? "escalonamento" : (stageKey as AgentPipelineStage),
+        poolId: "parallel",
       });
     });
+    expandedIndex++;
   }
 
   return nodes;
 }
 
-export function buildStageTransitionEdges(): UnifiedGraphEdge[] {
-  return AGENT_PIPELINE_FLOW_EDGES.filter((e) => e.kind !== "transversal").map((e, i) => ({
-    id: `st-${i}`,
-    from: `stage_${e.from}`,
-    to: `stage_${e.to}`,
-    kind: e.kind === "parallel" ? ("parallel" as const) : ("stage_transition" as const),
-    label: e.label,
-  }));
+function withRouting(edge: Omit<UnifiedGraphEdge, "routing">): UnifiedGraphEdge {
+  return {
+    ...edge,
+    routing: deriveEdgeRouting(edge.from, edge.to, edge.kind, edge.id),
+  };
 }
 
-/** Escalonamento via corredor inferior — evita linhas vermelhas cruzando etapas */
+export function buildStageTransitionEdges(): UnifiedGraphEdge[] {
+  return AGENT_PIPELINE_FLOW_EDGES.filter((e) => e.kind !== "transversal").map((e, i) =>
+    withRouting({
+      id: `st-${i}`,
+      from: `stage_${e.from}`,
+      to: `stage_${e.to}`,
+      kind: e.kind === "parallel" ? "parallel" : "stage_transition",
+      label: e.label,
+    })
+  );
+}
+
+/** Todas as 7 etapas main → bus → escalonamento */
 export function buildEscalationBusEdges(): UnifiedGraphEdge[] {
-  const fromStages = ["captacao", "agendamento", "confirmacao_pre_consulta"] as const;
-  const edges: UnifiedGraphEdge[] = fromStages.map((id, i) => ({
-    id: `esc-bus-${i}`,
-    from: `stage_${id}`,
-    to: "anchor_escalation_bus",
-    kind: "transversal" as const,
-    label: i === 0 ? "Escalar" : undefined,
-  }));
-  edges.push({
-    id: "esc-bus-dest",
-    from: "anchor_escalation_bus",
-    to: "stage_escalonamento",
-    kind: "transversal",
-  });
+  const edges: UnifiedGraphEdge[] = MAIN_STAGE_CODES.map((id, i) =>
+    withRouting({
+      id: `esc-bus-${i}`,
+      from: `stage_${id}`,
+      to: "anchor_escalation_bus",
+      kind: "transversal",
+      label: i === 0 ? "Escalar" : undefined,
+    })
+  );
+  edges.push(
+    withRouting({
+      id: "esc-bus-dest",
+      from: "anchor_escalation_bus",
+      to: "stage_escalonamento",
+      kind: "transversal",
+    })
+  );
   return edges;
 }
 
-export function buildResolverToStageEdges(): UnifiedGraphEdge[] {
-  return [
-    {
-      id: "res-stage-entry",
-      from: "runtime_resolver",
-      to: "stage_identificacao",
-      kind: "context",
-      label: "entrada",
-    },
-    {
-      id: "res-stage-bridge",
-      from: "runtime_resolver",
-      to: "stage_captacao",
-      kind: "context",
-      label: "resolve",
-    },
-  ];
-}
+export function buildDynamicStageEdges(
+  activeStage?: AgentPipelineStage | null,
+  parallelStages: AgentPipelineStage[] = []
+): UnifiedGraphEdge[] {
+  if (!activeStage) return [];
 
-export function buildStageToToolsHubEdges(): UnifiedGraphEdge[] {
-  return [];
+  const edges: UnifiedGraphEdge[] = [
+    withRouting({
+      id: "dyn-resolver-stage",
+      from: "runtime_resolver",
+      to: `stage_${activeStage}`,
+      kind: "context",
+      label: "etapa ativa",
+    }),
+    withRouting({
+      id: "dyn-stage-tools",
+      from: `stage_${activeStage}`,
+      to: "runtime_tools_hub",
+      kind: "tool_filter",
+      label: "filterToolsForStage",
+    }),
+  ];
+
+  for (const ps of parallelStages) {
+    if (ps === activeStage) continue;
+    edges.push(
+      withRouting({
+        id: `dyn-parallel-${ps}`,
+        from: `stage_${ps}`,
+        to: "runtime_tools_hub",
+        kind: "parallel",
+      })
+    );
+  }
+
+  return edges;
 }
 
 export function buildToolDependencyEdges(expandedStages: Set<string>): UnifiedGraphEdge[] {
@@ -349,12 +363,14 @@ export function buildToolDependencyEdges(expandedStages: Set<string>): UnifiedGr
     for (let i = 0; i < stage.requiredOrder.length - 1; i++) {
       const from = stage.requiredOrder[i]!;
       const to = stage.requiredOrder[i + 1]!;
-      edges.push({
-        id: `dep-${idx++}`,
-        from: `tool_${from}`,
-        to: `tool_${to}`,
-        kind: "tool_dependency",
-      });
+      edges.push(
+        withRouting({
+          id: `dep-${idx++}`,
+          from: `tool_${from}`,
+          to: `tool_${to}`,
+          kind: "tool_dependency",
+        })
+      );
     }
   }
 
@@ -362,12 +378,14 @@ export function buildToolDependencyEdges(expandedStages: Set<string>): UnifiedGr
     const fromStage = getToolPrimaryStage(from);
     const stageKey = fromStage ?? "";
     if (!expandedStages.has(stageKey)) continue;
-    edges.push({
-      id: `dep-${idx++}`,
-      from: `tool_${from}`,
-      to: `tool_${to}`,
-      kind: "tool_dependency",
-    });
+    edges.push(
+      withRouting({
+        id: `dep-${idx++}`,
+        from: `tool_${from}`,
+        to: `tool_${to}`,
+        kind: "tool_dependency",
+      })
+    );
   }
 
   return edges;
@@ -381,52 +399,54 @@ export function buildStageToToolFilterEdges(expandedStages: Set<string>): Unifie
     if (!expandedStages.has(stage.code)) continue;
     const allTools = [...stage.readTools, ...stage.mutatingTools];
     for (const toolName of allTools) {
-      if (!expandedStages.has(stage.code)) continue;
-      edges.push({
-        id: `sf-${idx++}`,
-        from: `stage_${stage.code}`,
-        to: `tool_${toolName}`,
-        kind: "tool_filter",
-      });
+      edges.push(
+        withRouting({
+          id: `sf-${idx++}`,
+          from: `stage_${stage.code}`,
+          to: `tool_${toolName}`,
+          kind: "tool_filter",
+        })
+      );
     }
   }
 
   if (expandedStages.has("escalonamento")) {
-    edges.push({
-      id: "sf-transfer",
-      from: "stage_escalonamento",
-      to: "tool_transfer_to_human",
-      kind: "tool_filter",
-    });
+    edges.push(
+      withRouting({
+        id: "sf-transfer",
+        from: "stage_escalonamento",
+        to: "tool_transfer_to_human",
+        kind: "tool_filter",
+      })
+    );
   }
 
   return edges;
 }
 
-export function buildToolsHubToToolEdges(_expandedStages: Set<string>): UnifiedGraphEdge[] {
-  return [];
-}
-
 export function buildTransversalRuntimeEdges(): UnifiedGraphEdge[] {
   return [
-    {
+    withRouting({
       id: "rt-agent-esc",
       from: "runtime_agent",
       to: "anchor_escalation_bus",
       kind: "transversal",
       label: "escalar",
-    },
-    {
+    }),
+    withRouting({
       id: "rt-resp-esc",
       from: "runtime_response",
       to: "anchor_escalation_bus",
       kind: "transversal",
-    },
+    }),
   ];
 }
 
 export type BuildUnifiedGraphOptions = {
   expandedStages?: Set<string>;
+  activeStage?: AgentPipelineStage | null;
+  parallelStages?: AgentPipelineStage[];
+  includePools?: boolean;
 };
 
 export function buildUnifiedGraph(opts: BuildUnifiedGraphOptions = {}): {
@@ -434,7 +454,7 @@ export function buildUnifiedGraph(opts: BuildUnifiedGraphOptions = {}): {
   edges: UnifiedGraphEdge[];
 } {
   const expanded = opts.expandedStages ?? new Set<string>();
-
+  const poolNodes = opts.includePools !== false ? buildPoolNodes() : [];
   const stageNodes = buildStageNodes();
   const toolNodes = buildToolNodes(expanded);
 
@@ -442,31 +462,79 @@ export function buildUnifiedGraph(opts: BuildUnifiedGraphOptions = {}): {
     ...RUNTIME_EDGES,
     ...buildStageTransitionEdges(),
     ...buildEscalationBusEdges(),
-    ...buildResolverToStageEdges(),
-    ...buildStageToToolsHubEdges(),
+    ...buildDynamicStageEdges(opts.activeStage, opts.parallelStages ?? []),
     ...buildTransversalRuntimeEdges(),
     ...buildStageToToolFilterEdges(expanded),
-    ...buildToolsHubToToolEdges(expanded),
     ...buildToolDependencyEdges(expanded),
   ];
 
   return {
-    nodes: [...RUNTIME_NODES, ...ROUTE_ANCHOR_NODES, ...stageNodes, ...toolNodes],
+    nodes: [...poolNodes, ...RUNTIME_NODES, ...ROUTE_ANCHOR_NODES, ...stageNodes, ...toolNodes],
     edges,
   };
 }
 
-/** IDs de arestas runtime para animação demo (compatível com pipeline-trace paths). */
+/** Valida integridade do grafo vs flow-graph.ts */
+export function validateUnifiedGraphIntegrity(graph: {
+  nodes: UnifiedGraphNode[];
+  edges: UnifiedGraphEdge[];
+}): { ok: boolean; errors: string[] } {
+  const errors: string[] = [];
+  const nodeIds = new Set(graph.nodes.map((n) => n.id));
+
+  for (const e of graph.edges) {
+    if (e.to.startsWith("tool_") && !nodeIds.has(e.to)) continue;
+    if (e.from.startsWith("tool_") && !nodeIds.has(e.from)) continue;
+    if (!nodeIds.has(e.from)) errors.push(`Edge ${e.id}: missing source ${e.from}`);
+    if (!nodeIds.has(e.to)) errors.push(`Edge ${e.id}: missing target ${e.to}`);
+  }
+
+  const crmEdges = graph.edges.filter(
+    (e) => e.kind === "stage_transition" || e.kind === "parallel"
+  );
+  const expectedCrm = AGENT_PIPELINE_FLOW_EDGES.filter((e) => e.kind !== "transversal");
+  if (crmEdges.length !== expectedCrm.length) {
+    errors.push(`CRM edges: expected ${expectedCrm.length}, got ${crmEdges.length}`);
+  }
+
+  for (const fe of expectedCrm) {
+    const found = crmEdges.some(
+      (e) => e.from === `stage_${fe.from}` && e.to === `stage_${fe.to}`
+    );
+    if (!found) errors.push(`Missing CRM edge ${fe.from} → ${fe.to}`);
+  }
+
+  const transversalToEsc = graph.edges.filter(
+    (e) => e.kind === "transversal" && e.to === "stage_escalonamento"
+  );
+  if (transversalToEsc.length !== 1) {
+    errors.push(`Expected 1 edge to escalonamento, got ${transversalToEsc.length}`);
+  }
+
+  const transversalFromMain = graph.edges.filter(
+    (e) => e.kind === "transversal" && e.to === "anchor_escalation_bus"
+  );
+  if (transversalFromMain.length !== MAIN_STAGE_CODES.length + 2) {
+    errors.push(
+      `Expected ${MAIN_STAGE_CODES.length + 2} transversal to bus, got ${transversalFromMain.length}`
+    );
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
 export const RUNTIME_PATH_MAP: Record<string, string[]> = {
   request: ["rt-msg-debounce", "rt-debounce-router"],
   router: ["rt-msg-debounce", "rt-debounce-router", "rt-router-agent"],
   agent: ["rt-router-agent"],
-  memory: ["rt-router-agent", "rt-agent-journey", "rt-journey-resolver"],
+  memory: ["rt-router-agent", "rt-agent-journey", "rt-journey-resolver", "dyn-resolver-stage"],
   tools: [
     "rt-router-agent",
     "rt-agent-journey",
     "rt-journey-resolver",
     "rt-resolver-tools",
+    "dyn-resolver-stage",
+    "dyn-stage-tools",
     "rt-tools-confirm",
     "rt-confirm-loopbus",
     "rt-loopbus-agent",
@@ -501,4 +569,15 @@ export const EDGE_KIND_LABELS: Record<UnifiedEdgeKind, string> = {
   parallel: "Trilha paralela",
   transversal: "Escalonamento global",
   return: "Retorno (tools → resposta)",
+};
+
+export const FLOW_EXPLANATION = {
+  title: "Como a IA processa cada mensagem",
+  steps: [
+    "Mensagem → debounce → roteador (booking ou agente LLM)",
+    "Agente carrega jornada CRM e o resolver escolhe a etapa ativa",
+    "filterToolsForStage libera só as tools da etapa (+ paralelas + transfer_to_human)",
+    "Loop de tool calls com confirmação opcional → resposta WhatsApp",
+    "Setas roxas CRM = transições possíveis da jornada (não todas por mensagem)",
+  ],
 };
