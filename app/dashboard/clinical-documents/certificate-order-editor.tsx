@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { listCertificateCatalog, saveCertificateCatalogItem } from "./actions";
 import type { CertificateCatalogItem } from "@/lib/clinical-documents/types";
+import { Cid10Autocomplete } from "@/components/cid10-autocomplete";
 import { toast } from "@/components/ui/toast";
 
 type CertificateContent = {
@@ -124,16 +125,11 @@ export function CertificateOrderEditor({
             className="mt-1"
           />
         </div>
-        <div>
-          <Label htmlFor="cert-cid">CID (opcional)</Label>
-          <Input
-            id="cert-cid"
-            value={content.certificateCid ?? ""}
-            onChange={(e) => onChange({ ...content, certificateCid: e.target.value })}
-            placeholder="Ex.: J06.9"
-            className="mt-1"
-          />
-        </div>
+        <Cid10Autocomplete
+          id="cert-cid"
+          value={content.certificateCid ?? ""}
+          onChange={(certificateCid) => onChange({ ...content, certificateCid })}
+        />
       </div>
 
       <Button

@@ -6,10 +6,12 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Printer, Save, FileText, ArrowLeft, Eye } from "lucide-react";
+import { Plus, Printer, Save, FileText, ArrowLeft, Eye, Download } from "lucide-react";
 import {
+  checkClinicalDocumentsSchema,
   finalizeClinicalDocumentManual,
   getClinicalDocumentHtml,
+  getClinicalDocumentPdfUrl,
   listClinicalDocuments,
   listClinicalTemplates,
   saveClinicalDocumentDraft,
@@ -25,6 +27,7 @@ import {
   isCertificateContent,
   isExamOrderContent,
 } from "@/lib/clinical-documents/render";
+import { validateClinicalDocumentContent } from "@/lib/clinical-documents/validate";
 import { MedicationPrescriptionEditor } from "./medication-prescription-editor";
 import { ExamOrderEditor } from "./exam-order-editor";
 import { CertificateOrderEditor } from "./certificate-order-editor";
@@ -34,6 +37,7 @@ import {
   printClinicalHtml,
 } from "@/components/clinical-layout-picker";
 import type { ClinicalPdfLayoutId } from "@/lib/clinical-documents/pdf-layouts";
+import { toast } from "@/components/ui/toast";
 
 const TYPE_LABELS: Record<ClinicalDocumentType, { title: string; newLabel: string }> = {
   prescription: { title: "Receitas", newLabel: "Nova receita" },
@@ -61,18 +65,28 @@ export function ClinicalDocumentsClient({
   appointmentId,
   procedureId,
   isDoctor,
+  mode = "appointment",
+  onBack,
+  onFinalized,
 }: {
   type: ClinicalDocumentType;
   patientId: string;
-  appointmentId: string;
+  appointmentId?: string | null;
   procedureId?: string | null;
   isDoctor: boolean;
+  mode?: "appointment" | "standalone";
+  onBack?: () => void;
+  onFinalized?: () => void;
 }) {
   const labels = TYPE_LABELS[type];
+  const isStandalone = mode === "standalone";
+  const resolvedAppointmentId = appointmentId ?? null;
+  const resolvedProcedureId = isStandalone ? null : (procedureId ?? null);
+
   const [documents, setDocuments] = useState<ClinicalDocument[]>([]);
   const [templates, setTemplates] = useState<ClinicalDocumentTemplate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"list" | "edit">("list");
+  const [view, setView] = useState<"list" | "edit">(isStandalone ? "edit" : "list");
   const [editingId, setEditingId] = useState<string | undefined>();
   const [title, setTitle] = useState("");
   const [bodyText, setBodyText] = useState("");
@@ -82,14 +96,25 @@ export function ClinicalDocumentsClient({
   const [layoutPickerOpen, setLayoutPickerOpen] = useState(false);
   const [pendingDocId, setPendingDocId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [schemaWarning, setSchemaWarning] = useState<string | null>(null);
+  const [lastFinalizedId, setLastFinalizedId] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const needsLayoutPicker = type === "exam_request" || type === "certificate";
 
   const load = useCallback(async () => {
     setLoading(true);
+    const listInput = isStandalone
+      ? { patientId, type, standaloneOnly: true as const }
+      : {
+          appointmentId: resolvedAppointmentId ?? undefined,
+          patientId,
+          type,
+          procedureId: resolvedProcedureId,
+        };
+
     const [docsRes, tplRes] = await Promise.all([
-      listClinicalDocuments({ appointmentId, patientId, type, procedureId }),
+      listClinicalDocuments(listInput),
       type === "certificate"
         ? Promise.resolve({ data: [] as ClinicalDocumentTemplate[], error: null })
         : listClinicalTemplates(type),
@@ -98,12 +123,24 @@ export function ClinicalDocumentsClient({
     else setDocuments(docsRes.data);
     if (!tplRes.error) setTemplates(tplRes.data);
     setLoading(false);
-  }, [appointmentId, patientId, type, procedureId]);
+  }, [isStandalone, patientId, resolvedAppointmentId, type, resolvedProcedureId]);
 
   useEffect(() => {
-    if (isDoctor) load();
+    if (!isDoctor) {
+      setLoading(false);
+      return;
+    }
+    void checkClinicalDocumentsSchema().then((r) => {
+      if (!r.ok) setSchemaWarning(r.message);
+    });
+    if (!isStandalone) load();
     else setLoading(false);
-  }, [isDoctor, load]);
+  }, [isDoctor, isStandalone, load]);
+
+  function handleBack() {
+    if (onBack) onBack();
+    else setView("list");
+  }
 
   function startNew(template?: ClinicalDocumentTemplate) {
     setEditingId(undefined);
@@ -112,6 +149,7 @@ export function ClinicalDocumentsClient({
     setStructured(emptyStructuredContent(type));
     setView("edit");
     setError(null);
+    setLastFinalizedId(null);
   }
 
   function startEdit(doc: ClinicalDocument) {
@@ -137,10 +175,23 @@ export function ClinicalDocumentsClient({
   async function openPrint(documentId: string) {
     const { html, error: err } = await getClinicalDocumentHtml(documentId);
     if (err || !html) {
-      setError(err ?? "Não foi possível abrir o documento.");
+      const msg = err ?? "Não foi possível abrir o documento.";
+      setError(msg);
+      toast(msg, "error");
       return;
     }
     printClinicalHtml(html);
+  }
+
+  async function downloadPdf(documentId: string) {
+    const res = await getClinicalDocumentPdfUrl(documentId);
+    if (res.error || !res.url) {
+      const msg = res.error ?? "PDF não disponível.";
+      setError(msg);
+      toast(msg, "error");
+      return;
+    }
+    window.open(res.url, "_blank", "noopener,noreferrer");
   }
 
   async function handleSaveDraft() {
@@ -150,8 +201,8 @@ export function ClinicalDocumentsClient({
       id: editingId,
       type,
       patientId,
-      appointmentId,
-      procedureId,
+      appointmentId: resolvedAppointmentId,
+      procedureId: resolvedProcedureId,
       title: title || null,
       bodyText,
       structuredContent: structured,
@@ -159,31 +210,23 @@ export function ClinicalDocumentsClient({
     setSaving(false);
     if (res.error) {
       setError(res.error);
+      toast(res.error, "error");
       return;
     }
     if (res.data) setEditingId(res.data.id);
-    await load();
+    toast("Rascunho salvo.", "success");
+    if (!isStandalone) await load();
   }
 
   function validateBeforeFinalize(): string | null {
-    if (type === "prescription" && "medications" in structured) {
-      const hasMed = structured.medications.some((m) => m.name.trim());
-      if (!hasMed) return "Adicione pelo menos um medicamento.";
-    }
-    if (type === "exam_request" && isExamOrderContent(structured)) {
-      const hasExam = structured.examLines.some((l) => l.name.trim());
-      if (!hasExam) return "Adicione pelo menos um exame.";
-    }
-    if (type === "certificate" && isCertificateContent(structured)) {
-      if (!structured.certificateBody.trim()) return "Informe o texto do atestado.";
-    }
-    return null;
+    return validateClinicalDocumentContent(type, structured);
   }
 
   async function prepareDraftForFinalize(): Promise<string | null> {
     const validationErr = validateBeforeFinalize();
     if (validationErr) {
       setError(validationErr);
+      toast(validationErr, "error");
       return null;
     }
 
@@ -192,14 +235,16 @@ export function ClinicalDocumentsClient({
       const saveRes = await saveClinicalDocumentDraft({
         type,
         patientId,
-        appointmentId,
-        procedureId,
+        appointmentId: resolvedAppointmentId,
+        procedureId: resolvedProcedureId,
         title: title || null,
         bodyText,
         structuredContent: structured,
       });
       if (saveRes.error || !saveRes.data) {
-        setError(saveRes.error ?? "Erro ao salvar.");
+        const msg = saveRes.error ?? "Erro ao salvar.";
+        setError(msg);
+        toast(msg, "error");
         return null;
       }
       docId = saveRes.data.id;
@@ -209,18 +254,41 @@ export function ClinicalDocumentsClient({
         id: docId,
         type,
         patientId,
-        appointmentId,
-        procedureId,
+        appointmentId: resolvedAppointmentId,
+        procedureId: resolvedProcedureId,
         title: title || null,
         bodyText,
         structuredContent: structured,
       });
       if (saveRes.error) {
         setError(saveRes.error);
+        toast(saveRes.error, "error");
         return null;
       }
     }
     return docId;
+  }
+
+  async function completeFinalize(docId: string, fin: { html: string | null; error: string | null }) {
+    if (fin.error || !fin.html) {
+      const msg = fin.error ?? "Erro ao finalizar.";
+      setError(msg);
+      toast(msg, "error");
+      return;
+    }
+    setLastFinalizedId(docId);
+    const printed = printClinicalHtml(fin.html);
+    if (!printed) {
+      toast("Documento finalizado. Use Baixar PDF ou Imprimir abaixo.", "success");
+    } else {
+      toast("Documento finalizado.", "success");
+    }
+    if (isStandalone && onFinalized) {
+      onFinalized();
+      return;
+    }
+    setView("list");
+    await load();
   }
 
   async function handleFinalizeAndPrint() {
@@ -239,13 +307,7 @@ export function ClinicalDocumentsClient({
     setFinalizing(true);
     const fin = await finalizeClinicalDocumentManual(docId);
     setFinalizing(false);
-    if (fin.error || !fin.html) {
-      setError(fin.error ?? "Erro ao finalizar.");
-      return;
-    }
-    printClinicalHtml(fin.html);
-    setView("list");
-    await load();
+    await completeFinalize(docId, fin);
   }
 
   async function handleLayoutSelected(layoutId: ClinicalPdfLayoutId) {
@@ -255,24 +317,26 @@ export function ClinicalDocumentsClient({
     setFinalizing(true);
     const fin = await finalizeClinicalDocumentManual(pendingDocId, layoutId);
     setFinalizing(false);
+    const docId = pendingDocId;
     setPendingDocId(null);
-
-    if (fin.error || !fin.html) {
-      setError(fin.error ?? "Erro ao finalizar.");
-      return;
-    }
-    printClinicalHtml(fin.html);
-    setView("list");
-    await load();
+    await completeFinalize(docId, fin);
   }
 
   if (!isDoctor) {
     return (
       <p className="text-sm text-muted-foreground py-4">
-        Apenas o médico responsável pode emitir {labels.title.toLowerCase()} nesta consulta.
+        Apenas o médico responsável pode emitir {labels.title.toLowerCase()}
+        {isStandalone ? "." : " nesta consulta."}
       </p>
     );
   }
+
+  const schemaBanner = schemaWarning ? (
+    <div className="p-3 rounded-md bg-amber-500/10 text-amber-900 dark:text-amber-200 text-sm border border-amber-500/30">
+      <p className="font-medium">Configuração do banco incompleta</p>
+      <p className="mt-1">{schemaWarning}</p>
+    </div>
+  ) : null;
 
   if (view === "edit") {
     return (
@@ -286,13 +350,38 @@ export function ClinicalDocumentsClient({
           onSelect={handleLayoutSelected}
         />
 
-        <Button variant="ghost" size="sm" onClick={() => setView("list")}>
+        <Button variant="ghost" size="sm" onClick={handleBack}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Voltar
         </Button>
 
+        {schemaBanner}
         {error && (
           <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">{error}</div>
+        )}
+
+        {lastFinalizedId && (
+          <div className="flex flex-wrap gap-2 p-3 rounded-md bg-primary/5 border border-primary/20">
+            <span className="text-sm w-full">Documento emitido com sucesso.</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void openPrint(lastFinalizedId)}
+            >
+              <Printer className="h-4 w-4 mr-1" />
+              Imprimir HTML
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void downloadPdf(lastFinalizedId)}
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Baixar PDF
+            </Button>
+          </div>
         )}
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -371,8 +460,8 @@ export function ClinicalDocumentsClient({
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                O documento será impresso para assinatura com carimbo e caneta. Escolha o modelo de
-                layout antes da impressão.
+                O documento será gerado para impressão e assinatura manual. Um PDF também será
+                armazenado para download.
               </p>
             </CardContent>
           </Card>
@@ -380,7 +469,7 @@ export function ClinicalDocumentsClient({
           <ClinicalDocumentPreview
             type={type}
             patientId={patientId}
-            appointmentId={appointmentId}
+            appointmentId={resolvedAppointmentId}
             bodyText={bodyText}
             structuredContent={structured}
           />
@@ -399,6 +488,8 @@ export function ClinicalDocumentsClient({
         }}
         onSelect={handleLayoutSelected}
       />
+
+      {schemaBanner}
 
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-semibold text-lg">{labels.title}</h3>
@@ -444,9 +535,21 @@ export function ClinicalDocumentsClient({
                       <FileText className="h-4 w-4" />
                     </Button>
                   ) : (
-                    <Button size="sm" variant="outline" onClick={() => openPrint(doc.id)}>
-                      <Printer className="h-4 w-4" />
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => openPrint(doc.id)}>
+                        <Printer className="h-4 w-4" />
+                      </Button>
+                      {doc.pdf_path && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void downloadPdf(doc.id)}
+                          title="Baixar PDF"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </>
                   )}
                   {doc.body_rendered && doc.status !== "draft" && (
                     <Button

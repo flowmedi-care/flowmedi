@@ -24,6 +24,7 @@ const FICHA_TYPE_LABEL: Record<ClinicalFichaType, string> = {
   fields: "Campos customizados",
   prescription: "Receita",
   exam_request: "Pedido de exame",
+  certificate: "Atestado",
   notes: "Notas",
 };
 
@@ -165,6 +166,7 @@ export function ClinicalFichasConfigClient({
                 <option value="fields">Campos customizados</option>
                 <option value="prescription">Receita</option>
                 <option value="exam_request">Pedido de exame</option>
+                <option value="certificate">Atestado</option>
               </select>
             </div>
           )}
@@ -267,6 +269,7 @@ export function ClinicalFichasConfigClient({
                   <option value="fields">Campos customizados</option>
                   <option value="prescription">Receita</option>
                   <option value="exam_request">Pedido de exame</option>
+                <option value="certificate">Atestado</option>
                 </select>
               </div>
             )}

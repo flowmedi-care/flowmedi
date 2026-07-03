@@ -1,6 +1,6 @@
 import type { FormFieldDefinition } from "@/lib/form-types";
 
-export type ClinicalFichaType = "fields" | "prescription" | "exam_request" | "notes";
+export type ClinicalFichaType = "fields" | "prescription" | "exam_request" | "notes" | "certificate";
 
 export type ClinicalFichaTemplate = {
   id: string;

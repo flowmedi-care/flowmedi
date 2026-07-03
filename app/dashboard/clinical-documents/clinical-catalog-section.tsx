@@ -9,16 +9,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
+  deleteCertificateCatalogItem,
   deleteExamCatalogItem,
   deleteMedicationCatalogItem,
+  listCertificateCatalogForManage,
   listExamCatalogForManage,
   listMedicationCatalogForManage,
+  saveCertificateCatalogItem,
   saveExamCatalogItem,
   saveMedicationCatalogItem,
 } from "./actions";
-import type { ExamCatalogItem, MedicationCatalogItem } from "@/lib/clinical-documents/types";
+import type {
+  CertificateCatalogItem,
+  ExamCatalogItem,
+  MedicationCatalogItem,
+} from "@/lib/clinical-documents/types";
 
-type CatalogKind = "medication" | "exam";
+type CatalogKind = "medication" | "exam" | "certificate";
 
 export function ClinicalCatalogSection({
   kind,
@@ -31,7 +38,9 @@ export function ClinicalCatalogSection({
   title: string;
   description: string;
 }) {
-  const [items, setItems] = useState<(MedicationCatalogItem | ExamCatalogItem)[]>([]);
+  const [items, setItems] = useState<
+    (MedicationCatalogItem | ExamCatalogItem | CertificateCatalogItem)[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<"new" | string | null>(null);
@@ -44,13 +53,19 @@ export function ClinicalCatalogSection({
   const [dosage, setDosage] = useState("");
   const [quantity, setQuantity] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [activeIngredient, setActiveIngredient] = useState("");
+  const [certBody, setCertBody] = useState("");
+  const [certDays, setCertDays] = useState("1");
+  const [certCid, setCertCid] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     const res =
       kind === "medication"
         ? await listMedicationCatalogForManage(scope)
-        : await listExamCatalogForManage(scope);
+        : kind === "exam"
+          ? await listExamCatalogForManage(scope)
+          : await listCertificateCatalogForManage(scope);
     if (res.error) setError(res.error);
     else {
       setItems(res.data);
@@ -71,9 +86,13 @@ export function ClinicalCatalogSection({
     setDosage("");
     setQuantity("");
     setInstructions("");
+    setActiveIngredient("");
+    setCertBody("");
+    setCertDays("1");
+    setCertCid("");
   }
 
-  function openEdit(item: MedicationCatalogItem | ExamCatalogItem) {
+  function openEdit(item: MedicationCatalogItem | ExamCatalogItem | CertificateCatalogItem) {
     setEditing(item.id);
     setName(item.name);
     if (kind === "exam") {
@@ -86,6 +105,13 @@ export function ClinicalCatalogSection({
       setDosage(m.default_dosage);
       setQuantity(m.default_quantity);
       setInstructions(m.default_instructions);
+      setActiveIngredient(m.active_ingredient ?? "");
+    }
+    if (kind === "certificate") {
+      const c = item as CertificateCatalogItem;
+      setCertBody(c.default_body);
+      setCertDays(String(c.default_days));
+      setCertCid(c.default_cid);
     }
   }
 
@@ -101,17 +127,27 @@ export function ClinicalCatalogSection({
             id: editing !== "new" ? editing ?? undefined : undefined,
             scope,
             name,
+            active_ingredient: activeIngredient,
             default_dosage: dosage,
             default_quantity: quantity,
             default_instructions: instructions,
           })
-        : await saveExamCatalogItem({
-            id: editing !== "new" ? editing ?? undefined : undefined,
-            scope,
-            name,
-            category,
-            default_details: defaultDetails,
-          });
+        : kind === "exam"
+          ? await saveExamCatalogItem({
+              id: editing !== "new" ? editing ?? undefined : undefined,
+              scope,
+              name,
+              category,
+              default_details: defaultDetails,
+            })
+          : await saveCertificateCatalogItem({
+              id: editing !== "new" ? editing ?? undefined : undefined,
+              scope,
+              name,
+              default_body: certBody,
+              default_days: parseInt(certDays, 10) || 1,
+              default_cid: certCid,
+            });
     setSaving(false);
     if (res.error) setError(res.error);
     else {
@@ -125,7 +161,9 @@ export function ClinicalCatalogSection({
     const res =
       kind === "medication"
         ? await deleteMedicationCatalogItem(deleteId)
-        : await deleteExamCatalogItem(deleteId);
+        : kind === "exam"
+          ? await deleteExamCatalogItem(deleteId)
+          : await deleteCertificateCatalogItem(deleteId);
     setDeleteId(null);
     if (res.error) setError(res.error);
     else await load();
@@ -155,7 +193,14 @@ export function ClinicalCatalogSection({
         {editing ? (
           <div className="space-y-3 border rounded-lg p-4 bg-muted/20">
             <div>
-              <Label>Nome {kind === "medication" ? "do medicamento" : "do exame"}</Label>
+              <Label>
+                Nome{" "}
+                {kind === "medication"
+                  ? "do medicamento"
+                  : kind === "exam"
+                    ? "do exame"
+                    : "do modelo de atestado"}
+              </Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             {kind === "exam" && (
@@ -184,6 +229,14 @@ export function ClinicalCatalogSection({
             )}
             {kind === "medication" && (
               <>
+                <div>
+                  <Label>Princípio ativo (opcional)</Label>
+                  <Input
+                    value={activeIngredient}
+                    onChange={(e) => setActiveIngredient(e.target.value)}
+                    placeholder="Ex.: paracetamol"
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label>Dosagem padrão</Label>
@@ -205,6 +258,34 @@ export function ClinicalCatalogSection({
                 </div>
               </>
             )}
+            {kind === "certificate" && (
+              <>
+                <div>
+                  <Label>Texto padrão do atestado</Label>
+                  <Textarea
+                    value={certBody}
+                    onChange={(e) => setCertBody(e.target.value)}
+                    rows={5}
+                    placeholder="Atesto para os devidos fins que..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label>Dias de afastamento</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={certDays}
+                      onChange={(e) => setCertDays(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>CID padrão (opcional)</Label>
+                    <Input value={certCid} onChange={(e) => setCertCid(e.target.value)} />
+                  </div>
+                </div>
+              </>
+            )}
             <div className="flex gap-2">
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? "Salvando..." : "Salvar"}
@@ -218,7 +299,8 @@ export function ClinicalCatalogSection({
           <>
             <Button size="sm" onClick={openNew}>
               <Plus className="h-4 w-4 mr-1" />
-              Cadastrar {kind === "medication" ? "medicamento" : "exame"}
+              Cadastrar{" "}
+              {kind === "medication" ? "medicamento" : kind === "exam" ? "exame" : "atestado"}
             </Button>
             {loading ? (
               <p className="text-sm text-muted-foreground">Carregando...</p>
@@ -226,6 +308,27 @@ export function ClinicalCatalogSection({
               <p className="text-sm text-muted-foreground">
                 Nenhum item no catálogo. Cadastre para usar na emissão rápida.
               </p>
+            ) : kind === "certificate" ? (
+              <ul className="divide-y border rounded-lg text-sm">
+                {(items as CertificateCatalogItem[]).map((c) => (
+                  <li key={c.id} className="flex justify-between items-start p-3 gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium">{c.name}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                        {c.default_body}
+                      </p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button size="icon" variant="ghost" onClick={() => openEdit(c)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => setDeleteId(c.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             ) : kind === "medication" ? (
               <ul className="divide-y border rounded-lg text-sm">
                 {(items as MedicationCatalogItem[]).map((m) => (
@@ -233,6 +336,7 @@ export function ClinicalCatalogSection({
                     <div>
                       <p className="font-medium">{m.name}</p>
                       <p className="text-xs text-muted-foreground">
+                        {m.active_ingredient ? `${m.active_ingredient} • ` : ""}
                         {[m.default_dosage, m.default_quantity].filter(Boolean).join(" • ")}
                         {m.default_instructions ? ` — ${m.default_instructions}` : ""}
                       </p>

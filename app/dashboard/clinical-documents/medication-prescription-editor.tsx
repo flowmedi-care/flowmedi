@@ -25,8 +25,10 @@ export function MedicationPrescriptionEditor({
     });
   }, []);
 
-  const filtered = catalog.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
+  const filtered = catalog.filter(
+    (c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      (c.active_ingredient ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
   function addFromCatalog(item: MedicationCatalogItem) {
@@ -59,7 +61,7 @@ export function MedicationPrescriptionEditor({
           Cadastre medicamentos em Meu Perfil. Clique para incluir na receita.
         </p>
         <Input
-          placeholder="Buscar medicamento..."
+          placeholder="Buscar medicamento ou princípio ativo..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="mb-2"

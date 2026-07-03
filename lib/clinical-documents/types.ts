@@ -50,6 +50,7 @@ export type MedicationCatalogItem = {
   scope: ClinicalTemplateScope;
   doctor_id: string | null;
   name: string;
+  active_ingredient?: string;
   default_dosage: string;
   default_quantity: string;
   default_instructions: string;

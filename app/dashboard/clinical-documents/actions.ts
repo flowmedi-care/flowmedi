@@ -21,7 +21,12 @@ import type {
   StructuredContent,
 } from "@/lib/clinical-documents/types";
 import { emptyStructuredContent } from "@/lib/clinical-documents/render";
+import { validateClinicalDocumentContent } from "@/lib/clinical-documents/validate";
+import { renderClinicalDocumentPdfBuffer } from "@/lib/clinical-documents/clinical-pdf";
+import type { ClinicalPdfPayload } from "@/lib/clinical-documents/clinical-pdf";
 import { getReferralLinkForDoctor } from "@/app/dashboard/perfil/referral-actions";
+
+const CLINICAL_DOCUMENTS_BUCKET = "clinical-documents";
 
 async function getAuthDoctor() {
   const supabase = await createClient();
@@ -41,6 +46,83 @@ async function getAuthDoctor() {
   }
 
   return { error: null, supabase, user, profile };
+}
+
+export async function checkClinicalDocumentsSchema(): Promise<{
+  ok: boolean;
+  message: string;
+}> {
+  const auth = await getAuthDoctor();
+  if (auth.error || !auth.profile) {
+    return { ok: false, message: auth.error ?? "Sem permissão." };
+  }
+
+  const { error } = await auth.supabase
+    .from("clinical_documents")
+    .select("id")
+    .eq("clinic_id", auth.profile.clinic_id)
+    .limit(1);
+
+  if (error?.message?.includes("does not exist")) {
+    return {
+      ok: false,
+      message:
+        "Tabela clinical_documents não encontrada. Aplique as migrations: migration-clinical-documents.sql, migration-clinical-catalogs.sql, migration-clinical-fichas.sql e migration-clinical-certificate.sql.",
+    };
+  }
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  return { ok: true, message: "" };
+}
+
+function buildPdfPayload(
+  type: ClinicalDocumentType,
+  ctx: DocumentRenderContext,
+  structured: StructuredContent,
+  bodyText: string
+): ClinicalPdfPayload | null {
+  if (type === "prescription" && "medications" in structured) {
+    return { type, ctx, medications: structured.medications, bodyText };
+  }
+  if (type === "exam_request" && isExamOrderContent(structured)) {
+    return {
+      type,
+      ctx,
+      examLines: structured.examLines,
+      examNotes: structured.examNotes,
+    };
+  }
+  if (type === "certificate" && isCertificateContent(structured)) {
+    return {
+      type,
+      ctx,
+      certificateBody: structured.certificateBody,
+      certificateDays: structured.certificateDays,
+      certificateCid: structured.certificateCid,
+    };
+  }
+  return null;
+}
+
+async function uploadClinicalDocumentPdf(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  documentId: string,
+  pdfBuffer: Buffer
+): Promise<string | null> {
+  const path = `${clinicId}/${documentId}.pdf`;
+  const { error } = await supabase.storage
+    .from(CLINICAL_DOCUMENTS_BUCKET)
+    .upload(path, pdfBuffer, { contentType: "application/pdf", upsert: true });
+
+  if (error) {
+    console.warn("[clinical-pdf] upload:", error.message);
+    return null;
+  }
+  return path;
 }
 
 function parseStructuredContent(
@@ -324,6 +406,7 @@ export async function listClinicalDocuments(input: {
   patientId?: string;
   type: ClinicalDocumentType;
   procedureId?: string | null;
+  standaloneOnly?: boolean;
 }): Promise<{ data: ClinicalDocument[]; error: string | null }> {
   const auth = await getAuthDoctor();
   if (auth.error || !auth.profile) return { data: [], error: auth.error };
@@ -336,9 +419,13 @@ export async function listClinicalDocuments(input: {
     .eq("doctor_id", auth.user!.id)
     .order("created_at", { ascending: false });
 
-  if (input.appointmentId) query = query.eq("appointment_id", input.appointmentId);
+  if (input.standaloneOnly) {
+    query = query.is("appointment_id", null);
+  } else if (input.appointmentId) {
+    query = query.eq("appointment_id", input.appointmentId);
+  }
+
   if (input.patientId) query = query.eq("patient_id", input.patientId);
-  if (input.procedureId) query = query.eq("procedure_id", input.procedureId);
 
   const { data, error } = await query;
   if (error) return { data: [], error: error.message };
@@ -485,6 +572,9 @@ export async function finalizeClinicalDocumentManual(
   const type = doc.type as ClinicalDocumentType;
   const structured = parseStructuredContent(type, doc.structured_content);
 
+  const validationErr = validateClinicalDocumentContent(type, structured);
+  if (validationErr) return { html: null, error: validationErr };
+
   const { ctx, error: ctxErr } = await loadDocumentRenderContext(
     doc.patient_id,
     doc.doctor_id,
@@ -540,6 +630,22 @@ export async function finalizeClinicalDocumentManual(
     });
   }
 
+  let pdfPath: string | null = null;
+  const pdfPayload = buildPdfPayload(type, ctx, structured, doc.body_text);
+  if (pdfPayload) {
+    try {
+      const buffer = await renderClinicalDocumentPdfBuffer(pdfPayload);
+      pdfPath = await uploadClinicalDocumentPdf(
+        auth.supabase,
+        doc.clinic_id,
+        documentId,
+        buffer
+      );
+    } catch (e) {
+      console.warn("[clinical-pdf] render:", e);
+    }
+  }
+
   const { error: updateErr } = await auth.supabase
     .from("clinical_documents")
     .update({
@@ -552,15 +658,105 @@ export async function finalizeClinicalDocumentManual(
       status: "issued_manual",
       finalized_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      ...(pdfPath ? { pdf_path: pdfPath } : {}),
     })
     .eq("id", documentId);
 
   if (updateErr) return { html: null, error: updateErr.message };
 
+  revalidatePath("/dashboard/atendimentos/prescricoes");
+  revalidatePath("/dashboard/atendimentos/pedidos-exame");
+  revalidatePath("/dashboard/atendimentos/atestados");
   if (doc.appointment_id) {
     revalidatePath(`/dashboard/agenda/consulta/${doc.appointment_id}`);
+    revalidatePath(`/dashboard/agenda/atendimento/${doc.appointment_id}`);
   }
   return { html, error: null };
+}
+
+export async function getClinicalDocumentPdfUrl(
+  documentId: string
+): Promise<{ url: string | null; error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { url: null, error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { url: null, error: "Clínica não encontrada." };
+
+  const { data: doc, error } = await supabase
+    .from("clinical_documents")
+    .select("pdf_path, clinic_id, status")
+    .eq("id", documentId)
+    .eq("clinic_id", profile.clinic_id)
+    .single();
+
+  if (error || !doc) return { url: null, error: error?.message ?? "Documento não encontrado." };
+
+  let path = doc.pdf_path as string | null;
+
+  if (!path && doc.status === "issued_manual") {
+    const regen = await regenerateClinicalDocumentPdf(documentId);
+    if (regen.error) return { url: null, error: regen.error };
+    path = regen.pdfPath;
+  }
+
+  if (!path) return { url: null, error: "PDF não disponível para este documento." };
+
+  const { data: signed, error: signErr } = await supabase.storage
+    .from(CLINICAL_DOCUMENTS_BUCKET)
+    .createSignedUrl(path, 3600);
+
+  if (signErr || !signed?.signedUrl) {
+    return { url: null, error: signErr?.message ?? "Erro ao gerar link do PDF." };
+  }
+
+  return { url: signed.signedUrl, error: null };
+}
+
+async function regenerateClinicalDocumentPdf(
+  documentId: string
+): Promise<{ pdfPath: string | null; error: string | null }> {
+  const supabase = await createClient();
+  const { data: doc, error } = await supabase
+    .from("clinical_documents")
+    .select("*")
+    .eq("id", documentId)
+    .single();
+
+  if (error || !doc) return { pdfPath: null, error: "Documento não encontrado." };
+
+  const type = doc.type as ClinicalDocumentType;
+  const structured = parseStructuredContent(type, doc.structured_content);
+  const { ctx, error: ctxErr } = await loadDocumentRenderContext(
+    doc.patient_id,
+    doc.doctor_id,
+    doc.clinic_id
+  );
+  if (ctxErr || !ctx) return { pdfPath: null, error: ctxErr ?? "Erro ao carregar dados." };
+
+  const pdfPayload = buildPdfPayload(type, ctx, structured, doc.body_text ?? "");
+  if (!pdfPayload) return { pdfPath: null, error: "Conteúdo inválido para PDF." };
+
+  try {
+    const buffer = await renderClinicalDocumentPdfBuffer(pdfPayload);
+    const pdfPath = await uploadClinicalDocumentPdf(supabase, doc.clinic_id, documentId, buffer);
+    if (pdfPath) {
+      await supabase.from("clinical_documents").update({ pdf_path: pdfPath }).eq("id", documentId);
+    }
+    return { pdfPath, error: null };
+  } catch (e) {
+    return {
+      pdfPath: null,
+      error: e instanceof Error ? e.message : "Erro ao gerar PDF.",
+    };
+  }
 }
 
 export async function getClinicalDocumentHtml(
@@ -698,6 +894,7 @@ export async function saveMedicationCatalogItem(input: {
   id?: string;
   scope: "clinic" | "doctor";
   name: string;
+  active_ingredient?: string;
   default_dosage?: string;
   default_quantity?: string;
   default_instructions?: string;
@@ -724,6 +921,7 @@ export async function saveMedicationCatalogItem(input: {
     scope: input.scope,
     doctor_id: input.scope === "doctor" ? user.id : null,
     name: input.name.trim(),
+    active_ingredient: input.active_ingredient?.trim() ?? "",
     default_dosage: input.default_dosage ?? "",
     default_quantity: input.default_quantity ?? "",
     default_instructions: input.default_instructions ?? "",
@@ -747,7 +945,7 @@ export async function saveMedicationCatalogItem(input: {
 export async function previewClinicalDocumentHtml(input: {
   type: ClinicalDocumentType;
   patientId: string;
-  appointmentId: string;
+  appointmentId?: string | null;
   bodyText: string;
   structuredContent: StructuredContent;
 }): Promise<{ html: string | null; error: string | null }> {
@@ -939,6 +1137,47 @@ export async function saveCertificateCatalogItem(input: {
     const { error } = await supabase.from("clinical_certificate_catalog").insert(row);
     if (error) return { error: error.message };
   }
+  revalidatePath("/dashboard/perfil");
+  revalidatePath("/dashboard/configuracoes");
+  return { error: null };
+}
+
+export async function listCertificateCatalogForManage(
+  scope: "clinic" | "doctor"
+): Promise<{ data: CertificateCatalogItem[]; error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: [], error: "Não autorizado." };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id, role")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { data: [], error: "Clínica não encontrada." };
+  if (scope === "clinic" && profile.role !== "admin") return { data: [], error: "Sem permissão." };
+  if (scope === "doctor" && profile.role !== "medico") return { data: [], error: "Sem permissão." };
+
+  let query = supabase
+    .from("clinical_certificate_catalog")
+    .select("*")
+    .eq("clinic_id", profile.clinic_id)
+    .eq("scope", scope)
+    .order("name");
+
+  if (scope === "doctor") query = query.eq("doctor_id", user.id);
+
+  const { data, error } = await query;
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as CertificateCatalogItem[], error: null };
+}
+
+export async function deleteCertificateCatalogItem(id: string): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("clinical_certificate_catalog").delete().eq("id", id);
+  if (error) return { error: error.message };
   revalidatePath("/dashboard/perfil");
   revalidatePath("/dashboard/configuracoes");
   return { error: null };

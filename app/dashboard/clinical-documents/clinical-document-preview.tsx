@@ -15,7 +15,7 @@ export function ClinicalDocumentPreview({
 }: {
   type: ClinicalDocumentType;
   patientId: string;
-  appointmentId: string;
+  appointmentId?: string | null;
   bodyText: string;
   structuredContent: StructuredContent;
 }) {
@@ -31,7 +31,7 @@ export function ClinicalDocumentPreview({
       const res = await previewClinicalDocumentHtml({
         type,
         patientId,
-        appointmentId,
+        appointmentId: appointmentId ?? null,
         bodyText,
         structuredContent,
       });

@@ -436,8 +436,7 @@ export function AtendimentoClinicoClient({
               </Button>
             </div>
           )}
-          {activeFicha?.template.ficha_type === "fields" &&
-            activeFicha.template.slug !== "atestado" && (
+          {activeFicha?.template.ficha_type === "fields" && (
             <FichaFieldsPanel
               key={activeFicha.id}
               instanceId={activeFicha.id}
@@ -463,7 +462,19 @@ export function AtendimentoClinicoClient({
               }
             />
           )}
-          {isViewingCurrentFicha && activeFicha?.template.slug === "atestado" && isDoctor && (
+          {isViewingCurrentFicha && activeFicha?.template.ficha_type === "certificate" && isDoctor && (
+            <ClinicalDocumentsClient
+              type="certificate"
+              patientId={patientId}
+              appointmentId={appointmentId}
+              procedureId={activeProcedureId}
+              isDoctor={isDoctor}
+            />
+          )}
+          {isViewingCurrentFicha &&
+            activeFicha?.template.slug === "atestado" &&
+            activeFicha?.template.ficha_type !== "certificate" &&
+            isDoctor && (
             <ClinicalDocumentsClient
               type="certificate"
               patientId={patientId}
@@ -494,6 +505,7 @@ export function AtendimentoClinicoClient({
             activeFicha &&
             (activeFicha.template.ficha_type === "prescription" ||
               activeFicha.template.ficha_type === "exam_request" ||
+              activeFicha.template.ficha_type === "certificate" ||
               activeFicha.template.slug === "atestado") &&
             !isDoctor && (
               <p className="text-sm text-muted-foreground">

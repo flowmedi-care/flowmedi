@@ -50,11 +50,10 @@ export function ClinicalLayoutPickerDialog({
   );
 }
 
-export function printClinicalHtml(html: string) {
+export function printClinicalHtml(html: string): boolean {
   const w = window.open("", "_blank", "width=800,height=900");
   if (!w) {
-    alert("Permita pop-ups para imprimir o documento.");
-    return;
+    return false;
   }
   w.document.write(html);
   w.document.close();
@@ -62,4 +61,5 @@ export function printClinicalHtml(html: string) {
   setTimeout(() => {
     w.print();
   }, 400);
+  return true;
 }
