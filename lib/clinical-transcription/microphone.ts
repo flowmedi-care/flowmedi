@@ -75,3 +75,34 @@ export function createMediaRecorder(stream: MediaStream, preferredMime?: string)
 
   return new MediaRecorder(stream);
 }
+
+/** Inicia gravação sem chamar start() duas vezes se o navegador já entrou em "recording". */
+export function startMediaRecorder(recorder: MediaRecorder, timesliceMs?: number): void {
+  if (recorder.state !== "inactive") {
+    return;
+  }
+
+  if (timesliceMs != null && timesliceMs > 0) {
+    try {
+      recorder.start(timesliceMs);
+      return;
+    } catch {
+      if (recorder.state === "recording") {
+        return;
+      }
+    }
+  }
+
+  if (recorder.state === "inactive") {
+    recorder.start();
+  }
+}
+
+export function stopMediaRecorder(recorder: MediaRecorder | null | undefined): void {
+  if (!recorder || recorder.state === "inactive") return;
+  try {
+    recorder.stop();
+  } catch {
+    // ignore
+  }
+}

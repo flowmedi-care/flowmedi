@@ -19,6 +19,8 @@ import {
 } from "@/lib/clinical-transcription/streaming-client";
 import {
   createMediaRecorder,
+  startMediaRecorder,
+  stopMediaRecorder,
   getMicrophoneErrorMessage,
   requestMicrophoneStream,
 } from "@/lib/clinical-transcription/microphone";
@@ -393,9 +395,8 @@ export function ClinicalTranscriptionPanel({
       clearPollTimer();
       clearLiveBackupTimer();
       streamConnectionRef.current?.close();
-      if (mediaRecorderRef.current?.state === "recording") {
-        mediaRecorderRef.current.stop();
-      }
+      stopMediaRecorder(mediaRecorderRef.current);
+      mediaRecorderRef.current = null;
       stopMediaTracks();
     };
   }, [clearRecordingTimer, clearPollTimer, clearLiveBackupTimer, stopMediaTracks]);
@@ -500,9 +501,7 @@ export function ClinicalTranscriptionPanel({
     streamConnectionRef.current?.close();
     streamConnectionRef.current = null;
     streamSessionRef.current = null;
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-    }
+    stopMediaRecorder(mediaRecorderRef.current);
     mediaRecorderRef.current = null;
     clearRecordingTimer();
     clearLiveBackupTimer();
@@ -520,6 +519,8 @@ export function ClinicalTranscriptionPanel({
     streamConnectionRef.current?.close();
     streamConnectionRef.current = null;
     streamSessionRef.current = null;
+    stopMediaRecorder(mediaRecorderRef.current);
+    mediaRecorderRef.current = null;
     stopMediaTracks();
 
     appendLog("Solicitando acesso ao microfone…");
@@ -580,11 +581,7 @@ export function ClinicalTranscriptionPanel({
         }
       };
 
-      try {
-        recorder.start(streamingActive ? 500 : 1000);
-      } catch {
-        recorder.start();
-      }
+      startMediaRecorder(recorder, streamingActive ? 500 : 1000);
 
       recordingSecondsRef.current = 0;
       setRecordingSeconds(0);
@@ -596,9 +593,25 @@ export function ClinicalTranscriptionPanel({
       appendLog(streamingActive ? "Gravação ao vivo iniciada." : "Gravação iniciada.");
       isStartingRef.current = false;
     } catch (error) {
+      const recorder = mediaRecorderRef.current;
+      if (recorder?.state === "recording") {
+        recordingSecondsRef.current = 0;
+        setRecordingSeconds(0);
+        setPhase(streamSessionRef.current ? "streaming" : "recording");
+        recordingTimerRef.current = setInterval(() => {
+          recordingSecondsRef.current += 1;
+          setRecordingSeconds(recordingSecondsRef.current);
+        }, 1000);
+        appendLog("Gravação iniciada.");
+        isStartingRef.current = false;
+        return;
+      }
+
       const message = getMicrophoneErrorMessage(error);
       appendLog(message, "error");
       toast(message, "error");
+      stopMediaRecorder(mediaRecorderRef.current);
+      mediaRecorderRef.current = null;
       stopMediaTracks();
       setPhase("idle");
       isStartingRef.current = false;
