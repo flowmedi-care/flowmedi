@@ -3,7 +3,7 @@ export function getMicrophoneErrorMessage(error: unknown): string {
     switch (error.name) {
       case "NotAllowedError":
       case "PermissionDeniedError":
-        return "Permissão do microfone negada. Clique no ícone de cadeado na barra de endereço e permita o microfone.";
+        return "Permissão do microfone negada. Clique no ícone de cadeado/câmera na barra de endereço, permita o microfone e recarregue a página. Se já bloqueou antes, vá em Configurações do site → Microfone → Permitir.";
       case "NotFoundError":
       case "DevicesNotFoundError":
         return "Nenhum microfone encontrado. Conecte um microfone e tente novamente.";
