@@ -1,4 +1,4 @@
--- Migration: Pipeline do agente virtual — modos de confirmação por ferramenta
+-- Migration: Peipeline do agente virtual — modos de confirmação por ferramenta
 ALTER TABLE public.clinic_virtual_assistant_settings
   ADD COLUMN IF NOT EXISTS tool_execution_modes jsonb DEFAULT '{}'::jsonb;
 
