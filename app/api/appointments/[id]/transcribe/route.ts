@@ -55,6 +55,11 @@ export async function POST(
     const formData = await request.formData();
     const file = formData.get("file");
     const recordingDurationRaw = formData.get("recording_duration_seconds");
+    const liveTranscriptRaw = formData.get("live_transcript");
+    const transcriptionModeRaw = formData.get("transcription_mode");
+    const isHybrid = transcriptionModeRaw === "hybrid";
+    const liveTranscriptPreview =
+      typeof liveTranscriptRaw === "string" ? liveTranscriptRaw.trim().slice(0, 50_000) : "";
     const recordingDurationSeconds =
       typeof recordingDurationRaw === "string" && recordingDurationRaw.trim()
         ? Number.parseFloat(recordingDurationRaw)
@@ -111,6 +116,8 @@ export async function POST(
         clinic_id: clinicId,
         created_by: userId,
         status: "processing",
+        transcription_mode: isHybrid ? "hybrid" : "batch",
+        live_transcript: liveTranscriptPreview || null,
       })
       .select("id")
       .single();

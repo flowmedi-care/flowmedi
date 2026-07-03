@@ -24,6 +24,11 @@ import {
   getMicrophoneErrorMessage,
   requestMicrophoneStream,
 } from "@/lib/clinical-transcription/microphone";
+import {
+  ClinicalSpeechPreview,
+  isSpeechPreviewSupported,
+} from "@/lib/clinical-transcription/speech-preview";
+import type { ClinicalStreamingMode } from "@/lib/clinical-transcription/feature-flags";
 import { ClinicalTranscriptionDetail } from "./clinical-transcription-detail";
 import { ClinicalAudioWaveform } from "./clinical-audio-waveform";
 
@@ -129,14 +134,16 @@ function LogIcon({ level }: { level: LogEntry["level"] }) {
 export function ClinicalTranscriptionPanel({
   appointmentId,
   canRecord,
-  streamingEnabled = false,
+  streamingMode = "off",
   fallbackToBatch = true,
 }: {
   appointmentId: string;
   canRecord: boolean;
-  streamingEnabled?: boolean;
+  streamingMode?: ClinicalStreamingMode;
   fallbackToBatch?: boolean;
 }) {
+  const isHybridMode = streamingMode === "hybrid";
+  const isRealtimeMode = streamingMode === "realtime";
   const [transcriptions, setTranscriptions] = useState<TranscriptionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [phase, setPhase] = useState<PanelPhase>("idle");
@@ -158,6 +165,7 @@ export function ClinicalTranscriptionPanel({
   const streamSessionRef = useRef<{ transcriptionId: string; wsUrl: string } | null>(null);
   const streamSegmentsRef = useRef<TranscriptSegment[]>([]);
   const liveTranscriptRef = useRef("");
+  const speechPreviewRef = useRef<ClinicalSpeechPreview | null>(null);
   const isStartingRef = useRef(false);
   const sessionAbortRef = useRef<AbortController | null>(null);
   const startFlowAbortRef = useRef<AbortController | null>(null);
@@ -237,6 +245,33 @@ export function ClinicalTranscriptionPanel({
       setLoading(false);
     }
   }, [appointmentId]);
+
+  const stopSpeechPreview = useCallback(() => {
+    speechPreviewRef.current?.stop();
+    speechPreviewRef.current = null;
+  }, []);
+
+  const startHybridSpeechPreview = useCallback(() => {
+    liveTranscriptRef.current = "";
+    setLiveTranscript("");
+    if (!isSpeechPreviewSupported()) {
+      appendLog("Prévia indisponível neste navegador — Whisper transcreve ao parar.", "error");
+      return;
+    }
+    speechPreviewRef.current = new ClinicalSpeechPreview({
+      onInterim: (text) => {
+        liveTranscriptRef.current = text;
+        setLiveTranscript(text);
+      },
+      onFinal: (text) => {
+        liveTranscriptRef.current = text;
+        setLiveTranscript(text);
+      },
+      onError: (message) => appendLog(message, "error"),
+    });
+    speechPreviewRef.current.start();
+    appendLog("Prévia de voz ativa (quase instantânea).");
+  }, [appendLog]);
 
   const backupLiveTranscript = useCallback(async () => {
     const session = streamSessionRef.current;
@@ -331,6 +366,7 @@ export function ClinicalTranscriptionPanel({
           status?: string;
           transcript?: string | null;
           error_message?: string | null;
+          post_processing_status?: string | null;
         };
 
         if (!res.ok) {
@@ -342,6 +378,14 @@ export function ClinicalTranscriptionPanel({
         }
 
         if (data.status === "completed") {
+          if (
+            data.post_processing_status === "pending" ||
+            data.post_processing_status === "processing"
+          ) {
+            appendLog("Whisper concluído. Gerando relatório clínico…", "success");
+            setPhase("post_processing");
+            return;
+          }
           appendLog("Transcrição concluída com sucesso.", "success");
           toast("Transcrição concluída.", "success");
           setPhase("idle");
@@ -398,6 +442,7 @@ export function ClinicalTranscriptionPanel({
       clearPollTimer();
       clearLiveBackupTimer();
       streamConnectionRef.current?.close();
+      stopSpeechPreview();
       stopMediaRecorder(mediaRecorderRef.current);
       mediaRecorderRef.current = null;
       stopMediaTracks();
@@ -521,6 +566,7 @@ export function ClinicalTranscriptionPanel({
     appendLog("Preparação cancelada.", "error");
     sessionAbortRef.current?.abort();
     sessionAbortRef.current = null;
+    stopSpeechPreview();
     streamConnectionRef.current?.close();
     streamConnectionRef.current = null;
     streamSessionRef.current = null;
@@ -597,15 +643,19 @@ export function ClinicalTranscriptionPanel({
 
       mediaStreamRef.current = stream;
       setAudioPreviewStream(stream);
-      setPhase("starting");
       chunksRef.current = [];
 
       const mimeType = pickMimeType() ?? "audio/webm";
       appendLog(`Microfone ok. Formato: ${mimeType}.`);
 
       let streamingActive = false;
-      if (streamingEnabled) {
-        appendLog("Conectando transcrição em tempo real…");
+      if (isHybridMode) {
+        setPhase("recording");
+        startHybridSpeechPreview();
+        appendLog("Gravando áudio. Transcrição Whisper + relatório ao parar.");
+      } else if (isRealtimeMode) {
+        setPhase("starting");
+        appendLog("Conectando transcrição em tempo real (VPS)…");
         const streamResult = await startStreamingSession(mimeType, startFlow.signal);
         if (streamResult === "cancelled" || isStartFlowAborted() || userCancelledStartRef.current) {
           userCancelledStartRef.current = false;
@@ -626,6 +676,8 @@ export function ClinicalTranscriptionPanel({
           appendLog("Streaming indisponível — continuando em modo batch (gravação local).", "error");
           toast("Streaming indisponível. Gravando para transcrição ao final.", "error");
         }
+      } else {
+        setPhase("recording");
       }
 
       if (isStartFlowAborted() || userCancelledStartRef.current) {
@@ -710,6 +762,7 @@ export function ClinicalTranscriptionPanel({
   }
 
   function handleStopRecording() {
+    stopSpeechPreview();
     const recorder = mediaRecorderRef.current;
     if (recorder?.state === "recording") {
       appendLog(`Gravação finalizada (${formatDuration(recordingSecondsRef.current)}).`);
@@ -813,6 +866,13 @@ export function ClinicalTranscriptionPanel({
     const formData = new FormData();
     formData.append("file", blob, `recording.${extensionForMime(mimeType)}`);
     formData.append("recording_duration_seconds", String(durationSeconds));
+    if (isHybridMode) {
+      formData.append("transcription_mode", "hybrid");
+      const preview = liveTranscriptRef.current.trim();
+      if (preview) {
+        formData.append("live_transcript", preview);
+      }
+    }
 
     try {
       const res = await fetch(`/api/appointments/${appointmentId}/transcribe`, {
@@ -863,9 +923,11 @@ export function ClinicalTranscriptionPanel({
       <div>
         <h2 className="font-semibold text-lg">Transcrição de áudio</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          {streamingEnabled
-            ? "Grave a consulta com transcrição em tempo real. Ao finalizar, um relatório clínico é gerado automaticamente."
-            : "Grave o áudio da consulta e converta em texto. O áudio não é armazenado — apenas a transcrição."}
+          {isHybridMode
+            ? "Prévia quase instantânea enquanto você fala. Ao parar, o áudio vai para o Whisper na VPS e o relatório clínico é gerado."
+            : isRealtimeMode
+              ? "Grave a consulta com transcrição Whisper ao vivo na VPS. Ao finalizar, um relatório clínico é gerado."
+              : "Grave o áudio da consulta e converta em texto. O áudio não é armazenado — apenas a transcrição."}
         </p>
       </div>
 
@@ -877,7 +939,7 @@ export function ClinicalTranscriptionPanel({
                 <Mic className="h-4 w-4 mr-2" />
                 Iniciar gravação
               </Button>
-              {streamingEnabled && (
+              {isRealtimeMode && (
                 <Button
                   type="button"
                   variant="outline"
@@ -916,7 +978,8 @@ export function ClinicalTranscriptionPanel({
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
                     <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive" />
                   </span>
-                  {phase === "streaming" ? "Ao vivo" : "Gravando"} {formatDuration(recordingSeconds)}
+                  {phase === "streaming" ? "Ao vivo" : isHybridMode ? "Gravando" : "Gravando"}{" "}
+                  {formatDuration(recordingSeconds)}
                 </div>
                 <Button type="button" variant="destructive" onClick={handleStopRecording}>
                   <Square className="h-4 w-4 mr-2 fill-current" />
@@ -929,19 +992,27 @@ export function ClinicalTranscriptionPanel({
                 active={phase === "recording" || phase === "streaming"}
               />
 
-              {phase === "streaming" ? (
+              {(phase === "streaming" || isHybridMode) && (
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">
-                    Texto aparece com pequeno atraso (~3–5s). Revise o conteúdo ao final.
+                    {isHybridMode
+                      ? "Prévia do navegador (pode divergir). Texto definitivo após Whisper processar."
+                      : "Texto aparece com pequeno atraso (~3–5s). Revise o conteúdo ao final."}
                   </p>
                   <Textarea
                     readOnly
                     value={liveTranscript}
-                    placeholder="A transcrição aparecerá aqui conforme você fala…"
+                    placeholder={
+                      isHybridMode
+                        ? "Fale algo — a prévia aparece aqui quase na hora…"
+                        : "A transcrição aparecerá aqui conforme você fala…"
+                    }
                     className="min-h-[140px] resize-y bg-muted/30"
                   />
                 </div>
-              ) : (
+              )}
+
+              {phase === "recording" && !isHybridMode && (
                 <p className="text-xs text-muted-foreground">
                   O áudio está sendo capturado. A transcrição completa será gerada ao parar a gravação.
                 </p>
@@ -1012,7 +1083,12 @@ export function ClinicalTranscriptionPanel({
                   <p className="text-xs text-muted-foreground">{formatDateTime(t.created_at)}</p>
                   {t.transcription_mode === "streaming" && (
                     <Badge variant="outline" className="text-[10px]">
-                      Streaming
+                      Ao vivo VPS
+                    </Badge>
+                  )}
+                  {t.transcription_mode === "hybrid" && (
+                    <Badge variant="outline" className="text-[10px]">
+                      Híbrido
                     </Badge>
                   )}
                 </div>

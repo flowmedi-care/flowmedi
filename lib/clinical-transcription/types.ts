@@ -1,4 +1,4 @@
-export type TranscriptionMode = "batch" | "streaming";
+export type TranscriptionMode = "batch" | "streaming" | "hybrid";
 
 export type PostProcessingStatus =
   | "pending"

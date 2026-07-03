@@ -74,7 +74,7 @@ export function AtendimentoClinicoClient({
   currentUserId,
   autoFinalize,
   fichaProcedureMap = {},
-  streamingEnabled = false,
+  streamingMode = "off",
   fallbackToBatch = true,
 }: {
   appointmentId: string;
@@ -90,7 +90,7 @@ export function AtendimentoClinicoClient({
   currentUserId: string | null;
   autoFinalize?: boolean;
   fichaProcedureMap?: Record<string, { procedureId: string; procedureName: string }>;
-  streamingEnabled?: boolean;
+  streamingMode?: "off" | "hybrid" | "realtime";
   fallbackToBatch?: boolean;
 }) {
   const router = useRouter();
@@ -544,7 +544,7 @@ export function AtendimentoClinicoClient({
             <ClinicalTranscriptionPanel
               appointmentId={appointmentId}
               canRecord={canEdit || isDoctor}
-              streamingEnabled={streamingEnabled}
+              streamingMode={streamingMode}
               fallbackToBatch={fallbackToBatch}
             />
           )}

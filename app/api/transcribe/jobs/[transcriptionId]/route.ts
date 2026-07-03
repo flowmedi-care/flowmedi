@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicMemberWithRole } from "@/lib/auth-helpers";
+import { isClinicalPostProcessingEnabled } from "@/lib/clinical-transcription/feature-flags";
+import { runClinicalPostProcessing } from "@/lib/clinical-transcription/post-process";
 import { getTranscriptionJob, type JobStatus } from "@/lib/transcribe-api";
 
 function mapExternalStatus(status: JobStatus): JobStatus {
@@ -83,14 +86,23 @@ export async function GET(
 
       if (mappedStatus === "completed") {
         const transcript = (job.text ?? "").trim();
+        const isHybrid = row.transcription_mode === "hybrid";
+        const postProcessingStatus =
+          isHybrid && isClinicalPostProcessingEnabled()
+            ? "pending"
+            : isHybrid
+              ? "skipped"
+              : row.post_processing_status;
+
         const updatePayload = {
-          status: transcript ? "completed" : "failed",
+          status: transcript ? (isHybrid && isClinicalPostProcessingEnabled() ? "processing" : "completed") : "failed",
           transcript: transcript || null,
           error_message: transcript ? null : "Transcrição concluída, mas o texto está vazio.",
           duration_seconds: job.duration_seconds ?? null,
           processing_time_seconds: job.processing_time_seconds ?? null,
+          post_processing_status: postProcessingStatus,
           updated_at: new Date().toISOString(),
-          completed_at: new Date().toISOString(),
+          completed_at: isHybrid && isClinicalPostProcessingEnabled() ? null : new Date().toISOString(),
         };
 
         await supabase
@@ -98,12 +110,17 @@ export async function GET(
           .update(updatePayload)
           .eq("id", transcriptionId);
 
+        if (isHybrid && isClinicalPostProcessingEnabled() && transcript) {
+          waitUntil(runClinicalPostProcessing(transcriptionId));
+        }
+
         return NextResponse.json({
           status: updatePayload.status,
           transcript: updatePayload.transcript,
           error_message: updatePayload.error_message,
           duration_seconds: updatePayload.duration_seconds,
           processing_time_seconds: updatePayload.processing_time_seconds,
+          post_processing_status: postProcessingStatus,
         });
       }
 

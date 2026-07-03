@@ -112,7 +112,7 @@ export default async function AtendimentoPage({
       currentUserId={user.id}
       autoFinalize={finalize === "1"}
       fichaProcedureMap={fichaProcedureMap}
-      streamingEnabled={streamingConfig.streamingEnabled}
+      streamingMode={streamingConfig.streamingMode}
       fallbackToBatch={streamingConfig.fallbackToBatch}
     />
   );
