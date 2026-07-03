@@ -160,7 +160,10 @@ export function ClinicalTranscriptionPanel({
   const liveTranscriptRef = useRef("");
   const isStartingRef = useRef(false);
   const sessionAbortRef = useRef<AbortController | null>(null);
+  const startFlowAbortRef = useRef<AbortController | null>(null);
   const userCancelledStartRef = useRef(false);
+
+  const isStartFlowAborted = useCallback(() => startFlowAbortRef.current?.signal.aborted ?? false, []);
 
   const appendLog = useCallback((message: string, level: LogEntry["level"] = "info") => {
     logIdRef.current += 1;
@@ -401,12 +404,19 @@ export function ClinicalTranscriptionPanel({
     };
   }, [clearRecordingTimer, clearPollTimer, clearLiveBackupTimer, stopMediaTracks]);
 
-  async function startStreamingSession(mimeType: string): Promise<boolean> {
+  async function startStreamingSession(
+    mimeType: string,
+    flowSignal?: AbortSignal
+  ): Promise<"ok" | "failed" | "cancelled"> {
+    if (isStartFlowAborted()) return "cancelled";
+
     appendLog("Iniciando sessão de transcrição em tempo real…");
     sessionAbortRef.current?.abort();
     const controller = new AbortController();
     sessionAbortRef.current = controller;
     const timeoutId = setTimeout(() => controller.abort(), 25_000);
+    const onFlowAbort = () => controller.abort();
+    flowSignal?.addEventListener("abort", onFlowAbort);
 
     try {
       const res = await fetch(`/api/appointments/${appointmentId}/transcribe/stream/session`, {
@@ -414,7 +424,12 @@ export function ClinicalTranscriptionPanel({
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      flowSignal?.removeEventListener("abort", onFlowAbort);
       sessionAbortRef.current = null;
+
+      if (isStartFlowAborted() || userCancelledStartRef.current) {
+        return "cancelled";
+      }
 
       const data = (await res.json()) as {
         error?: string;
@@ -429,7 +444,7 @@ export function ClinicalTranscriptionPanel({
 
       if (!res.ok || !data.transcriptionId || !data.wsUrl) {
         appendLog(data.error ?? "Falha ao criar sessão de streaming.", "error");
-        return false;
+        return "failed";
       }
 
       appendLog("Sessão criada. Conectando WebSocket…");
@@ -466,18 +481,25 @@ export function ClinicalTranscriptionPanel({
       streamConnectionRef.current = connection;
       await connection.connect();
 
+      if (isStartFlowAborted() || userCancelledStartRef.current) {
+        connection.close();
+        streamConnectionRef.current = null;
+        streamSessionRef.current = null;
+        return "cancelled";
+      }
+
       liveBackupTimerRef.current = setInterval(() => {
         void backupLiveTranscript();
       }, LIVE_BACKUP_INTERVAL_MS);
 
       appendLog("Transcrição ao vivo ativa.");
-      return true;
+      return "ok";
     } catch (error) {
       clearTimeout(timeoutId);
+      flowSignal?.removeEventListener("abort", onFlowAbort);
       sessionAbortRef.current = null;
-      if (userCancelledStartRef.current) {
-        userCancelledStartRef.current = false;
-        return false;
+      if (isStartFlowAborted() || userCancelledStartRef.current) {
+        return "cancelled";
       }
       const message =
         error instanceof Error && error.name === "AbortError"
@@ -489,12 +511,13 @@ export function ClinicalTranscriptionPanel({
       streamConnectionRef.current?.close();
       streamConnectionRef.current = null;
       streamSessionRef.current = null;
-      return false;
+      return "failed";
     }
   }
 
   function handleCancelStarting() {
     userCancelledStartRef.current = true;
+    startFlowAbortRef.current?.abort();
     appendLog("Preparação cancelada.", "error");
     sessionAbortRef.current?.abort();
     sessionAbortRef.current = null;
@@ -510,10 +533,48 @@ export function ClinicalTranscriptionPanel({
     isStartingRef.current = false;
   }
 
+  async function runStreamingDiagnostics() {
+    appendLog("Testando conexão com a API de streaming (servidor Flowmedi → VPS)…");
+    try {
+      const res = await fetch("/api/clinical-transcription/diagnostics");
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        streamApiUrl?: string;
+        checks?: Array<{ label: string; ok: boolean; detail: string }>;
+        hints?: string[];
+      };
+
+      if (!res.ok) {
+        appendLog(data.error ?? "Diagnóstico indisponível.", "error");
+        return;
+      }
+
+      appendLog(`URL da VPS: ${data.streamApiUrl ?? "?"}`);
+      for (const check of data.checks ?? []) {
+        appendLog(`${check.ok ? "OK" : "FALHA"} — ${check.label}: ${check.detail}`, check.ok ? "success" : "error");
+      }
+      for (const hint of data.hints ?? []) {
+        appendLog(hint, "error");
+      }
+      if (data.ok) {
+        appendLog("Diagnóstico: streaming pronto para uso.", "success");
+        toast("API de streaming OK.", "success");
+      } else {
+        toast("Problema na API de streaming — veja o log.", "error");
+      }
+    } catch {
+      appendLog("Erro de rede ao executar diagnóstico.", "error");
+    }
+  }
+
   async function handleStartRecording() {
     if (!canRecord || isStartingRef.current) return;
     isStartingRef.current = true;
     userCancelledStartRef.current = false;
+    startFlowAbortRef.current?.abort();
+    const startFlow = new AbortController();
+    startFlowAbortRef.current = startFlow;
 
     clearActivityLog();
     streamConnectionRef.current?.close();
@@ -527,6 +588,13 @@ export function ClinicalTranscriptionPanel({
 
     try {
       const stream = await requestMicrophoneStream();
+      if (isStartFlowAborted() || userCancelledStartRef.current) {
+        stopMediaTracks();
+        setPhase("idle");
+        isStartingRef.current = false;
+        return;
+      }
+
       mediaStreamRef.current = stream;
       setAudioPreviewStream(stream);
       setPhase("starting");
@@ -538,12 +606,15 @@ export function ClinicalTranscriptionPanel({
       let streamingActive = false;
       if (streamingEnabled) {
         appendLog("Conectando transcrição em tempo real…");
-        streamingActive = await startStreamingSession(mimeType);
-        if (userCancelledStartRef.current) {
+        const streamResult = await startStreamingSession(mimeType, startFlow.signal);
+        if (streamResult === "cancelled" || isStartFlowAborted() || userCancelledStartRef.current) {
           userCancelledStartRef.current = false;
+          stopMediaTracks();
+          setPhase("idle");
           isStartingRef.current = false;
           return;
         }
+        streamingActive = streamResult === "ok";
         if (!streamingActive && !fallbackToBatch) {
           toast("Streaming indisponível.", "error");
           stopMediaTracks();
@@ -555,6 +626,23 @@ export function ClinicalTranscriptionPanel({
           appendLog("Streaming indisponível — continuando em modo batch (gravação local).", "error");
           toast("Streaming indisponível. Gravando para transcrição ao final.", "error");
         }
+      }
+
+      if (isStartFlowAborted() || userCancelledStartRef.current) {
+        stopMediaTracks();
+        setPhase("idle");
+        isStartingRef.current = false;
+        return;
+      }
+
+      const audioTracks = stream.getAudioTracks();
+      if (!audioTracks.length || audioTracks.some((track) => track.readyState !== "live")) {
+        appendLog("Microfone indisponível após preparação. Tente novamente.", "error");
+        toast("Microfone indisponível. Inicie a gravação de novo.", "error");
+        stopMediaTracks();
+        setPhase("idle");
+        isStartingRef.current = false;
+        return;
       }
 
       const recorder = createMediaRecorder(stream, mimeType);
@@ -572,13 +660,16 @@ export function ClinicalTranscriptionPanel({
       recorder.onstop = () => {
         clearRecordingTimer();
         clearLiveBackupTimer();
-        stopMediaTracks();
         isStartingRef.current = false;
-        if (streamSessionRef.current) {
-          void finalizeStreamingRecording(recorder.mimeType || mimeType);
-        } else {
-          void uploadRecording(recorder.mimeType || mimeType);
-        }
+        const recordedMime = recorder.mimeType || mimeType;
+        window.setTimeout(() => {
+          stopMediaTracks();
+          if (streamSessionRef.current) {
+            void finalizeStreamingRecording(recordedMime);
+          } else {
+            void uploadRecording(recordedMime);
+          }
+        }, 50);
       };
 
       startMediaRecorder(recorder, streamingActive ? 500 : 1000);
@@ -781,10 +872,22 @@ export function ClinicalTranscriptionPanel({
       {canRecord && (
         <div className="rounded-lg border bg-card p-4 space-y-4">
           {phase === "idle" && (
-            <Button type="button" onClick={() => void handleStartRecording()} disabled={isBusy}>
-              <Mic className="h-4 w-4 mr-2" />
-              Iniciar gravação
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" onClick={() => void handleStartRecording()} disabled={isBusy}>
+                <Mic className="h-4 w-4 mr-2" />
+                Iniciar gravação
+              </Button>
+              {streamingEnabled && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void runStreamingDiagnostics()}
+                  disabled={isBusy}
+                >
+                  Testar API de streaming
+                </Button>
+              )}
+            </div>
           )}
 
           {phase === "starting" && (
