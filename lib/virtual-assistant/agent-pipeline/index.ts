@@ -69,3 +69,26 @@ export {
   resetToolFailureCount,
   type PipelineTransitionTrigger,
 } from "./transitions";
+
+export {
+  buildUnifiedGraph,
+  buildStageNodes,
+  buildToolNodes,
+  RUNTIME_NODES,
+  RUNTIME_EDGES,
+  RUNTIME_PATH_MAP,
+  EDGE_STYLES,
+  EDGE_KIND_LABELS,
+  getToolPrimaryStage,
+  type UnifiedGraphNode,
+  type UnifiedGraphEdge,
+  type UnifiedNodeKind,
+  type UnifiedEdgeKind,
+} from "./unified-flow-graph";
+
+export {
+  resolveUnifiedPipelineHighlight,
+  getDemoStageForTick,
+  DEMO_STAGE_CYCLE,
+  type UnifiedPipelineHighlight,
+} from "./unified-highlight";

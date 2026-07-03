@@ -41,7 +41,7 @@ import {
   COVERAGE_LABELS,
 } from "@/lib/virtual-assistant/journey-coverage-matrix";
 import { FlowmediAgentBento } from "@/components/agents/flowmedi-agent-bento";
-import { AgentPipelineCanvas } from "@/components/agents/agent-pipeline-canvas";
+import { AgentUnifiedPipelineCanvas } from "@/components/agents/agent-unified-pipeline-canvas";
 import type { AgentPipelineStage } from "@/lib/virtual-assistant/agent-pipeline/stages";
 import Link from "next/link";
 
@@ -658,7 +658,12 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AgentPipelineCanvas currentStage={livePipelineStage} className="h-[480px]" />
+            <AgentUnifiedPipelineCanvas
+              currentStage={livePipelineStage}
+              variant="full"
+              showLegend
+              className="h-[560px]"
+            />
           </CardContent>
         </Card>
       )}

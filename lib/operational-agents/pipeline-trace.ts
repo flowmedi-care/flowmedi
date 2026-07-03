@@ -52,6 +52,9 @@ const EVENT_TO_STEP: Record<string, PipelineStep> = {
   error: "failed",
   queue_cleared: "done",
   ai_reactivated: "retry",
+  pipeline_stage_enter: "memory",
+  pipeline_tool_blocked: "tools",
+  pipeline_confirmation_pending: "tools",
 };
 
 const RUN_TYPE_TO_STEP: Record<string, PipelineStep> = {

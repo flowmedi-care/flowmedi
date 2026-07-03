@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AgentPipelineCanvas } from "@/components/agents/agent-pipeline-canvas";
+import { AgentUnifiedPipelineCanvas } from "@/components/agents/agent-unified-pipeline-canvas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -57,10 +57,10 @@ export function AssistenteVirtualPipelineTab({ initialToolModes }: Props) {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Mapa do pipeline</CardTitle>
+          <CardTitle>Mapa unificado do pipeline</CardTitle>
           <CardDescription>
-            Visualização completa das etapas, ferramentas reais e transições. Use o seletor abaixo
-            para simular em qual etapa a IA está.
+            Fluxo completo conectado: Mensagem → Roteador → Agente → Jornada → Etapas CRM →
+            Ferramentas → Resposta. Clique numa etapa para expandir tools e ver dependências.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -81,7 +81,13 @@ export function AssistenteVirtualPipelineTab({ initialToolModes }: Props) {
               Limpar
             </Button>
           </div>
-          <AgentPipelineCanvas demoStage={demoStage} toolModes={toolModes} className="h-[560px]" />
+          <AgentUnifiedPipelineCanvas
+            demoStage={demoStage}
+            toolModes={toolModes}
+            variant="full"
+            showLegend
+            className="h-[700px]"
+          />
         </CardContent>
       </Card>
 
