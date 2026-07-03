@@ -40,7 +40,7 @@ export function resolveUnifiedPipelineHighlight(opts: {
   const activeEdgeIds = [...activeRuntimeEdgeIds];
 
   if (activeStageNodeId) {
-    activeEdgeIds.push(`res-stage-${currentStage}`);
+    activeEdgeIds.push("res-stage-entry");
   }
 
   if (lastToolName) {

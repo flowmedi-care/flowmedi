@@ -47,23 +47,24 @@ export type UnifiedGraphEdge = {
   label?: string;
 };
 
-/** Posições fixas — swimlanes */
-const RUNTIME_Y = 20;
-const CONTEXT_Y = 130;
-const STAGE_Y = 300;
-const PARALLEL_Y = 440;
+/** Posições fixas — swimlanes com espaçamento amplo */
+const RUNTIME_Y = 0;
+const CONTEXT_Y = 110;
+const STAGE_Y = 280;
+const PARALLEL_Y = 400;
+const TOOL_ROW_Y = 520;
 
 const STAGE_POSITIONS: Record<string, { x: number; y: number }> = {
   identificacao: { x: 0, y: STAGE_Y },
-  captacao: { x: 200, y: STAGE_Y },
-  orcamento: { x: 400, y: STAGE_Y - 60 },
-  agendamento: { x: 400, y: STAGE_Y + 60 },
-  confirmacao_pre_consulta: { x: 620, y: STAGE_Y },
-  pos_consulta: { x: 820, y: STAGE_Y },
-  satisfacao: { x: 1020, y: STAGE_Y },
-  financeiro: { x: 400, y: PARALLEL_Y },
-  formularios: { x: 620, y: PARALLEL_Y },
-  escalonamento: { x: 820, y: PARALLEL_Y },
+  captacao: { x: 260, y: STAGE_Y },
+  orcamento: { x: 520, y: STAGE_Y - 70 },
+  agendamento: { x: 520, y: STAGE_Y + 70 },
+  confirmacao_pre_consulta: { x: 780, y: STAGE_Y },
+  pos_consulta: { x: 1040, y: STAGE_Y },
+  satisfacao: { x: 1300, y: STAGE_Y },
+  financeiro: { x: 520, y: PARALLEL_Y },
+  formularios: { x: 780, y: PARALLEL_Y },
+  escalonamento: { x: 1040, y: PARALLEL_Y },
 };
 
 export const RUNTIME_NODES: UnifiedGraphNode[] = [
@@ -100,7 +101,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Booking Machine",
     shortLabel: "BOOKING",
     description: "Fluxo determinístico de agendamento",
-    position: { x: 450, y: RUNTIME_Y - 50 },
+    position: { x: 520, y: RUNTIME_Y - 40 },
     runtimeIcon: "booking",
   },
   {
@@ -109,7 +110,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Agente",
     shortLabel: "AGENTE",
     description: "OpenAI function calling loop",
-    position: { x: 450, y: RUNTIME_Y + 30 },
+    position: { x: 520, y: RUNTIME_Y + 50 },
     runtimeIcon: "agent",
   },
   {
@@ -118,7 +119,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Jornada CRM",
     shortLabel: "JORNADA",
     description: "loadContactJourneyForAi preload",
-    position: { x: 300, y: CONTEXT_Y },
+    position: { x: 340, y: CONTEXT_Y },
     runtimeIcon: "journey",
   },
   {
@@ -127,7 +128,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Resolver etapa",
     shortLabel: "RESOLVER",
     description: "resolveAgentPipelineStage",
-    position: { x: 600, y: CONTEXT_Y },
+    position: { x: 680, y: CONTEXT_Y },
     runtimeIcon: "resolver",
   },
   {
@@ -136,7 +137,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Ferramentas filtradas",
     shortLabel: "TOOLS",
     description: "filterToolsForStage — subset por etapa",
-    position: { x: 750, y: CONTEXT_Y },
+    position: { x: 860, y: CONTEXT_Y },
     runtimeIcon: "tools",
   },
   {
@@ -145,7 +146,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Confirmação",
     shortLabel: "CONFIRM",
     description: "human_confirm gate por tool",
-    position: { x: 900, y: CONTEXT_Y },
+    position: { x: 1020, y: CONTEXT_Y },
     runtimeIcon: "confirm",
   },
   {
@@ -154,7 +155,7 @@ export const RUNTIME_NODES: UnifiedGraphNode[] = [
     label: "Resposta",
     shortLabel: "RESPOSTA",
     description: "send-reply WhatsApp",
-    position: { x: 1050, y: RUNTIME_Y + 30 },
+    position: { x: 1180, y: RUNTIME_Y + 50 },
     runtimeIcon: "response",
   },
 ];
@@ -221,14 +222,17 @@ export function buildToolNodes(expandedStages: Set<string>): UnifiedGraphNode[] 
     toolsByStage.get(key)!.push(entry.name);
   }
 
+  let expandedIndex = 0;
   for (const [stageKey, toolNames] of toolsByStage) {
     if (!expandedStages.has(stageKey)) continue;
-    const parentId = `stage_${stageKey}`;
     const basePos = STAGE_POSITIONS[stageKey] ?? { x: 0, y: STAGE_Y };
+    const rowOffset = expandedIndex * 130;
+    expandedIndex++;
+
     toolNames.forEach((toolName, i) => {
       const entry = ASSISTANT_TOOL_CATALOG.find((t) => t.name === toolName)!;
-      const col = i % 4;
-      const row = Math.floor(i / 4);
+      const col = i % 3;
+      const row = Math.floor(i / 3);
       nodes.push({
         id: `tool_${toolName}`,
         kind: "tool",
@@ -237,13 +241,13 @@ export function buildToolNodes(expandedStages: Set<string>): UnifiedGraphNode[] 
         toolName,
         toolCategory: entry.category,
         mutating: mutatingSet.has(toolName),
-        parentId,
-        position: { x: col * 110 + 10, y: row * 52 + 70 },
+        position: {
+          x: basePos.x + col * 108,
+          y: TOOL_ROW_Y + rowOffset + row * 48,
+        },
         stageCode: stageKey === "escalonamento" ? "escalonamento" : (stageKey as AgentPipelineStage),
       });
     });
-    // Adjust parent stage to contain children - use extent in ReactFlow
-    void basePos;
   }
 
   return nodes;
@@ -260,21 +264,29 @@ export function buildStageTransitionEdges(): UnifiedGraphEdge[] {
 }
 
 export function buildResolverToStageEdges(): UnifiedGraphEdge[] {
-  return AGENT_PIPELINE_FLOW_NODES.filter((n) => n.kind === "main" || n.kind === "parallel").map(
-    (n) => ({
-      id: `res-stage-${n.id}`,
+  return [
+    {
+      id: "res-stage-entry",
       from: "runtime_resolver",
-      to: `stage_${n.id}`,
-      kind: "context" as const,
-      label: "pode ir",
-    })
-  );
+      to: "stage_identificacao",
+      kind: "context",
+      label: "entrada",
+    },
+    {
+      id: "res-stage-bridge",
+      from: "runtime_resolver",
+      to: "stage_captacao",
+      kind: "context",
+      label: "resolve",
+    },
+  ];
 }
 
 export function buildStageToToolsHubEdges(): UnifiedGraphEdge[] {
-  return AGENT_PIPELINE_FLOW_NODES.map((n) => ({
-    id: `stage-tools-${n.id}`,
-    from: `stage_${n.id}`,
+  const mainStages = ["identificacao", "captacao", "agendamento", "confirmacao_pre_consulta"];
+  return mainStages.map((id) => ({
+    id: `stage-tools-${id}`,
+    from: `stage_${id}`,
     to: "runtime_tools_hub",
     kind: "tool_filter" as const,
   }));
@@ -434,10 +446,10 @@ export const EDGE_STYLES: Record<
   context: { stroke: "#d946ef", strokeWidth: 2 },
   stage_transition: { stroke: "#8b5cf6", strokeWidth: 2 },
   tool_filter: { stroke: "#10b981", strokeWidth: 1.5, strokeDasharray: "6 4" },
-  tool_dependency: { stroke: "#f59e0b", strokeWidth: 1 },
-  parallel: { stroke: "#94a3b8", strokeWidth: 1.5, strokeDasharray: "6 4" },
-  transversal: { stroke: "#ef4444", strokeWidth: 2, strokeDasharray: "4 4" },
-  return: { stroke: "#f59e0b", strokeWidth: 2 },
+  tool_dependency: { stroke: "#f59e0b", strokeWidth: 2 },
+  parallel: { stroke: "#94a3b8", strokeWidth: 2, strokeDasharray: "6 4" },
+  transversal: { stroke: "#ef4444", strokeWidth: 2.5, strokeDasharray: "4 4" },
+  return: { stroke: "#f59e0b", strokeWidth: 2.5 },
 };
 
 export const EDGE_KIND_LABELS: Record<UnifiedEdgeKind, string> = {

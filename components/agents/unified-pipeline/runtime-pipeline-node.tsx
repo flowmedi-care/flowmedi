@@ -1,5 +1,6 @@
 "use client";
 
+import { Handle, Position } from "@xyflow/react";
 import {
   Brain,
   ChatCircle,
@@ -56,14 +57,18 @@ export function RuntimePipelineNode({ data }: { data: RuntimePipelineNodeData })
   return (
     <div
       className={cn(
-        "rounded-lg border-2 shadow-sm flex flex-col items-center justify-center text-center",
+        "relative rounded-lg border-2 shadow-sm flex flex-col items-center justify-center text-center",
         compact ? "min-w-[72px] px-1.5 py-1.5" : "min-w-[100px] px-2 py-2",
         colors,
-        state === "active" && "ring-2 ring-primary ring-offset-1 scale-105",
+        state === "active" && "ring-2 ring-primary ring-offset-1",
         state === "upcoming" && "opacity-70"
       )}
       title={node.description}
     >
+      <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-slate-400" />
+      <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-slate-400" />
+      <Handle type="source" position={Position.Bottom} id="bottom" className="!w-2 !h-2 !bg-slate-400" />
+      <Handle type="target" position={Position.Top} id="top" className="!w-2 !h-2 !bg-slate-400" />
       <IconComp className={cn(compact ? "h-4 w-4" : "h-5 w-5")} weight="duotone" />
       <span className={cn("font-semibold mt-0.5 leading-tight", compact ? "text-[8px]" : "text-[10px]")}>
         {node.shortLabel ?? node.label}

@@ -1,5 +1,6 @@
 "use client";
 
+import { Handle, Position } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import {
   ASSISTANT_TOOL_CATEGORY_LABELS,
@@ -34,13 +35,17 @@ export function ToolPipelineNode({ data }: { data: ToolPipelineNodeData }) {
   return (
     <div
       className={cn(
-        "rounded-md border bg-background shadow-sm",
+        "relative rounded-md border bg-background shadow-sm",
         compact ? "px-1.5 py-1 min-w-[80px]" : "px-2 py-1.5 min-w-[96px]",
         state === "active" && "border-amber-500 ring-1 ring-amber-400/50",
-        state === "upcoming" && "opacity-60"
+        state === "upcoming" && "opacity-80"
       )}
       title={node.toolName}
     >
+      <Handle type="target" position={Position.Top} className="!w-2 !h-2 !bg-amber-500" />
+      <Handle type="source" position={Position.Bottom} className="!w-2 !h-2 !bg-amber-500" />
+      <Handle type="target" position={Position.Left} id="left" className="!w-2 !h-2 !bg-emerald-500" />
+
       <div className="flex items-center gap-1">
         <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dot)} />
         <span className={cn("font-medium leading-tight truncate", compact ? "text-[8px]" : "text-[9px]")}>

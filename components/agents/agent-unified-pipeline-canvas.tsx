@@ -7,6 +7,8 @@ import {
   Background,
   Controls,
   MiniMap,
+  MarkerType,
+  useReactFlow,
   type Node,
   type Edge,
   Position,
@@ -64,6 +66,18 @@ function countToolsForStage(stageKey: string): number {
   }).length;
 }
 
+function FitViewOnChange({ deps }: { deps: unknown[] }) {
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void fitView({ padding: 0.14, duration: 280 });
+    }, 100);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refit when graph layout changes
+  }, deps);
+  return null;
+}
+
 function UnifiedPipelineCanvasInner({
   trace,
   currentStage,
@@ -114,10 +128,8 @@ function UnifiedPipelineCanvasInner({
 
   const toggleStage = useCallback((stageId: string) => {
     setExpandedStages((prev) => {
-      const next = new Set(prev);
-      if (next.has(stageId)) next.delete(stageId);
-      else next.add(stageId);
-      return next;
+      if (prev.has(stageId)) return new Set();
+      return new Set([stageId]);
     });
   }, []);
 
@@ -161,13 +173,6 @@ function UnifiedPipelineCanvasInner({
         const toolCount = countToolsForStage(stageKey);
         const isExpanded = expandedStages.has(stageKey);
 
-        const parentStyle = isExpanded && toolCount > 0
-          ? {
-              width: Math.min(480, Math.max(140, (Math.min(toolCount, 4) * 110 + 20) * compactScale)),
-              height: (Math.ceil(toolCount / 4) * 52 + 90) * compactScale,
-            }
-          : undefined;
-
         return {
           id: n.id,
           type: "stage",
@@ -180,24 +185,18 @@ function UnifiedPipelineCanvasInner({
             compact,
             onToggle: toggleStage,
           },
-          style: parentStyle,
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
         };
       }
 
-      // tool
+      // tool — posição global (sem parentId)
       const isActive = highlight.activeToolIds.includes(n.id);
       const confirmMode = n.toolName && toolModes ? toolModes[n.toolName] : undefined;
       return {
         id: n.id,
         type: "tool",
-        position: {
-          x: n.position.x * compactScale,
-          y: n.position.y * compactScale,
-        },
-        parentId: n.parentId,
-        extent: "parent" as const,
+        position: basePosition,
         data: {
           node: n,
           state: isActive ? "active" : "idle",
@@ -209,6 +208,17 @@ function UnifiedPipelineCanvasInner({
       };
     });
 
+    const verticalEdges = new Set([
+      "rt-agent-journey",
+      "rt-journey-agent",
+      "rt-agent-resolver",
+      "rt-journey-resolver",
+      "rt-tools-agent",
+      "rt-confirm-agent",
+      "res-stage-entry",
+      "res-stage-bridge",
+    ]);
+
     const flowEdges: Edge[] = graph.edges.map((e) => {
       const style = EDGE_STYLES[e.kind];
       const isActive =
@@ -217,20 +227,51 @@ function UnifiedPipelineCanvasInner({
         (highlight.activeStageNodeId &&
           (e.from === highlight.activeStageNodeId || e.to === highlight.activeStageNodeId));
 
-      return {
+      const strokeColor = isActive ? "hsl(var(--primary))" : style.stroke;
+
+      const edge: Edge = {
         id: e.id,
         source: e.from,
         target: e.to,
+        type: "smoothstep",
         label: compact ? undefined : e.label,
         animated: Boolean(isActive),
         style: {
-          stroke: isActive ? "hsl(var(--primary))" : style.stroke,
-          strokeWidth: isActive ? style.strokeWidth + 0.5 : style.strokeWidth,
+          stroke: strokeColor,
+          strokeWidth: isActive ? style.strokeWidth + 1 : style.strokeWidth,
           strokeDasharray: style.strokeDasharray,
         },
-        labelStyle: { fontSize: 8, fill: "#64748b" },
-        labelBgStyle: { fill: "hsl(var(--background))", fillOpacity: 0.9 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 12,
+          height: 12,
+          color: strokeColor,
+        },
+        labelStyle: { fontSize: 9, fill: "#475569", fontWeight: 500 },
+        labelBgStyle: { fill: "hsl(var(--background))", fillOpacity: 0.95 },
+        labelBgPadding: [4, 6] as [number, number],
+        labelBgBorderRadius: 4,
+        zIndex: 0,
       };
+
+      if (verticalEdges.has(e.id)) {
+        if (e.from === "runtime_agent" || e.from === "runtime_journey" || e.from === "runtime_resolver") {
+          edge.sourceHandle = e.from === "runtime_agent" && e.to.includes("journey") ? "bottom" : "bottom";
+        }
+        if (e.to === "runtime_journey" || e.to === "runtime_agent" || e.to.startsWith("stage_")) {
+          edge.targetHandle = "top";
+        }
+        if (e.id === "rt-journey-agent") {
+          edge.sourceHandle = undefined;
+          edge.targetHandle = "top";
+        }
+      }
+
+      if (e.from.startsWith("stage_") && e.to.startsWith("tool_")) {
+        edge.sourceHandle = "bottom";
+      }
+
+      return edge;
     });
 
     return { nodes: flowNodes, edges: flowEdges };
@@ -244,7 +285,7 @@ function UnifiedPipelineCanvasInner({
   ]);
 
   const canvas = (
-    <div className={cn("relative h-full w-full", className)}>
+    <div className={cn("relative h-full w-full [&_.react-flow__edge-path]:stroke-[inherit]", className)}>
       {showLegend && !compact && (
         <div className="absolute left-2 top-2 z-10 max-w-[200px] rounded-lg border bg-background/95 p-2 text-[9px] shadow-sm backdrop-blur-sm">
           <p className="font-semibold mb-1">Legenda</p>
@@ -280,15 +321,21 @@ function UnifiedPipelineCanvasInner({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        defaultEdgeOptions={{
+          type: "smoothstep",
+          markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12 },
+        }}
         fitView
-        fitViewOptions={{ padding: compact ? 0.08 : 0.12 }}
-        minZoom={compact ? 0.15 : 0.2}
-        maxZoom={compact ? 0.9 : 1.4}
+        fitViewOptions={{ padding: compact ? 0.1 : 0.14 }}
+        minZoom={compact ? 0.12 : 0.15}
+        maxZoom={compact ? 0.9 : 1.5}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
+        elevateEdgesOnSelect={false}
         proOptions={{ hideAttribution: true }}
       >
+        <FitViewOnChange deps={[expandedStages, compact, nodes.length, edges.length]} />
         <Background gap={compact ? 12 : 20} size={1} />
         {!compact && <Controls showInteractive={false} />}
         {!compact && <MiniMap zoomable pannable className="!bg-background/80" />}
