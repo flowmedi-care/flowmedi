@@ -7,6 +7,13 @@ export type ToolValidationResult =
   | { ok: true }
   | { ok: false; error: string; hint: string; missing?: string[] };
 
+export type CancellationReason = "reschedule" | "dropped" | "other";
+
+export function parseCancellationReason(value: unknown): CancellationReason {
+  if (value === "reschedule" || value === "dropped" || value === "other") return value;
+  return "other";
+}
+
 const APPOINTMENT_MUTATIONS = new Set([
   "confirm_appointment",
   "cancel_appointment",
@@ -181,8 +188,18 @@ export function patchStateFromToolResult(
   }
 
   if (toolName === "cancel_appointment" && !result.error) {
-    patch.pipeline_stage = "captacao";
-    patch.focused_appointment_id = undefined;
+    const reason = parseCancellationReason(args.cancellation_reason);
+    const appointmentId = String(args.appointment_id ?? "");
+    if (reason === "reschedule" || result.reschedule_flow) {
+      patch.pipeline_stage = "agendamento";
+      patch.intent = "reschedule";
+      patch.pending_reschedule_appointment_id = appointmentId || current.pending_reschedule_appointment_id;
+      patch.pending_confirmation_appointment_id = undefined;
+    } else {
+      patch.pipeline_stage = "captacao";
+      patch.focused_appointment_id = undefined;
+      patch.pending_confirmation_appointment_id = undefined;
+    }
   }
 
   return patch;

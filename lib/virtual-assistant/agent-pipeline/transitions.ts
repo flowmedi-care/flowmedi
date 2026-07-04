@@ -9,7 +9,8 @@ export type PipelineTransitionTrigger =
   | "intent"
   | "booking_step"
   | "manual"
-  | "initial";
+  | "initial"
+  | "event_auto";
 
 export function applyPipelineStageTransition(
   current: AiConversationState,

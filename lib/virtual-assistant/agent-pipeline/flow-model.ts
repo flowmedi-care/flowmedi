@@ -248,7 +248,7 @@ function mapCrmTrigger(from: string, to: string, label?: string): TransitionTrig
     "agendamento->confirmacao_pre_consulta:Criado": { type: "tool_result", tool: "create_appointment", outcome: "success", label: "Agendamento criado" },
     "confirmacao_pre_consulta->pos_consulta:Realizada": { type: "journey_step", steps: ["consulta_realizada"], label: "Consulta realizada" },
     "confirmacao_pre_consulta->agendamento:Remarcar": { type: "intent", intent: "reschedule", label: "Remarcar" },
-    "confirmacao_pre_consulta->captacao:Cancelado": { type: "tool_result", tool: "cancel_appointment", outcome: "success", label: "Cancelado" },
+    "confirmacao_pre_consulta->captacao:Desistiu": { type: "tool_result", tool: "cancel_appointment", outcome: "dropped", label: "Desistiu" },
     "pos_consulta->agendamento:Retorno": { type: "journey_step", steps: ["retorno_sugerido"], label: "Retorno necessário" },
     "pos_consulta->satisfacao:NPS": { type: "journey_step", steps: ["pesquisa_nps_enviada"], label: "NPS" },
     "identificacao->financeiro:": { type: "intent", intent: "payment", label: "Consulta financeira" },

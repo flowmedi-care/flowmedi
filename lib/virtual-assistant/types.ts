@@ -148,6 +148,8 @@ export type AiConversationState = {
   resolve_quote_offer_done?: boolean;
   /** Falhas consecutivas de ferramenta (para escalação) */
   consecutive_tool_failures?: number;
+  /** Contagem de follow-ups de timeout por journey step */
+  timeout_followup_counts?: Partial<Record<string, number>>;
 };
 
 export const DAY_LABELS: Record<DayKey, string> = {

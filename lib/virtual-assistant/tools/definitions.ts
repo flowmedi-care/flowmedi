@@ -177,10 +177,18 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "cancel_appointment",
-      description: "Cancela consulta do paciente.",
+      description:
+        "Cancela consulta do paciente. Use cancellation_reason=reschedule quando o paciente quer remarcar (não cancela de fato). Use dropped quando desistiu. Pergunte antes se ambíguo.",
       parameters: {
         type: "object",
-        properties: { appointment_id: { type: "string" } },
+        properties: {
+          appointment_id: { type: "string" },
+          cancellation_reason: {
+            type: "string",
+            enum: ["reschedule", "dropped", "other"],
+            description: "reschedule = quer remarcar; dropped = desistiu; other = cancelamento genérico",
+          },
+        },
         required: ["appointment_id"],
       },
     },
@@ -291,6 +299,20 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
           appointment_id: { type: "string" },
         },
         required: ["score"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "infer_dropout_reason",
+      description:
+        "Analisa as últimas mensagens antes do silêncio e infere motivo provável de desistência (preço, horário, etc.). Registra em CRM.",
+      parameters: {
+        type: "object",
+        properties: {
+          journey_step: { type: "string", description: "Etapa CRM atual (opcional)" },
+        },
       },
     },
   },

@@ -5,6 +5,10 @@ import {
   type MessageFlowTrace,
 } from "./diagnostics-flow";
 import { gatherDataReadiness, type DataReadinessReport } from "./data-readiness";
+import {
+  gatherPipelineToolMetrics,
+  type PipelineToolMetricRow,
+} from "./pipeline-tool-metrics";
 
 export interface AssistantHealthCheck {
   assistantEnabled: boolean;
@@ -57,6 +61,7 @@ export async function gatherAssistantDiagnostics(
   conversationMeta: Record<string, ConversationMeta>;
   dataReadiness: DataReadinessReport;
   toolLogs: AiToolLogRow[];
+  pipelineToolMetrics: PipelineToolMetricRow[];
   blockedConversations: BlockedConversationRow[];
 }> {
   const now = new Date().toISOString();
@@ -206,6 +211,7 @@ export async function gatherAssistantDiagnostics(
 
   const flows = buildMessageFlows(events, conversationMeta, processedMessageIds);
   const dataReadiness = await gatherDataReadiness(supabase, clinicId);
+  const pipelineToolMetrics = await gatherPipelineToolMetrics(supabase, clinicId);
 
   return {
     health,
@@ -214,6 +220,7 @@ export async function gatherAssistantDiagnostics(
     conversationMeta,
     dataReadiness,
     toolLogs: (toolLogsResult.data ?? []) as AiToolLogRow[],
+    pipelineToolMetrics,
     blockedConversations: (blockedResult.data ?? []) as BlockedConversationRow[],
   };
 }

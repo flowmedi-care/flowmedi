@@ -6,6 +6,8 @@ export * from "./active-path";
 export * from "./intent-classifier";
 export * from "./objection-inference";
 export * from "./timeout-policy";
+export * from "./timeout-executor";
+export * from "./dropout-inference";
 export * from "./confirmation-sequence";
 export * from "./contextual-resume";
 export * from "./next-actions";

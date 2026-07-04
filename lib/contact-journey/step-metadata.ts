@@ -65,8 +65,13 @@ export const STEP_METADATA: Partial<Record<JourneyStepCode, StepMetadata>> = {
   },
   pesquisa_nps_enviada: {
     awaitsResponse: true,
-    maxAutoFollowups: 1,
+    maxAutoFollowups: 2,
     hint: "Aguardando nota ou feedback",
+  },
+  formulario_pendente: {
+    awaitsResponse: true,
+    maxAutoFollowups: 2,
+    hint: "Aguardando preenchimento do formulário",
   },
   suporte_iniciado: {
     awaitsResponse: true,

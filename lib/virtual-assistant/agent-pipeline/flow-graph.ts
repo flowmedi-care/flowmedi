@@ -164,7 +164,7 @@ export const AGENT_PIPELINE_FLOW_EDGES: AgentPipelineFlowEdge[] = [
   { from: "agendamento", to: "confirmacao_pre_consulta", label: "Criado", kind: "main" },
   { from: "confirmacao_pre_consulta", to: "pos_consulta", label: "Realizada", kind: "main" },
   { from: "confirmacao_pre_consulta", to: "agendamento", label: "Remarcar", kind: "main" },
-  { from: "confirmacao_pre_consulta", to: "captacao", label: "Cancelado", kind: "main" },
+  { from: "confirmacao_pre_consulta", to: "captacao", label: "Desistiu", kind: "main" },
   { from: "pos_consulta", to: "agendamento", label: "Retorno", kind: "main" },
   { from: "pos_consulta", to: "satisfacao", label: "NPS", kind: "main" },
   { from: "identificacao", to: "financeiro", kind: "parallel" },

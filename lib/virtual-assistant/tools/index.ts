@@ -58,7 +58,9 @@ async function logToolCall(
   toolName: string,
   params: Record<string, unknown>,
   resultSummary: string,
-  success: boolean
+  success: boolean,
+  ctx?: ToolContext,
+  blockReason?: string | null
 ): Promise<void> {
   await supabase.from("whatsapp_ai_tool_log").insert({
     clinic_id: clinicId,
@@ -67,6 +69,8 @@ async function logToolCall(
     params,
     result_summary: resultSummary.slice(0, 500),
     success,
+    pipeline_stage: ctx?.pipelineStage ?? null,
+    block_reason: blockReason ?? null,
   });
 }
 
@@ -116,7 +120,9 @@ export async function executeAssistantTool(
         name,
         args,
         "bloqueada pelo pipeline",
-        false
+        false,
+        ctx,
+        "Ferramenta não permitida nesta etapa do pipeline"
       );
       return {
         result: JSON.stringify({
@@ -136,7 +142,9 @@ export async function executeAssistantTool(
         name,
         args,
         validation.error,
-        false
+        false,
+        ctx,
+        validation.error
       );
       return {
         result: JSON.stringify({
@@ -498,14 +506,35 @@ export async function executeAssistantTool(
       case "cancel_appointment": {
         const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
         if (!patient) return { result: JSON.stringify({ error: "Paciente não encontrado." }) };
+        const appointmentId = String(args.appointment_id);
+        const reason = args.cancellation_reason === "reschedule" ? "reschedule" : args.cancellation_reason === "dropped" ? "dropped" : "other";
+
+        if (reason === "reschedule") {
+          await logToolCall(supabase, clinicId, conversationId, name, args, "fluxo remarcação", true, ctx);
+          return {
+            result: JSON.stringify({
+              ok: true,
+              reschedule_flow: true,
+              appointment_id: appointmentId,
+              hint: "Paciente quer remarcar. Use find_available_slots e reschedule_appointment, ou pergunte novo horário.",
+            }),
+            statePatch: {
+              pipeline_stage: "agendamento",
+              intent: "reschedule",
+              pending_reschedule_appointment_id: appointmentId,
+              pending_confirmation_appointment_id: undefined,
+            },
+          };
+        }
+
         const res = await cancelAppointmentViaAssistant(
           supabase,
           clinicId,
-          String(args.appointment_id),
+          appointmentId,
           patient.id
         );
-        await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "cancelada", !res.error);
-        return { result: JSON.stringify(res) };
+        await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "cancelada", !res.error, ctx);
+        return { result: JSON.stringify({ ...res, cancellation_reason: reason }) };
       }
 
       case "get_contact_journey": {
@@ -626,6 +655,37 @@ export async function executeAssistantTool(
         });
         await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "remarcada", !res.error);
         return { result: JSON.stringify(res) };
+      }
+
+      case "infer_dropout_reason": {
+        const { inferAndPersistDropoutForConversation } = await import("@/lib/contact-journey/dropout-inference");
+        const journeyStep =
+          (args.journey_step ? String(args.journey_step) : null) ??
+          ctx.aiState.journey_step_code ??
+          null;
+        const result = await inferAndPersistDropoutForConversation(supabase, {
+          clinicId,
+          conversationId,
+          patientId: ctx.aiState.patient_id,
+          journeyStep: journeyStep as import("@/lib/contact-journey/types").JourneyStepCode | null,
+        });
+        await logToolCall(
+          supabase,
+          clinicId,
+          conversationId,
+          name,
+          args,
+          result.motivoProvavel,
+          true,
+          ctx
+        );
+        return {
+          result: JSON.stringify(result),
+          statePatch: {
+            motivo_provavel: result.motivoProvavel,
+            confianca: result.confianca,
+          },
+        };
       }
 
       case "collect_nps_feedback": {

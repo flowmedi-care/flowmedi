@@ -7,6 +7,13 @@ import {
   sendAssistantOrTemplate,
 } from "./send-assistant-or-template";
 import { getTimeoutPolicy } from "@/lib/contact-journey/timeout-policy";
+import {
+  confirmationStepForTouchpoint,
+  type ConfirmationTouchpoint,
+} from "@/lib/contact-journey/confirmation-sequence";
+import { logPipelineStageTransition } from "@/lib/virtual-assistant/agent-pipeline/transitions";
+import type { AgentPipelineStage } from "@/lib/virtual-assistant/agent-pipeline/stages";
+import type { AiConversationState } from "@/lib/virtual-assistant/types";
 
 const CONFIRMATION_REQUEST_EVENT = "appointment_confirmation_request";
 const CONFIRMATION_FOLLOWUP_EVENT = "appointment_confirmation_followup";
@@ -57,14 +64,76 @@ async function setPendingConfirmationState(
 ): Promise<void> {
   await supabase
     .from("whatsapp_conversations")
-    .update({
-      ai_state: {
-        intent: "confirm_appointment",
-        pending_confirmation_appointment_id: appointmentId,
-        patient_id: patientId,
-      },
-    })
-    .eq("id", conversationId);
+    .select("ai_state")
+    .eq("id", conversationId)
+    .maybeSingle()
+    .then(async ({ data: conv }) => {
+      const prev = (conv?.ai_state ?? {}) as AiConversationState;
+      await supabase
+        .from("whatsapp_conversations")
+        .update({
+          ai_state: {
+            ...prev,
+            intent: "confirm_appointment",
+            pending_confirmation_appointment_id: appointmentId,
+            patient_id: patientId,
+          },
+        })
+        .eq("id", conversationId);
+    });
+}
+
+/** Sincroniza journey_step + pipeline_stage após toque proativo D-7/D-2. */
+async function syncComplianceTouchpointToConversation(
+  supabase: SupabaseClient,
+  opts: {
+    clinicId: string;
+    conversationId: string;
+    touchpoint: ConfirmationTouchpoint;
+    patientId: string;
+    appointmentId: string;
+  }
+): Promise<void> {
+  const journeyStep = confirmationStepForTouchpoint(opts.touchpoint);
+  const { data: conv } = await supabase
+    .from("whatsapp_conversations")
+    .select("ai_state")
+    .eq("id", opts.conversationId)
+    .maybeSingle();
+
+  const prev = (conv?.ai_state ?? {}) as AiConversationState;
+  const fromStage = prev.pipeline_stage as AgentPipelineStage | undefined;
+  const toStage: AgentPipelineStage = "confirmacao_pre_consulta";
+
+  const nextState: AiConversationState = {
+    ...prev,
+    journey_step_code: journeyStep,
+    pipeline_stage: toStage,
+    pipeline_stage_entered_at: new Date().toISOString(),
+    patient_id: opts.patientId,
+    ...(opts.touchpoint === "2d"
+      ? {
+          intent: "confirm_appointment" as const,
+          pending_confirmation_appointment_id: opts.appointmentId,
+        }
+      : {}),
+  };
+
+  await supabase
+    .from("whatsapp_conversations")
+    .update({ ai_state: nextState })
+    .eq("id", opts.conversationId);
+
+  if (fromStage !== toStage) {
+    logPipelineStageTransition(supabase, {
+      clinicId: opts.clinicId,
+      conversationId: opts.conversationId,
+      fromStage: fromStage ?? null,
+      toStage,
+      trigger: "event_auto",
+      journeyStepCode: journeyStep,
+    });
+  }
 }
 
 /**
@@ -266,6 +335,13 @@ export async function runVirtualAssistantConfirmations(
           conversation_id: conversationId,
           touchpoint: "7d",
         });
+        await syncComplianceTouchpointToConversation(supabase, {
+          clinicId,
+          conversationId,
+          touchpoint: "7d",
+          patientId: appt.patient_id,
+          appointmentId: appt.id,
+        });
         sent++;
       } else {
         errors++;
@@ -334,6 +410,13 @@ export async function runVirtualAssistantConfirmations(
           appointment_id: appt.id,
           conversation_id: conversationId,
           touchpoint: "2d",
+        });
+        await syncComplianceTouchpointToConversation(supabase, {
+          clinicId,
+          conversationId,
+          touchpoint: "2d",
+          patientId: appt.patient_id,
+          appointmentId: appt.id,
         });
         await setPendingConfirmationState(
           supabase,

@@ -91,8 +91,9 @@ export const ASSISTANT_TOOL_CATALOG: AssistantToolCatalogEntry[] = [
     name: "cancel_appointment",
     label: "Cancelar consulta",
     category: "agendamento",
-    description: "Cancela consulta do paciente.",
-    whenToUse: "Quando o paciente pede para desmarcar.",
+    description: "Cancela consulta ou inicia remarcação conforme cancellation_reason.",
+    whenToUse:
+      "Quando o paciente pede para desmarcar (dropped) ou quer remarcar (reschedule — não cancela). Pergunte 'quer remarcar ou desistiu?' se ambíguo.",
   },
   {
     name: "get_procedure_info",
@@ -184,6 +185,13 @@ export const ASSISTANT_TOOL_CATALOG: AssistantToolCatalogEntry[] = [
     category: "crm",
     description: "Registra nota 0-10 e comentário pós-atendimento.",
     whenToUse: "Após consulta realizada, na pesquisa de satisfação.",
+  },
+  {
+    name: "infer_dropout_reason",
+    label: "Inferir motivo de desistência",
+    category: "crm",
+    description: "Analisa conversa e registra motivo provável quando o contato parou de responder.",
+    whenToUse: "Antes de reengajar após silêncio, ou quando orçamento/confirmação/NPS ficou sem resposta.",
   },
   {
     name: "transfer_to_human",

@@ -8,12 +8,13 @@ export type ToolExecutionModesConfig = Record<string, ToolExecutionMode>;
 
 const DEFAULT_MODE: ToolExecutionMode = "auto";
 
-/** Modo padrão: todas automáticas. */
+/** Modo padrão: automático, exceto cancelamento (ação irreversível). */
 export function buildDefaultToolExecutionModes(): ToolExecutionModesConfig {
   const modes: ToolExecutionModesConfig = {};
   for (const name of MUTATING_TOOL_NAMES) {
     modes[name] = DEFAULT_MODE;
   }
+  modes.cancel_appointment = "human_confirm";
   for (const entry of ASSISTANT_TOOL_CATALOG) {
     if (!modes[entry.name]) modes[entry.name] = DEFAULT_MODE;
   }

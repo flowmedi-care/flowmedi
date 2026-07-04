@@ -1,4 +1,5 @@
 import type { AssistantToolCategory } from "../tools/catalog";
+import type { JourneyStepCode } from "@/lib/contact-journey/types";
 
 export type AgentPipelineStage =
   | "identificacao"
@@ -28,6 +29,8 @@ export type AgentPipelineStageDefinition = {
   requiredOrder?: string[];
   preconditions: string[];
   exitConditions: string[];
+  /** Journey steps que aguardam resposta nesta etapa do pipeline (bridge → timeout-policy). */
+  timeoutPolicyRef?: JourneyStepCode[];
 };
 
 export const AGENT_PIPELINE_STAGES: AgentPipelineStageDefinition[] = [
@@ -63,8 +66,10 @@ export const AGENT_PIPELINE_STAGES: AgentPipelineStageDefinition[] = [
       "list_price_options",
       "get_contact_journey",
       "lookup_patient_by_phone",
+      "infer_dropout_reason",
     ],
     mutatingTools: [],
+    timeoutPolicyRef: ["qualificacao", "negociacao", "aguardando_retorno"],
     preconditions: ["Contato identificado (lead ou paciente)"],
     exitConditions: ["Interesse em preço formal → Orçamento", "Quer agendar → Agendamento"],
   },
@@ -75,8 +80,9 @@ export const AGENT_PIPELINE_STAGES: AgentPipelineStageDefinition[] = [
     kind: "main",
     crmPhase: "Comercial",
     description: "Resolver oferta, enviar orçamento e consultar status.",
-    readTools: ["resolve_quote_offer", "get_quote_status", "get_contact_journey", "get_service_price", "list_price_options"],
+    readTools: ["resolve_quote_offer", "get_quote_status", "get_contact_journey", "get_service_price", "list_price_options", "infer_dropout_reason"],
     mutatingTools: ["create_and_send_quote"],
+    timeoutPolicyRef: ["orcamento_enviado", "orcamento_vencido"],
     requiredOrder: ["resolve_quote_offer", "create_and_send_quote"],
     preconditions: ["Serviço/procedimento definido"],
     exitConditions: ["Orçamento aceito (humano) → Agendamento", "Sem resposta → Captação"],
@@ -113,12 +119,14 @@ export const AGENT_PIPELINE_STAGES: AgentPipelineStageDefinition[] = [
     kind: "main",
     crmPhase: "Pré-consulta",
     description: "Confirmar, remarcar ou cancelar consultas futuras.",
-    readTools: ["list_patient_appointments"],
+    readTools: ["list_patient_appointments", "infer_dropout_reason"],
     mutatingTools: ["confirm_appointment", "reschedule_appointment", "cancel_appointment"],
+    timeoutPolicyRef: ["compliance_2d_enviado", "sem_resposta_confirmacao", "motivo_nao_confirmacao"],
     preconditions: ["Consulta futura existe"],
     exitConditions: [
       "Confirmado → aguarda dia da consulta",
-      "Cancelado → Captação ou encerrar",
+      "Desistiu → Captação",
+      "Remarcar → Agendamento",
       "Realizada → Pós-consulta",
     ],
   },
@@ -153,8 +161,9 @@ export const AGENT_PIPELINE_STAGES: AgentPipelineStageDefinition[] = [
     kind: "parallel",
     crmPhase: "Pré-consulta",
     description: "Status e reenvio de formulários pendentes.",
-    readTools: ["get_form_status"],
+    readTools: ["get_form_status", "infer_dropout_reason"],
     mutatingTools: ["resend_form_link"],
+    timeoutPolicyRef: ["formulario_pendente"],
     preconditions: ["Formulário pendente vinculado"],
     exitConditions: ["Preenchido → retoma fluxo principal"],
   },
@@ -165,8 +174,9 @@ export const AGENT_PIPELINE_STAGES: AgentPipelineStageDefinition[] = [
     kind: "main",
     crmPhase: "Pós-atendimento",
     description: "Coletar feedback pós-atendimento.",
-    readTools: ["get_contact_journey"],
+    readTools: ["get_contact_journey", "infer_dropout_reason"],
     mutatingTools: ["collect_nps_feedback"],
+    timeoutPolicyRef: ["pesquisa_nps_enviada"],
     preconditions: ["Consulta realizada", "Pesquisa ativa"],
     exitConditions: ["Encerra ciclo ou reabre agendamento"],
   },
