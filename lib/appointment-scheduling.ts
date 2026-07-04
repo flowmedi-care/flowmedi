@@ -1,6 +1,22 @@
 /** Helpers de intervalo de agendamento (início/fim explícitos). */
 
+import { assertScheduledInFuture as assertFuture, isScheduledInFuture } from "@/lib/clinic-timezone";
+
 export const DEFAULT_APPOINTMENT_DURATION_MINUTES = 30;
+
+export { isScheduledInFuture };
+export function assertScheduledInFuture(
+  scheduledAt: string,
+  now = Date.now()
+): { ok: true } | { ok: false; error: string } {
+  return assertFuture(scheduledAt, now);
+}
+export function validateScheduledInFuture(
+  scheduledAt: string,
+  now = Date.now()
+): { ok: true } | { ok: false; error: string } {
+  return assertFuture(scheduledAt, now);
+}
 
 export function intervalsOverlap(
   startA: number,

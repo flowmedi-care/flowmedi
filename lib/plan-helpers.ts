@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import type { PlanLimits } from "./plan-gates";
 
@@ -320,4 +321,71 @@ export async function countCustomFields(clinicId: string): Promise<number> {
     .eq("clinic_id", clinicId);
 
   return count ?? 0;
+}
+
+export async function countMonthAppointmentsForClinic(
+  supabase: SupabaseClient,
+  clinicId: string
+): Promise<number> {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+  const { count } = await supabase
+    .from("appointments")
+    .select("*", { count: "exact", head: true })
+    .eq("clinic_id", clinicId)
+    .gte("created_at", startOfMonth.toISOString())
+    .lte("created_at", endOfMonth.toISOString());
+
+  return count ?? 0;
+}
+
+/** Limites do plano para uma clínica (service-role ou autenticado). */
+export async function getClinicPlanLimitsByClinicId(
+  supabase: SupabaseClient,
+  clinicId: string
+): Promise<PlanLimits | null> {
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("plan_id, max_doctors_custom, max_secretaries_custom")
+    .eq("id", clinicId)
+    .maybeSingle();
+
+  if (!clinic) return null;
+
+  let plan: Record<string, unknown> | null = null;
+  if (clinic.plan_id) {
+    const { data } = await supabase.from("plans").select("*").eq("id", clinic.plan_id).maybeSingle();
+    plan = data as Record<string, unknown> | null;
+  }
+  if (!plan) {
+    const { data } = await supabase.from("plans").select("*").eq("slug", "starter").maybeSingle();
+    plan = data as Record<string, unknown> | null;
+  }
+  if (!plan) return null;
+
+  return {
+    max_doctors: (clinic.max_doctors_custom as number | null) ?? (plan.max_doctors as number | null) ?? null,
+    max_secretaries:
+      (clinic.max_secretaries_custom as number | null) ?? (plan.max_secretaries as number | null) ?? null,
+    max_appointments_per_month: (plan.max_appointments_per_month as number | null) ?? null,
+    max_patients: (plan.max_patients as number | null) ?? null,
+    max_form_templates: (plan.max_form_templates as number | null) ?? null,
+    max_custom_fields: (plan.max_custom_fields as number | null) ?? null,
+    storage_mb: (plan.storage_mb as number | null) ?? null,
+    whatsapp_enabled: Boolean(plan.whatsapp_enabled),
+    email_enabled: Boolean(plan.email_enabled),
+    custom_logo_enabled: Boolean(plan.custom_logo_enabled),
+    priority_support: Boolean(plan.priority_support),
+    reports_basic_enabled: Boolean(plan.reports_basic_enabled),
+    reports_advanced_enabled: Boolean(plan.reports_advanced_enabled),
+    reports_managerial_enabled: Boolean(plan.reports_managerial_enabled),
+    productivity_team_enabled: Boolean(plan.productivity_team_enabled),
+    operational_indicators_enabled: Boolean(plan.operational_indicators_enabled),
+    audit_log_enabled: Boolean(plan.audit_log_enabled),
+    virtual_assistant_enabled: Boolean(
+      plan.virtual_assistant_enabled ?? plan.whatsapp_enabled ?? false
+    ),
+  };
 }

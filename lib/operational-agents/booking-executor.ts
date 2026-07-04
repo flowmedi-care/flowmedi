@@ -1,6 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { findSlotsForDay, type SlotPeriod } from "@/lib/appointment-conflicts";
-import type { AiConversationState, OfferedDay, OfferedSlot } from "@/lib/virtual-assistant/types";
+import {
+  buildDaysDisplayMessage,
+  buildSlotsDisplayMessage,
+  findAvailableDays,
+  findSlotsForDay,
+  formatPeriodsLabel,
+  type SlotPeriod,
+} from "@/lib/appointment-conflicts";
+import {
+  filterFreshOfferedDays,
+  filterFreshOfferedSlots,
+  isScheduledAtInOfferedSlots,
+  sanitizeOfferedBookingState,
+} from "@/lib/booking-state";
+import { getClinicTimezone, getHourInTimezone } from "@/lib/clinic-timezone";
+import type { AiConversationState, BookingStep, OfferedDay, OfferedSlot } from "@/lib/virtual-assistant/types";
 import {
   bootstrapPatientForBooking,
   buildPostCreateReply,
@@ -61,7 +75,11 @@ function parseDateFromText(text: string): string | null {
   return null;
 }
 
-function matchOfferedDay(text: string, offeredDays: OfferedDay[]): OfferedDay | null {
+function matchOfferedDay(
+  text: string,
+  offeredDays: OfferedDay[],
+  bookingStep?: BookingStep
+): OfferedDay | null {
   const iso = parseDateFromText(text);
   if (iso) {
     const byDate = offeredDays.find((d) => d.date === iso);
@@ -77,20 +95,28 @@ function matchOfferedDay(text: string, offeredDays: OfferedDay[]): OfferedDay | 
     if (match) return match;
   }
 
-  const numbered = text.match(/\b(\d)\b/);
-  if (numbered) {
-    const idx = Number(numbered[1]) - 1;
-    if (idx >= 0 && idx < offeredDays.length) return offeredDays[idx]!;
+  if (bookingStep === "day") {
+    const numbered = text.match(/^\s*(\d{1,2})\s*$/);
+    if (numbered) {
+      const idx = Number(numbered[1]) - 1;
+      if (idx >= 0 && idx < offeredDays.length) return offeredDays[idx]!;
+    }
   }
 
   return null;
 }
 
-function matchOfferedSlot(text: string, slots: OfferedSlot[]): OfferedSlot | null {
-  const numbered = text.match(/\b(\d{1,2})\b/);
-  if (numbered) {
-    const idx = Number(numbered[1]) - 1;
-    if (idx >= 0 && idx < slots.length) return slots[idx]!;
+function matchOfferedSlot(
+  text: string,
+  slots: OfferedSlot[],
+  bookingStep?: BookingStep
+): OfferedSlot | null {
+  if (bookingStep === "slot") {
+    const numbered = text.match(/^\s*(\d{1,2})\s*$/);
+    if (numbered) {
+      const idx = Number(numbered[1]) - 1;
+      if (idx >= 0 && idx < slots.length) return slots[idx]!;
+    }
   }
 
   const timeMatch = text.match(/\b(\d{1,2})[:\s]?(\d{2})?\b/);
@@ -107,10 +133,14 @@ function matchOfferedSlot(text: string, slots: OfferedSlot[]): OfferedSlot | nul
   return null;
 }
 
-function filterSlotsByPeriod(slots: OfferedSlot[], period: SlotPeriod | null): OfferedSlot[] {
+function filterSlotsByPeriod(
+  slots: OfferedSlot[],
+  period: SlotPeriod | null,
+  timeZone: string
+): OfferedSlot[] {
   if (!period) return slots;
   return slots.filter((s) => {
-    const hour = new Date(s.scheduled_at).getHours();
+    const hour = getHourInTimezone(s.scheduled_at, timeZone);
     return period === "manha" ? hour < 12 : hour >= 12;
   });
 }
@@ -124,7 +154,18 @@ function isSlotSelectionMessage(text: string): boolean {
     return true;
   }
   if (/^\s*\d{1,2}\s*$/.test(t)) return true;
+  if (/\b\d{1,2}[:\s]?\d{0,2}\b/.test(t)) return true;
   return false;
+}
+
+async function resolveFreshBookingState(
+  supabase: SupabaseClient,
+  clinicId: string,
+  state: AiConversationState
+): Promise<{ state: AiConversationState; timeZone: string }> {
+  const timeZone = await getClinicTimezone(supabase, clinicId);
+  const sanitized = sanitizeOfferedBookingState(state, timeZone);
+  return { state: { ...state, ...sanitized }, timeZone };
 }
 
 export async function tryExecuteBookingSlotSelection(
@@ -140,17 +181,22 @@ export async function tryExecuteBookingSlotSelection(
   const text = opts.messageText.trim();
   if (!text || !isSlotSelectionMessage(text)) return { handled: false };
 
-  const state = opts.aiState;
+  const { state, timeZone } = await resolveFreshBookingState(
+    supabase,
+    opts.clinicId,
+    opts.aiState
+  );
   if (!state.procedure_id || !state.doctor_id) return { handled: false };
   if (!isActiveBookingState(state) && state.intent !== "booking") return { handled: false };
 
-  const offeredDays = state.offered_days ?? [];
-  const offeredSlots = state.offered_slots ?? [];
+  const offeredDays = filterFreshOfferedDays(state.offered_days ?? [], timeZone);
+  const offeredSlots = filterFreshOfferedSlots(state.offered_slots ?? []);
   if (offeredDays.length === 0 && offeredSlots.length === 0) return { handled: false };
 
   const period = parsePeriod(text) ?? state.last_slot_query?.period ?? null;
-  let selectedSlot = matchOfferedSlot(text, offeredSlots);
-  let selectedDay = matchOfferedDay(text, offeredDays);
+  const bookingStep = state.booking_step;
+  let selectedSlot = matchOfferedSlot(text, offeredSlots, bookingStep);
+  const selectedDay = matchOfferedDay(text, offeredDays, bookingStep);
 
   if (!selectedSlot && selectedDay) {
     const slots = await findSlotsForDay(supabase, {
@@ -166,16 +212,47 @@ export async function tryExecuteBookingSlotSelection(
       scheduled_at: s.scheduled_at,
       display: s.label,
     }));
-    const filtered = filterSlotsByPeriod(mapped, period);
-    selectedSlot = filtered[0] ?? mapped[0] ?? null;
-  }
+    const filtered = filterSlotsByPeriod(mapped, period, timeZone);
 
-  if (!selectedSlot && offeredSlots.length > 0) {
-    const filtered = filterSlotsByPeriod(offeredSlots, period);
-    selectedSlot = filtered[0] ?? null;
+    if (period && filtered.length > 0) {
+      const displayMessage = buildSlotsDisplayMessage(slots.filter((s) =>
+        filtered.some((f) => f.scheduled_at === s.scheduled_at)
+      ));
+      return {
+        handled: true,
+        reply: displayMessage,
+        statePatch: {
+          ...buildOfferedStateFromSlotsTool(
+            "times",
+            { date: selectedDay.date, period, slots: filtered.map((s) => ({ scheduled_at: s.scheduled_at, label: s.display })) },
+            state.doctor_id,
+            state.procedure_id,
+            state
+          ),
+          last_display_message: displayMessage,
+        },
+      };
+    }
+
+    selectedSlot = matchOfferedSlot(text, filtered.length ? filtered : mapped, bookingStep);
+    if (!selectedSlot && filtered.length === 1) {
+      selectedSlot = filtered[0]!;
+    }
+    if (!selectedSlot && mapped.length === 1 && !period) {
+      selectedSlot = mapped[0]!;
+    }
   }
 
   if (!selectedSlot) return { handled: false };
+
+  if (!isScheduledAtInOfferedSlots(selectedSlot.scheduled_at, offeredSlots) && offeredSlots.length > 0) {
+    const fresh = offeredSlots.find(
+      (s) => s.scheduled_at === selectedSlot!.scheduled_at
+    );
+    if (!fresh && new Date(selectedSlot.scheduled_at).getTime() <= Date.now()) {
+      return { handled: false };
+    }
+  }
 
   let patientId = state.patient_id;
   if (!patientId) {
@@ -194,7 +271,7 @@ export async function tryExecuteBookingSlotSelection(
           ...boot.statePatch,
           intent: "booking",
           booking_step: "patient",
-          offered_slots: offeredSlots.length ? offeredSlots : [selectedSlot],
+          offered_slots: [selectedSlot],
           offered_days: offeredDays,
           last_slot_query: state.last_slot_query,
         },
@@ -220,6 +297,7 @@ export async function tryExecuteBookingSlotSelection(
     scheduledAt: selectedSlot.scheduled_at,
     dimensionValueIds: state.dimension_value_ids ?? [],
     serviceId: state.service_id ?? null,
+    offeredSlots: offeredSlots.length ? offeredSlots : [selectedSlot],
   });
 
   if (res.error || !res.appointmentId) {
@@ -275,6 +353,70 @@ export async function tryExecuteBookingSlotSelection(
       offered_slots: undefined,
       offered_days: undefined,
       last_slot_query: undefined,
+      last_display_message: undefined,
+    },
+  };
+}
+
+/** Após procedimento+médico definidos, busca dias disponíveis sem depender do LLM. */
+export async function tryAutoFetchAvailableSlots(
+  supabase: SupabaseClient,
+  opts: {
+    clinicId: string;
+    aiState: AiConversationState;
+  }
+): Promise<BookingExecutorResult> {
+  let state = opts.aiState;
+  if (!state.procedure_id) return { handled: false };
+
+  if (!state.doctor_id) {
+    const { data: doctors } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("clinic_id", opts.clinicId)
+      .eq("role", "medico")
+      .eq("active", true);
+    if ((doctors?.length ?? 0) === 1) {
+      state = { ...state, doctor_id: doctors![0]!.id, booking_step: "day" };
+    } else {
+      return { handled: false };
+    }
+  }
+
+  if (state.offered_days?.length || state.offered_slots?.length) return { handled: false };
+  if (!state.doctor_id || !state.procedure_id) return { handled: false };
+
+  const doctorId = state.doctor_id;
+  const procedureId = state.procedure_id;
+
+  const { days } = await findAvailableDays(supabase, {
+    clinicId: opts.clinicId,
+    doctorId,
+    procedureId,
+  });
+
+  const daysForDisplay = days.map((d) => ({
+    ...d,
+    periods_label: formatPeriodsLabel(d.periods),
+  }));
+  const displayMessage =
+    daysForDisplay.length > 0
+      ? buildDaysDisplayMessage(daysForDisplay)
+      : "Nenhum dia disponível no período. Posso tentar outro procedimento ou profissional?";
+
+  return {
+    handled: true,
+    reply: displayMessage,
+    statePatch: {
+      ...buildOfferedStateFromSlotsTool(
+        "days",
+        { days: daysForDisplay },
+        doctorId,
+        procedureId,
+        state
+      ),
+      last_display_message: displayMessage,
+      doctor_id: doctorId,
     },
   };
 }
@@ -285,13 +427,23 @@ export function buildOfferedStateFromSlotsTool(
     date?: string;
     period?: SlotPeriod | null;
     slots?: Array<{ scheduled_at: string; label: string }>;
-    days?: Array<{ date: string; label: string }>;
+    days?: Array<{ date: string; label: string; periods_label?: string }>;
+    displayMessage?: string | null;
   },
   doctorId: string,
   procedureId: string,
   current: AiConversationState
 ): Partial<AiConversationState> {
   if (mode === "times" && payload.slots) {
+    const displayMessage =
+      payload.displayMessage ??
+      buildSlotsDisplayMessage(
+        payload.slots.map((s) => ({
+          scheduled_at: s.scheduled_at,
+          scheduled_end_at: "",
+          label: s.label,
+        }))
+      );
     return {
       doctor_id: doctorId,
       procedure_id: procedureId,
@@ -306,10 +458,22 @@ export function buildOfferedStateFromSlotsTool(
         period: payload.period ?? undefined,
       },
       pending_slot: undefined,
+      last_display_message: displayMessage,
     };
   }
 
   if (mode === "days" && payload.days) {
+    const daysForDisplay = payload.days.map((d) => ({
+      label: d.label,
+      periods_label: d.periods_label ?? "",
+    }));
+    const displayMessage =
+      payload.displayMessage ??
+      (daysForDisplay.every((d) => d.periods_label)
+        ? buildDaysDisplayMessage(daysForDisplay)
+        : buildDaysDisplayMessage(
+            payload.days.map((d) => ({ label: d.label, periods_label: d.periods_label ?? "" }))
+          ));
     return {
       doctor_id: doctorId,
       procedure_id: procedureId,
@@ -319,6 +483,7 @@ export function buildOfferedStateFromSlotsTool(
       offered_slots: [],
       last_slot_query: undefined,
       pending_slot: undefined,
+      last_display_message: displayMessage,
     };
   }
 

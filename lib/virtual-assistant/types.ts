@@ -112,6 +112,8 @@ export type AiConversationState = {
   offered_days?: OfferedDay[];
   offered_slots?: OfferedSlot[];
   last_slot_query?: LastSlotQuery;
+  /** Última lista de dias/horários mostrada ao paciente (display_message). */
+  last_display_message?: string;
   dimension_value_ids?: string[];
   patient_id?: string;
   pending_confirmation_appointment_id?: string;

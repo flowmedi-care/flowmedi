@@ -43,5 +43,14 @@ export function applyReplyGuards(
       "Já tenho seu número pelo WhatsApp. Só preciso confirmar seu nome, se ainda não estiver cadastrado.";
   }
 
+  if (
+    state.intent === "booking" &&
+    (state.booking_step === "day" || state.booking_step === "slot") &&
+    state.last_display_message &&
+    !/^\s*\d+\)/m.test(out)
+  ) {
+    return state.last_display_message;
+  }
+
   return out;
 }

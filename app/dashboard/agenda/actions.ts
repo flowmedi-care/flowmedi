@@ -569,6 +569,10 @@ export async function createAppointment(
   const intervalCheck = validateScheduledInterval(scheduledAt, scheduledEndAt);
   if (!intervalCheck.ok) return { error: intervalCheck.error };
 
+  const { validateScheduledInFuture } = await import("@/lib/appointment-scheduling");
+  const futureCheck = validateScheduledInFuture(scheduledAt);
+  if (!futureCheck.ok) return { error: futureCheck.error };
+
   const roomRequired = await clinicRequiresRoom(supabase, profile.clinic_id);
   if (roomRequired && !options?.roomId) {
     return { error: "Selecione a sala/consultório para agendar." };

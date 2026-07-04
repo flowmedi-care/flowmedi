@@ -145,6 +145,7 @@ export function patchBookingStepFromTool(
           offered_slots: undefined,
           offered_days: undefined,
           last_slot_query: undefined,
+          last_display_message: undefined,
         };
       }
       return { booking_step: "confirm", intent: "booking" };

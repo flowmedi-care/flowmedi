@@ -1,4 +1,5 @@
 import type { AiConversationState } from "../types";
+import { isScheduledAtInOfferedSlots } from "@/lib/booking-state";
 import { HUMAN_ONLY_QUOTE_STEPS } from "./constants";
 import type { AgentPipelineStage } from "./stages";
 import { getStageDefinition } from "./stages";
@@ -53,6 +54,7 @@ export function validateToolExecution(
         missing: ["doctor_id"],
       };
     }
+    const scheduledAt = String(args.scheduled_at ?? aiState.pending_slot ?? "");
     const hasSlot =
       aiState.pending_slot ||
       args.scheduled_at ||
@@ -62,6 +64,18 @@ export function validateToolExecution(
         ok: false,
         error: "Horário não selecionado.",
         hint: "Chame find_available_slots com date e aguarde o paciente escolher um horário.",
+        missing: ["scheduled_at"],
+      };
+    }
+    if (
+      scheduledAt &&
+      aiState.offered_slots?.length &&
+      !isScheduledAtInOfferedSlots(scheduledAt, aiState.offered_slots)
+    ) {
+      return {
+        ok: false,
+        error: "Horário fora das opções oferecidas.",
+        hint: "Use um scheduled_at da lista offered_slots ou chame find_available_slots novamente.",
         missing: ["scheduled_at"],
       };
     }

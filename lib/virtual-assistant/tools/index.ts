@@ -246,6 +246,30 @@ export async function executeAssistantTool(
         const period = normalizeSlotPeriod(args.period);
         const skipDays = Number(args.skip_days) || 0;
 
+        const { count: doctorProcedureCount } = await supabase
+          .from("doctor_procedures")
+          .select("procedure_id", { count: "exact", head: true })
+          .eq("clinic_id", clinicId)
+          .eq("doctor_id", doctorId);
+
+        if ((doctorProcedureCount ?? 0) > 0) {
+          const { data: doctorProcedure } = await supabase
+            .from("doctor_procedures")
+            .select("procedure_id")
+            .eq("clinic_id", clinicId)
+            .eq("doctor_id", doctorId)
+            .eq("procedure_id", procedureId)
+            .maybeSingle();
+          if (!doctorProcedure) {
+            const payload = {
+              error: "Este profissional não realiza o procedimento selecionado.",
+              hint: "Chame list_doctors ou list_procedures para combinar médico e procedimento compatíveis.",
+            };
+            await logToolCall(supabase, clinicId, conversationId, name, args, "par inválido", false);
+            return { result: JSON.stringify(payload) };
+          }
+        }
+
         if (date) {
           const slots = await findSlotsForDay(supabase, {
             clinicId,
@@ -294,7 +318,7 @@ export async function executeAssistantTool(
             statePatch: {
               ...buildOfferedStateFromSlotsTool(
                 "times",
-                { date, period, slots },
+                { date, period, slots, displayMessage: payload.display_message ?? undefined },
                 doctorId,
                 procedureId,
                 ctx.aiState
@@ -341,18 +365,22 @@ export async function executeAssistantTool(
         return {
           result: JSON.stringify(payload),
           statePatch: {
-            ...buildOfferedStateFromSlotsTool(
-              "days",
-              { days: daysForDisplay },
-              doctorId,
-              procedureId,
-              ctx.aiState
-            ),
+              ...buildOfferedStateFromSlotsTool(
+                "days",
+                {
+                  days: daysForDisplay,
+                  displayMessage: payload.display_message ?? undefined,
+                },
+                doctorId,
+                procedureId,
+                ctx.aiState
+              ),
           },
         };
       }
 
       case "create_appointment": {
+        const offeredSlots = ctx.aiState.offered_slots ?? [];
         const res = await createAppointmentViaAssistant(supabase, {
           clinicId,
           patientId: String(args.patient_id),
@@ -360,6 +388,7 @@ export async function executeAssistantTool(
           procedureId: String(args.procedure_id),
           scheduledAt: String(args.scheduled_at),
           dimensionValueIds: (args.dimension_value_ids as string[]) ?? [],
+          offeredSlots,
         });
         await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? res.appointmentId ?? "ok", !res.error);
 

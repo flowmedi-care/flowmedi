@@ -26,8 +26,11 @@ import {
 } from "@/lib/virtual-assistant/booking-flow";
 import {
   isActiveBookingState,
+  tryAutoFetchAvailableSlots,
   tryExecuteBookingSlotSelection,
 } from "@/lib/operational-agents/booking-executor";
+import { sanitizeOfferedBookingState } from "@/lib/booking-state";
+import { getClinicTimezone } from "@/lib/clinic-timezone";
 import { applyReplyGuards } from "@/lib/virtual-assistant/reply-guards";
 import {
   resolveAgentPipelineStage,
@@ -81,6 +84,24 @@ function extractConfirmationFromToolResults(messages: ChatMessage[]): string | n
   return null;
 }
 
+function extractSlotsDisplayFromToolResults(messages: ChatMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "tool" || m.name !== "find_available_slots") continue;
+    try {
+      const parsed = JSON.parse(m.content ?? "{}") as {
+        display_message?: string | null;
+        error?: string;
+      };
+      if (parsed.error) continue;
+      if (parsed.display_message) return parsed.display_message;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
 export async function runVirtualAssistantAgent(opts: {
   supabase: SupabaseClient;
   clinicId: string;
@@ -112,6 +133,10 @@ export async function runVirtualAssistantAgent(opts: {
   workingState = { ...workingState, intent: routed.intent };
 
   if (routed.useBookingMachine) {
+    const clinicTz = await getClinicTimezone(opts.supabase, opts.clinicId);
+    const sanitized = sanitizeOfferedBookingState(workingState, clinicTz);
+    workingState = { ...workingState, ...sanitized };
+
     const meta = await tryHandleBookingMeta(opts.supabase, {
       clinicId: opts.clinicId,
       conversationId: opts.conversationId,
@@ -427,6 +452,39 @@ export async function runVirtualAssistantAgent(opts: {
           reply: applyReplyGuards(confirmationMsg, statePatch as AiConversationState),
           statePatch,
         };
+      }
+
+      const slotsDisplay = extractSlotsDisplayFromToolResults(messages);
+      if (slotsDisplay) {
+        return {
+          reply: applyReplyGuards(slotsDisplay, statePatch as AiConversationState),
+          statePatch: {
+            ...statePatch,
+            last_display_message: slotsDisplay,
+          },
+        };
+      }
+
+      const lastToolNames = completion.tool_calls.map((tc) => tc.function.name);
+      if (
+        lastToolNames.some((n) => n === "list_procedures" || n === "list_doctors") &&
+        (statePatch as AiConversationState).procedure_id &&
+        !(statePatch as AiConversationState).offered_days?.length &&
+        !(statePatch as AiConversationState).offered_slots?.length
+      ) {
+        const autoSlots = await tryAutoFetchAvailableSlots(opts.supabase, {
+          clinicId: opts.clinicId,
+          aiState: statePatch as AiConversationState,
+        });
+        if (autoSlots.handled) {
+          return {
+            reply: applyReplyGuards(autoSlots.reply, {
+              ...(statePatch as AiConversationState),
+              ...autoSlots.statePatch,
+            }),
+            statePatch: { ...statePatch, ...autoSlots.statePatch },
+          };
+        }
       }
 
       continue;

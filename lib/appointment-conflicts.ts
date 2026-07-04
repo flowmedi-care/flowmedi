@@ -8,6 +8,16 @@ import {
   resolveAppointmentEndMs,
 } from "./appointment-scheduling";
 import { checkScheduleBlockConflict } from "./schedule-blocks";
+import {
+  addDaysToYmd,
+  formatZonedDayLabel,
+  formatZonedSlotLabel,
+  formatZonedTimeLabel,
+  getClinicTimezone,
+  getZonedWeekday,
+  getZonedYmd,
+  zonedLocalToUtcIso,
+} from "./clinic-timezone";
 
 export async function clinicRequiresRoom(supabase: SupabaseClient, clinicId: string): Promise<boolean> {
   const { count } = await supabase
@@ -200,6 +210,8 @@ type SlotSearchContext = {
   defaultStart: string;
   defaultEnd: string;
   operatingHours: OperatingHoursMap;
+  timeZone: string;
+  holidayPolicy: string | null;
 };
 
 const DAY_KEY_BY_JS: Record<number, string> = {
@@ -217,38 +229,28 @@ function parseHmToMinutes(hm: string): number {
   return h * 60 + (m || 0);
 }
 
-function formatDateIso(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+function formatDateIsoFromYmd(dateYmd: string): string {
+  return dateYmd;
 }
 
-function parseDateLocal(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number);
-  const date = new Date();
-  date.setFullYear(y, m - 1, d);
-  date.setHours(0, 0, 0, 0);
-  return date;
+function isHolidayBlocked(dateYmd: string, holidayPolicy: string | null): boolean {
+  if (!holidayPolicy?.trim()) return false;
+  const [, mo, d] = dateYmd.split("-");
+  const ddmm = `${d}/${mo}`;
+  const full = `${d}/${mo}/${dateYmd.slice(0, 4)}`;
+  return holidayPolicy.includes(ddmm) || holidayPolicy.includes(full);
 }
 
-function formatDayLabel(d: Date): string {
-  const weekday = d.toLocaleDateString("pt-BR", { weekday: "short" });
-  const date = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-  return `${weekday} ${date}`;
+function formatDayLabel(dateYmd: string, timeZone: string): string {
+  return formatZonedDayLabel(dateYmd, timeZone);
 }
 
-function formatSlotLabel(iso: string): string {
-  const d = new Date(iso);
-  const weekday = d.toLocaleDateString("pt-BR", { weekday: "short" });
-  const date = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-  const time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  return `${weekday} ${date} às ${time}`;
+function formatSlotLabel(iso: string, timeZone: string): string {
+  return formatZonedSlotLabel(iso, timeZone);
 }
 
-function formatTimeLabel(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+function formatTimeLabel(iso: string, timeZone: string): string {
+  return formatZonedTimeLabel(iso, timeZone);
 }
 
 async function loadSlotSearchContext(
@@ -274,11 +276,12 @@ async function loadSlotSearchContext(
 
   const { data: vaSettings } = await supabase
     .from("clinic_virtual_assistant_settings")
-    .select("operating_hours")
+    .select("operating_hours, holiday_policy")
     .eq("clinic_id", opts.clinicId)
     .maybeSingle();
 
   const operatingHours = (vaSettings?.operating_hours as OperatingHoursMap) ?? {};
+  const timeZone = await getClinicTimezone(supabase, opts.clinicId);
 
   return {
     clinicId: opts.clinicId,
@@ -287,11 +290,15 @@ async function loadSlotSearchContext(
     defaultStart,
     defaultEnd,
     operatingHours,
+    timeZone,
+    holidayPolicy: (vaSettings?.holiday_policy as string | null) ?? null,
   };
 }
 
-function getDayOperatingConfig(ctx: SlotSearchContext, dayDate: Date): DayOperatingConfig | null {
-  const dayKey = DAY_KEY_BY_JS[dayDate.getDay()];
+function getDayOperatingConfig(ctx: SlotSearchContext, dateYmd: string): DayOperatingConfig | null {
+  if (isHolidayBlocked(dateYmd, ctx.holidayPolicy)) return null;
+
+  const dayKey = DAY_KEY_BY_JS[getZonedWeekday(dateYmd, ctx.timeZone)];
   const dayConfig = ctx.operatingHours[dayKey];
 
   if (dayConfig?.closed) return null;
@@ -334,7 +341,7 @@ function isMinuteInLunch(dayConfig: DayOperatingConfig, minute: number, duration
 async function scanDaySlots(
   supabase: SupabaseClient,
   ctx: SlotSearchContext,
-  dayDate: Date,
+  dateYmd: string,
   dayConfig: DayOperatingConfig,
   opts: {
     slotStep: number;
@@ -347,6 +354,7 @@ async function scanDaySlots(
   const slots: AvailableSlot[] = [];
   const { startMinute, endMinute } = getPeriodMinuteBounds(dayConfig, opts.period);
   let minute = startMinute;
+  const now = Date.now();
 
   while (minute + ctx.durationMinutes <= endMinute && slots.length < opts.maxSlots) {
     if (isMinuteInLunch(dayConfig, minute, ctx.durationMinutes)) {
@@ -354,15 +362,15 @@ async function scanDaySlots(
       continue;
     }
 
-    const slotStart = new Date(dayDate);
-    slotStart.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
+    const hour = Math.floor(minute / 60);
+    const min = minute % 60;
+    const scheduledAt = zonedLocalToUtcIso(dateYmd, hour, min, ctx.timeZone);
 
-    if (slotStart.getTime() <= Date.now()) {
+    if (new Date(scheduledAt).getTime() <= now) {
       minute += opts.slotStep;
       continue;
     }
 
-    const scheduledAt = slotStart.toISOString();
     const scheduledEndAt = buildScheduledEndFromDuration(scheduledAt, ctx.durationMinutes);
 
     const conflict = await checkAppointmentConflict(supabase, {
@@ -377,7 +385,9 @@ async function scanDaySlots(
       slots.push({
         scheduled_at: scheduledAt,
         scheduled_end_at: scheduledEndAt,
-        label: opts.timeOnlyLabel ? formatTimeLabel(scheduledAt) : formatSlotLabel(scheduledAt),
+        label: opts.timeOnlyLabel
+          ? formatTimeLabel(scheduledAt, ctx.timeZone)
+          : formatSlotLabel(scheduledAt, ctx.timeZone),
       });
     }
 
@@ -395,7 +405,7 @@ function getSlotPeriod(dayConfig: DayOperatingConfig, minute: number): SlotPerio
 async function scanDaySlotGrid(
   supabase: SupabaseClient,
   ctx: SlotSearchContext,
-  dayDate: Date,
+  dateYmd: string,
   dayConfig: DayOperatingConfig,
   slotStep: number
 ): Promise<DaySlot[]> {
@@ -405,16 +415,16 @@ async function scanDaySlotGrid(
   const now = Date.now();
 
   while (minute + ctx.durationMinutes <= endMinute) {
-    const slotStart = new Date(dayDate);
-    slotStart.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
-    const scheduledAt = slotStart.toISOString();
+    const hour = Math.floor(minute / 60);
+    const min = minute % 60;
+    const scheduledAt = zonedLocalToUtcIso(dateYmd, hour, min, ctx.timeZone);
     const scheduledEndAt = buildScheduledEndFromDuration(scheduledAt, ctx.durationMinutes);
     const period = getSlotPeriod(dayConfig, minute);
 
     let available = true;
     let reason: DaySlot["reason"];
 
-    if (slotStart.getTime() <= now) {
+    if (new Date(scheduledAt).getTime() <= now) {
       available = false;
       reason = "past";
     } else if (isMinuteInLunch(dayConfig, minute, ctx.durationMinutes)) {
@@ -437,7 +447,7 @@ async function scanDaySlotGrid(
     slots.push({
       scheduled_at: scheduledAt,
       scheduled_end_at: scheduledEndAt,
-      label: formatTimeLabel(scheduledAt),
+      label: formatTimeLabel(scheduledAt, ctx.timeZone),
       available,
       reason,
       period,
@@ -452,13 +462,13 @@ async function scanDaySlotGrid(
 async function dayHasAvailability(
   supabase: SupabaseClient,
   ctx: SlotSearchContext,
-  dayDate: Date,
+  dateYmd: string,
   dayConfig: DayOperatingConfig
 ): Promise<SlotPeriod[]> {
   const periods: SlotPeriod[] = [];
 
   for (const period of ["manha", "tarde"] as SlotPeriod[]) {
-    const slots = await scanDaySlots(supabase, ctx, dayDate, dayConfig, {
+    const slots = await scanDaySlots(supabase, ctx, dateYmd, dayConfig, {
       slotStep: 15,
       maxSlots: 1,
       period,
@@ -468,6 +478,59 @@ async function dayHasAvailability(
   }
 
   return periods;
+}
+
+export async function findFirstAvailableRoom(
+  supabase: SupabaseClient,
+  opts: {
+    clinicId: string;
+    scheduledAt: string;
+    scheduledEndAt: string;
+    excludeAppointmentId?: string | null;
+  }
+): Promise<string | null> {
+  const { data: rooms } = await supabase
+    .from("rooms")
+    .select("id")
+    .eq("clinic_id", opts.clinicId)
+    .eq("active", true);
+
+  const start = new Date(opts.scheduledAt).getTime();
+  const end = new Date(opts.scheduledEndAt).getTime();
+  const { dayStart, dayEnd } = dayBoundsForScheduledAt(opts.scheduledAt);
+
+  for (const room of rooms ?? []) {
+    let roomQuery = supabase
+      .from("appointments")
+      .select("id, scheduled_at, scheduled_end_at")
+      .eq("clinic_id", opts.clinicId)
+      .eq("room_id", room.id)
+      .neq("status", "cancelada")
+      .gte("scheduled_at", dayStart)
+      .lte("scheduled_at", dayEnd);
+
+    if (opts.excludeAppointmentId) {
+      roomQuery = roomQuery.neq("id", opts.excludeAppointmentId);
+    }
+
+    const { data: roomDayAppointments } = await roomQuery;
+    let hasConflict = false;
+    for (const appt of roomDayAppointments ?? []) {
+      const apptStart = new Date(appt.scheduled_at).getTime();
+      const apptEnd = resolveAppointmentEndMs(
+        appt.scheduled_at,
+        appt.scheduled_end_at as string | null,
+        DEFAULT_APPOINTMENT_DURATION_MINUTES
+      );
+      if (intervalsOverlap(start, end, apptStart, apptEnd)) {
+        hasConflict = true;
+        break;
+      }
+    }
+    if (!hasConflict) return String(room.id);
+  }
+
+  return null;
 }
 
 export async function findAvailablePeriodsForDay(
@@ -480,10 +543,9 @@ export async function findAvailablePeriodsForDay(
   }
 ): Promise<SlotPeriod[]> {
   const ctx = await loadSlotSearchContext(supabase, opts);
-  const dayDate = parseDateLocal(opts.date);
-  const dayConfig = getDayOperatingConfig(ctx, dayDate);
+  const dayConfig = getDayOperatingConfig(ctx, opts.date);
   if (!dayConfig) return [];
-  return dayHasAvailability(supabase, ctx, dayDate, dayConfig);
+  return dayHasAvailability(supabase, ctx, opts.date, dayConfig);
 }
 
 export function normalizeSlotPeriod(raw: unknown): SlotPeriod | undefined {
@@ -533,19 +595,17 @@ export async function findAvailableDays(
   const skipDays = opts.skipDays ?? 0;
 
   const ctx = await loadSlotSearchContext(supabase, opts);
-  const cursor = new Date(opts.fromDate ?? new Date());
-  cursor.setHours(0, 0, 0, 0);
+  const todayYmd = getZonedYmd(opts.fromDate ?? new Date(), ctx.timeZone);
 
   const days: AvailableDay[] = [];
   let skipped = 0;
 
   for (let day = 0; day < daysAhead; day++) {
-    const current = new Date(cursor);
-    current.setDate(cursor.getDate() + day);
-    const dayConfig = getDayOperatingConfig(ctx, current);
+    const dateYmd = addDaysToYmd(todayYmd, day, ctx.timeZone);
+    const dayConfig = getDayOperatingConfig(ctx, dateYmd);
     if (!dayConfig) continue;
 
-    const periods = await dayHasAvailability(supabase, ctx, current, dayConfig);
+    const periods = await dayHasAvailability(supabase, ctx, dateYmd, dayConfig);
     if (periods.length === 0) continue;
 
     if (skipped < skipDays) {
@@ -554,19 +614,18 @@ export async function findAvailableDays(
     }
 
     days.push({
-      date: formatDateIso(current),
-      label: formatDayLabel(current),
+      date: formatDateIsoFromYmd(dateYmd),
+      label: formatDayLabel(dateYmd, ctx.timeZone),
       periods,
     });
 
     if (days.length >= maxDays) {
       let hasMore = false;
       for (let remaining = day + 1; remaining < daysAhead; remaining++) {
-        const nextDate = new Date(cursor);
-        nextDate.setDate(cursor.getDate() + remaining);
-        const nextConfig = getDayOperatingConfig(ctx, nextDate);
+        const nextYmd = addDaysToYmd(todayYmd, remaining, ctx.timeZone);
+        const nextConfig = getDayOperatingConfig(ctx, nextYmd);
         if (!nextConfig) continue;
-        const nextPeriods = await dayHasAvailability(supabase, ctx, nextDate, nextConfig);
+        const nextPeriods = await dayHasAvailability(supabase, ctx, nextYmd, nextConfig);
         if (nextPeriods.length > 0) {
           hasMore = true;
           break;
@@ -594,8 +653,7 @@ export async function findSlotsForDay(
   }
 ): Promise<AvailableSlot[]> {
   const ctx = await loadSlotSearchContext(supabase, opts);
-  const dayDate = parseDateLocal(opts.date);
-  const dayConfig = getDayOperatingConfig(ctx, dayDate);
+  const dayConfig = getDayOperatingConfig(ctx, opts.date);
   if (!dayConfig) return [];
 
   let excludeId = opts.excludeAppointmentId ?? null;
@@ -614,7 +672,7 @@ export async function findSlotsForDay(
     }
   }
 
-  return scanDaySlots(supabase, ctx, dayDate, dayConfig, {
+  return scanDaySlots(supabase, ctx, opts.date, dayConfig, {
     slotStep: opts.slotStepMinutes ?? 30,
     maxSlots: opts.maxSlots ?? 6,
     period: opts.period,
@@ -634,15 +692,14 @@ export async function findDaySlotGrid(
   }
 ): Promise<{ date: string; periods: SlotPeriod[]; slots: DaySlot[] }> {
   const ctx = await loadSlotSearchContext(supabase, opts);
-  const dayDate = parseDateLocal(opts.date);
-  const dayConfig = getDayOperatingConfig(ctx, dayDate);
+  const dayConfig = getDayOperatingConfig(ctx, opts.date);
 
   if (!dayConfig) {
     return { date: opts.date, periods: [], slots: [] };
   }
 
   const slotStep = opts.slotStepMinutes ?? 30;
-  const slots = await scanDaySlotGrid(supabase, ctx, dayDate, dayConfig, slotStep);
+  const slots = await scanDaySlotGrid(supabase, ctx, opts.date, dayConfig, slotStep);
   const periods = (["manha", "tarde"] as SlotPeriod[]).filter((p) =>
     slots.some((s) => s.period === p)
   );
@@ -662,23 +719,20 @@ export async function findAvailableSlots(
     slotStepMinutes?: number;
   }
 ): Promise<AvailableSlot[]> {
-  const fromDate = opts.fromDate ?? new Date();
   const daysAhead = opts.daysAhead ?? 14;
   const maxSlots = opts.maxSlots ?? 8;
   const slotStep = opts.slotStepMinutes ?? 15;
 
   const ctx = await loadSlotSearchContext(supabase, opts);
+  const todayYmd = getZonedYmd(opts.fromDate ?? new Date(), ctx.timeZone);
   const slots: AvailableSlot[] = [];
-  const cursor = new Date(fromDate);
-  cursor.setHours(0, 0, 0, 0);
 
   for (let day = 0; day < daysAhead && slots.length < maxSlots; day++) {
-    const current = new Date(cursor);
-    current.setDate(cursor.getDate() + day);
-    const dayConfig = getDayOperatingConfig(ctx, current);
+    const dateYmd = addDaysToYmd(todayYmd, day, ctx.timeZone);
+    const dayConfig = getDayOperatingConfig(ctx, dateYmd);
     if (!dayConfig) continue;
 
-    const daySlots = await scanDaySlots(supabase, ctx, current, dayConfig, {
+    const daySlots = await scanDaySlots(supabase, ctx, dateYmd, dayConfig, {
       slotStep,
       maxSlots: maxSlots - slots.length,
     });

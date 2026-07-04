@@ -3,21 +3,23 @@ import {
   buildScheduledEndFromDuration,
   plannedDurationMinutes,
   validateScheduledInterval,
+  validateScheduledInFuture,
 } from "@/lib/appointment-scheduling";
 import {
   checkAppointmentConflict,
+  clinicRequiresRoom,
+  findFirstAvailableRoom,
   resolveProcedureDurationMinutes,
 } from "@/lib/appointment-conflicts";
+import { isScheduledAtInOfferedSlots } from "@/lib/booking-state";
+import { canCreateAppointment, getUpgradeMessage } from "@/lib/plan-gates";
+import {
+  countMonthAppointmentsForClinic,
+  getClinicPlanLimitsByClinicId,
+} from "@/lib/plan-helpers";
+import { buildConsumptionFromProcedures, commitStockForAppointment } from "@/lib/clinic-operations";
+import type { OfferedSlot } from "@/lib/virtual-assistant/types";
 import { resolveServicePriceForClinic } from "./pricing";
-
-async function clinicRequiresRoom(supabase: SupabaseClient, clinicId: string): Promise<boolean> {
-  const { count } = await supabase
-    .from("rooms")
-    .select("id", { count: "exact", head: true })
-    .eq("clinic_id", clinicId)
-    .eq("active", true);
-  return (count ?? 0) > 0;
-}
 
 export async function createAppointmentViaAssistant(
   supabase: SupabaseClient,
@@ -29,16 +31,50 @@ export async function createAppointmentViaAssistant(
     scheduledAt: string;
     dimensionValueIds?: string[];
     serviceId?: string | null;
+    offeredSlots?: OfferedSlot[];
   }
 ): Promise<{ appointmentId: string | null; error: string | null }> {
+  const futureCheck = validateScheduledInFuture(opts.scheduledAt);
+  if (!futureCheck.ok) return { appointmentId: null, error: futureCheck.error };
+
+  if (opts.offeredSlots?.length && !isScheduledAtInOfferedSlots(opts.scheduledAt, opts.offeredSlots)) {
+    return {
+      appointmentId: null,
+      error: "Horário não está entre as opções oferecidas. Escolha um horário da lista.",
+    };
+  }
+
+  const planLimits = await getClinicPlanLimitsByClinicId(supabase, opts.clinicId);
+  if (planLimits) {
+    const monthCount = await countMonthAppointmentsForClinic(supabase, opts.clinicId);
+    const planCheck = canCreateAppointment(planLimits, monthCount);
+    if (!planCheck.allowed) {
+      return {
+        appointmentId: null,
+        error: `${planCheck.reason ?? "Limite de consultas atingido."} ${getUpgradeMessage("consultas/mês")}`,
+      };
+    }
+  }
+
   const durationMinutes = await resolveProcedureDurationMinutes(supabase, opts.clinicId, [opts.procedureId]);
   const scheduledEndAt = buildScheduledEndFromDuration(opts.scheduledAt, durationMinutes);
   const intervalCheck = validateScheduledInterval(opts.scheduledAt, scheduledEndAt);
   if (!intervalCheck.ok) return { appointmentId: null, error: intervalCheck.error };
 
+  let roomId: string | null = null;
   const roomRequired = await clinicRequiresRoom(supabase, opts.clinicId);
   if (roomRequired) {
-    return { appointmentId: null, error: "Esta clínica exige sala. Peça à equipe para concluir o agendamento." };
+    roomId = await findFirstAvailableRoom(supabase, {
+      clinicId: opts.clinicId,
+      scheduledAt: opts.scheduledAt,
+      scheduledEndAt,
+    });
+    if (!roomId) {
+      return {
+        appointmentId: null,
+        error: "Esta clínica exige sala e não há sala livre neste horário. Peça à equipe para concluir o agendamento.",
+      };
+    }
   }
 
   const conflict = await checkAppointmentConflict(supabase, {
@@ -46,6 +82,7 @@ export async function createAppointmentViaAssistant(
     doctorId: opts.doctorId,
     scheduledAt: opts.scheduledAt,
     scheduledEndAt,
+    roomId,
     excludeAppointmentId: null,
   });
   if (conflict) return { appointmentId: null, error: conflict };
@@ -93,6 +130,7 @@ export async function createAppointmentViaAssistant(
       status: "agendada",
       recommendations: procData?.recommendations ?? null,
       created_by: null,
+      ...(roomId ? { room_id: roomId } : {}),
     })
     .select("id")
     .single();
@@ -104,6 +142,13 @@ export async function createAppointmentViaAssistant(
     appointment_id: appointment.id,
     procedure_id: opts.procedureId,
   });
+
+  try {
+    await buildConsumptionFromProcedures(supabase, appointment.id, [opts.procedureId]);
+    await commitStockForAppointment(supabase, opts.clinicId, appointment.id);
+  } catch (e) {
+    console.warn("[VirtualAssistant] stock commit:", e);
+  }
 
   if (opts.dimensionValueIds?.length) {
     await supabase.from("appointment_dimension_values").insert(
@@ -394,6 +439,9 @@ export async function rescheduleAppointmentViaAssistant(
   if (!["agendada", "confirmada"].includes(String(appt.status))) {
     return { error: "Esta consulta não pode ser remarcada." };
   }
+
+  const futureCheck = validateScheduledInFuture(opts.newScheduledAt);
+  if (!futureCheck.ok) return { error: futureCheck.error };
 
   const durationMinutes = await resolveProcedureDurationMinutes(supabase, opts.clinicId, [
     String(appt.procedure_id),
