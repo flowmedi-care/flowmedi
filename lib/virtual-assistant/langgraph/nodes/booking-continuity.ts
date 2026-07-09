@@ -9,6 +9,7 @@ import {
   shouldContinueBookingFlow,
 } from "../../booking-continuity-guards";
 import type { GraphState } from "../state";
+import { logLangGraphTrace } from "../trace";
 
 export async function bookingContinuityNode(state: GraphState): Promise<Partial<GraphState>> {
   const ctx = state.runtimeContext;
@@ -21,6 +22,14 @@ export async function bookingContinuityNode(state: GraphState): Promise<Partial<
   );
 
   if (!shouldContinueBookingFlow(state.inboundText, continuityIntent, state.aiState)) {
+    if (ctx) {
+      logLangGraphTrace(ctx.supabase, ctx.clinicId, ctx.conversationId, {
+        node: "booking_continuity",
+        handled: false,
+        continuity_intent: continuityIntent,
+        detected_intent: state.detectedIntent,
+      });
+    }
     return {};
   }
 
@@ -39,6 +48,14 @@ export async function bookingContinuityNode(state: GraphState): Promise<Partial<
   });
 
   if (!slotExec.handled) {
+    if (ctx) {
+      logLangGraphTrace(ctx.supabase, ctx.clinicId, ctx.conversationId, {
+        node: "booking_continuity",
+        handled: false,
+        continuity_intent: continuityIntent,
+        pipeline_stage: "agendamento",
+      });
+    }
     return {
       detectedIntent:
         continuityIntent === "availability_check" ? "availability_check" : "booking",
@@ -47,12 +64,23 @@ export async function bookingContinuityNode(state: GraphState): Promise<Partial<
     };
   }
 
+  if (ctx) {
+    logLangGraphTrace(ctx.supabase, ctx.clinicId, ctx.conversationId, {
+      node: "booking_continuity",
+      handled: true,
+      continuity_intent: continuityIntent,
+      reply_source: "continuity",
+      reply_preview: slotExec.reply.slice(0, 120),
+    });
+  }
+
   return {
     detectedIntent:
       continuityIntent === "availability_check" ? "availability_check" : "booking",
     aiState: { ...aiState, ...slotExec.statePatch },
     pipelineStage: "agendamento",
     reply: applyReplyGuards(slotExec.reply, aiState),
+    replySource: "continuity",
     stageSubgraphComplete: true,
   };
 }
@@ -77,12 +105,14 @@ export async function tryAcquireProcessingLock(
   }
 
   const now = new Date().toISOString();
+  const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
   const nextState = { ...aiState, ai_processing_started_at: now };
 
   const { data, error } = await supabase
     .from("whatsapp_conversations")
     .update({ ai_state: nextState })
     .eq("id", conversationId)
+    .or(`ai_state->>ai_processing_started_at.is.null,ai_state->>ai_processing_started_at.lt.${cutoff}`)
     .select("id")
     .maybeSingle();
 

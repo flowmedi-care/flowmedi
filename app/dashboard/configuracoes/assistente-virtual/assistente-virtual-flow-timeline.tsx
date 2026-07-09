@@ -257,6 +257,8 @@ const STAGE_LABELS: Record<string, string> = {
   error: "Erro",
   langgraph_start: "LangGraph iniciado",
   langgraph_complete: "LangGraph concluído",
+  langgraph_trace: "Trace LangGraph",
+  agent_route: "Roteamento do motor",
   langgraph_shadow_compare: "Shadow compare",
   langgraph_shadow_error: "Erro LangGraph (shadow)",
   booking_continuity: "Continuidade de agendamento",

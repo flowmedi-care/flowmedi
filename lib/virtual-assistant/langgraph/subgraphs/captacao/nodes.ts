@@ -2,6 +2,7 @@ import { hasActiveBookingContext, hasOfferedBookingSelection } from "@/lib/virtu
 import { isSlotSelectionMessage } from "@/lib/virtual-assistant/booking-slot-messages";
 import { applyReplyGuards } from "@/lib/virtual-assistant/reply-guards";
 import type { GraphState } from "../../state";
+import { CAPTACAO_GREETING_MENU } from "../../trace";
 import { runStageToolLoop } from "../../tools/tool-node";
 import { mergeStageResult } from "../build-stage-graph";
 import { runAgendamentoSubgraph } from "../agendamento/graph";
@@ -50,10 +51,7 @@ export async function captacaoRouteNode(state: GraphState): Promise<Partial<Grap
   if (state.detectedIntent === "greeting") {
     return mergeStageResult(
       {
-        reply: applyReplyGuards(
-          "Olá! Posso ajudar com:\n1. Agendar consulta\n2. Valores e procedimentos\n3. Falar com a equipe\n\nO que você precisa?",
-          state.aiState
-        ),
+        reply: applyReplyGuards(CAPTACAO_GREETING_MENU, state.aiState),
         stageSubgraphComplete: true,
       },
       "captacao"

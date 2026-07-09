@@ -3,6 +3,7 @@ import { logAiEvent } from "../event-log";
 import type { AiConversationState, VirtualAssistantSettings } from "../types";
 import { getAssistantGraph } from "./graph";
 import type { GraphHistoryMessage } from "./state";
+import { logLangGraphTrace } from "./trace";
 
 export type RunLangGraphAssistantInput = {
   supabase: SupabaseClient;
@@ -70,7 +71,23 @@ export async function runLangGraphAssistant(
       pipeline_stage: result.pipelineStage,
       detected_intent: result.detectedIntent,
       handoff: result.handoff,
+      reply_source: result.replySource ?? (result.hadReplyBeforeCompose ? "subgraph" : "fallback"),
+      had_reply_before_compose: result.hadReplyBeforeCompose,
+      compose_skipped: result.replySource !== "compose_llm",
+      inbound_preview: combinedUserText.slice(0, 80),
+      reply_preview: reply.slice(0, 120),
     },
+  });
+
+  logLangGraphTrace(input.supabase, input.clinicId, input.conversationId, {
+    node: "run_complete",
+    detected_intent: result.detectedIntent,
+    pipeline_stage: result.pipelineStage,
+    reply_source: result.replySource ?? undefined,
+    had_reply_before_compose: result.hadReplyBeforeCompose,
+    compose_skipped: result.replySource !== "compose_llm",
+    inbound_preview: combinedUserText.slice(0, 80),
+    reply_preview: reply.slice(0, 120),
   });
 
   return {

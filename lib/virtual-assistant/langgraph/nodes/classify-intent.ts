@@ -10,6 +10,7 @@ import {
 } from "../../booking-continuity-guards";
 import { createChatCompletion } from "../../openai-client";
 import type { GraphState } from "../state";
+import { logLangGraphTrace } from "../trace";
 import {
   ClassifiedIntentSchema,
   CLASSIFY_INTENT_SYSTEM,
@@ -99,8 +100,10 @@ export async function classifyIntentNode(state: GraphState): Promise<Partial<Gra
   }
 
   let classified = buildFastPathClassification(text, regexIntent);
+  let usedLlm = false;
 
   if (!classified) {
+    usedLlm = true;
     try {
       classified = await classifyWithLlm(text, model);
     } catch (e) {
@@ -126,6 +129,17 @@ export async function classifyIntentNode(state: GraphState): Promise<Partial<Gra
     !aiState.booking_step
   ) {
     aiState = { ...aiState, booking_step: "procedure", intent: "booking" };
+  }
+
+  const ctx = state.runtimeContext;
+  if (ctx) {
+    logLangGraphTrace(ctx.supabase, ctx.clinicId, ctx.conversationId, {
+      node: "classify_intent",
+      detected_intent: detectedIntent,
+      intent_confidence: classified.confidence,
+      used_llm: usedLlm,
+      inbound_preview: text.slice(0, 80),
+    });
   }
 
   return {

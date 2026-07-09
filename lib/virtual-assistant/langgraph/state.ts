@@ -8,6 +8,7 @@ import type {
   VirtualAssistantSettings,
 } from "../types";
 import type { ClassifiedIntent, IntentEntities } from "./intent-schema";
+import type { ReplySource } from "./trace";
 
 export type GraphHistoryMessage = {
   role: "user" | "assistant";
@@ -121,6 +122,14 @@ export const GraphStateAnnotation = Annotation.Root({
   runtimeContext: Annotation<GraphRuntimeContext | null>({
     reducer: (_prev, next) => next,
     default: () => null,
+  }),
+  replySource: Annotation<ReplySource | null>({
+    reducer: (_prev, next) => next,
+    default: () => null,
+  }),
+  hadReplyBeforeCompose: Annotation<boolean>({
+    reducer: (_prev, next) => next,
+    default: () => false,
   }),
 });
 

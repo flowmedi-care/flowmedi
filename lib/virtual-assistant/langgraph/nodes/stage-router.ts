@@ -1,5 +1,6 @@
 import type { AgentPipelineStage } from "../../agent-pipeline/stages";
 import type { GraphState } from "../state";
+import { logLangGraphTrace } from "../trace";
 import { buildFinanceiroGraph } from "../subgraphs/financeiro/graph";
 import { buildFormulariosGraph } from "../subgraphs/formularios/graph";
 import { invokeStageSubgraph } from "../subgraphs/registry";
@@ -26,6 +27,24 @@ export async function stageRouterNode(state: GraphState): Promise<Partial<GraphS
     const formGraph = buildFormulariosGraph();
     const formResult = await formGraph.invoke({ ...state, ...result });
     if ((formResult as GraphState).reply) return formResult as Partial<GraphState>;
+  }
+
+  const ctx = state.runtimeContext;
+  if (ctx) {
+    logLangGraphTrace(ctx.supabase, ctx.clinicId, ctx.conversationId, {
+      node: "stage_router",
+      stage_subgraph: stage,
+      pipeline_stage: stage,
+      detected_intent: state.detectedIntent,
+      subgraph_had_reply: Boolean(result.reply?.trim()),
+      needs_tool_loop: Boolean(result.needsToolLoop),
+      reply_source: result.reply?.trim() ? "subgraph" : undefined,
+      reply_preview: result.reply?.slice(0, 120),
+    });
+  }
+
+  if (result.reply?.trim() && !result.replySource) {
+    return { ...result, replySource: "subgraph" as const };
   }
 
   return result;

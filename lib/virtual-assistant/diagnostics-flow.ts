@@ -47,6 +47,8 @@ const TEXT_STEP_DEFS: { key: string; title: string; stages: string[] }[] = [
       "pipeline_tool_blocked",
       "pipeline_confirmation_pending",
       "langgraph_complete",
+      "langgraph_trace",
+      "agent_route",
       "langgraph_shadow_compare",
       "booking_continuity",
     ],
@@ -141,6 +143,25 @@ function stepDescription(stepKey: string, event: AiEventRow | undefined): string
       return typeof d.preview === "string" ? `Texto: "${d.preview}"` : undefined;
     case "openai_reply":
       return typeof d.replyPreview === "string" ? `"${d.replyPreview}"` : undefined;
+    case "pipeline": {
+      const replySource = typeof d.reply_source === "string" ? d.reply_source : null;
+      const intent = typeof d.detected_intent === "string" ? d.detected_intent : null;
+      const stage = typeof d.pipeline_stage === "string" ? d.pipeline_stage : null;
+      const parts: string[] = [];
+      if (stage) parts.push(`Etapa: ${stage}`);
+      if (intent) parts.push(`Intent: ${intent}`);
+      if (replySource) parts.push(`Origem: ${replySource}`);
+      if (
+        replySource === "compose_llm" &&
+        (intent === "greeting" || intent === "booking" || intent === "availability_check")
+      ) {
+        parts.push("⚠ Resposta genérica via LLM (esperado subgrafo)");
+      }
+      if (typeof d.reply_preview === "string" && d.reply_preview) {
+        parts.push(`"${d.reply_preview.slice(0, 80)}"`);
+      }
+      return parts.length ? parts.join(" · ") : undefined;
+    }
     case "whatsapp_send":
       if (d.type === "audio_fallback") return "Fallback: não entendi o áudio";
       if (d.type === "outside_hours") return "Fora do horário do bot";
@@ -174,6 +195,15 @@ function stepFailed(event: AiEventRow): boolean {
   if (event.stage === "legacy_menu_no_reply") return true;
   if (event.stage === "processing_start" && event.detail?.skipped) return true;
   if (event.stage === "error") return true;
+  if (
+    event.stage === "langgraph_complete" &&
+    event.detail?.reply_source === "compose_llm" &&
+    (event.detail?.detected_intent === "greeting" ||
+      event.detail?.detected_intent === "booking" ||
+      event.detail?.detected_intent === "availability_check")
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -183,6 +213,14 @@ function pickEventForStep(
 ): AiEventRow | undefined {
   if (step.key === "transcribe_ok") {
     return events.find((e) => e.stage === "audio_transcribe_ok");
+  }
+  if (step.key === "pipeline") {
+    return (
+      events.find((e) => e.stage === "langgraph_complete") ??
+      events.find((e) => e.stage === "langgraph_trace" && e.detail?.node === "run_complete") ??
+      events.find((e) => e.stage === "agent_route") ??
+      events.find((e) => step.stages.includes(e.stage))
+    );
   }
   if (step.key === "transcribe_fail") {
     return events.find(

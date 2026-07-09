@@ -222,11 +222,49 @@ async function processConversationAiInner(
     logAiEvent(supabase, {
       clinicId: conv.clinic_id,
       conversationId,
+      stage: "agent_route",
+      detail: {
+        engine: settings.use_langgraph_pipeline ? "langgraph" : "legacy",
+        shadow: settings.langgraph_shadow_mode ?? false,
+        use_langgraph_pipeline: settings.use_langgraph_pipeline ?? false,
+        lock_acquired: false,
+        skipped_reason: "already_processing",
+      },
+    });
+    logAiEvent(supabase, {
+      clinicId: conv.clinic_id,
+      conversationId,
       stage: "processing_start",
       level: "info",
       detail: { skipped: true, reason: "already_processing" },
     });
     return;
+  }
+
+  logAiEvent(supabase, {
+    clinicId: conv.clinic_id,
+    conversationId,
+    stage: "agent_route",
+    detail: {
+      engine: settings.use_langgraph_pipeline ? "langgraph" : "legacy",
+      shadow: settings.langgraph_shadow_mode ?? false,
+      use_langgraph_pipeline: settings.use_langgraph_pipeline ?? false,
+      lock_acquired: true,
+    },
+  });
+
+  if (
+    settings.enabled !== false &&
+    !settings.use_langgraph_pipeline &&
+    !settings.langgraph_shadow_mode
+  ) {
+    logAiEvent(supabase, {
+      clinicId: conv.clinic_id,
+      conversationId,
+      stage: "agent_route",
+      level: "warn",
+      detail: { warn: "langgraph_disabled_responding_legacy" },
+    });
   }
 
   if (conv.patient_id && !aiState.patient_id) {

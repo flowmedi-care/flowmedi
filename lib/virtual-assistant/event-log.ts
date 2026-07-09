@@ -29,6 +29,8 @@ export const AI_EVENT_STAGES = [
   "pipeline_confirmation_pending",
   "langgraph_start",
   "langgraph_complete",
+  "langgraph_trace",
+  "agent_route",
   "langgraph_shadow_compare",
   "langgraph_shadow_error",
 ] as const;

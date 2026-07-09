@@ -8,6 +8,10 @@ import { handoffNode } from "./nodes/handoff";
 import { humanConfirmNode, checkPendingHumanConfirm } from "./nodes/human-confirm";
 import { loadContextNode } from "./nodes/load-context";
 import { resolveStageNode } from "./nodes/resolve-stage";
+import {
+  deterministicRouterNode,
+  routeAfterDeterministicRouter,
+} from "./nodes/deterministic-router";
 import { routeAfterStage, stageRouterNode } from "./nodes/stage-router";
 import { syncStateNode } from "./nodes/sync-state";
 import { GraphStateAnnotation } from "./state";
@@ -24,6 +28,7 @@ export async function buildAssistantGraph() {
     .addNode("booking_continuity", bookingContinuityNode)
     .addNode("escalate_gate", escalateGateNode)
     .addNode("resolve_stage", resolveStageNode)
+    .addNode("deterministic_router", deterministicRouterNode)
     .addNode("human_confirm", humanConfirmNode)
     .addNode("stage_router", stageRouterNode)
     .addNode("stage_tool_loop", runStageToolLoop)
@@ -44,7 +49,11 @@ export async function buildAssistantGraph() {
       handoff: "execute_handoff",
       continue: "resolve_stage",
     })
-    .addEdge("resolve_stage", "stage_router")
+    .addEdge("resolve_stage", "deterministic_router")
+    .addConditionalEdges("deterministic_router", routeAfterDeterministicRouter, {
+      compose: "compose_reply",
+      stage_router: "stage_router",
+    })
     .addConditionalEdges("stage_router", routeAfterStage, {
       compose: "compose_reply",
       confirm: "human_confirm",

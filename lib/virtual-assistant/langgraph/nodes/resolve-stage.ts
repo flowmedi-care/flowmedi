@@ -12,6 +12,7 @@ import { loadContactJourneyForAi } from "@/lib/contact-journey/journey-for-ai";
 import { buildContextualResumePrompt } from "@/lib/contact-journey/contextual-resume";
 import { bootstrapPatientForBooking } from "../../booking-flow";
 import type { GraphState } from "../state";
+import { logLangGraphTrace } from "../trace";
 
 export async function resolveStageNode(state: GraphState): Promise<Partial<GraphState>> {
   const ctx = state.runtimeContext;
@@ -114,6 +115,15 @@ export async function resolveStageNode(state: GraphState): Promise<Partial<Graph
           : ""
       }`
     : "";
+
+  logLangGraphTrace(ctx.supabase, ctx.clinicId, ctx.conversationId, {
+    node: "resolve_stage",
+    detected_intent: state.detectedIntent,
+    pipeline_stage: pipelineStage,
+    routed_flow: routed.flow,
+    patient_id_present: Boolean(merged.patient_id),
+    inbound_preview: state.inboundText.slice(0, 80),
+  });
 
   return {
     aiState: { ...merged, ...stageTransition, pipeline_stage: pipelineStage },

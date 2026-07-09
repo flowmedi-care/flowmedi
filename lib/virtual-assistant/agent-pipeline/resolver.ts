@@ -53,16 +53,6 @@ const SATISFACAO_STEPS = new Set(["pesquisa_nps_enviada", "feedback_recebido"]);
 export function resolveAgentPipelineStage(input: ResolvePipelineStageInput): AgentPipelineStage {
   const { aiState, journey, detectedIntent, routedFlow } = input;
 
-  if (aiState.pipeline_stage && AGENT_PIPELINE_STAGE_MAP.has(aiState.pipeline_stage)) {
-    const persisted = aiState.pipeline_stage;
-    if (persisted === "agendamento" && aiState.booking_step === "done") {
-      return "confirmacao_pre_consulta";
-    }
-    if (persisted !== "identificacao" || !journey) {
-      return persisted;
-    }
-  }
-
   if (aiState.pending_confirmation_appointment_id || aiState.pending_reschedule_appointment_id) {
     return "confirmacao_pre_consulta";
   }
@@ -75,8 +65,34 @@ export function resolveAgentPipelineStage(input: ResolvePipelineStageInput): Age
     return "agendamento";
   }
 
+  if (
+    detectedIntent === "booking" ||
+    detectedIntent === "availability_check" ||
+    detectedIntent === "reschedule" ||
+    routedFlow === "booking"
+  ) {
+    return "agendamento";
+  }
+
   if (aiState.last_created_appointment_id && !aiState.booking_step) {
     return "confirmacao_pre_consulta";
+  }
+
+  if (aiState.pipeline_stage && AGENT_PIPELINE_STAGE_MAP.has(aiState.pipeline_stage)) {
+    const persisted = aiState.pipeline_stage;
+    if (persisted === "agendamento" && aiState.booking_step === "done") {
+      return "confirmacao_pre_consulta";
+    }
+    if (persisted === "identificacao") {
+      if (aiState.patient_id || input.patientFound) {
+        return "captacao";
+      }
+      if (!journey) {
+        return "identificacao";
+      }
+    } else {
+      return persisted;
+    }
   }
 
   const journeyStep = journey?.currentStep ?? aiState.journey_step_code;
@@ -97,14 +113,6 @@ export function resolveAgentPipelineStage(input: ResolvePipelineStageInput): Age
   }
   if (detectedIntent === "form") {
     return "formularios";
-  }
-  if (
-    detectedIntent === "booking" ||
-    detectedIntent === "availability_check" ||
-    detectedIntent === "reschedule" ||
-    routedFlow === "booking"
-  ) {
-    return "agendamento";
   }
   if (detectedIntent === "pricing" || detectedIntent === "quote" || routedFlow === "pricing") {
     return "orcamento";

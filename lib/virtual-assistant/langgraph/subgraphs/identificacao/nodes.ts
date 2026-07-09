@@ -5,10 +5,33 @@ import type { GraphState } from "../../state";
 import { runStageToolLoop } from "../../tools/tool-node";
 import { mergeStageResult } from "../build-stage-graph";
 import { loadContactJourneyForAi } from "@/lib/contact-journey/journey-for-ai";
+import { invokeStageSubgraph } from "../registry";
+
+function resolveDelegationStage(state: GraphState): "captacao" | "agendamento" | "orcamento" | null {
+  const intent = state.detectedIntent;
+  if (intent === "booking" || intent === "availability_check") return "agendamento";
+  if (intent === "pricing" || intent === "quote") return "orcamento";
+  if (intent === "greeting") return "captacao";
+  return null;
+}
 
 export async function identificacaoLookupNode(state: GraphState): Promise<Partial<GraphState>> {
   const ctx = state.runtimeContext;
-  if (!ctx || state.aiState.patient_id) return {};
+  if (!ctx) return {};
+
+  if (state.aiState.patient_id) {
+    const targetStage = resolveDelegationStage(state);
+    if (targetStage) {
+      return invokeStageSubgraph(targetStage, {
+        ...state,
+        pipelineStage: targetStage,
+        aiState: {
+          ...state.aiState,
+          pipeline_stage: targetStage,
+        },
+      });
+    }
+  }
 
   const toolResult = await executeAssistantTool(
     {

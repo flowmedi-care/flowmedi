@@ -113,6 +113,12 @@ export function AssistenteVirtualPipelineTab({
                 Runtime LangGraph ativo
               </span>
             )}
+            {!useLangGraph && !shadowMode && (
+              <span className="mt-2 block rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Motor legado ativo — respostas passam pelo loop OpenAI. Ative LangGraph para menu
+                determinístico e subgrafos por etapa.
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
