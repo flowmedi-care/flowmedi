@@ -1,9 +1,6 @@
 import type { GraphState } from "../state";
-import { runStageToolLoop } from "../tools/tool-node";
+import { invokeStageSubgraph } from "./registry";
 
-export async function orcamentoSubgraph(state: GraphState): Promise<Partial<GraphState>> {
-  return runStageToolLoop({
-    ...state,
-    aiState: { ...state.aiState, intent: "pricing" },
-  });
+export async function orcamentoSubgraph(state: GraphState) {
+  return invokeStageSubgraph("orcamento", state);
 }

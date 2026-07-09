@@ -15,6 +15,7 @@ import {
 } from "@/lib/booking-state";
 import { getClinicTimezone, getHourInTimezone } from "@/lib/clinic-timezone";
 import type { AiConversationState, BookingStep, OfferedDay, OfferedSlot } from "@/lib/virtual-assistant/types";
+import { resolveDayFromContext } from "@/lib/virtual-assistant/booking-day-context";
 import { BOOKING_WEEKDAY_PATTERNS, isSlotSelectionMessage } from "@/lib/virtual-assistant/booking-slot-messages";
 import {
   bootstrapPatientForBooking,
@@ -150,6 +151,90 @@ async function resolveFreshBookingState(
   return { state: { ...state, ...sanitized }, timeZone };
 }
 
+/** Busca horários quando há contexto de dia (last_slot_query ou weekday) sem offered_days frescos. */
+async function tryContextualDayPeriodQuery(
+  supabase: SupabaseClient,
+  opts: {
+    clinicId: string;
+    messageText: string;
+    aiState: AiConversationState;
+    timeZone: string;
+    period: SlotPeriod | null;
+  }
+): Promise<BookingExecutorResult> {
+  const { aiState, messageText, period } = opts;
+  if (!aiState.procedure_id || !aiState.doctor_id) return { handled: false };
+  if (!isSlotSelectionMessage(messageText)) return { handled: false };
+
+  const resolvedDate = resolveDayFromContext(messageText, aiState, opts.timeZone);
+  if (!resolvedDate) return { handled: false };
+
+  const slots = await findSlotsForDay(supabase, {
+    clinicId: opts.clinicId,
+    doctorId: aiState.doctor_id,
+    procedureId: aiState.procedure_id,
+    date: resolvedDate,
+    period: period ?? undefined,
+    excludeAppointmentId: aiState.last_created_appointment_id ?? null,
+    patientId: aiState.patient_id ?? null,
+  });
+
+  const mapped: OfferedSlot[] = slots.map((s) => ({
+    scheduled_at: s.scheduled_at,
+    display: s.label,
+  }));
+  const filtered = filterSlotsByPeriod(mapped, period, opts.timeZone);
+
+  if (period && filtered.length === 0) {
+    const periodLabel = period === "manha" ? "manhã" : "tarde";
+    return {
+      handled: true,
+      reply: `Não há horários disponíveis na ${periodLabel} desse dia. Quer tentar outro turno ou outro dia?`,
+      statePatch: {
+        intent: "booking",
+        booking_step: "day",
+        last_slot_query: { date: resolvedDate, period },
+      },
+    };
+  }
+
+  const toShow = filtered.length ? filtered : mapped;
+  if (toShow.length === 0) {
+    return {
+      handled: true,
+      reply: "Não encontrei horários disponíveis nesse dia. Quer tentar outro dia ou período?",
+      statePatch: {
+        intent: "booking",
+        booking_step: "day",
+        last_slot_query: { date: resolvedDate, period: period ?? undefined },
+      },
+    };
+  }
+
+  const displayMessage = buildSlotsDisplayMessage(
+    slots.filter((s) => toShow.some((f) => f.scheduled_at === s.scheduled_at))
+  );
+
+  return {
+    handled: true,
+    reply: displayMessage,
+    statePatch: {
+      ...buildOfferedStateFromSlotsTool(
+        "times",
+        {
+          date: resolvedDate,
+          period,
+          slots: toShow.map((s) => ({ scheduled_at: s.scheduled_at, label: s.display })),
+        },
+        aiState.doctor_id,
+        aiState.procedure_id,
+        aiState
+      ),
+      last_display_message: displayMessage,
+    },
+  };
+}
+
 export async function tryExecuteBookingSlotSelection(
   supabase: SupabaseClient,
   opts: {
@@ -173,10 +258,21 @@ export async function tryExecuteBookingSlotSelection(
 
   const offeredDays = filterFreshOfferedDays(state.offered_days ?? [], timeZone);
   const offeredSlots = filterFreshOfferedSlots(state.offered_slots ?? []);
-  if (offeredDays.length === 0 && offeredSlots.length === 0) return { handled: false };
-
   const period = parsePeriod(text) ?? state.last_slot_query?.period ?? null;
   const bookingStep = state.booking_step;
+
+  if (offeredDays.length === 0 && offeredSlots.length === 0) {
+    const contextual = await tryContextualDayPeriodQuery(supabase, {
+      clinicId: opts.clinicId,
+      messageText: text,
+      aiState: state,
+      timeZone,
+      period,
+    });
+    if (contextual.handled) return contextual;
+    return { handled: false };
+  }
+
   let selectedSlot = matchOfferedSlot(text, offeredSlots, bookingStep);
   const selectedDay = matchOfferedDay(text, offeredDays, bookingStep);
 

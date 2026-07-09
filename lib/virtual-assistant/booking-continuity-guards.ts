@@ -2,6 +2,8 @@ import {
   detectInboundIntent,
   type InboundIntent,
 } from "./detect-inbound-intent";
+import { hasBookingSlotContext } from "./booking-day-context";
+import { isFreshBookingRequest } from "./booking-reset";
 import { isSlotSelectionMessage } from "./booking-slot-messages";
 import type { AiConversationState } from "./types";
 
@@ -50,11 +52,13 @@ export function shouldContinueBookingFlow(
   aiState: AiConversationState
 ): boolean {
   if (EXPLICIT_NON_BOOKING_INTENTS.has(detectedIntent)) return false;
+  if (isFreshBookingRequest(messageText) && detectedIntent === "booking") return false;
   if (hasActiveBookingContext(aiState)) return true;
   if (!isSlotSelectionMessage(messageText)) return false;
   if (!aiState.procedure_id || !aiState.doctor_id) return false;
   return (
     hasOfferedBookingSelection(aiState) ||
+    hasBookingSlotContext(aiState) ||
     Boolean(aiState.booking_step && aiState.booking_step !== "done")
   );
 }

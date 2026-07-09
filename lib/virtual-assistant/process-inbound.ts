@@ -6,10 +6,15 @@ import {
   scheduleTranscriptionRetry,
 } from "./audio-transcription";
 import { runAssistantWithOptionalShadow } from "./langgraph/shadow";
+import {
+  shouldSkipDuplicateReply,
+  tryAcquireProcessingLock,
+} from "./langgraph/nodes/booking-continuity";
 import { logAiEvent } from "./event-log";
 import { sendAssistantReply } from "./send-reply";
 import type { AiConversationState, VirtualAssistantSettings } from "./types";
 import { isInsideAutoMessageWindow } from "@/lib/whatsapp-ops-controls";
+import { HANDOFF_REPLY_BODY } from "@/lib/whatsapp-sender-display";
 import {
   detectInboundIntent,
   hasClearIntent,
@@ -19,7 +24,6 @@ import {
   applyBookingContinuityStatePatch,
   resolveContinuityIntent,
   shouldContinueBookingFlow,
-  tryBookingContinuityReply,
 } from "./booking-continuity";
 import { tryReactivateAiAfterHandoff } from "./handoff-reactivation";
 import { ensureAiPrivacyNoticeSent } from "./ai-privacy-notice";
@@ -208,28 +212,26 @@ async function processConversationAiInner(
   if (!pending?.length) return;
 
   let aiState = (conv.ai_state ?? {}) as AiConversationState;
-  if (aiState.ai_processing_started_at) {
-    const elapsed = Date.now() - new Date(aiState.ai_processing_started_at).getTime();
-    if (elapsed < 90_000) {
-      logAiEvent(supabase, {
-        clinicId: conv.clinic_id,
-        conversationId,
-        stage: "processing_start",
-        level: "info",
-        detail: { skipped: true, reason: "already_processing", elapsedMs: elapsed },
-      });
-      return;
-    }
+
+  const acquired = await tryAcquireProcessingLock(
+    supabase,
+    conversationId,
+    aiState as Record<string, unknown>
+  );
+  if (!acquired) {
+    logAiEvent(supabase, {
+      clinicId: conv.clinic_id,
+      conversationId,
+      stage: "processing_start",
+      level: "info",
+      detail: { skipped: true, reason: "already_processing" },
+    });
+    return;
   }
 
   if (conv.patient_id && !aiState.patient_id) {
     aiState = { ...aiState, patient_id: conv.patient_id };
   }
-  aiState = { ...aiState, ai_processing_started_at: new Date().toISOString() };
-  await supabase
-    .from("whatsapp_conversations")
-    .update({ ai_state: aiState })
-    .eq("id", conversationId);
 
   try {
   logAiEvent(supabase, {
@@ -700,48 +702,6 @@ async function processConversationAiInner(
     }
   }
 
-  const continuityResult = await tryBookingContinuityReply(supabase, {
-    clinicId: conv.clinic_id,
-    conversationId,
-    phoneNumber: conv.phone_number,
-    messageText: inboundMessage,
-    aiState,
-    detectedIntent: inboundIntent,
-  });
-  if (continuityResult.handled) {
-    const now = new Date().toISOString();
-    await supabase
-      .from("whatsapp_messages")
-      .update({ ai_processed_at: now })
-      .in(
-        "id",
-        pending.map((m) => m.id)
-      );
-    await supabase
-      .from("whatsapp_conversations")
-      .update({
-        ai_last_processed_message_at: now,
-        ai_state: continuityResult.statePatch,
-        ai_debounce_until: null,
-      })
-      .eq("id", conversationId);
-    await sendAssistantReply(
-      supabase,
-      conv.clinic_id,
-      conversationId,
-      conv.phone_number,
-      continuityResult.reply
-    );
-    logAiEvent(supabase, {
-      clinicId: conv.clinic_id,
-      conversationId,
-      stage: "reply_sent",
-      detail: { type: "booking_continuity" },
-    });
-    return;
-  }
-  aiState = continuityResult.aiState;
-
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
     conversationId,
@@ -793,6 +753,24 @@ async function processConversationAiInner(
       pending.map((m) => m.id)
     );
 
+  let effectiveHandoff = handoff ?? false;
+  let effectiveReply = reply;
+
+  if (!effectiveHandoff && effectiveReply.includes(HANDOFF_REPLY_BODY)) {
+    console.warn("[VirtualAssistant] handoff reply without flag — normalizing", { conversationId });
+    effectiveHandoff = true;
+  }
+
+  if (effectiveHandoff) {
+    await supabase
+      .from("whatsapp_conversations")
+      .update({
+        ai_handoff_at: now,
+        ai_enabled: false,
+      })
+      .eq("id", conversationId);
+  }
+
   await supabase
     .from("whatsapp_conversations")
     .update({
@@ -813,19 +791,31 @@ async function processConversationAiInner(
     ),
   });
 
+  const inboundIds = pending.map((m) => m.id);
+  if (shouldSkipDuplicateReply(conversationId, inboundIds, effectiveReply)) {
+    logAiEvent(supabase, {
+      clinicId: conv.clinic_id,
+      conversationId,
+      stage: "reply_sent",
+      level: "info",
+      detail: { skipped: true, reason: "duplicate_reply" },
+    });
+    return;
+  }
+
   await sendAssistantReply(
     supabase,
     conv.clinic_id,
     conversationId,
     conv.phone_number,
-    reply,
+    effectiveReply,
     { skipHeader: await shouldSkipAssistantHeader(supabase, conversationId) }
   );
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
     conversationId,
-    stage: handoff ? "handoff" : "reply_sent",
-    detail: { replyPreview: reply.slice(0, 80) },
+    stage: effectiveHandoff ? "handoff" : "reply_sent",
+    detail: { replyPreview: effectiveReply.slice(0, 80) },
   });
   } finally {
     const { data: latest } = await supabase

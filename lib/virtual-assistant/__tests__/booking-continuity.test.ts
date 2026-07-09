@@ -9,6 +9,8 @@ import {
   resolveContinuityIntent,
   shouldContinueBookingFlow,
 } from "../booking-continuity-guards";
+import { resolveDayFromContext } from "../booking-day-context";
+import { isFreshBookingRequest, maybeResetBookingForFreshRequest } from "../booking-reset";
 import { resolveAgentPipelineStage } from "../agent-pipeline/resolver";
 import type { AiConversationState } from "../types";
 
@@ -121,6 +123,71 @@ describe("booking continuity — routing", () => {
     assert.equal(
       shouldContinueBookingFlow("Agendar", "booking", {}),
       false
+    );
+  });
+});
+
+describe("booking reset — stale state", () => {
+  const staleState: AiConversationState = {
+    intent: "booking",
+    booking_step: "confirm",
+    procedure_id: "proc-1",
+    doctor_id: "doc-1",
+    patient_id: "pat-1",
+  };
+
+  it("isFreshBookingRequest detecta quero agendar", () => {
+    assert.equal(isFreshBookingRequest("Quero agendar"), true);
+  });
+
+  it("maybeResetBookingForFreshRequest limpa estado stale", () => {
+    const reset = maybeResetBookingForFreshRequest("Quero agendar", staleState, "booking");
+    assert.equal(reset.booking_step, "day");
+    assert.equal(reset.offered_days, undefined);
+    assert.equal(reset.procedure_id, "proc-1");
+  });
+
+  it("não reseta quando há offered_days frescos", () => {
+    const withDays = {
+      ...staleState,
+      offered_days: [{ date: "2026-07-10", label: "sex. 10/07" }],
+    };
+    const kept = maybeResetBookingForFreshRequest("Quero agendar", withDays, "booking");
+    assert.equal(kept.booking_step, "confirm");
+  });
+});
+
+describe("booking day context — last_slot_query", () => {
+  it("resolveDayFromContext usa last_slot_query", () => {
+    const date = resolveDayFromContext("tarde", {
+      last_slot_query: { date: "2026-07-10", period: "manha" },
+      procedure_id: "p",
+      doctor_id: "d",
+    });
+    assert.equal(date, "2026-07-10");
+  });
+
+  it("resolveDayFromContext extrai sexta da mensagem", () => {
+    const date = resolveDayFromContext("Tem disponível na sexta de tarde?", {});
+    assert.ok(date);
+    assert.match(date!, /^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("shouldContinueBookingFlow com last_slot_query sem offered_days", () => {
+    const ctxState: AiConversationState = {
+      intent: "booking",
+      booking_step: "day",
+      procedure_id: "proc-1",
+      doctor_id: "doc-1",
+      last_slot_query: { date: "2026-07-10", period: "manha" },
+    };
+    assert.equal(
+      shouldContinueBookingFlow(
+        "Tem disponível na sexta de tarde?",
+        "unknown",
+        ctxState
+      ),
+      true
     );
   });
 });

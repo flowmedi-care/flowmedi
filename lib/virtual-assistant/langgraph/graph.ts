@@ -1,6 +1,7 @@
 import { END, START, StateGraph } from "@langchain/langgraph";
 import { getCheckpointer } from "./checkpointer";
 import { classifyIntentNode } from "./nodes/classify-intent";
+import { bookingContinuityNode, routeAfterBookingContinuity } from "./nodes/booking-continuity";
 import { composeReplyNode } from "./nodes/compose-reply";
 import { escalateGateNode, shouldEscalateAfterGate } from "./nodes/escalate-gate";
 import { handoffNode } from "./nodes/handoff";
@@ -20,6 +21,7 @@ export async function buildAssistantGraph() {
   const graph = new StateGraph(GraphStateAnnotation)
     .addNode("load_context", loadContextNode)
     .addNode("classify_intent", classifyIntentNode)
+    .addNode("booking_continuity", bookingContinuityNode)
     .addNode("escalate_gate", escalateGateNode)
     .addNode("resolve_stage", resolveStageNode)
     .addNode("human_confirm", humanConfirmNode)
@@ -32,7 +34,11 @@ export async function buildAssistantGraph() {
     .addEdge("load_context", "classify_intent")
     .addConditionalEdges("classify_intent", checkPendingHumanConfirm, {
       confirm: "human_confirm",
-      skip: "escalate_gate",
+      skip: "booking_continuity",
+    })
+    .addConditionalEdges("booking_continuity", routeAfterBookingContinuity, {
+      handled: "compose_reply",
+      continue: "escalate_gate",
     })
     .addConditionalEdges("escalate_gate", shouldEscalateAfterGate, {
       handoff: "execute_handoff",

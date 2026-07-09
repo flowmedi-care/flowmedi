@@ -1,9 +1,11 @@
 import type { AgentPipelineStage } from "../../agent-pipeline/stages";
 import type { GraphState } from "../state";
-import { runStageToolLoop } from "../tools/tool-node";
 
 export type SubgraphRunner = (state: GraphState) => Promise<Partial<GraphState>>;
 
-export function createToolLoopSubgraph(_stage: AgentPipelineStage): SubgraphRunner {
-  return runStageToolLoop;
+/** Registry central de subgrafos compilados — ver registry.ts */
+export type { SubgraphRunner as StageSubgraphRunner };
+
+export function stageSubgraphLabel(stage: AgentPipelineStage): string {
+  return stage;
 }

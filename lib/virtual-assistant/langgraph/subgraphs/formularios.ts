@@ -1,9 +1,6 @@
 import type { GraphState } from "../state";
-import { runStageToolLoop } from "../tools/tool-node";
+import { invokeStageSubgraph } from "./registry";
 
-export async function formulariosSubgraph(state: GraphState): Promise<Partial<GraphState>> {
-  return runStageToolLoop({
-    ...state,
-    pipelineStage: "formularios",
-  });
+export async function formulariosSubgraph(state: GraphState) {
+  return invokeStageSubgraph("formularios", state);
 }

@@ -1,4 +1,6 @@
 import { routeInboundFlow } from "../../intent-router";
+import { maybeResetBookingForFreshRequest } from "../../booking-reset";
+import { getClinicTimezone } from "@/lib/clinic-timezone";
 import {
   applyPipelineStageTransition,
   collectAllowedToolNames,
@@ -21,7 +23,13 @@ export async function resolveStageNode(state: GraphState): Promise<Partial<Graph
     aiState: state.aiState,
   });
 
-  let aiState = { ...state.aiState, intent: routed.intent };
+  const clinicTz = await getClinicTimezone(ctx.supabase, ctx.clinicId);
+  let aiState = maybeResetBookingForFreshRequest(
+    state.inboundText,
+    { ...state.aiState, intent: routed.intent },
+    state.detectedIntent,
+    { timeZone: clinicTz }
+  );
 
   if (routed.flow === "booking" || routed.useBookingMachine) {
     if (!aiState.booking_step) {

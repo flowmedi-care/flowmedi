@@ -1,39 +1,21 @@
 import type { AgentPipelineStage } from "../../agent-pipeline/stages";
 import type { GraphState } from "../state";
-import { agendamentoSubgraph } from "../subgraphs/agendamento";
-import { captacaoSubgraph } from "../subgraphs/captacao";
-import { confirmacaoSubgraph } from "../subgraphs/confirmacao";
-import { financeiroSubgraph } from "../subgraphs/financeiro";
-import { formulariosSubgraph } from "../subgraphs/formularios";
-import { identificacaoSubgraph } from "../subgraphs/identificacao";
-import { orcamentoSubgraph } from "../subgraphs/orcamento";
-import { posConsultaSubgraph } from "../subgraphs/pos-consulta";
-import { satisfacaoSubgraph } from "../subgraphs/satisfacao";
-
-const STAGE_RUNNERS: Record<AgentPipelineStage, (state: GraphState) => Promise<Partial<GraphState>>> = {
-  identificacao: identificacaoSubgraph,
-  captacao: captacaoSubgraph,
-  orcamento: orcamentoSubgraph,
-  agendamento: agendamentoSubgraph,
-  confirmacao_pre_consulta: confirmacaoSubgraph,
-  pos_consulta: posConsultaSubgraph,
-  financeiro: financeiroSubgraph,
-  formularios: formulariosSubgraph,
-  satisfacao: satisfacaoSubgraph,
-};
+import { buildFinanceiroGraph } from "../subgraphs/financeiro/graph";
+import { buildFormulariosGraph } from "../subgraphs/formularios/graph";
+import { invokeStageSubgraph } from "../subgraphs/registry";
 
 export async function stageRouterNode(state: GraphState): Promise<Partial<GraphState>> {
   const stage = state.pipelineStage;
-  const runner = STAGE_RUNNERS[stage] ?? captacaoSubgraph;
-  const result = await runner(state);
+  const result = await invokeStageSubgraph(stage, state);
 
   if (
     state.parallelStages.includes("financeiro") &&
     stage !== "financeiro" &&
     (state.detectedIntent === "payment" || state.aiState.intent === "payment")
   ) {
-    const financeResult = await financeiroSubgraph({ ...state, ...result });
-    if (financeResult.reply) return financeResult;
+    const financeGraph = buildFinanceiroGraph();
+    const financeResult = await financeGraph.invoke({ ...state, ...result });
+    if ((financeResult as GraphState).reply) return financeResult as Partial<GraphState>;
   }
 
   if (
@@ -41,8 +23,9 @@ export async function stageRouterNode(state: GraphState): Promise<Partial<GraphS
     stage !== "formularios" &&
     state.detectedIntent === "form"
   ) {
-    const formResult = await formulariosSubgraph({ ...state, ...result });
-    if (formResult.reply) return formResult;
+    const formGraph = buildFormulariosGraph();
+    const formResult = await formGraph.invoke({ ...state, ...result });
+    if ((formResult as GraphState).reply) return formResult as Partial<GraphState>;
   }
 
   return result;

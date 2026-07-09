@@ -7,12 +7,24 @@ let checkpointerMode: "postgres" | "memory" = "memory";
 let checkpointerInitError: string | null = null;
 
 export function getLangGraphDatabaseUrl(): string | null {
-  return (
+  const raw =
     process.env.LANGGRAPH_DATABASE_URL ??
     process.env.DATABASE_URL ??
     process.env.SUPABASE_DATABASE_URL ??
-    null
-  );
+    null;
+  if (!raw) return null;
+  try {
+    const host = new URL(raw.replace(/^postgresql:\/\//, "https://")).hostname;
+    if (host.startsWith("db.") && host.includes("supabase.co")) {
+      console.warn(
+        "[LangGraph] Host db.*.supabase.co não funciona na Vercel — use pooler :6543 ou remova LANGGRAPH_DATABASE_URL"
+      );
+      return null;
+    }
+  } catch {
+    return raw;
+  }
+  return raw;
 }
 
 /** Host da connection string (sem credenciais) — útil para diagnóstico. */

@@ -7,6 +7,7 @@ import {
 import { composeSystemPrompt } from "../../prompt/prompt-compose";
 import { createChatCompletion, logTokenUsage } from "../../openai-client";
 import { executeAssistantTool } from "../../tools";
+import { isActiveBookingState } from "@/lib/operational-agents/booking-executor";
 import { applyReplyGuards } from "../../reply-guards";
 import type { GraphState } from "../state";
 import { buildPendingConfirmation } from "../nodes/human-confirm";
@@ -98,6 +99,22 @@ export async function runStageToolLoop(state: GraphState): Promise<Partial<Graph
         messages.push({
           role: "tool",
           content: JSON.stringify({ error: validation.error, hint: validation.hint }),
+          tool_call_id: tc.id,
+          name: tc.function.name,
+        });
+        continue;
+      }
+
+      if (
+        tc.function.name === "transfer_to_human" &&
+        (state.pipelineStage === "agendamento" || isActiveBookingState(aiState))
+      ) {
+        messages.push({
+          role: "tool",
+          content: JSON.stringify({
+            error: "Transferência bloqueada durante agendamento ativo.",
+            hint: "Continue com find_available_slots ou create_appointment.",
+          }),
           tool_call_id: tc.id,
           name: tc.function.name,
         });
