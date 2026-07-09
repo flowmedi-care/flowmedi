@@ -33,6 +33,9 @@ export const AI_EVENT_STAGES = [
   "agent_route",
   "langgraph_shadow_compare",
   "langgraph_shadow_error",
+  "intent_classified",
+  "context_cleared",
+  "booking_continuity",
 ] as const;
 
 export type AiEventStage = (typeof AI_EVENT_STAGES)[number];

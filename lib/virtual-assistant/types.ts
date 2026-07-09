@@ -118,6 +118,8 @@ export type AiConversationState = {
   last_slot_query?: LastSlotQuery;
   /** Última lista de dias/horários mostrada ao paciente (display_message). */
   last_display_message?: string;
+  /** Tipo da última resposta (ex. invalid_slot_selection) — evita re-list loop. */
+  last_reply_kind?: string;
   dimension_value_ids?: string[];
   patient_id?: string;
   pending_confirmation_appointment_id?: string;
@@ -142,6 +144,8 @@ export type AiConversationState = {
   audio_transcription_retried_message_ids?: string[];
   /** Loop bot↔bot detectado — IA silenciada sem resposta */
   bot_loop_detected_at?: string;
+  /** Motivo do último handoff (ex. bot_loop_detected) */
+  handoff_reason?: string;
   /** Evita processamento duplicado (webhook + cron em paralelo) */
   ai_processing_started_at?: string;
   /** Etapa atual do pipeline do agente */

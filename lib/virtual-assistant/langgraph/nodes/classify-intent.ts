@@ -9,6 +9,7 @@ import {
   shouldContinueBookingFlow,
 } from "../../booking-continuity-guards";
 import { createChatCompletion } from "../../openai-client";
+import { logAiEvent } from "../../event-log";
 import type { GraphState } from "../state";
 import { logLangGraphTrace } from "../trace";
 import {
@@ -74,6 +75,42 @@ async function classifyWithLlm(
   return ClassifiedIntentSchema.parse(parsed);
 }
 
+function logIntentClassified(
+  state: GraphState,
+  detail: {
+    detected_intent: string;
+    intent_confidence: number;
+    source: "continuity" | "regex_fast_path" | "llm";
+    continuity_intent?: string;
+    used_llm?: boolean;
+  }
+): void {
+  const ctx = state.runtimeContext;
+  if (!ctx) return;
+
+  logAiEvent(ctx.supabase, {
+    clinicId: ctx.clinicId,
+    conversationId: ctx.conversationId,
+    stage: "intent_classified",
+    detail: {
+      ...detail,
+      inbound_text: state.inboundText.slice(0, 500),
+      booking_step_before: state.aiState.booking_step ?? null,
+      pipeline_stage_before: state.aiState.pipeline_stage ?? null,
+      offered_slots_count: state.aiState.offered_slots?.length ?? 0,
+    },
+  });
+
+  logLangGraphTrace(ctx.supabase, ctx.clinicId, ctx.conversationId, {
+    node: "classify_intent",
+    detected_intent: detail.detected_intent as GraphState["detectedIntent"],
+    intent_confidence: detail.intent_confidence,
+    used_llm: detail.used_llm,
+    continuity_intent: detail.continuity_intent as GraphState["detectedIntent"],
+    inbound_preview: state.inboundText.slice(0, 80),
+  });
+}
+
 export async function classifyIntentNode(state: GraphState): Promise<Partial<GraphState>> {
   const text = state.inboundText.trim();
   const model = state.runtimeContext?.settings.ai_model ?? "gpt-4o-mini";
@@ -84,6 +121,12 @@ export async function classifyIntentNode(state: GraphState): Promise<Partial<Gra
     const aiState = applyBookingContinuityStatePatch(state.aiState);
     const detectedIntent =
       continuityIntent === "availability_check" ? "availability_check" : "booking";
+    logIntentClassified(state, {
+      detected_intent: detectedIntent,
+      intent_confidence: 0.98,
+      source: "continuity",
+      continuity_intent: continuityIntent,
+    });
     return {
       classifiedIntent: {
         intent: detectedIntent,
@@ -131,16 +174,12 @@ export async function classifyIntentNode(state: GraphState): Promise<Partial<Gra
     aiState = { ...aiState, booking_step: "procedure", intent: "booking" };
   }
 
-  const ctx = state.runtimeContext;
-  if (ctx) {
-    logLangGraphTrace(ctx.supabase, ctx.clinicId, ctx.conversationId, {
-      node: "classify_intent",
-      detected_intent: detectedIntent,
-      intent_confidence: classified.confidence,
-      used_llm: usedLlm,
-      inbound_preview: text.slice(0, 80),
-    });
-  }
+  logIntentClassified(state, {
+    detected_intent: detectedIntent,
+    intent_confidence: classified.confidence,
+    source: usedLlm ? "llm" : "regex_fast_path",
+    used_llm: usedLlm,
+  });
 
   return {
     classifiedIntent: classified,

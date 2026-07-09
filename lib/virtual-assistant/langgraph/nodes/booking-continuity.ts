@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { sanitizeOfferedBookingState } from "@/lib/booking-state";
 import { getClinicTimezone } from "@/lib/clinic-timezone";
 import { tryExecuteBookingSlotSelection } from "@/lib/operational-agents/booking-executor";
+import { logAiEvent } from "../../event-log";
 import { applyReplyGuards } from "../../reply-guards";
 import {
   applyBookingContinuityStatePatch,
@@ -49,6 +50,21 @@ export async function bookingContinuityNode(state: GraphState): Promise<Partial<
 
   if (!slotExec.handled) {
     if (ctx) {
+      logAiEvent(ctx.supabase, {
+        clinicId: ctx.clinicId,
+        conversationId: ctx.conversationId,
+        stage: "booking_continuity",
+        detail: {
+          handled: false,
+          selection_failed: true,
+          continuity_intent: continuityIntent,
+          detected_intent: state.detectedIntent,
+          pipeline_stage: "agendamento",
+          booking_step: aiState.booking_step ?? null,
+          offered_slots_count: aiState.offered_slots?.length ?? 0,
+          inbound_text: state.inboundText.slice(0, 500),
+        },
+      });
       logLangGraphTrace(ctx.supabase, ctx.clinicId, ctx.conversationId, {
         node: "booking_continuity",
         handled: false,

@@ -197,6 +197,7 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
   const [clearing, setClearing] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+  const [clearingId, setClearingId] = useState<string | null>(null);
   const [data, setData] = useState<DiagnosticsResponse | null>(null);
   const [simulatePhone, setSimulatePhone] = useState("");
   const [simulateText, setSimulateText] = useState("Oi, quero agendar uma consulta");
@@ -367,6 +368,35 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
       toast("Falha ao reativar IA", "error");
     } finally {
       setReactivatingId(null);
+    }
+  }
+
+  async function handleClearContext(conversationId: string) {
+    if (
+      !window.confirm(
+        "Limpar contexto da IA nesta conversa? O histórico de mensagens permanece, mas agendamento em andamento e listas oferecidas serão apagados."
+      )
+    ) {
+      return;
+    }
+    setClearingId(conversationId);
+    try {
+      const res = await fetch("/api/whatsapp/assistant/clear-conversation-context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      });
+      const json = (await res.json()) as DiagnosticsResponse & { error?: string };
+      if (!res.ok) {
+        toast(json.error ?? "Erro ao limpar contexto", "error");
+        return;
+      }
+      setData(json);
+      toast("Contexto da IA limpo. Conversa reativada.", "success");
+    } catch {
+      toast("Falha ao limpar contexto", "error");
+    } finally {
+      setClearingId(null);
     }
   }
 
@@ -805,14 +835,24 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
                       <span className="ml-2 text-amber-700">IA pausada</span>
                     )}
                   </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={reactivatingId === c.id}
-                    onClick={() => void handleReactivate(c.id)}
-                  >
-                    {reactivatingId === c.id ? "Reativando…" : "Reativar IA"}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={reactivatingId === c.id}
+                      onClick={() => void handleReactivate(c.id)}
+                    >
+                      {reactivatingId === c.id ? "Reativando…" : "Reativar IA"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={clearingId === c.id}
+                      onClick={() => void handleClearContext(c.id)}
+                    >
+                      {clearingId === c.id ? "Limpando…" : "Limpar contexto"}
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>

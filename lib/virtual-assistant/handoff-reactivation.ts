@@ -18,11 +18,14 @@ export async function tryReactivateAiAfterHandoff(opts: {
 }): Promise<boolean> {
   const { data: conv } = await opts.supabase
     .from("whatsapp_conversations")
-    .select("ai_handoff_at, ai_enabled, ai_user_opt_out")
+    .select("ai_handoff_at, ai_enabled, ai_user_opt_out, ai_state")
     .eq("id", opts.conversationId)
     .maybeSingle();
 
   if (!conv?.ai_handoff_at || conv.ai_user_opt_out) return false;
+
+  const aiState = (conv.ai_state ?? {}) as { handoff_reason?: string };
+  const handoffReason = aiState.handoff_reason;
 
   const complaint = shouldEscalateToHuman({ messageText: opts.bodyText });
   if (complaint.escalate && complaint.trigger === "complaint") return false;
@@ -56,14 +59,21 @@ export async function tryReactivateAiAfterHandoff(opts: {
 
   const intent = detectInboundIntent(opts.bodyText);
   const operationalFollowUp = hasClearIntent(intent) && intent !== "human_handoff";
+  const greetingAfterBotLoop =
+    handoffReason === "bot_loop_detected" && intent === "greeting";
 
-  if (elapsedMin < minutes && !operationalFollowUp) return false;
+  if (elapsedMin < minutes && !operationalFollowUp && !greetingAfterBotLoop) return false;
+
+  const clearedState = { ...(conv.ai_state as Record<string, unknown> | null ?? {}) };
+  delete clearedState.handoff_reason;
+  delete clearedState.bot_loop_detected_at;
 
   await opts.supabase
     .from("whatsapp_conversations")
     .update({
       ai_handoff_at: null,
       ai_enabled: true,
+      ai_state: clearedState,
     })
     .eq("id", opts.conversationId);
 
@@ -72,10 +82,15 @@ export async function tryReactivateAiAfterHandoff(opts: {
     conversationId: opts.conversationId,
     stage: "ai_reactivated",
     detail: {
-      source: operationalFollowUp ? "operational_follow_up" : "handoff_timeout",
+      source: greetingAfterBotLoop
+        ? "greeting_after_bot_loop"
+        : operationalFollowUp
+          ? "operational_follow_up"
+          : "handoff_timeout",
       elapsedMinutes: Math.round(elapsedMin),
       thresholdMinutes: minutes,
       intent,
+      handoffReason: handoffReason ?? null,
     },
   });
 

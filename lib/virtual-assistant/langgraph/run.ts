@@ -70,6 +70,7 @@ export async function runLangGraphAssistant(
     detail: {
       pipeline_stage: result.pipelineStage,
       detected_intent: result.detectedIntent,
+      intent_confidence: result.intentConfidence,
       handoff: result.handoff,
       reply_source: result.replySource ?? (result.hadReplyBeforeCompose ? "subgraph" : "fallback"),
       had_reply_before_compose: result.hadReplyBeforeCompose,
@@ -82,6 +83,7 @@ export async function runLangGraphAssistant(
   logLangGraphTrace(input.supabase, input.clinicId, input.conversationId, {
     node: "run_complete",
     detected_intent: result.detectedIntent,
+    intent_confidence: result.intentConfidence,
     pipeline_stage: result.pipelineStage,
     reply_source: result.replySource ?? undefined,
     had_reply_before_compose: result.hadReplyBeforeCompose,

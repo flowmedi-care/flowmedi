@@ -14,11 +14,27 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowRight,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AiEventRow } from "@/lib/virtual-assistant/diagnostics";
-import type { FlowStepStatus, FlowTraceStatus, MessageFlowTrace } from "@/lib/virtual-assistant/diagnostics-flow";
+import type {
+  FlowStep,
+  FlowStepStatus,
+  FlowTraceStatus,
+  IntentTraceInfo,
+  MessageFlowTrace,
+} from "@/lib/virtual-assistant/diagnostics-flow";
+import {
+  getIntentColorClass,
+  getIntentLabel,
+  getIntentSourceLabel,
+  isIntentMismatch,
+  isLowConfidenceIntent,
+} from "@/lib/virtual-assistant/intent-labels";
 
 const TRACE_STATUS: Record<
   FlowTraceStatus,
@@ -71,6 +87,166 @@ function formatTime(iso?: string): string {
 
 const INITIAL_FLOW_LIMIT = 5;
 
+const STAGE_LABELS: Record<string, string> = {
+  webhook_inbound: "Mensagem recebida (webhook)",
+  routing_decision: "Decisão de roteamento",
+  legacy_menu_no_reply: "Menu legado sem resposta",
+  debounce_scheduled: "IA agendada (debounce)",
+  processing_start: "Processamento iniciado",
+  pending_messages: "Mensagens pendentes",
+  openai_start: "Chamada OpenAI",
+  openai_end: "Resposta OpenAI",
+  reply_sent: "Resposta enviada",
+  handoff: "Transferido para humano",
+  ai_reactivated: "IA reativada na conversa",
+  audio_transcribe_start: "Transcrição de áudio iniciada",
+  audio_transcribe_ok: "Áudio transcrito",
+  audio_transcribe_failed: "Falha na transcrição",
+  audio_no_media: "Áudio sem mídia salva",
+  queue_cleared: "Fila da IA zerada",
+  flow_discarded: "Descartado da fila",
+  cron_conversation_processed: "Processado pelo cron",
+  simulate_inbound: "Simulação inbound",
+  error: "Erro",
+  langgraph_start: "LangGraph iniciado",
+  langgraph_complete: "LangGraph concluído",
+  langgraph_trace: "Trace LangGraph",
+  agent_route: "Roteamento do motor",
+  langgraph_shadow_compare: "Shadow compare",
+  langgraph_shadow_error: "Erro LangGraph (shadow)",
+  booking_continuity: "Continuidade de agendamento",
+  intent_classified: "Intent classificada",
+  context_cleared: "Contexto limpo",
+};
+
+function IntentHighlightBadge({ info }: { info: IntentTraceInfo }) {
+  const lowConf = isLowConfidenceIntent(info.intentConfidence);
+  const mismatch = isIntentMismatch(info.detectedIntent, info.continuityIntent);
+  const alert = lowConf || mismatch || info.detectedIntent === "unknown";
+
+  return (
+    <div
+      className={cn(
+        "mt-2 rounded-lg border-2 p-3",
+        alert ? "border-amber-400 bg-amber-50/80" : "border-primary/30 bg-primary/5"
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={cn(
+            "inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold",
+            getIntentColorClass(info.detectedIntent)
+          )}
+        >
+          {getIntentLabel(info.detectedIntent)}
+        </span>
+        {info.intentConfidence !== undefined && (
+          <Badge variant={lowConf ? "destructive" : "secondary"}>
+            {Math.round(info.intentConfidence * 100)}%
+          </Badge>
+        )}
+        {info.intentSource && (
+          <Badge variant="outline">{getIntentSourceLabel(info.intentSource)}</Badge>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+        {info.bookingStep && (
+          <Badge variant="outline" className="font-normal">
+            booking_step: {info.bookingStep}
+          </Badge>
+        )}
+        {info.pipelineStage && (
+          <Badge variant="outline" className="font-normal">
+            pipeline: {info.pipelineStage}
+          </Badge>
+        )}
+        {info.offeredSlotsCount !== undefined && info.offeredSlotsCount > 0 && (
+          <Badge variant="outline" className="font-normal">
+            {info.offeredSlotsCount} horário(s) oferecidos
+          </Badge>
+        )}
+      </div>
+      {lowConf && (
+        <p className="mt-2 text-xs font-medium text-amber-800">Confiança baixa — verifique se a intent está correta.</p>
+      )}
+      {mismatch && (
+        <p className="mt-1 text-xs font-medium text-red-700">
+          Continuity ({info.continuityIntent}) ≠ intent detectada ({info.detectedIntent})
+        </p>
+      )}
+    </div>
+  );
+}
+
+function StepEventLogs({ step }: { step: FlowStep }) {
+  const [expanded, setExpanded] = useState(false);
+  const events = step.events ?? [];
+  if (events.length === 0) return null;
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+      >
+        {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        Log ({events.length} evento{events.length === 1 ? "" : "s"})
+      </button>
+      {expanded && (
+        <ul className="mt-1 space-y-2">
+          {events.map((ev) => (
+            <li key={ev.id} className="rounded-md border bg-muted/30 p-2">
+              <p className="text-xs font-mono text-muted-foreground">
+                {STAGE_LABELS[ev.stage] ?? ev.stage} · {formatTime(ev.created_at)}
+              </p>
+              <pre className="mt-1 max-h-48 overflow-auto text-xs">
+                {JSON.stringify({ level: ev.level, stage: ev.stage, ...ev.detail }, null, 2)}
+              </pre>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function buildDebugBundle(trace: MessageFlowTrace, traceEvents: AiEventRow[]): string {
+  return JSON.stringify(
+    {
+      contact: trace.contactLabel,
+      conversationId: trace.conversationId,
+      inbound: trace.inboundFullText ?? trace.messagePreview,
+      outbound: trace.outboundFullText,
+      intent: trace.intentInfo,
+      status: trace.status,
+      startedAt: trace.startedAt,
+      finishedAt: trace.finishedAt,
+      steps: trace.steps.map((s) => ({
+        key: s.key,
+        title: s.title,
+        status: s.status,
+        description: s.description,
+        detail: s.detail,
+        events: (s.events ?? []).map((e) => ({
+          stage: e.stage,
+          level: e.level,
+          created_at: e.created_at,
+          detail: e.detail,
+        })),
+      })),
+      events: traceEvents.map((e) => ({
+        stage: e.stage,
+        level: e.level,
+        created_at: e.created_at,
+        detail: e.detail,
+      })),
+    },
+    null,
+    2
+  );
+}
+
 function FlowTraceCard({
   trace,
   rawEvents,
@@ -80,12 +256,23 @@ function FlowTraceCard({
 }) {
   const [stepsExpanded, setStepsExpanded] = useState(false);
   const [rawExpanded, setRawExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
   const Icon = channelIcon(trace.channel);
   const status = TRACE_STATUS[trace.status];
 
   const traceEvents = rawEvents.filter((e) => trace.eventIds.includes(e.id));
   const completedSteps = trace.steps.filter((s) => s.status === "completed").length;
   const activeStep = trace.steps.find((s) => s.status === "in_progress" || s.status === "failed");
+
+  async function copyDebug() {
+    try {
+      await navigator.clipboard.writeText(buildDebugBundle(trace, traceEvents));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  }
 
   return (
     <article className="overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md">
@@ -118,14 +305,22 @@ function FlowTraceCard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-foreground">{trace.contactLabel}</span>
               <Badge variant={status.variant}>{status.label}</Badge>
+              {trace.detectedIntent && (
+                <Badge
+                  variant="outline"
+                  className={cn("font-medium", getIntentColorClass(trace.detectedIntent))}
+                >
+                  {getIntentLabel(trace.detectedIntent)}
+                </Badge>
+              )}
               {trace.channel === "audio" && (
                 <Badge variant="outline" className="border-violet-200 text-violet-700">
                   Áudio
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">
-              {trace.messagePreview}
+            <p className="text-sm text-muted-foreground break-words whitespace-pre-wrap">
+              {trace.inboundFullText ?? trace.messagePreview}
             </p>
             <p className="text-xs text-muted-foreground">
               {new Date(trace.startedAt).toLocaleString("pt-BR")}
@@ -145,10 +340,31 @@ function FlowTraceCard({
             )}
           </div>
         </div>
-        <span className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground">
-          {stepsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          {stepsExpanded ? "Recolher" : "Expandir"}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {stepsExpanded && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                void copyDebug();
+              }}
+            >
+              {copied ? (
+                <Check className="mr-1 h-3 w-3" />
+              ) : (
+                <Copy className="mr-1 h-3 w-3" />
+              )}
+              {copied ? "Copiado" : "Copiar debug"}
+            </Button>
+          )}
+          <span className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground">
+            {stepsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            {stepsExpanded ? "Recolher" : "Expandir"}
+          </span>
+        </div>
       </header>
 
       {stepsExpanded && (
@@ -186,9 +402,18 @@ function FlowTraceCard({
                       </span>
                     )}
                   </div>
-                  {step.description && (
+                  {step.key === "intent" && step.detail && trace.intentInfo && (
+                    <IntentHighlightBadge info={trace.intentInfo} />
+                  )}
+                  {step.description && step.key !== "intent" && (
+                    <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-muted-foreground">
+                      {step.description}
+                    </p>
+                  )}
+                  {step.key === "intent" && !trace.intentInfo && step.description && (
                     <p className="mt-0.5 text-sm text-muted-foreground">{step.description}</p>
                   )}
+                  <StepEventLogs step={step} />
                 </div>
               </li>
             );
@@ -211,12 +436,17 @@ function FlowTraceCard({
             Eventos brutos ({traceEvents.length})
           </button>
           {rawExpanded && (
-            <ul className="max-h-40 space-y-1 overflow-y-auto">
+            <ul className="max-h-96 space-y-2 overflow-y-auto">
               {traceEvents.map((ev) => (
                 <li key={ev.id} className="rounded-md bg-background px-2 py-1.5 text-xs">
-                  <span className="font-mono text-muted-foreground">{ev.stage}</span>
-                  <span className="mx-2 text-muted-foreground">·</span>
-                  <span>{formatTime(ev.created_at)}</span>
+                  <p className="font-mono text-muted-foreground">
+                    {STAGE_LABELS[ev.stage] ?? ev.stage}
+                    <span className="mx-2">·</span>
+                    {formatTime(ev.created_at)}
+                  </p>
+                  <pre className="mt-1 max-h-40 overflow-auto rounded bg-muted p-2">
+                    {JSON.stringify({ level: ev.level, stage: ev.stage, ...ev.detail }, null, 2)}
+                  </pre>
                 </li>
               ))}
             </ul>
@@ -233,36 +463,6 @@ interface Props {
   showRaw: boolean;
   onToggleRaw: (show: boolean) => void;
 }
-
-const STAGE_LABELS: Record<string, string> = {
-  webhook_inbound: "Mensagem recebida (webhook)",
-  routing_decision: "Decisão de roteamento",
-  legacy_menu_no_reply: "Menu legado sem resposta",
-  debounce_scheduled: "IA agendada (debounce)",
-  processing_start: "Processamento iniciado",
-  pending_messages: "Mensagens pendentes",
-  openai_start: "Chamada OpenAI",
-  openai_end: "Resposta OpenAI",
-  reply_sent: "Resposta enviada",
-  handoff: "Transferido para humano",
-  ai_reactivated: "IA reativada na conversa",
-  audio_transcribe_start: "Transcrição de áudio iniciada",
-  audio_transcribe_ok: "Áudio transcrito",
-  audio_transcribe_failed: "Falha na transcrição",
-  audio_no_media: "Áudio sem mídia salva",
-  queue_cleared: "Fila da IA zerada",
-  flow_discarded: "Descartado da fila",
-  cron_conversation_processed: "Processado pelo cron",
-  simulate_inbound: "Simulação inbound",
-  error: "Erro",
-  langgraph_start: "LangGraph iniciado",
-  langgraph_complete: "LangGraph concluído",
-  langgraph_trace: "Trace LangGraph",
-  agent_route: "Roteamento do motor",
-  langgraph_shadow_compare: "Shadow compare",
-  langgraph_shadow_error: "Erro LangGraph (shadow)",
-  booking_continuity: "Continuidade de agendamento",
-};
 
 function levelDot(level: string): string {
   if (level === "error") return "bg-red-500";

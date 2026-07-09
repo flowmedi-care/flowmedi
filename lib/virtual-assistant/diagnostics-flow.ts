@@ -16,6 +16,17 @@ export interface FlowStep {
   status: FlowStepStatus;
   at?: string;
   detail?: Record<string, unknown>;
+  events?: AiEventRow[];
+}
+
+export interface IntentTraceInfo {
+  detectedIntent: string;
+  intentConfidence?: number;
+  intentSource?: string;
+  continuityIntent?: string;
+  bookingStep?: string;
+  pipelineStage?: string;
+  offeredSlotsCount?: number;
 }
 
 export interface MessageFlowTrace {
@@ -23,6 +34,10 @@ export interface MessageFlowTrace {
   conversationId: string | null;
   contactLabel: string;
   messagePreview: string;
+  inboundFullText?: string;
+  outboundFullText?: string;
+  detectedIntent?: string;
+  intentInfo?: IntentTraceInfo;
   channel: "text" | "audio" | "simulation" | "system";
   startedAt: string;
   finishedAt?: string;
@@ -39,6 +54,7 @@ const TEXT_STEP_DEFS: { key: string; title: string; stages: string[] }[] = [
   { key: "debounce", title: "Aguardando debounce", stages: ["debounce_scheduled"] },
   { key: "processing", title: "Processamento iniciado", stages: ["processing_start", "cron_conversation_processed"] },
   { key: "openai_send", title: "Enviando para OpenAI", stages: ["openai_start", "langgraph_start"] },
+  { key: "intent", title: "Intent detectada", stages: ["intent_classified", "langgraph_trace"] },
   {
     key: "pipeline",
     title: "Pipeline do agente",
@@ -103,18 +119,77 @@ function contactLabel(
   return "Contato";
 }
 
-function messagePreview(anchor: AiEventRow): { preview: string; channel: MessageFlowTrace["channel"] } {
+function fullInboundText(detail: Record<string, unknown>): string | undefined {
+  if (typeof detail.body === "string" && detail.body.trim()) return detail.body.trim();
+  if (typeof detail.text === "string" && detail.text.trim()) return detail.text.trim();
+  if (typeof detail.inbound_text === "string" && detail.inbound_text.trim()) {
+    return detail.inbound_text.trim();
+  }
+  if (typeof detail.bodyPreview === "string" && detail.bodyPreview.trim()) {
+    return detail.bodyPreview.trim();
+  }
+  if (typeof detail.textPreview === "string" && detail.textPreview.trim()) {
+    return detail.textPreview.trim();
+  }
+  return undefined;
+}
+
+function messagePreview(anchor: AiEventRow): { preview: string; channel: MessageFlowTrace["channel"]; fullText?: string } {
   const detail = anchor.detail ?? {};
   if (anchor.stage === "simulate_inbound") {
     const text = typeof detail.textPreview === "string" ? detail.textPreview : "Simulação";
-    return { preview: `"${text}"`, channel: "simulation" };
+    const full = typeof detail.text === "string" ? detail.text : text;
+    return { preview: `"${text}"`, channel: "simulation", fullText: full };
   }
   const msgType = typeof detail.msgType === "string" ? detail.msgType : "text";
   if (msgType === "audio") {
     return { preview: "🎤 Mensagem de áudio", channel: "audio" };
   }
-  const body = typeof detail.bodyPreview === "string" ? detail.bodyPreview : "";
-  return { preview: body ? `"${body}"` : "(sem texto)", channel: "text" };
+  const fullText = fullInboundText(detail);
+  const body = fullText ?? "";
+  return { preview: body ? `"${body}"` : "(sem texto)", channel: "text", fullText: body || undefined };
+}
+
+function extractIntentInfo(events: AiEventRow[]): IntentTraceInfo | undefined {
+  const classified = events.find((e) => e.stage === "intent_classified");
+  const traceClassify = events.find(
+    (e) => e.stage === "langgraph_trace" && e.detail?.node === "classify_intent"
+  );
+  const complete = events.find((e) => e.stage === "langgraph_complete");
+
+  const d = classified?.detail ?? traceClassify?.detail ?? complete?.detail ?? {};
+  const detectedIntent =
+    (typeof d.detected_intent === "string" ? d.detected_intent : undefined) ??
+    (typeof complete?.detail?.detected_intent === "string"
+      ? complete.detail.detected_intent
+      : undefined);
+
+  if (!detectedIntent) return undefined;
+
+  return {
+    detectedIntent,
+    intentConfidence:
+      typeof d.intent_confidence === "number"
+        ? d.intent_confidence
+        : undefined,
+    intentSource: typeof d.source === "string" ? d.source : undefined,
+    continuityIntent:
+      typeof d.continuity_intent === "string" ? d.continuity_intent : undefined,
+    bookingStep:
+      typeof d.booking_step_before === "string"
+        ? d.booking_step_before
+        : typeof d.booking_step === "string"
+          ? d.booking_step
+          : undefined,
+    pipelineStage:
+      typeof d.pipeline_stage_before === "string"
+        ? d.pipeline_stage_before
+        : typeof d.pipeline_stage === "string"
+          ? d.pipeline_stage
+          : undefined,
+    offeredSlotsCount:
+      typeof d.offered_slots_count === "number" ? d.offered_slots_count : undefined,
+  };
 }
 
 function stepDescription(stepKey: string, event: AiEventRow | undefined): string | undefined {
@@ -142,7 +217,21 @@ function stepDescription(stepKey: string, event: AiEventRow | undefined): string
     case "transcribe_ok":
       return typeof d.preview === "string" ? `Texto: "${d.preview}"` : undefined;
     case "openai_reply":
-      return typeof d.replyPreview === "string" ? `"${d.replyPreview}"` : undefined;
+      return typeof d.replyPreview === "string"
+        ? d.replyPreview
+        : typeof d.reply_preview === "string"
+          ? d.reply_preview
+          : undefined;
+    case "intent": {
+      const intent = typeof d.detected_intent === "string" ? d.detected_intent : null;
+      const conf = typeof d.intent_confidence === "number" ? d.intent_confidence : null;
+      const source = typeof d.source === "string" ? d.source : null;
+      const parts: string[] = [];
+      if (intent) parts.push(intent);
+      if (conf !== null) parts.push(`${Math.round(conf * 100)}%`);
+      if (source) parts.push(source);
+      return parts.length ? parts.join(" · ") : undefined;
+    }
     case "pipeline": {
       const replySource = typeof d.reply_source === "string" ? d.reply_source : null;
       const intent = typeof d.detected_intent === "string" ? d.detected_intent : null;
@@ -158,14 +247,18 @@ function stepDescription(stepKey: string, event: AiEventRow | undefined): string
         parts.push("⚠ Resposta genérica via LLM (esperado subgrafo)");
       }
       if (typeof d.reply_preview === "string" && d.reply_preview) {
-        parts.push(`"${d.reply_preview.slice(0, 80)}"`);
+        parts.push(d.reply_preview);
       }
       return parts.length ? parts.join(" · ") : undefined;
     }
     case "whatsapp_send":
       if (d.type === "audio_fallback") return "Fallback: não entendi o áudio";
       if (d.type === "outside_hours") return "Fora do horário do bot";
-      return typeof d.replyPreview === "string" ? `"${d.replyPreview}"` : "Mensagem enviada no WhatsApp";
+      return typeof d.replyPreview === "string"
+        ? d.replyPreview
+        : typeof d.reply_preview === "string"
+          ? d.reply_preview
+          : "Mensagem enviada no WhatsApp";
     case "processing":
       if (d.skipped) return typeof d.reason === "string" ? `Ignorado: ${d.reason}` : "Assistente inativo";
       return typeof d.phone === "string" ? formatPhone(d.phone) : undefined;
@@ -207,10 +300,30 @@ function stepFailed(event: AiEventRow): boolean {
   return false;
 }
 
+function eventsForStep(events: AiEventRow[], step: { key: string; stages: string[] }): AiEventRow[] {
+  return events.filter((e) => {
+    if (step.key === "intent") {
+      if (e.stage === "intent_classified") return true;
+      if (e.stage === "langgraph_trace" && e.detail?.node === "classify_intent") return true;
+      return false;
+    }
+    if (step.key === "pipeline") {
+      return step.stages.includes(e.stage) && !(e.stage === "langgraph_trace" && e.detail?.node === "classify_intent");
+    }
+    return eventMatchesStep(e, step);
+  });
+}
+
 function pickEventForStep(
   events: AiEventRow[],
   step: { key: string; stages: string[] }
 ): AiEventRow | undefined {
+  if (step.key === "intent") {
+    return (
+      events.find((e) => e.stage === "intent_classified") ??
+      events.find((e) => e.stage === "langgraph_trace" && e.detail?.node === "classify_intent")
+    );
+  }
   if (step.key === "transcribe_ok") {
     return events.find((e) => e.stage === "audio_transcribe_ok");
   }
@@ -270,6 +383,7 @@ function buildSteps(
       status,
       at: event?.created_at,
       detail: event?.detail,
+      events: eventsForStep(events, def),
     });
   }
 
@@ -453,7 +567,15 @@ function buildAnchorTrace(
   meta: Record<string, ConversationMeta>,
   processedMessageIds: Set<string>
 ): MessageFlowTrace {
-  const { preview, channel } = messagePreview(anchor);
+  const { preview, channel, fullText } = messagePreview(anchor);
+  const intentInfo = extractIntentInfo(events);
+  const replyEvent = events.find((e) => e.stage === "reply_sent" || e.stage === "handoff");
+  const outboundFullText =
+    typeof replyEvent?.detail?.replyPreview === "string"
+      ? replyEvent.detail.replyPreview
+      : typeof replyEvent?.detail?.reply_preview === "string"
+        ? replyEvent.detail.reply_preview
+        : undefined;
   const anchorProcessed = Boolean(anchor.message_id && processedMessageIds.has(anchor.message_id));
   const discarded = isDiscardedTrace(events, anchorProcessed);
   let steps = buildSteps(events, channel);
@@ -471,6 +593,10 @@ function buildAnchorTrace(
     conversationId: anchor.conversation_id,
     contactLabel: contactLabel(anchor.conversation_id, anchor.detail ?? {}, meta),
     messagePreview: preview,
+    inboundFullText: fullText,
+    outboundFullText,
+    detectedIntent: intentInfo?.detectedIntent,
+    intentInfo,
     channel,
     startedAt: anchor.created_at,
     finishedAt: discarded
@@ -487,6 +613,7 @@ function buildSystemTrace(event: AiEventRow): MessageFlowTrace {
     queue_cleared: "Fila da IA zerada manualmente",
     flow_discarded: "Mensagem descartada da fila da IA",
     ai_reactivated: "IA reativada na conversa",
+    context_cleared: "Contexto da conversa limpo",
     cron_conversation_processed: "Conversa processada pelo cron",
   };
   const title = titles[event.stage] ?? event.stage;
@@ -622,7 +749,7 @@ export function buildMessageFlows(
     flows.push(buildAnchorTrace(anchor, slice, conversationMeta, processedMessageIds));
   }
 
-  const systemStages = new Set(["queue_cleared", "ai_reactivated", "flow_discarded"]);
+  const systemStages = new Set(["queue_cleared", "ai_reactivated", "flow_discarded", "context_cleared"]);
   for (const event of sorted) {
     if (assignedIds.has(event.id)) continue;
     if (systemStages.has(event.stage)) {

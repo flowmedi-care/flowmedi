@@ -71,6 +71,14 @@ function parseDateFromText(text: string): string | null {
   return null;
 }
 
+function matchByListIndex<T>(text: string, items: T[]): T | null {
+  const numbered = text.match(/^\s*(\d{1,2})\s*$/);
+  if (!numbered || items.length === 0) return null;
+  const idx = Number(numbered[1]) - 1;
+  if (idx >= 0 && idx < items.length) return items[idx]!;
+  return null;
+}
+
 function matchOfferedDay(
   text: string,
   offeredDays: OfferedDay[],
@@ -91,28 +99,22 @@ function matchOfferedDay(
     if (match) return match;
   }
 
-  if (bookingStep === "day") {
-    const numbered = text.match(/^\s*(\d{1,2})\s*$/);
-    if (numbered) {
-      const idx = Number(numbered[1]) - 1;
-      if (idx >= 0 && idx < offeredDays.length) return offeredDays[idx]!;
-    }
+  if (offeredDays.length > 0 && (bookingStep === "day" || /^\s*\d{1,2}\s*$/.test(text))) {
+    return matchByListIndex(text, offeredDays);
   }
 
   return null;
 }
 
-function matchOfferedSlot(
+export function matchOfferedSlot(
   text: string,
   slots: OfferedSlot[],
-  bookingStep?: BookingStep
+  _bookingStep?: BookingStep
 ): OfferedSlot | null {
-  if (bookingStep === "slot") {
-    const numbered = text.match(/^\s*(\d{1,2})\s*$/);
-    if (numbered) {
-      const idx = Number(numbered[1]) - 1;
-      if (idx >= 0 && idx < slots.length) return slots[idx]!;
-    }
+  if (slots.length > 0) {
+    const byIndex = matchByListIndex(text, slots);
+    if (byIndex) return byIndex;
+    if (/^\s*\d{1,2}\s*$/.test(text)) return null;
   }
 
   const timeMatch = text.match(/\b(\d{1,2})[:\s]?(\d{2})?\b/);
@@ -127,6 +129,26 @@ function matchOfferedSlot(
   }
 
   return null;
+}
+
+export function buildInvalidSlotSelectionReply(
+  text: string,
+  slots: OfferedSlot[]
+): string {
+  const numbered = text.match(/^\s*(\d{1,2})\s*$/);
+  if (numbered) {
+    const n = Number(numbered[1]);
+    return `A opção ${n} não existe. Escolha um número de 1 a ${slots.length} ou digite um horário da lista.`;
+  }
+
+  const timeMatch = text.match(/\b(\d{1,2})[:\s]?(\d{2})?\b/);
+  if (timeMatch) {
+    const h = timeMatch[1]!.padStart(2, "0");
+    const m = (timeMatch[2] ?? "00").padStart(2, "0");
+    return `O horário ${h}:${m} não está disponível. Escolha um número de 1 a ${slots.length} ou digite um horário da lista.`;
+  }
+
+  return `Não encontrei esse horário na lista. Escolha um número de 1 a ${slots.length} ou digite um horário da lista.`;
 }
 
 function filterSlotsByPeriod(
@@ -321,7 +343,20 @@ export async function tryExecuteBookingSlotSelection(
     }
   }
 
-  if (!selectedSlot) return { handled: false };
+  if (!selectedSlot) {
+    if (offeredSlots.length > 0 && isSlotSelectionMessage(text)) {
+      return {
+        handled: true,
+        reply: buildInvalidSlotSelectionReply(text, offeredSlots),
+        statePatch: {
+          intent: "booking",
+          booking_step: "slot",
+          last_reply_kind: "invalid_slot_selection",
+        },
+      };
+    }
+    return { handled: false };
+  }
 
   if (!isScheduledAtInOfferedSlots(selectedSlot.scheduled_at, offeredSlots) && offeredSlots.length > 0) {
     const fresh = offeredSlots.find(

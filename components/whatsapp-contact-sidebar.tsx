@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, User, UserPlus, Pencil, FileText, Download, Send } from "lucide-react";
+import { X, User, UserPlus, Pencil, FileText, Download, Send, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -103,6 +103,8 @@ export function WhatsAppContactSidebar({
   const [formLoading, setFormLoading] = useState(false);
   const [forwardSecretaryId, setForwardSecretaryId] = useState<string>("");
   const [forwarding, setForwarding] = useState(false);
+  const [clearContextOpen, setClearContextOpen] = useState(false);
+  const [clearingContext, setClearingContext] = useState(false);
 
   useEffect(() => {
     setPatient(initialPatient);
@@ -299,6 +301,26 @@ export function WhatsAppContactSidebar({
                       <Send className="h-4 w-4 mr-1" />
                       Encaminhar
                     </Button>
+                  </div>
+                )}
+                {conversationId && (
+                  <div className="mt-3 border-t border-border pt-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Memória da IA
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={clearingContext}
+                      onClick={() => setClearContextOpen(true)}
+                    >
+                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                      {clearingContext ? "Limpando…" : "Limpar contexto da IA"}
+                    </Button>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Apaga agendamento em andamento e reativa a IA. Mensagens permanecem.
+                    </p>
                   </div>
                 )}
               </div>
@@ -580,6 +602,38 @@ export function WhatsAppContactSidebar({
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={clearContextOpen}
+        title="Limpar contexto da IA"
+        message="Apaga o estado da IA (agendamento em andamento, listas oferecidas, handoff). O histórico de mensagens permanece e a IA será reativada."
+        confirmLabel="Limpar contexto"
+        variant="default"
+        loading={clearingContext}
+        onCancel={() => setClearContextOpen(false)}
+        onConfirm={async () => {
+          if (!conversationId) return;
+          setClearingContext(true);
+          try {
+            const res = await fetch("/api/whatsapp/assistant/clear-conversation-context", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ conversationId }),
+            });
+            const json = (await res.json()) as { error?: string };
+            if (!res.ok) {
+              toast(json.error ?? "Erro ao limpar contexto", "error");
+              return;
+            }
+            toast("Contexto da IA limpo.", "success");
+            setClearContextOpen(false);
+          } catch {
+            toast("Falha ao limpar contexto", "error");
+          } finally {
+            setClearingContext(false);
+          }
+        }}
+      />
     </>
   );
 }

@@ -25,6 +25,9 @@ const CONFIRMED_PATTERN =
 const PHONE_ASK_PATTERN =
   /\b(me (passe|passar|informe|diga) (o |seu )?telefone|qual (é |o )?seu telefone|preciso do (seu )?telefone|número de telefone)\b/i;
 
+const INVALID_SELECTION_PATTERN =
+  /\b(não (está|existe)|não encontrei|escolha um número|não está disponível)\b/i;
+
 export function applyReplyGuards(
   reply: string,
   state: AiConversationState
@@ -41,6 +44,13 @@ export function applyReplyGuards(
   if (PHONE_ASK_PATTERN.test(out)) {
     return out.replace(PHONE_ASK_PATTERN, "").trim() ||
       "Já tenho seu número pelo WhatsApp. Só preciso confirmar seu nome, se ainda não estiver cadastrado.";
+  }
+
+  if (
+    state.last_reply_kind === "invalid_slot_selection" ||
+    INVALID_SELECTION_PATTERN.test(out)
+  ) {
+    return out;
   }
 
   if (

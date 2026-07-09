@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAiEvent } from "./event-log";
 import { sendHandoffReply } from "./send-reply";
+import { isSlotSelectionMessage } from "@/lib/virtual-assistant/booking-slot-messages";
 import type { AiConversationState } from "./types";
 
 const AUTOMATED_MESSAGE_PATTERNS = [
@@ -77,6 +78,14 @@ export async function checkBotLoopRisk(
   inboundText: string,
   aiState?: AiConversationState
 ): Promise<BotLoopCheckResult> {
+  const inActiveBookingSlotFlow =
+    (aiState?.offered_slots?.length ?? 0) > 0 &&
+    isSlotSelectionMessage(inboundText.trim());
+
+  if (inActiveBookingSlotFlow) {
+    return { block: false };
+  }
+
   const since = new Date(Date.now() - PING_PONG_WINDOW_MS).toISOString();
 
   const { data: recentOutbound } = await supabase
@@ -99,6 +108,12 @@ export async function checkBotLoopRisk(
   }
 
   if (outboundCount >= PING_PONG_OUTBOUND_THRESHOLD + 1) {
+    if (
+      aiState?.intent === "booking" &&
+      (aiState.offered_slots?.length ?? 0) > 0
+    ) {
+      return { block: false };
+    }
     return {
       block: true,
       reason: "high_outbound_rate",
@@ -148,6 +163,7 @@ export async function applyBotLoopSilence(opts: {
   const nextState: AiConversationState = {
     ...(opts.aiState ?? {}),
     bot_loop_detected_at: now,
+    handoff_reason: "bot_loop_detected",
   };
 
   const { data: conv } = await opts.supabase
