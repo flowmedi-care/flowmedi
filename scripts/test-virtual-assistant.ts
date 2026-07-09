@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { normalizePhoneForMatch, phonesMatch } from "../lib/virtual-assistant/patient-lookup";
 import { parseConfirmationReply } from "../lib/virtual-assistant/confirmations";
-import { shouldAutoHandoff } from "../lib/virtual-assistant/agent";
+import { shouldAutoHandoff } from "../lib/virtual-assistant/handoff-patterns";
 import { parseUserAiCommand } from "../lib/virtual-assistant/user-commands";
 import { looksLikeAutomatedMessage, isMenuNumericReply } from "../lib/virtual-assistant/bot-loop-guard";
 import { detectInboundIntent } from "../lib/virtual-assistant/detect-inbound-intent";

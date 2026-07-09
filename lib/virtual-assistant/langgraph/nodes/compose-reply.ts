@@ -1,5 +1,6 @@
 import { buildToolRoundLimitFallback } from "../../format-ai-state";
-import { composeSystemPrompt } from "../../prompt/prompt-compose";
+import { filterFreshOfferedSlots } from "@/lib/booking-state";
+import { composeThinSystemPrompt } from "../../prompt/compose-thin";
 import { createChatCompletion } from "../../openai-client";
 import { applyReplyGuards } from "../../reply-guards";
 import type { GraphState } from "../state";
@@ -58,22 +59,15 @@ export async function composeReplyNode(state: GraphState): Promise<Partial<Graph
     };
   }
 
-  const assistantName = ctx.settings.assistant_name ?? "assistente virtual";
-  const clinicName = "sua clínica";
-
-  const systemContent = composeSystemPrompt({
-    clinicName,
-    assistantName,
-    settings: ctx.settings,
-    clinicData: state.clinicDataText,
-    flow: state.routedFlow,
-    aiState: state.aiState,
-    journeyBlock: state.journeyBlock || undefined,
-    whatsappPhone: ctx.phoneNumber,
-    patientBootstrap: state.patientBootstrap || undefined,
-    pipelineBlock: `Pipeline do agente (etapa atual): ${state.pipelineStage}${
-      state.parallelStages.length ? ` (+ paralelo: ${state.parallelStages.join(", ")})` : ""
-    }.`,
+  const offeredSlotsCount = filterFreshOfferedSlots(state.aiState.offered_slots ?? []).length;
+  const systemContent = composeThinSystemPrompt({
+    intent: state.detectedIntent,
+    bookingStep: state.aiState.booking_step,
+    offeredSlotsCount,
+    pipelineStage: state.pipelineStage,
+    clinicTone: ctx.settings.assistant_name ?? undefined,
+    mustSay: state.journeyBlock ? undefined : undefined,
+    lastActionResult: state.patientBootstrap || undefined,
   });
 
   const messages: { role: "system" | "user" | "assistant"; content: string }[] = [

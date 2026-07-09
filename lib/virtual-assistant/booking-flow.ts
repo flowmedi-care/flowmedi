@@ -140,6 +140,7 @@ export function patchBookingStepFromTool(
         return {
           booking_step: "done",
           last_created_appointment_id: String(result.appointmentId),
+          journey_step_code: "consulta_agendada",
           intent: undefined,
           pending_slot: undefined,
           offered_slots: undefined,

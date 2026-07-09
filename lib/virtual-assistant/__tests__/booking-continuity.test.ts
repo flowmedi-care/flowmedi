@@ -81,7 +81,7 @@ describe("booking continuity — flow guards", () => {
     );
   });
 
-  it("applyBookingContinuityStatePatch define agendamento e booking_step", () => {
+  it("applyBookingContinuityStatePatch define intent booking e booking_step", () => {
     const patched = applyBookingContinuityStatePatch({
       ...bookingState,
       booking_step: undefined,
@@ -89,7 +89,7 @@ describe("booking continuity — flow guards", () => {
     });
     assert.equal(patched.intent, "booking");
     assert.equal(patched.booking_step, "day");
-    assert.equal(patched.pipeline_stage, "agendamento");
+    assert.notEqual(patched.pipeline_stage, "agendamento");
   });
 });
 

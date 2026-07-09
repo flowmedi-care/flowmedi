@@ -1,9 +1,12 @@
 import {
   tryAutoFetchAvailableSlots,
   tryExecuteBookingSlotSelection,
+  buildInvalidSlotSelectionReply,
 } from "@/lib/operational-agents/booking-executor";
+import { filterFreshOfferedSlots } from "@/lib/booking-state";
 import { getClinicTimezone } from "@/lib/clinic-timezone";
 import { maybeResetBookingForFreshRequest } from "@/lib/virtual-assistant/booking-reset";
+import { shouldBlockBookingToolLoop } from "@/lib/virtual-assistant/booking-state/booking-action-table";
 import { tryHandleBookingMeta, bootstrapPatientForBooking } from "@/lib/virtual-assistant/booking-flow";
 import { buildToolRoundLimitFallback } from "@/lib/virtual-assistant/format-ai-state";
 import { applyReplyGuards } from "@/lib/virtual-assistant/reply-guards";
@@ -16,7 +19,7 @@ function withAgendamento(patch: Partial<GraphState>): Partial<GraphState> {
   return mergeStageResult(
     {
       ...patch,
-      aiState: { ...patch.aiState, intent: "booking", pipeline_stage: "agendamento" },
+      aiState: { ...patch.aiState, intent: "booking" },
     },
     "agendamento"
   );
@@ -185,6 +188,10 @@ export function routeAfterAgendamentoEnsure(state: GraphState): "done" | "fetch"
 export async function agendamentoFetchSlotsNode(state: GraphState): Promise<Partial<GraphState>> {
   const ctx = state.runtimeContext;
   if (!ctx) return {};
+  const freshSlots = filterFreshOfferedSlots(state.aiState.offered_slots ?? []);
+  if (freshSlots.length > 0) {
+    return {};
+  }
   const autoSlots = await tryAutoFetchAvailableSlots(ctx.supabase, {
     clinicId: ctx.clinicId,
     aiState: state.aiState,
@@ -204,6 +211,20 @@ export function routeAfterAgendamentoFetch(state: GraphState): "done" | "fallbac
 }
 
 export async function agendamentoFallbackNode(state: GraphState): Promise<Partial<GraphState>> {
+  const freshSlots = filterFreshOfferedSlots(state.aiState.offered_slots ?? []);
+  if (freshSlots.length > 0) {
+    const reply = buildInvalidSlotSelectionReply(state.inboundText, freshSlots);
+    return withAgendamento({
+      aiState: {
+        ...state.aiState,
+        booking_step: "slot",
+        last_reply_kind: "invalid_slot_selection",
+      },
+      reply: applyReplyGuards(reply, state.aiState),
+      stageSubgraphComplete: true,
+    });
+  }
+
   if (
     state.detectedIntent === "availability_check" ||
     state.missingSlots.length > 0
@@ -218,7 +239,9 @@ export async function agendamentoFallbackNode(state: GraphState): Promise<Partia
 }
 
 export function routeAfterAgendamentoFallback(state: GraphState): "done" | "tool_loop" {
-  return state.stageSubgraphComplete ? "done" : "tool_loop";
+  if (state.stageSubgraphComplete) return "done";
+  if (shouldBlockBookingToolLoop(state.aiState)) return "done";
+  return "tool_loop";
 }
 
 export async function agendamentoToolLoopNode(state: GraphState): Promise<Partial<GraphState>> {
@@ -230,7 +253,7 @@ export async function agendamentoToolLoopNode(state: GraphState): Promise<Partia
         ...patch,
         aiState: {
           ...patch.aiState,
-          pipeline_stage: "confirmacao_pre_consulta",
+          booking_step: "done",
         },
         pipelineStage: "confirmacao_pre_consulta",
       },

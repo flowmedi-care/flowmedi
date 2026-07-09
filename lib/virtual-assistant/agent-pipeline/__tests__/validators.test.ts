@@ -15,19 +15,19 @@ describe("validators cancellation_reason", () => {
       { ok: true, reschedule_flow: true },
       {}
     );
-    assert.equal(patch.pipeline_stage, "agendamento");
+    assert.equal(patch.booking_step, "procedure");
     assert.equal(patch.intent, "reschedule");
     assert.equal(patch.pending_reschedule_appointment_id, "appt-1");
   });
 
-  it("dropped routes to captacao", () => {
+  it("dropped clears focus and sets journey step", () => {
     const patch = patchStateFromToolResult(
       "cancel_appointment",
       { appointment_id: "appt-1", cancellation_reason: "dropped" },
       { ok: true },
       { focused_appointment_id: "appt-1" }
     );
-    assert.equal(patch.pipeline_stage, "captacao");
+    assert.equal(patch.journey_step_code, "consulta_cancelada");
     assert.equal(patch.focused_appointment_id, undefined);
   });
 });

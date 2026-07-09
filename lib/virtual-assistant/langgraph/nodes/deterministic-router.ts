@@ -35,10 +35,7 @@ export async function deterministicRouterNode(state: GraphState): Promise<Partia
       reply,
       replySource: "deterministic",
       pipelineStage: "captacao",
-      aiState: {
-        ...state.aiState,
-        pipeline_stage: "captacao",
-      },
+      aiState: state.aiState,
       stageSubgraphComplete: true,
     };
   }

@@ -29,20 +29,14 @@ type ConversationOption = {
 
 type Props = {
   initialToolModes?: ToolExecutionModesConfig | null;
-  useLangGraphPipeline?: boolean;
-  langgraphShadowMode?: boolean;
 };
 
 export function AssistenteVirtualPipelineTab({
   initialToolModes,
-  useLangGraphPipeline = false,
-  langgraphShadowMode = false,
 }: Props) {
   const [toolModes, setToolModes] = useState<ToolExecutionModesConfig>(
     mergeToolExecutionModes(initialToolModes)
   );
-  const [useLangGraph, setUseLangGraph] = useState(useLangGraphPipeline);
-  const [shadowMode, setShadowMode] = useState(langgraphShadowMode);
   const [saving, setSaving] = useState(false);
   const [displayMode, setDisplayMode] = useState<PipelineDisplayMode>("reference");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -87,8 +81,8 @@ export function AssistenteVirtualPipelineTab({
     setSaving(true);
     const result = await saveVirtualAssistantSettings({
       tool_execution_modes: toolModes,
-      use_langgraph_pipeline: useLangGraph,
-      langgraph_shadow_mode: shadowMode,
+      use_langgraph_pipeline: true,
+      langgraph_shadow_mode: false,
     });
     setSaving(false);
     if (result.error) toast(result.error, "error");
@@ -107,39 +101,12 @@ export function AssistenteVirtualPipelineTab({
         <CardHeader>
           <CardTitle>Motor LangGraph</CardTitle>
           <CardDescription>
-            Pipeline executável com classificação de intenção e estágios determinísticos.
-            {useLangGraph && (
-              <span className="ml-2 inline-flex rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                Runtime LangGraph ativo
-              </span>
-            )}
-            {!useLangGraph && !shadowMode && (
-              <span className="mt-2 block rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                Motor legado ativo — respostas passam pelo loop OpenAI. Ative LangGraph para menu
-                determinístico e subgrafos por etapa.
-              </span>
-            )}
+            Pipeline executável com classificação de intenção, roteamento determinístico e subgrafos por etapa.
+            <span className="ml-2 inline-flex rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+              Runtime LangGraph ativo
+            </span>
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={useLangGraph}
-              onChange={(e) => setUseLangGraph(e.target.checked)}
-            />
-            Usar motor LangGraph (substitui o loop legado do agente)
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={shadowMode}
-              disabled={useLangGraph}
-              onChange={(e) => setShadowMode(e.target.checked)}
-            />
-            Modo shadow — executa LangGraph em paralelo só para log/compare
-          </label>
-        </CardContent>
       </Card>
 
       <Card>

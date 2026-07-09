@@ -380,6 +380,8 @@ export async function executeAssistantTool(
       }
 
       case "create_appointment": {
+        // CRM espelho: journey_step_code consulta_agendada via patchBookingStepFromTool;
+        // cancel_appointment avança journey via cancelAppointmentViaAssistant + validators patch.
         const offeredSlots = ctx.aiState.offered_slots ?? [];
         const res = await createAppointmentViaAssistant(supabase, {
           clinicId,
@@ -548,8 +550,8 @@ export async function executeAssistantTool(
               hint: "Paciente quer remarcar. Use find_available_slots e reschedule_appointment, ou pergunte novo horário.",
             }),
             statePatch: {
-              pipeline_stage: "agendamento",
               intent: "reschedule",
+              booking_step: "procedure",
               pending_reschedule_appointment_id: appointmentId,
               pending_confirmation_appointment_id: undefined,
             },

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { CRM_TRANSITIONS } from "./agent-pipeline/flow-model";
 import { resolveParallelStages } from "./agent-pipeline/resolver";
 import { AGENT_PIPELINE_STAGE_MAP, type AgentPipelineStage } from "./agent-pipeline/stages";
+import { deriveRuntimeStage } from "./conversation-state/derive-runtime-stage";
 import type { AiConversationState } from "./types";
 
 export type PipelineStageHistoryEntry = {
@@ -103,7 +104,11 @@ export async function fetchConversationPipelineState(
   if (convError || !conv) return null;
 
   const aiState = (conv.ai_state ?? {}) as AiConversationState;
-  const currentStage = isAgentPipelineStage(aiState.pipeline_stage) ? aiState.pipeline_stage : null;
+  const derivedStage = deriveRuntimeStage({
+    aiState,
+    detectedIntent: "unknown",
+  });
+  const currentStage = isAgentPipelineStage(derivedStage) ? derivedStage : null;
   const currentStageEnteredAt = aiState.pipeline_stage_entered_at ?? null;
 
   const [{ data: events }, { data: toolLogs }] = await Promise.all([

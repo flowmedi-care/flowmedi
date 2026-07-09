@@ -197,7 +197,7 @@ export function patchStateFromToolResult(
   }
 
   if (toolName === "create_appointment" && result.appointmentId) {
-    patch.pipeline_stage = "confirmacao_pre_consulta";
+    patch.booking_step = "done";
     patch.consecutive_tool_failures = 0;
   }
 
@@ -205,14 +205,15 @@ export function patchStateFromToolResult(
     const reason = parseCancellationReason(args.cancellation_reason);
     const appointmentId = String(args.appointment_id ?? "");
     if (reason === "reschedule" || result.reschedule_flow) {
-      patch.pipeline_stage = "agendamento";
       patch.intent = "reschedule";
+      patch.booking_step = "procedure";
       patch.pending_reschedule_appointment_id = appointmentId || current.pending_reschedule_appointment_id;
       patch.pending_confirmation_appointment_id = undefined;
     } else {
-      patch.pipeline_stage = "captacao";
+      patch.intent = "general";
       patch.focused_appointment_id = undefined;
       patch.pending_confirmation_appointment_id = undefined;
+      patch.journey_step_code = "consulta_cancelada";
     }
   }
 

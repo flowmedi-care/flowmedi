@@ -74,7 +74,6 @@ export function applyBookingContinuityStatePatch(
     ...aiState,
     intent: "booking",
     booking_step: bookingStep,
-    pipeline_stage: "agendamento",
   };
 }
 

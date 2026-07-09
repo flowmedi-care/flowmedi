@@ -12,6 +12,10 @@ import {
   type ConfirmationTouchpoint,
 } from "@/lib/contact-journey/confirmation-sequence";
 import { logPipelineStageTransition } from "@/lib/virtual-assistant/agent-pipeline/transitions";
+import {
+  deriveRuntimeStage,
+  syncDerivedPipelineStage,
+} from "@/lib/virtual-assistant/conversation-state/derive-runtime-stage";
 import type { AgentPipelineStage } from "@/lib/virtual-assistant/agent-pipeline/stages";
 import type { AiConversationState } from "@/lib/virtual-assistant/types";
 
@@ -103,13 +107,10 @@ async function syncComplianceTouchpointToConversation(
 
   const prev = (conv?.ai_state ?? {}) as AiConversationState;
   const fromStage = prev.pipeline_stage as AgentPipelineStage | undefined;
-  const toStage: AgentPipelineStage = "confirmacao_pre_consulta";
 
-  const nextState: AiConversationState = {
+  const baseState: AiConversationState = {
     ...prev,
     journey_step_code: journeyStep,
-    pipeline_stage: toStage,
-    pipeline_stage_entered_at: new Date().toISOString(),
     patient_id: opts.patientId,
     ...(opts.touchpoint === "2d"
       ? {
@@ -118,6 +119,14 @@ async function syncComplianceTouchpointToConversation(
         }
       : {}),
   };
+
+  const derivedStage = deriveRuntimeStage({
+    aiState: baseState,
+    detectedIntent: "unknown",
+  });
+  const stagePatch = syncDerivedPipelineStage(baseState, derivedStage, "journey_step");
+  const nextState: AiConversationState = { ...baseState, ...stagePatch };
+  const toStage = derivedStage;
 
   await supabase
     .from("whatsapp_conversations")

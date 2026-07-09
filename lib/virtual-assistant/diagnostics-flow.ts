@@ -26,6 +26,8 @@ export interface IntentTraceInfo {
   continuityIntent?: string;
   bookingStep?: string;
   pipelineStage?: string;
+  derivedStage?: string;
+  journeyStepCode?: string;
   offeredSlotsCount?: number;
 }
 
@@ -186,6 +188,18 @@ function extractIntentInfo(events: AiEventRow[]): IntentTraceInfo | undefined {
         ? d.pipeline_stage_before
         : typeof d.pipeline_stage === "string"
           ? d.pipeline_stage
+          : undefined,
+    derivedStage:
+      typeof d.derived_stage === "string"
+        ? d.derived_stage
+        : typeof complete?.detail?.pipeline_stage === "string"
+          ? complete.detail.pipeline_stage
+          : undefined,
+    journeyStepCode:
+      typeof d.journey_step_code === "string"
+        ? d.journey_step_code
+        : typeof d.journey_step_code_before === "string"
+          ? d.journey_step_code_before
           : undefined,
     offeredSlotsCount:
       typeof d.offered_slots_count === "number" ? d.offered_slots_count : undefined,

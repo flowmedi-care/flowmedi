@@ -126,7 +126,7 @@ export async function resolveStageNode(state: GraphState): Promise<Partial<Graph
   });
 
   return {
-    aiState: { ...merged, ...stageTransition, pipeline_stage: pipelineStage },
+    aiState: { ...merged, ...stageTransition },
     routedFlow: routed.flow,
     pipelineStage,
     parallelStages,

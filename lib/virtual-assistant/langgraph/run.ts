@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { deriveRuntimeStage } from "../conversation-state/derive-runtime-stage";
 import { logAiEvent } from "../event-log";
 import type { AiConversationState, VirtualAssistantSettings } from "../types";
 import { getAssistantGraph } from "./graph";
@@ -63,12 +64,20 @@ export async function runLangGraphAssistant(
     result.reply?.trim() ||
     "Não entendi bem. Você quer agendar, saber preços ou falar com a equipe?";
 
+  const derivedStage = deriveRuntimeStage({
+    aiState: result.aiState ?? input.aiState,
+    detectedIntent: result.detectedIntent ?? "unknown",
+    routedFlow: result.routedFlow,
+  });
+
   logAiEvent(input.supabase, {
     clinicId: input.clinicId,
     conversationId: input.conversationId,
     stage: "langgraph_complete",
     detail: {
       pipeline_stage: result.pipelineStage,
+      derived_stage: derivedStage,
+      journey_step_code: result.aiState?.journey_step_code ?? input.aiState.journey_step_code,
       detected_intent: result.detectedIntent,
       intent_confidence: result.intentConfidence,
       handoff: result.handoff,

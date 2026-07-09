@@ -5,7 +5,7 @@ import {
   resolveInboundTexts,
   scheduleTranscriptionRetry,
 } from "./audio-transcription";
-import { runAssistantWithOptionalShadow } from "./langgraph/shadow";
+import { runLangGraphAssistant } from "./langgraph/run";
 import {
   releaseProcessingLock,
   shouldSkipDuplicateReply,
@@ -227,9 +227,8 @@ async function processConversationAiInner(
       conversationId,
       stage: "agent_route",
       detail: {
-        engine: settings.use_langgraph_pipeline ? "langgraph" : "legacy",
-        shadow: settings.langgraph_shadow_mode ?? false,
-        use_langgraph_pipeline: settings.use_langgraph_pipeline ?? false,
+        engine: "langgraph",
+        use_langgraph_pipeline: true,
         lock_acquired: false,
         skipped_reason: "already_processing",
         retry_at: retryAt,
@@ -256,24 +255,22 @@ async function processConversationAiInner(
     conversationId,
     stage: "agent_route",
     detail: {
-      engine: settings.use_langgraph_pipeline ? "langgraph" : "legacy",
-      shadow: settings.langgraph_shadow_mode ?? false,
-      use_langgraph_pipeline: settings.use_langgraph_pipeline ?? false,
+      engine: "langgraph",
+      use_langgraph_pipeline: true,
       lock_acquired: true,
     },
   });
 
   if (
     settings.enabled !== false &&
-    !settings.use_langgraph_pipeline &&
-    !settings.langgraph_shadow_mode
+    settings.use_langgraph_pipeline === false
   ) {
     logAiEvent(supabase, {
       clinicId: conv.clinic_id,
       conversationId,
       stage: "agent_route",
       level: "warn",
-      detail: { warn: "langgraph_disabled_responding_legacy" },
+      detail: { warn: "langgraph_disabled_in_settings_overridden_by_runtime" },
     });
   }
 
@@ -757,7 +754,7 @@ async function processConversationAiInner(
     detail: { messageCount: userTexts.length },
   });
 
-  const { reply, handoff, statePatch } = await runAssistantWithOptionalShadow({
+  const { reply, handoff, statePatch } = await runLangGraphAssistant({
     supabase,
     clinicId: conv.clinic_id,
     conversationId,
@@ -778,7 +775,7 @@ async function processConversationAiInner(
       stage: "error",
       level: "error",
       detail: {
-        source: settings.use_langgraph_pipeline ? "langgraph_agent" : "openai_agent",
+        source: "langgraph_agent",
         message: e instanceof Error ? e.message : String(e),
       },
     });

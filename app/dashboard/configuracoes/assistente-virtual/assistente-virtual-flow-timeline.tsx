@@ -155,6 +155,16 @@ function IntentHighlightBadge({ info }: { info: IntentTraceInfo }) {
             booking_step: {info.bookingStep}
           </Badge>
         )}
+        {info.derivedStage && (
+          <Badge variant="outline" className="font-normal">
+            derived: {info.derivedStage}
+          </Badge>
+        )}
+        {info.journeyStepCode && (
+          <Badge variant="outline" className="font-normal">
+            CRM: {info.journeyStepCode}
+          </Badge>
+        )}
         {info.pipelineStage && (
           <Badge variant="outline" className="font-normal">
             pipeline: {info.pipelineStage}
