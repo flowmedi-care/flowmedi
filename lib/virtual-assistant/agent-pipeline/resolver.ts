@@ -1,6 +1,6 @@
 import type { ContactJourney } from "@/lib/contact-journey/types";
 import type { InboundIntent } from "../detect-inbound-intent";
-import { hasOfferedBookingSelection } from "../booking-continuity";
+import { hasOfferedBookingSelection } from "../booking-continuity-guards";
 import type { PromptFlow } from "../prompt/prompt-decision";
 import type { AiConversationState } from "../types";
 import {

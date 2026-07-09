@@ -1,5 +1,5 @@
 import type { InboundIntent } from "./detect-inbound-intent";
-import { hasOfferedBookingSelection } from "./booking-continuity";
+import { hasOfferedBookingSelection } from "./booking-continuity-guards";
 import type { AiConversationState } from "./types";
 import type { PromptFlow } from "./prompt/prompt-decision";
 

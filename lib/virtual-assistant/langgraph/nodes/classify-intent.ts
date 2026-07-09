@@ -5,11 +5,9 @@ import {
 } from "../../detect-inbound-intent";
 import {
   applyBookingContinuityStatePatch,
-  hasActiveBookingContext,
-  hasOfferedBookingSelection,
   resolveContinuityIntent,
   shouldContinueBookingFlow,
-} from "../../booking-continuity";
+} from "../../booking-continuity-guards";
 import { createChatCompletion } from "../../openai-client";
 import type { GraphState } from "../state";
 import {

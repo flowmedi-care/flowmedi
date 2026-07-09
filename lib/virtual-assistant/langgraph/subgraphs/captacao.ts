@@ -1,5 +1,5 @@
-import { isSlotSelectionMessage } from "@/lib/operational-agents/booking-executor";
-import { hasActiveBookingContext, hasOfferedBookingSelection } from "../../booking-continuity";
+import { hasActiveBookingContext, hasOfferedBookingSelection } from "../../booking-continuity-guards";
+import { isSlotSelectionMessage } from "../../booking-slot-messages";
 import type { GraphState } from "../state";
 import { agendamentoSubgraph } from "./agendamento";
 import { orcamentoSubgraph } from "./orcamento";

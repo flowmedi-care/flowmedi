@@ -8,7 +8,7 @@ import {
   hasOfferedBookingSelection,
   resolveContinuityIntent,
   shouldContinueBookingFlow,
-} from "../booking-continuity";
+} from "../booking-continuity-guards";
 import { resolveAgentPipelineStage } from "../agent-pipeline/resolver";
 import type { AiConversationState } from "../types";
 
