@@ -107,6 +107,8 @@ export type SaveVirtualAssistantInput = {
   bot_active_start?: string | null;
   bot_active_end?: string | null;
   tool_execution_modes?: import("@/lib/virtual-assistant/agent-pipeline/confirmation-policy").ToolExecutionModesConfig;
+  use_langgraph_pipeline?: boolean;
+  langgraph_shadow_mode?: boolean;
   clinic_contact?: {
     phone?: string | null;
     email?: string | null;
@@ -178,6 +180,8 @@ export async function saveVirtualAssistantSettings(input: SaveVirtualAssistantIn
     "bot_active_start",
     "bot_active_end",
     "tool_execution_modes",
+    "use_langgraph_pipeline",
+    "langgraph_shadow_mode",
   ];
 
   for (const key of fields) {

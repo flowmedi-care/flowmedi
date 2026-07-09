@@ -27,6 +27,10 @@ export const AI_EVENT_STAGES = [
   "pipeline_stage_exit",
   "pipeline_tool_blocked",
   "pipeline_confirmation_pending",
+  "langgraph_start",
+  "langgraph_complete",
+  "langgraph_shadow_compare",
+  "langgraph_shadow_error",
 ] as const;
 
 export type AiEventStage = (typeof AI_EVENT_STAGES)[number];

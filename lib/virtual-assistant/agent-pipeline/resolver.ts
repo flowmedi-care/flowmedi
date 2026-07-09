@@ -93,7 +93,12 @@ export function resolveAgentPipelineStage(input: ResolvePipelineStageInput): Age
   if (detectedIntent === "form") {
     return "formularios";
   }
-  if (detectedIntent === "booking" || detectedIntent === "reschedule" || routedFlow === "booking") {
+  if (
+    detectedIntent === "booking" ||
+    detectedIntent === "availability_check" ||
+    detectedIntent === "reschedule" ||
+    routedFlow === "booking"
+  ) {
     return "agendamento";
   }
   if (detectedIntent === "pricing" || detectedIntent === "quote" || routedFlow === "pricing") {

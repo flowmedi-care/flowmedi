@@ -269,6 +269,8 @@ export function AssistenteVirtualClient({
       {tab === "pipeline" && (
         <AssistenteVirtualPipelineTab
           initialToolModes={initialSettings?.tool_execution_modes ?? null}
+          useLangGraphPipeline={initialSettings?.use_langgraph_pipeline ?? false}
+          langgraphShadowMode={initialSettings?.langgraph_shadow_mode ?? false}
         />
       )}
 

@@ -29,12 +29,20 @@ type ConversationOption = {
 
 type Props = {
   initialToolModes?: ToolExecutionModesConfig | null;
+  useLangGraphPipeline?: boolean;
+  langgraphShadowMode?: boolean;
 };
 
-export function AssistenteVirtualPipelineTab({ initialToolModes }: Props) {
+export function AssistenteVirtualPipelineTab({
+  initialToolModes,
+  useLangGraphPipeline = false,
+  langgraphShadowMode = false,
+}: Props) {
   const [toolModes, setToolModes] = useState<ToolExecutionModesConfig>(
     mergeToolExecutionModes(initialToolModes)
   );
+  const [useLangGraph, setUseLangGraph] = useState(useLangGraphPipeline);
+  const [shadowMode, setShadowMode] = useState(langgraphShadowMode);
   const [saving, setSaving] = useState(false);
   const [displayMode, setDisplayMode] = useState<PipelineDisplayMode>("reference");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -77,10 +85,14 @@ export function AssistenteVirtualPipelineTab({ initialToolModes }: Props) {
 
   async function handleSaveModes() {
     setSaving(true);
-    const result = await saveVirtualAssistantSettings({ tool_execution_modes: toolModes });
+    const result = await saveVirtualAssistantSettings({
+      tool_execution_modes: toolModes,
+      use_langgraph_pipeline: useLangGraph,
+      langgraph_shadow_mode: shadowMode,
+    });
     setSaving(false);
     if (result.error) toast(result.error, "error");
-    else toast("Modos de confirmação salvos.", "success");
+    else toast("Configurações do pipeline salvas.", "success");
   }
 
   function handleResetModes() {
@@ -91,6 +103,39 @@ export function AssistenteVirtualPipelineTab({ initialToolModes }: Props) {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Motor LangGraph</CardTitle>
+          <CardDescription>
+            Pipeline executável com classificação de intenção e estágios determinísticos.
+            {useLangGraph && (
+              <span className="ml-2 inline-flex rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                Runtime LangGraph ativo
+              </span>
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={useLangGraph}
+              onChange={(e) => setUseLangGraph(e.target.checked)}
+            />
+            Usar motor LangGraph (substitui o loop legado do agente)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={shadowMode}
+              disabled={useLangGraph}
+              onChange={(e) => setShadowMode(e.target.checked)}
+            />
+            Modo shadow — executa LangGraph em paralelo só para log/compare
+          </label>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Mapa do pipeline do agente</CardTitle>

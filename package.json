@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:clinical": "npx tsx --test lib/clinical-documents/validate.test.ts",
-    "test:pipeline": "npx tsx --test lib/virtual-assistant/agent-pipeline/__tests__/unified-flow-graph.test.ts lib/virtual-assistant/agent-pipeline/__tests__/conversation-pipeline-state.test.ts lib/virtual-assistant/agent-pipeline/__tests__/confirmation-policy.test.ts lib/virtual-assistant/agent-pipeline/__tests__/validators.test.ts lib/contact-journey/__tests__/timeout-policy.test.ts lib/contact-journey/__tests__/dropout-inference.test.ts",
+    "test:pipeline": "npx tsx --test lib/virtual-assistant/agent-pipeline/__tests__/unified-flow-graph.test.ts lib/virtual-assistant/agent-pipeline/__tests__/conversation-pipeline-state.test.ts lib/virtual-assistant/agent-pipeline/__tests__/confirmation-policy.test.ts lib/virtual-assistant/agent-pipeline/__tests__/validators.test.ts lib/virtual-assistant/langgraph/__tests__/langgraph-intent.test.ts lib/contact-journey/__tests__/timeout-policy.test.ts lib/contact-journey/__tests__/dropout-inference.test.ts",
     "verify:subdomain": "node scripts/verify-subdomain-setup.mjs"
   },
   "dependencies": {
@@ -16,6 +16,10 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@langchain/core": "^1.2.2",
+    "@langchain/langgraph": "^1.4.7",
+    "@langchain/langgraph-checkpoint-postgres": "^1.0.4",
+    "@langchain/openai": "^1.5.4",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-slot": "^1.1.0",
     "@react-pdf/renderer": "^4.5.1",
@@ -37,7 +41,8 @@
     "react-dom": "^18.2.0",
     "recharts": "^2.15.0",
     "stripe": "^20.3.1",
-    "tailwind-merge": "^2.5.4"
+    "tailwind-merge": "^2.5.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

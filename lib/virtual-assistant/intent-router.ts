@@ -26,6 +26,7 @@ export function routeInboundFlow(opts: {
 
   switch (detectedIntent) {
     case "booking":
+    case "availability_check":
     case "reschedule":
       return { flow: "booking", intent: "booking", useBookingMachine: true };
     case "pricing":

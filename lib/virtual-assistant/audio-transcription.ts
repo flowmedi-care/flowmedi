@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { transcribeAudioBuffer } from "@/lib/openai-transcribe";
 import { createTranscriptionJob, getTranscriptionJob } from "@/lib/transcribe-api";
 import { getTranscribeAudioFile, WHATSAPP_MEDIA_BUCKET } from "@/lib/whatsapp-media";
 import { downloadStorageObject } from "@/lib/storage/signed-url";
@@ -7,6 +8,8 @@ import type { AiConversationState, PendingTranscriptionJob } from "./types";
 
 export const AUDIO_FALLBACK_MESSAGE =
   "Não consegui entender o áudio. Pode repetir por texto ou gravar de novo?";
+
+export type WppTranscriptionProvider = "openai" | "viaprove";
 
 export interface InboundMessageRow {
   id: string;
@@ -21,6 +24,11 @@ export interface ResolveInboundTextsResult {
   audioFailedIds: string[];
   waitingForTranscription: boolean;
   aiState: AiConversationState;
+}
+
+export function getWppTranscriptionProvider(): WppTranscriptionProvider {
+  const raw = process.env.WPP_TRANSCRIPTION_PROVIDER?.trim().toLowerCase();
+  return raw === "viaprove" ? "viaprove" : "openai";
 }
 
 async function downloadMediaAsBuffer(
@@ -69,14 +77,126 @@ async function startTranscriptionJobForMessage(
     conversationId,
     messageId: msg.id,
     stage: "audio_transcribe_start",
-    detail: { jobId, mimeType: file.mimeType, filename: file.filename, bytes: buffer.byteLength },
+    detail: {
+      provider: "viaprove",
+      jobId,
+      mimeType: file.mimeType,
+      filename: file.filename,
+      bytes: buffer.byteLength,
+    },
   });
   return { jobId };
+}
+
+async function transcribeMessageWithOpenAI(
+  supabase: SupabaseClient,
+  clinicId: string,
+  conversationId: string,
+  msg: InboundMessageRow
+): Promise<{ text: string; processingMs: number } | { unsupported: string }> {
+  const buffer = await downloadMediaAsBuffer(supabase, msg.media_url!);
+  const file = getTranscribeAudioFile(msg.id, msg.media_mime_type, msg.media_url, buffer);
+  if (file.unsupported) {
+    return { unsupported: file.unsupported };
+  }
+
+  logAiEvent(supabase, {
+    clinicId,
+    conversationId,
+    messageId: msg.id,
+    stage: "audio_transcribe_start",
+    detail: {
+      provider: "openai",
+      mimeType: file.mimeType,
+      filename: file.filename,
+      bytes: buffer.byteLength,
+    },
+  });
+
+  const result = await transcribeAudioBuffer(buffer, {
+    filename: file.filename,
+    mimeType: file.mimeType,
+  });
+
+  return result;
 }
 
 function isUsableText(text: string): boolean {
   const t = text.trim();
   return Boolean(t) && t !== "[audio]" && !t.startsWith("[");
+}
+
+async function pollLegacyTranscriptionJob(
+  supabase: SupabaseClient,
+  clinicId: string,
+  conversationId: string,
+  msg: InboundMessageRow,
+  existingJobId: string,
+  retriedIds: Set<string>
+): Promise<
+  | { kind: "completed"; text: string }
+  | { kind: "failed" }
+  | { kind: "pending"; jobId: string }
+  | { kind: "retry"; jobId: string }
+> {
+  const job = await getTranscriptionJob(existingJobId);
+  if (job.status === "completed") {
+    const transcribed = (job.text ?? "").trim();
+    if (transcribed) {
+      await supabase.from("whatsapp_messages").update({ content: transcribed }).eq("id", msg.id);
+      logAiEvent(supabase, {
+        clinicId,
+        conversationId,
+        messageId: msg.id,
+        stage: "audio_transcribe_ok",
+        detail: {
+          provider: "viaprove",
+          jobId: existingJobId,
+          preview: transcribed.slice(0, 80),
+        },
+      });
+      return { kind: "completed", text: transcribed };
+    }
+
+    logAiEvent(supabase, {
+      clinicId,
+      conversationId,
+      messageId: msg.id,
+      stage: "audio_transcribe_failed",
+      level: "warn",
+      detail: { provider: "viaprove", jobId: existingJobId, reason: "texto vazio" },
+    });
+    return { kind: "failed" };
+  }
+
+  if (job.status === "failed") {
+    const errMsg = job.error_message ?? "falhou";
+    const isServerError = /internal server error/i.test(errMsg);
+    if (isServerError && !retriedIds.has(msg.id)) {
+      retriedIds.add(msg.id);
+      logAiEvent(supabase, {
+        clinicId,
+        conversationId,
+        messageId: msg.id,
+        stage: "audio_transcribe_failed",
+        level: "warn",
+        detail: { provider: "viaprove", jobId: existingJobId, reason: errMsg, retrying: true },
+      });
+      return { kind: "retry", jobId: existingJobId };
+    }
+
+    logAiEvent(supabase, {
+      clinicId,
+      conversationId,
+      messageId: msg.id,
+      stage: "audio_transcribe_failed",
+      level: "error",
+      detail: { provider: "viaprove", jobId: existingJobId, reason: errMsg },
+    });
+    return { kind: "failed" };
+  }
+
+  return { kind: "pending", jobId: existingJobId };
 }
 
 export async function resolveInboundTexts(
@@ -93,9 +213,10 @@ export async function resolveInboundTexts(
     (aiState.pending_transcription_jobs ?? []).map((j) => [j.messageId, j.jobId])
   );
   const retriedIds = new Set(aiState.audio_transcription_retried_message_ids ?? []);
+  const provider = getWppTranscriptionProvider();
 
   for (const msg of pending) {
-    let text = String(msg.content ?? "").trim();
+    const text = String(msg.content ?? "").trim();
 
     if (msg.message_type !== "audio") {
       if (isUsableText(text)) {
@@ -128,57 +249,26 @@ export async function resolveInboundTexts(
 
     if (existingJobId) {
       try {
-        const job = await getTranscriptionJob(existingJobId);
-        if (job.status === "completed") {
-          const transcribed = (job.text ?? "").trim();
-          if (transcribed) {
-            await supabase.from("whatsapp_messages").update({ content: transcribed }).eq("id", msg.id);
-            userTexts.push(transcribed);
-            logAiEvent(supabase, {
-              clinicId,
-              conversationId,
-              messageId: msg.id,
-              stage: "audio_transcribe_ok",
-              detail: { jobId: existingJobId, preview: transcribed.slice(0, 80) },
-            });
-          } else {
-            audioFailedIds.push(msg.id);
-            logAiEvent(supabase, {
-              clinicId,
-              conversationId,
-              messageId: msg.id,
-              stage: "audio_transcribe_failed",
-              level: "warn",
-              detail: { jobId: existingJobId, reason: "texto vazio" },
-            });
-          }
-        } else if (job.status === "failed") {
-          const errMsg = job.error_message ?? "falhou";
-          const isServerError = /internal server error/i.test(errMsg);
-          if (isServerError && !retriedIds.has(msg.id)) {
-            retriedIds.add(msg.id);
-            shouldCreateJob = true;
-            logAiEvent(supabase, {
-              clinicId,
-              conversationId,
-              messageId: msg.id,
-              stage: "audio_transcribe_failed",
-              level: "warn",
-              detail: { jobId: existingJobId, reason: errMsg, retrying: true },
-            });
-          } else {
-            audioFailedIds.push(msg.id);
-            logAiEvent(supabase, {
-              clinicId,
-              conversationId,
-              messageId: msg.id,
-              stage: "audio_transcribe_failed",
-              level: "error",
-              detail: { jobId: existingJobId, reason: errMsg },
-            });
-          }
+        const pollResult = await pollLegacyTranscriptionJob(
+          supabase,
+          clinicId,
+          conversationId,
+          msg,
+          existingJobId,
+          retriedIds
+        );
+
+        if (pollResult.kind === "completed") {
+          userTexts.push(pollResult.text);
+          shouldCreateJob = false;
+        } else if (pollResult.kind === "failed") {
+          audioFailedIds.push(msg.id);
+          shouldCreateJob = false;
+        } else if (pollResult.kind === "retry") {
+          shouldCreateJob = true;
         } else {
-          stillPending.push({ messageId: msg.id, jobId: existingJobId });
+          stillPending.push({ messageId: msg.id, jobId: pollResult.jobId });
+          shouldCreateJob = false;
         }
       } catch (e) {
         audioFailedIds.push(msg.id);
@@ -189,10 +279,12 @@ export async function resolveInboundTexts(
           stage: "audio_transcribe_failed",
           level: "error",
           detail: {
+            provider: "viaprove",
             jobId: existingJobId,
             reason: e instanceof Error ? e.message : String(e),
           },
         });
+        shouldCreateJob = false;
       }
 
       if (!shouldCreateJob) {
@@ -200,9 +292,13 @@ export async function resolveInboundTexts(
       }
     }
 
-    if (shouldCreateJob) {
+    if (!shouldCreateJob) {
+      continue;
+    }
+
+    if (provider === "openai") {
       try {
-        const result = await startTranscriptionJobForMessage(
+        const result = await transcribeMessageWithOpenAI(
           supabase,
           clinicId,
           conversationId,
@@ -216,13 +312,29 @@ export async function resolveInboundTexts(
             messageId: msg.id,
             stage: "audio_transcribe_failed",
             level: "warn",
-            detail: { reason: result.unsupported },
+            detail: { provider: "openai", reason: result.unsupported },
           });
           continue;
         }
-        stillPending.push({ messageId: msg.id, jobId: result.jobId });
+
+        await supabase
+          .from("whatsapp_messages")
+          .update({ content: result.text })
+          .eq("id", msg.id);
+        userTexts.push(result.text);
+        logAiEvent(supabase, {
+          clinicId,
+          conversationId,
+          messageId: msg.id,
+          stage: "audio_transcribe_ok",
+          detail: {
+            provider: "openai",
+            processingMs: result.processingMs,
+            preview: result.text.slice(0, 80),
+          },
+        });
       } catch (e) {
-        console.error("[VirtualAssistant] transcribe start:", e);
+        console.error("[VirtualAssistant] openai transcribe:", e);
         audioFailedIds.push(msg.id);
         logAiEvent(supabase, {
           clinicId,
@@ -230,9 +342,49 @@ export async function resolveInboundTexts(
           messageId: msg.id,
           stage: "audio_transcribe_failed",
           level: "error",
-          detail: { reason: e instanceof Error ? e.message : String(e) },
+          detail: {
+            provider: "openai",
+            reason: e instanceof Error ? e.message : String(e),
+          },
         });
       }
+      continue;
+    }
+
+    try {
+      const result = await startTranscriptionJobForMessage(
+        supabase,
+        clinicId,
+        conversationId,
+        msg
+      );
+      if ("unsupported" in result) {
+        audioFailedIds.push(msg.id);
+        logAiEvent(supabase, {
+          clinicId,
+          conversationId,
+          messageId: msg.id,
+          stage: "audio_transcribe_failed",
+          level: "warn",
+          detail: { provider: "viaprove", reason: result.unsupported },
+        });
+        continue;
+      }
+      stillPending.push({ messageId: msg.id, jobId: result.jobId });
+    } catch (e) {
+      console.error("[VirtualAssistant] transcribe start:", e);
+      audioFailedIds.push(msg.id);
+      logAiEvent(supabase, {
+        clinicId,
+        conversationId,
+        messageId: msg.id,
+        stage: "audio_transcribe_failed",
+        level: "error",
+        detail: {
+          provider: "viaprove",
+          reason: e instanceof Error ? e.message : String(e),
+        },
+      });
     }
   }
 

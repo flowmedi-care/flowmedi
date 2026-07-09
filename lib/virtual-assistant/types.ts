@@ -51,6 +51,10 @@ export type VirtualAssistantSettings = {
   confirmation_flow_template_name?: string | null;
   /** Modo de execução por ferramenta: auto | human_confirm */
   tool_execution_modes?: ToolExecutionModesConfig | null;
+  /** Usa motor LangGraph em vez do loop legado em agent.ts */
+  use_langgraph_pipeline?: boolean;
+  /** Executa LangGraph em paralelo para comparação (shadow logging) */
+  langgraph_shadow_mode?: boolean;
 };
 
 export type VirtualAssistantLocation = {

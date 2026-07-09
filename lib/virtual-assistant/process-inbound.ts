@@ -5,7 +5,7 @@ import {
   resolveInboundTexts,
   scheduleTranscriptionRetry,
 } from "./audio-transcription";
-import { runVirtualAssistantAgent } from "./agent";
+import { runAssistantWithOptionalShadow } from "./langgraph/shadow";
 import { logAiEvent } from "./event-log";
 import { sendAssistantReply } from "./send-reply";
 import type { AiConversationState, VirtualAssistantSettings } from "./types";
@@ -696,7 +696,7 @@ async function processConversationAiInner(
     detail: { messageCount: userTexts.length },
   });
 
-  const { reply, handoff, statePatch } = await runVirtualAssistantAgent({
+  const { reply, handoff, statePatch } = await runAssistantWithOptionalShadow({
     supabase,
     clinicId: conv.clinic_id,
     conversationId,
@@ -717,7 +717,7 @@ async function processConversationAiInner(
       stage: "error",
       level: "error",
       detail: {
-        source: "openai_agent",
+        source: settings.use_langgraph_pipeline ? "langgraph_agent" : "openai_agent",
         message: e instanceof Error ? e.message : String(e),
       },
     });

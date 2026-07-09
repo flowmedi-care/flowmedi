@@ -38,8 +38,9 @@ const SUBPROCESSORS = [
   },
   {
     name: "OpenAI, L.L.C.",
-    purpose: "Assistente virtual via WhatsApp (quando habilitado pelo plano/clínica)",
-    data: "Mensagens da conversa e contexto mínimo para agendamento (sem dados clínicos sensíveis intencionais)",
+    purpose:
+      "Assistente virtual via WhatsApp e transcrição de áudios recebidos no WhatsApp (quando habilitado pelo plano/clínica)",
+    data: "Mensagens da conversa, áudios de voz do paciente transcritos e contexto mínimo para agendamento (sem dados clínicos sensíveis intencionais)",
     location: "Estados Unidos",
   },
   {
