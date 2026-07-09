@@ -26,7 +26,7 @@ export async function buildAssistantGraph() {
     .addNode("stage_router", stageRouterNode)
     .addNode("stage_tool_loop", runStageToolLoop)
     .addNode("compose_reply", composeReplyNode)
-    .addNode("handoff", handoffNode)
+    .addNode("execute_handoff", handoffNode)
     .addNode("sync_state", syncStateNode)
     .addEdge(START, "load_context")
     .addEdge("load_context", "classify_intent")
@@ -35,7 +35,7 @@ export async function buildAssistantGraph() {
       skip: "escalate_gate",
     })
     .addConditionalEdges("escalate_gate", shouldEscalateAfterGate, {
-      handoff: "handoff",
+      handoff: "execute_handoff",
       continue: "resolve_stage",
     })
     .addEdge("resolve_stage", "stage_router")
@@ -43,13 +43,13 @@ export async function buildAssistantGraph() {
       compose: "compose_reply",
       confirm: "human_confirm",
       tool_loop: "stage_tool_loop",
-      handoff: "handoff",
+      handoff: "execute_handoff",
     })
     .addConditionalEdges("stage_tool_loop", routeAfterStage, {
       compose: "compose_reply",
       confirm: "human_confirm",
       tool_loop: "stage_tool_loop",
-      handoff: "handoff",
+      handoff: "execute_handoff",
     })
     .addConditionalEdges("human_confirm", (state) =>
       state.needsToolLoop ? "tool_loop" : "compose"
@@ -58,7 +58,7 @@ export async function buildAssistantGraph() {
       compose: "compose_reply",
     })
     .addEdge("compose_reply", "sync_state")
-    .addEdge("handoff", "sync_state")
+    .addEdge("execute_handoff", "sync_state")
     .addEdge("sync_state", END);
 
   return graph.compile({ checkpointer });
