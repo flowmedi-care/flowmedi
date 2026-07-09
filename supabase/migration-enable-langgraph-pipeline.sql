@@ -1,4 +1,4 @@
--- Ativa o pipeline LangGraph para responder ao paciente (não só shadow).
+-- Ativa o pipeeline LangGraph para responder ao paciente (não só shadow).
 -- Substitua o clinic_id pelo da sua clínica de teste antes de executar.
 --
 -- UPDATE public.clinic_virtual_assistant_settings
