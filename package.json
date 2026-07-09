@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:clinical": "npx tsx --test lib/clinical-documents/validate.test.ts",
-    "test:pipeline": "npx tsx --test lib/virtual-assistant/agent-pipeline/__tests__/unified-flow-graph.test.ts lib/virtual-assistant/agent-pipeline/__tests__/conversation-pipeline-state.test.ts lib/virtual-assistant/agent-pipeline/__tests__/confirmation-policy.test.ts lib/virtual-assistant/agent-pipeline/__tests__/validators.test.ts lib/virtual-assistant/langgraph/__tests__/langgraph-intent.test.ts lib/virtual-assistant/__tests__/booking-continuity.test.ts lib/virtual-assistant/__tests__/langgraph-subgraphs.test.ts lib/contact-journey/__tests__/timeout-policy.test.ts lib/contact-journey/__tests__/dropout-inference.test.ts",
+    "test:pipeline": "npx tsx --test lib/virtual-assistant/agent-pipeline/__tests__/unified-flow-graph.test.ts lib/virtual-assistant/agent-pipeline/__tests__/conversation-pipeline-state.test.ts lib/virtual-assistant/agent-pipeline/__tests__/confirmation-policy.test.ts lib/virtual-assistant/agent-pipeline/__tests__/validators.test.ts lib/virtual-assistant/langgraph/__tests__/langgraph-intent.test.ts lib/virtual-assistant/__tests__/booking-continuity.test.ts lib/virtual-assistant/__tests__/langgraph-subgraphs.test.ts lib/virtual-assistant/simple/__tests__/router.test.ts lib/virtual-assistant/simple/__tests__/run.test.ts lib/contact-journey/__tests__/timeout-policy.test.ts lib/contact-journey/__tests__/dropout-inference.test.ts",
     "verify:subdomain": "node scripts/verify-subdomain-setup.mjs"
   },
   "dependencies": {

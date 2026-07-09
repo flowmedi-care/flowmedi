@@ -55,6 +55,8 @@ export type VirtualAssistantSettings = {
   use_langgraph_pipeline?: boolean;
   /** Executa LangGraph em paralelo para comparação (shadow logging) */
   langgraph_shadow_mode?: boolean;
+  /** Motor simplificado: router + handlers MVP (padrão). false = LangGraph legado com subgrafos CRM. */
+  use_simple_assistant?: boolean;
 };
 
 export type VirtualAssistantLocation = {

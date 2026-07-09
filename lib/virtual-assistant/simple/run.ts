@@ -1,13 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { deriveRuntimeStage } from "../conversation-state/derive-runtime-stage";
 import { logAiEvent } from "../event-log";
 import type { AiConversationState, VirtualAssistantSettings } from "../types";
-import { getAssistantGraph } from "./graph";
-import type { GraphHistoryMessage } from "./state";
-import { logLangGraphTrace } from "./trace";
-import { runSimpleAssistant, shouldUseSimpleAssistant } from "../simple/run";
+import type { GraphHistoryMessage } from "../langgraph/state";
+import { logLangGraphTrace } from "../langgraph/trace";
+import { getSimpleAssistantGraph } from "./graph";
 
-export type RunLangGraphAssistantInput = {
+export type RunSimpleAssistantInput = {
   supabase: SupabaseClient;
   clinicId: string;
   conversationId: string;
@@ -18,19 +16,15 @@ export type RunLangGraphAssistantInput = {
   history: GraphHistoryMessage[];
 };
 
-export type RunLangGraphAssistantResult = {
+export type RunSimpleAssistantResult = {
   reply: string;
   handoff?: boolean;
   statePatch?: Partial<AiConversationState>;
 };
 
-export async function runLangGraphAssistant(
-  input: RunLangGraphAssistantInput
-): Promise<RunLangGraphAssistantResult> {
-  if (shouldUseSimpleAssistant(input.settings)) {
-    return runSimpleAssistant(input);
-  }
-
+export async function runSimpleAssistant(
+  input: RunSimpleAssistantInput
+): Promise<RunSimpleAssistantResult> {
   const combinedUserText = input.userMessages.join("\n").trim();
   if (!combinedUserText) {
     return {
@@ -38,7 +32,7 @@ export async function runLangGraphAssistant(
     };
   }
 
-  const graph = await getAssistantGraph();
+  const graph = await getSimpleAssistantGraph();
 
   const initialState = {
     inboundText: combinedUserText,
@@ -58,7 +52,7 @@ export async function runLangGraphAssistant(
     clinicId: input.clinicId,
     conversationId: input.conversationId,
     stage: "langgraph_start",
-    detail: { messageCount: input.userMessages.length },
+    detail: { messageCount: input.userMessages.length, engine: "simple" },
   });
 
   const result = await graph.invoke(initialState, {
@@ -69,39 +63,29 @@ export async function runLangGraphAssistant(
     result.reply?.trim() ||
     "Não entendi bem. Você quer agendar, saber preços ou falar com a equipe?";
 
-  const derivedStage = deriveRuntimeStage({
-    aiState: result.aiState ?? input.aiState,
-    detectedIntent: result.detectedIntent ?? "unknown",
-    routedFlow: result.routedFlow,
-  });
-
   logAiEvent(input.supabase, {
     clinicId: input.clinicId,
     conversationId: input.conversationId,
     stage: "langgraph_complete",
     detail: {
-      pipeline_stage: result.pipelineStage,
-      derived_stage: derivedStage,
-      journey_step_code: result.aiState?.journey_step_code ?? input.aiState.journey_step_code,
+      engine: "simple",
+      assistant_route: result.assistantRoute,
+      route_source: result.routeSource,
       detected_intent: result.detectedIntent,
       intent_confidence: result.intentConfidence,
       handoff: result.handoff,
-      reply_source: result.replySource ?? (result.hadReplyBeforeCompose ? "subgraph" : "fallback"),
-      had_reply_before_compose: result.hadReplyBeforeCompose,
-      compose_skipped: result.replySource !== "compose_llm",
+      reply_source: result.replySource,
       inbound_preview: combinedUserText.slice(0, 80),
       reply_preview: reply.slice(0, 120),
     },
   });
 
   logLangGraphTrace(input.supabase, input.clinicId, input.conversationId, {
-    node: "run_complete",
+    node: "simple_run_complete",
     detected_intent: result.detectedIntent,
     intent_confidence: result.intentConfidence,
-    pipeline_stage: result.pipelineStage,
+    routed_flow: result.assistantRoute,
     reply_source: result.replySource ?? undefined,
-    had_reply_before_compose: result.hadReplyBeforeCompose,
-    compose_skipped: result.replySource !== "compose_llm",
     inbound_preview: combinedUserText.slice(0, 80),
     reply_preview: reply.slice(0, 120),
   });
@@ -111,4 +95,9 @@ export async function runLangGraphAssistant(
     handoff: result.handoff,
     statePatch: result.aiState,
   };
+}
+
+export function shouldUseSimpleAssistant(settings: Partial<VirtualAssistantSettings>): boolean {
+  if (settings.use_simple_assistant === false) return false;
+  return true;
 }

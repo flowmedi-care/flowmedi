@@ -36,6 +36,8 @@ function baseGraphState(overrides: Partial<GraphState> = {}): GraphState {
     runtimeContext: null,
     replySource: null,
     hadReplyBeforeCompose: false,
+    assistantRoute: "agent",
+    routeSource: "regex",
     ...overrides,
   };
 }

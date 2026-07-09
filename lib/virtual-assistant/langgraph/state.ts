@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import type { ClassifiedIntent, IntentEntities } from "./intent-schema";
 import type { ReplySource } from "./trace";
+import type { AssistantRoute, RouteSource } from "../simple/types";
 
 export type GraphHistoryMessage = {
   role: "user" | "assistant";
@@ -130,6 +131,14 @@ export const GraphStateAnnotation = Annotation.Root({
   hadReplyBeforeCompose: Annotation<boolean>({
     reducer: (_prev, next) => next,
     default: () => false,
+  }),
+  assistantRoute: Annotation<AssistantRoute>({
+    reducer: (_prev, next) => next,
+    default: () => "agent",
+  }),
+  routeSource: Annotation<RouteSource>({
+    reducer: (_prev, next) => next,
+    default: () => "regex",
   }),
 });
 
