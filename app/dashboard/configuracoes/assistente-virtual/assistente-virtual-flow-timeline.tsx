@@ -255,6 +255,11 @@ const STAGE_LABELS: Record<string, string> = {
   cron_conversation_processed: "Processado pelo cron",
   simulate_inbound: "Simulação inbound",
   error: "Erro",
+  langgraph_start: "LangGraph iniciado",
+  langgraph_complete: "LangGraph concluído",
+  langgraph_shadow_compare: "Shadow compare",
+  langgraph_shadow_error: "Erro LangGraph (shadow)",
+  booking_continuity: "Continuidade de agendamento",
 };
 
 function levelDot(level: string): string {
@@ -336,9 +341,29 @@ export function AssistenteVirtualFlowTimeline({ flows, events, showRaw, onToggle
                 )}
               </button>
               {expandedId === ev.id && (
-                <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted p-2 text-xs">
-                  {JSON.stringify(ev.detail, null, 2)}
-                </pre>
+                <div className="mt-2 space-y-2">
+                  {(ev.conversation_id || ev.message_id) && (
+                    <p className="text-xs text-muted-foreground">
+                      {ev.conversation_id && (
+                        <span className="block truncate">
+                          conversa: <code>{ev.conversation_id}</code>
+                        </span>
+                      )}
+                      {ev.message_id && (
+                        <span className="block truncate">
+                          mensagem: <code>{ev.message_id}</code>
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  <pre className="max-h-64 overflow-auto rounded bg-muted p-2 text-xs">
+                    {JSON.stringify(
+                      { level: ev.level, stage: ev.stage, ...ev.detail },
+                      null,
+                      2
+                    )}
+                  </pre>
+                </div>
               )}
             </li>
           ))}

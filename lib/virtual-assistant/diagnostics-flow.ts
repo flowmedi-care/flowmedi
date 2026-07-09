@@ -38,7 +38,7 @@ const TEXT_STEP_DEFS: { key: string; title: string; stages: string[] }[] = [
   { key: "routing", title: "Roteamento para IA", stages: ["routing_decision"] },
   { key: "debounce", title: "Aguardando debounce", stages: ["debounce_scheduled"] },
   { key: "processing", title: "Processamento iniciado", stages: ["processing_start", "cron_conversation_processed"] },
-  { key: "openai_send", title: "Enviando para OpenAI", stages: ["openai_start"] },
+  { key: "openai_send", title: "Enviando para OpenAI", stages: ["openai_start", "langgraph_start"] },
   {
     key: "pipeline",
     title: "Pipeline do agente",
@@ -46,6 +46,9 @@ const TEXT_STEP_DEFS: { key: string; title: string; stages: string[] }[] = [
       "pipeline_stage_enter",
       "pipeline_tool_blocked",
       "pipeline_confirmation_pending",
+      "langgraph_complete",
+      "langgraph_shadow_compare",
+      "booking_continuity",
     ],
   },
   { key: "openai_reply", title: "Resposta da IA", stages: ["openai_end"] },

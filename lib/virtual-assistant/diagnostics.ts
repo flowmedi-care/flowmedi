@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getCheckpointerRuntimeStatus, getCheckpointer } from "./langgraph/checkpointer";
 import {
   buildMessageFlows,
   type ConversationMeta,
@@ -23,6 +24,13 @@ export interface AssistantHealthCheck {
   blockedConversationCount: number;
   lastEventAt: string | null;
   lastEventStage: string | null;
+  useLanggraphPipeline: boolean;
+  langgraphShadowMode: boolean;
+  langgraphDbConfigured: boolean;
+  langgraphDbHost: string | null;
+  langgraphCheckpointerMode: "postgres" | "memory";
+  langgraphCheckpointerError: string | null;
+  langgraphDirectDbHostWarning: boolean;
 }
 
 export interface BlockedConversationRow {
@@ -51,6 +59,15 @@ export interface AiToolLogRow {
   created_at: string;
 }
 
+export interface RecentErrorRow {
+  id: string;
+  stage: string;
+  level: string;
+  created_at: string;
+  conversation_id: string | null;
+  detail: Record<string, unknown>;
+}
+
 export async function gatherAssistantDiagnostics(
   supabase: SupabaseClient,
   clinicId: string
@@ -63,6 +80,7 @@ export async function gatherAssistantDiagnostics(
   toolLogs: AiToolLogRow[];
   pipelineToolMetrics: PipelineToolMetricRow[];
   blockedConversations: BlockedConversationRow[];
+  recentErrors: RecentErrorRow[];
 }> {
   const now = new Date().toISOString();
 
@@ -78,7 +96,7 @@ export async function gatherAssistantDiagnostics(
   ] = await Promise.all([
     supabase
       .from("clinic_virtual_assistant_settings")
-      .select("enabled")
+      .select("enabled, use_langgraph_pipeline, langgraph_shadow_mode")
       .eq("clinic_id", clinicId)
       .maybeSingle(),
     supabase
@@ -107,7 +125,7 @@ export async function gatherAssistantDiagnostics(
       .select("id, stage, level, detail, conversation_id, message_id, created_at")
       .eq("clinic_id", clinicId)
       .order("created_at", { ascending: false })
-      .limit(100),
+      .limit(200),
     supabase
       .from("whatsapp_ai_tool_log")
       .select("id, tool_name, success, result_summary, created_at")
@@ -136,8 +154,19 @@ export async function gatherAssistantDiagnostics(
     eventsResult.error?.message?.includes("does not exist") ||
     eventsResult.error?.message?.includes("whatsapp_ai_event_log");
 
+  await getCheckpointer().catch(() => undefined);
+  const checkpointerStatus = getCheckpointerRuntimeStatus();
+
+  const settingsRow = settingsResult.data as
+    | {
+        enabled?: boolean;
+        use_langgraph_pipeline?: boolean;
+        langgraph_shadow_mode?: boolean;
+      }
+    | null;
+
   const health: AssistantHealthCheck = {
-    assistantEnabled: settingsResult.data?.enabled === true,
+    assistantEnabled: settingsRow?.enabled === true,
     migrationOk,
     migrationError,
     openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
@@ -149,6 +178,13 @@ export async function gatherAssistantDiagnostics(
     blockedConversationCount: blockedResult.data?.length ?? 0,
     lastEventAt: lastEventResult.data?.created_at ?? null,
     lastEventStage: lastEventResult.data?.stage ?? null,
+    useLanggraphPipeline: settingsRow?.use_langgraph_pipeline === true,
+    langgraphShadowMode: settingsRow?.langgraph_shadow_mode === true,
+    langgraphDbConfigured: checkpointerStatus.dbConfigured,
+    langgraphDbHost: checkpointerStatus.dbHost,
+    langgraphCheckpointerMode: checkpointerStatus.mode,
+    langgraphCheckpointerError: checkpointerStatus.initError,
+    langgraphDirectDbHostWarning: checkpointerStatus.usesDirectSupabaseHost,
   };
 
   if (eventsTableMissing) {
@@ -159,6 +195,23 @@ export async function gatherAssistantDiagnostics(
   }
 
   const events = (eventsResult.data ?? []) as AiEventRow[];
+  const recentErrors: RecentErrorRow[] = events
+    .filter(
+      (e) =>
+        e.level === "error" ||
+        e.stage === "error" ||
+        e.stage === "langgraph_shadow_error" ||
+        (e.stage === "audio_transcribe_failed")
+    )
+    .slice(0, 15)
+    .map((e) => ({
+      id: e.id,
+      stage: e.stage,
+      level: e.level,
+      created_at: e.created_at,
+      conversation_id: e.conversation_id,
+      detail: e.detail,
+    }));
   const conversationIds = [
     ...new Set(events.map((e) => e.conversation_id).filter((id): id is string => Boolean(id))),
   ];
@@ -194,10 +247,10 @@ export async function gatherAssistantDiagnostics(
     if (patientIds.length > 0) {
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, name")
+        .select("id, full_name")
         .in("id", patientIds);
       for (const p of patients ?? []) {
-        if (p.name) patientNames.set(p.id, p.name);
+        if (p.full_name) patientNames.set(p.id, p.full_name);
       }
     }
 
@@ -222,6 +275,7 @@ export async function gatherAssistantDiagnostics(
     toolLogs: (toolLogsResult.data ?? []) as AiToolLogRow[],
     pipelineToolMetrics,
     blockedConversations: (blockedResult.data ?? []) as BlockedConversationRow[],
+    recentErrors,
   };
 }
 

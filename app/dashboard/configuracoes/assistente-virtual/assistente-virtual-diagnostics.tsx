@@ -28,6 +28,7 @@ import type {
   AiToolLogRow,
   AssistantHealthCheck,
   BlockedConversationRow,
+  RecentErrorRow,
 } from "@/lib/virtual-assistant/diagnostics";
 import type { MessageFlowTrace } from "@/lib/virtual-assistant/diagnostics-flow";
 import { AssistenteVirtualFlowTimeline } from "./assistente-virtual-flow-timeline";
@@ -52,6 +53,7 @@ interface DiagnosticsResponse {
   dataReadiness?: DataReadinessReport;
   toolLogs: AiToolLogRow[];
   blockedConversations: BlockedConversationRow[];
+  recentErrors?: RecentErrorRow[];
 }
 
 interface Props {
@@ -226,6 +228,9 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
         return;
       }
       setData(json);
+      if ((json.recentErrors?.length ?? 0) > 0) {
+        setShowRawEvents(true);
+      }
     } catch {
       toast("Falha ao carregar diagnóstico", "error");
     } finally {
@@ -498,6 +503,58 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
                 />
               </div>
 
+              <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+                <p className="text-sm font-medium">Motor LangGraph (runtime)</p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <HealthStat
+                    icon={Bot}
+                    label="LangGraph ativo"
+                    value={health.useLanggraphPipeline ? "Sim (paciente)" : health.langgraphShadowMode ? "Shadow" : "Desligado"}
+                    ok={health.useLanggraphPipeline || health.langgraphShadowMode}
+                    warn={!health.useLanggraphPipeline && !health.langgraphShadowMode}
+                  />
+                  <HealthStat
+                    icon={Server}
+                    label="DB checkpoints"
+                    value={
+                      health.langgraphDbConfigured
+                        ? health.langgraphCheckpointerMode === "postgres"
+                          ? "Postgres OK"
+                          : "Memória (fallback)"
+                        : "Não configurado"
+                    }
+                    ok={!health.langgraphDbConfigured || health.langgraphCheckpointerMode === "postgres"}
+                    warn={health.langgraphDbConfigured && health.langgraphCheckpointerMode !== "postgres"}
+                  />
+                  <HealthStat
+                    icon={Server}
+                    label="Host LANGGRAPH_DB"
+                    value={health.langgraphDbHost ?? "—"}
+                    ok={!health.langgraphDirectDbHostWarning}
+                    warn={health.langgraphDirectDbHostWarning}
+                  />
+                  <HealthStat
+                    icon={Activity}
+                    label="Erros checkpointer"
+                    value={health.langgraphCheckpointerError ? "Com falha" : "Nenhum"}
+                    ok={!health.langgraphCheckpointerError}
+                    warn={Boolean(health.langgraphCheckpointerError)}
+                  />
+                </div>
+                {health.langgraphDirectDbHostWarning && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    O host <code>db.*.supabase.co</code> costuma falhar na Vercel (ENOTFOUND). Use o{" "}
+                    <strong>Session pooler</strong> (<code>*.pooler.supabase.com:6543</code>) em{" "}
+                    <code>LANGGRAPH_DATABASE_URL</code>, ou remova a variável para usar memória.
+                  </p>
+                )}
+                {health.langgraphCheckpointerError && (
+                  <p className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    Último erro do checkpointer: {health.langgraphCheckpointerError}
+                  </p>
+                )}
+              </div>
+
               {!health.migrationOk && (
                 <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
                   {health.migrationError ?? "Erro de migration no banco"}
@@ -513,6 +570,41 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
           )}
         </CardContent>
       </Card>
+
+      {(data?.recentErrors?.length ?? 0) > 0 && (
+        <Card className="border-red-200">
+          <CardHeader>
+            <CardTitle className="text-red-800">Erros recentes da IA</CardTitle>
+            <CardDescription>
+              Detalhes completos também em <strong>Eventos brutos</strong> abaixo. Não precisa rodar SQL
+              manualmente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="max-h-80 space-y-3 overflow-y-auto pr-1 text-sm">
+              {data!.recentErrors!.map((err) => (
+                <li key={err.id} className="rounded-lg border border-red-100 bg-red-50/50 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="destructive">{err.stage}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(err.created_at).toLocaleString("pt-BR")}
+                    </span>
+                  </div>
+                  {err.detail.message != null && (
+                    <p className="mt-2 font-mono text-xs text-red-900">{String(err.detail.message)}</p>
+                  )}
+                  {err.detail.source != null && (
+                    <p className="mt-1 text-xs text-muted-foreground">fonte: {String(err.detail.source)}</p>
+                  )}
+                  <pre className="mt-2 max-h-32 overflow-auto rounded bg-white/80 p-2 text-xs">
+                    {JSON.stringify(err.detail, null, 2)}
+                  </pre>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {data?.dataReadiness && (
         <Card
