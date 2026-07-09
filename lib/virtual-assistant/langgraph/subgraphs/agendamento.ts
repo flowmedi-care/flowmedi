@@ -9,6 +9,19 @@ import { executeAssistantTool } from "../../tools";
 import type { GraphState } from "../state";
 import { runStageToolLoop } from "../tools/tool-node";
 
+function withAgendamentoResult(patch: Partial<GraphState>): Partial<GraphState> {
+  const mergedAiState = {
+    ...patch.aiState,
+    pipeline_stage: "agendamento" as const,
+    intent: "booking" as const,
+  };
+  return {
+    ...patch,
+    aiState: mergedAiState,
+    pipelineStage: "agendamento",
+  };
+}
+
 async function listProceduresReply(state: GraphState): Promise<Partial<GraphState> | null> {
   const ctx = state.runtimeContext;
   if (!ctx) return null;
@@ -35,10 +48,10 @@ async function listProceduresReply(state: GraphState): Promise<Partial<GraphStat
 
   const procedures = parsed.procedures ?? [];
   if (procedures.length === 0) {
-    return {
+    return withAgendamentoResult({
       reply: "No momento não encontrei procedimentos cadastrados. Posso chamar alguém da equipe para ajudar?",
       stageSubgraphComplete: true,
-    };
+    });
   }
 
   const list = procedures
@@ -46,14 +59,14 @@ async function listProceduresReply(state: GraphState): Promise<Partial<GraphStat
     .map((p, i) => `${i + 1}. ${p.name}`)
     .join("\n");
 
-  return {
+  return withAgendamentoResult({
     aiState: { ...state.aiState, booking_step: "procedure", intent: "booking" },
     reply: applyReplyGuards(
       `Para verificar horários, qual procedimento ou tipo de consulta você quer?\n\n${list}`,
       state.aiState
     ),
     stageSubgraphComplete: true,
-  };
+  });
 }
 
 async function listDoctorsReply(state: GraphState): Promise<Partial<GraphState> | null> {
@@ -82,10 +95,10 @@ async function listDoctorsReply(state: GraphState): Promise<Partial<GraphState> 
 
   const doctors = parsed.doctors ?? [];
   if (doctors.length === 0) {
-    return {
+    return withAgendamentoResult({
       reply: "Não encontrei profissionais disponíveis agora. Quer falar com a equipe?",
       stageSubgraphComplete: true,
-    };
+    });
   }
 
   const list = doctors
@@ -93,11 +106,11 @@ async function listDoctorsReply(state: GraphState): Promise<Partial<GraphState> 
     .map((d, i) => `${i + 1}. ${d.full_name}`)
     .join("\n");
 
-  return {
+  return withAgendamentoResult({
     aiState: { ...state.aiState, booking_step: "doctor", intent: "booking" },
     reply: applyReplyGuards(`Com qual profissional você prefere agendar?\n\n${list}`, state.aiState),
     stageSubgraphComplete: true,
-  };
+  });
 }
 
 export async function agendamentoSubgraph(state: GraphState): Promise<Partial<GraphState>> {
@@ -114,11 +127,11 @@ export async function agendamentoSubgraph(state: GraphState): Promise<Partial<Gr
     aiState,
   });
   if (meta.handled) {
-    return {
+    return withAgendamentoResult({
       aiState: { ...aiState, ...meta.statePatch },
       reply: applyReplyGuards(meta.reply, aiState),
       stageSubgraphComplete: true,
-    };
+    });
   }
 
   const boot = await bootstrapPatientForBooking(ctx.supabase, {
@@ -137,11 +150,11 @@ export async function agendamentoSubgraph(state: GraphState): Promise<Partial<Gr
     aiState,
   });
   if (slotExec.handled) {
-    return {
+    return withAgendamentoResult({
       aiState: { ...aiState, ...slotExec.statePatch },
       reply: applyReplyGuards(slotExec.reply, aiState),
       stageSubgraphComplete: true,
-    };
+    });
   }
 
   if (!aiState.procedure_id) {
@@ -159,11 +172,11 @@ export async function agendamentoSubgraph(state: GraphState): Promise<Partial<Gr
     aiState,
   });
   if (autoSlots.handled) {
-    return {
+    return withAgendamentoResult({
       aiState: { ...aiState, ...autoSlots.statePatch },
       reply: applyReplyGuards(autoSlots.reply, aiState),
       stageSubgraphComplete: true,
-    };
+    });
   }
 
   if (
@@ -174,12 +187,13 @@ export async function agendamentoSubgraph(state: GraphState): Promise<Partial<Gr
       ...aiState,
       intent: "booking",
     });
-    return {
+    return withAgendamentoResult({
       aiState,
       reply: applyReplyGuards(fallback, aiState),
       stageSubgraphComplete: true,
-    };
+    });
   }
 
-  return runStageToolLoop({ ...state, aiState });
+  const toolLoopResult = await runStageToolLoop({ ...state, aiState });
+  return withAgendamentoResult(toolLoopResult);
 }

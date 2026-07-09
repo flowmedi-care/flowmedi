@@ -48,6 +48,19 @@ export function formatAiStateForPrompt(state: AiConversationState): string {
   if (state.doctor_id) {
     lines.push("Médico já selecionado — não pergunte de novo.");
   }
+  if ((state.offered_days?.length ?? 0) > 0) {
+    lines.push(
+      `Dias oferecidos ao paciente: ${state.offered_days!.length} opção(ões) — use a lista numerada anterior ou interprete dia/turno na mensagem atual.`
+    );
+  }
+  if ((state.offered_slots?.length ?? 0) > 0) {
+    lines.push(
+      `Horários oferecidos: ${state.offered_slots!.length} opção(ões) — paciente deve escolher um horário da lista.`
+    );
+  }
+  if (state.last_display_message) {
+    lines.push("Última lista enviada ao paciente está no histórico recente — não repita menu genérico.");
+  }
   if (state.pending_slot) {
     lines.push(`Horário em análise: ${state.pending_slot}`);
   }

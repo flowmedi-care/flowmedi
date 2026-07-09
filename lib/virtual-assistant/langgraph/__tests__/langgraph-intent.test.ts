@@ -12,6 +12,13 @@ describe("LangGraph intent — availability_check", () => {
     assert.equal(intent, "availability_check");
   });
 
+  it("detecta pergunta de horários em dia da semana", () => {
+    assert.equal(
+      detectInboundIntent("Na sexta de manhã tem quais horários?"),
+      "availability_check"
+    );
+  });
+
   it("não confunde horário de funcionamento com availability", () => {
     const intent = detectInboundIntent("vocês abrem sábado?");
     assert.equal(intent, "hours_location");

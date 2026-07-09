@@ -1,4 +1,5 @@
 import type { InboundIntent } from "./detect-inbound-intent";
+import { hasOfferedBookingSelection } from "./booking-continuity";
 import type { AiConversationState } from "./types";
 import type { PromptFlow } from "./prompt/prompt-decision";
 
@@ -17,6 +18,10 @@ export function routeInboundFlow(opts: {
   const { detectedIntent, aiState } = opts;
 
   if (aiState.booking_step && aiState.booking_step !== "done") {
+    return { flow: "booking", intent: "booking", useBookingMachine: true };
+  }
+
+  if (hasOfferedBookingSelection(aiState)) {
     return { flow: "booking", intent: "booking", useBookingMachine: true };
   }
 

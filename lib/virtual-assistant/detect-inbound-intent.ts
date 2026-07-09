@@ -1,3 +1,5 @@
+import type { AiConversationState } from "./types";
+
 /** Intenções detectáveis antes do agente OpenAI — reduz menu forçado e pré-preenche ai_state. */
 export type InboundIntent =
   | "booking"
@@ -25,10 +27,12 @@ const PRICING = [
 ];
 const AVAILABILITY = [
   /\b(tem|há|ha)\s+(vaga|horário|horario|horários|horarios)\b/i,
+  /\b(tem|há|ha).{0,25}(horário|horario|horários|horarios)\b/i,
   /\b(semana que vem|próxima semana|proxima semana)\b/i,
   /\b(disponib|liberado|encaixe)\b/i,
   /\bquando (tem|posso|consigo)\b/i,
   /\btem vaga\b/i,
+  /\b(segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo).{0,30}(manh[aã]|tarde)\b/i,
 ];
 const HOURS = [
   /\b(horário de funcionamento|horario de funcionamento|funcionamento|abre|abrem|fecha)\b/i,
@@ -48,7 +52,10 @@ const FORM = [/\b(formulário|formulario|formulários|formularios)\b/i];
 const QUOTE = [/\b(orçamento|orcamento)\b/i];
 const GREETING_ONLY = /^(oi|olá|ola|bom dia|boa tarde|boa noite|hey|e aí|e ai)[\s!.?]*$/i;
 
-export function detectInboundIntent(text: string): InboundIntent {
+export function detectInboundIntent(
+  text: string,
+  aiState?: AiConversationState
+): InboundIntent {
   const t = text.trim();
   if (!t) return "unknown";
   if (GREETING_ONLY.test(t)) return "greeting";
@@ -63,6 +70,13 @@ export function detectInboundIntent(text: string): InboundIntent {
   if (AVAILABILITY.some((p) => p.test(t))) return "availability_check";
   if (HOURS.some((p) => p.test(t))) return "hours_location";
   if (BOOKING.some((p) => p.test(t))) return "booking";
+
+  if (aiState && (aiState.booking_step === "day" || aiState.booking_step === "slot")) {
+    if (/^\s*(de\s+)?(manh[aã]|tarde)\s*[!.?]*$/i.test(t)) return "availability_check";
+    if (/^\s*\d{1,2}\s*$/.test(t)) return "availability_check";
+    if (/\b(manh[aã]|tarde)\b/i.test(t)) return "availability_check";
+  }
+
   return "unknown";
 }
 

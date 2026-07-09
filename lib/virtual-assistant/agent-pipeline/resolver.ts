@@ -1,5 +1,6 @@
 import type { ContactJourney } from "@/lib/contact-journey/types";
 import type { InboundIntent } from "../detect-inbound-intent";
+import { hasOfferedBookingSelection } from "../booking-continuity";
 import type { PromptFlow } from "../prompt/prompt-decision";
 import type { AiConversationState } from "../types";
 import {
@@ -67,6 +68,10 @@ export function resolveAgentPipelineStage(input: ResolvePipelineStageInput): Age
   }
 
   if (aiState.booking_step && aiState.booking_step !== "done") {
+    return "agendamento";
+  }
+
+  if (hasOfferedBookingSelection(aiState)) {
     return "agendamento";
   }
 

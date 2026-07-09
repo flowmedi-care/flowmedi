@@ -15,6 +15,12 @@ import {
   hasClearIntent,
   intentToAiStatePatch,
 } from "./detect-inbound-intent";
+import {
+  applyBookingContinuityStatePatch,
+  resolveContinuityIntent,
+  shouldContinueBookingFlow,
+  tryBookingContinuityReply,
+} from "./booking-continuity";
 import { tryReactivateAiAfterHandoff } from "./handoff-reactivation";
 import { ensureAiPrivacyNoticeSent } from "./ai-privacy-notice";
 import { buildClinicContext } from "./clinic-context";
@@ -379,15 +385,20 @@ async function processConversationAiInner(
     }));
 
   const combinedText = userTexts.join(" ").toLowerCase();
+  const inboundMessage = userTexts.join("\n");
 
-  const inboundIntent = detectInboundIntent(userTexts.join("\n"));
-  if (hasClearIntent(inboundIntent) && !aiState.intent) {
+  let inboundIntent = detectInboundIntent(inboundMessage, aiState);
+  inboundIntent = resolveContinuityIntent(inboundMessage, aiState, inboundIntent);
+
+  if (shouldContinueBookingFlow(inboundMessage, inboundIntent, aiState)) {
+    aiState = applyBookingContinuityStatePatch(aiState);
+  } else if (hasClearIntent(inboundIntent) && !aiState.intent) {
     aiState = { ...aiState, ...intentToAiStatePatch(inboundIntent) };
   }
 
   const { routeInboundFlow } = await import("./intent-router");
   const routed = routeInboundFlow({
-    messageText: userTexts.join("\n"),
+    messageText: inboundMessage,
     detectedIntent: inboundIntent,
     aiState,
   });
@@ -688,6 +699,48 @@ async function processConversationAiInner(
       }
     }
   }
+
+  const continuityResult = await tryBookingContinuityReply(supabase, {
+    clinicId: conv.clinic_id,
+    conversationId,
+    phoneNumber: conv.phone_number,
+    messageText: inboundMessage,
+    aiState,
+    detectedIntent: inboundIntent,
+  });
+  if (continuityResult.handled) {
+    const now = new Date().toISOString();
+    await supabase
+      .from("whatsapp_messages")
+      .update({ ai_processed_at: now })
+      .in(
+        "id",
+        pending.map((m) => m.id)
+      );
+    await supabase
+      .from("whatsapp_conversations")
+      .update({
+        ai_last_processed_message_at: now,
+        ai_state: continuityResult.statePatch,
+        ai_debounce_until: null,
+      })
+      .eq("id", conversationId);
+    await sendAssistantReply(
+      supabase,
+      conv.clinic_id,
+      conversationId,
+      conv.phone_number,
+      continuityResult.reply
+    );
+    logAiEvent(supabase, {
+      clinicId: conv.clinic_id,
+      conversationId,
+      stage: "reply_sent",
+      detail: { type: "booking_continuity" },
+    });
+    return;
+  }
+  aiState = continuityResult.aiState;
 
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,

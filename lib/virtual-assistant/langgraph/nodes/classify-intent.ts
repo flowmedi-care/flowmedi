@@ -3,6 +3,13 @@ import {
   hasClearIntent,
   intentToAiStatePatch,
 } from "../../detect-inbound-intent";
+import {
+  applyBookingContinuityStatePatch,
+  hasActiveBookingContext,
+  hasOfferedBookingSelection,
+  resolveContinuityIntent,
+  shouldContinueBookingFlow,
+} from "../../booking-continuity";
 import { createChatCompletion } from "../../openai-client";
 import type { GraphState } from "../state";
 import {
@@ -71,7 +78,27 @@ async function classifyWithLlm(
 export async function classifyIntentNode(state: GraphState): Promise<Partial<GraphState>> {
   const text = state.inboundText.trim();
   const model = state.runtimeContext?.settings.ai_model ?? "gpt-4o-mini";
-  const regexIntent = detectInboundIntent(text);
+  const regexIntent = detectInboundIntent(text, state.aiState);
+  const continuityIntent = resolveContinuityIntent(text, state.aiState, regexIntent);
+
+  if (shouldContinueBookingFlow(text, continuityIntent, state.aiState)) {
+    const aiState = applyBookingContinuityStatePatch(state.aiState);
+    const detectedIntent =
+      continuityIntent === "availability_check" ? "availability_check" : "booking";
+    return {
+      classifiedIntent: {
+        intent: detectedIntent,
+        confidence: 0.98,
+        entities: {},
+        missing_slots: [],
+      },
+      detectedIntent,
+      intentConfidence: 0.98,
+      entities: {},
+      missingSlots: [],
+      aiState,
+    };
+  }
 
   let classified = buildFastPathClassification(text, regexIntent);
 

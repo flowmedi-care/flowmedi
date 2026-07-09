@@ -145,7 +145,7 @@ function filterSlotsByPeriod(
   });
 }
 
-function isSlotSelectionMessage(text: string): boolean {
+export function isSlotSelectionMessage(text: string): boolean {
   const t = text.toLowerCase();
   if (WEEKDAY_PATTERNS.some((w) => w.pattern.test(t))) return true;
   if (/\bmanh[aã]\b|\btarde\b|\bqualquer\s+hor[aá]rio\b/.test(t)) return true;
