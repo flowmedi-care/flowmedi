@@ -55,7 +55,7 @@ export async function transcribeAudioBuffer(
 
   try {
     const form = new FormData();
-    const blob = new Blob([buffer], { type: options.mimeType });
+    const blob = new Blob([new Uint8Array(buffer)], { type: options.mimeType });
     form.append("file", blob, options.filename);
     form.append("model", getModel());
     form.append("language", options.language ?? "pt");

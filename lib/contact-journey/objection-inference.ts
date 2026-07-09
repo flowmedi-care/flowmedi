@@ -14,7 +14,7 @@ const INDECISION_PATTERNS = [/vou ver/i, /vou pensar/i, /depois te falo/i, /prec
 export function inferObjectionFromConversation(messages: {
   role: "user" | "assistant" | "system";
   content: string;
-}[]): ObjectionInference | null {
+}[]): ObjectionInference {
   const userMessages = messages.filter((m) => m.role === "user");
   if (userMessages.length === 0) {
     return {
