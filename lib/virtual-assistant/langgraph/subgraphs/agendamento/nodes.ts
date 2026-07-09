@@ -6,6 +6,11 @@ import {
 import { filterFreshOfferedSlots } from "@/lib/booking-state";
 import { getClinicTimezone } from "@/lib/clinic-timezone";
 import { maybeResetBookingForFreshRequest } from "@/lib/virtual-assistant/booking-reset";
+import {
+  matchOfferedProcedure,
+  buildInvalidProcedureSelectionReply,
+  isProcedureSelectionMessage,
+} from "@/lib/virtual-assistant/booking-state/procedure-selection";
 import { shouldBlockBookingToolLoop } from "@/lib/virtual-assistant/booking-state/booking-action-table";
 import { tryHandleBookingMeta, bootstrapPatientForBooking } from "@/lib/virtual-assistant/booking-flow";
 import { buildToolRoundLimitFallback } from "@/lib/virtual-assistant/format-ai-state";
@@ -57,6 +62,47 @@ export async function agendamentoMetaNode(state: GraphState): Promise<Partial<Gr
 }
 
 export function routeAfterAgendamentoMeta(state: GraphState): "done" | "continue" {
+  return state.stageSubgraphComplete ? "done" : "continue";
+}
+
+export async function agendamentoProcedureSelectNode(state: GraphState): Promise<Partial<GraphState>> {
+  if (state.aiState.procedure_id) return {};
+
+  const offered = state.aiState.offered_procedures ?? [];
+  if (offered.length === 0) return {};
+
+  const text = state.inboundText.trim();
+  if (!isProcedureSelectionMessage(text)) return {};
+
+  const matched = matchOfferedProcedure(text, offered);
+  if (!matched) {
+    const reply = buildInvalidProcedureSelectionReply(text, offered);
+    return withAgendamento({
+      aiState: {
+        ...state.aiState,
+        booking_step: "procedure",
+        last_reply_kind: "invalid_procedure_selection",
+      },
+      reply: applyReplyGuards(reply, state.aiState),
+      stageSubgraphComplete: true,
+    });
+  }
+
+  const withProcedure = {
+    ...state,
+    aiState: {
+      ...state.aiState,
+      procedure_id: matched.id,
+      booking_step: "doctor" as const,
+      offered_procedures: undefined,
+      last_reply_kind: undefined,
+    },
+  };
+  const askDoctor = await listDoctorsReply(withProcedure);
+  return askDoctor ?? withAgendamento({ aiState: withProcedure.aiState });
+}
+
+export function routeAfterAgendamentoProcedureSelect(state: GraphState): "done" | "continue" {
   return state.stageSubgraphComplete ? "done" : "continue";
 }
 
@@ -122,9 +168,15 @@ async function listProceduresReply(state: GraphState): Promise<Partial<GraphStat
       stageSubgraphComplete: true,
     });
   }
-  const list = procedures.slice(0, 10).map((p, i) => `${i + 1}. ${p.name}`).join("\n");
+  const offered = procedures.slice(0, 10).map((p) => ({ id: p.id, name: p.name }));
+  const list = offered.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
   return withAgendamento({
-    aiState: { ...state.aiState, booking_step: "procedure", intent: "booking" },
+    aiState: {
+      ...state.aiState,
+      booking_step: "procedure",
+      intent: "booking",
+      offered_procedures: offered,
+    },
     reply: applyReplyGuards(
       `Para verificar horários, qual procedimento ou tipo de consulta você quer?\n\n${list}`,
       state.aiState

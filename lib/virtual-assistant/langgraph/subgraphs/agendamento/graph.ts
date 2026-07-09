@@ -6,6 +6,7 @@ import {
   agendamentoFallbackNode,
   agendamentoFetchSlotsNode,
   agendamentoMetaNode,
+  agendamentoProcedureSelectNode,
   agendamentoResetNode,
   agendamentoSlotNode,
   agendamentoToolLoopNode,
@@ -13,6 +14,7 @@ import {
   routeAfterAgendamentoFallback,
   routeAfterAgendamentoFetch,
   routeAfterAgendamentoMeta,
+  routeAfterAgendamentoProcedureSelect,
   routeAfterAgendamentoSlot,
 } from "./nodes";
 
@@ -27,6 +29,7 @@ export function buildAgendamentoGraph() {
     nodes: {
       reset: agendamentoResetNode,
       meta: agendamentoMetaNode,
+      procedure_select: agendamentoProcedureSelectNode,
       bootstrap: agendamentoBootstrapNode,
       slot: agendamentoSlotNode,
       ensure: agendamentoEnsureDataNode,
@@ -44,6 +47,11 @@ export function buildAgendamentoGraph() {
       {
         from: "meta",
         router: routeAfterAgendamentoMeta,
+        mapping: { done: "terminal", continue: "procedure_select" },
+      },
+      {
+        from: "procedure_select",
+        router: routeAfterAgendamentoProcedureSelect,
         mapping: { done: "terminal", continue: "bootstrap" },
       },
       {

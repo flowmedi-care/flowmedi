@@ -50,6 +50,13 @@ const CANCEL = [/\b(cancelar|desmarcar)\b.{0,20}(consulta|agendamento)?/i];
 const PAYMENT = [/\b(pagamento|paguei|pix|comprovante|boleto|pagar)\b/i];
 const FORM = [/\b(formulário|formulario|formulários|formularios)\b/i];
 const QUOTE = [/\b(orçamento|orcamento)\b/i];
+const DISCOVERY = [
+  /\bcom o que (voc[eê]s|vcs) trabalh(am|a)\b/i,
+  /\bo que (voc[eê]s|vcs) (fazem|oferecem|atendem)\b/i,
+  /\bquais (s[aã]o )?(os )?(servi[cç]os|procedimentos|especialidades|exames|consultas)\b/i,
+  /\b(servi[cç]os|procedimentos|especialidades) (da cl[ií]nica|dispon[ií]veis)\b/i,
+  /\btrabalham com (o )?qu[eê]\b/i,
+];
 const GREETING_ONLY = /^(oi|olá|ola|bom dia|boa tarde|boa noite|hey|e aí|e ai)[\s!.?]*$/i;
 
 export function detectInboundIntent(
@@ -70,6 +77,12 @@ export function detectInboundIntent(
   if (AVAILABILITY.some((p) => p.test(t))) return "availability_check";
   if (HOURS.some((p) => p.test(t))) return "hours_location";
   if (BOOKING.some((p) => p.test(t))) return "booking";
+  if (DISCOVERY.some((p) => p.test(t))) return "general";
+
+  if (aiState?.booking_step === "procedure" && (aiState.offered_procedures?.length ?? 0) > 0) {
+    if (/^\s*\d{1,2}\s*$/.test(t)) return "booking";
+    if (t.length >= 3 && t.length <= 80 && !/\?/.test(t)) return "booking";
+  }
 
   if (aiState && (aiState.booking_step === "day" || aiState.booking_step === "slot")) {
     if (/^\s*(de\s+)?(manh[aã]|tarde)\s*[!.?]*$/i.test(t)) return "availability_check";

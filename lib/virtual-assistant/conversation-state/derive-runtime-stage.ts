@@ -1,6 +1,6 @@
 import type { ContactJourney } from "@/lib/contact-journey/types";
 import type { InboundIntent } from "../detect-inbound-intent";
-import { hasOfferedBookingSelection } from "../booking-continuity-guards";
+import { hasOfferedBookingSelection, isDormantBookingState } from "../booking-continuity-guards";
 import type { PromptFlow } from "../prompt/prompt-decision";
 import type { AiConversationState } from "../types";
 import {
@@ -67,7 +67,11 @@ function mapJourneyStepToStage(journeyStep: string): AgentPipelineStage | null {
 export function deriveRuntimeStage(input: DeriveRuntimeStageInput): AgentPipelineStage {
   const { aiState, journey, detectedIntent, routedFlow } = input;
 
-  if (aiState.booking_step && aiState.booking_step !== "done") {
+  if (
+    aiState.booking_step &&
+    aiState.booking_step !== "done" &&
+    !isDormantBookingState(aiState)
+  ) {
     return "agendamento";
   }
   if (hasOfferedBookingSelection(aiState)) {

@@ -1,5 +1,8 @@
 import { routeInboundFlow } from "../../intent-router";
-import { maybeResetBookingForFreshRequest } from "../../booking-reset";
+import {
+  maybeResetBookingForFreshRequest,
+  clearDormantBookingOnIntentConflict,
+} from "../../booking-reset";
 import { getClinicTimezone } from "@/lib/clinic-timezone";
 import {
   applyPipelineStageTransition,
@@ -57,16 +60,21 @@ export async function routeAndExecuteNode(state: GraphState): Promise<Partial<Gr
 
   const mergedContinuity = { ...state, ...continuityResult };
 
+  let aiStateForRoute = clearDormantBookingOnIntentConflict(
+    mergedContinuity.aiState,
+    mergedContinuity.detectedIntent
+  );
+
   const routed = routeInboundFlow({
     messageText: mergedContinuity.inboundText,
     detectedIntent: mergedContinuity.detectedIntent,
-    aiState: mergedContinuity.aiState,
+    aiState: aiStateForRoute,
   });
 
   const clinicTz = await getClinicTimezone(ctx.supabase, ctx.clinicId);
   let aiState = maybeResetBookingForFreshRequest(
     mergedContinuity.inboundText,
-    { ...mergedContinuity.aiState, intent: routed.intent },
+    { ...aiStateForRoute, intent: routed.intent },
     mergedContinuity.detectedIntent,
     { timeZone: clinicTz }
   );

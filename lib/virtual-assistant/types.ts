@@ -100,6 +100,11 @@ export type OfferedSlot = {
   display: string;
 };
 
+export type OfferedProcedure = {
+  id: string;
+  name: string;
+};
+
 export type LastSlotQuery = {
   date?: string;
   period?: "manha" | "tarde";
@@ -115,6 +120,7 @@ export type AiConversationState = {
   pending_slot?: string;
   offered_days?: OfferedDay[];
   offered_slots?: OfferedSlot[];
+  offered_procedures?: OfferedProcedure[];
   last_slot_query?: LastSlotQuery;
   /** Última lista de dias/horários mostrada ao paciente (display_message). */
   last_display_message?: string;

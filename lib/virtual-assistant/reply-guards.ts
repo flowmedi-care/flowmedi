@@ -48,6 +48,7 @@ export function applyReplyGuards(
 
   if (
     state.last_reply_kind === "invalid_slot_selection" ||
+    state.last_reply_kind === "invalid_procedure_selection" ||
     INVALID_SELECTION_PATTERN.test(out)
   ) {
     return out;

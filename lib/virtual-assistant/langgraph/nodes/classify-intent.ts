@@ -21,6 +21,7 @@ import {
 
 const FAST_PATH_INTENTS = new Set([
   "greeting",
+  "general",
   "human_handoff",
   "reschedule",
   "cancel",
@@ -35,7 +36,11 @@ function buildFastPathClassification(
   text: string,
   regexIntent: ReturnType<typeof detectInboundIntent>
 ): ClassifiedIntent | null {
-  if (!FAST_PATH_INTENTS.has(regexIntent) && regexIntent !== "booking" && regexIntent !== "pricing") {
+  if (
+    !FAST_PATH_INTENTS.has(regexIntent) &&
+    regexIntent !== "booking" &&
+    regexIntent !== "pricing"
+  ) {
     return null;
   }
 

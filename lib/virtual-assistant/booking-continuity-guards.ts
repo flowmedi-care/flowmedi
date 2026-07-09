@@ -46,6 +46,25 @@ export function hasOfferedBookingSelection(state: AiConversationState): boolean 
   return hasOffered && Boolean(state.procedure_id && state.doctor_id);
 }
 
+/** booking_step persistido sem procedure_id, doctor_id ou listas ativas — não é agendamento real. */
+export function isDormantBookingState(state: AiConversationState): boolean {
+  if (!state.booking_step || state.booking_step === "done") return false;
+  if (state.procedure_id || state.doctor_id) return false;
+  if (hasOfferedBookingSelection(state)) return false;
+  if ((state.offered_procedures?.length ?? 0) > 0) return false;
+  return true;
+}
+
+const BOOKING_ONLY_INTENTS = new Set<InboundIntent>([
+  "booking",
+  "availability_check",
+  "reschedule",
+]);
+
+export function isNonBookingIntent(intent: InboundIntent): boolean {
+  return !BOOKING_ONLY_INTENTS.has(intent);
+}
+
 export function shouldContinueBookingFlow(
   messageText: string,
   detectedIntent: InboundIntent,

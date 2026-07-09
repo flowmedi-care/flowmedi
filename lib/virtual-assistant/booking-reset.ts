@@ -58,3 +58,32 @@ export function maybeResetBookingForFreshRequest(
   if (hasFreshOfferedBookingSelection(state, opts?.timeZone)) return state;
   return resetStaleBookingState(state, opts);
 }
+
+/** Limpa booking stale quando intent conflita (ex.: captação com booking_step dormant). */
+export function clearDormantBookingOnIntentConflict(
+  state: AiConversationState,
+  detectedIntent: string
+): AiConversationState {
+  const nonBooking =
+    detectedIntent === "general" ||
+    detectedIntent === "greeting" ||
+    detectedIntent === "pricing" ||
+    detectedIntent === "quote" ||
+    detectedIntent === "hours_location" ||
+    detectedIntent === "human_handoff" ||
+    detectedIntent === "my_appointments" ||
+    detectedIntent === "payment" ||
+    detectedIntent === "form";
+
+  if (!nonBooking) return state;
+  if (state.procedure_id || state.doctor_id) return state;
+  if (hasFreshOfferedBookingSelection(state)) return state;
+  if ((state.offered_procedures?.length ?? 0) > 0) return state;
+  if (!state.booking_step || state.booking_step === "done") return state;
+
+  const { booking_step: _b, intent: _i, offered_procedures: _p, ...rest } = state;
+  return {
+    ...rest,
+    intent: detectedIntent === "greeting" ? undefined : detectedIntent,
+  };
+}

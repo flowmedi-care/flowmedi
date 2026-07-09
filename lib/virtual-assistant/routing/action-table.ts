@@ -1,5 +1,6 @@
 import { filterFreshOfferedSlots } from "@/lib/booking-state";
 import type { InboundIntent } from "../detect-inbound-intent";
+import { isDormantBookingState } from "../booking-continuity-guards";
 import type { AgentPipelineStage } from "../agent-pipeline/stages";
 import type { AiConversationState, BookingStep } from "../types";
 import { CAPTACAO_GREETING_MENU } from "../langgraph/trace";
@@ -31,6 +32,19 @@ export function resolveGlobalAction(input: {
   }
 
   const offeredSlots = filterFreshOfferedSlots(aiState.offered_slots ?? []);
+  const dormant = isDormantBookingState(aiState);
+
+  if (
+    dormant &&
+    (detectedIntent === "general" ||
+      detectedIntent === "greeting" ||
+      detectedIntent === "unknown" ||
+      detectedIntent === "pricing" ||
+      detectedIntent === "hours_location")
+  ) {
+    return { type: "invoke_subgraph", stage: "captacao" };
+  }
+
   if (derivedStage === "agendamento" || offeredSlots.length > 0) {
     return { type: "booking_handler" };
   }
