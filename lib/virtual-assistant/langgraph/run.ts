@@ -38,7 +38,7 @@ export async function runLangGraphAssistant(
     inboundText: combinedUserText,
     userMessages: input.userMessages,
     history: input.history,
-    aiState: { ...input.aiState, ai_processing_started_at: new Date().toISOString() },
+    aiState: { ...input.aiState },
     runtimeContext: {
       supabase: input.supabase,
       clinicId: input.clinicId,

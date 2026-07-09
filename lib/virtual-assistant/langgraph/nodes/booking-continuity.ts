@@ -92,30 +92,71 @@ export function routeAfterBookingContinuity(
 }
 
 /** Lock atômico para evitar processamento duplicado (webhook + cron). */
+export function isProcessingLockActive(
+  aiState: Record<string, unknown>,
+  maxAgeMs = 90_000
+): boolean {
+  const startedAt = aiState.ai_processing_started_at as string | undefined;
+  if (!startedAt) return false;
+  return Date.now() - new Date(startedAt).getTime() < maxAgeMs;
+}
+
+export async function releaseProcessingLock(
+  supabase: SupabaseClient,
+  conversationId: string
+): Promise<void> {
+  const { data } = await supabase
+    .from("whatsapp_conversations")
+    .select("ai_state")
+    .eq("id", conversationId)
+    .maybeSingle();
+
+  const current = (data?.ai_state ?? {}) as Record<string, unknown>;
+  if (!current.ai_processing_started_at) return;
+
+  const { ai_processing_started_at: _removed, ...rest } = current;
+  await supabase
+    .from("whatsapp_conversations")
+    .update({ ai_state: rest })
+    .eq("id", conversationId);
+}
+
 export async function tryAcquireProcessingLock(
   supabase: SupabaseClient,
   conversationId: string,
-  aiState: Record<string, unknown>,
+  _aiState?: Record<string, unknown>,
   maxAgeMs = 90_000
 ): Promise<boolean> {
-  const startedAt = aiState.ai_processing_started_at as string | undefined;
-  if (startedAt) {
-    const elapsed = Date.now() - new Date(startedAt).getTime();
-    if (elapsed < maxAgeMs) return false;
+  const { data: row, error: readError } = await supabase
+    .from("whatsapp_conversations")
+    .select("ai_state")
+    .eq("id", conversationId)
+    .maybeSingle();
+
+  if (readError || !row) return false;
+
+  const current = (row.ai_state ?? {}) as Record<string, unknown>;
+  const startedAt = current.ai_processing_started_at as string | undefined;
+
+  if (startedAt && isProcessingLockActive(current, maxAgeMs)) {
+    return false;
   }
 
   const now = new Date().toISOString();
-  const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
-  const nextState = { ...aiState, ai_processing_started_at: now };
+  const nextState = { ...current, ai_processing_started_at: now };
 
-  const { data, error } = await supabase
+  let updateQuery = supabase
     .from("whatsapp_conversations")
     .update({ ai_state: nextState })
-    .eq("id", conversationId)
-    .or(`ai_state->>ai_processing_started_at.is.null,ai_state->>ai_processing_started_at.lt.${cutoff}`)
-    .select("id")
-    .maybeSingle();
+    .eq("id", conversationId);
 
+  if (startedAt) {
+    updateQuery = updateQuery.eq("ai_state->>ai_processing_started_at", startedAt);
+  } else {
+    updateQuery = updateQuery.is("ai_state->>ai_processing_started_at", null);
+  }
+
+  const { data, error } = await updateQuery.select("id").maybeSingle();
   if (error || !data) return false;
   return true;
 }

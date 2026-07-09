@@ -4,10 +4,10 @@ export async function syncStateNode(state: GraphState): Promise<Partial<GraphSta
   const ctx = state.runtimeContext;
   if (!ctx) return {};
 
+  const { ai_processing_started_at: _removed, ...restAiState } = state.aiState;
   const aiState = {
-    ...state.aiState,
+    ...restAiState,
     pipeline_stage: state.pipelineStage,
-    ai_processing_started_at: undefined,
   };
 
   await ctx.supabase

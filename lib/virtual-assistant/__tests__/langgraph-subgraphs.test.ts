@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { buildToolRoundLimitFallback } from "../format-ai-state";
 import { maybeResetBookingForFreshRequest } from "../booking-reset";
-import { shouldSkipDuplicateReply } from "../langgraph/nodes/booking-continuity";
+import { shouldSkipDuplicateReply, isProcessingLockActive } from "../langgraph/nodes/booking-continuity";
 import { deterministicRouterNode } from "../langgraph/nodes/deterministic-router";
 import { resolveAgentPipelineStage } from "../agent-pipeline/resolver";
 import { detectInboundIntent } from "../detect-inbound-intent";
@@ -59,6 +59,15 @@ describe("langgraph subgraphs — conversation regressions", () => {
     const reply = "Não há horários na manhã de sexta.";
     assert.equal(shouldSkipDuplicateReply(id, ids, reply), false);
     assert.equal(shouldSkipDuplicateReply(id, ids, reply), true);
+  });
+
+  it("lock expira após maxAgeMs", () => {
+    const stale = {
+      ai_processing_started_at: new Date(Date.now() - 120_000).toISOString(),
+    };
+    assert.equal(isProcessingLockActive(stale), false);
+    const fresh = { ai_processing_started_at: new Date().toISOString() };
+    assert.equal(isProcessingLockActive(fresh), true);
   });
 });
 

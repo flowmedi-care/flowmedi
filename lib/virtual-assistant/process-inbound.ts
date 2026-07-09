@@ -7,6 +7,7 @@ import {
 } from "./audio-transcription";
 import { runAssistantWithOptionalShadow } from "./langgraph/shadow";
 import {
+  releaseProcessingLock,
   shouldSkipDuplicateReply,
   tryAcquireProcessingLock,
 } from "./langgraph/nodes/booking-continuity";
@@ -213,12 +214,14 @@ async function processConversationAiInner(
 
   let aiState = (conv.ai_state ?? {}) as AiConversationState;
 
-  const acquired = await tryAcquireProcessingLock(
-    supabase,
-    conversationId,
-    aiState as Record<string, unknown>
-  );
+  const acquired = await tryAcquireProcessingLock(supabase, conversationId);
   if (!acquired) {
+    const retryAt = new Date(Date.now() + 5_000).toISOString();
+    await supabase
+      .from("whatsapp_conversations")
+      .update({ ai_debounce_until: retryAt })
+      .eq("id", conversationId);
+
     logAiEvent(supabase, {
       clinicId: conv.clinic_id,
       conversationId,
@@ -229,14 +232,21 @@ async function processConversationAiInner(
         use_langgraph_pipeline: settings.use_langgraph_pipeline ?? false,
         lock_acquired: false,
         skipped_reason: "already_processing",
+        retry_at: retryAt,
       },
+    });
+    logAiEvent(supabase, {
+      clinicId: conv.clinic_id,
+      conversationId,
+      stage: "debounce_scheduled",
+      detail: { debounceSeconds: 5, debounceUntil: retryAt, reason: "lock_busy_retry" },
     });
     logAiEvent(supabase, {
       clinicId: conv.clinic_id,
       conversationId,
       stage: "processing_start",
       level: "info",
-      detail: { skipped: true, reason: "already_processing" },
+      detail: { skipped: true, reason: "already_processing", retry_at: retryAt },
     });
     return;
   }
@@ -856,19 +866,7 @@ async function processConversationAiInner(
     detail: { replyPreview: effectiveReply.slice(0, 80) },
   });
   } finally {
-    const { data: latest } = await supabase
-      .from("whatsapp_conversations")
-      .select("ai_state")
-      .eq("id", conversationId)
-      .maybeSingle();
-    const latestState = (latest?.ai_state ?? {}) as AiConversationState;
-    if (latestState.ai_processing_started_at) {
-      const { ai_processing_started_at: _removed, ...rest } = latestState;
-      await supabase
-        .from("whatsapp_conversations")
-        .update({ ai_state: rest })
-        .eq("id", conversationId);
-    }
+    await releaseProcessingLock(supabase, conversationId);
   }
 }
 
