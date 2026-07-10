@@ -102,6 +102,14 @@ export function patchAiState(
           offered_slots: undefined,
           status: "collecting",
         };
+        if (Array.isArray(data.days)) {
+          const days = data.days as Array<{ date: string; label: string }>;
+          patch.offered_days = days.map((d, i) => ({
+            date: d.date,
+            label: d.label,
+            index: i + 1,
+          }));
+        }
       }
       break;
     }
@@ -109,6 +117,7 @@ export function patchAiState(
       patch.booking = { status: "done" };
       patch.offered_doctors = undefined;
       patch.offered_procedures = undefined;
+      patch.offered_days = undefined;
       break;
     }
     case "list_patient_appointments": {

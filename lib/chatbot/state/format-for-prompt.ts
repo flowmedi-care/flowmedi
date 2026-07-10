@@ -32,6 +32,11 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
       `Médicos oferecidos: ${state.offered_doctors!.length} opção(ões) numeradas — se o paciente responder "1", "2", etc., use o id correspondente em options.`
     );
   }
+  if ((state.offered_days?.length ?? 0) > 0) {
+    lines.push(
+      `Dias oferecidos: ${state.offered_days!.length} opção(ões) numeradas — se o paciente responder "1", "2" ou mencionar dia da semana, use a data correspondente.`
+    );
+  }
   if ((state.booking?.offered_slots?.length ?? 0) > 0) {
     lines.push(
       `Horários oferecidos: ${state.booking!.offered_slots!.length} opção(ões) — paciente deve escolher um horário da lista.`

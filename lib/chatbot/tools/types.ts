@@ -13,8 +13,15 @@ export type ToolOption = {
   index?: number;
 };
 
+export type ToolResultStatus =
+  | "success"
+  | "needs_input"
+  | "unavailable"
+  | "not_found"
+  | "error";
+
 export type ToolResult<T = unknown> = {
-  status: "success" | "missing" | "ambiguous" | "unavailable" | "error";
+  status: ToolResultStatus;
   data?: T;
   message?: string;
   missing?: MissingField[];
@@ -53,21 +60,32 @@ export function successResult<T>(
   return result;
 }
 
-export function missingResult(
+export function needsInputResult(
   fields: string[] | MissingField[],
-  message: string
+  message: string,
+  options?: ToolOption[]
 ): ToolResult {
   const missing: MissingField[] = fields.map((f) =>
     typeof f === "string" ? { field: f } : f
   );
-  return { status: "missing", missing, message };
+  const result: ToolResult = { status: "needs_input", missing, message };
+  if (options?.length) result.options = options;
+  return result;
 }
 
+/** @deprecated Use needsInputResult */
+export const missingResult = needsInputResult;
+
+export function notFoundResult(message: string, suggestion?: string): ToolResult {
+  return { status: "not_found", message, suggestion };
+}
+
+/** @deprecated Use needsInputResult with options */
 export function ambiguousResult(
   message: string,
   options: ToolOption[]
 ): ToolResult {
-  return { status: "ambiguous", message, options };
+  return needsInputResult([], message, options);
 }
 
 export function unavailableResult(
@@ -83,12 +101,12 @@ export function errorResult(message: string, suggestion?: string): ToolResult {
 }
 
 /** Statuses that represent expected conversational flow, not system failures. */
-export function isRecoverableToolStatus(status: ToolResult["status"]): boolean {
+export function isRecoverableToolStatus(status: ToolResultStatus): boolean {
   return (
     status === "success" ||
-    status === "missing" ||
-    status === "ambiguous" ||
-    status === "unavailable"
+    status === "needs_input" ||
+    status === "unavailable" ||
+    status === "not_found"
   );
 }
 
@@ -97,7 +115,7 @@ export function legacyErrorToResult(raw: Record<string, unknown>): ToolResult {
     const missing = raw.missing;
     if (Array.isArray(missing) && missing.length) {
       return {
-        status: "missing",
+        status: "needs_input",
         missing: missing.map((f) => ({ field: String(f) })),
         message: String(raw.hint ?? raw.error),
       };
@@ -109,4 +127,19 @@ export function legacyErrorToResult(raw: Record<string, unknown>): ToolResult {
     };
   }
   return { status: "success", data: raw };
+}
+
+/** Normalize legacy status strings from stored logs or tests. */
+export function normalizeToolResultStatus(status: string): ToolResultStatus {
+  if (status === "missing" || status === "ambiguous") return "needs_input";
+  if (
+    status === "success" ||
+    status === "needs_input" ||
+    status === "unavailable" ||
+    status === "not_found" ||
+    status === "error"
+  ) {
+    return status;
+  }
+  return "error";
 }

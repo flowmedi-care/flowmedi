@@ -12,10 +12,13 @@ export type {
 export {
   toolResultToJson,
   successResult,
+  needsInputResult,
   missingResult,
+  notFoundResult,
   ambiguousResult,
   unavailableResult,
   errorResult,
   isRecoverableToolStatus,
   legacyErrorToResult,
+  normalizeToolResultStatus,
 } from "./types";

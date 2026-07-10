@@ -9,6 +9,12 @@ export type OfferedOption = {
   index?: number;
 };
 
+export type OfferedDay = {
+  date: string;
+  label: string;
+  index?: number;
+};
+
 export type BookingState = {
   procedure_id?: string;
   doctor_id?: string;
@@ -23,6 +29,7 @@ export type AiState = {
   booking?: BookingState;
   offered_doctors?: OfferedOption[];
   offered_procedures?: OfferedOption[];
+  offered_days?: OfferedDay[];
   focused_appointment_id?: string;
   active_appointments?: string[];
   consecutive_tool_failures?: number;

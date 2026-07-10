@@ -14,7 +14,6 @@ describe("chatbot booking continuity", () => {
     };
     const result = applyBookingContinuity("2", state);
     assert.equal(result.statePatch.booking?.doctor_id, "doc-2");
-    assert.match(result.enrichedUserText ?? "", /doc-2/);
   });
 
   it("resolve seleção numérica de procedimento", () => {

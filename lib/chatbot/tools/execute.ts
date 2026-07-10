@@ -28,7 +28,8 @@ import { searchFaqWithFallback } from "../knowledge/faq-retrieval";
 import type { ToolContext, ToolExecutionOutcome, ToolOption } from "./types";
 import {
   errorResult,
-  missingResult,
+  needsInputResult,
+  notFoundResult,
   successResult,
   unavailableResult,
 } from "./types";
@@ -41,16 +42,17 @@ async function logToolCall(
   toolName: string,
   params: Record<string, unknown>,
   resultSummary: string,
-  success: boolean
+  success: boolean,
+  status?: string
 ): Promise<void> {
   await supabase.from("whatsapp_ai_tool_log").insert({
     clinic_id: clinicId,
     conversation_id: conversationId,
     tool_name: toolName,
     params,
-    result_summary: resultSummary.slice(0, 500),
+    result_summary: `[${status ?? "unknown"}] ${resultSummary}`.slice(0, 500),
     success,
-    pipeline_stage: null,
+    pipeline_stage: status ?? null,
     block_reason: null,
   });
 }
@@ -116,7 +118,7 @@ export async function executeTool(
         const fullName = String(args.full_name ?? "").trim();
         if (!fullName) {
           return {
-            result: missingResult(["full_name"], "Preciso do nome completo do paciente."),
+            result: needsInputResult(["full_name"], "Preciso do nome completo do paciente."),
           };
         }
         const res = await registerPatientViaAssistant(supabase, clinicId, {
@@ -225,12 +227,12 @@ export async function executeTool(
         const procedureId = String(args.procedure_id ?? ctx.aiState.booking?.procedure_id ?? "");
         if (!doctorId) {
           return {
-            result: missingResult(["doctor_id"], "Preciso do médico antes de buscar horários."),
+            result: needsInputResult(["doctor_id"], "Preciso do médico antes de buscar horários."),
           };
         }
         if (!procedureId) {
           return {
-            result: missingResult(["procedure_id"], "Preciso do procedimento antes de buscar horários."),
+            result: needsInputResult(["procedure_id"], "Preciso do procedimento antes de buscar horários."),
           };
         }
 
@@ -382,10 +384,15 @@ export async function executeTool(
           skip_days_used: skipDays,
           next_skip_days: skipDays + days.length,
         };
-        await logToolCall(supabase, clinicId, conversationId, name, args, `${days.length} dias`, true);
+        await logToolCall(supabase, clinicId, conversationId, name, args, `${days.length} dias`, true, "success");
         return {
           result: successResult(payload, dayOptions),
           statePatch: {
+            offered_days: daysForDisplay.map((d, i) => ({
+              date: d.date,
+              label: d.label,
+              index: i + 1,
+            })),
             booking: {
               procedure_id: procedureId,
               doctor_id: doctorId,
@@ -512,13 +519,13 @@ export async function executeTool(
         );
         if (!appointmentId) {
           return {
-            result: missingResult(["appointment_id"], "Preciso saber qual consulta remarcar."),
+            result: needsInputResult(["appointment_id"], "Preciso saber qual consulta remarcar."),
           };
         }
         const newScheduledAt = String(args.new_scheduled_at ?? "");
         if (!newScheduledAt) {
           return {
-            result: missingResult(["new_scheduled_at"], "Preciso do novo horário (scheduled_at de find_available_slots)."),
+            result: needsInputResult(["new_scheduled_at"], "Preciso do novo horário (scheduled_at de find_available_slots)."),
           };
         }
         const res = await rescheduleAppointmentViaAssistant(supabase, {
@@ -538,7 +545,7 @@ export async function executeTool(
           : ctx.aiState.booking?.doctor_id;
         if (!doctorId) {
           return {
-            result: missingResult(["doctor_id"], "Preciso do médico para consultar o preço."),
+            result: needsInputResult(["doctor_id"], "Preciso do médico para consultar o preço."),
           };
         }
         let serviceId = args.service_id ? String(args.service_id) : null;
@@ -552,7 +559,7 @@ export async function executeTool(
         }
         if (!serviceId) {
           return {
-            result: missingResult(
+            result: needsInputResult(
               ["procedure_id"],
               "Preciso do procedimento para consultar o preço."
             ),
@@ -585,7 +592,7 @@ export async function executeTool(
         const query = String(args.query ?? "").trim();
         if (!query) {
           return {
-            result: missingResult(["query"], "Preciso saber o que o paciente quer saber."),
+            result: needsInputResult(["query"], "Preciso saber o que o paciente quer saber."),
           };
         }
         const hit = await searchFaqWithFallback(query, ctx.faqs, supabase, clinicId);
@@ -600,7 +607,7 @@ export async function executeTool(
         );
         if (!hit) {
           return {
-            result: unavailableResult(
+            result: notFoundResult(
               "Não encontrei essa informação nas perguntas frequentes.",
               "Tente list_procedures para serviços ou get_service_price para valores."
             ),

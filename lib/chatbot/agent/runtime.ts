@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { VirtualAssistantSettings } from "@/lib/virtual-assistant/types";
-import { applyBookingContinuity, mergeBookingContinuity } from "../booking-continuity";
+import { extractFacts } from "../extractors";
 import { applyReplyGuards } from "../guardrails/reply-guards";
 import { shouldEscalateOnToolFailures } from "../guardrails/handoff";
 import { validateToolCall } from "../guardrails/validators";
+import { createTurnTrace, logTurnTrace } from "../observability/turn-trace";
 import { mergeAiState, patchAiState } from "../state/patch";
+import { resolveReferenceFacts } from "../state/resolve-facts";
 import { buildChatbotFallbackReply } from "../state/format-for-prompt";
 import { normalizeAiState, serializeAiState } from "../state/migrate";
 import type { AiState } from "../state/types";
@@ -45,10 +47,14 @@ export type RunTurnResult = {
 
 export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   let aiState: AiState = normalizeAiState(input.aiState);
+  const trace = createTurnTrace(input.conversationId, input.userText);
 
-  const continuity = applyBookingContinuity(input.userText, aiState);
-  aiState = mergeBookingContinuity(aiState, continuity);
-  const effectiveUserText = continuity.enrichedUserText ?? input.userText;
+  const facts = extractFacts(input.userText);
+  trace.extractorsApplied = facts;
+  const factPatch = resolveReferenceFacts(facts, aiState);
+  if (Object.keys(factPatch).length > 0) {
+    aiState = mergeAiState(aiState, factPatch);
+  }
 
   const systemContent = buildSystemPrompt({
     clinicName: input.clinicName ?? "clínica",
@@ -60,6 +66,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     faqs: input.faqs,
     settings: input.settings,
     aiState,
+    facts,
   });
 
   const messages: ChatMessage[] = [{ role: "system", content: systemContent }];
@@ -68,12 +75,13 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   for (const h of input.history.slice(-maxContext)) {
     messages.push({ role: h.role, content: h.content });
   }
-  messages.push({ role: "user", content: effectiveUserText });
+  messages.push({ role: "user", content: input.userText });
 
   let handoff = false;
   let finalReply: string | null = null;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    trace.llmRounds = round + 1;
     const completion = await createChatCompletion({
       model: input.settings.ai_model ?? "gpt-4o-mini",
       messages,
@@ -104,11 +112,14 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         args = {};
       }
 
-      const validation = validateToolCall(toolName, args, aiState, input.settings);
+      const started = Date.now();
+      const validation = validateToolCall(toolName, args, aiState, input.settings, facts);
       let outcome;
+      let blocked = false;
 
       if (validation) {
         outcome = { result: validation };
+        blocked = true;
       } else {
         outcome = await executeTool(
           {
@@ -125,12 +136,25 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         );
       }
 
+      trace.tools.push({
+        toolName,
+        round,
+        blocked,
+        blockReason: blocked ? validation?.message : undefined,
+        status: outcome.result.status,
+        durationMs: Date.now() - started,
+      });
+
       if (outcome.statePatch) {
         aiState = mergeAiState(aiState, outcome.statePatch);
       }
       aiState = mergeAiState(aiState, patchAiState(toolName, args, outcome.result, aiState));
 
-      if (outcome.handoff) handoff = true;
+      if (outcome.handoff) {
+        handoff = true;
+        trace.handoff = true;
+        trace.handoffReason = String(args.reason ?? toolName);
+      }
 
       messages.push({
         role: "tool",
@@ -156,6 +180,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       );
       if (escalation.handoff) {
         handoff = true;
+        trace.handoff = true;
+        trace.handoffReason = "consecutive_tool_failures";
         finalReply = "Vou transferir você para nossa equipe para continuar o atendimento.";
         break;
       }
@@ -167,6 +193,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   }
 
   const reply = applyReplyGuards(finalReply, aiState);
+  logTurnTrace(trace);
 
   return {
     reply,

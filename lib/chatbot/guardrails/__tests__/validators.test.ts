@@ -9,19 +9,19 @@ describe("chatbot guardrails validators", () => {
   it("create_appointment exige patient_id", () => {
     const result = validateToolCall("create_appointment", {}, initialAiState(), {});
     assert.ok(result);
-    assert.equal(result!.status, "missing");
+    assert.equal(result!.status, "needs_input");
   });
 
   it("register_patient exige full_name", () => {
     const result = validateToolCall("register_patient", {}, initialAiState(), {});
     assert.ok(result);
-    assert.equal(result!.status, "missing");
+    assert.equal(result!.status, "needs_input");
   });
 
   it("find_available_slots exige doctor e procedure", () => {
     const result = validateToolCall("find_available_slots", {}, initialAiState(), {});
     assert.ok(result);
-    assert.equal(result!.status, "missing");
+    assert.equal(result!.status, "needs_input");
   });
 });
 
@@ -67,7 +67,7 @@ describe("chatbot state patch", () => {
     const patch = patchAiState(
       "find_available_slots",
       {},
-      { status: "missing", missing: [{ field: "doctor_id" }], message: "Preciso do médico." },
+      { status: "needs_input", missing: [{ field: "doctor_id" }], message: "Preciso do médico." },
       current
     );
     assert.equal(patch.consecutive_tool_failures, 0);
