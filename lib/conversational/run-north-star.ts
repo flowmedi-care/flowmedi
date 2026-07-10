@@ -89,6 +89,20 @@ export async function runNorthStarAssistant(
     config
   );
 
+  if (result.detectedIntent) {
+    logAiEvent(input.supabase, {
+      clinicId: input.clinicId,
+      conversationId: input.conversationId,
+      stage: "intent_classified",
+      detail: {
+        detected_intent: result.detectedIntent,
+        intent_confidence: result.intentConfidence,
+        source: "north_star",
+        fsmStateBefore: result.fsmStateBefore,
+      },
+    });
+  }
+
   await writeDualStateToSupabase(
     input.supabase,
     input.conversationId,

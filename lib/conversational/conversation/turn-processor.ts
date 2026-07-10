@@ -8,6 +8,7 @@ import { ReplyRenderer } from "./reply-renderer";
 import { EffectRunner, appendTurnAudit, flushAuditEffects, type AuditWriter } from "./effect-runner";
 import { fsmEngine } from "../fsm/engine";
 import { InputResolver } from "../fsm/input-resolver";
+import { isGreeting } from "../fsm/idle-entry";
 import type { ReplySpec, SideEffect, TurnRecord } from "../fsm/side-effects";
 import { resolveHandlerDomain } from "../fsm/states";
 import type { ConversationRepository } from "../domain/conversation/conversation-repository";
@@ -32,6 +33,8 @@ export type ProcessTurnResult = {
   conversation: Conversation;
   fsmStateBefore: string;
   fsmStateAfter: string;
+  detectedIntent: string | null;
+  intentConfidence: number | null;
   shadow?: boolean;
 };
 
@@ -64,6 +67,7 @@ export class TurnProcessor {
     conversation.touchUserMessage(message.receivedAt ?? nowTimestamp());
 
     const resolved = await this.inputResolver.resolve(conversation, message.text, config);
+    const detectedIntent = resolveDetectedIntent(resolved, fsmStateBefore);
 
     let receiveTransition = fsmEngine.afterReceive(conversation, resolved, config);
     let effects: SideEffect[] = [...receiveTransition.effects];
@@ -126,8 +130,26 @@ export class TurnProcessor {
       conversation,
       fsmStateBefore,
       fsmStateAfter,
+      detectedIntent,
+      intentConfidence: detectedIntent ? (detectedIntent === "unknown" ? 0.3 : 0.85) : null,
     };
   }
+}
+
+function resolveDetectedIntent(
+  resolved: Awaited<ReturnType<InputResolver["resolve"]>>,
+  fsmStateBefore: string
+): string | null {
+  if (fsmStateBefore === "consent.pending") {
+    if (resolved.confirmation === "yes") return "consent.grant";
+    if (resolved.confirmation === "no") return "consent.deny";
+    return "consent.pending";
+  }
+
+  if (resolved.intent) return resolved.intent;
+  if (fsmStateBefore === "idle" && isGreeting(resolved.text)) return "greeting";
+  if (fsmStateBefore === "idle" && resolved.text.trim()) return "unknown";
+  return null;
 }
 
 export async function createTurnProcessor(

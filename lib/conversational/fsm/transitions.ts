@@ -27,7 +27,7 @@ export function nextStateAfterReceive(
   if (current === "idle" && input.intent) {
     const step = firstStepForIntent(input.intent);
     if (step && isFsmState(step)) return step;
-    return "faq.ask";
+    return current;
   }
 
   return current;

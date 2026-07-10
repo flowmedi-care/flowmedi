@@ -50,13 +50,40 @@ export interface MessageFlowTrace {
 
 const TRACE_WINDOW_MS = 15 * 60 * 1000;
 
+function isNorthStarTrace(events: AiEventRow[]): boolean {
+  return events.some(
+    (e) =>
+      e.stage === "north_star_complete" ||
+      e.stage === "north_star_turn" ||
+      (e.stage === "agent_route" && e.detail?.engine === "north_star") ||
+      (e.stage === "openai_start" && e.detail?.engine === "north_star")
+  );
+}
+
+function stepTitleForTrace(
+  def: { key: string; title: string },
+  events: AiEventRow[]
+): string {
+  if (!isNorthStarTrace(events)) return def.title;
+  switch (def.key) {
+    case "openai_send":
+      return "North Star (turno)";
+    case "openai_reply":
+      return "Resposta North Star";
+    case "pipeline":
+      return "Pipeline North Star";
+    default:
+      return def.title;
+  }
+}
+
 const TEXT_STEP_DEFS: { key: string; title: string; stages: string[] }[] = [
   { key: "received", title: "Mensagem recebida", stages: ["webhook_inbound", "simulate_inbound"] },
   { key: "routing", title: "Roteamento para IA", stages: ["routing_decision"] },
   { key: "debounce", title: "Aguardando debounce", stages: ["debounce_scheduled"] },
   { key: "processing", title: "Processamento iniciado", stages: ["processing_start", "cron_conversation_processed"] },
   { key: "openai_send", title: "Enviando para OpenAI", stages: ["openai_start", "langgraph_start"] },
-  { key: "intent", title: "Intent detectada", stages: ["intent_classified", "langgraph_trace"] },
+  { key: "intent", title: "Intent detectada", stages: ["intent_classified", "langgraph_trace", "north_star_turn"] },
   {
     key: "pipeline",
     title: "Pipeline do agente",
@@ -68,6 +95,10 @@ const TEXT_STEP_DEFS: { key: string; title: string; stages: string[] }[] = [
       "langgraph_trace",
       "agent_route",
       "langgraph_shadow_compare",
+      "north_star_complete",
+      "north_star_turn",
+      "north_star_shadow",
+      "north_star_shadow_compare",
       "booking_continuity",
     ],
   },
@@ -154,6 +185,7 @@ function messagePreview(anchor: AiEventRow): { preview: string; channel: Message
 
 function extractIntentInfo(events: AiEventRow[]): IntentTraceInfo | undefined {
   const classified = events.find((e) => e.stage === "intent_classified");
+  const northStarTurn = events.find((e) => e.stage === "north_star_turn");
   const traceClassify = events.find(
     (e) => e.stage === "langgraph_trace" && e.detail?.node === "classify_intent"
   );
@@ -174,7 +206,12 @@ function extractIntentInfo(events: AiEventRow[]): IntentTraceInfo | undefined {
       typeof d.intent_confidence === "number"
         ? d.intent_confidence
         : undefined,
-    intentSource: typeof d.source === "string" ? d.source : undefined,
+    intentSource:
+      typeof d.source === "string"
+        ? d.source
+        : northStarTurn
+          ? "north_star"
+          : undefined,
     continuityIntent:
       typeof d.continuity_intent === "string" ? d.continuity_intent : undefined,
     bookingStep:
@@ -318,6 +355,7 @@ function eventsForStep(events: AiEventRow[], step: { key: string; stages: string
   return events.filter((e) => {
     if (step.key === "intent") {
       if (e.stage === "intent_classified") return true;
+      if (e.stage === "north_star_turn" && e.detail?.detected_intent) return true;
       if (e.stage === "langgraph_trace" && e.detail?.node === "classify_intent") return true;
       return false;
     }
@@ -336,6 +374,14 @@ function pickEventForStep(
     return (
       events.find((e) => e.stage === "intent_classified") ??
       events.find((e) => e.stage === "langgraph_trace" && e.detail?.node === "classify_intent")
+    );
+  }
+  if (step.key === "pipeline" && isNorthStarTrace(events)) {
+    return (
+      events.find((e) => e.stage === "north_star_complete") ??
+      events.find((e) => e.stage === "agent_route" && e.detail?.engine === "north_star") ??
+      events.find((e) => e.stage === "north_star_turn") ??
+      events.find((e) => step.stages.includes(e.stage))
     );
   }
   if (step.key === "transcribe_ok") {
@@ -392,7 +438,7 @@ function buildSteps(
 
     steps.push({
       key: def.key,
-      title: def.title,
+      title: stepTitleForTrace(def, events),
       description: stepDescription(def.key, event),
       status,
       at: event?.created_at,

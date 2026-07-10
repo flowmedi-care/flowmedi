@@ -2,7 +2,7 @@ import type { Conversation } from "../domain/conversation/conversation";
 import type { ClinicConfig } from "../clinic/clinic-config";
 import type { LanguageService } from "../language/language-service";
 import { detectConfirmation, detectGlobalInterrupt } from "./global-interrupts";
-import { resolveIdleIntentFromKeywords } from "./idle-entry";
+import { isGreeting, resolveIdleIntentFromKeywords } from "./idle-entry";
 import type { ResolvedInput } from "./resolved-input";
 import { emptyResolvedInput } from "./resolved-input";
 import { conversationToFsmState } from "../application/domain-fsm-mapper";
@@ -34,6 +34,10 @@ export class InputResolver {
     }
 
     if (fsmState === "idle") {
+      if (isGreeting(trimmed)) {
+        return { ...base, intent: null };
+      }
+
       let intent = resolveIdleIntentFromKeywords(trimmed);
       if (!intent && trimmed && !config.llmDisabled) {
         const extracted = await this.deps.language.extract({
@@ -43,9 +47,6 @@ export class InputResolver {
         if (extracted.intent !== "unknown") {
           intent = extracted.intent;
         }
-      }
-      if (!intent && trimmed) {
-        intent = "faq";
       }
       return { ...base, intent };
     }

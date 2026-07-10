@@ -7,6 +7,14 @@ import { requiresConsent } from "../domain/services/consent-policy";
 import { ConversationMapper } from "../infrastructure/persistence/conversation-mapper";
 import { nextStateAfterOutcome, nextStateAfterReceive } from "../fsm/transitions";
 import { northStarFlagsFromSettings, shouldRunNorthStar } from "../feature-flags";
+import { isGreeting } from "../fsm/idle-entry";
+import { detectConfirmation } from "../fsm/global-interrupts";
+import { InputResolver } from "../fsm/input-resolver";
+import { KeywordLanguageService } from "../language/language-service";
+import { TurnProcessor } from "../conversation/turn-processor";
+import { ToolGateway } from "../tools/gateway";
+import type { ConversationRepository } from "../domain/conversation/conversation-repository";
+import type { ClinicConfig } from "../clinic/clinic-config";
 
 describe("Conversation aggregate", () => {
   it("starts booking flow and enforces invariants", () => {
@@ -134,5 +142,204 @@ describe("Feature flags", () => {
     const flags = northStarFlagsFromSettings({ north_star_enabled: true });
     const gate = shouldRunNorthStar(flags, "clinic1");
     assert.equal(gate.sendReply, true);
+  });
+});
+
+describe("Greeting routing", () => {
+  it("detects common greetings", () => {
+    assert.equal(isGreeting("Oi"), true);
+    assert.equal(isGreeting("Bom dia!"), true);
+    assert.equal(isGreeting("Eu nao perguntei isso"), false);
+  });
+
+  it("routes Oi to greeting without faq intent", async () => {
+    const conv = Conversation.openNew({
+      id: "c1",
+      clinicId: "clinic1",
+      channel: "whatsapp",
+      externalThreadId: "+5511999999999",
+    });
+    const resolver = new InputResolver({ language: new KeywordLanguageService() });
+    const config: ClinicConfig = {
+      clinicId: "clinic1",
+      assistantName: "Assistente",
+      requiresConsentForMessaging: true,
+      llmDisabled: false,
+      humanHandoffEnabled: true,
+      faqs: [{ id: "f1", question: "Vida", answer: "A vida é uma maravilha" }],
+    };
+    const resolved = await resolver.resolve(conv, "Oi", config);
+    assert.equal(resolved.intent, null);
+  });
+});
+
+describe("Consent confirmation", () => {
+  it("accepts natural language consent", () => {
+    assert.equal(detectConfirmation("ok podemos tem o consentimento"), "yes");
+    assert.equal(detectConfirmation("concordo"), "yes");
+    assert.equal(detectConfirmation("aceito"), "yes");
+    assert.equal(detectConfirmation("não autorizo"), "no");
+  });
+});
+
+describe("TurnProcessor regressions", () => {
+  class MemoryRepo implements ConversationRepository {
+    private store = new Map<string, Conversation>();
+
+    constructor(initial: Conversation) {
+      this.store.set(initial.id, initial);
+    }
+
+    async findById(id: string) {
+      return this.store.get(id) ?? null;
+    }
+
+    async findByExternalThread() {
+      return null;
+    }
+
+    async save(conversation: Conversation, _expectedVersion: number) {
+      this.store.set(conversation.id, conversation);
+    }
+  }
+
+  const baseConfig: ClinicConfig = {
+    clinicId: "clinic1",
+    assistantName: "Flow",
+    requiresConsentForMessaging: true,
+    llmDisabled: false,
+    humanHandoffEnabled: true,
+    faqs: [{ id: "f1", question: "Vida", answer: "A vida é uma maravilha" }],
+  };
+
+  const mockTools = new ToolGateway({
+    searchFaq: async () => ({ ok: true, data: null }),
+    recordConsent: async () => ({ ok: true, data: { recorded: true } }),
+  });
+
+  it("Oi returns menu instead of first FAQ", async () => {
+    const conv = Conversation.openNew({
+      id: "c1",
+      clinicId: "clinic1",
+      channel: "whatsapp",
+      externalThreadId: "+5511999999999",
+    });
+    const processor = new TurnProcessor({
+      repository: new MemoryRepo(conv),
+      tools: mockTools,
+      language: new KeywordLanguageService(),
+    });
+
+    const result = await processor.process(
+      conv,
+      {
+        conversationId: "c1",
+        clinicId: "clinic1",
+        channel: "whatsapp",
+        externalThreadId: "+5511999999999",
+        phoneNumber: "+5511999999999",
+        text: "Oi",
+      },
+      baseConfig
+    );
+
+    assert.equal(result.detectedIntent, "greeting");
+    assert.match(result.reply, /Como posso ajudar/);
+    assert.doesNotMatch(result.reply, /A vida é uma maravilha/);
+  });
+
+  it("random text returns menu not FAQ fallback", async () => {
+    const conv = Conversation.openNew({
+      id: "c2",
+      clinicId: "clinic1",
+      channel: "whatsapp",
+      externalThreadId: "+5511888888888",
+    });
+    const processor = new TurnProcessor({
+      repository: new MemoryRepo(conv),
+      tools: mockTools,
+      language: new KeywordLanguageService(),
+    });
+
+    const result = await processor.process(
+      conv,
+      {
+        conversationId: "c2",
+        clinicId: "clinic1",
+        channel: "whatsapp",
+        externalThreadId: "+5511888888888",
+        phoneNumber: "+5511888888888",
+        text: "Eu nao perguntei isso",
+      },
+      baseConfig
+    );
+
+    assert.equal(result.detectedIntent, "unknown");
+    assert.doesNotMatch(result.reply, /A vida é uma maravilha/);
+  });
+
+  it("faq flow without match shows honest message", async () => {
+    const conv = Conversation.openNew({
+      id: "c3",
+      clinicId: "clinic1",
+      channel: "whatsapp",
+      externalThreadId: "+5511777777777",
+    });
+    const processor = new TurnProcessor({
+      repository: new MemoryRepo(conv),
+      tools: mockTools,
+      language: new KeywordLanguageService(),
+    });
+
+    const result = await processor.process(
+      conv,
+      {
+        conversationId: "c3",
+        clinicId: "clinic1",
+        channel: "whatsapp",
+        externalThreadId: "+5511777777777",
+        phoneNumber: "+5511777777777",
+        text: "3",
+      },
+      baseConfig
+    );
+
+    assert.equal(result.detectedIntent, "faq");
+    assert.match(result.reply, /Não encontrei/);
+    assert.doesNotMatch(result.reply, /A vida é uma maravilha/);
+  });
+
+  it("natural consent grants deferred booking intent", async () => {
+    const conv = Conversation.openNew({
+      id: "c4",
+      clinicId: "clinic1",
+      channel: "whatsapp",
+      externalThreadId: "+5511666666666",
+    });
+    conv.requestConsent("booking");
+    assert.equal(conv.consent.status, "unknown");
+
+    const processor = new TurnProcessor({
+      repository: new MemoryRepo(conv),
+      tools: mockTools,
+      language: new KeywordLanguageService(),
+    });
+
+    const result = await processor.process(
+      conv,
+      {
+        conversationId: "c4",
+        clinicId: "clinic1",
+        channel: "whatsapp",
+        externalThreadId: "+5511666666666",
+        phoneNumber: "+5511666666666",
+        text: "ok podemos tem o consentimento",
+      },
+      baseConfig
+    );
+
+    assert.equal(result.detectedIntent, "consent.grant");
+    assert.equal(conv.consent.status, "granted");
+    assert.equal(conv.activeFlow?.kind, "booking");
   });
 });

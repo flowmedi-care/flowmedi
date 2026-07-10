@@ -179,13 +179,7 @@ function createExecutors(
           f.answer.toLowerCase().includes(query)
       );
       if (!match) {
-        const fallback = config.faqs[0];
-        return {
-          ok: true,
-          data: fallback
-            ? { id: fallback.id, answer: fallback.answer, question: fallback.question }
-            : null,
-        };
+        return { ok: true, data: null };
       }
       return {
         ok: true,

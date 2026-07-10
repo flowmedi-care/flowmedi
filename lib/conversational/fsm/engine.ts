@@ -27,6 +27,7 @@ export class FsmEngine {
 
     if (current === "consent.pending") {
       if (input.confirmation === "yes") {
+        const deferred = conversation.consumeDeferredIntent();
         conversation.grantConsent();
         effects.push({
           type: "recordConsent",
@@ -34,7 +35,6 @@ export class FsmEngine {
           clinicId: conversation.clinicId,
           conversationId: conversation.id,
         });
-        const deferred = conversation.consumeDeferredIntent();
         if (deferred) {
           const step = nextStateAfterReceive("idle", { ...input, intent: deferred, interrupt: null });
           next = assertFsmState(step);

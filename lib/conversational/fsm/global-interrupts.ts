@@ -37,7 +37,28 @@ export function detectGlobalInterrupt(text: string): GlobalInterrupt | null {
 
 export function detectConfirmation(text: string): "yes" | "no" | null {
   const normalized = text.trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (
+    /^(não|nao|n|no|cancelar|recuso|negativo|dispenso|recusar)$/i.test(normalized) ||
+    /\b(não concordo|nao concordo|não autorizo|nao autorizo)\b/i.test(normalized)
+  ) {
+    return "no";
+  }
+
   if (/^(sim|s|yes|confirmo|ok|pode)$/i.test(normalized)) return "yes";
-  if (/^(não|nao|n|no|cancelar)$/i.test(normalized)) return "no";
+
+  if (
+    /\b(concordo|aceito|autorizo|pode sim|ok podemos|tem consentimento|dou consentimento|de acordo|estou de acordo)\b/i.test(
+      normalized
+    )
+  ) {
+    return "yes";
+  }
+
+  if (/^ok\b/.test(normalized) && /consentimento|concordo|aceito|autorizo|podemos/i.test(normalized)) {
+    return "yes";
+  }
+
   return null;
 }

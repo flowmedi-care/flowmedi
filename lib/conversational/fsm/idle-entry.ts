@@ -16,6 +16,16 @@ const MENU_MAP: Record<string, Intent> = {
   "5": "handoff",
 };
 
+const GREETING_PATTERNS = [
+  /^(oi|olá|ola|hey|hi|hello|e\s*aí|e ai|bom dia|boa tarde|boa noite|salve|fala|opa|tudo bem|td bem)[\s!.?]*$/i,
+];
+
+export function isGreeting(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  return GREETING_PATTERNS.some((pattern) => pattern.test(trimmed));
+}
+
 export function resolveIdleIntentFromKeywords(text: string): Intent | null {
   const trimmed = text.trim();
   if (MENU_MAP[trimmed]) return MENU_MAP[trimmed];
@@ -40,6 +50,6 @@ export function firstStepForIntent(intent: Intent): string | null {
     case "handoff":
       return "handoff.pending";
     default:
-      return "faq.ask";
+      return null;
   }
 }

@@ -198,6 +198,11 @@ async function processConversationAiInner(
     return;
   }
 
+  const northStarFlags = isLegacyRuntimeDisabled()
+    ? { mode: "full" as const, canaryClinicIds: [] as string[] }
+    : northStarFlagsFromSettings(settings);
+  const northStarGate = shouldRunNorthStar(northStarFlags, conv.clinic_id);
+
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
     conversationId,
@@ -257,11 +262,17 @@ async function processConversationAiInner(
     clinicId: conv.clinic_id,
     conversationId,
     stage: "agent_route",
-    detail: {
-      engine: "langgraph",
-      use_langgraph_pipeline: true,
-      lock_acquired: true,
-    },
+    detail: northStarGate.run
+      ? {
+          engine: "north_star",
+          north_star_mode: northStarFlags.mode,
+          lock_acquired: true,
+        }
+      : {
+          engine: "langgraph",
+          use_langgraph_pipeline: true,
+          lock_acquired: true,
+        },
   });
 
   if (
@@ -754,7 +765,10 @@ async function processConversationAiInner(
     clinicId: conv.clinic_id,
     conversationId,
     stage: "openai_start",
-    detail: { messageCount: userTexts.length },
+    detail: {
+      messageCount: userTexts.length,
+      ...(northStarGate.run ? { engine: "north_star" } : {}),
+    },
   });
 
   const combinedUserText = userTexts.join("\n").trim();
@@ -763,10 +777,6 @@ async function processConversationAiInner(
     .select("id, question, answer")
     .eq("clinic_id", conv.clinic_id)
     .order("display_order");
-  const northStarFlags = isLegacyRuntimeDisabled()
-    ? { mode: "full" as const, canaryClinicIds: [] }
-    : northStarFlagsFromSettings(settings);
-  const northStarGate = shouldRunNorthStar(northStarFlags, conv.clinic_id);
 
   let northStarResult: Awaited<ReturnType<typeof runNorthStarAssistant>> | null = null;
   if (northStarGate.run && combinedUserText) {
@@ -807,17 +817,6 @@ async function processConversationAiInner(
     reply = northStarResult.reply ?? "Como posso ajudar?";
     handoff = northStarResult.handoff;
     statePatch = northStarResult.aiStatePatch ?? aiState;
-    logAiEvent(supabase, {
-      clinicId: conv.clinic_id,
-      conversationId,
-      stage: "agent_route",
-      detail: {
-        engine: "north_star",
-        north_star_mode: northStarFlags.mode,
-        fsmStateBefore: northStarResult.fsmStateBefore,
-        fsmStateAfter: northStarResult.fsmStateAfter,
-      },
-    });
   } else if (!isLegacyRuntimeDisabled()) {
     const langGraphResult = await runLangGraphAssistant({
       supabase,
@@ -872,7 +871,11 @@ async function processConversationAiInner(
     clinicId: conv.clinic_id,
     conversationId,
     stage: "openai_end",
-    detail: { handoff, replyPreview: reply.slice(0, 80) },
+    detail: {
+      handoff,
+      replyPreview: reply.slice(0, 80),
+      ...(northStarResult?.ran ? { engine: "north_star" } : {}),
+    },
   });
 
   const now = new Date().toISOString();

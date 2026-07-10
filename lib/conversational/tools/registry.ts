@@ -47,6 +47,7 @@ export type HandlerDomainAllowlist = {
 };
 
 export const TOOL_ALLOWLIST: HandlerDomainAllowlist[] = [
+  { domain: "system", fsmState: "consent.pending", tools: ["recordConsent", "checkConsent"] },
   { domain: "booking", fsmState: "booking.collect_patient", tools: ["findPatient", "createPatient"] },
   { domain: "booking", fsmState: "booking.collect_service", tools: ["listServices"] },
   { domain: "booking", fsmState: "booking.collect_datetime", tools: ["listSlots"] },
