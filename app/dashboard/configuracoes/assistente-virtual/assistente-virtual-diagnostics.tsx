@@ -467,6 +467,13 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
                   <Bot className="mr-1 h-3 w-3" />
                   {health.assistantEnabled ? "Assistente ativo" : "Assistente desativado"}
                 </Badge>
+                {!health.assistantEnabled && health.assistantInactiveReason && (
+                  <Badge variant="outline" className="border-amber-300 text-amber-800">
+                    {health.assistantInactiveReason === "sem registro de configuração"
+                      ? "Sem registro — ative em Geral e salve"
+                      : health.assistantInactiveReason}
+                  </Badge>
+                )}
                 {health.pendingInboundCount > 0 && (
                   <Badge variant="warning">
                     {health.pendingInboundCount} na fila

@@ -105,8 +105,6 @@ export async function isVirtualAssistantActive(
       reason: data ? "enabled=false" : "sem registro de configuração",
     };
   }
-
-  // Se o admin ativou no painel, honrar em runtime (gate de plano só na UI)
   return {
     active: true,
     settings: data as Partial<VirtualAssistantSettings>,

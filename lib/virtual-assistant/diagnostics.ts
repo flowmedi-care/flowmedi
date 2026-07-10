@@ -13,6 +13,8 @@ import {
 
 export interface AssistantHealthCheck {
   assistantEnabled: boolean;
+  assistantSettingsExists: boolean;
+  assistantInactiveReason: string | null;
   migrationOk: boolean;
   migrationError: string | null;
   openaiConfigured: boolean;
@@ -251,9 +253,17 @@ export async function gatherAssistantDiagnostics(
   const whatsappIntegration = whatsappIntegrationResult.data as
     | { integration_type?: string; metadata?: { phone_number_id?: string } }
     | null;
+  const assistantSettings = settingsRow;
+  const assistantInactiveReason = !assistantSettings
+    ? "sem registro de configuração"
+    : assistantSettings.enabled !== true
+      ? "enabled=false"
+      : null;
 
   const health: AssistantHealthCheck = {
-    assistantEnabled: settingsRow?.enabled === true,
+    assistantEnabled: assistantSettings?.enabled === true,
+    assistantSettingsExists: Boolean(assistantSettings),
+    assistantInactiveReason,
     migrationOk,
     migrationError,
     openaiConfigured: Boolean(process.env.OPENAI_API_KEY),

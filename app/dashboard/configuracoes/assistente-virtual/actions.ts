@@ -1,9 +1,11 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { revalidatePath } from "next/cache";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canUseVirtualAssistant } from "@/lib/plan-gates";
+import { ensureVirtualAssistantSettingsRow } from "@/lib/virtual-assistant/ensure-settings-row";
 import { updateClinicInfo } from "../actions";
 import type {
   DayKey,
@@ -37,12 +39,7 @@ export async function getVirtualAssistantPageData() {
   const ctx = await requireAdminClinic();
   if (ctx.error || !ctx.supabase || !ctx.clinicId) return { error: ctx.error };
 
-  const [settingsRes, faqRes, locRes, clinicRes] = await Promise.all([
-    ctx.supabase
-      .from("clinic_virtual_assistant_settings")
-      .select("*")
-      .eq("clinic_id", ctx.clinicId)
-      .maybeSingle(),
+  const [faqRes, locRes, clinicRes] = await Promise.all([
     ctx.supabase
       .from("clinic_virtual_assistant_faq")
       .select("*")
@@ -68,11 +65,23 @@ export async function getVirtualAssistantPageData() {
       canUseVirtualAssistant(planData.limits, planData.planSlug, planData.subscriptionStatus)
   );
 
+  const serviceSupabase = createServiceRoleClient();
+  const ensured = await ensureVirtualAssistantSettingsRow(serviceSupabase, ctx.clinicId);
+  if (!ensured.ok) {
+    console.warn("[VirtualAssistant] ensure settings row:", ensured.error);
+  }
+
+  const { data: settings } = await serviceSupabase
+    .from("clinic_virtual_assistant_settings")
+    .select("*")
+    .eq("clinic_id", ctx.clinicId)
+    .maybeSingle();
+
   return {
     error: null,
     clinicId: ctx.clinicId,
     canUse,
-    settings: settingsRes.data as VirtualAssistantSettings | null,
+    settings: settings as VirtualAssistantSettings | null,
     faq: (faqRes.data ?? []) as VirtualAssistantFaq[],
     locations: (locRes.data ?? []) as VirtualAssistantLocation[],
     clinic: clinicRes.data,
@@ -188,7 +197,13 @@ export async function saveVirtualAssistantSettings(input: SaveVirtualAssistantIn
     if (input[key] !== undefined) row[key] = input[key];
   }
 
-  const { error } = await ctx.supabase
+  const serviceSupabase = createServiceRoleClient();
+  const ensured = await ensureVirtualAssistantSettingsRow(serviceSupabase, ctx.clinicId);
+  if (!ensured.ok) {
+    return { error: ensured.error ?? "Não foi possível criar configuração do assistente." };
+  }
+
+  const { error } = await serviceSupabase
     .from("clinic_virtual_assistant_settings")
     .upsert(row, { onConflict: "clinic_id" });
 

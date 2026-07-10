@@ -70,6 +70,19 @@ export function AssistenteVirtualClient({
     { id: "diagnostico", label: "Diagnóstico" },
   ];
 
+  async function handleEnabledToggle(next: boolean) {
+    setEnabled(next);
+    setSaving(true);
+    const result = await saveVirtualAssistantSettings({ enabled: next });
+    setSaving(false);
+    if (result.error) {
+      setEnabled(!next);
+      toast(result.error, "error");
+      return;
+    }
+    toast(next ? "Assistente ativado no WhatsApp." : "Assistente desativado.", "success");
+  }
+
   async function handleSave(partial?: Parameters<typeof saveVirtualAssistantSettings>[0]) {
     setSaving(true);
     const debounceNum = Number.parseInt(debounce, 10);
@@ -147,11 +160,16 @@ export function AssistenteVirtualClient({
               <input
                 type="checkbox"
                 checked={enabled}
-                disabled={!canUse}
-                onChange={(e) => setEnabled(e.target.checked)}
+                disabled={!canUse || saving}
+                onChange={(e) => void handleEnabledToggle(e.target.checked)}
               />
               Ativar assistente virtual no WhatsApp
             </label>
+            {!canUse && (
+              <p className="text-xs text-amber-700">
+                Plano sem assistente virtual — o toggle fica desabilitado até upgrade.
+              </p>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label>Nome do atendente virtual</Label>
