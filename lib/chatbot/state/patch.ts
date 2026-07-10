@@ -34,7 +34,7 @@ export function patchAiState(
         const procedures = data.procedures as Array<{ id: string; name: string }>;
         patch.offered_procedures = procedures.map((p, i) => ({
           id: p.id,
-          label: p.name,
+          name: p.name,
           index: i + 1,
         }));
       }
@@ -59,7 +59,7 @@ export function patchAiState(
         const doctors = data.doctors as Array<{ id: string; full_name: string }>;
         patch.offered_doctors = doctors.map((d, i) => ({
           id: d.id,
-          label: d.full_name,
+          name: d.full_name,
           index: i + 1,
         }));
       }
@@ -184,5 +184,8 @@ export function resolveOptionByIndex(
   const numMatch = trimmed.match(/^\d{1,2}$/);
   if (!numMatch) return null;
   const index = Number(numMatch[0]);
-  return options.find((o) => o.index === index) ?? null;
+  const byField = options.find((o) => o.index === index);
+  if (byField) return byField;
+  const byPosition = options[index - 1];
+  return byPosition ?? null;
 }

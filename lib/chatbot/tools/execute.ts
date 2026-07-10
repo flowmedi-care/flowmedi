@@ -153,7 +153,7 @@ export async function executeTool(
           statePatch: {
             offered_doctors: options.map((o) => ({
               id: o.id,
-              label: o.label,
+              name: o.label,
               index: o.index!,
             })),
           },
@@ -204,7 +204,7 @@ export async function executeTool(
           statePatch: {
             offered_procedures: options.map((o) => ({
               id: o.id,
-              label: o.label,
+              name: o.label,
               index: o.index!,
             })),
             ...(doctorId

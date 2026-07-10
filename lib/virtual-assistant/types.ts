@@ -1,6 +1,6 @@
 export type AssistantTone = "formal" | "informal";
 
-import type { AiState } from "@/lib/chatbot/state/types";
+import type { AiState, OfferedOption } from "@/lib/chatbot/state/types";
 import type { ToolExecutionModesConfig } from "./agent-pipeline/confirmation-policy";
 
 export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
@@ -93,10 +93,8 @@ export type OfferedSlot = {
   display: string;
 };
 
-export type OfferedProcedure = {
-  id: string;
-  name: string;
-};
+/** Procedimento oferecido ao paciente (lista numerada). */
+export type OfferedProcedure = OfferedOption;
 
 export type LastSlotQuery = {
   date?: string;
@@ -119,7 +117,6 @@ export type AiConversationState = AiState & {
   pending_slot?: string;
   offered_days?: OfferedDay[];
   offered_slots?: OfferedSlot[];
-  offered_procedures?: OfferedProcedure[];
   last_slot_query?: LastSlotQuery;
   last_display_message?: string;
   last_reply_kind?: string;

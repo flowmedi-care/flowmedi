@@ -5,8 +5,8 @@ export type OfferedSlot = {
 
 export type OfferedOption = {
   id: string;
-  label: string;
-  index: number;
+  name: string;
+  index?: number;
 };
 
 export type BookingState = {

@@ -8,8 +8,8 @@ describe("chatbot booking continuity", () => {
     const state = {
       ...initialAiState(),
       offered_doctors: [
-        { id: "doc-1", label: "Daniel Médico", index: 1 },
-        { id: "doc-2", label: "Doc", index: 2 },
+        { id: "doc-1", name: "Daniel Médico", index: 1 },
+        { id: "doc-2", name: "Doc", index: 2 },
       ],
     };
     const result = applyBookingContinuity("2", state);
@@ -21,8 +21,8 @@ describe("chatbot booking continuity", () => {
     const state = {
       ...initialAiState(),
       offered_procedures: [
-        { id: "proc-1", label: "Endoscopia", index: 1 },
-        { id: "proc-2", label: "Consulta", index: 2 },
+        { id: "proc-1", name: "Endoscopia", index: 1 },
+        { id: "proc-2", name: "Consulta", index: 2 },
       ],
     };
     const result = applyBookingContinuity("1", state);

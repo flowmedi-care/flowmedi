@@ -37,7 +37,7 @@ export function applyBookingContinuity(
         doctor_id: doctorPick.id,
         status: aiState.booking?.status ?? "collecting",
       };
-      enrichedUserText = `${trimmed} (seleção: médico "${doctorPick.label}", doctor_id=${doctorPick.id})`;
+      enrichedUserText = `${trimmed} (seleção: médico "${doctorPick.name}", doctor_id=${doctorPick.id})`;
       return { statePatch: patch, enrichedUserText };
     }
 
@@ -48,7 +48,7 @@ export function applyBookingContinuity(
         procedure_id: procedurePick.id,
         status: aiState.booking?.status ?? "collecting",
       };
-      enrichedUserText = `${trimmed} (seleção: procedimento "${procedurePick.label}", procedure_id=${procedurePick.id})`;
+      enrichedUserText = `${trimmed} (seleção: procedimento "${procedurePick.name}", procedure_id=${procedurePick.id})`;
       return { statePatch: patch, enrichedUserText };
     }
 
