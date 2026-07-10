@@ -36,6 +36,10 @@ export const AI_EVENT_STAGES = [
   "intent_classified",
   "context_cleared",
   "booking_continuity",
+  "north_star_turn",
+  "north_star_shadow",
+  "north_star_complete",
+  "north_star_shadow_compare",
 ] as const;
 
 export type AiEventStage = (typeof AI_EVENT_STAGES)[number];

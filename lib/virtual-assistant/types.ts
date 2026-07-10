@@ -57,6 +57,12 @@ export type VirtualAssistantSettings = {
   langgraph_shadow_mode?: boolean;
   /** Motor simplificado: router + handlers MVP (padrão). false = LangGraph legado com subgrafos CRM. */
   use_simple_assistant?: boolean;
+  /** North Star Architecture v2.2 — off | shadow | canary | full */
+  north_star_mode?: "off" | "shadow" | "canary" | "full";
+  /** Atalho legado: true equivale a north_star_mode=full */
+  north_star_enabled?: boolean;
+  /** Clínicas piloto quando north_star_mode=canary */
+  north_star_canary_clinic_ids?: string[];
 };
 
 export type VirtualAssistantLocation = {
@@ -168,6 +174,9 @@ export type AiConversationState = {
   consecutive_tool_failures?: number;
   /** Contagem de follow-ups de timeout por journey step */
   timeout_followup_counts?: Partial<Record<string, number>>;
+  /** North Star Architecture snapshot (dual-write durante migração) */
+  north_star_snapshot?: Record<string, unknown>;
+  _north_star_version?: number;
 };
 
 export const DAY_LABELS: Record<DayKey, string> = {

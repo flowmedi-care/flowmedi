@@ -29,6 +29,9 @@ import {
 import { tryReactivateAiAfterHandoff } from "./handoff-reactivation";
 import { ensureAiPrivacyNoticeSent } from "./ai-privacy-notice";
 import { buildClinicContext } from "./clinic-context";
+import { runNorthStarAssistant } from "@/lib/conversational/run-north-star";
+import { isLegacyRuntimeDisabled } from "@/lib/conversational/migration/legacy-runtime";
+import { northStarFlagsFromSettings, shouldRunNorthStar } from "@/lib/conversational/feature-flags";
 
 export interface SkipMenuChatbotResult {
   skipMenu: boolean;
@@ -754,33 +757,116 @@ async function processConversationAiInner(
     detail: { messageCount: userTexts.length },
   });
 
-  const { reply, handoff, statePatch } = await runLangGraphAssistant({
-    supabase,
-    clinicId: conv.clinic_id,
-    conversationId,
-    phoneNumber: conv.phone_number,
-    userMessages: userTexts,
-    settings,
-    aiState,
-    history,
-  }).catch((e) => {
-    console.error("[VirtualAssistant] agent error:", e);
-    const msg =
-      e instanceof Error && e.message.includes("OPENAI_API_KEY")
-        ? "Desculpe, o assistente não está configurado no momento. Vou chamar alguém da equipe."
-        : "Desculpe, tive um problema técnico. Pode tentar de novo em instantes?";
+  const combinedUserText = userTexts.join("\n").trim();
+  const { data: faqRows } = await supabase
+    .from("clinic_virtual_assistant_faq")
+    .select("id, question, answer")
+    .eq("clinic_id", conv.clinic_id)
+    .order("display_order");
+  const northStarFlags = isLegacyRuntimeDisabled()
+    ? { mode: "full" as const, canaryClinicIds: [] }
+    : northStarFlagsFromSettings(settings);
+  const northStarGate = shouldRunNorthStar(northStarFlags, conv.clinic_id);
+
+  let northStarResult: Awaited<ReturnType<typeof runNorthStarAssistant>> | null = null;
+  if (northStarGate.run && combinedUserText) {
+    northStarResult = await runNorthStarAssistant({
+      supabase,
+      clinicId: conv.clinic_id,
+      conversationId,
+      phoneNumber: conv.phone_number,
+      userText: combinedUserText,
+      settings,
+      aiState,
+      faqs: (faqRows ?? []).map((f) => ({
+        id: String(f.id),
+        question: String(f.question),
+        answer: String(f.answer),
+      })),
+    }).catch((e) => {
+      console.error("[NorthStar] turn error:", e);
+      logAiEvent(supabase, {
+        clinicId: conv.clinic_id,
+        conversationId,
+        stage: "error",
+        level: "error",
+        detail: {
+          source: "north_star_assistant",
+          message: e instanceof Error ? e.message : String(e),
+        },
+      });
+      return { ran: false, shadow: false, sendReply: false };
+    });
+  }
+
+  let reply: string;
+  let handoff: boolean | undefined;
+  let statePatch: Partial<AiConversationState> | undefined;
+
+  if (northStarResult?.ran && northStarResult.sendReply && !northStarResult.silent) {
+    reply = northStarResult.reply ?? "Como posso ajudar?";
+    handoff = northStarResult.handoff;
+    statePatch = northStarResult.aiStatePatch ?? aiState;
     logAiEvent(supabase, {
       clinicId: conv.clinic_id,
       conversationId,
-      stage: "error",
-      level: "error",
+      stage: "agent_route",
       detail: {
-        source: "langgraph_agent",
-        message: e instanceof Error ? e.message : String(e),
+        engine: "north_star",
+        north_star_mode: northStarFlags.mode,
+        fsmStateBefore: northStarResult.fsmStateBefore,
+        fsmStateAfter: northStarResult.fsmStateAfter,
       },
     });
-    return { reply: msg, handoff: false, statePatch: aiState };
-  });
+  } else if (!isLegacyRuntimeDisabled()) {
+    const langGraphResult = await runLangGraphAssistant({
+      supabase,
+      clinicId: conv.clinic_id,
+      conversationId,
+      phoneNumber: conv.phone_number,
+      userMessages: userTexts,
+      settings,
+      aiState,
+      history,
+    }).catch((e) => {
+      console.error("[VirtualAssistant] agent error:", e);
+      const msg =
+        e instanceof Error && e.message.includes("OPENAI_API_KEY")
+          ? "Desculpe, o assistente não está configurado no momento. Vou chamar alguém da equipe."
+          : "Desculpe, tive um problema técnico. Pode tentar de novo em instantes?";
+      logAiEvent(supabase, {
+        clinicId: conv.clinic_id,
+        conversationId,
+        stage: "error",
+        level: "error",
+        detail: {
+          source: "langgraph_agent",
+          message: e instanceof Error ? e.message : String(e),
+        },
+      });
+      return { reply: msg, handoff: false, statePatch: aiState };
+    });
+    reply = langGraphResult.reply;
+    handoff = langGraphResult.handoff;
+    statePatch = langGraphResult.statePatch;
+  } else {
+    reply = northStarResult?.reply ?? "Como posso ajudar?";
+    handoff = northStarResult?.handoff;
+    statePatch = northStarResult?.aiStatePatch ?? aiState;
+  }
+
+  if (northStarResult?.shadow) {
+    logAiEvent(supabase, {
+      clinicId: conv.clinic_id,
+      conversationId,
+      stage: "north_star_shadow_compare",
+      detail: {
+        legacyReplyPreview: reply.slice(0, 120),
+        northStarReplyPreview: (northStarResult.reply ?? "").slice(0, 120),
+        northStarFsmAfter: northStarResult.fsmStateAfter,
+      },
+    });
+  }
 
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
