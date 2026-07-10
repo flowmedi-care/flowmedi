@@ -66,6 +66,20 @@ function hasSimilarInboundBurst(messages: string[]): boolean {
   return recent.every((m) => areSimilarMessages(first, m));
 }
 
+const HANDOFF_REJECTION_PATTERNS = [
+  /n[aã]o quero falar com (você|voce|atendente|humano|equipe|ningu[eé]m)/i,
+  /quero falar com (você|voce) mesmo/i,
+  /n[aã]o quero atendente/i,
+];
+
+function inboundRejectsHandoff(text: string): boolean {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  return HANDOFF_REJECTION_PATTERNS.some((p) => p.test(normalized));
+}
+
+const IDENTICAL_OUTBOUND_THRESHOLD = 3;
+
 export interface BotLoopCheckResult {
   block: boolean;
   reason?: string;
@@ -107,12 +121,16 @@ export async function checkBotLoopRisk(
     return { block: false };
   }
 
+  if (inboundRejectsHandoff(inboundText)) {
+    return { block: false };
+  }
+
   const defaultSinceMs = Date.now() - PING_PONG_WINDOW_MS;
   const windowSince = resolveBotLoopWindowSince(defaultSinceMs, aiState);
 
   const { data: recentOutbound } = await supabase
     .from("whatsapp_messages")
-    .select("id, sent_at")
+    .select("id, sent_at, content")
     .eq("conversation_id", conversationId)
     .eq("direction", "outbound")
     .gte("sent_at", windowSince)
@@ -120,6 +138,17 @@ export async function checkBotLoopRisk(
     .order("sent_at", { ascending: false });
 
   const outboundCount = recentOutbound?.length ?? 0;
+
+  const outboundTexts = (recentOutbound ?? [])
+    .map((m) => normalizeForCompare(String(m.content ?? "")))
+    .filter(Boolean);
+  if (
+    outboundTexts.length >= IDENTICAL_OUTBOUND_THRESHOLD &&
+    outboundTexts.slice(0, IDENTICAL_OUTBOUND_THRESHOLD).every((t) => t === outboundTexts[0])
+  ) {
+    return { block: false, reason: "identical_outbound_bot_fault" };
+  }
+
   const inboundLooksAutomated = looksLikeAutomatedMessage(inboundText, aiState);
 
   if (outboundCount >= PING_PONG_OUTBOUND_THRESHOLD && inboundLooksAutomated) {

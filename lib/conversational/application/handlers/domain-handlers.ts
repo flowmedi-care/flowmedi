@@ -5,6 +5,7 @@ import type { HandlerContext, DomainHandler } from "./handler-types";
 import { literalReply } from "./handler-types";
 import { idempotencyKey } from "../../tools/adapters/supabase-adapters";
 
+/** @deprecated Brain v2 handles FAQ via KnowledgeRouter. */
 export class FaqHandler implements DomainHandler {
   async handle(ctx: HandlerContext) {
     const flow = ctx.conversation.activeFlow;
@@ -16,6 +17,15 @@ export class FaqHandler implements DomainHandler {
     }
 
     const query = ctx.input.text.trim();
+    const toolCtx = {
+      clinicId: ctx.conversation.clinicId,
+      conversationId: ctx.conversation.id,
+      phoneNumber: ctx.phoneNumber,
+      domain: "faq" as const,
+      fsmState: "faq.ask" as const,
+      turnId: ctx.turnId,
+    };
+
     if (!query) {
       return {
         type: "stay" as const,
@@ -23,26 +33,66 @@ export class FaqHandler implements DomainHandler {
       };
     }
 
+    // Menu numérico após opção "3 — Dúvidas": pedir pergunta, não buscar FAQ.
+    if (/^\d{1,2}$/.test(query) && !flow.draft.lastQuery) {
+      return {
+        type: "stay" as const,
+        reply: literalReply("Claro! Qual sua dúvida?"),
+      };
+    }
+
+    // Perguntas sobre serviços/especialidades → listar do banco.
+    if (
+      /serviço|servico|trabalham|fazem|especialidade|procedimento|com o que/i.test(query)
+    ) {
+      const services = await ctx.tools.execute({ name: "listServices", args: {} }, toolCtx);
+      if (services.ok && services.data) {
+        const list = services.data as Array<{ name: string }>;
+        const formatted = list
+          .slice(0, 12)
+          .map((item, index) => `${index + 1}. ${item.name}`)
+          .join("\n");
+        return {
+          type: "complete" as const,
+          reply: literalReply(
+            list.length
+              ? `Trabalhamos com:\n\n${formatted}\n\nQuer saber valores ou agendar algum?`
+              : "Trabalhamos com diversos procedimentos e consultas. Quer que eu detalhe algum?"
+          ),
+        };
+      }
+    }
+
     const result = await ctx.tools.execute(
       {
         name: "searchFaq",
         args: { query },
       },
-      {
-        clinicId: ctx.conversation.clinicId,
-        conversationId: ctx.conversation.id,
-        phoneNumber: ctx.phoneNumber,
-        domain: "faq",
-        fsmState: "faq.ask",
-        turnId: ctx.turnId,
-      }
+      toolCtx
     );
 
     if (!result.ok || !result.data) {
+      const services = await ctx.tools.execute({ name: "listServices", args: {} }, toolCtx);
+      if (services.ok && services.data) {
+        const list = services.data as Array<{ name: string }>;
+        if (list.length > 0) {
+          const formatted = list
+            .slice(0, 8)
+            .map((item, index) => `${index + 1}. ${item.name}`)
+            .join("\n");
+          return {
+            type: "complete" as const,
+            reply: literalReply(
+              `Não achei isso na FAQ, mas trabalhamos com:\n\n${formatted}\n\nQuer saber mais sobre algum?`
+            ),
+          };
+        }
+      }
+
       return {
         type: "stay" as const,
         reply: literalReply(
-          "Não encontrei essa informação agora. Quer falar com a equipe? Digite *atendente*."
+          "Não encontrei essa informação específica. Pode reformular a pergunta ou digitar *atendente* para falar com a equipe."
         ),
       };
     }
@@ -50,7 +100,7 @@ export class FaqHandler implements DomainHandler {
     const data = result.data as { id: string; answer: string; question: string };
     ctx.conversation.advanceFlow({
       kind: "faq",
-      draft: { lastQuery: query, lastAnswerId: data.id },
+      draft: { ...flow.draft, lastQuery: query, lastAnswerId: data.id, discoveryMode: false },
     });
 
     return {

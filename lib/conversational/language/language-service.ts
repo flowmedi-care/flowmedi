@@ -34,6 +34,8 @@ export class KeywordLanguageService implements LanguageService {
     else if (/preço|preco|valor|quanto/.test(lower)) intent = "pricing";
     else if (/atendente|humano/.test(lower)) intent = "handoff";
     else if (/cadastr|interesse/.test(lower)) intent = "crm";
+    else if (/serviço|servico|trabalham|fazem|especialidade|procedimento/.test(lower))
+      intent = "discovery";
     else if (/dúvida|duvida|informação|informacao|faq/.test(lower)) intent = "faq";
 
     if (!request.allowedIntents.includes(intent)) {

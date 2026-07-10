@@ -2,6 +2,7 @@ export const INTENTS = [
   "booking",
   "pricing",
   "faq",
+  "discovery",
   "crm",
   "handoff",
   "cancel",

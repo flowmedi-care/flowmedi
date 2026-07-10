@@ -9,6 +9,7 @@ export const FSM_STATES = [
   "pricing.collect_service",
   "pricing.present",
   "faq.ask",
+  "discovery.present",
   "crm.collect_contact",
   "crm.collect_interest",
   "handoff.pending",
@@ -36,6 +37,7 @@ export type HandlerDomain =
   | "booking"
   | "pricing"
   | "faq"
+  | "discovery"
   | "crm"
   | "handoff";
 
@@ -46,6 +48,7 @@ export function resolveHandlerDomain(state: FsmState): HandlerDomain | null {
     domain === "booking" ||
     domain === "pricing" ||
     domain === "faq" ||
+    domain === "discovery" ||
     domain === "crm" ||
     domain === "handoff"
   ) {

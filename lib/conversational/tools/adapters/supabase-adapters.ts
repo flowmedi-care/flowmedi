@@ -89,25 +89,36 @@ function createExecutors(
     },
 
     listSlots: async (call, ctx) => {
-      const serviceId = String(call.args.serviceId ?? "");
-      const date = String(call.args.date ?? new Date().toISOString().slice(0, 10));
-      const { data: professionals } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .eq("clinic_id", ctx.clinicId)
-        .eq("role", "medico")
-        .limit(5);
-
-      const slots = (professionals ?? []).flatMap((prof, idx) => [
+      const { executeAssistantTool } = await import("@/lib/virtual-assistant/tools");
+      const procedureId = String(call.args.procedureId ?? call.args.serviceId ?? "");
+      const doctorId = call.args.doctorId ? String(call.args.doctorId) : undefined;
+      const date = call.args.date ? String(call.args.date) : undefined;
+      const result = await executeAssistantTool(
         {
-          start: `${date}T${String(9 + idx).padStart(2, "0")}:00:00.000Z`,
-          end: `${date}T${String(9 + idx).padStart(2, "0")}:30:00.000Z`,
-          professionalId: String(prof.id),
-          display: `${date} ${9 + idx}:00 — ${prof.full_name ?? "Profissional"}`,
-          serviceId,
+          supabase,
+          clinicId: ctx.clinicId,
+          conversationId: ctx.conversationId,
+          phoneNumber: ctx.phoneNumber,
+          aiState: {},
+          pipelineStage: "agendamento",
         },
-      ]);
-      return { ok: true, data: slots.slice(0, 6) };
+        "find_available_slots",
+        {
+          procedure_id: procedureId || undefined,
+          doctor_id: doctorId,
+          date,
+        }
+      );
+      if (result.error) {
+        return { ok: false, error: result.error, recoverable: true };
+      }
+      let data: unknown = result.result;
+      try {
+        data = JSON.parse(result.result);
+      } catch {
+        // keep string
+      }
+      return { ok: true, data };
     },
 
     createAppointment: async (call, ctx) => {
@@ -172,12 +183,9 @@ function createExecutors(
     },
 
     searchFaq: async (call, _ctx) => {
-      const query = String(call.args.query ?? "").toLowerCase();
-      const match = config.faqs.find(
-        (f) =>
-          f.question.toLowerCase().includes(query) ||
-          f.answer.toLowerCase().includes(query)
-      );
+      const query = String(call.args.query ?? "");
+      const { semanticFaqSearch } = await import("../../brain/knowledge/semantic-faq");
+      const match = semanticFaqSearch(query, config.faqs);
       if (!match) {
         return { ok: true, data: null };
       }

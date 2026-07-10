@@ -41,6 +41,7 @@ const pricingDraftSchema = z.object({
 const faqDraftSchema = z.object({
   lastQuery: z.string().nullable(),
   lastAnswerId: z.string().nullable(),
+  discoveryMode: z.boolean().optional(),
 });
 
 const crmDraftSchema = z.object({
@@ -70,7 +71,7 @@ export const conversationSnapshotSchema = z.object({
   consent: z.object({
     status: z.enum(["unknown", "granted", "denied"]),
     deferredIntent: z
-      .enum(["booking", "pricing", "faq", "crm", "handoff", "cancel", "unknown"])
+      .enum(["booking", "pricing", "faq", "discovery", "crm", "handoff", "cancel", "unknown"])
       .nullable(),
     recordedAt: z.string().nullable(),
   }),

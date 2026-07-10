@@ -6,7 +6,7 @@ import { patientRef } from "../domain/shared/patient-ref";
 import { requiresConsent } from "../domain/services/consent-policy";
 import { ConversationMapper } from "../infrastructure/persistence/conversation-mapper";
 import { nextStateAfterOutcome, nextStateAfterReceive } from "../fsm/transitions";
-import { northStarFlagsFromSettings, shouldRunNorthStar } from "../feature-flags";
+import { northStarFlagsFromSettings, shouldRunNorthStar, shouldUseBrainV2 } from "../feature-flags";
 import { isGreeting } from "../fsm/idle-entry";
 import { detectConfirmation } from "../fsm/global-interrupts";
 import { InputResolver } from "../fsm/input-resolver";
@@ -142,6 +142,20 @@ describe("Feature flags", () => {
     const flags = northStarFlagsFromSettings({ north_star_enabled: true });
     const gate = shouldRunNorthStar(flags, "clinic1");
     assert.equal(gate.sendReply, true);
+  });
+
+  it("brain v2 flag", () => {
+    const flags = northStarFlagsFromSettings({
+      north_star_mode: "full",
+      north_star_brain: "v2",
+    });
+    assert.equal(shouldUseBrainV2(flags, "any"), true);
+    const canary = northStarFlagsFromSettings({
+      north_star_mode: "full",
+      brain_v2_canary_clinic_ids: ["clinic-x"],
+    });
+    assert.equal(shouldUseBrainV2(canary, "clinic-x"), true);
+    assert.equal(shouldUseBrainV2(canary, "other"), false);
   });
 });
 
@@ -305,7 +319,7 @@ describe("TurnProcessor regressions", () => {
     );
 
     assert.equal(result.detectedIntent, "faq");
-    assert.match(result.reply, /Não encontrei/);
+    assert.match(result.reply, /Qual sua dúvida/i);
     assert.doesNotMatch(result.reply, /A vida é uma maravilha/);
   });
 

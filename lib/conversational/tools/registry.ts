@@ -54,11 +54,13 @@ export const TOOL_ALLOWLIST: HandlerDomainAllowlist[] = [
   { domain: "booking", fsmState: "booking.confirm", tools: ["createAppointment", "cancelAppointment", "rescheduleAppointment"] },
   { domain: "pricing", fsmState: "pricing.collect_service", tools: ["listServices"] },
   { domain: "pricing", fsmState: "pricing.present", tools: ["getPriceQuote"] },
-  { domain: "faq", fsmState: "faq.ask", tools: ["searchFaq"] },
+  { domain: "faq", fsmState: "faq.ask", tools: ["searchFaq", "listServices"] },
+  { domain: "discovery", fsmState: "discovery.present", tools: ["listServices"] },
   { domain: "crm", fsmState: "crm.collect_contact", tools: ["createPatient"] },
   { domain: "crm", fsmState: "crm.collect_interest", tools: ["createLead"] },
   { domain: "handoff", fsmState: "handoff.pending", tools: ["openHandoffTicket"] },
   { domain: "handoff", fsmState: "handoff.active", tools: ["appendHandoffMessage"] },
+  { domain: "brain", fsmState: "brain.active", tools: ["listServices", "searchFaq", "getPriceQuote", "listSlots", "findPatient", "createPatient", "createLead", "openHandoffTicket", "createAppointment", "cancelAppointment", "rescheduleAppointment"] },
 ];
 
 export function isToolAllowed(domain: string, fsmState: string, toolName: ToolName): boolean {

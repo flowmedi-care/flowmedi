@@ -45,6 +45,7 @@ export type TurnProcessorDeps = {
   audit?: AuditWriter;
 };
 
+/** @deprecated Use CognitiveTurnProcessor (brain v2). Kept for north_star v1 fallback. */
 export class TurnProcessor {
   private readonly inputResolver: InputResolver;
   private readonly replyRenderer: ReplyRenderer;

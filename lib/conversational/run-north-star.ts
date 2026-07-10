@@ -3,10 +3,13 @@ import { logAiEvent } from "@/lib/virtual-assistant/event-log";
 import type { VirtualAssistantSettings } from "@/lib/virtual-assistant/types";
 import { clinicConfigFromSettings } from "./clinic/clinic-config";
 import { createTurnProcessor } from "./conversation/turn-processor";
+import { CognitiveTurnProcessor } from "./brain/cognitive-turn-processor";
+import { loadConversationHistory } from "./brain/context/context-builder";
 import { SupabaseConversationRepository } from "./infrastructure/persistence/supabase-conversation-repository";
 import {
   northStarFlagsFromSettings,
   shouldRunNorthStar,
+  shouldUseBrainV2,
 } from "./feature-flags";
 import { writeDualStateToSupabase, mergeLegacyAiStatePatch } from "./application/legacy-ai-state-adapter";
 import type { AiConversationState } from "@/lib/virtual-assistant/types";
@@ -32,6 +35,7 @@ export type RunNorthStarResult = {
   fsmStateBefore?: string;
   fsmStateAfter?: string;
   aiStatePatch?: AiConversationState;
+  engine?: "north_star_v1" | "brain_v2";
 };
 
 export async function runNorthStarAssistant(
@@ -51,6 +55,54 @@ export async function runNorthStarAssistant(
     channel: "whatsapp",
     externalThreadId: input.phoneNumber,
   });
+
+  const history = await loadConversationHistory(input.supabase, input.conversationId, 10);
+  const useBrainV2 = shouldUseBrainV2(flags, input.clinicId);
+
+  if (useBrainV2) {
+    const brain = new CognitiveTurnProcessor(input.supabase, repository, config);
+    const result = await brain.process({
+      conversation,
+      message: input.userText,
+      phoneNumber: input.phoneNumber,
+      aiState: input.aiState,
+      history,
+    });
+
+    const mergedState: AiConversationState = {
+      ...input.aiState,
+      ...result.brainStatePatch,
+    };
+
+    await input.supabase
+      .from("whatsapp_conversations")
+      .update({ ai_state: mergedState })
+      .eq("id", input.conversationId);
+
+    logAiEvent(input.supabase, {
+      clinicId: input.clinicId,
+      conversationId: input.conversationId,
+      stage: gate.shadow ? "brain_v2_shadow" : "brain_v2_complete",
+      detail: {
+        planGoal: result.planGoal,
+        retrievalChain: result.retrievalChain,
+        replyPreview: result.reply.slice(0, 120),
+        handoff: result.handoff,
+        sendReply: gate.sendReply,
+      },
+    });
+
+    return {
+      ran: true,
+      shadow: gate.shadow,
+      sendReply: gate.sendReply,
+      reply: result.reply,
+      silent: result.silent,
+      handoff: result.handoff,
+      engine: "brain_v2",
+      aiStatePatch: mergedState,
+    };
+  }
 
   const audit = async (record: {
     conversationId: string;
@@ -120,6 +172,7 @@ export async function runNorthStarAssistant(
       replyPreview: result.reply.slice(0, 120),
       handoff: result.handoff,
       sendReply: gate.sendReply,
+      historyCount: history.length,
     },
   });
 
@@ -133,5 +186,6 @@ export async function runNorthStarAssistant(
     fsmStateBefore: result.fsmStateBefore,
     fsmStateAfter: result.fsmStateAfter,
     aiStatePatch: mergeLegacyAiStatePatch(input.aiState, result.conversation),
+    engine: "north_star_v1",
   };
 }

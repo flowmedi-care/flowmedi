@@ -1,3 +1,4 @@
+/** @deprecated Use brain v2 CognitiveTurnProcessor. Registry kept for north_star v1 fallback. */
 import type { HandlerDomain } from "../../fsm/states";
 import type { DomainHandler } from "./handler-types";
 import {
@@ -7,6 +8,7 @@ import {
   handoffHandler,
   pricingHandler,
 } from "./domain-handlers";
+import { discoveryHandler } from "./discovery-handler";
 import { idleHandler } from "./idle-handler";
 
 const HANDLERS: Record<HandlerDomain, DomainHandler> = {
@@ -14,6 +16,7 @@ const HANDLERS: Record<HandlerDomain, DomainHandler> = {
   booking: bookingHandler,
   pricing: pricingHandler,
   faq: faqHandler,
+  discovery: discoveryHandler,
   crm: crmHandler,
   handoff: handoffHandler,
 };

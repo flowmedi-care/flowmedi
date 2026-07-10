@@ -179,6 +179,22 @@ export type AiConversationState = {
   /** North Star Architecture snapshot (dual-write durante migração) */
   north_star_snapshot?: Record<string, unknown>;
   _north_star_version?: number;
+  /** Brain v2 — memória operacional + shadow FSM */
+  brain_v2?: {
+    operational?: {
+      activeGoal?: string | null;
+      awaiting?: string | null;
+      selections?: Record<string, unknown>;
+      retrievalAttempts?: number;
+      frustrationScore?: number;
+      lastMenuShown?: { options: string[]; at: string };
+    };
+    shadow?: {
+      inferredPhase?: string;
+      inferredDomain?: string | null;
+      lastPlanGoal?: string | null;
+    };
+  };
 };
 
 export const DAY_LABELS: Record<DayKey, string> = {

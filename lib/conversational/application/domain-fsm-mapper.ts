@@ -24,6 +24,7 @@ export function conversationToFsmState(conversation: Conversation): FsmState {
         ? "pricing.collect_service"
         : "pricing.present";
     case "faq":
+      if (flow.draft.discoveryMode) return "discovery.present";
       return "faq.ask";
     case "crm":
       return flow.draft.step === "collect_contact"
@@ -84,6 +85,15 @@ export function fsmStateToConversationPatch(
     syncPricingFlow(conversation, step);
   } else if (domain === "faq") {
     if (conversation.activeFlow?.kind !== "faq") conversation.startFaq();
+  } else if (domain === "discovery") {
+    conversation.startFaq();
+    const flow = conversation.activeFlow;
+    if (flow?.kind === "faq") {
+      conversation.advanceFlow({
+        kind: "faq",
+        draft: { ...flow.draft, discoveryMode: true, lastQuery: null, lastAnswerId: null },
+      });
+    }
   } else if (domain === "crm") {
     syncCrmFlow(conversation, step);
   }

@@ -42,7 +42,7 @@ export class InputResolver {
       if (!intent && trimmed && !config.llmDisabled) {
         const extracted = await this.deps.language.extract({
           text: trimmed,
-          allowedIntents: ["booking", "pricing", "faq", "crm", "handoff", "unknown"],
+          allowedIntents: ["booking", "pricing", "faq", "discovery", "crm", "handoff", "unknown"],
         });
         if (extracted.intent !== "unknown") {
           intent = extracted.intent;

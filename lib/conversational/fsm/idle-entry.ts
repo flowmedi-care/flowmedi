@@ -3,6 +3,11 @@ import type { Intent } from "../domain/shared/intent";
 const KEYWORD_INTENTS: Array<{ pattern: RegExp; intent: Intent }> = [
   { pattern: /agendar|marcar|consulta|horário|horario/i, intent: "booking" },
   { pattern: /preço|preco|valor|quanto custa|orcamento|orçamento/i, intent: "pricing" },
+  {
+    pattern:
+      /com o que (vocês|vcs|trabalham|fazem)|o que (vocês|vcs) (fazem|oferecem|trabalham)|quais (serviços|servicos|especialidades|procedimentos)|trabalham com o quê|serviços da clínica/i,
+    intent: "discovery",
+  },
   { pattern: /dúvida|duvida|informação|informacao|endereço|endereco|horário de funcionamento/i, intent: "faq" },
   { pattern: /cadastr|interesse|contato|captação|captacao/i, intent: "crm" },
   { pattern: /atendente|humano|pessoa/i, intent: "handoff" },
@@ -45,6 +50,8 @@ export function firstStepForIntent(intent: Intent): string | null {
       return "pricing.collect_service";
     case "faq":
       return "faq.ask";
+    case "discovery":
+      return "discovery.present";
     case "crm":
       return "crm.collect_contact";
     case "handoff":

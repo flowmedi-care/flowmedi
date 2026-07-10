@@ -50,6 +50,7 @@ export function nextStateAfterOutcome(
     "crm.collect_contact": "crm.collect_interest",
     "crm.collect_interest": "idle",
     "faq.ask": "idle",
+    "discovery.present": "idle",
     "handoff.pending": "handoff.active",
   };
 
@@ -76,6 +77,7 @@ function isFsmState(value: string): value is FsmState {
     "pricing.collect_service",
     "pricing.present",
     "faq.ask",
+    "discovery.present",
     "crm.collect_contact",
     "crm.collect_interest",
     "handoff.pending",

@@ -197,9 +197,16 @@ async function processConversationAiInner(
   }
 
   const northStarFlags = isLegacyRuntimeDisabled()
-    ? { mode: "full" as const, canaryClinicIds: [] as string[] }
+    ? {
+        mode: "full" as const,
+        brain: "v1" as const,
+        canaryClinicIds: [] as string[],
+        brainV2CanaryClinicIds: [] as string[],
+      }
     : northStarFlagsFromSettings(settings);
   const northStarGate = shouldRunNorthStar(northStarFlags, conv.clinic_id);
+  const { shouldUseBrainV2 } = await import("@/lib/conversational/feature-flags");
+  const useBrainV2 = shouldUseBrainV2(northStarFlags, conv.clinic_id);
 
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
@@ -762,10 +769,11 @@ async function processConversationAiInner(
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
     conversationId,
-    stage: "openai_start",
+    stage: useBrainV2 ? "brain_v2_start" : northStarGate.run ? "north_star_start" : "openai_start",
     detail: {
       messageCount: userTexts.length,
-      ...(northStarGate.run ? { engine: "north_star" } : {}),
+      historyCount: userTexts.length,
+      ...(northStarGate.run ? { engine: useBrainV2 ? "brain_v2" : "north_star_v1" } : {}),
     },
   });
 
