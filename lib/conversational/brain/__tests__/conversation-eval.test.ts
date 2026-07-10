@@ -118,14 +118,15 @@ describe("conversation eval — 20 golden cases", () => {
 describe("tool planner waves", () => {
   it("executa steps independentes na mesma onda", () => {
     const waves = groupToolStepsIntoWaves([
-      { id: "a", tool: "listServices", args: {}, parallelizable: true },
-      { id: "b", tool: "searchFaq", args: {}, parallelizable: true },
+      { id: "a", tool: "listServices", args: {}, parallelizable: true, purpose: "list" },
+      { id: "b", tool: "searchFaq", args: {}, parallelizable: true, purpose: "faq" },
       {
         id: "c",
         tool: "getPriceQuote",
         args: {},
         dependsOn: ["a"],
         parallelizable: false,
+        purpose: "price",
       },
     ]);
     assert.equal(waves.length, 2);

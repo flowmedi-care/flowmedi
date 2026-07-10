@@ -7,13 +7,13 @@ import type { Conversation } from "../domain/conversation/conversation";
 import type { ConversationRepository } from "../domain/conversation/conversation-repository";
 import { createToolGateway } from "../tools/adapters/supabase-adapters";
 import { ContextBuilder } from "./context/context-builder";
-import { ReplyComposer } from "./composition/reply-composer";
-import { KnowledgeRouter } from "./knowledge/knowledge-router";
-import { MemoryStore } from "./memory/memory-store";
-import { Planner } from "./planning/planner";
-import { Replanner } from "./planning/replanner";
-import { UnderstandingLayer } from "./understanding/understanding-layer";
+import { BrainReplyComposer } from "./composition/brain-reply-composer";
+import { executeAction } from "./execution/action-executor";
+import { BrainMemoryStore, readBrainV2State } from "./memory/brain-memory-store";
+import { Perception } from "./perception/perception";
+import { Reasoner } from "./reasoning/reasoner";
 import type { HistoryMessage } from "./types/messages";
+import type { EpisodeTurn } from "./types/episode";
 
 export type CognitiveTurnResult = {
   reply: string;
@@ -27,11 +27,10 @@ export type CognitiveTurnResult = {
 
 export class CognitiveTurnProcessor {
   private readonly contextBuilder: ContextBuilder;
-  private readonly understanding = new UnderstandingLayer();
-  private readonly planner = new Planner();
-  private readonly knowledgeRouter = new KnowledgeRouter();
-  private readonly replyComposer = new ReplyComposer();
-  private readonly memoryStore = new MemoryStore();
+  private readonly perception = new Perception();
+  private readonly reasoner = new Reasoner();
+  private readonly replyComposer = new BrainReplyComposer();
+  private readonly memoryStore = new BrainMemoryStore();
 
   constructor(
     private readonly supabase: SupabaseClient,
@@ -61,53 +60,92 @@ export class CognitiveTurnProcessor {
       history: opts.history,
     });
 
-    const understanding = await this.understanding.analyze(ctx);
-    let plan = await this.planner.plan(ctx, understanding);
-    plan = await this.knowledgeRouter.enrichPlan(plan, ctx, understanding);
+    const brainState = readBrainV2State(opts.aiState);
+    const perceived = this.perception.extract(
+      ctx.message,
+      ctx.clinicSummary,
+      ctx.operationalMemory
+    );
 
     const gateway = createToolGateway(this.supabase, this.config);
-    const replanner = new Replanner();
-    let bundle = await this.knowledgeRouter.executePlan(plan, ctx, {
-      supabase: this.supabase,
-      config: this.config,
-      gateway,
-      aiState: opts.aiState,
+    const retrievalChain: string[] = [];
+    let toolFacts: Record<string, unknown> = {};
+    let thinkCycles = 0;
+
+    let reasoning = this.reasoner.think({
+      perceived,
+      memory: ctx.operationalMemory,
     });
 
-    while (bundle.needsReplan && replanner.canReplan()) {
-      const newPlan = replanner.replan(plan, bundle, ctx, understanding);
-      if (!newPlan) break;
-      plan = newPlan;
-      bundle = await this.knowledgeRouter.executePlan(plan, ctx, {
+    while (reasoning.decision.type === "TOOL" && thinkCycles < 3) {
+      thinkCycles += 1;
+      const observation = await executeAction(reasoning.chosenAction, ctx, {
         supabase: this.supabase,
         config: this.config,
         gateway,
         aiState: opts.aiState,
       });
-      bundle.replanCount += 1;
+
+      if ("tool" in reasoning.chosenAction.payload) {
+        retrievalChain.push(reasoning.chosenAction.payload.tool);
+      }
+
+      toolFacts = { ...toolFacts, ...observation.facts };
+
+      if (!observation.ok) break;
+
+      reasoning = this.reasoner.think({
+        perceived,
+        memory: {
+          ...ctx.operationalMemory,
+          stateEntities: reasoning.state.entities,
+          activeGoalData: reasoning.goal,
+          selections: {
+            ...ctx.operationalMemory.selections,
+            ...(toolFacts.matchId ? { serviceId: String(toolFacts.matchId) } : {}),
+          },
+        },
+        observation: observation.entity
+          ? {
+              entity: observation.entity,
+              value: observation.value,
+              status: "known",
+            }
+          : null,
+      });
     }
 
     const previousReplies = ctx.history
       .filter((m) => m.role === "assistant")
       .map((m) => m.content);
 
-    const reply = await this.replyComposer.compose(
-      plan,
-      bundle,
-      ctx,
-      understanding,
-      previousReplies
-    );
+    const reply = this.replyComposer.compose(reasoning, ctx, toolFacts, previousReplies);
 
-    const brainState = this.memoryStore.applyAfterTurn({
+    const episodeTurn: EpisodeTurn = {
+      turnId,
+      timestamp: new Date().toISOString(),
+      perceived,
+      goal: reasoning.goal,
+      unsatisfied: reasoning.unsatisfied,
+      reachable: reasoning.reachable,
+      remainingCost: reasoning.remainingCost,
+      candidates: reasoning.candidates,
+      decision: reasoning.decision,
+      reasoning: reasoning.reasoning,
+      toolResults: toolFacts,
+    };
+
+    const brainV2 = this.memoryStore.applyAfterTurn({
       conversation: opts.conversation,
-      understanding,
-      plan,
-      bundle,
+      reasoning,
+      toolFacts,
+      episodeTurn,
       previous: ctx.operationalMemory,
+      previousEpisode: brainState.episode,
     });
 
-    if (plan.handoff) {
+    const handoff = reasoning.chosenAction.id === "tool.openHandoff" || Boolean(toolFacts.handoff);
+    if (handoff) {
       opts.conversation.enterHandoff(`brain-${opts.conversation.id}-${Date.now()}`);
     }
 
@@ -119,22 +157,27 @@ export class CognitiveTurnProcessor {
       stage: "brain_turn",
       detail: {
         turnId,
-        primaryGoal: plan.primaryGoal,
-        source: plan.source,
-        retrievalChain: bundle.retrievalChain,
-        replanCount: bundle.replanCount,
+        engine: "brain_v2_p8",
+        goal: reasoning.goal,
+        desiredNode: reasoning.goal.desiredNode,
+        remainingCost: reasoning.remainingCost,
+        unsatisfied: reasoning.unsatisfied,
+        chosenAction: reasoning.chosenAction.id,
+        thinkCycles,
+        retrievalChain,
         replyPreview: reply.slice(0, 120),
+        reasoning: reasoning.reasoning,
       },
     });
 
     return {
       reply,
       silent: false,
-      handoff: Boolean(plan.handoff),
+      handoff,
       conversation: opts.conversation,
-      brainStatePatch: this.memoryStore.toAiStatePatch(brainState),
-      planGoal: plan.primaryGoal,
-      retrievalChain: bundle.retrievalChain,
+      brainStatePatch: this.memoryStore.toAiStatePatch(brainV2),
+      planGoal: reasoning.goal.type,
+      retrievalChain,
     };
   }
 }

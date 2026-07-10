@@ -1,4 +1,5 @@
-import type { PrimaryGoal } from "./understanding";
+import type { EntityStatus } from "./transition";
+import type { Goal } from "./goal";
 
 export type AwaitingKind =
   | "menu_choice"
@@ -9,8 +10,16 @@ export type AwaitingKind =
   | "confirm"
   | null;
 
+export type StateEntity = {
+  status: EntityStatus;
+  value?: unknown;
+  confidence?: number;
+};
+
 export type OperationalMemory = {
   activeGoal: string | null;
+  activeGoalData?: Goal | null;
+  stateEntities: Record<string, StateEntity>;
   awaiting: AwaitingKind;
   selections: {
     patientId?: string;
@@ -27,11 +36,13 @@ export type OperationalMemory = {
 export type ConversationShadow = {
   inferredPhase: "idle" | "gathering" | "confirming" | "handoff";
   inferredDomain: string | null;
-  lastPlanGoal: PrimaryGoal | null;
+  lastPlanGoal: string | null;
 };
 
 export const initialOperationalMemory = (): OperationalMemory => ({
   activeGoal: null,
+  activeGoalData: null,
+  stateEntities: {},
   awaiting: null,
   selections: {},
   retrievalAttempts: 0,

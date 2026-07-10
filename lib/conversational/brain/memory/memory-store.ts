@@ -14,7 +14,8 @@ export type BrainV2State = {
 };
 
 export function readBrainV2State(aiState?: AiConversationState): BrainV2State {
-  const raw = (aiState as AiConversationState & { brain_v2?: BrainV2State })?.brain_v2;
+  const raw = (aiState as AiConversationState & { brain_v2?: BrainV2State & { episode?: unknown } })
+    ?.brain_v2;
   return {
     operational: { ...initialOperationalMemory(), ...raw?.operational },
     shadow: raw?.shadow ?? {
@@ -39,15 +40,14 @@ export class MemoryStore {
       ...previous,
       activeGoal: plan.subGoals[0] ?? plan.primaryGoal,
       awaiting: plan.clarify ? "question" : null,
-      retrievalAttempts: bundle.needsReplan
-        ? previous.retrievalAttempts + 1
-        : 0,
+      retrievalAttempts: bundle.needsReplan ? previous.retrievalAttempts + 1 : 0,
       frustrationScore:
         understanding.sentiment === "frustrated"
           ? previous.frustrationScore + 1
           : Math.max(0, previous.frustrationScore - 1),
       lastMenuShown:
         plan.primaryGoal === "greet" ? defaultMenuShown() : previous.lastMenuShown,
+      stateEntities: previous.stateEntities ?? {},
     };
 
     const matchId = bundle.facts.matchId as string | undefined;
