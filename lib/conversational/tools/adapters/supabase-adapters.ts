@@ -7,6 +7,22 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
+function parseAssistantToolResult(result: { result: string }): {
+  data: unknown;
+  error?: string;
+} {
+  let data: unknown = result.result;
+  let error: string | undefined;
+  try {
+    const parsed = JSON.parse(result.result) as { error?: string };
+    data = parsed;
+    if (parsed.error) error = parsed.error;
+  } catch {
+    // keep string payload
+  }
+  return { data, error };
+}
+
 function createExecutors(
   supabase: SupabaseClient,
   config: ClinicConfig
@@ -109,14 +125,9 @@ function createExecutors(
           date,
         }
       );
-      if (result.error) {
-        return { ok: false, error: result.error, recoverable: true };
-      }
-      let data: unknown = result.result;
-      try {
-        data = JSON.parse(result.result);
-      } catch {
-        // keep string
+      const { data, error } = parseAssistantToolResult(result);
+      if (error) {
+        return { ok: false, error, recoverable: true };
       }
       return { ok: true, data };
     },
