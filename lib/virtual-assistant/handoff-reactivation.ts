@@ -4,6 +4,7 @@ import { getHandoffReactivationMinutes } from "./handoff-hours";
 import { logAiEvent } from "./event-log";
 import type { VirtualAssistantSettings } from "./types";
 import { detectInboundIntent, hasClearIntent } from "./detect-inbound-intent";
+import { freshBotLoopWindowState } from "./bot-loop-guard";
 
 /**
  * Reativa IA após handoff temporário se passou o SLA sem resposta humana
@@ -67,6 +68,7 @@ export async function tryReactivateAiAfterHandoff(opts: {
   const clearedState = { ...(conv.ai_state as Record<string, unknown> | null ?? {}) };
   delete clearedState.handoff_reason;
   delete clearedState.bot_loop_detected_at;
+  Object.assign(clearedState, freshBotLoopWindowState());
 
   await opts.supabase
     .from("whatsapp_conversations")

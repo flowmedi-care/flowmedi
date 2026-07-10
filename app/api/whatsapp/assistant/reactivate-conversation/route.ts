@@ -3,6 +3,7 @@ import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/a
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { gatherAssistantDiagnostics } from "@/lib/virtual-assistant/diagnostics";
 import { logAiEvent } from "@/lib/virtual-assistant/event-log";
+import { freshBotLoopWindowState } from "@/lib/virtual-assistant/bot-loop-guard";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 
 /**
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     const { data: conv, error: fetchErr } = await supabase
       .from("whatsapp_conversations")
-      .select("id, clinic_id, phone_number, ai_handoff_at, ai_enabled, ai_user_opt_out")
+      .select("id, clinic_id, phone_number, ai_handoff_at, ai_enabled, ai_user_opt_out, ai_state")
       .eq("id", conversationId)
       .eq("clinic_id", clinicId)
       .maybeSingle();
@@ -43,12 +44,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Conversa não encontrada" }, { status: 404 });
     }
 
+    const nextAiState = {
+      ...((conv.ai_state ?? {}) as Record<string, unknown>),
+      ...freshBotLoopWindowState(),
+    };
+
     const { error: updateErr } = await supabase
       .from("whatsapp_conversations")
       .update({
         ai_handoff_at: null,
         ai_enabled: true,
         ai_user_opt_out: false,
+        ai_state: nextAiState,
       })
       .eq("id", conversationId);
 

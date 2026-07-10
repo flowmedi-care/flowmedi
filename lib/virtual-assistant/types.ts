@@ -160,6 +160,8 @@ export type AiConversationState = {
   bot_loop_detected_at?: string;
   /** Motivo do último handoff (ex. bot_loop_detected) */
   handoff_reason?: string;
+  /** Só contar mensagens para bot-loop-guard após este instante (ISO) */
+  bot_loop_window_since?: string;
   /** Evita processamento duplicado (webhook + cron em paralelo) */
   ai_processing_started_at?: string;
   /** Etapa atual do pipeline do agente */

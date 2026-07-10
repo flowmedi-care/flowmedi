@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AiConversationState } from "./types";
 import { logAiEvent } from "./event-log";
 import { getCheckpointer } from "./langgraph/checkpointer";
+import { freshBotLoopWindowState } from "./bot-loop-guard";
 
 export interface ClearConversationContextResult {
   conversationId: string;
@@ -36,7 +37,7 @@ export async function clearConversationContext(
   const hadAiState = Object.keys(prevState).length > 0;
 
   const updatePayload: Record<string, unknown> = {
-    ai_state: {},
+    ai_state: freshBotLoopWindowState(),
     ai_debounce_until: null,
   };
 

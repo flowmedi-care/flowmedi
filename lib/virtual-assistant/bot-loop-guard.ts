@@ -71,6 +71,27 @@ export interface BotLoopCheckResult {
   reason?: string;
 }
 
+/** Estado mínimo para reiniciar a janela do bot-loop-guard após clear/reactivate. */
+export function freshBotLoopWindowState(now = new Date()): Pick<AiConversationState, "bot_loop_window_since"> {
+  return { bot_loop_window_since: now.toISOString() };
+}
+
+/** Início efetivo da janela: max(últimos N min, bot_loop_window_since). */
+export function resolveBotLoopWindowSince(
+  defaultSinceMs: number,
+  aiState?: AiConversationState
+): string {
+  const resetAt = aiState?.bot_loop_window_since;
+  if (!resetAt) {
+    return new Date(defaultSinceMs).toISOString();
+  }
+  const resetMs = Date.parse(resetAt);
+  if (Number.isNaN(resetMs)) {
+    return new Date(defaultSinceMs).toISOString();
+  }
+  return new Date(Math.max(defaultSinceMs, resetMs)).toISOString();
+}
+
 export async function checkBotLoopRisk(
   supabase: SupabaseClient,
   conversationId: string,
@@ -86,14 +107,15 @@ export async function checkBotLoopRisk(
     return { block: false };
   }
 
-  const since = new Date(Date.now() - PING_PONG_WINDOW_MS).toISOString();
+  const defaultSinceMs = Date.now() - PING_PONG_WINDOW_MS;
+  const windowSince = resolveBotLoopWindowSince(defaultSinceMs, aiState);
 
   const { data: recentOutbound } = await supabase
     .from("whatsapp_messages")
     .select("id, sent_at")
     .eq("conversation_id", conversationId)
     .eq("direction", "outbound")
-    .gte("sent_at", since)
+    .gte("sent_at", windowSince)
     .not("ai_processed_at", "is", null)
     .order("sent_at", { ascending: false });
 
@@ -125,7 +147,7 @@ export async function checkBotLoopRisk(
     .select("content")
     .eq("conversation_id", conversationId)
     .eq("direction", "inbound")
-    .gte("sent_at", since)
+    .gte("sent_at", windowSince)
     .order("sent_at", { ascending: false })
     .limit(SIMILAR_INBOUND_COUNT);
 
