@@ -31,6 +31,8 @@ export interface AssistantHealthCheck {
   langgraphCheckpointerMode: "postgres" | "memory";
   langgraphCheckpointerError: string | null;
   langgraphDirectDbHostWarning: boolean;
+  whatsappIntegrationType: string | null;
+  whatsappPhoneNumberId: string | null;
 }
 
 export interface BlockedConversationRow {
@@ -169,6 +171,7 @@ export async function gatherAssistantDiagnostics(
     toolLogsResult,
     blockedResult,
     pendingAudioResult,
+    whatsappIntegrationResult,
   ] = await Promise.all([
     supabase
       .from("clinic_virtual_assistant_settings")
@@ -216,6 +219,14 @@ export async function gatherAssistantDiagnostics(
       .eq("direction", "inbound")
       .eq("message_type", "audio")
       .is("ai_processed_at", null),
+    supabase
+      .from("clinic_integrations")
+      .select("integration_type, metadata")
+      .eq("clinic_id", clinicId)
+      .in("integration_type", ["whatsapp_meta", "whatsapp_simple"])
+      .eq("status", "connected")
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const { events, eventsError } = await fetchDiagnosticsEvents(supabase, clinicId);
@@ -235,6 +246,10 @@ export async function gatherAssistantDiagnostics(
         use_langgraph_pipeline?: boolean;
         langgraph_shadow_mode?: boolean;
       }
+    | null;
+
+  const whatsappIntegration = whatsappIntegrationResult.data as
+    | { integration_type?: string; metadata?: { phone_number_id?: string } }
     | null;
 
   const health: AssistantHealthCheck = {
@@ -257,6 +272,11 @@ export async function gatherAssistantDiagnostics(
     langgraphCheckpointerMode: checkpointerStatus.mode,
     langgraphCheckpointerError: checkpointerStatus.initError,
     langgraphDirectDbHostWarning: checkpointerStatus.usesDirectSupabaseHost,
+    whatsappIntegrationType: whatsappIntegration?.integration_type ?? null,
+    whatsappPhoneNumberId:
+      typeof whatsappIntegration?.metadata?.phone_number_id === "string"
+        ? whatsappIntegration.metadata.phone_number_id
+        : null,
   };
 
   if (eventsTableMissing) {

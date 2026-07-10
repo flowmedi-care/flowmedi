@@ -23,6 +23,7 @@ import { excludeInboundFromAiQueue } from "@/lib/virtual-assistant/exclude-from-
 import { parseMetaInboundMessage } from "@/lib/whatsapp-inbound-parse";
 import { tryHandleInboundConfirmationFlow } from "@/lib/virtual-assistant/webhook-inbound-flow";
 import { upsertWhatsappPipelineLead } from "@/lib/leads/upsert-whatsapp-lead";
+import { resolveWhatsappWebhookClinic } from "@/lib/whatsapp/resolve-webhook-clinic";
 
 /**
  * Processa payload inbound da Meta (mensagens, mídia, roteamento, chatbot, IA).
@@ -64,39 +65,20 @@ export async function processWhatsAppWebhookInbound(rawBody: string): Promise<vo
         if (!Array.isArray(messages) || messages.length === 0) continue;
 
         let clinicId: string | null = null;
-        const { data: integrations } = await supabase
-          .from("clinic_integrations")
-          .select("clinic_id, metadata")
-          .eq("integration_type", "whatsapp_meta")
-          .eq("status", "connected");
-
-        if (phoneNumberId && integrations?.length) {
-          const found = integrations.find(
-            (i) => (i.metadata as { phone_number_id?: string })?.phone_number_id === phoneNumberId
-          );
-          clinicId = found?.clinic_id ?? null;
-        }
-        if (!clinicId && integrations?.length === 1) {
-          clinicId = integrations[0].clinic_id;
+        let accessToken: string | null = null;
+        const resolvedClinic = await resolveWhatsappWebhookClinic(supabase, phoneNumberId);
+        if (resolvedClinic) {
+          clinicId = resolvedClinic.clinicId;
+          accessToken = resolvedClinic.accessToken;
         }
         if (!clinicId) {
           console.warn(
             "[WhatsApp Webhook] Nenhuma clínica encontrada para phone_number_id:",
-            phoneNumberId
+            phoneNumberId,
+            "(tipos verificados: whatsapp_meta, whatsapp_simple)"
           );
           continue;
         }
-
-        let accessToken: string | null = null;
-        const { data: credsData } = await supabase
-          .from("clinic_integrations")
-          .select("credentials")
-          .eq("clinic_id", clinicId)
-          .eq("integration_type", "whatsapp_meta")
-          .eq("status", "connected")
-          .limit(1)
-          .maybeSingle();
-        accessToken = (credsData?.credentials as { access_token?: string })?.access_token ?? null;
 
         const contacts =
           (value.contacts as Array<{
@@ -285,6 +267,19 @@ export async function processWhatsAppWebhookInbound(rawBody: string): Promise<vo
 
           const messageId = insertMsg.data?.id ?? undefined;
 
+          logAiEvent(supabase, {
+            clinicId,
+            conversationId,
+            messageId: messageId || undefined,
+            stage: "webhook_inbound",
+            detail: {
+              from,
+              msgType,
+              bodyPreview: (bodyText ?? "").slice(0, 80),
+              integrationType: resolvedClinic?.integrationType ?? null,
+            },
+          });
+
           const { data: vaSettingsRow } = await supabase
             .from("clinic_virtual_assistant_settings")
             .select("*")
@@ -307,18 +302,6 @@ export async function processWhatsAppWebhookInbound(rawBody: string): Promise<vo
               continue;
             }
           }
-
-          logAiEvent(supabase, {
-            clinicId,
-            conversationId,
-            messageId: messageId || undefined,
-            stage: "webhook_inbound",
-            detail: {
-              from,
-              msgType,
-              bodyPreview: (bodyText ?? "").slice(0, 80),
-            },
-          });
 
           const { data: convAiRow } = await supabase
             .from("whatsapp_conversations")
