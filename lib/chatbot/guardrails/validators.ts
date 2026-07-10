@@ -1,7 +1,7 @@
 import type { AiState } from "../state/types";
 import { isActiveBooking } from "../state/types";
 import type { ToolResult } from "../tools/types";
-import { validationError } from "../tools/types";
+import { missingResult, unavailableResult } from "../tools/types";
 import { resolveScheduledAt, slotIsInOffered } from "../state/patch";
 import {
   handoffOutsideHoursMessage,
@@ -23,36 +23,36 @@ export function validateToolCall(
   if (toolName === "create_appointment") {
     const patientId = args.patient_id ?? aiState.patient_id;
     if (!patientId) {
-      return validationError(
-        "Paciente não identificado.",
-        "Chame lookup_patient_by_phone ou register_patient antes de create_appointment."
+      return missingResult(
+        ["patient_id"],
+        "Paciente não identificado. Chame lookup_patient_by_phone ou register_patient antes."
       );
     }
     const procedureId = args.procedure_id ?? aiState.booking?.procedure_id;
     if (!procedureId) {
-      return validationError(
-        "Procedimento não definido.",
-        "Chame list_procedures antes de create_appointment."
+      return missingResult(
+        ["procedure_id"],
+        "Procedimento não definido. Chame list_procedures antes."
       );
     }
     const doctorId = args.doctor_id ?? aiState.booking?.doctor_id;
     if (!doctorId) {
-      return validationError(
-        "Médico não definido.",
-        "Chame list_doctors antes de create_appointment."
+      return missingResult(
+        ["doctor_id"],
+        "Médico não definido. Chame list_doctors antes."
       );
     }
     const scheduledAt = resolveScheduledAt(args, aiState);
     if (!scheduledAt) {
-      return validationError(
-        "Horário não selecionado.",
-        "Chame find_available_slots e aguarde o paciente escolher um horário."
+      return missingResult(
+        ["scheduled_at"],
+        "Horário não selecionado. Chame find_available_slots e aguarde o paciente escolher."
       );
     }
     if (!slotIsInOffered(aiState, scheduledAt)) {
-      return validationError(
-        "Horário fora das opções oferecidas.",
-        "Use um horário da lista offered_slots ou chame find_available_slots novamente."
+      return missingResult(
+        ["scheduled_at"],
+        "Horário fora das opções oferecidas. Use um horário de offered_slots ou busque novamente."
       );
     }
   }
@@ -60,11 +60,11 @@ export function validateToolCall(
   if (toolName === "find_available_slots") {
     const doctorId = args.doctor_id ?? aiState.booking?.doctor_id;
     if (!doctorId) {
-      return validationError("doctor_id obrigatório.", "Chame list_doctors primeiro.");
+      return missingResult(["doctor_id"], "Informe o médico. Chame list_doctors primeiro.");
     }
     const procedureId = args.procedure_id ?? aiState.booking?.procedure_id;
     if (!procedureId) {
-      return validationError("procedure_id obrigatório.", "Chame list_procedures primeiro.");
+      return missingResult(["procedure_id"], "Informe o procedimento. Chame list_procedures primeiro.");
     }
   }
 
@@ -76,30 +76,27 @@ export function validateToolCall(
         ? aiState.active_appointments[0]
         : null;
     if (!appointmentId && !hasSingle) {
-      return validationError(
-        "Consulta não identificada.",
-        "Chame list_patient_appointments antes de cancelar ou remarcar."
+      return missingResult(
+        ["appointment_id"],
+        "Consulta não identificada. Chame list_patient_appointments antes."
       );
     }
   }
 
   if (toolName === "register_patient") {
     if (!String(args.full_name ?? "").trim()) {
-      return validationError("Nome obrigatório.", "Pergunte o nome completo do paciente.");
+      return missingResult(["full_name"], "Pergunte o nome completo do paciente.");
     }
   }
 
   if (toolName === "get_service_price") {
     const doctorId = args.doctor_id ?? aiState.booking?.doctor_id;
     if (!doctorId) {
-      return validationError("doctor_id obrigatório.", "Informe o médico para consultar o preço.");
+      return missingResult(["doctor_id"], "Informe o médico para consultar o preço.");
     }
     const procedureId = args.procedure_id ?? aiState.booking?.procedure_id;
     if (!procedureId && !args.service_id) {
-      return validationError(
-        "procedure_id obrigatório.",
-        "Informe o procedimento para consultar o preço."
-      );
+      return missingResult(["procedure_id"], "Informe o procedimento para consultar o preço.");
     }
   }
 
@@ -112,14 +109,14 @@ export function validateToolCall(
       reason.includes("pedido explícito");
 
     if (isActiveBooking(aiState) && !explicitHumanRequest) {
-      return validationError(
-        "Transferência bloqueada durante agendamento.",
-        "Continue ajudando com o agendamento. Só transfira se o paciente pedir explicitamente atendente humano."
+      return missingResult(
+        ["explicit_human_request"],
+        "Transferência bloqueada durante agendamento. Continue ajudando até o paciente pedir explicitamente um atendente."
       );
     }
 
     if (!isInsideHandoffWindow(settings)) {
-      return validationError(handoffOutsideHoursMessage(settings));
+      return unavailableResult(handoffOutsideHoursMessage(settings));
     }
   }
 

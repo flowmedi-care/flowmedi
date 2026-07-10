@@ -1,3 +1,7 @@
+/**
+ * @deprecated Produção WhatsApp usa lib/chatbot/tools/execute.ts.
+ * Mantido para playground API e LangGraph (não wired em process-inbound).
+ */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ASSISTANT_TOOLS } from "./definitions";
 

@@ -1,14 +1,18 @@
 import { isScheduledAtInOfferedSlots } from "@/lib/booking-state";
-import type { AiState } from "./types";
+import { isRecoverableToolStatus } from "../tools/types";
+import type { ToolResult } from "../tools/types";
+import type { AiState, OfferedOption } from "./types";
 
 export function patchAiState(
   toolName: string,
   args: Record<string, unknown>,
-  result: { status: string; data?: unknown },
+  result: ToolResult,
   current: AiState
 ): Partial<AiState> {
-  if (result.status !== "success") {
-    return { consecutive_tool_failures: (current.consecutive_tool_failures ?? 0) + 1 };
+  if (!isRecoverableToolStatus(result.status)) {
+    return {
+      consecutive_tool_failures: (current.consecutive_tool_failures ?? 0) + 1,
+    };
   }
 
   const data = (result.data ?? {}) as Record<string, unknown>;
@@ -25,8 +29,15 @@ export function patchAiState(
       if (patientId) patch.patient_id = String(patientId);
       break;
     }
-    case "list_procedures":
-    case "list_doctors": {
+    case "list_procedures": {
+      if (Array.isArray(data.procedures)) {
+        const procedures = data.procedures as Array<{ id: string; name: string }>;
+        patch.offered_procedures = procedures.map((p, i) => ({
+          id: p.id,
+          label: p.name,
+          index: i + 1,
+        }));
+      }
       if (args.procedure_id) {
         patch.booking = {
           ...current.booking,
@@ -39,6 +50,24 @@ export function patchAiState(
           ...(patch.booking ?? current.booking),
           doctor_id: String(args.doctor_id),
           status: patch.booking?.status ?? current.booking?.status ?? "collecting",
+        };
+      }
+      break;
+    }
+    case "list_doctors": {
+      if (Array.isArray(data.doctors)) {
+        const doctors = data.doctors as Array<{ id: string; full_name: string }>;
+        patch.offered_doctors = doctors.map((d, i) => ({
+          id: d.id,
+          label: d.full_name,
+          index: i + 1,
+        }));
+      }
+      if (args.doctor_id) {
+        patch.booking = {
+          ...current.booking,
+          doctor_id: String(args.doctor_id),
+          status: current.booking?.status ?? "collecting",
         };
       }
       break;
@@ -78,6 +107,8 @@ export function patchAiState(
     }
     case "create_appointment": {
       patch.booking = { status: "done" };
+      patch.offered_doctors = undefined;
+      patch.offered_procedures = undefined;
       break;
     }
     case "list_patient_appointments": {
@@ -103,8 +134,7 @@ export function patchAiState(
       }
       break;
     }
-    case "get_service_price":
-    case "list_price_options": {
+    case "get_service_price": {
       if (args.procedure_id) {
         patch.booking = {
           ...current.booking,
@@ -124,7 +154,10 @@ export function patchAiState(
 export function mergeAiState(current: AiState, patch: Partial<AiState>): AiState {
   const next: AiState = { ...current, ...patch };
   if (patch.booking !== undefined) {
-    next.booking = patch.booking === undefined ? undefined : { ...current.booking, ...patch.booking } as AiState["booking"];
+    next.booking =
+      patch.booking === undefined
+        ? undefined
+        : ({ ...current.booking, ...patch.booking } as AiState["booking"]);
   }
   return next;
 }
@@ -140,4 +173,16 @@ export function slotIsInOffered(state: AiState, scheduledAt: string): boolean {
   const slots = state.booking?.offered_slots ?? [];
   if (!slots.length) return Boolean(scheduledAt);
   return isScheduledAtInOfferedSlots(scheduledAt, slots);
+}
+
+export function resolveOptionByIndex(
+  options: OfferedOption[] | undefined,
+  text: string
+): OfferedOption | null {
+  if (!options?.length) return null;
+  const trimmed = text.trim();
+  const numMatch = trimmed.match(/^\d{1,2}$/);
+  if (!numMatch) return null;
+  const index = Number(numMatch[0]);
+  return options.find((o) => o.index === index) ?? null;
 }

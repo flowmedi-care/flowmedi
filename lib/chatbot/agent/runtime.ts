@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { VirtualAssistantSettings } from "@/lib/virtual-assistant/types";
+import { applyBookingContinuity, mergeBookingContinuity } from "../booking-continuity";
 import { applyReplyGuards } from "../guardrails/reply-guards";
 import { shouldEscalateOnToolFailures } from "../guardrails/handoff";
 import { validateToolCall } from "../guardrails/validators";
 import { mergeAiState, patchAiState } from "../state/patch";
+import { buildChatbotFallbackReply } from "../state/format-for-prompt";
 import { normalizeAiState, serializeAiState } from "../state/migrate";
 import type { AiState } from "../state/types";
 import { CHATBOT_TOOLS } from "../tools/definitions";
@@ -13,7 +15,7 @@ import { toolResultToJson } from "../tools/types";
 import { buildSystemPrompt } from "./prompt";
 import { createChatCompletion, logTokenUsage, type ChatMessage } from "./llm";
 
-const MAX_TOOL_ROUNDS = 3;
+const MAX_TOOL_ROUNDS = 5;
 
 export type HistoryMessage = {
   role: "user" | "assistant";
@@ -44,6 +46,10 @@ export type RunTurnResult = {
 export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   let aiState: AiState = normalizeAiState(input.aiState);
 
+  const continuity = applyBookingContinuity(input.userText, aiState);
+  aiState = mergeBookingContinuity(aiState, continuity);
+  const effectiveUserText = continuity.enrichedUserText ?? input.userText;
+
   const systemContent = buildSystemPrompt({
     clinicName: input.clinicName ?? "clínica",
     assistantName: input.settings.assistant_name ?? "assistente virtual",
@@ -53,6 +59,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     address: input.address,
     faqs: input.faqs,
     settings: input.settings,
+    aiState,
   });
 
   const messages: ChatMessage[] = [{ role: "system", content: systemContent }];
@@ -61,7 +68,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   for (const h of input.history.slice(-maxContext)) {
     messages.push({ role: h.role, content: h.content });
   }
-  messages.push({ role: "user", content: input.userText });
+  messages.push({ role: "user", content: effectiveUserText });
 
   let handoff = false;
   let finalReply: string | null = null;
@@ -78,8 +85,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
 
     if (!completion.tool_calls?.length) {
       finalReply =
-        completion.content?.trim() ||
-        "Preciso de mais um detalhe para continuar. Pode me explicar melhor?";
+        completion.content?.trim() || buildChatbotFallbackReply(aiState);
       break;
     }
 
@@ -157,7 +163,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   }
 
   if (!finalReply) {
-    finalReply = "Preciso de mais um detalhe para continuar. Pode me explicar melhor?";
+    finalReply = buildChatbotFallbackReply(aiState);
   }
 
   const reply = applyReplyGuards(finalReply, aiState);

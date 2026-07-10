@@ -1,3 +1,7 @@
+/**
+ * @deprecated Produção WhatsApp usa lib/chatbot/guardrails/reply-guards.ts.
+ * Mantido para LangGraph/Simple Assistant (não wired em process-inbound).
+ */
 import type { AiConversationState } from "./types";
 import { getBookingStepLabel } from "./format-ai-state";
 

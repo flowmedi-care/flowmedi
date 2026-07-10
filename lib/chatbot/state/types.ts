@@ -3,6 +3,12 @@ export type OfferedSlot = {
   display: string;
 };
 
+export type OfferedOption = {
+  id: string;
+  label: string;
+  index: number;
+};
+
 export type BookingState = {
   procedure_id?: string;
   doctor_id?: string;
@@ -15,6 +21,8 @@ export type BookingState = {
 export type AiState = {
   patient_id?: string;
   booking?: BookingState;
+  offered_doctors?: OfferedOption[];
+  offered_procedures?: OfferedOption[];
   focused_appointment_id?: string;
   active_appointments?: string[];
   consecutive_tool_failures?: number;

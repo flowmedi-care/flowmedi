@@ -1,7 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  buildDaysDisplayMessage,
-  buildSlotsDisplayMessage,
   findAvailableDays,
   findAvailablePeriodsForDay,
   findSlotsForDay,
@@ -13,7 +11,6 @@ import { applyRoutingOnNewConversation } from "@/lib/whatsapp-routing";
 import {
   cancelAppointmentViaAssistant,
   createAppointmentViaAssistant,
-  formatAppointmentConfirmationMessage,
   listPatientAppointmentsViaAssistant,
   rescheduleAppointmentViaAssistant,
 } from "@/lib/virtual-assistant/services/appointments";
@@ -24,16 +21,16 @@ import {
 } from "@/lib/virtual-assistant/services/patients";
 import {
   getProcedureInfo,
-  listPriceOptionsForClinic,
   resolveServicePriceForClinic,
 } from "@/lib/virtual-assistant/services/pricing";
 import { minimizePatientForAiToolResult } from "@/lib/virtual-assistant/minimize-patient-for-ai";
 import { searchFaqWithFallback } from "../knowledge/faq-retrieval";
-import type { ToolContext, ToolExecutionOutcome } from "./types";
+import type { ToolContext, ToolExecutionOutcome, ToolOption } from "./types";
 import {
-  domainError,
+  errorResult,
   missingResult,
   successResult,
+  unavailableResult,
 } from "./types";
 import { isChatbotTool } from "./definitions";
 
@@ -58,6 +55,26 @@ async function logToolCall(
   });
 }
 
+function buildDoctorOptions(
+  doctors: Array<{ id: string; full_name: string }>
+): ToolOption[] {
+  return doctors.map((d, i) => ({
+    id: d.id,
+    label: d.full_name,
+    index: i + 1,
+  }));
+}
+
+function buildProcedureOptions(
+  procedures: Array<{ id: string; name: string }>
+): ToolOption[] {
+  return procedures.map((p, i) => ({
+    id: p.id,
+    label: p.name,
+    index: i + 1,
+  }));
+}
+
 export async function executeTool(
   ctx: ToolContext,
   name: string,
@@ -65,7 +82,7 @@ export async function executeTool(
 ): Promise<ToolExecutionOutcome> {
   if (!isChatbotTool(name)) {
     return {
-      result: domainError(`Ferramenta desconhecida: ${name}`),
+      result: errorResult(`Ferramenta desconhecida: ${name}`),
     };
   }
 
@@ -98,7 +115,9 @@ export async function executeTool(
       case "register_patient": {
         const fullName = String(args.full_name ?? "").trim();
         if (!fullName) {
-          return { result: missingResult(["full_name"], "Pergunte o nome completo do paciente.") };
+          return {
+            result: missingResult(["full_name"], "Preciso do nome completo do paciente."),
+          };
         }
         const res = await registerPatientViaAssistant(supabase, clinicId, {
           full_name: fullName,
@@ -107,7 +126,7 @@ export async function executeTool(
         });
         if (res.error) {
           await logToolCall(supabase, clinicId, conversationId, name, args, res.error, false);
-          return { result: domainError(res.error) };
+          return { result: errorResult(res.error) };
         }
         if (res.patientId) {
           await linkConversationToPatient(supabase, clinicId, conversationId, res.patientId);
@@ -126,11 +145,18 @@ export async function executeTool(
           .eq("clinic_id", clinicId)
           .eq("role", "medico")
           .order("full_name");
-        await logToolCall(supabase, clinicId, conversationId, name, {}, `${data?.length ?? 0} médicos`, true);
+        const doctors = data ?? [];
+        const options = buildDoctorOptions(doctors);
+        await logToolCall(supabase, clinicId, conversationId, name, {}, `${doctors.length} médicos`, true);
         return {
-          result: successResult({
-            doctors: data ?? [],
-          }),
+          result: successResult({ doctors }, options),
+          statePatch: {
+            offered_doctors: options.map((o) => ({
+              id: o.id,
+              label: o.label,
+              index: o.index!,
+            })),
+          },
         };
       }
 
@@ -152,25 +178,45 @@ export async function executeTool(
           .order("display_order");
         if (procedureIds) {
           if (!procedureIds.length) {
-            return { result: successResult({ procedures: [] }) };
+            return {
+              result: unavailableResult(
+                "Nenhum procedimento disponível para este médico.",
+                "Liste médicos ou procedimentos sem filtro."
+              ),
+            };
           }
           query = query.in("id", procedureIds);
         }
         const { data } = await query;
+        const procedures = data ?? [];
+        const options = buildProcedureOptions(procedures);
         await logToolCall(
           supabase,
           clinicId,
           conversationId,
           name,
           { doctor_id: doctorId },
-          `${data?.length ?? 0} procedimentos`,
+          `${procedures.length} procedimentos`,
           true
         );
         return {
-          result: successResult({ procedures: data ?? [] }),
-          statePatch: doctorId
-            ? { booking: { ...ctx.aiState.booking, doctor_id: doctorId, status: ctx.aiState.booking?.status ?? "collecting" } }
-            : undefined,
+          result: successResult({ procedures }, options),
+          statePatch: {
+            offered_procedures: options.map((o) => ({
+              id: o.id,
+              label: o.label,
+              index: o.index!,
+            })),
+            ...(doctorId
+              ? {
+                  booking: {
+                    ...ctx.aiState.booking,
+                    doctor_id: doctorId,
+                    status: ctx.aiState.booking?.status ?? "collecting",
+                  },
+                }
+              : {}),
+          },
         };
       }
 
@@ -178,10 +224,14 @@ export async function executeTool(
         const doctorId = String(args.doctor_id ?? ctx.aiState.booking?.doctor_id ?? "");
         const procedureId = String(args.procedure_id ?? ctx.aiState.booking?.procedure_id ?? "");
         if (!doctorId) {
-          return { result: missingResult(["doctor_id"], "Informe o médico antes de buscar horários.") };
+          return {
+            result: missingResult(["doctor_id"], "Preciso do médico antes de buscar horários."),
+          };
         }
         if (!procedureId) {
-          return { result: missingResult(["procedure_id"], "Informe o procedimento antes de buscar horários.") };
+          return {
+            result: missingResult(["procedure_id"], "Preciso do procedimento antes de buscar horários."),
+          };
         }
 
         const daysAhead = Number(args.days_ahead) || 14;
@@ -206,7 +256,7 @@ export async function executeTool(
           if (!doctorProcedure) {
             await logToolCall(supabase, clinicId, conversationId, name, args, "par inválido", false);
             return {
-              result: domainError(
+              result: unavailableResult(
                 "Este profissional não realiza o procedimento selecionado.",
                 "Liste médicos ou procedimentos compatíveis."
               ),
@@ -229,17 +279,50 @@ export async function executeTool(
             procedureId,
             date,
           });
+
+          if (slots.length === 0) {
+            const periodLabel = period === "manha" ? "manhã" : period === "tarde" ? "tarde" : "";
+            const periodPart = periodLabel ? ` no período da ${periodLabel}` : "";
+            await logToolCall(supabase, clinicId, conversationId, name, args, "0 horários", true);
+            return {
+              result: unavailableResult(
+                `Não há horários disponíveis em ${date}${periodPart}.`,
+                availablePeriods.length
+                  ? `Turnos disponíveis neste dia: ${availablePeriods.map(formatSlotPeriodLabel).join(", ")}.`
+                  : "Buscar outros dias sem filtro de data ou com skip_days.",
+                {
+                  mode: "times",
+                  date,
+                  period: period ?? null,
+                  available_periods: availablePeriods.map(formatSlotPeriodLabel),
+                }
+              ),
+              statePatch: {
+                booking: {
+                  procedure_id: procedureId,
+                  doctor_id: doctorId,
+                  date,
+                  status: "collecting",
+                },
+              },
+            };
+          }
+
+          const slotOptions: ToolOption[] = slots.map((s, i) => ({
+            id: s.scheduled_at,
+            label: s.label,
+            index: i + 1,
+          }));
           const payload = {
             mode: "times" as const,
             date,
             period: period ?? null,
             slots,
             available_periods: availablePeriods.map(formatSlotPeriodLabel),
-            display_message: slots.length > 0 ? buildSlotsDisplayMessage(slots) : null,
           };
           await logToolCall(supabase, clinicId, conversationId, name, args, `${slots.length} horários`, true);
           return {
-            result: successResult(payload),
+            result: successResult(payload, slotOptions),
             statePatch: {
               booking: {
                 procedure_id: procedureId,
@@ -266,18 +349,42 @@ export async function executeTool(
           ...d,
           periods_label: formatPeriodsLabel(d.periods),
         }));
+
+        if (daysForDisplay.length === 0) {
+          await logToolCall(supabase, clinicId, conversationId, name, args, "0 dias", true);
+          return {
+            result: unavailableResult(
+              "Não há dias disponíveis no período buscado.",
+              hasMore
+                ? `Tente skip_days=${skipDays + 1} para ver dias seguintes.`
+                : "Tente outro médico ou procedimento.",
+              { mode: "days", has_more: hasMore, skip_days_used: skipDays }
+            ),
+            statePatch: {
+              booking: {
+                procedure_id: procedureId,
+                doctor_id: doctorId,
+                status: "collecting",
+              },
+            },
+          };
+        }
+
+        const dayOptions: ToolOption[] = daysForDisplay.map((d, i) => ({
+          id: d.date,
+          label: `${d.label}${d.periods_label ? ` (${d.periods_label})` : ""}`,
+          index: i + 1,
+        }));
         const payload = {
           mode: "days" as const,
           days: daysForDisplay,
           has_more: hasMore,
           skip_days_used: skipDays,
           next_skip_days: skipDays + days.length,
-          display_message:
-            daysForDisplay.length > 0 ? buildDaysDisplayMessage(daysForDisplay) : null,
         };
         await logToolCall(supabase, clinicId, conversationId, name, args, `${days.length} dias`, true);
         return {
-          result: successResult(payload),
+          result: successResult(payload, dayOptions),
           statePatch: {
             booking: {
               procedure_id: procedureId,
@@ -309,17 +416,12 @@ export async function executeTool(
           !res.error
         );
         if (res.error) {
-          return { result: domainError(res.error) };
+          return { result: errorResult(res.error) };
         }
-        const confirmationText = await formatAppointmentConfirmationMessage(supabase, {
-          clinicId,
-          appointmentId: res.appointmentId!,
-          patientId: String(args.patient_id ?? ctx.aiState.patient_id),
-        });
         return {
           result: successResult({
-            appointmentId: res.appointmentId,
-            confirmation_message: confirmationText,
+            appointment_id: res.appointmentId,
+            created: true,
           }),
           statePatch: { booking: { status: "done" } },
         };
@@ -332,7 +434,7 @@ export async function executeTool(
             : await lookupPatientByPhone(supabase, clinicId, phoneNumber);
         if (!patient?.id) {
           return {
-            result: domainError("Paciente não cadastrado."),
+            result: errorResult("Paciente não cadastrado."),
           };
         }
         const appointments = await listPatientAppointmentsViaAssistant(
@@ -351,8 +453,13 @@ export async function executeTool(
           true
         );
         const ids = appointments.map((a) => a.id).filter(Boolean) as string[];
+        const options: ToolOption[] = appointments.map((a, i) => ({
+          id: a.id,
+          label: [a.procedure_name, a.doctor_name, a.scheduled_at].filter(Boolean).join(" — ") || `Consulta ${i + 1}`,
+          index: i + 1,
+        }));
         return {
-          result: successResult({ appointments }),
+          result: successResult({ appointments }, options.length > 1 ? options : undefined),
           statePatch: {
             patient_id: patient.id,
             active_appointments: ids,
@@ -363,7 +470,7 @@ export async function executeTool(
 
       case "cancel_appointment": {
         const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
-        if (!patient) return { result: domainError("Paciente não encontrado.") };
+        if (!patient) return { result: errorResult("Paciente não encontrado.") };
         const appointmentId = String(
           args.appointment_id ?? ctx.aiState.focused_appointment_id ?? ctx.aiState.active_appointments?.[0] ?? ""
         );
@@ -390,25 +497,29 @@ export async function executeTool(
           patient.id
         );
         await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "cancelada", !res.error);
-        if (res.error) return { result: domainError(res.error) };
+        if (res.error) return { result: errorResult(res.error) };
         return {
-          result: successResult(res),
+          result: successResult({ cancelled: true, appointment_id: appointmentId }),
           statePatch: { focused_appointment_id: undefined },
         };
       }
 
       case "reschedule_appointment": {
         const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
-        if (!patient) return { result: domainError("Paciente não encontrado.") };
+        if (!patient) return { result: errorResult("Paciente não encontrado.") };
         const appointmentId = String(
           args.appointment_id ?? ctx.aiState.focused_appointment_id ?? ""
         );
         if (!appointmentId) {
-          return { result: missingResult(["appointment_id"], "Informe qual consulta remarcar.") };
+          return {
+            result: missingResult(["appointment_id"], "Preciso saber qual consulta remarcar."),
+          };
         }
         const newScheduledAt = String(args.new_scheduled_at ?? "");
         if (!newScheduledAt) {
-          return { result: missingResult(["new_scheduled_at"], "Informe o novo horário desejado.") };
+          return {
+            result: missingResult(["new_scheduled_at"], "Preciso do novo horário (scheduled_at de find_available_slots)."),
+          };
         }
         const res = await rescheduleAppointmentViaAssistant(supabase, {
           clinicId,
@@ -417,8 +528,8 @@ export async function executeTool(
           newScheduledAt,
         });
         await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "remarcada", !res.error);
-        if (res.error) return { result: domainError(res.error) };
-        return { result: successResult(res) };
+        if (res.error) return { result: errorResult(res.error) };
+        return { result: successResult({ rescheduled: true, appointment_id: appointmentId }) };
       }
 
       case "get_service_price": {
@@ -426,7 +537,9 @@ export async function executeTool(
           ? String(args.doctor_id)
           : ctx.aiState.booking?.doctor_id;
         if (!doctorId) {
-          return { result: missingResult(["doctor_id"], "Informe o médico para consultar o preço.") };
+          return {
+            result: missingResult(["doctor_id"], "Preciso do médico para consultar o preço."),
+          };
         }
         let serviceId = args.service_id ? String(args.service_id) : null;
         if (!serviceId && args.procedure_id) {
@@ -441,7 +554,7 @@ export async function executeTool(
           return {
             result: missingResult(
               ["procedure_id"],
-              "Informe o procedimento ou serviço para consultar o preço."
+              "Preciso do procedimento para consultar o preço."
             ),
           };
         }
@@ -453,7 +566,7 @@ export async function executeTool(
           []
         );
         await logToolCall(supabase, clinicId, conversationId, name, args, String(price.valor), !price.error);
-        if (price.error) return { result: domainError(price.error) };
+        if (price.error) return { result: errorResult(price.error) };
         return {
           result: successResult({ service_id: serviceId, ...price }),
           statePatch: args.procedure_id
@@ -471,7 +584,9 @@ export async function executeTool(
       case "search_faq": {
         const query = String(args.query ?? "").trim();
         if (!query) {
-          return { result: missingResult(["query"], "Informe o que o paciente quer saber.") };
+          return {
+            result: missingResult(["query"], "Preciso saber o que o paciente quer saber."),
+          };
         }
         const hit = await searchFaqWithFallback(query, ctx.faqs, supabase, clinicId);
         await logToolCall(
@@ -485,9 +600,9 @@ export async function executeTool(
         );
         if (!hit) {
           return {
-            result: domainError(
+            result: unavailableResult(
               "Não encontrei essa informação nas perguntas frequentes.",
-              "Tente list_procedures ou transfer_to_human."
+              "Tente list_procedures para serviços ou get_service_price para valores."
             ),
           };
         }
@@ -519,11 +634,11 @@ export async function executeTool(
       }
 
       default:
-        return { result: domainError(`Ferramenta não implementada: ${name}`) };
+        return { result: errorResult(`Ferramenta não implementada: ${name}`) };
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await logToolCall(supabase, clinicId, conversationId, name, args, message, false);
-    return { result: domainError(message) };
+    return { result: errorResult(message) };
   }
 }

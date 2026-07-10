@@ -8,6 +8,12 @@ export function normalizeAiState(raw: LegacyRaw | null | undefined): AiState {
 
   const base: AiState = {
     patient_id: raw.patient_id ? String(raw.patient_id) : undefined,
+    offered_doctors: Array.isArray(raw.offered_doctors)
+      ? (raw.offered_doctors as AiState["offered_doctors"])
+      : undefined,
+    offered_procedures: Array.isArray(raw.offered_procedures)
+      ? (raw.offered_procedures as AiState["offered_procedures"])
+      : undefined,
     focused_appointment_id: raw.focused_appointment_id
       ? String(raw.focused_appointment_id)
       : undefined,

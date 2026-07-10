@@ -6,11 +6,16 @@ export type {
   ToolExecutionOutcome,
   ToolResult,
   FaqItem,
+  MissingField,
+  ToolOption,
 } from "./types";
 export {
   toolResultToJson,
   successResult,
   missingResult,
-  domainError,
-  validationError,
+  ambiguousResult,
+  unavailableResult,
+  errorResult,
+  isRecoverableToolStatus,
+  legacyErrorToResult,
 } from "./types";

@@ -1,3 +1,7 @@
+/**
+ * @deprecated Produção WhatsApp usa lib/chatbot/guardrails/validators.ts.
+ * Mantido para LangGraph/Simple Assistant (não wired em process-inbound).
+ */
 import type { AiConversationState } from "../types";
 import { isScheduledAtInOfferedSlots } from "@/lib/booking-state";
 import { HUMAN_ONLY_QUOTE_STEPS } from "./constants";

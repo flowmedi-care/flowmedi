@@ -11,8 +11,7 @@ export function applyReplyGuards(reply: string, state: AiState): string {
   const bookingDone = state.booking?.status === "done";
 
   if (!bookingDone && CONFIRMED_PATTERN.test(out)) {
-    const status = state.booking?.status ?? "collecting";
-    return `Ainda estou finalizando o agendamento (etapa: ${status}). Um momento, por favor.`;
+    return "Ainda estou finalizando o agendamento. Um momento, por favor.";
   }
 
   if (PHONE_ASK_PATTERN.test(out)) {

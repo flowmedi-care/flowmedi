@@ -14,7 +14,7 @@ describe("conversation eval suite", () => {
       const tool = scenario.expectedTool!;
       const result = validateToolCall(tool, {}, initialAiState(), {});
       assert.ok(result, `esperava validation para ${tool}`);
-      assert.equal(result!.status, "validation_error");
+      assert.equal(result!.status, "missing");
     });
   }
 });

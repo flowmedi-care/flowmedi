@@ -1,5 +1,7 @@
 import type { VirtualAssistantSettings } from "@/lib/virtual-assistant/types";
 import type { FaqItem } from "../tools/types";
+import type { AiState } from "../state/types";
+import { formatChatbotAiStateForPrompt } from "../state/format-for-prompt";
 
 export type ClinicContext = {
   clinicName: string;
@@ -10,6 +12,7 @@ export type ClinicContext = {
   address?: string;
   faqs: FaqItem[];
   settings: Partial<VirtualAssistantSettings>;
+  aiState?: AiState;
 };
 
 export function buildSystemPrompt(ctx: ClinicContext): string {
@@ -22,9 +25,10 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
     "",
     "Regras:",
     "- Use ferramentas para obter dados da clínica. Nunca invente preços, horários ou procedimentos.",
-    '- Se uma ferramenta retornar status "missing", pergunte ao paciente as informações faltantes de forma natural.',
-    '- Se retornar "validation_error" ou "domain_error", explique o problema sem insistir na mesma ação.',
-    "- Confirme com o paciente antes de criar ou cancelar agendamentos.",
+    '- Interprete o retorno das tools: status "success" (dados em data/options), "missing" (pergunte o que falta), "unavailable" (explique e sugira alternativa), "ambiguous" (apresente options), "error" (explique sem insistir).',
+    "- Confirme com o paciente antes de create_appointment ou cancel_appointment.",
+    "- Nunca peça telefone — já temos pelo WhatsApp.",
+    "- Se paciente responder número (\"1\", \"2\"), use options da última tool para obter o id correto.",
     `- Tom: ${ctx.tone}. ${emojiPolicy}`,
   ];
 
@@ -33,6 +37,10 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
 
   if (ctx.faqs.length) {
     lines.push("", "Perguntas frequentes disponíveis via search_faq.");
+  }
+
+  if (ctx.aiState) {
+    lines.push("", "Contexto atual da conversa:", formatChatbotAiStateForPrompt(ctx.aiState));
   }
 
   return lines.join("\n");
