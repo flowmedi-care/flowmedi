@@ -4,6 +4,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { ASSISTANT_TOOL_NAMES } from "@/lib/virtual-assistant/tools/definitions";
 import { executeAssistantTool } from "@/lib/virtual-assistant/tools";
 import type { AiConversationState } from "@/lib/virtual-assistant/types";
+import { normalizeAiState } from "@/lib/chatbot/state/migrate";
+import { initialAiState } from "@/lib/chatbot/state/types";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 
 const MUTATING_TOOLS = new Set([
@@ -59,7 +61,9 @@ export async function POST(request: NextRequest) {
 
     const phone = normalizeWhatsAppPhone(phoneRaw.replace(/\D/g, ""));
     const args = body.args ?? {};
-    const aiState: AiConversationState = body.aiState ?? {};
+    const aiState: AiConversationState = body.aiState
+      ? normalizeAiState(body.aiState as Record<string, unknown>)
+      : initialAiState();
 
     const supabase = createServiceRoleClient();
 

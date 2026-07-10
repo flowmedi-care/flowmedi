@@ -71,7 +71,7 @@ async function executeExhaustedAction(
   step: JourneyStepCode,
   pipelineTransition?: AgentPipelineStage
 ): Promise<void> {
-  const state = row.ai_state ?? {};
+  const state = (row.ai_state ?? {}) as import("@/lib/virtual-assistant/types").AiConversationState;
   const patientId = state.patient_id;
 
   if (action === "transition_pipeline" && pipelineTransition) {
@@ -157,7 +157,7 @@ export async function runContactJourneyTimeouts(
 
       for (const row of (conversations ?? []) as ConversationRow[]) {
         result.processed++;
-        const state = row.ai_state ?? {};
+        const state = (row.ai_state ?? {}) as import("@/lib/virtual-assistant/types").AiConversationState;
         const followupCount = getFollowupCount(state, step);
         const hoursSince = await getHoursSinceLastOutbound(supabase, row.id);
         const threshold = policy.followupHours[followupCount];

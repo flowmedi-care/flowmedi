@@ -1,0 +1,77 @@
+import type { AiState, BookingState, OfferedSlot } from "./types";
+import { initialAiState } from "./types";
+
+type LegacyRaw = Record<string, unknown>;
+
+export function normalizeAiState(raw: LegacyRaw | null | undefined): AiState {
+  if (!raw || typeof raw !== "object") return initialAiState();
+
+  const base: AiState = {
+    patient_id: raw.patient_id ? String(raw.patient_id) : undefined,
+    focused_appointment_id: raw.focused_appointment_id
+      ? String(raw.focused_appointment_id)
+      : undefined,
+    active_appointments: Array.isArray(raw.active_appointments)
+      ? raw.active_appointments.map(String)
+      : undefined,
+    consecutive_tool_failures: Number(raw.consecutive_tool_failures) || 0,
+    ai_processing_started_at: raw.ai_processing_started_at
+      ? String(raw.ai_processing_started_at)
+      : undefined,
+    pending_transcription_jobs: raw.pending_transcription_jobs as AiState["pending_transcription_jobs"],
+    audio_transcription_retried_message_ids: raw.audio_transcription_retried_message_ids as string[],
+    bot_loop_detected_at: raw.bot_loop_detected_at ? String(raw.bot_loop_detected_at) : undefined,
+    handoff_reason: raw.handoff_reason ? String(raw.handoff_reason) : undefined,
+    bot_loop_window_since: raw.bot_loop_window_since
+      ? String(raw.bot_loop_window_since)
+      : undefined,
+  };
+
+  if (raw.booking && typeof raw.booking === "object") {
+    const b = raw.booking as BookingState;
+    base.booking = {
+      procedure_id: b.procedure_id,
+      doctor_id: b.doctor_id,
+      date: b.date,
+      offered_slots: b.offered_slots,
+      pending_slot: b.pending_slot,
+      status: b.status ?? "collecting",
+    };
+    return base;
+  }
+
+  const procedureId = raw.procedure_id ? String(raw.procedure_id) : undefined;
+  const doctorId = raw.doctor_id ? String(raw.doctor_id) : undefined;
+  const offeredSlots = raw.offered_slots as OfferedSlot[] | undefined;
+  const bookingStep = raw.booking_step ? String(raw.booking_step) : undefined;
+  const lastCreated = raw.last_created_appointment_id;
+
+  if (
+    procedureId ||
+    doctorId ||
+    offeredSlots?.length ||
+    raw.pending_slot ||
+    bookingStep
+  ) {
+    const status: BookingState["status"] =
+      bookingStep === "done" || lastCreated ? "done" : offeredSlots?.length ? "confirming" : "collecting";
+
+    base.booking = {
+      procedure_id: procedureId,
+      doctor_id: doctorId,
+      date: raw.last_slot_query && typeof raw.last_slot_query === "object"
+        ? String((raw.last_slot_query as { date?: string }).date ?? "")
+        : undefined,
+      offered_slots: offeredSlots,
+      pending_slot: raw.pending_slot ? String(raw.pending_slot) : undefined,
+      status,
+    };
+    if (base.booking.date === "") delete base.booking.date;
+  }
+
+  return base;
+}
+
+export function serializeAiState(state: AiState): Record<string, unknown> {
+  return { ...state };
+}

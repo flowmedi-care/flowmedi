@@ -1,10 +1,7 @@
 export type AssistantTone = "formal" | "informal";
 
-import type { AgentPipelineStage } from "./agent-pipeline/stages";
-import type {
-  PendingToolConfirmation,
-  ToolExecutionModesConfig,
-} from "./agent-pipeline/confirmation-policy";
+import type { AiState } from "@/lib/chatbot/state/types";
+import type { ToolExecutionModesConfig } from "./agent-pipeline/confirmation-policy";
 
 export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
@@ -49,20 +46,7 @@ export type VirtualAssistantSettings = {
   bot_active_end: string | null;
   confirmation_flow_id?: string | null;
   confirmation_flow_template_name?: string | null;
-  /** Modo de execução por ferramenta: auto | human_confirm */
   tool_execution_modes?: ToolExecutionModesConfig | null;
-  /** Usa motor LangGraph em vez do loop legado em agent.ts */
-  use_langgraph_pipeline?: boolean;
-  /** Executa LangGraph em paralelo para comparação (shadow logging) */
-  langgraph_shadow_mode?: boolean;
-  /** Motor simplificado: router + handlers MVP (padrão). false = LangGraph legado com subgrafos CRM. */
-  use_simple_assistant?: boolean;
-  /** North Star Architecture v2.2 — off | shadow | canary | full */
-  north_star_mode?: "off" | "shadow" | "canary" | "full";
-  /** Atalho legado: true equivale a north_star_mode=full */
-  north_star_enabled?: boolean;
-  /** Clínicas piloto quando north_star_mode=canary */
-  north_star_canary_clinic_ids?: string[];
 };
 
 export type VirtualAssistantLocation = {
@@ -89,6 +73,7 @@ export type PendingTranscriptionJob = {
   jobId: string;
 };
 
+/** @deprecated use AiState from @/lib/chatbot */
 export type BookingStep =
   | "procedure"
   | "doctor"
@@ -118,10 +103,16 @@ export type LastSlotQuery = {
   period?: "manha" | "tarde";
 };
 
-export type AiConversationState = {
+/**
+ * Estado persistido em whatsapp_conversations.ai_state.
+ * AiState (chatbot) + campos de infraestrutura e compat legada.
+ */
+export type AiConversationState = AiState & {
+  pending_confirmation_appointment_id?: string;
+  pending_reschedule_appointment_id?: string;
+  /** @deprecated legado — preferir booking.* */
   intent?: string;
   booking_step?: BookingStep;
-  last_created_appointment_id?: string;
   doctor_id?: string;
   procedure_id?: string;
   service_id?: string;
@@ -130,71 +121,21 @@ export type AiConversationState = {
   offered_slots?: OfferedSlot[];
   offered_procedures?: OfferedProcedure[];
   last_slot_query?: LastSlotQuery;
-  /** Última lista de dias/horários mostrada ao paciente (display_message). */
   last_display_message?: string;
-  /** Tipo da última resposta (ex. invalid_slot_selection) — evita re-list loop. */
   last_reply_kind?: string;
-  dimension_value_ids?: string[];
-  patient_id?: string;
-  pending_confirmation_appointment_id?: string;
-  /** Consulta a remarcar após resposta "Remarcar" no WhatsApp Flow */
-  pending_reschedule_appointment_id?: string;
-  pending_transcription_jobs?: PendingTranscriptionJob[];
-  /** Etapa atual do fluxo guiado (booking, price, etc.) */
-  pending_step?: string;
-  /** Etapa na Jornada do Contato (CRM) */
+  last_created_appointment_id?: string;
   journey_step_code?: string;
-  contact_intent?: string;
-  pending_action?: string;
-  motivo_provavel?: string;
-  confianca?: "alta" | "media" | "baixa";
-  active_appointments?: string[];
-  focused_appointment_id?: string;
-  channel?: string;
-  captacao_substep?: number;
-  followup_count?: number;
-  confirmation_completed?: ("7d" | "2d" | "day")[];
-  /** IDs de mensagens que já tiveram retry de transcrição após erro 500 */
-  audio_transcription_retried_message_ids?: string[];
-  /** Loop bot↔bot detectado — IA silenciada sem resposta */
-  bot_loop_detected_at?: string;
-  /** Motivo do último handoff (ex. bot_loop_detected) */
-  handoff_reason?: string;
-  /** Só contar mensagens para bot-loop-guard após este instante (ISO) */
-  bot_loop_window_since?: string;
-  /** Evita processamento duplicado (webhook + cron em paralelo) */
-  ai_processing_started_at?: string;
-  /** Etapa atual do pipeline do agente */
-  pipeline_stage?: AgentPipelineStage;
+  timeout_followup_counts?: Partial<Record<string, number>>;
+  resolve_quote_offer_done?: boolean;
+  dimension_value_ids?: string[];
+  pending_step?: string;
+  pipeline_stage?: import("./agent-pipeline/stages").AgentPipelineStage;
   pipeline_stage_entered_at?: string;
   pipeline_last_transition_trigger?: string;
-  /** Confirmação pendente de ferramenta mutável (modo human_confirm) */
-  pending_tool_confirmation?: PendingToolConfirmation;
-  /** resolve_quote_offer executado nesta conversa */
-  resolve_quote_offer_done?: boolean;
-  /** Falhas consecutivas de ferramenta (para escalação) */
-  consecutive_tool_failures?: number;
-  /** Contagem de follow-ups de timeout por journey step */
-  timeout_followup_counts?: Partial<Record<string, number>>;
-  /** North Star Architecture snapshot (dual-write durante migração) */
-  north_star_snapshot?: Record<string, unknown>;
-  _north_star_version?: number;
-  /** Brain v2 — memória operacional + shadow FSM */
-  brain_v2?: {
-    operational?: {
-      activeGoal?: string | null;
-      awaiting?: string | null;
-      selections?: Record<string, unknown>;
-      retrievalAttempts?: number;
-      frustrationScore?: number;
-      lastMenuShown?: { options: string[]; at: string };
-    };
-    shadow?: {
-      inferredPhase?: string;
-      inferredDomain?: string | null;
-      lastPlanGoal?: string | null;
-    };
-  };
+  pending_tool_confirmation?: Record<string, unknown>;
+  contact_intent?: string;
+  motivo_provavel?: string;
+  confianca?: "alta" | "media" | "baixa";
 };
 
 export const DAY_LABELS: Record<DayKey, string> = {
@@ -216,3 +157,5 @@ export const DEFAULT_OPERATING_HOURS: OperatingHours = {
   sat: { open: "08:00", close: "12:00" },
   sun: { closed: true },
 };
+
+export type { AiState } from "@/lib/chatbot/state/types";

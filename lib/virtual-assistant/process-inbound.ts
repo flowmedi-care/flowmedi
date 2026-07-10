@@ -5,33 +5,20 @@ import {
   resolveInboundTexts,
   scheduleTranscriptionRetry,
 } from "./audio-transcription";
-import { runLangGraphAssistant } from "./langgraph/run";
 import {
   releaseProcessingLock,
+  runChatbotTurn,
   shouldSkipDuplicateReply,
   tryAcquireProcessingLock,
-} from "./langgraph/nodes/booking-continuity";
+} from "@/lib/chatbot";
 import { logAiEvent } from "./event-log";
 import { sendAssistantReply } from "./send-reply";
 import type { AiConversationState, VirtualAssistantSettings } from "./types";
 import { isInsideAutoMessageWindow } from "@/lib/whatsapp-ops-controls";
 import { HANDOFF_REPLY_BODY } from "@/lib/whatsapp-sender-display";
-import {
-  detectInboundIntent,
-  hasClearIntent,
-  intentToAiStatePatch,
-} from "./detect-inbound-intent";
-import {
-  applyBookingContinuityStatePatch,
-  resolveContinuityIntent,
-  shouldContinueBookingFlow,
-} from "./booking-continuity";
 import { tryReactivateAiAfterHandoff } from "./handoff-reactivation";
 import { ensureAiPrivacyNoticeSent } from "./ai-privacy-notice";
 import { buildClinicContext } from "./clinic-context";
-import { runNorthStarAssistant } from "@/lib/conversational/run-north-star";
-import { isLegacyRuntimeDisabled } from "@/lib/conversational/migration/legacy-runtime";
-import { northStarFlagsFromSettings, shouldRunNorthStar } from "@/lib/conversational/feature-flags";
 
 export interface SkipMenuChatbotResult {
   skipMenu: boolean;
@@ -196,18 +183,6 @@ async function processConversationAiInner(
     return;
   }
 
-  const northStarFlags = isLegacyRuntimeDisabled()
-    ? {
-        mode: "full" as const,
-        brain: "v2" as const,
-        canaryClinicIds: [] as string[],
-        brainV2CanaryClinicIds: [] as string[],
-      }
-    : northStarFlagsFromSettings(settings);
-  const northStarGate = shouldRunNorthStar(northStarFlags, conv.clinic_id);
-  const { shouldUseBrainV2 } = await import("@/lib/conversational/feature-flags");
-  const useBrainV2 = shouldUseBrainV2(northStarFlags, conv.clinic_id);
-
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
     conversationId,
@@ -240,8 +215,7 @@ async function processConversationAiInner(
       conversationId,
       stage: "agent_route",
       detail: {
-        engine: "langgraph",
-        use_langgraph_pipeline: true,
+        engine: "chatbot",
         lock_acquired: false,
         skipped_reason: "already_processing",
         retry_at: retryAt,
@@ -267,31 +241,11 @@ async function processConversationAiInner(
     clinicId: conv.clinic_id,
     conversationId,
     stage: "agent_route",
-    detail: northStarGate.run
-      ? {
-          engine: "north_star",
-          north_star_mode: northStarFlags.mode,
-          lock_acquired: true,
-        }
-      : {
-          engine: "langgraph",
-          use_langgraph_pipeline: true,
-          lock_acquired: true,
-        },
+    detail: {
+      engine: "chatbot",
+      lock_acquired: true,
+    },
   });
-
-  if (
-    settings.enabled !== false &&
-    settings.use_langgraph_pipeline === false
-  ) {
-    logAiEvent(supabase, {
-      clinicId: conv.clinic_id,
-      conversationId,
-      stage: "agent_route",
-      level: "warn",
-      detail: { warn: "langgraph_disabled_in_settings_overridden_by_runtime" },
-    });
-  }
 
   if (conv.patient_id && !aiState.patient_id) {
     aiState = { ...aiState, patient_id: conv.patient_id };
@@ -453,27 +407,6 @@ async function processConversationAiInner(
   const combinedText = userTexts.join(" ").toLowerCase();
   const inboundMessage = userTexts.join("\n");
 
-  let inboundIntent = detectInboundIntent(inboundMessage, aiState);
-  inboundIntent = resolveContinuityIntent(inboundMessage, aiState, inboundIntent);
-
-  if (shouldContinueBookingFlow(inboundMessage, inboundIntent, aiState)) {
-    aiState = applyBookingContinuityStatePatch(aiState);
-  } else if (hasClearIntent(inboundIntent) && !aiState.intent) {
-    aiState = { ...aiState, ...intentToAiStatePatch(inboundIntent) };
-  }
-
-  const { routeInboundFlow } = await import("./intent-router");
-  const routed = routeInboundFlow({
-    messageText: inboundMessage,
-    detectedIntent: inboundIntent,
-    aiState,
-  });
-  if (routed.flow === "booking" || routed.useBookingMachine) {
-    if (!aiState.booking_step) {
-      aiState = { ...aiState, booking_step: "procedure", intent: "booking" };
-    }
-  }
-
   if (aiState.pending_confirmation_appointment_id && aiState.patient_id) {
     const { parseConfirmationReply } = await import("./confirmations");
     const { confirmAppointmentViaAssistant, cancelAppointmentViaAssistant } = await import(
@@ -629,154 +562,7 @@ async function processConversationAiInner(
     }
   }
 
-  if (aiState.pending_tool_confirmation) {
-    const {
-      parseToolConfirmationReply,
-      isPendingToolConfirmationExpired,
-    } = await import("./agent-pipeline/confirmation-policy");
-    const { executeAssistantTool } = await import("./tools");
-
-    const pendingTool = aiState.pending_tool_confirmation;
-    if (isPendingToolConfirmationExpired(pendingTool)) {
-      aiState = { ...aiState, pending_tool_confirmation: undefined };
-    } else {
-      const toolReply = parseToolConfirmationReply(combinedText);
-      if (toolReply === "yes") {
-        const toolResult = await executeAssistantTool(
-          {
-            supabase,
-            clinicId: conv.clinic_id,
-            conversationId,
-            phoneNumber: conv.phone_number,
-            aiState,
-            skipPipelineValidation: true,
-          },
-          pendingTool.tool,
-          pendingTool.args
-        );
-        const now = new Date().toISOString();
-        await supabase
-          .from("whatsapp_messages")
-          .update({ ai_processed_at: now })
-          .in(
-            "id",
-            pending.map((m) => m.id)
-          );
-        let replyText = "Pronto! Ação confirmada.";
-        try {
-          const parsed = JSON.parse(toolResult.result) as {
-            confirmation_message?: string;
-            display_message?: string;
-            error?: string;
-          };
-          if (parsed.error) replyText = parsed.error;
-          else if (parsed.confirmation_message) replyText = parsed.confirmation_message;
-          else if (parsed.display_message) replyText = parsed.display_message;
-        } catch {
-          /* keep default */
-        }
-        await supabase
-          .from("whatsapp_conversations")
-          .update({
-            ai_last_processed_message_at: now,
-            ai_state: {
-              ...aiState,
-              ...toolResult.statePatch,
-              pending_tool_confirmation: undefined,
-            },
-            ai_debounce_until: null,
-          })
-          .eq("id", conversationId);
-        await sendAssistantReply(
-          supabase,
-          conv.clinic_id,
-          conversationId,
-          conv.phone_number,
-          replyText
-        );
-        logAiEvent(supabase, {
-          clinicId: conv.clinic_id,
-          conversationId,
-          stage: "reply_sent",
-          detail: { type: "pipeline_tool_confirmed", tool: pendingTool.tool },
-        });
-        return;
-      }
-      if (toolReply === "no") {
-        const now = new Date().toISOString();
-        await supabase
-          .from("whatsapp_messages")
-          .update({ ai_processed_at: now })
-          .in(
-            "id",
-            pending.map((m) => m.id)
-          );
-        await supabase
-          .from("whatsapp_conversations")
-          .update({
-            ai_last_processed_message_at: now,
-            ai_state: { ...aiState, pending_tool_confirmation: undefined },
-            ai_debounce_until: null,
-          })
-          .eq("id", conversationId);
-        await sendAssistantReply(
-          supabase,
-          conv.clinic_id,
-          conversationId,
-          conv.phone_number,
-          "Tudo bem, não executei a ação. Como posso ajudar?"
-        );
-        logAiEvent(supabase, {
-          clinicId: conv.clinic_id,
-          conversationId,
-          stage: "reply_sent",
-          detail: { type: "pipeline_tool_cancelled", tool: pendingTool.tool },
-        });
-        return;
-      }
-      if (toolReply === null) {
-        const now = new Date().toISOString();
-        await supabase
-          .from("whatsapp_messages")
-          .update({ ai_processed_at: now })
-          .in(
-            "id",
-            pending.map((m) => m.id)
-          );
-        await supabase
-          .from("whatsapp_conversations")
-          .update({ ai_last_processed_message_at: now, ai_debounce_until: null })
-          .eq("id", conversationId);
-        await sendAssistantReply(
-          supabase,
-          conv.clinic_id,
-          conversationId,
-          conv.phone_number,
-          pendingTool.prompt_message ??
-            "Confirma esta ação? Responda *sim* ou *não*."
-        );
-        logAiEvent(supabase, {
-          clinicId: conv.clinic_id,
-          conversationId,
-          stage: "reply_sent",
-          detail: { type: "pipeline_tool_clarify", tool: pendingTool.tool },
-        });
-        return;
-      }
-    }
-  }
-
-  logAiEvent(supabase, {
-    clinicId: conv.clinic_id,
-    conversationId,
-    stage: useBrainV2 ? "brain_v2_start" : northStarGate.run ? "north_star_start" : "openai_start",
-    detail: {
-      messageCount: userTexts.length,
-      historyCount: userTexts.length,
-      ...(northStarGate.run ? { engine: useBrainV2 ? "brain_v2" : "north_star_v1" } : {}),
-    },
-  });
-
+  const clinicCtx = await buildClinicContext(supabase, conv.clinic_id);
   const combinedUserText = userTexts.join("\n").trim();
   const { data: faqRows } = await supabase
     .from("clinic_virtual_assistant_faq")
@@ -784,94 +570,56 @@ async function processConversationAiInner(
     .eq("clinic_id", conv.clinic_id)
     .order("display_order");
 
-  let northStarResult: Awaited<ReturnType<typeof runNorthStarAssistant>> | null = null;
-  if (northStarGate.run && combinedUserText) {
-    northStarResult = await runNorthStarAssistant({
-      supabase,
-      clinicId: conv.clinic_id,
-      conversationId,
-      phoneNumber: conv.phone_number,
-      userText: combinedUserText,
-      settings,
-      aiState,
-      faqs: (faqRows ?? []).map((f) => ({
-        id: String(f.id),
-        question: String(f.question),
-        answer: String(f.answer),
-      })),
-    }).catch((e) => {
-      console.error("[NorthStar] turn error:", e);
-      logAiEvent(supabase, {
-        clinicId: conv.clinic_id,
-        conversationId,
-        stage: "error",
-        level: "error",
-        detail: {
-          source: "north_star_assistant",
-          message: e instanceof Error ? e.message : String(e),
-        },
-      });
-      return { ran: false, shadow: false, sendReply: false };
-    });
-  }
+  logAiEvent(supabase, {
+    clinicId: conv.clinic_id,
+    conversationId,
+    stage: "openai_start",
+    detail: {
+      messageCount: userTexts.length,
+      historyCount: history.length,
+      engine: "chatbot",
+    },
+  });
 
-  let reply: string;
-  let handoff: boolean | undefined;
-  let statePatch: Partial<AiConversationState> | undefined;
-
-  if (northStarResult?.ran && northStarResult.sendReply && !northStarResult.silent) {
-    reply = northStarResult.reply ?? "Como posso ajudar?";
-    handoff = northStarResult.handoff;
-    statePatch = northStarResult.aiStatePatch ?? aiState;
-  } else if (!isLegacyRuntimeDisabled()) {
-    const langGraphResult = await runLangGraphAssistant({
-      supabase,
-      clinicId: conv.clinic_id,
-      conversationId,
-      phoneNumber: conv.phone_number,
-      userMessages: userTexts,
-      settings,
-      aiState,
-      history,
-    }).catch((e) => {
-      console.error("[VirtualAssistant] agent error:", e);
-      const msg =
-        e instanceof Error && e.message.includes("OPENAI_API_KEY")
-          ? "Desculpe, o assistente não está configurado no momento. Vou chamar alguém da equipe."
-          : "Desculpe, tive um problema técnico. Pode tentar de novo em instantes?";
-      logAiEvent(supabase, {
-        clinicId: conv.clinic_id,
-        conversationId,
-        stage: "error",
-        level: "error",
-        detail: {
-          source: "langgraph_agent",
-          message: e instanceof Error ? e.message : String(e),
-        },
-      });
-      return { reply: msg, handoff: false, statePatch: aiState };
-    });
-    reply = langGraphResult.reply;
-    handoff = langGraphResult.handoff;
-    statePatch = langGraphResult.statePatch;
-  } else {
-    reply = northStarResult?.reply ?? "Como posso ajudar?";
-    handoff = northStarResult?.handoff;
-    statePatch = northStarResult?.aiStatePatch ?? aiState;
-  }
-
-  if (northStarResult?.shadow) {
+  const chatbotResult = await runChatbotTurn({
+    supabase,
+    clinicId: conv.clinic_id,
+    conversationId,
+    phoneNumber: conv.phone_number,
+    userText: combinedUserText,
+    history,
+    aiState,
+    settings,
+    faqs: (faqRows ?? []).map((f) => ({
+      id: String(f.id),
+      question: String(f.question),
+      answer: String(f.answer),
+    })),
+    clinicName: clinicCtx.clinicName,
+    hoursText: undefined,
+    address: undefined,
+  }).catch((e) => {
+    console.error("[Chatbot] turn error:", e);
+    const msg =
+      e instanceof Error && e.message.includes("OPENAI_API_KEY")
+        ? "Desculpe, o assistente não está configurado no momento. Vou chamar alguém da equipe."
+        : "Desculpe, tive um problema técnico. Pode tentar de novo em instantes?";
     logAiEvent(supabase, {
       clinicId: conv.clinic_id,
       conversationId,
-      stage: "north_star_shadow_compare",
+      stage: "error",
+      level: "error",
       detail: {
-        legacyReplyPreview: reply.slice(0, 120),
-        northStarReplyPreview: (northStarResult.reply ?? "").slice(0, 120),
-        northStarFsmAfter: northStarResult.fsmStateAfter,
+        source: "chatbot",
+        message: e instanceof Error ? e.message : String(e),
       },
     });
-  }
+    return { reply: msg, handoff: false, statePatch: aiState as Record<string, unknown> };
+  });
+
+  const reply = chatbotResult.reply;
+  const handoff = chatbotResult.handoff;
+  const statePatch = chatbotResult.statePatch as Partial<AiConversationState>;
 
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
@@ -880,7 +628,7 @@ async function processConversationAiInner(
     detail: {
       handoff,
       replyPreview: reply.slice(0, 80),
-      ...(northStarResult?.ran ? { engine: "north_star" } : {}),
+      engine: "chatbot",
     },
   });
 
@@ -915,12 +663,11 @@ async function processConversationAiInner(
     .from("whatsapp_conversations")
     .update({
       ai_last_processed_message_at: now,
-      ai_state: statePatch ?? aiState,
+      ai_state: { ...aiState, ...statePatch },
       ai_debounce_until: null,
     })
     .eq("id", conversationId);
 
-  const clinicCtx = await buildClinicContext(supabase, conv.clinic_id);
   await ensureAiPrivacyNoticeSent(supabase, {
     conversationId,
     clinicId: conv.clinic_id,
