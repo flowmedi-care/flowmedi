@@ -61,6 +61,14 @@ export function logAiEvent(
   supabase: SupabaseClient,
   input: LogAiEventInput
 ): void {
+  void logAiEventAwait(supabase, input);
+}
+
+/** Versão aguardável — use em simulação/diagnóstico quando o evento precisa aparecer na resposta. */
+export async function logAiEventAwait(
+  supabase: SupabaseClient,
+  input: LogAiEventInput
+): Promise<void> {
   const row = {
     clinic_id: input.clinicId,
     conversation_id: input.conversationId ?? null,
@@ -70,14 +78,10 @@ export function logAiEvent(
     detail: input.detail ?? {},
   };
 
-  void supabase
-    .from("whatsapp_ai_event_log")
-    .insert(row)
-    .then(({ error }) => {
-      if (error) {
-        console.warn("[VirtualAssistant] event log insert failed:", error.message, {
-          stage: input.stage,
-        });
-      }
+  const { error } = await supabase.from("whatsapp_ai_event_log").insert(row);
+  if (error) {
+    console.warn("[VirtualAssistant] event log insert failed:", error.message, {
+      stage: input.stage,
     });
+  }
 }

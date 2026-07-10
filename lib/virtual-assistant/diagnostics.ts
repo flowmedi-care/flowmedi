@@ -51,6 +51,83 @@ export interface AiEventRow {
   created_at: string;
 }
 
+const DIAGNOSTICS_RECENT_EVENT_LIMIT = 200;
+const DIAGNOSTICS_ANCHOR_LIMIT = 40;
+const DIAGNOSTICS_RELATED_EVENT_LIMIT = 400;
+
+const EVENT_SELECT =
+  "id, stage, level, detail, conversation_id, message_id, created_at";
+
+function mergeEventsById(...groups: AiEventRow[][]): AiEventRow[] {
+  const byId = new Map<string, AiEventRow>();
+  for (const group of groups) {
+    for (const event of group) {
+      byId.set(event.id, event);
+    }
+  }
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+}
+
+async function fetchDiagnosticsEvents(
+  supabase: SupabaseClient,
+  clinicId: string
+): Promise<{ events: AiEventRow[]; eventsError: string | null }> {
+  const [recentResult, anchorResult] = await Promise.all([
+    supabase
+      .from("whatsapp_ai_event_log")
+      .select(EVENT_SELECT)
+      .eq("clinic_id", clinicId)
+      .order("created_at", { ascending: false })
+      .limit(DIAGNOSTICS_RECENT_EVENT_LIMIT),
+    supabase
+      .from("whatsapp_ai_event_log")
+      .select(EVENT_SELECT)
+      .eq("clinic_id", clinicId)
+      .in("stage", ["webhook_inbound", "simulate_inbound"])
+      .order("created_at", { ascending: false })
+      .limit(DIAGNOSTICS_ANCHOR_LIMIT),
+  ]);
+
+  const recentEvents = (recentResult.data ?? []) as AiEventRow[];
+  const anchorEvents = (anchorResult.data ?? []) as AiEventRow[];
+
+  if (recentResult.error) {
+    return { events: recentEvents, eventsError: recentResult.error.message };
+  }
+
+  const conversationIds = [
+    ...new Set(
+      anchorEvents.map((e) => e.conversation_id).filter((id): id is string => Boolean(id))
+    ),
+  ];
+
+  let relatedEvents: AiEventRow[] = [];
+  if (conversationIds.length > 0 && anchorEvents.length > 0) {
+    const oldestAnchorAt = anchorEvents.reduce((oldest, event) => {
+      const ts = new Date(event.created_at).getTime();
+      return ts < oldest ? ts : oldest;
+    }, new Date(anchorEvents[0].created_at).getTime());
+
+    const { data: relatedData } = await supabase
+      .from("whatsapp_ai_event_log")
+      .select(EVENT_SELECT)
+      .eq("clinic_id", clinicId)
+      .in("conversation_id", conversationIds)
+      .gte("created_at", new Date(oldestAnchorAt).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(DIAGNOSTICS_RELATED_EVENT_LIMIT);
+
+    relatedEvents = (relatedData ?? []) as AiEventRow[];
+  }
+
+  return {
+    events: mergeEventsById(recentEvents, anchorEvents, relatedEvents),
+    eventsError: anchorResult.error?.message ?? null,
+  };
+}
+
 export interface AiToolLogRow {
   id: string;
   tool_name: string;
@@ -89,7 +166,6 @@ export async function gatherAssistantDiagnostics(
     pendingResult,
     stuckResult,
     lastEventResult,
-    eventsResult,
     toolLogsResult,
     blockedResult,
     pendingAudioResult,
@@ -121,12 +197,6 @@ export async function gatherAssistantDiagnostics(
       .limit(1)
       .maybeSingle(),
     supabase
-      .from("whatsapp_ai_event_log")
-      .select("id, stage, level, detail, conversation_id, message_id, created_at")
-      .eq("clinic_id", clinicId)
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabase
       .from("whatsapp_ai_tool_log")
       .select("id, tool_name, success, result_summary, created_at")
       .eq("clinic_id", clinicId)
@@ -148,11 +218,13 @@ export async function gatherAssistantDiagnostics(
       .is("ai_processed_at", null),
   ]);
 
+  const { events, eventsError } = await fetchDiagnosticsEvents(supabase, clinicId);
+
   const migrationOk = !settingsResult.error;
   const migrationError = settingsResult.error?.message ?? null;
   const eventsTableMissing =
-    eventsResult.error?.message?.includes("does not exist") ||
-    eventsResult.error?.message?.includes("whatsapp_ai_event_log");
+    eventsError?.includes("does not exist") ||
+    eventsError?.includes("whatsapp_ai_event_log");
 
   await getCheckpointer().catch(() => undefined);
   const checkpointerStatus = getCheckpointerRuntimeStatus();
@@ -194,7 +266,6 @@ export async function gatherAssistantDiagnostics(
       "Tabela whatsapp_ai_event_log não existe — rode migration-whatsapp-ai-events.sql";
   }
 
-  const events = (eventsResult.data ?? []) as AiEventRow[];
   const recentErrors: RecentErrorRow[] = events
     .filter(
       (e) =>

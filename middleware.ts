@@ -24,17 +24,9 @@ function shouldSkipLegacyRedirect(pathname: string): boolean {
   );
 }
 
-/** Desative com DISABLE_LEGACY_DOMAIN_REDIRECT=1 (ex.: enquanto o Meta SDK usa .com.br). */
-function isLegacyDomainRedirectDisabled(): boolean {
-  // TEMP: redirect .com.br → .app desligado até o domínio estar no Meta SDK
-  return process.env.DISABLE_LEGACY_DOMAIN_REDIRECT !== "0";
-}
-
 function redirectLegacyDomainToCanonical(
   request: NextRequest
 ): NextResponse | null {
-  if (isLegacyDomainRedirectDisabled()) return null;
-
   const host = request.headers.get("host") ?? "";
   if (!isLegacyComBrHost(host)) return null;
 

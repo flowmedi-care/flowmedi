@@ -781,6 +781,38 @@ function inferRoutingFromLaterSteps(steps: FlowStep[], events: AiEventRow[]): vo
   }
 }
 
+function buildSyntheticAnchors(events: AiEventRow[]): AiEventRow[] {
+  const synthetics: AiEventRow[] = [];
+  const seen = new Set<string>();
+
+  for (const event of events) {
+    if (event.stage !== "pending_messages") continue;
+    const preview = event.detail?.preview;
+    if (!Array.isArray(preview) || preview.length === 0) continue;
+
+    const key = `${event.conversation_id ?? "none"}:${event.created_at}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    synthetics.push({
+      ...event,
+      id: `synthetic-${event.id}`,
+      stage: "webhook_inbound",
+      detail: {
+        from:
+          typeof event.detail?.phone === "string"
+            ? event.detail.phone
+            : "desconhecido",
+        msgType: "text",
+        bodyPreview: String(preview[0]).slice(0, 80),
+        syntheticAnchor: true,
+      },
+    });
+  }
+
+  return synthetics;
+}
+
 /**
  * Agrupa eventos brutos em fluxos legíveis (texto, áudio ou sistema).
  */
@@ -795,9 +827,13 @@ export function buildMessageFlows(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
 
-  const anchors = sorted.filter(
+  let anchors = sorted.filter(
     (e) => e.stage === "webhook_inbound" || e.stage === "simulate_inbound"
   );
+
+  if (anchors.length === 0) {
+    anchors = buildSyntheticAnchors(sorted);
+  }
 
   const eventsByAnchor = assignEventsToAnchors(anchors, sorted);
   const assignedIds = new Set<string>();

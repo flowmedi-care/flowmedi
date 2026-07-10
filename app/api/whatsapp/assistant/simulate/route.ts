@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { gatherAssistantDiagnostics } from "@/lib/virtual-assistant/diagnostics";
-import { logAiEvent } from "@/lib/virtual-assistant/event-log";
+import { logAiEventAwait } from "@/lib/virtual-assistant/event-log";
 import {
   processConversationAi,
   scheduleAiDebounce,
@@ -80,12 +80,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msgErr.message }, { status: 500 });
     }
 
-    logAiEvent(supabase, {
+    await logAiEventAwait(supabase, {
       clinicId,
       conversationId,
       messageId: msg?.id,
       stage: "simulate_inbound",
-      detail: { phone, textPreview: text.slice(0, 80), tag: simulateTag },
+      detail: { phone, text, textPreview: text.slice(0, 80), tag: simulateTag },
     });
 
     const { data: vaSettings } = await supabase

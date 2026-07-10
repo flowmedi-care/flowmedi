@@ -117,6 +117,10 @@ const STAGE_LABELS: Record<string, string> = {
   booking_continuity: "Continuidade de agendamento",
   intent_classified: "Intent classificada",
   context_cleared: "Contexto limpo",
+  north_star_turn: "Turno North Star",
+  north_star_complete: "North Star concluído",
+  north_star_shadow: "North Star (shadow)",
+  north_star_shadow_compare: "Comparação North Star",
 };
 
 function IntentHighlightBadge({ info }: { info: IntentTraceInfo }) {
