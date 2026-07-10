@@ -4,15 +4,9 @@ import type { Goal } from "../../types/goal";
 import { newGoalId } from "../../types/goal";
 import type { StateGraph } from "../../graph/state-graph";
 import type { HistoryMessage } from "../../types/messages";
+import type { GoalInferenceEngine } from "./goal-inference-engine";
 
-export interface GoalInferenceEngine {
-  infer(
-    state: StateGraph,
-    perceived: PerceivedFacts,
-    history: HistoryMessage[],
-    activeGoal: Goal | null
-  ): Goal;
-}
+export type { GoalInferenceEngine } from "./goal-inference-engine";
 
 export class RulesGoalInferenceEngine implements GoalInferenceEngine {
   infer(
@@ -23,17 +17,6 @@ export class RulesGoalInferenceEngine implements GoalInferenceEngine {
   ): Goal {
     if (activeGoal && activeGoal.type !== "unknown" && activeGoal.type !== "chat") {
       return { ...activeGoal, id: activeGoal.id };
-    }
-
-    if (perceived.menuGoal === "book" || perceived.scheduleSignal) {
-      return {
-        id: newGoalId(),
-        type: "booking",
-        target: perceived.procedureName
-          ? { kind: "procedure", id: perceived.procedureId, name: perceived.procedureName }
-          : undefined,
-        desiredNode: "appointment.created",
-      };
     }
 
     if (perceived.menuGoal === "price" || perceived.priceSignal) {
@@ -47,6 +30,17 @@ export class RulesGoalInferenceEngine implements GoalInferenceEngine {
       };
     }
 
+    if (perceived.menuGoal === "book" || perceived.scheduleSignal) {
+      return {
+        id: newGoalId(),
+        type: "booking",
+        target: perceived.procedureName
+          ? { kind: "procedure", id: perceived.procedureId, name: perceived.procedureName }
+          : undefined,
+        desiredNode: "appointment.created",
+      };
+    }
+
     if (perceived.menuGoal === "handoff" || perceived.handoffSignal) {
       return { id: newGoalId(), type: "handoff", desiredNode: "handoff.completed" };
     }
@@ -55,8 +49,17 @@ export class RulesGoalInferenceEngine implements GoalInferenceEngine {
       return { id: newGoalId(), type: "faq", desiredNode: "faq.answered" };
     }
 
-    if (perceived.discoverySignal || perceived.menuGoal === "clarify") {
-      return { id: newGoalId(), type: "inform", desiredNode: "faq.answered" };
+    if (perceived.discoverySignal) {
+      const hasProcedure = state.entities.procedure?.status === "known" || Boolean(perceived.procedureId);
+      return {
+        id: newGoalId(),
+        type: "inform",
+        desiredNode: hasProcedure ? "faq.answered" : "procedure",
+      };
+    }
+
+    if (perceived.menuGoal === "clarify") {
+      return { id: newGoalId(), type: "clarify", desiredNode: "faq.answered" };
     }
 
     if (perceived.greeting || perceived.thanks) {

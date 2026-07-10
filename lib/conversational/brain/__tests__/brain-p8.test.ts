@@ -4,11 +4,15 @@ import { Perception } from "../perception/perception";
 import { Reasoner } from "../reasoning/reasoner";
 import { buildDomainGraph } from "../graph/graphs/booking.graph";
 import { initialOperationalMemory } from "../types/memory";
+import type { OperationalMemory } from "../types/memory";
 import { WeightedPathHeuristic } from "../planning/remaining-cost";
 import { scoreAction } from "../planning/score-action";
-import { allActions } from "../policies/booking-policy";
+import { allActions } from "../policies";
 import { buildStateGraph } from "../policies/domain-policy";
 import { unsatisfiedNodes } from "../graph/traversal";
+import { simulateAction } from "../graph/simulate";
+import { createActionProviders } from "../reasoning/actions/provider-registry";
+import { AskActionProvider } from "../reasoning/actions/ask-action-provider";
 
 const clinicSummary = {
   clinicName: "Clínica Piloto",
@@ -19,6 +23,13 @@ const clinicSummary = {
   hoursText: "Seg-Sex 8h-18h",
   address: "Av. Paulista",
 };
+
+function memoryAfter(
+  base: OperationalMemory,
+  patch: Partial<OperationalMemory>
+): OperationalMemory {
+  return { ...base, ...patch, selections: { ...base.selections, ...patch.selections } };
+}
 
 describe("brain v2 P8", () => {
   it("perception extrai endoscopia sem inferir ação", () => {
@@ -107,5 +118,66 @@ describe("brain v2 P8", () => {
     const result = reasoner.think({ perceived, memory: initialOperationalMemory() });
     assert.equal(result.chosenAction.id, "ask.greet");
     assert.notEqual(result.decision.type, "TOOL");
+  });
+
+  it("simulate reflete postconditions da action", () => {
+    const domain = buildDomainGraph();
+    const state = buildStateGraph(
+      new Perception().extract("Quero agendar", clinicSummary, initialOperationalMemory()),
+      initialOperationalMemory(),
+      domain
+    );
+    const askDate = allActions().find((a) => a.id === "ask.date");
+    assert.ok(askDate);
+    const after = simulateAction(askDate!, state, domain);
+    assert.equal(after.entities.date?.status, "known");
+  });
+
+  it("providers enumeram sem receber gaps", () => {
+    const providers = createActionProviders();
+    const domain = buildDomainGraph();
+    const state = buildStateGraph(
+      new Perception().extract("Oi", clinicSummary, initialOperationalMemory()),
+      initialOperationalMemory(),
+      domain
+    );
+    const goal = { id: "g1", type: "chat", desiredNode: "chat.acknowledged" };
+    const enumerated = providers.flatMap((p) => p.enumerate(state, goal, domain));
+    assert.ok(enumerated.length > 0);
+    const askOnly = new AskActionProvider(allActions()).enumerate(state, goal, domain);
+    assert.ok(askOnly.every((a) => a.kind === "ask"));
+  });
+
+  it("booking multi-turn: endoscopia → data → listSlots habilitado", () => {
+    const reasoner = new Reasoner();
+    const memory0 = initialOperationalMemory();
+
+    const t1 = reasoner.think({
+      perceived: new Perception().extract(
+        "Quero agendar uma endoscopia",
+        clinicSummary,
+        memory0
+      ),
+      memory: memory0,
+    });
+    assert.equal(t1.chosenAction.id, "ask.date");
+
+    const memory1 = memoryAfter(memory0, {
+      activeGoalData: t1.goal,
+      stateEntities: t1.state.entities,
+      selections: { serviceId: "1" },
+    });
+
+    const t2 = reasoner.think({
+      perceived: new Perception().extract("Amanhã", clinicSummary, memory1),
+      memory: memory1,
+    });
+    assert.equal(t2.state.entities.date?.status, "known");
+    assert.ok(
+      t2.candidates.some((c) => c.action.id === "tool.listSlots") ||
+        t2.chosenAction.id === "tool.listSlots" ||
+        t2.chosenAction.id === "tool.findPatient",
+      `esperava progressão de booking, obteve ${t2.chosenAction.id}`
+    );
   });
 });

@@ -96,9 +96,6 @@ export class Perception {
       facts.procedureName = proc.name;
     }
 
-    if (/agendar|marcar|consulta|horário|horario|vaga/i.test(lower)) {
-      facts.scheduleSignal = true;
-    }
     if (/preço|preco|valor|quanto custa/i.test(lower)) facts.priceSignal = true;
     if (/atendente|humano|pessoa/i.test(lower) && !/não quero|nao quero/i.test(lower)) {
       facts.handoffSignal = true;
@@ -108,6 +105,14 @@ export class Perception {
     }
     if (/com o que|trabalham|fazem|serviço|servico|especialidade|procedimento/i.test(lower)) {
       facts.discoverySignal = true;
+    }
+
+    if (
+      !facts.priceSignal &&
+      !facts.faqSignal &&
+      /agendar|marcar|consulta|horário|horario|vaga/i.test(lower)
+    ) {
+      facts.scheduleSignal = true;
     }
 
     return facts;

@@ -1,3 +1,4 @@
+import type { ClinicConfig } from "../../clinic/clinic-config";
 import type { PerceivedFacts } from "../perception/perception";
 import type { OperationalMemory } from "../types/memory";
 import type { Action } from "../reasoning/actions/action";
@@ -6,7 +7,13 @@ import { recomputeSatisfiedNodes, type StateGraph } from "../graph/state-graph";
 
 export interface DomainPolicy {
   readonly domain: string;
+  contributeToGraph(graph: DomainGraph, config: ClinicConfig): DomainGraph;
   registerActions(): Action[];
+  normalizeObservation?(
+    entity: string,
+    value: unknown,
+    state: StateGraph
+  ): { status: "known" | "suspected"; value: unknown };
 }
 
 export function buildStateGraph(

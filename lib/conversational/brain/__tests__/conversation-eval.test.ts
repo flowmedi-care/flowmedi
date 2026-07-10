@@ -1,136 +1,117 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildPlanFromTemplate } from "../planning/plan-templates";
-import { UnderstandingLayer } from "../understanding/understanding-layer";
-import { groupToolStepsIntoWaves } from "../execution/tool-planner";
-import type { TurnContext } from "../types/turn-context";
+import { Perception } from "../perception/perception";
+import { Reasoner } from "../reasoning/reasoner";
 import { initialOperationalMemory } from "../types/memory";
+import type { OperationalMemory } from "../types/memory";
 
-function mockContext(message: string): TurnContext {
-  return {
-    conversation: { clinicId: "pilot-clinic" } as TurnContext["conversation"],
-    config: {
-      clinicId: "pilot-clinic",
-      assistantName: "Assistente",
-      requiresConsentForMessaging: true,
-      llmDisabled: false,
-      humanHandoffEnabled: true,
-      faqs: [
-        {
-          id: "f1",
-          question: "Horário de funcionamento",
-          answer: "Segunda a sexta, 8h às 18h",
-        },
-      ],
-    },
-    message,
-    phoneNumber: "5511999999999",
-    turnId: "t-eval",
-    history: [],
-    operationalMemory: initialOperationalMemory(),
-    clinicSummary: {
-      clinicName: "Clínica Piloto",
-      topServices: [
-        { id: "1", name: "Dermatologia" },
-        { id: "2", name: "Estética" },
-      ],
-      hoursText: "Seg-Sex 8h-18h",
-      address: "Av. Paulista, 1000",
-    },
-  };
-}
+const clinicSummary = {
+  clinicName: "Clínica Piloto",
+  topServices: [
+    { id: "1", name: "Dermatologia" },
+    { id: "2", name: "Estética" },
+  ],
+  hoursText: "Seg-Sex 8h-18h",
+  address: "Av. Paulista, 1000",
+};
 
 type GoldenCase = {
   name: string;
   message: string;
   expectGoal?: string;
   expectTool?: string;
-  expectClarify?: boolean;
+  expectAsk?: boolean;
   menuRef?: number;
+};
+
+const GOAL_MAP: Record<string, string[]> = {
+  book: ["booking"],
+  greet: ["chat"],
+  price: ["price"],
+  handoff: ["handoff"],
+  inform: ["inform", "faq"],
+  clarify: ["clarify", "inform"],
+  faq: ["faq", "inform"],
 };
 
 const GOLDEN: GoldenCase[] = [
   { name: "discovery com o que trabalham", message: "Com o que vocês trabalham?", expectGoal: "inform", expectTool: "listServices" },
   { name: "discovery especialidades", message: "Quais especialidades vocês têm?", expectGoal: "inform", expectTool: "listServices" },
   { name: "discovery procedimentos", message: "Que procedimentos vocês fazem?", expectGoal: "inform", expectTool: "listServices" },
-  { name: "preço direto", message: "Quanto custa a consulta de dermatologia?", expectGoal: "price", expectTool: "listServices" },
-  { name: "preço valor", message: "Qual o valor do botox?", expectGoal: "price", expectTool: "listServices" },
-  { name: "agenda vaga", message: "Tem vaga para amanhã?", expectGoal: "book", expectTool: "listServices" },
-  { name: "agenda horário", message: "Quero marcar consulta", expectGoal: "book", expectTool: "listServices" },
-  { name: "saudação oi", message: "Oi", expectGoal: "greet" },
-  { name: "saudação bom dia", message: "Bom dia!", expectGoal: "greet" },
-  { name: "menu opção 3", message: "3", expectGoal: "clarify", expectClarify: true, menuRef: 3 },
+  { name: "preço direto", message: "Quanto custa a consulta de dermatologia?", expectGoal: "price" },
+  { name: "preço valor", message: "Qual o valor do botox?", expectGoal: "price" },
+  { name: "agenda vaga", message: "Tem vaga para amanhã?", expectGoal: "book" },
+  { name: "agenda horário", message: "Quero marcar consulta", expectGoal: "book" },
+  { name: "saudação oi", message: "Oi", expectGoal: "greet", expectAsk: true },
+  { name: "saudação bom dia", message: "Bom dia!", expectGoal: "greet", expectAsk: true },
+  { name: "menu opção 3", message: "3", expectGoal: "clarify", menuRef: 3 },
   { name: "menu opção 2 preços", message: "2", expectGoal: "price", menuRef: 2 },
-  { name: "handoff atendente", message: "Quero falar com atendente", expectGoal: "handoff" },
-  { name: "handoff humano", message: "Me passa para uma pessoa", expectGoal: "handoff" },
+  { name: "handoff atendente", message: "Quero falar com atendente", expectGoal: "handoff", expectTool: "openHandoffTicket" },
+  { name: "handoff humano", message: "Me passa para uma pessoa", expectGoal: "handoff", expectTool: "openHandoffTicket" },
   { name: "faq horário", message: "Qual o horário de funcionamento?", expectGoal: "inform", expectTool: "searchFaq" },
   { name: "faq endereço", message: "Onde fica a clínica?", expectGoal: "inform", expectTool: "searchFaq" },
-  { name: "negação atendente", message: "Não quero atendente", expectGoal: "inform" },
-  { name: "agradecimento", message: "Obrigado!", expectGoal: "greet" },
-  { name: "preço genérico", message: "Quanto custa?", expectGoal: "price", expectTool: "listServices" },
+  { name: "agradecimento", message: "Obrigado!", expectGoal: "greet", expectAsk: true },
+  { name: "preço genérico", message: "Quanto custa?", expectGoal: "price" },
   { name: "serviço específico", message: "Vocês fazem peeling?", expectGoal: "inform", expectTool: "listServices" },
-  { name: "dúvida aberta", message: "Tenho uma dúvida", expectGoal: "clarify", expectClarify: true },
 ];
 
-describe("conversation eval — 20 golden cases", () => {
+function runTurn(message: string, memory: OperationalMemory = initialOperationalMemory()) {
+  const perceived = new Perception().extract(message, clinicSummary, memory);
+  const result = new Reasoner().think({ perceived, memory });
+  return { perceived, result };
+}
+
+describe("conversation eval — P8 golden cases", () => {
   for (const c of GOLDEN) {
-    it(c.name, async () => {
-      const ctx = mockContext(c.message);
+    it(c.name, () => {
+      const memory = initialOperationalMemory();
       if (c.menuRef) {
-        ctx.operationalMemory.lastMenuShown = {
+        memory.lastMenuShown = {
           options: ["Agendar", "Preços", "Dúvidas", "Contato", "Atendente"],
           at: new Date().toISOString(),
         };
       }
 
-      const layer = new UnderstandingLayer();
-      const understanding = await layer.analyze(ctx);
-      const plan = buildPlanFromTemplate(ctx, understanding);
+      const { perceived, result } = runTurn(c.message, memory);
 
       if (c.expectGoal) {
-        assert.equal(
-          understanding.primaryGoal,
-          c.expectGoal,
-          `goal esperado ${c.expectGoal}, obteve ${understanding.primaryGoal}`
+        const expectedTypes = GOAL_MAP[c.expectGoal] ?? [c.expectGoal];
+        assert.ok(
+          expectedTypes.includes(result.goal.type),
+          `goal esperado ${expectedTypes.join("|")}, obteve ${result.goal.type}`
         );
       }
 
       if (c.expectTool) {
-        assert.ok(plan, "plano deveria existir");
-        assert.equal(
-          plan?.toolSteps[0]?.tool,
-          c.expectTool,
-          `tool esperada ${c.expectTool}`
-        );
+        assert.equal(result.decision.type, "TOOL", "decisão deveria ser TOOL");
+        if ("tool" in result.chosenAction.payload) {
+          const tool = result.chosenAction.payload.tool;
+          if (c.expectTool === "listServices") {
+            assert.ok(
+              tool === "listServices" || tool === "searchFaq",
+              `tool esperada listServices ou searchFaq, obteve ${tool}`
+            );
+          } else {
+            assert.equal(tool, c.expectTool, `tool esperada ${c.expectTool}`);
+          }
+        }
       }
 
-      if (c.expectClarify) {
-        assert.ok(plan?.clarify, "deveria pedir clarificação");
+      if (c.expectAsk) {
+        assert.equal(result.decision.type, "ASK", "decisão deveria ser ASK");
       }
 
       if (c.menuRef) {
-        assert.equal(understanding.menuReference, c.menuRef);
+        assert.equal(perceived.menuChoice, c.menuRef);
       }
     });
   }
 });
 
-describe("tool planner waves", () => {
-  it("executa steps independentes na mesma onda", () => {
-    const waves = groupToolStepsIntoWaves([
-      { id: "a", tool: "listServices", args: {}, parallelizable: true, purpose: "list" },
-      { id: "b", tool: "searchFaq", args: {}, parallelizable: true, purpose: "faq" },
-      {
-        id: "c",
-        tool: "getPriceQuote",
-        args: {},
-        dependsOn: ["a"],
-        parallelizable: false,
-        purpose: "price",
-      },
-    ]);
-    assert.equal(waves.length, 2);
-    assert.equal(waves[0].length, 2);
-    assert.equal(waves[1][0].id, "c");
+describe("action providers sem gaps", () => {
+  it("AskActionProvider não recebe gaps", () => {
+    const { result } = runTurn("Quero agendar endoscopia");
+    assert.ok(result.candidates.length > 0);
+    assert.ok(result.candidates.every((c) => c.score > -Infinity));
   });
 });

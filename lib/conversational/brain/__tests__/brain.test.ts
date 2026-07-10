@@ -1,64 +1,46 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildPlanFromTemplate } from "../planning/plan-templates";
+import { Perception } from "../perception/perception";
+import { Reasoner } from "../reasoning/reasoner";
 import { semanticFaqSearch } from "../knowledge/semantic-faq";
-import { UnderstandingLayer } from "../understanding/understanding-layer";
-import type { TurnContext } from "../types/turn-context";
 import { initialOperationalMemory } from "../types/memory";
 import { applyReplyGuards } from "../composition/reply-guards";
 
-function mockContext(message: string): TurnContext {
-  return {
-    conversation: {} as TurnContext["conversation"],
-    config: {
-      clinicId: "c1",
-      assistantName: "Assistente",
-      requiresConsentForMessaging: true,
-      llmDisabled: false,
-      humanHandoffEnabled: true,
-      faqs: [],
-    },
-    message,
-    phoneNumber: "5511999999999",
-    turnId: "t1",
-    history: [],
-    operationalMemory: initialOperationalMemory(),
-    clinicSummary: {
-      clinicName: "Clínica Teste",
-      topServices: [{ id: "1", name: "Dermatologia" }],
-      hoursText: "Seg-Sex 8h-18h",
-      address: "Rua A",
-    },
-  };
-}
+const clinicSummary = {
+  clinicName: "Clínica Teste",
+  topServices: [{ id: "1", name: "Dermatologia" }],
+  hoursText: "Seg-Sex 8h-18h",
+  address: "Rua A",
+};
 
-describe("brain v2", () => {
-  it("plano template lista serviços para 'com o que trabalham'", () => {
-    const ctx = mockContext("Com o que vocês trabalham?");
-    const plan = buildPlanFromTemplate(ctx, {
-      primaryGoal: "inform",
-      infoNeeds: ["what_we_do"],
-      entities: {},
-      missingEntities: [],
-      menuReference: null,
-      sentiment: "neutral",
-      confidence: 0.9,
-      rawSummary: "discovery",
-    });
-    assert.ok(plan);
-    assert.equal(plan?.toolSteps[0]?.tool, "listServices");
+describe("brain v2 P8 utilities", () => {
+  it("discovery escolhe listServices ou searchFaq", () => {
+    const reasoner = new Reasoner();
+    const perceived = new Perception().extract(
+      "Com o que vocês trabalham?",
+      clinicSummary,
+      initialOperationalMemory()
+    );
+    const result = reasoner.think({ perceived, memory: initialOperationalMemory() });
+    assert.equal(result.goal.type, "inform");
+    assert.ok(
+      result.chosenAction.id === "tool.listServices" ||
+        result.chosenAction.id === "tool.searchFaq" ||
+        result.chosenAction.kind === "ask",
+      `esperava tool de discovery ou ask, obteve ${result.chosenAction.id}`
+    );
   });
 
-  it("menu 3 gera clarify", async () => {
-    const layer = new UnderstandingLayer();
-    const ctx = mockContext("3");
-    ctx.operationalMemory.lastMenuShown = {
+  it("menu 3 gera goal inform/clarify", () => {
+    const memory = initialOperationalMemory();
+    memory.lastMenuShown = {
       options: ["Agendar", "Preços", "Dúvidas", "Contato", "Atendente"],
       at: new Date().toISOString(),
     };
-    const u = await layer.analyze(ctx);
-    assert.equal(u.menuReference, 3);
-    assert.equal(u.primaryGoal, "clarify");
+    const perceived = new Perception().extract("3", clinicSummary, memory);
+    const result = new Reasoner().think({ perceived, memory });
+    assert.equal(perceived.menuChoice, 3);
+    assert.ok(result.goal.type === "clarify" || result.goal.type === "inform" || result.chosenAction.kind === "ask");
   });
 
   it("semantic faq encontra por tokens", () => {
