@@ -2,10 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { executeAssistantTool } from "@/lib/virtual-assistant/tools";
 import type { AiConversationState } from "@/lib/virtual-assistant/types";
 import type { ClinicConfig } from "../../clinic/clinic-config";
+import type { ToolGateway } from "../../tools/gateway";
+import type { ToolName } from "../../tools/registry";
 import type { ExecutionBundle, StepResult } from "../types/execution";
 import type { TurnContext } from "../types/turn-context";
 import type { TurnPlan, ToolStep } from "../types/turn-plan";
-import { semanticFaqSearch } from "../knowledge/semantic-faq";
+import type { Understanding } from "../types/understanding";
+import { groupToolStepsIntoWaves } from "../execution/tool-planner";
+import { enrichPlanWithFallbacks, searchFaqWithFallback } from "./faq-retrieval";
 
 type LegacyTool =
   | "list_procedures"
@@ -36,8 +40,11 @@ async function runLegacyTool(
   );
 
   let data: unknown = result.result;
+  let error: string | undefined;
   try {
-    data = JSON.parse(result.result);
+    const parsed = JSON.parse(result.result) as { error?: string };
+    data = parsed;
+    if (parsed.error) error = parsed.error;
   } catch {
     // keep string
   }
@@ -45,31 +52,19 @@ async function runLegacyTool(
   return {
     stepId: String(tool),
     tool: String(tool),
-    ok: !result.error,
-    data,
-    error: result.error,
+    ok: !error,
+    data: error ? undefined : data,
+    error,
   };
 }
 
 async function runNorthStarTool(
   ctx: TurnContext,
   step: ToolStep,
-  gateway: {
-    execute: (
-      call: { name: string; args: Record<string, unknown> },
-      toolCtx: {
-        clinicId: string;
-        conversationId: string;
-        phoneNumber: string;
-        domain: string;
-        fsmState: string;
-        turnId: string;
-      }
-    ) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
-  }
+  gateway: ToolGateway
 ): Promise<StepResult> {
   const result = await gateway.execute(
-    { name: step.tool as "listServices", args: step.resolvedArgs ?? step.args },
+    { name: step.tool as ToolName, args: step.resolvedArgs ?? step.args },
     {
       clinicId: ctx.conversation.clinicId,
       conversationId: ctx.conversation.id,
@@ -84,8 +79,8 @@ async function runNorthStarTool(
     stepId: step.id,
     tool: step.tool,
     ok: result.ok,
-    data: result.data,
-    error: result.error,
+    data: result.ok ? result.data : undefined,
+    error: result.ok ? undefined : result.error,
   };
 }
 
@@ -125,9 +120,54 @@ function pickServiceMatch(
   );
 }
 
+function applyStepFacts(
+  step: ToolStep,
+  result: StepResult,
+  resolvedArgs: Record<string, unknown>,
+  ctx: TurnContext,
+  facts: Record<string, unknown>
+): void {
+  if (!result.ok) return;
+
+  if (step.tool === "listServices" && result.data) {
+    const list = result.data as Array<{ id: string; name: string }>;
+    const match = pickServiceMatch(
+      list,
+      String(resolvedArgs.serviceQuery ?? ctx.message)
+    );
+    if (match) {
+      facts.matchId = match.id;
+      facts.matchName = match.name;
+      facts.services = list;
+    }
+  }
+
+  if (step.tool === "list_procedures" && result.data) {
+    const parsed = result.data as { procedures?: Array<{ id: string; name: string }> };
+    facts.procedures = parsed.procedures ?? [];
+  }
+
+  if (step.tool === "getPriceQuote" && result.data) {
+    facts.price = result.data;
+  }
+
+  if (step.tool === "find_available_slots" && result.data) {
+    facts.slots = result.data;
+  }
+
+  if (step.tool === "searchFaq" && result.data) {
+    facts.faq = result.data;
+  }
+}
+
 export class KnowledgeRouter {
-  async enrichPlan(plan: TurnPlan, ctx: TurnContext): Promise<TurnPlan> {
-    return plan;
+  async enrichPlan(
+    plan: TurnPlan,
+    ctx: TurnContext,
+    understanding?: Understanding
+  ): Promise<TurnPlan> {
+    if (!understanding) return plan;
+    return enrichPlanWithFallbacks(plan, ctx, understanding.infoNeeds);
   }
 
   async executePlan(
@@ -136,34 +176,37 @@ export class KnowledgeRouter {
     deps: {
       supabase: SupabaseClient;
       config: ClinicConfig;
-      gateway: Parameters<typeof runNorthStarTool>[2];
+      gateway: ToolGateway;
       aiState: AiConversationState;
     }
   ): Promise<ExecutionBundle> {
     const results: StepResult[] = [];
     const facts: Record<string, unknown> = {};
     const retrievalChain: string[] = [];
-    const completed = new Map<string, StepResult>();
+    const waves = groupToolStepsIntoWaves(plan.toolSteps);
 
-    const steps = topologicalSort(plan.toolSteps);
-
-    for (const step of steps) {
+    const executeOne = async (step: ToolStep): Promise<StepResult> => {
       const resolvedArgs = resolveArgRefs(step.args, facts);
       step.resolvedArgs = resolvedArgs;
       retrievalChain.push(step.tool);
 
-      let result: StepResult;
-
       if (step.tool === "searchFaq") {
         const query = String(resolvedArgs.query ?? ctx.message);
-        const faqHit = semanticFaqSearch(query, deps.config.faqs);
-        result = {
+        const faqHit = await searchFaqWithFallback(
+          query,
+          deps.config.faqs,
+          deps.supabase,
+          ctx.conversation.clinicId
+        );
+        return {
           stepId: step.id,
           tool: step.tool,
           ok: Boolean(faqHit),
           data: faqHit,
         };
-      } else if (
+      }
+
+      if (
         step.tool === "list_procedures" ||
         step.tool === "find_available_slots" ||
         step.tool === "get_service_price" ||
@@ -171,48 +214,30 @@ export class KnowledgeRouter {
         step.tool === "get_contact_journey" ||
         step.tool === "lookup_patient"
       ) {
-        result = await runLegacyTool(
-          deps.supabase,
-          ctx,
-          step.tool,
-          resolvedArgs,
-          deps.aiState
-        );
-      } else {
-        result = await runNorthStarTool(ctx, step, deps.gateway);
+        return runLegacyTool(deps.supabase, ctx, step.tool, resolvedArgs, deps.aiState);
       }
 
-      results.push(result);
-      completed.set(step.id, result);
+      return runNorthStarTool(ctx, step, deps.gateway);
+    };
 
-      if (result.ok && step.tool === "listServices" && result.data) {
-        const list = result.data as Array<{ id: string; name: string }>;
-        const match = pickServiceMatch(
-          list,
-          String(resolvedArgs.serviceQuery ?? ctx.message)
-        );
-        if (match) {
-          facts.matchId = match.id;
-          facts.matchName = match.name;
-          facts.services = list;
+    for (const wave of waves) {
+      const serial = wave.filter((s) => !s.parallelizable);
+      const parallel = wave.filter((s) => s.parallelizable);
+
+      for (const step of serial) {
+        const result = await executeOne(step);
+        results.push(result);
+        applyStepFacts(step, result, step.resolvedArgs ?? step.args, ctx, facts);
+      }
+
+      if (parallel.length > 0) {
+        const parallelResults = await Promise.all(parallel.map((step) => executeOne(step)));
+        for (let i = 0; i < parallel.length; i++) {
+          const step = parallel[i];
+          const result = parallelResults[i];
+          results.push(result);
+          applyStepFacts(step, result, step.resolvedArgs ?? step.args, ctx, facts);
         }
-      }
-
-      if (result.ok && step.tool === "list_procedures" && result.data) {
-        const parsed = result.data as { procedures?: Array<{ id: string; name: string }> };
-        facts.procedures = parsed.procedures ?? [];
-      }
-
-      if (result.ok && step.tool === "getPriceQuote" && result.data) {
-        facts.price = result.data;
-      }
-
-      if (result.ok && step.tool === "find_available_slots" && result.data) {
-        facts.slots = result.data;
-      }
-
-      if (result.ok && step.tool === "searchFaq" && result.data) {
-        facts.faq = result.data;
       }
     }
 
@@ -229,22 +254,4 @@ export class KnowledgeRouter {
       facts,
     };
   }
-}
-
-function topologicalSort(steps: ToolStep[]): ToolStep[] {
-  const sorted: ToolStep[] = [];
-  const pending = [...steps];
-  const done = new Set<string>();
-
-  while (pending.length > 0) {
-    const nextIndex = pending.findIndex(
-      (s) => !s.dependsOn?.length || s.dependsOn.every((d) => done.has(d))
-    );
-    if (nextIndex === -1) break;
-    const [step] = pending.splice(nextIndex, 1);
-    sorted.push(step);
-    done.add(step.id);
-  }
-
-  return sorted.length ? sorted : steps;
 }

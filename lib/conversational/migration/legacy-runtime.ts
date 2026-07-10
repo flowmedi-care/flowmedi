@@ -1,10 +1,9 @@
 /**
- * Fase 4/5 — desligamento do runtime legado (LangGraph).
- * Quando LEGACY_RUNTIME_DISABLED=true, process-inbound usa exclusivamente North Star / Brain v2.
- * Defina north_star_brain=v2 nas settings da clínica para o cérebro planner-first.
+ * Fase 4/5 — LangGraph desligado por padrão.
+ * Defina LEGACY_RUNTIME_ENABLED=true para reativar o runtime LangGraph.
  */
 export function isLegacyRuntimeDisabled(): boolean {
-  return process.env.LEGACY_RUNTIME_DISABLED === "true";
+  return process.env.LEGACY_RUNTIME_ENABLED !== "true";
 }
 
 export const LEGACY_MODULES_MARKED_FOR_REMOVAL = [

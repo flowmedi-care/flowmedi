@@ -67,6 +67,19 @@ function keywordUnderstanding(ctx: TurnContext): Understanding {
     };
   }
 
+  if (/horário de funcionamento|horario de funcionamento|funcionamento|endereço|endereco|onde fica|localiza/i.test(lower)) {
+    return {
+      primaryGoal: "inform",
+      infoNeeds: ["institutional"],
+      entities: {},
+      missingEntities: [],
+      menuReference: null,
+      sentiment: "neutral",
+      confidence: 0.88,
+      rawSummary: "Pergunta institucional",
+    };
+  }
+
   if (/agendar|marcar|consulta|horário|horario|vaga/i.test(lower)) {
     return {
       primaryGoal: "book",
@@ -80,7 +93,45 @@ function keywordUnderstanding(ctx: TurnContext): Understanding {
     };
   }
 
+  if (/^(obrigad|valeu|agradeço|agradeco)/i.test(lower)) {
+    return {
+      primaryGoal: "greet",
+      infoNeeds: [],
+      entities: {},
+      missingEntities: [],
+      menuReference: null,
+      sentiment: "positive",
+      confidence: 0.85,
+      rawSummary: "Agradecimento",
+    };
+  }
+
+  if (/^tenho uma dúvida$|^tenho uma duvida$/i.test(lower)) {
+    return {
+      primaryGoal: "clarify",
+      infoNeeds: ["general"],
+      entities: {},
+      missingEntities: [],
+      menuReference: null,
+      sentiment: "neutral",
+      confidence: 0.9,
+      rawSummary: "Pedido de clarificação",
+    };
+  }
+
   if (/atendente|humano|pessoa/i.test(lower)) {
+    if (/não quero|nao quero|sem atendente/i.test(lower)) {
+      return {
+        primaryGoal: "inform",
+        infoNeeds: ["what_we_do"],
+        entities: {},
+        missingEntities: [],
+        menuReference: null,
+        sentiment: "frustrated",
+        confidence: 0.85,
+        rawSummary: "Recusa atendente humano",
+      };
+    }
     return {
       primaryGoal: "handoff",
       infoNeeds: [],

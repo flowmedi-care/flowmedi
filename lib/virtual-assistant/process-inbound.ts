@@ -199,7 +199,7 @@ async function processConversationAiInner(
   const northStarFlags = isLegacyRuntimeDisabled()
     ? {
         mode: "full" as const,
-        brain: "v1" as const,
+        brain: "v2" as const,
         canaryClinicIds: [] as string[],
         brainV2CanaryClinicIds: [] as string[],
       }

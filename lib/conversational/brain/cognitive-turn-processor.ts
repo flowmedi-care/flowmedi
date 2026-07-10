@@ -63,7 +63,7 @@ export class CognitiveTurnProcessor {
 
     const understanding = await this.understanding.analyze(ctx);
     let plan = await this.planner.plan(ctx, understanding);
-    plan = await this.knowledgeRouter.enrichPlan(plan, ctx);
+    plan = await this.knowledgeRouter.enrichPlan(plan, ctx, understanding);
 
     const gateway = createToolGateway(this.supabase, this.config);
     const replanner = new Replanner();

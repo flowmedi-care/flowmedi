@@ -43,6 +43,24 @@ export function buildPlanFromTemplate(
     };
   }
 
+  if (understanding.infoNeeds.includes("institutional")) {
+    return {
+      primaryGoal: "inform",
+      subGoals: ["faq_institutional"],
+      toolSteps: [
+        {
+          id: "s0",
+          tool: "searchFaq",
+          args: { query: ctx.message },
+          parallelizable: true,
+          purpose: "Buscar FAQ institucional",
+        },
+      ],
+      confidence: 0.9,
+      source: "template",
+    };
+  }
+
   if (understanding.infoNeeds.includes("what_we_do") || understanding.primaryGoal === "inform") {
     if (DISCOVERY_MATCH(msg)) {
       return {
@@ -104,19 +122,33 @@ export function buildPlanFromTemplate(
   }
 
   if (understanding.primaryGoal === "book") {
+    const serviceQuery = extractServiceQuery(ctx.message);
+    const steps: TurnPlan["toolSteps"] = [
+      {
+        id: "s0",
+        tool: "listServices",
+        args: {},
+        parallelizable: true,
+        purpose: "Serviços para agendamento",
+      },
+    ];
+
+    if (/vaga|horário|horario|amanhã|amanha|disponível|disponivel/i.test(msg)) {
+      steps.push({
+        id: "s1",
+        tool: "find_available_slots",
+        args: { date: tomorrowIso(), serviceQuery },
+        dependsOn: ["s0"],
+        parallelizable: true,
+        purpose: "Verificar disponibilidade",
+      });
+    }
+
     return {
       primaryGoal: "book",
       subGoals: ["start_booking"],
-      toolSteps: [
-        {
-          id: "s0",
-          tool: "listServices",
-          args: {},
-          parallelizable: true,
-          purpose: "Serviços para agendamento",
-        },
-      ],
-      clarify: "Qual procedimento você gostaria de agendar?",
+      toolSteps: steps,
+      clarify: steps.length === 1 ? "Qual procedimento você gostaria de agendar?" : undefined,
       confidence: 0.8,
       source: "template",
     };

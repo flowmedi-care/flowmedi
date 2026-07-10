@@ -144,18 +144,18 @@ describe("Feature flags", () => {
     assert.equal(gate.sendReply, true);
   });
 
-  it("brain v2 flag", () => {
-    const flags = northStarFlagsFromSettings({
-      north_star_mode: "full",
-      north_star_brain: "v2",
-    });
+  it("brain v2 default and canary", () => {
+    const flags = northStarFlagsFromSettings({ north_star_mode: "full" });
+    assert.equal(flags.brain, "v2");
     assert.equal(shouldUseBrainV2(flags, "any"), true);
-    const canary = northStarFlagsFromSettings({
+
+    const v1Canary = northStarFlagsFromSettings({
       north_star_mode: "full",
+      north_star_brain: "v1",
       brain_v2_canary_clinic_ids: ["clinic-x"],
     });
-    assert.equal(shouldUseBrainV2(canary, "clinic-x"), true);
-    assert.equal(shouldUseBrainV2(canary, "other"), false);
+    assert.equal(shouldUseBrainV2(v1Canary, "clinic-x"), true);
+    assert.equal(shouldUseBrainV2(v1Canary, "other"), false);
   });
 });
 

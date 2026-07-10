@@ -11,11 +11,19 @@ export type NorthStarFeatureFlags = {
   brainV2CanaryClinicIds: string[];
 };
 
+function pilotClinicIdsFromEnv(): string[] {
+  const raw = process.env.BRAIN_V2_PILOT_CLINIC_IDS ?? "";
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 const DEFAULT_FLAGS: NorthStarFeatureFlags = {
   mode: "off",
-  brain: "v1",
-  canaryClinicIds: [],
-  brainV2CanaryClinicIds: [],
+  brain: "v2",
+  canaryClinicIds: pilotClinicIdsFromEnv(),
+  brainV2CanaryClinicIds: pilotClinicIdsFromEnv(),
 };
 
 export function northStarFlagsFromSettings(
@@ -32,7 +40,7 @@ export function northStarFlagsFromSettings(
   if (raw.north_star_mode) {
     return {
       mode: raw.north_star_mode,
-      brain: raw.north_star_brain ?? "v1",
+      brain: raw.north_star_brain ?? "v2",
       canaryClinicIds: raw.north_star_canary_clinic_ids ?? [],
       brainV2CanaryClinicIds: raw.brain_v2_canary_clinic_ids ?? [],
     };
@@ -41,7 +49,7 @@ export function northStarFlagsFromSettings(
   if (raw.north_star_enabled === true) {
     return {
       mode: "full",
-      brain: raw.north_star_brain ?? "v1",
+      brain: raw.north_star_brain ?? "v2",
       canaryClinicIds: [],
       brainV2CanaryClinicIds: raw.brain_v2_canary_clinic_ids ?? [],
     };
