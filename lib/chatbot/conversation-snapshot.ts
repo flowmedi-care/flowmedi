@@ -193,6 +193,19 @@ export function formatSnapshotForPrompt(snapshot: ConversationSnapshot): string 
   if (snapshot.turnFacts.confirmed === true) lines.push("- Paciente confirmou (sim).");
   if (snapshot.turnFacts.confirmed === false) lines.push("- Paciente negou.");
 
+  const booking = snapshot.aiState.booking;
+  if (booking?.pending_slot) {
+    lines.push(
+      `- Horário selecionado para agendar: ${booking.pending_slot} (use este scheduled_at em create_appointment).`
+    );
+  }
+  if ((booking?.offered_slots?.length ?? 0) > 0) {
+    lines.push("", "Horários oferecidos (ISO para create_appointment):");
+    booking!.offered_slots!.forEach((s, i) => {
+      lines.push(`  ${i + 1}. ${s.display} → ${s.scheduled_at}`);
+    });
+  }
+
   if (snapshot.derived.intakeGap.length) {
     lines.push(
       "",

@@ -6,13 +6,13 @@ import { shouldEscalateOnToolFailures } from "../guardrails/handoff";
 import { validateToolCall } from "../guardrails/validators";
 import { createTurnTrace, logTurnTrace } from "../observability/turn-trace";
 import { formatExecutionTrace } from "../observability/execution-trace";
-import { mergeAiState, patchAiState } from "../state/patch";
+import { mergeAiState, patchAiState, resolveCreateAppointmentScheduledAt } from "../state/patch";
 import { resolveReferenceFacts } from "../state/resolve-facts";
 import { buildChatbotFallbackReply } from "../state/format-for-prompt";
 import { normalizeAiState, serializeAiState } from "../state/migrate";
 import type { AiState } from "../state/types";
 import { CHATBOT_TOOLS } from "../tools/definitions";
-import { executeTool } from "../tools/execute";
+import { executeTool, logBlockedToolCall } from "../tools/execute";
 import type { FaqItem } from "../tools/types";
 import { toolResultToJson } from "../tools/types";
 import { buildSystemPrompt } from "./prompt";
@@ -249,6 +249,13 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         args = {};
       }
 
+      if (toolName === "create_appointment") {
+        const scheduledAt = resolveCreateAppointmentScheduledAt(args, aiState, facts);
+        if (scheduledAt) {
+          args = { ...args, scheduled_at: scheduledAt };
+        }
+      }
+
       const started = Date.now();
       const validation = validateToolCall(
         toolName,
@@ -264,6 +271,14 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       if (validation) {
         outcome = { result: validation };
         blocked = true;
+        void logBlockedToolCall(
+          input.supabase,
+          input.clinicId,
+          input.conversationId,
+          toolName,
+          args,
+          validation.message ?? "blocked"
+        );
       } else {
         outcome = await executeTool(
           {

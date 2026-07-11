@@ -40,6 +40,7 @@ import {
   unavailableResult,
 } from "./types";
 import { isChatbotTool } from "./definitions";
+import { resolveCreateAppointmentScheduledAt } from "../state/patch";
 
 async function logToolCall(
   supabase: SupabaseClient,
@@ -49,18 +50,44 @@ async function logToolCall(
   params: Record<string, unknown>,
   resultSummary: string,
   success: boolean,
-  status?: string
+  status?: string,
+  blockReason?: string | null
 ): Promise<void> {
   await supabase.from("whatsapp_ai_tool_log").insert({
     clinic_id: clinicId,
     conversation_id: conversationId,
     tool_name: toolName,
     params,
-    result_summary: `[${status ?? "unknown"}] ${resultSummary}`.slice(0, 500),
+    result_summary: `[${status ?? (success ? "success" : "error")}] ${resultSummary}`.slice(
+      0,
+      500
+    ),
     success,
     pipeline_stage: status ?? null,
-    block_reason: null,
+    block_reason: blockReason ?? null,
   });
+}
+
+/** Log validator blocks so diagnostics show why executeTool never ran. */
+export async function logBlockedToolCall(
+  supabase: SupabaseClient,
+  clinicId: string,
+  conversationId: string,
+  toolName: string,
+  params: Record<string, unknown>,
+  blockReason: string
+): Promise<void> {
+  await logToolCall(
+    supabase,
+    clinicId,
+    conversationId,
+    toolName,
+    params,
+    blockReason,
+    false,
+    "blocked",
+    blockReason
+  );
 }
 
 function buildDoctorOptions(
@@ -506,12 +533,14 @@ export async function executeTool(
         };
         const pendencies = computePendencies(engineInput);
 
+        const scheduledAt = resolveCreateAppointmentScheduledAt(args, ctx.aiState);
+
         const res = await createAppointmentViaAssistant(supabase, {
           clinicId,
           patientId: String(args.patient_id ?? ctx.aiState.patient_id),
           doctorId: String(args.doctor_id ?? ctx.aiState.booking?.doctor_id),
           procedureId: String(args.procedure_id ?? ctx.aiState.booking?.procedure_id),
-          scheduledAt: String(args.scheduled_at ?? ctx.aiState.booking?.pending_slot),
+          scheduledAt,
           dimensionValueIds: [],
           offeredSlots,
           intakePendencies: pendencies,

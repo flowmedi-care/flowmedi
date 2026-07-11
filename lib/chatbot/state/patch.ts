@@ -1,4 +1,5 @@
 import { isScheduledAtInOfferedSlots } from "@/lib/booking-state";
+import type { NormalizedFacts } from "../extractors/types";
 import { isRecoverableToolStatus } from "../tools/types";
 import type { ToolResult } from "../tools/types";
 import type { AiState, OfferedOption } from "./types";
@@ -205,7 +206,42 @@ export function resolveScheduledAt(
   args: Record<string, unknown>,
   state: AiState
 ): string {
-  return String(args.scheduled_at ?? state.booking?.pending_slot ?? "");
+  return resolveCreateAppointmentScheduledAt(args, state);
+}
+
+function isScheduledInOffered(state: AiState, scheduledAt: string): boolean {
+  const slots = state.booking?.offered_slots ?? [];
+  if (!slots.length) return Boolean(scheduledAt);
+  return isScheduledAtInOfferedSlots(scheduledAt, slots);
+}
+
+/**
+ * Prefer pending_slot when patient confirmed or LLM scheduled_at is not in offered_slots.
+ */
+export function resolveCreateAppointmentScheduledAt(
+  args: Record<string, unknown>,
+  state: AiState,
+  facts?: Pick<NormalizedFacts, "confirmed">
+): string {
+  const pending = state.booking?.pending_slot?.trim() ?? "";
+  const fromArgs =
+    args.scheduled_at != null && String(args.scheduled_at).trim() !== ""
+      ? String(args.scheduled_at).trim()
+      : "";
+
+  const pendingValid = pending !== "" && isScheduledInOffered(state, pending);
+  const argsValid = fromArgs !== "" && isScheduledInOffered(state, fromArgs);
+
+  if (facts?.confirmed === true && pendingValid) {
+    return pending;
+  }
+  if (fromArgs && argsValid) {
+    return fromArgs;
+  }
+  if (pendingValid) {
+    return pending;
+  }
+  return pending || fromArgs;
 }
 
 export function slotIsInOffered(state: AiState, scheduledAt: string): boolean {

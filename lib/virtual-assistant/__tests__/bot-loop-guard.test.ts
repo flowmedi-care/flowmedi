@@ -136,4 +136,28 @@ describe("checkBotLoopRisk", () => {
     assert.equal(result.block, true);
     assert.equal(result.reason, "high_outbound_rate");
   });
+
+  it("não bloqueia seleção numérica de slot com offered_slots em booking.*", async () => {
+    const { supabase } = createBotLoopMockSupabase({ outboundCount: 5 });
+    const aiState: AiConversationState = {
+      booking: {
+        doctor_id: "dr-1",
+        procedure_id: "proc-1",
+        status: "collecting",
+        offered_slots: [
+          { scheduled_at: "2026-07-15T11:00:00.000Z", display: "08:00" },
+          { scheduled_at: "2026-07-15T11:30:00.000Z", display: "08:30" },
+          { scheduled_at: "2026-07-15T12:00:00.000Z", display: "09:00" },
+        ],
+      },
+    };
+    const result = await checkBotLoopRisk(
+      supabase as never,
+      "conv-1",
+      "clinic-1",
+      "3",
+      aiState
+    );
+    assert.equal(result.block, false);
+  });
 });

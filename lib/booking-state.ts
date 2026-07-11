@@ -36,11 +36,25 @@ export function sanitizeOfferedBookingState(
   return patch;
 }
 
+function scheduledAtEpochMs(value: string): number | null {
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Same instant or within one minute (ISO formatting / ms drift). */
+export function schedulesMatchForBooking(a: string, b: string): boolean {
+  const ma = scheduledAtEpochMs(a);
+  const mb = scheduledAtEpochMs(b);
+  if (ma == null || mb == null) return false;
+  if (ma === mb) return true;
+  return Math.abs(ma - mb) < 60_000;
+}
+
 export function isScheduledAtInOfferedSlots(
   scheduledAt: string,
   offeredSlots: OfferedSlot[]
 ): boolean {
-  const target = new Date(scheduledAt).getTime();
-  if (!Number.isFinite(target)) return false;
-  return offeredSlots.some((s) => new Date(s.scheduled_at).getTime() === target);
+  const target = scheduledAtEpochMs(scheduledAt);
+  if (target == null) return false;
+  return offeredSlots.some((s) => schedulesMatchForBooking(scheduledAt, s.scheduled_at));
 }

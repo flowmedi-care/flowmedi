@@ -3,7 +3,10 @@ import type { AiState } from "../state/types";
 import { isActiveBooking } from "../state/types";
 import type { ToolResult } from "../tools/types";
 import { needsInputResult, unavailableResult } from "../tools/types";
-import { resolveScheduledAt, slotIsInOffered } from "../state/patch";
+import {
+  resolveCreateAppointmentScheduledAt,
+  slotIsInOffered,
+} from "../state/patch";
 import {
   handoffOutsideHoursMessage,
   isInsideHandoffWindow,
@@ -47,7 +50,7 @@ export function validateToolCall(
         "Médico não definido. Chame list_doctors antes."
       );
     }
-    const scheduledAt = resolveScheduledAt(args, aiState);
+    const scheduledAt = resolveCreateAppointmentScheduledAt(args, aiState, facts);
     if (!scheduledAt) {
       return needsInputResult(
         ["scheduled_at"],

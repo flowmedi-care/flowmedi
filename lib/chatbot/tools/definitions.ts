@@ -86,9 +86,13 @@ export const CHATBOT_TOOLS: ToolDefinition[] = [
       patient_id: { type: "string", description: "UUID do paciente" },
       doctor_id: { type: "string", description: "UUID do médico" },
       procedure_id: { type: "string", description: "UUID do procedimento" },
-      scheduled_at: { type: "string", description: "ISO 8601 do horário escolhido (de find_available_slots)" },
+      scheduled_at: {
+        type: "string",
+        description:
+          "ISO 8601 exato de find_available_slots/offered_slots. Omita se booking.pending_slot já estiver definido — o runtime usa pending_slot.",
+      },
     },
-    required: ["patient_id", "doctor_id", "procedure_id", "scheduled_at"],
+    required: ["patient_id", "doctor_id", "procedure_id"],
   }),
   toolDef("list_patient_appointments", {
     type: "object",

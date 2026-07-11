@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAiEvent } from "./event-log";
 import { sendHandoffReply } from "./send-reply";
 import { isSlotSelectionMessage } from "@/lib/virtual-assistant/booking-slot-messages";
-import type { AiConversationState } from "./types";
+import type { AiConversationState, OfferedSlot } from "./types";
 
 const AUTOMATED_MESSAGE_PATTERNS = [
   /digite\s+\d/i,
@@ -91,6 +91,21 @@ export function freshBotLoopWindowState(now = new Date()): Pick<AiConversationSt
 }
 
 /** Início efetivo da janela: max(últimos N min, bot_loop_window_since). */
+/** Slots may live under booking.* (chatbot) or legacy root offered_slots. */
+export function resolveOfferedSlots(aiState?: AiConversationState): OfferedSlot[] {
+  const root = aiState?.offered_slots ?? [];
+  if (root.length) return root;
+  return aiState?.booking?.offered_slots ?? [];
+}
+
+export function isActiveBookingForLoopGuard(aiState?: AiConversationState): boolean {
+  const booking = aiState?.booking;
+  if (!booking || booking.status === "done") return false;
+  if (!(booking.doctor_id && booking.procedure_id)) return false;
+  if ((resolveOfferedSlots(aiState).length ?? 0) > 0) return true;
+  return booking.status === "collecting" || booking.status === "confirming";
+}
+
 export function resolveBotLoopWindowSince(
   defaultSinceMs: number,
   aiState?: AiConversationState
@@ -113,11 +128,15 @@ export async function checkBotLoopRisk(
   inboundText: string,
   aiState?: AiConversationState
 ): Promise<BotLoopCheckResult> {
+  const offeredSlots = resolveOfferedSlots(aiState);
   const inActiveBookingSlotFlow =
-    (aiState?.offered_slots?.length ?? 0) > 0 &&
-    isSlotSelectionMessage(inboundText.trim());
+    offeredSlots.length > 0 && isSlotSelectionMessage(inboundText.trim());
 
   if (inActiveBookingSlotFlow) {
+    return { block: false };
+  }
+
+  if (isMenuNumericReply(inboundText) && isActiveBookingForLoopGuard(aiState)) {
     return { block: false };
   }
 
@@ -159,10 +178,10 @@ export async function checkBotLoopRisk(
   }
 
   if (outboundCount >= PING_PONG_OUTBOUND_THRESHOLD + 1) {
-    if (
-      aiState?.intent === "booking" &&
-      (aiState.offered_slots?.length ?? 0) > 0
-    ) {
+    if (isActiveBookingForLoopGuard(aiState)) {
+      return { block: false };
+    }
+    if (aiState?.intent === "booking" && offeredSlots.length > 0) {
       return { block: false };
     }
     return {

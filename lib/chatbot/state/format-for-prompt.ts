@@ -38,8 +38,17 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
     );
   }
   if ((state.booking?.offered_slots?.length ?? 0) > 0) {
+    const slots = state.booking!.offered_slots!;
     lines.push(
-      `Horários oferecidos: ${state.booking!.offered_slots!.length} opção(ões) — paciente deve escolher um horário da lista.`
+      `Horários oferecidos (${slots.length}) — paciente escolhe por número ou horário:`
+    );
+    slots.forEach((s, i) => {
+      lines.push(`  ${i + 1}. ${s.display} → scheduled_at: ${s.scheduled_at}`);
+    });
+  }
+  if (state.booking?.pending_slot) {
+    lines.push(
+      `Horário selecionado (pending_slot): ${state.booking.pending_slot} — use EXATAMENTE este ISO em create_appointment.`
     );
   }
   if (state.booking?.date) {
