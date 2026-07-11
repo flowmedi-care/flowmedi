@@ -1,4 +1,16 @@
 import type { AiEventRow } from "./diagnostics";
+import type { TurnTrace } from "@/lib/chatbot/observability/turn-trace";
+
+export type ChatbotTurnDebug = Partial<TurnTrace> & {
+  toolsCount?: number;
+  hadBlockedTools?: boolean;
+  createAppointmentOutcome?: {
+    blocked?: boolean;
+    status?: string;
+    blockReason?: string;
+    resultMessage?: string;
+  } | null;
+};
 
 export type FlowStepStatus = "completed" | "in_progress" | "pending" | "failed" | "skipped";
 
@@ -46,6 +58,7 @@ export interface MessageFlowTrace {
   status: FlowTraceStatus;
   steps: FlowStep[];
   eventIds: string[];
+  chatbotTurnTrace?: ChatbotTurnDebug;
 }
 
 const TRACE_WINDOW_MS = 15 * 60 * 1000;
@@ -100,6 +113,7 @@ const TEXT_STEP_DEFS: { key: string; title: string; stages: string[] }[] = [
       "north_star_shadow",
       "north_star_shadow_compare",
       "booking_continuity",
+      "chatbot_turn_trace",
     ],
   },
   { key: "openai_reply", title: "Resposta da IA", stages: ["openai_end"] },
@@ -478,6 +492,22 @@ function buildSteps(
 
   inferRoutingFromLaterSteps(steps, events);
 
+  const isChatbotEngine = events.some(
+    (e) =>
+      (e.stage === "openai_start" || e.stage === "agent_route" || e.stage === "openai_end") &&
+      e.detail?.engine === "chatbot"
+  );
+  if (isChatbotEngine) {
+    const intentIdx = steps.findIndex((s) => s.key === "intent");
+    if (intentIdx >= 0 && steps[intentIdx].status === "pending") {
+      steps[intentIdx] = {
+        ...steps[intentIdx],
+        status: "skipped",
+        description: "Engine chatbot — intent implícita no turno (sem intent_classified)",
+      };
+    }
+  }
+
   if (hasReply) {
     const sendIdx = steps.findIndex((s) => s.key === "whatsapp_send");
     if (sendIdx >= 0) steps[sendIdx].status = "completed";
@@ -621,6 +651,12 @@ function applyDiscardedSteps(steps: FlowStep[], reason: string, at?: string): Fl
   return result;
 }
 
+function extractChatbotTurnTrace(events: AiEventRow[]): ChatbotTurnDebug | undefined {
+  const traceEvent = events.find((e) => e.stage === "chatbot_turn_trace");
+  if (!traceEvent?.detail) return undefined;
+  return traceEvent.detail as ChatbotTurnDebug;
+}
+
 function buildAnchorTrace(
   anchor: AiEventRow,
   events: AiEventRow[],
@@ -665,6 +701,7 @@ function buildAnchorTrace(
     status: traceStatus(steps, events, discarded),
     steps,
     eventIds: events.map((e) => e.id),
+    chatbotTurnTrace: extractChatbotTurnTrace(events),
   };
 }
 

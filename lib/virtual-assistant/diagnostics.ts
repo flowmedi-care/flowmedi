@@ -35,6 +35,8 @@ export interface AssistantHealthCheck {
   langgraphDirectDbHostWarning: boolean;
   whatsappIntegrationType: string | null;
   whatsappPhoneNumberId: string | null;
+  toolLogMetricsMigrationOk: boolean;
+  toolLogMetricsMigrationHint: string | null;
 }
 
 export interface BlockedConversationRow {
@@ -138,6 +140,9 @@ export interface AiToolLogRow {
   success: boolean;
   result_summary: string | null;
   created_at: string;
+  conversation_id?: string | null;
+  params?: Record<string, unknown>;
+  block_reason?: string | null;
 }
 
 export interface RecentErrorRow {
@@ -171,6 +176,7 @@ export async function gatherAssistantDiagnostics(
     stuckResult,
     lastEventResult,
     toolLogsResult,
+    toolLogMetricsProbe,
     blockedResult,
     pendingAudioResult,
     whatsappIntegrationResult,
@@ -203,10 +209,15 @@ export async function gatherAssistantDiagnostics(
       .maybeSingle(),
     supabase
       .from("whatsapp_ai_tool_log")
-      .select("id, tool_name, success, result_summary, created_at")
+      .select("id, tool_name, success, result_summary, created_at, conversation_id, params, block_reason")
       .eq("clinic_id", clinicId)
       .order("created_at", { ascending: false })
-      .limit(20),
+      .limit(200),
+    supabase
+      .from("whatsapp_ai_tool_log")
+      .select("block_reason")
+      .eq("clinic_id", clinicId)
+      .limit(1),
     supabase
       .from("whatsapp_conversations")
       .select("id, phone_number, ai_handoff_at, ai_enabled, ai_user_opt_out")
@@ -260,6 +271,26 @@ export async function gatherAssistantDiagnostics(
       ? "enabled=false"
       : null;
 
+  const toolLogMetricsError = toolLogMetricsProbe.error?.message ?? null;
+  const toolLogMetricsMigrationOk =
+    !toolLogMetricsError ||
+    (!toolLogMetricsError.includes("block_reason") &&
+      !toolLogMetricsError.includes("does not exist"));
+
+  let toolLogsRows = (toolLogsResult.data ?? []) as AiToolLogRow[];
+  if (
+    toolLogsResult.error &&
+    /block_reason|does not exist/i.test(toolLogsResult.error.message)
+  ) {
+    const { data: fallbackLogs } = await supabase
+      .from("whatsapp_ai_tool_log")
+      .select("id, tool_name, success, result_summary, created_at, conversation_id, params")
+      .eq("clinic_id", clinicId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    toolLogsRows = (fallbackLogs ?? []) as AiToolLogRow[];
+  }
+
   const health: AssistantHealthCheck = {
     assistantEnabled: assistantSettings?.enabled === true,
     assistantSettingsExists: Boolean(assistantSettings),
@@ -287,6 +318,10 @@ export async function gatherAssistantDiagnostics(
       typeof whatsappIntegration?.metadata?.phone_number_id === "string"
         ? whatsappIntegration.metadata.phone_number_id
         : null,
+    toolLogMetricsMigrationOk,
+    toolLogMetricsMigrationHint: toolLogMetricsMigrationOk
+      ? null
+      : "Rode supabase/migration-pipeline-tool-log-metrics.sql para block_reason e pipeline_stage em whatsapp_ai_tool_log",
   };
 
   if (eventsTableMissing) {
@@ -373,7 +408,7 @@ export async function gatherAssistantDiagnostics(
     flows,
     conversationMeta,
     dataReadiness,
-    toolLogs: (toolLogsResult.data ?? []) as AiToolLogRow[],
+    toolLogs: toolLogsRows,
     pipelineToolMetrics,
     blockedConversations: (blockedResult.data ?? []) as BlockedConversationRow[],
     recentErrors,

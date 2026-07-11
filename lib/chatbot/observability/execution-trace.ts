@@ -11,7 +11,11 @@ export type ExecutionTrace = {
   db_rows_affected?: number;
   validation_gate?: string;
   executor?: string;
+  /** @deprecated prefer snapshotBuiltAt */
   buildSequence?: number;
+  snapshotBuiltAt?: string;
+  snapshotBefore?: Record<string, unknown>;
+  snapshotAfter?: Record<string, unknown>;
   detail?: string;
 };
 
@@ -22,7 +26,8 @@ export function formatExecutionTrace(trace: ExecutionTrace): string {
     trace.outcome,
     `${trace.duration_ms}ms`,
   ];
-  if (trace.buildSequence != null) parts.push(`seq=${trace.buildSequence}`);
+  if (trace.snapshotBuiltAt) parts.push(`at=${trace.snapshotBuiltAt}`);
+  else if (trace.buildSequence != null) parts.push(`seq=${trace.buildSequence}`);
   if (trace.detail) parts.push(trace.detail.slice(0, 120));
   return parts.join(" ");
 }

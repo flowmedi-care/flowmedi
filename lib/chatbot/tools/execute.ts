@@ -42,6 +42,14 @@ import {
 import { isChatbotTool } from "./definitions";
 import { resolveCreateAppointmentScheduledAt } from "../state/patch";
 
+function isMissingToolLogColumnError(message: string): boolean {
+  return (
+    /column .* does not exist/i.test(message) &&
+    (/block_reason|pipeline_stage/i.test(message) ||
+      message.includes("whatsapp_ai_tool_log"))
+  );
+}
+
 async function logToolCall(
   supabase: SupabaseClient,
   clinicId: string,
@@ -53,19 +61,43 @@ async function logToolCall(
   status?: string,
   blockReason?: string | null
 ): Promise<void> {
-  await supabase.from("whatsapp_ai_tool_log").insert({
+  const resultLabel = `[${status ?? (success ? "success" : "error")}] ${resultSummary}`.slice(
+    0,
+    500
+  );
+  const baseRow = {
     clinic_id: clinicId,
     conversation_id: conversationId,
     tool_name: toolName,
     params,
-    result_summary: `[${status ?? (success ? "success" : "error")}] ${resultSummary}`.slice(
-      0,
-      500
-    ),
+    result_summary: resultLabel,
     success,
+  };
+
+  const extended = await supabase.from("whatsapp_ai_tool_log").insert({
+    ...baseRow,
     pipeline_stage: status ?? null,
     block_reason: blockReason ?? null,
   });
+
+  if (!extended.error) return;
+
+  if (!isMissingToolLogColumnError(extended.error.message)) {
+    console.warn("[chatbot:tool-log] insert failed:", extended.error.message, { toolName });
+    return;
+  }
+
+  const fallback = await supabase.from("whatsapp_ai_tool_log").insert(baseRow);
+  if (fallback.error) {
+    console.warn("[chatbot:tool-log] fallback insert failed:", fallback.error.message, {
+      toolName,
+    });
+    return;
+  }
+
+  console.warn(
+    "[chatbot:tool-log] using base columns only — apply migration-pipeline-tool-log-metrics.sql for block_reason"
+  );
 }
 
 /** Log validator blocks so diagnostics show why executeTool never ran. */

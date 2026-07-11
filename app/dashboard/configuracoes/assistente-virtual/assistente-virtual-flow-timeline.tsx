@@ -20,7 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { AiEventRow } from "@/lib/virtual-assistant/diagnostics";
+import type { AiEventRow, AiToolLogRow } from "@/lib/virtual-assistant/diagnostics";
 import type {
   FlowStep,
   FlowStepStatus,
@@ -28,6 +28,7 @@ import type {
   IntentTraceInfo,
   MessageFlowTrace,
 } from "@/lib/virtual-assistant/diagnostics-flow";
+import { ChatbotTurnDebugPanel } from "./chatbot-turn-debug-panel";
 import {
   getIntentColorClass,
   getIntentLabel,
@@ -117,6 +118,7 @@ const STAGE_LABELS: Record<string, string> = {
   booking_continuity: "Continuidade de agendamento",
   intent_classified: "Intent classificada",
   context_cleared: "Contexto limpo",
+  chatbot_turn_trace: "Trace do chatbot",
   north_star_turn: "Turno North Star",
   north_star_complete: "North Star concluído",
   north_star_shadow: "North Star (shadow)",
@@ -225,7 +227,21 @@ function StepEventLogs({ step }: { step: FlowStep }) {
   );
 }
 
-function buildDebugBundle(trace: MessageFlowTrace, traceEvents: AiEventRow[]): string {
+function buildDebugBundle(
+  trace: MessageFlowTrace,
+  traceEvents: AiEventRow[],
+  toolLogs?: AiToolLogRow[]
+): string {
+  const windowLogs =
+    toolLogs?.filter((log) => {
+      const ts = new Date(log.created_at).getTime();
+      const start = new Date(trace.startedAt).getTime() - 2000;
+      const end = trace.finishedAt
+        ? new Date(trace.finishedAt).getTime() + 2000
+        : start + 120_000;
+      return ts >= start && ts <= end;
+    }) ?? [];
+
   return JSON.stringify(
     {
       contact: trace.contactLabel,
@@ -236,6 +252,8 @@ function buildDebugBundle(trace: MessageFlowTrace, traceEvents: AiEventRow[]): s
       status: trace.status,
       startedAt: trace.startedAt,
       finishedAt: trace.finishedAt,
+      chatbotTurnTrace: trace.chatbotTurnTrace,
+      toolLogsInWindow: windowLogs,
       steps: trace.steps.map((s) => ({
         key: s.key,
         title: s.title,
@@ -264,9 +282,11 @@ function buildDebugBundle(trace: MessageFlowTrace, traceEvents: AiEventRow[]): s
 function FlowTraceCard({
   trace,
   rawEvents,
+  toolLogs,
 }: {
   trace: MessageFlowTrace;
   rawEvents: AiEventRow[];
+  toolLogs?: AiToolLogRow[];
 }) {
   const [stepsExpanded, setStepsExpanded] = useState(false);
   const [rawExpanded, setRawExpanded] = useState(false);
@@ -280,7 +300,7 @@ function FlowTraceCard({
 
   async function copyDebug() {
     try {
-      await navigator.clipboard.writeText(buildDebugBundle(trace, traceEvents));
+      await navigator.clipboard.writeText(buildDebugBundle(trace, traceEvents, toolLogs));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -433,6 +453,17 @@ function FlowTraceCard({
             );
           })}
         </ol>
+
+        {trace.chatbotTurnTrace && (
+          <ChatbotTurnDebugPanel
+            trace={trace.chatbotTurnTrace}
+            toolLogs={toolLogs?.filter(
+              (l) => !trace.conversationId || l.conversation_id === trace.conversationId
+            )}
+            startedAt={trace.startedAt}
+            finishedAt={trace.finishedAt}
+          />
+        )}
       </div>
       )}
 
@@ -474,6 +505,7 @@ function FlowTraceCard({
 interface Props {
   flows: MessageFlowTrace[];
   events: AiEventRow[];
+  toolLogs?: AiToolLogRow[];
   showRaw: boolean;
   onToggleRaw: (show: boolean) => void;
 }
@@ -484,7 +516,13 @@ function levelDot(level: string): string {
   return "bg-green-500";
 }
 
-export function AssistenteVirtualFlowTimeline({ flows, events, showRaw, onToggleRaw }: Props) {
+export function AssistenteVirtualFlowTimeline({
+  flows,
+  events,
+  toolLogs,
+  showRaw,
+  onToggleRaw,
+}: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAllFlows, setShowAllFlows] = useState(false);
 
@@ -512,7 +550,7 @@ export function AssistenteVirtualFlowTimeline({ flows, events, showRaw, onToggle
         ) : (
           <div className="space-y-3">
             {visibleFlows.map((trace) => (
-              <FlowTraceCard key={trace.id} trace={trace} rawEvents={events} />
+              <FlowTraceCard key={trace.id} trace={trace} rawEvents={events} toolLogs={toolLogs} />
             ))}
             {hiddenFlowCount > 0 && !showAllFlows && (
               <button

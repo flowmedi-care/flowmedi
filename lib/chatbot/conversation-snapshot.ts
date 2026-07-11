@@ -23,8 +23,6 @@ import { mergeAiState } from "@/lib/chatbot/state/patch";
 import { normalizeAiState } from "@/lib/chatbot/state/migrate";
 
 export type ConversationSnapshot = Readonly<{
-  builtAt: string;
-  buildSequence?: 1 | 2 | 3;
   conversation: {
     id: string;
     clinicId: string;
@@ -56,7 +54,6 @@ export type BuildConversationSnapshotInput = {
   patientId?: string | null;
   aiState: Record<string, unknown>;
   turnFacts?: NormalizedFacts & Record<string, unknown>;
-  buildSequence?: 1 | 2 | 3;
   userText?: string;
   policySlice?: PolicySlice;
 };
@@ -146,8 +143,6 @@ export async function buildConversationSnapshot(
   const { satisfied, pending } = evaluateGoalsFromEngine(engineInput);
 
   const snapshot: ConversationSnapshot = {
-    builtAt: new Date().toISOString(),
-    buildSequence: input.buildSequence,
     conversation: {
       id: input.conversationId,
       clinicId: input.clinicId,

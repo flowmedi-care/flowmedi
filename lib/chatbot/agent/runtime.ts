@@ -4,7 +4,14 @@ import { extractFacts } from "../extractors";
 import { applyReplyGuards } from "../guardrails/reply-guards";
 import { shouldEscalateOnToolFailures } from "../guardrails/handoff";
 import { validateToolCall } from "../guardrails/validators";
-import { createTurnTrace, logTurnTrace } from "../observability/turn-trace";
+import {
+  appendSnapshotTrace,
+  createTurnTrace,
+  logTurnTrace,
+  sliceSnapshotForTrace,
+  type TurnTrace,
+} from "../observability/turn-trace";
+import type { ExecutionTrace } from "../observability/execution-trace";
 import { formatExecutionTrace } from "../observability/execution-trace";
 import { mergeAiState, patchAiState, resolveCreateAppointmentScheduledAt } from "../state/patch";
 import { resolveReferenceFacts } from "../state/resolve-facts";
@@ -17,7 +24,7 @@ import type { FaqItem } from "../tools/types";
 import { toolResultToJson } from "../tools/types";
 import { buildSystemPrompt } from "./prompt";
 import { createChatCompletion, logTokenUsage, type ChatMessage } from "./llm";
-import { filterToolsByNames } from "@/lib/attendance-flow/engine";
+import { canExecuteMutation, filterToolsByNames } from "@/lib/attendance-flow/engine";
 import {
   mergeClinicFlowConfig,
   syncConversationFlowTurn,
@@ -31,6 +38,7 @@ import {
 } from "../conversation-snapshot";
 import type { PolicySlice } from "../snapshot/loaders/policy-loader";
 import { outcomeFromToolResult } from "../tools/error-class";
+import { createTurnContext } from "./turn-context";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -63,6 +71,7 @@ export type RunTurnResult = {
   reply: string;
   handoff?: boolean;
   statePatch: Record<string, unknown>;
+  trace: TurnTrace;
 };
 
 function reapplyFlowSync(
@@ -90,14 +99,33 @@ function reapplyFlowSync(
   };
 }
 
+function recordSnapshotBuild(
+  trace: TurnTrace,
+  label: "inbound" | "post_extractors" | "post_mutation",
+  snapshot: ConversationSnapshot,
+  started: number
+): void {
+  appendSnapshotTrace(trace, label, snapshot);
+  const builtAt = trace.snapshots[trace.snapshots.length - 1]!.snapshotBuiltAt;
+  trace.executionTraces.push({
+    kind: "snapshot_build",
+    name: label,
+    outcome: "ok",
+    duration_ms: Date.now() - started,
+    snapshotBuiltAt: builtAt,
+    snapshotAfter: sliceSnapshotForTrace(snapshot) as unknown as Record<string, unknown>,
+  });
+}
+
 async function rebuildSnapshotAfterMutation(
   input: RunTurnInput,
   aiState: AiState,
   turnFacts: Record<string, unknown>,
   policySlice: PolicySlice,
-  buildSequence: 2 | 3
+  trace: TurnTrace
 ): Promise<ConversationSnapshot> {
-  return buildConversationSnapshot({
+  const started = Date.now();
+  const snapshot = await buildConversationSnapshot({
     supabase: input.supabase,
     clinicId: input.clinicId,
     conversationId: input.conversationId,
@@ -105,10 +133,26 @@ async function rebuildSnapshotAfterMutation(
     patientId: aiState.patient_id ?? input.patientId,
     aiState: serializeAiState(aiState),
     turnFacts,
-    buildSequence,
     userText: input.userText,
     policySlice,
   });
+  recordSnapshotBuild(trace, "post_mutation", snapshot, started);
+  return snapshot;
+}
+
+function computeMutationGate(
+  flowSync: ReturnType<typeof reapplyFlowSync>
+): TurnTrace["mutationGate"] {
+  const gate = canExecuteMutation(
+    "booking_created",
+    flowSync.engineInput.flowState.mode,
+    flowSync.engineInput.policy,
+    flowSync.engineInput.registry,
+    flowSync.engineInput.flowState.pending,
+    flowSync.engineInput.workflow.id
+  );
+  if (gate.ok) return { ok: true };
+  return { ok: false, missing: gate.missing, message: gate.message };
 }
 
 export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
@@ -129,6 +173,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       customFields: input.customFields ?? [],
     } as PolicySlice);
 
+  const inboundStarted = Date.now();
   let snapshot =
     input.initialSnapshot ??
     (await buildConversationSnapshot({
@@ -138,10 +183,10 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       phoneNumber: input.phoneNumber,
       patientId: input.patientId ?? aiState.patient_id,
       aiState: serializeAiState(aiState),
-      buildSequence: 1,
       userText: input.userText,
       policySlice,
     }));
+  recordSnapshotBuild(trace, "inbound", snapshot, inboundStarted);
 
   aiState = snapshot.aiState;
 
@@ -157,6 +202,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     aiState = mergeAiState(aiState, factPatch);
   }
 
+  const postExtractorsStarted = Date.now();
   snapshot = await buildConversationSnapshot({
     supabase: input.supabase,
     clinicId: input.clinicId,
@@ -165,10 +211,10 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     patientId: aiState.patient_id ?? input.patientId,
     aiState: serializeAiState(aiState),
     turnFacts: facts,
-    buildSequence: 2,
     userText: input.userText,
     policySlice,
   });
+  recordSnapshotBuild(trace, "post_extractors", snapshot, postExtractorsStarted);
   aiState = snapshot.aiState;
 
   const snapshotBlock = formatSnapshotForPrompt(snapshot);
@@ -181,6 +227,12 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     facts
   );
   aiState = flowSync.aiState;
+
+  trace.allowedTools =
+    snapshot.derived.allowedTools.length > 0
+      ? snapshot.derived.allowedTools
+      : flowSync.allowedTools;
+  trace.mutationGate = computeMutationGate(flowSync);
 
   const systemContent = buildSystemPrompt({
     clinicName: input.clinicName ?? "clínica",
@@ -197,15 +249,28 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   });
 
   const messages: ChatMessage[] = [{ role: "system", content: systemContent }];
-  const allowedTools = snapshot.derived.allowedTools.length
-    ? snapshot.derived.allowedTools
-    : flowSync.allowedTools;
+  const allowedTools = trace.allowedTools;
 
   const maxContext = input.settings.max_context_messages ?? 20;
   for (const h of input.history.slice(-maxContext)) {
     messages.push({ role: h.role, content: h.content });
   }
   messages.push({ role: "user", content: input.userText });
+
+  createTurnContext({
+    conversationId: input.conversationId,
+    clinicId: input.clinicId,
+    phoneNumber: input.phoneNumber,
+    patientId: snapshot.conversation.patientId,
+    snapshot,
+    aiState,
+    clinicName: input.clinicName ?? "clínica",
+    settings: input.settings,
+    faqs: input.faqs,
+    messages,
+    turnFacts: facts,
+    trace,
+  });
 
   let handoff = false;
   let finalReply: string | null = null;
@@ -256,6 +321,10 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         }
       }
 
+      const snapshotBefore = sliceSnapshotForTrace(snapshot) as unknown as Record<
+        string,
+        unknown
+      >;
       const started = Date.now();
       const validation = validateToolCall(
         toolName,
@@ -301,14 +370,29 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         outcome.mutationOutcome ??
         (blocked ? "recoverable" : outcomeFromToolResult(outcome.result));
 
-      trace.tools.push({
+      const toolTrace = {
         toolName,
         round,
         blocked,
         blockReason: blocked ? validation?.message : undefined,
         status: outcome.result.status,
         durationMs: Date.now() - started,
-      });
+        resolvedArgs: toolName === "create_appointment" ? { ...args } : undefined,
+        resultMessage: outcome.result.message,
+      };
+      trace.tools.push(toolTrace);
+
+      const execTrace: ExecutionTrace = {
+        kind: "tool",
+        name: toolName,
+        outcome: mutationOutcome,
+        duration_ms: toolTrace.durationMs,
+        snapshotBefore,
+        validation_gate: blocked ? validation?.message : undefined,
+        detail: outcome.result.message,
+        ...(outcome.executionTrace ?? {}),
+      };
+      trace.executionTraces.push(execTrace);
 
       if (outcome.executionTrace) {
         trace.tools[trace.tools.length - 1]!.blockReason =
@@ -330,9 +414,17 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         aiState,
         facts,
         policySlice,
-        3
+        trace
       );
       aiState = snapshot.aiState;
+
+      const lastExec = trace.executionTraces[trace.executionTraces.length - 1];
+      if (lastExec) {
+        lastExec.snapshotAfter = sliceSnapshotForTrace(snapshot) as unknown as Record<
+          string,
+          unknown
+        >;
+      }
 
       flowSync = reapplyFlowSync(
         aiState,
@@ -343,6 +435,10 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         facts
       );
       aiState = flowSync.aiState;
+      trace.allowedTools =
+        snapshot.derived.allowedTools.length > 0
+          ? snapshot.derived.allowedTools
+          : flowSync.allowedTools;
 
       if (outcome.handoff) {
         handoff = true;
@@ -395,14 +491,17 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     reply,
     handoff,
     statePatch: serializeAiState(aiState),
+    trace,
   };
 }
 
 export async function runChatbotTurn(input: RunTurnInput): Promise<RunTurnResult> {
   if (!input.userText.trim()) {
+    const emptyTrace = createTurnTrace(input.conversationId, input.userText);
     return {
       reply: "Não entendi bem. Você quer agendar, saber preços ou falar com a equipe?",
       statePatch: serializeAiState(normalizeAiState(input.aiState)),
+      trace: emptyTrace,
     };
   }
   return runTurn(input);

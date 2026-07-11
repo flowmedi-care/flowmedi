@@ -597,6 +597,11 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
                   {health.migrationError ?? "Erro de migration no banco"}
                 </p>
               )}
+              {health.toolLogMetricsMigrationOk === false && health.toolLogMetricsMigrationHint && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  {health.toolLogMetricsMigrationHint}
+                </p>
+              )}
             </>
           ) : null}
 
@@ -809,6 +814,7 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
           <AssistenteVirtualFlowTimeline
             flows={data?.flows ?? []}
             events={data?.events ?? []}
+            toolLogs={data?.toolLogs ?? []}
             showRaw={showRawEvents}
             onToggleRaw={setShowRawEvents}
           />

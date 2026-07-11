@@ -36,6 +36,7 @@ export const AI_EVENT_STAGES = [
   "intent_classified",
   "context_cleared",
   "booking_continuity",
+  "chatbot_turn_trace",
   "north_star_turn",
   "north_star_start",
   "north_star_shadow",

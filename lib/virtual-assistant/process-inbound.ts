@@ -11,7 +11,8 @@ import {
   shouldSkipDuplicateReply,
   tryAcquireProcessingLock,
 } from "@/lib/chatbot";
-import { logAiEvent } from "./event-log";
+import { createTurnTrace, serializeTurnTraceForEvent } from "@/lib/chatbot/observability/turn-trace";
+import { logAiEvent, logAiEventAwait } from "./event-log";
 import { sendAssistantReply } from "./send-reply";
 import type { AiConversationState, VirtualAssistantSettings } from "./types";
 import { isInsideAutoMessageWindow } from "@/lib/whatsapp-ops-controls";
@@ -641,12 +642,20 @@ async function processConversationAiInner(
         message: e instanceof Error ? e.message : String(e),
       },
     });
-    return { reply: msg, handoff: false, statePatch: aiState as Record<string, unknown> };
+    return { reply: msg, handoff: false, statePatch: aiState as Record<string, unknown>, trace: createTurnTrace(conversationId, combinedUserText) };
   });
 
   const reply = chatbotResult.reply;
   const handoff = chatbotResult.handoff;
   const statePatch = chatbotResult.statePatch as Partial<AiConversationState>;
+  const turnTracePayload = serializeTurnTraceForEvent(chatbotResult.trace);
+
+  await logAiEventAwait(supabase, {
+    clinicId: conv.clinic_id,
+    conversationId,
+    stage: "chatbot_turn_trace",
+    detail: turnTracePayload,
+  });
 
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
@@ -656,6 +665,9 @@ async function processConversationAiInner(
       handoff,
       replyPreview: reply.slice(0, 80),
       engine: "chatbot",
+      toolsCount: turnTracePayload.toolsCount,
+      hadBlockedTools: turnTracePayload.hadBlockedTools,
+      createAppointmentOutcome: turnTracePayload.createAppointmentOutcome,
     },
   });
 
