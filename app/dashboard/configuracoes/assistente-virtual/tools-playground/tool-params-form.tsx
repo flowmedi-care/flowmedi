@@ -22,6 +22,7 @@ import {
   DimensionValuesPicker,
   type AppointmentOption,
 } from "./entity-pickers/appointment-picker";
+import { SlotPicker } from "./entity-pickers/slot-picker";
 import type { PhoneContext } from "./hooks/use-playground-catalog";
 
 type Props = {
@@ -148,40 +149,14 @@ function ParamField({
       </Select>
     );
   } else if (meta.widget === "datetime-iso" || paramName === "scheduled_at" || paramName === "new_scheduled_at") {
-    const pendingSlot = getNestedValue(aiState, "booking.pending_slot");
-    const pendingSlotStr =
-      pendingSlot != null && pendingSlot !== "" ? String(pendingSlot) : null;
-    const offeredSlots = getNestedValue(aiState, "booking.offered_slots") as
-      | Array<{ scheduled_at: string; display?: string }>
-      | undefined;
     input = (
-      <div className="space-y-2">
-        <Input
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={meta.example ?? "2026-08-15T14:30:00-03:00"}
-        />
-        <div className="flex flex-wrap gap-1">
-          {pendingSlotStr && (
-            <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => onChange(pendingSlotStr)}>
-              Usar slot pendente
-            </Button>
-          )}
-          {offeredSlots?.slice(0, 3).map((slot) => (
-            <Button
-              key={slot.scheduled_at}
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={() => onChange(slot.scheduled_at)}
-            >
-              {slot.display ?? slot.scheduled_at}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <SlotPicker
+        value={value}
+        onChange={onChange}
+        aiState={aiState}
+        label=""
+        placeholder={meta.example ?? "2026-08-15T14:30:00-03:00"}
+      />
     );
   } else if (meta.widget === "date" || paramName === "date") {
     input = (
