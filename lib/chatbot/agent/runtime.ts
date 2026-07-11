@@ -5,6 +5,7 @@ import { applyReplyGuards } from "../guardrails/reply-guards";
 import { shouldEscalateOnToolFailures } from "../guardrails/handoff";
 import { validateToolCall } from "../guardrails/validators";
 import { createTurnTrace, logTurnTrace } from "../observability/turn-trace";
+import { formatExecutionTrace } from "../observability/execution-trace";
 import { mergeAiState, patchAiState } from "../state/patch";
 import { resolveReferenceFacts } from "../state/resolve-facts";
 import { buildChatbotFallbackReply } from "../state/format-for-prompt";
@@ -16,16 +17,20 @@ import type { FaqItem } from "../tools/types";
 import { toolResultToJson } from "../tools/types";
 import { buildSystemPrompt } from "./prompt";
 import { createChatCompletion, logTokenUsage, type ChatMessage } from "./llm";
-import {
-  filterToolsByNames,
-  syncFlowState,
-} from "@/lib/attendance-flow/engine";
+import { filterToolsByNames } from "@/lib/attendance-flow/engine";
 import {
   mergeClinicFlowConfig,
   syncConversationFlowTurn,
   type ClinicFlowConfig,
 } from "@/lib/attendance-flow/flow-sync";
 import type { CustomFieldForGoals } from "@/lib/attendance-flow/types";
+import {
+  buildConversationSnapshot,
+  formatSnapshotForPrompt,
+  type ConversationSnapshot,
+} from "../conversation-snapshot";
+import type { PolicySlice } from "../snapshot/loaders/policy-loader";
+import { outcomeFromToolResult } from "../tools/error-class";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -49,6 +54,9 @@ export type RunTurnInput = {
   address?: string;
   flowConfig?: ClinicFlowConfig;
   customFields?: CustomFieldForGoals[];
+  patientId?: string | null;
+  policySlice?: PolicySlice;
+  initialSnapshot?: ConversationSnapshot;
 };
 
 export type RunTurnResult = {
@@ -61,18 +69,46 @@ function reapplyFlowSync(
   aiState: AiState,
   userText: string,
   flowConfig: ClinicFlowConfig,
-  customFields?: CustomFieldForGoals[]
+  customFields?: CustomFieldForGoals[],
+  patient?: Record<string, unknown> | null,
+  turnFacts?: Record<string, unknown>
 ) {
-  const sync = syncConversationFlowTurn(aiState, userText, flowConfig, customFields);
+  const sync = syncConversationFlowTurn(
+    aiState,
+    userText,
+    flowConfig,
+    customFields,
+    patient,
+    turnFacts
+  );
   const merged = mergeAiState(aiState, sync.aiStatePatch);
-  const engineInput = { ...sync.engineInput, aiState: merged };
-  const synced = syncFlowState(engineInput);
   return {
-    aiState: mergeAiState(merged, { conversation_flow: synced }),
+    aiState: merged,
     flowBlock: sync.flowBlock,
     allowedTools: sync.allowedTools,
-    engineInput: { ...engineInput, flowState: synced, aiState: mergeAiState(merged, { conversation_flow: synced }) },
+    engineInput: { ...sync.engineInput, aiState: merged },
   };
+}
+
+async function rebuildSnapshotAfterMutation(
+  input: RunTurnInput,
+  aiState: AiState,
+  turnFacts: Record<string, unknown>,
+  policySlice: PolicySlice,
+  buildSequence: 2 | 3
+): Promise<ConversationSnapshot> {
+  return buildConversationSnapshot({
+    supabase: input.supabase,
+    clinicId: input.clinicId,
+    conversationId: input.conversationId,
+    phoneNumber: input.phoneNumber,
+    patientId: aiState.patient_id ?? input.patientId,
+    aiState: serializeAiState(aiState),
+    turnFacts,
+    buildSequence,
+    userText: input.userText,
+    policySlice,
+  });
 }
 
 export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
@@ -86,14 +122,64 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       conversation_flows: input.settings.conversation_flows as ClinicFlowConfig["conversationFlows"],
     });
 
-  const facts = extractFacts(input.userText);
+  const policySlice: PolicySlice =
+    input.policySlice ??
+    ({
+      ...flowConfig,
+      customFields: input.customFields ?? [],
+    } as PolicySlice);
+
+  let snapshot =
+    input.initialSnapshot ??
+    (await buildConversationSnapshot({
+      supabase: input.supabase,
+      clinicId: input.clinicId,
+      conversationId: input.conversationId,
+      phoneNumber: input.phoneNumber,
+      patientId: input.patientId ?? aiState.patient_id,
+      aiState: serializeAiState(aiState),
+      buildSequence: 1,
+      userText: input.userText,
+      policySlice,
+    }));
+
+  aiState = snapshot.aiState;
+
+  const facts = extractFacts(
+    input.userText,
+    new Date(),
+    aiState.booking?.offered_slots
+  );
   trace.extractorsApplied = facts;
+
   const factPatch = resolveReferenceFacts(facts, aiState);
   if (Object.keys(factPatch).length > 0) {
     aiState = mergeAiState(aiState, factPatch);
   }
 
-  let flowSync = reapplyFlowSync(aiState, input.userText, flowConfig, input.customFields);
+  snapshot = await buildConversationSnapshot({
+    supabase: input.supabase,
+    clinicId: input.clinicId,
+    conversationId: input.conversationId,
+    phoneNumber: input.phoneNumber,
+    patientId: aiState.patient_id ?? input.patientId,
+    aiState: serializeAiState(aiState),
+    turnFacts: facts,
+    buildSequence: 2,
+    userText: input.userText,
+    policySlice,
+  });
+  aiState = snapshot.aiState;
+
+  const snapshotBlock = formatSnapshotForPrompt(snapshot);
+  let flowSync = reapplyFlowSync(
+    aiState,
+    input.userText,
+    snapshot.flowConfig,
+    snapshot.customFields,
+    snapshot.patient,
+    facts
+  );
   aiState = flowSync.aiState;
 
   const systemContent = buildSystemPrompt({
@@ -107,11 +193,13 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     settings: input.settings,
     aiState,
     facts,
-    flowBlock: flowSync.flowBlock,
+    flowBlock: `${snapshotBlock}\n\n${snapshot.derived.flowBlock}`,
   });
 
   const messages: ChatMessage[] = [{ role: "system", content: systemContent }];
-  const filteredTools = filterToolsByNames(CHATBOT_TOOLS, flowSync.allowedTools);
+  const allowedTools = snapshot.derived.allowedTools.length
+    ? snapshot.derived.allowedTools
+    : flowSync.allowedTools;
 
   const maxContext = input.settings.max_context_messages ?? 20;
   for (const h of input.history.slice(-maxContext)) {
@@ -121,8 +209,15 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
 
   let handoff = false;
   let finalReply: string | null = null;
+  let filteredTools = filterToolsByNames(CHATBOT_TOOLS, allowedTools);
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const roundAllowed =
+      snapshot.derived.allowedTools.length > 0
+        ? snapshot.derived.allowedTools
+        : flowSync.allowedTools;
+    filteredTools = filterToolsByNames(CHATBOT_TOOLS, roundAllowed);
+
     trace.llmRounds = round + 1;
     const completion = await createChatCompletion({
       model: input.settings.ai_model ?? "gpt-4o-mini",
@@ -179,13 +274,17 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
             aiState,
             settings: input.settings,
             faqs: input.faqs,
-            flowConfig,
-            customFields: input.customFields,
+            flowConfig: snapshot.flowConfig,
+            customFields: snapshot.customFields,
           },
           toolName,
           args
         );
       }
+
+      const mutationOutcome =
+        outcome.mutationOutcome ??
+        (blocked ? "recoverable" : outcomeFromToolResult(outcome.result));
 
       trace.tools.push({
         toolName,
@@ -196,12 +295,38 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         durationMs: Date.now() - started,
       });
 
+      if (outcome.executionTrace) {
+        trace.tools[trace.tools.length - 1]!.blockReason =
+          (trace.tools[trace.tools.length - 1]!.blockReason ?? "") +
+          " " +
+          formatExecutionTrace(outcome.executionTrace);
+      }
+
       if (outcome.statePatch) {
         aiState = mergeAiState(aiState, outcome.statePatch);
       }
-      aiState = mergeAiState(aiState, patchAiState(toolName, args, outcome.result, aiState));
+      aiState = mergeAiState(
+        aiState,
+        patchAiState(toolName, args, outcome.result, aiState, mutationOutcome)
+      );
 
-      flowSync = reapplyFlowSync(aiState, input.userText, flowConfig, input.customFields);
+      snapshot = await rebuildSnapshotAfterMutation(
+        input,
+        aiState,
+        facts,
+        policySlice,
+        3
+      );
+      aiState = snapshot.aiState;
+
+      flowSync = reapplyFlowSync(
+        aiState,
+        input.userText,
+        snapshot.flowConfig,
+        snapshot.customFields,
+        snapshot.patient,
+        facts
+      );
       aiState = flowSync.aiState;
 
       if (outcome.handoff) {
@@ -228,8 +353,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
           aiState,
           settings: input.settings,
           faqs: input.faqs,
-          flowConfig,
-          customFields: input.customFields,
+          flowConfig: snapshot.flowConfig,
+          customFields: snapshot.customFields,
         },
         "transfer_to_human",
         { reason: "consecutive_tool_failures" }

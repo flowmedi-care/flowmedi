@@ -18,6 +18,7 @@ export type GoalCondition = {
 export type GoalCompletion =
   | { type: "state_path"; path: string }
   | { type: "collected"; key: string }
+  | { type: "patient_or_collected"; key: string; patientKey?: string }
   | { type: "mutation"; key: string }
   | { type: "custom"; resolver: string };
 
@@ -81,6 +82,7 @@ export type GoalEvaluationContext = {
   collected: Record<string, unknown>;
   patient?: Record<string, unknown> | null;
   mutation_done?: Record<string, boolean>;
+  turnFacts?: Record<string, unknown>;
 };
 
 export type IntakePendency = {

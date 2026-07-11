@@ -236,6 +236,7 @@ export const DASHBOARD_CONFIG_GROUP: NavGroupItem = {
     { href: "/dashboard/configuracoes/preferencias", label: "Preferências do sistema" },
     { href: "/dashboard/configuracoes/clinica", label: "Dados da clínica" },
     { href: "/dashboard/configuracoes/salas", label: "Salas e consultórios" },
+    { href: "/dashboard/configuracoes/agendamento", label: "Política de agendamento" },
     { href: "/dashboard/configuracoes/integracoes", label: "Integrações" },
     { href: "/dashboard/configuracoes/assistente-virtual", label: "Assistente virtual" },
     { href: "/dashboard/configuracoes/campos-personalizados", label: "Campos personalizados" },

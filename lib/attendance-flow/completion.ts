@@ -1,4 +1,19 @@
 import type { GoalCompletion, GoalEvaluationContext } from "./types";
+import {
+  isFilled,
+  resolveSemanticValue,
+  type GoalResolverContext,
+} from "./data-resolver";
+
+function toResolverContext(ctx: GoalEvaluationContext): GoalResolverContext {
+  return {
+    aiState: ctx.aiState as GoalResolverContext["aiState"],
+    collected: ctx.collected,
+    patient: ctx.patient,
+    mutation_done: ctx.mutation_done,
+    turnFacts: ctx.turnFacts as GoalResolverContext["turnFacts"],
+  };
+}
 
 function getByPath(obj: Record<string, unknown>, path: string): unknown {
   const parts = path.split(".");
@@ -34,8 +49,21 @@ export function isGoalSatisfied(
       return val !== undefined && val !== null && val !== "";
     }
     case "collected": {
-      const val = ctx.collected[completion.key];
-      return val !== undefined && val !== null && val !== "";
+      const val = resolveSemanticValue(completion.key, toResolverContext(ctx));
+      return isFilled(val);
+    }
+    case "patient_or_collected": {
+      const key = completion.key;
+      const patientKey = completion.patientKey ?? key.replace(/^custom:/, "");
+      const val = resolveSemanticValue(
+        key.startsWith("custom:") ? patientKey : key,
+        toResolverContext(ctx),
+        {
+          patientKey: completion.patientKey,
+          customFieldName: key.startsWith("custom:") ? patientKey : undefined,
+        }
+      );
+      return isFilled(val);
     }
     case "mutation": {
       return Boolean(ctx.mutation_done?.[completion.key]);

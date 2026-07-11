@@ -22,6 +22,7 @@ export type EngineInput = {
   aiState: AiState;
   flowState: ConversationFlowState;
   patient?: Record<string, unknown> | null;
+  turnFacts?: Record<string, unknown>;
 };
 
 function buildEvalContext(input: EngineInput): GoalEvaluationContext {
@@ -30,6 +31,7 @@ function buildEvalContext(input: EngineInput): GoalEvaluationContext {
     collected: input.flowState.collected,
     patient: input.patient,
     mutation_done: input.flowState.mutation_done,
+    turnFacts: input.turnFacts,
   };
 }
 
@@ -143,23 +145,77 @@ const READ_TOOLS_ALWAYS = new Set([
   "list_price_options",
 ]);
 
-export function getAllowedToolsForFocus(
-  input: EngineInput,
-  focusGoalId?: string
-): string[] {
-  const focus = focusGoalId ?? input.flowState.focus_goal_id;
-  if (!focus) {
-    return ["search_faq", "transfer_to_human"];
+const INTAKE_GOAL_IDS = new Set([
+  "cpf",
+  "email",
+  "guardian",
+  "insurance",
+  "payment_method",
+  "cancel_reason",
+]);
+
+function isBookingConfirming(aiState: AiState): boolean {
+  const booking = aiState.booking;
+  return booking?.status === "confirming" || Boolean(booking?.pending_slot);
+}
+
+function mutationGoalIdFor(goal: GoalDefinition): string {
+  return goal.id === "cancel_booking" ? "cancel_booking" : "booking_created";
+}
+
+function shouldExposePendingGoalTools(goal: GoalDefinition, input: EngineInput): boolean {
+  if (!input.flowState.pending.includes(goal.id)) return false;
+
+  if (BOOKING_CORE_GOAL_IDS.includes(goal.id as (typeof BOOKING_CORE_GOAL_IDS)[number])) {
+    return true;
   }
 
-  const goal = input.registry.get(focus);
-  if (!goal) return ["search_faq", "transfer_to_human"];
+  if (INTAKE_GOAL_IDS.has(goal.id) || goal.id.startsWith("custom:")) {
+    return !isBookingConfirming(input.aiState);
+  }
 
-  const tools = new Set(goal.allowed_tools);
-  for (const t of READ_TOOLS_ALWAYS) {
-    if (goal.allowed_tools.includes("lookup_patient_by_phone")) {
-      tools.add(t);
+  if (goal.id === input.flowState.focus_goal_id) return true;
+
+  if (goal.id === "appointment_selected") return true;
+
+  return false;
+}
+
+/** Context-based tool set — replaces single-focus filtering (Phase 3). */
+export function resolveAvailableTools(input: EngineInput): string[] {
+  const tools = new Set<string>(["search_faq"]);
+  const goals = getApplicableGoals(input);
+  const byId = new Map(goals.map((g) => [g.id, g]));
+
+  for (const goalId of input.flowState.pending) {
+    const goal = byId.get(goalId);
+    if (!goal) continue;
+
+    if (goal.is_mutation) {
+      const gate = canExecuteMutation(
+        mutationGoalIdFor(goal),
+        input.flowState.mode,
+        input.policy,
+        input.registry,
+        input.flowState.pending,
+        input.workflow.id
+      );
+      if (gate.ok) {
+        for (const t of goal.allowed_tools) tools.add(t);
+      }
+      continue;
     }
+
+    if (!shouldExposePendingGoalTools(goal, input)) continue;
+    for (const t of goal.allowed_tools) tools.add(t);
+  }
+
+  for (const t of READ_TOOLS_ALWAYS) {
+    if (tools.has("lookup_patient_by_phone")) tools.add(t);
+  }
+
+  if (input.flowState.pending.includes("appointment_selected")) {
+    tools.add("list_patient_appointments");
   }
 
   if (input.workflow.id === "cancelamento" || input.workflow.id === "consulta") {
@@ -167,6 +223,15 @@ export function getAllowedToolsForFocus(
   }
 
   return Array.from(tools);
+}
+
+/** @deprecated use resolveAvailableTools — kept for callers not yet migrated */
+export function getAllowedToolsForFocus(
+  input: EngineInput,
+  focusGoalId?: string
+): string[] {
+  void focusGoalId;
+  return resolveAvailableTools(input);
 }
 
 export function filterToolsByNames<T extends { function: { name: string } }>(
@@ -209,6 +274,7 @@ export function canExecuteMutation(
 
   // strict
   const missingRequired = pending.filter((id) => {
+    if (id === goalId) return false;
     const pol = resolveEffectivePolicy(id, registry, policy);
     return pol === "required";
   });
@@ -252,6 +318,7 @@ export function buildGoalPromptBlock(input: EngineInput): string {
   const focusId = input.flowState.focus_goal_id;
   const focus = focusId ? input.registry.get(focusId) : undefined;
   const pendingCount = input.flowState.pending.length;
+  const availableTools = resolveAvailableTools(input);
 
   const lines: string[] = [
     `Workflow ativo: ${input.workflow.label} (modo ${input.workflow.mode}).`,
@@ -268,13 +335,14 @@ export function buildGoalPromptBlock(input: EngineInput): string {
   if (focus) {
     lines.push(
       "",
-      `FOCO ATUAL: ${focus.label} (${focus.id})`,
-      focus.prompt_hint,
-      `Tools permitidas neste foco: ${focus.allowed_tools.join(", ")}.`
+      `Sugestão de foco (UX): ${focus.label} (${focus.id})`,
+      focus.prompt_hint
     );
   } else if (!pendingCount) {
     lines.push("", "Todos os goals aplicáveis foram satisfeitos.");
   }
+
+  lines.push("", `Tools disponíveis neste turno: ${availableTools.join(", ")}.`);
 
   return lines.join("\n");
 }

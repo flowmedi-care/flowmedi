@@ -6,7 +6,7 @@ import {
 } from "./defaults";
 import {
   buildGoalPromptBlock,
-  getAllowedToolsForFocus,
+  resolveAvailableTools,
   getWorkflowFromConfig,
   initConversationFlowState,
   syncFlowState,
@@ -81,7 +81,9 @@ export function syncConversationFlowTurn(
   aiState: AiState,
   userText: string,
   config: ClinicFlowConfig,
-  customFields?: CustomFieldForGoals[]
+  customFields?: CustomFieldForGoals[],
+  patient?: Record<string, unknown> | null,
+  turnFacts?: Record<string, unknown>
 ): FlowSyncResult {
   const registry = buildGoalRegistry(customFields);
   const intent = resolveIntent({ userText, aiState });
@@ -106,12 +108,14 @@ export function syncConversationFlowTurn(
     registry,
     aiState,
     flowState,
+    patient: patient ?? undefined,
+    turnFacts,
   };
 
   const synced = syncFlowState(engineInput);
   engineInput.flowState = synced;
 
-  const allowedTools = getAllowedToolsForFocus(engineInput);
+  const allowedTools = resolveAvailableTools(engineInput);
   const flowBlock = buildGoalPromptBlock(engineInput);
 
   return {

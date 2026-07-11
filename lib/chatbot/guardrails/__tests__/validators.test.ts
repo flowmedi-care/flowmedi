@@ -84,12 +84,23 @@ describe("chatbot state patch", () => {
     assert.equal(patch.consecutive_tool_failures, 0);
   });
 
-  it("error incrementa consecutive_tool_failures", () => {
+  it("business error não incrementa consecutive_tool_failures", () => {
     const current = { ...initialAiState(), consecutive_tool_failures: 1 };
     const patch = patchAiState(
       "create_appointment",
       {},
-      { status: "error", message: "Falha no sistema." },
+      { status: "error", message: "CPF inválido." },
+      current
+    );
+    assert.equal(patch.consecutive_tool_failures, 0);
+  });
+
+  it("infrastructure error incrementa consecutive_tool_failures", () => {
+    const current = { ...initialAiState(), consecutive_tool_failures: 1 };
+    const patch = patchAiState(
+      "create_appointment",
+      {},
+      { status: "error", message: "timeout connecting to database" },
       current
     );
     assert.equal(patch.consecutive_tool_failures, 2);

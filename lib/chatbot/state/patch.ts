@@ -2,17 +2,34 @@ import { isScheduledAtInOfferedSlots } from "@/lib/booking-state";
 import { isRecoverableToolStatus } from "../tools/types";
 import type { ToolResult } from "../tools/types";
 import type { AiState, OfferedOption } from "./types";
+import type { MutationOutcome } from "../tools/mutation-result";
+import { shouldIncrementToolFailures } from "../tools/mutation-result";
+import { outcomeFromToolResult } from "../tools/error-class";
 
 export function patchAiState(
   toolName: string,
   args: Record<string, unknown>,
   result: ToolResult,
-  current: AiState
+  current: AiState,
+  outcomeOverride?: MutationOutcome
 ): Partial<AiState> {
-  if (!isRecoverableToolStatus(result.status)) {
+  const outcome = outcomeOverride ?? outcomeFromToolResult(result);
+  if (shouldIncrementToolFailures(outcome)) {
     return {
       consecutive_tool_failures: (current.consecutive_tool_failures ?? 0) + 1,
     };
+  }
+
+  if (!isRecoverableToolStatus(result.status) && outcome !== "success") {
+    if (outcome === "recoverable" || outcome === "business") {
+      return { consecutive_tool_failures: 0 };
+    }
+  }
+
+  if (outcome !== "success" && result.status === "error") {
+    if (outcome === "recoverable" || outcome === "business") {
+      return { consecutive_tool_failures: 0 };
+    }
   }
 
   const data = (result.data ?? {}) as Record<string, unknown>;

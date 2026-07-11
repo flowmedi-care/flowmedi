@@ -6,7 +6,11 @@ export function buildCustomFieldGoal(field: CustomFieldForGoals): GoalDefinition
     id: `custom:${field.id}`,
     label: field.field_label,
     phase_id: "cadastro",
-    completion: { type: "collected", key: `custom:${field.field_name}` },
+    completion: {
+      type: "patient_or_collected",
+      key: `custom:${field.field_name}`,
+      patientKey: field.field_name,
+    },
     allowed_tools: ["update_patient_intake"],
     prompt_hint: `Colete o campo "${field.field_label}".`,
     priority: 55 + Math.min(field.display_order, 20),

@@ -19,7 +19,8 @@ import { HANDOFF_REPLY_BODY } from "@/lib/whatsapp-sender-display";
 import { tryReactivateAiAfterHandoff } from "./handoff-reactivation";
 import { ensureAiPrivacyNoticeSent } from "./ai-privacy-notice";
 import { buildClinicContext } from "./clinic-context";
-import { loadClinicFlowConfig } from "@/lib/attendance-flow/load-clinic-flow-config";
+import { ensurePatientLinkedByPhone } from "@/lib/chatbot/auto-patient-lookup";
+import { loadPolicySlice } from "@/lib/chatbot/snapshot/loaders/policy-loader";
 
 export interface SkipMenuChatbotResult {
   skipMenu: boolean;
@@ -564,8 +565,28 @@ async function processConversationAiInner(
   }
 
   const clinicCtx = await buildClinicContext(supabase, conv.clinic_id);
-  const { flowConfig, customFields } = await loadClinicFlowConfig(supabase, conv.clinic_id);
+  const policySlice = await loadPolicySlice(supabase, conv.clinic_id);
+  const { flowConfig, customFields } = {
+    flowConfig: {
+      appointmentPolicy: policySlice.appointmentPolicy,
+      conversationFlows: policySlice.conversationFlows,
+      customFields: policySlice.customFields,
+    },
+    customFields: policySlice.customFields,
+  };
   const combinedUserText = userTexts.join("\n").trim();
+
+  const linkedPatientId = await ensurePatientLinkedByPhone(
+    supabase,
+    conv.clinic_id,
+    conversationId,
+    conv.phone_number,
+    conv.patient_id ?? aiState.patient_id
+  );
+  if (linkedPatientId && !aiState.patient_id) {
+    aiState = { ...aiState, patient_id: linkedPatientId };
+  }
+
   const { data: faqRows } = await supabase
     .from("clinic_virtual_assistant_faq")
     .select("id, question, answer")
@@ -602,6 +623,8 @@ async function processConversationAiInner(
     address: undefined,
     flowConfig,
     customFields,
+    patientId: linkedPatientId ?? conv.patient_id ?? aiState.patient_id,
+    policySlice,
   }).catch((e) => {
     console.error("[Chatbot] turn error:", e);
     const msg =

@@ -10,10 +10,20 @@ function offeredDaysAsOptions(
 
 /** Runtime: translate factual references into statePatch. Does not decide tools or flow. */
 export function resolveReferenceFacts(
-  facts: NormalizedFacts,
+  facts: NormalizedFacts & Record<string, unknown>,
   aiState: AiState
 ): Partial<AiState> {
   const patch: Partial<AiState> = {};
+
+  const scheduledAt = facts.selected_scheduled_at as string | undefined;
+  if (scheduledAt) {
+    patch.booking = {
+      ...aiState.booking,
+      pending_slot: scheduledAt,
+      status: "confirming",
+    };
+    return patch;
+  }
 
   if (facts.selectedIndex != null) {
     const idx = String(facts.selectedIndex);

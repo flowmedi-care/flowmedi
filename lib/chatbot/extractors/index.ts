@@ -2,10 +2,14 @@ import type { OfferedOption } from "../state/types";
 import type { NormalizedFacts } from "./types";
 import { extractDate } from "./date";
 import { extractPeriod } from "./period";
+import { extractTimeChoice } from "./time";
+import { extractCpfFromText } from "@/lib/virtual-assistant/normalize-cpf";
+import type { OfferedSlot } from "../state/types";
 
 export type { NormalizedFacts } from "./types";
 export { extractDate, parseDateFromText, weekdayFromText } from "./date";
 export { extractPeriod } from "./period";
+export { extractTimeChoice } from "./time";
 
 export function extractIndex(text: string): number | null {
   const m = text.trim().match(/^(\d{1,2})$/);
@@ -43,8 +47,12 @@ export function extractEntityReference(
 }
 
 /** Pure extraction — no state, no prompt, no side effects. */
-export function extractFacts(text: string, refDate = new Date()): NormalizedFacts {
-  const facts: NormalizedFacts = {};
+export function extractFacts(
+  text: string,
+  refDate = new Date(),
+  offeredSlots?: OfferedSlot[]
+): NormalizedFacts & Record<string, unknown> {
+  const facts: NormalizedFacts & Record<string, unknown> = {};
   const date = extractDate(text, refDate);
   if (date) facts.date = date;
   const period = extractPeriod(text);
@@ -55,5 +63,20 @@ export function extractFacts(text: string, refDate = new Date()): NormalizedFact
   if (confirmed != null) facts.confirmed = confirmed;
   const ordinal = extractOrdinal(text);
   if (ordinal != null) facts.ordinal = ordinal;
+
+  const cpf = extractCpfFromText(text);
+  if (cpf) facts.cpf = cpf;
+
+  const emailMatch = text.match(
+    /\b(?:e-?mail|email)\s*[:\-]?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b/i
+  );
+  if (emailMatch?.[1]) facts.email = emailMatch[1].toLowerCase();
+
+  const timePick = extractTimeChoice(text, offeredSlots);
+  if (timePick) {
+    facts.selected_hour = timePick.selected_hour;
+    facts.selected_scheduled_at = timePick.scheduled_at;
+  }
+
   return facts;
 }

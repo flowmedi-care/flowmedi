@@ -6,6 +6,7 @@ import {
   canExecuteMutation,
   initConversationFlowState,
   syncFlowState,
+  resolveAvailableTools,
 } from "../engine";
 import { defaultGoalRegistry } from "../goal-registry";
 import {
@@ -104,6 +105,81 @@ describe("attendance-flow engine", () => {
 
     assert.ok(synced.satisfied.includes("patient_identified"));
     assert.ok(synced.pending.includes("insurance") || synced.pending.includes("booking_created"));
+  });
+
+  it("patient cpf satisfies cpf goal via patient_or_collected", () => {
+    const aiState: AiState = {
+      patient_id: "p-1",
+      consecutive_tool_failures: 0,
+    };
+    const flowState = initConversationFlowState(DEFAULT_WORKFLOW_CONSULTA);
+    const result = reevaluateGoals({
+      workflow: DEFAULT_WORKFLOW_CONSULTA,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState,
+      patient: { cpf: "05126248103", custom_fields: {} },
+    });
+    assert.ok(result.satisfied.includes("cpf"));
+  });
+
+  it("resolveAvailableTools includes create_appointment when core complete", () => {
+    const aiState: AiState = {
+      patient_id: "p-1",
+      booking: {
+        doctor_id: "dr-1",
+        procedure_id: "proc-1",
+        pending_slot: "2026-07-17T16:00:00.000Z",
+        status: "confirming",
+      },
+      consecutive_tool_failures: 0,
+    };
+    const flowState = syncFlowState({
+      workflow: DEFAULT_WORKFLOW_CONSULTA,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState: initConversationFlowState(DEFAULT_WORKFLOW_CONSULTA),
+    });
+    const input = {
+      workflow: DEFAULT_WORKFLOW_CONSULTA,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState,
+    };
+    const tools = resolveAvailableTools(input);
+    assert.ok(tools.includes("create_appointment"));
+  });
+
+  it("resolveAvailableTools excludes intake tools during confirming", () => {
+    const aiState: AiState = {
+      patient_id: "p-1",
+      booking: {
+        doctor_id: "dr-1",
+        procedure_id: "proc-1",
+        pending_slot: "2026-07-17T16:00:00.000Z",
+        status: "confirming",
+      },
+      consecutive_tool_failures: 0,
+    };
+    const flowState = syncFlowState({
+      workflow: DEFAULT_WORKFLOW_CONSULTA,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState: initConversationFlowState(DEFAULT_WORKFLOW_CONSULTA),
+    });
+    const tools = resolveAvailableTools({
+      workflow: DEFAULT_WORKFLOW_CONSULTA,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState,
+    });
+    assert.ok(tools.includes("create_appointment"));
+    assert.ok(!tools.includes("update_patient_intake"));
   });
 });
 

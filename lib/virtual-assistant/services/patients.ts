@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { phonesMatch } from "../patient-lookup";
+import { normalizeCpf } from "../normalize-cpf";
 
 export async function lookupPatientByPhone(
   supabase: SupabaseClient,
@@ -8,7 +9,7 @@ export async function lookupPatientByPhone(
 ) {
   const { data: patients } = await supabase
     .from("patients")
-    .select("id, full_name, email, phone, birth_date")
+    .select("id, full_name, email, phone, birth_date, cpf, custom_fields")
     .eq("clinic_id", clinicId)
     .not("phone", "is", null);
 
@@ -90,7 +91,15 @@ export async function updatePatientIntakeViaAssistant(
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined || value === null || value === "") continue;
     if (key === "cpf") {
-      updateData.cpf = String(value).trim();
+      const normalized = normalizeCpf(value);
+      if (!normalized) {
+        return { ok: false, error: "CPF inválido. Informe 11 dígitos." };
+      }
+      const existing = patient.cpf ? String(patient.cpf).replace(/\D/g, "") : "";
+      if (existing === normalized) {
+        return { ok: true, error: null };
+      }
+      updateData.cpf = normalized;
     } else if (key === "email") {
       updateData.email = String(value).trim();
     } else if (key.startsWith("custom:")) {

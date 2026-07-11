@@ -50,6 +50,9 @@ export type ToolExecutionOutcome = {
   result: ToolResult;
   handoff?: boolean;
   statePatch?: Partial<AiState>;
+  mutationOutcome?: import("./mutation-result").MutationOutcome;
+  entities?: import("./mutation-result").MutationEntities;
+  executionTrace?: import("../observability/execution-trace").ExecutionTrace;
 };
 
 export function toolResultToJson(result: ToolResult): string {

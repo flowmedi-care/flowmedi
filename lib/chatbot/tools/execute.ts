@@ -28,6 +28,8 @@ import {
   resolveServicePriceForClinic,
 } from "@/lib/virtual-assistant/services/pricing";
 import { minimizePatientForAiToolResult } from "@/lib/virtual-assistant/minimize-patient-for-ai";
+import { normalizeCpf } from "@/lib/virtual-assistant/normalize-cpf";
+import { outcomeFromServiceError } from "./error-class";
 import { searchFaqWithFallback } from "../knowledge/faq-retrieval";
 import type { ToolContext, ToolExecutionOutcome, ToolOption } from "./types";
 import {
@@ -153,7 +155,16 @@ export async function executeTool(
         }
 
         const intakeFields: Record<string, unknown> = {};
-        if (args.cpf) intakeFields.cpf = args.cpf;
+        if (args.cpf) {
+          const normalized = normalizeCpf(args.cpf);
+          if (!normalized) {
+            return {
+              result: errorResult("CPF inválido. Informe 11 dígitos."),
+              mutationOutcome: "business",
+            };
+          }
+          intakeFields.cpf = normalized;
+        }
         if (args.email) intakeFields.email = args.email;
         if (args.insurance) intakeFields.insurance = args.insurance;
         if (args.payment_method) intakeFields.payment_method = args.payment_method;
@@ -178,8 +189,12 @@ export async function executeTool(
           intakeFields
         );
         if (!res.ok) {
+          const outcome = outcomeFromServiceError(res.error);
           await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "err", false);
-          return { result: errorResult(res.error ?? "Erro ao atualizar dados.") };
+          return {
+            result: errorResult(res.error ?? "Erro ao atualizar dados."),
+            mutationOutcome: outcome,
+          };
         }
 
         const prevCollected = ctx.aiState.conversation_flow?.collected ?? {};
@@ -188,6 +203,8 @@ export async function executeTool(
         await logToolCall(supabase, clinicId, conversationId, name, args, "ok", true);
         return {
           result: successResult({ updated: true, fields: Object.keys(intakeFields) }),
+          mutationOutcome: "success",
+          entities: { patient: patientId },
           statePatch: {
             conversation_flow: {
               ...(ctx.aiState.conversation_flow ?? {
@@ -509,7 +526,10 @@ export async function executeTool(
           !res.error
         );
         if (res.error) {
-          return { result: errorResult(res.error) };
+          return {
+            result: errorResult(res.error),
+            mutationOutcome: outcomeFromServiceError(res.error),
+          };
         }
         const updatedFlow = markMutationDone(flowState, "create_booking");
         const synced = syncFlowState({ ...engineInput, flowState: updatedFlow });
@@ -519,6 +539,11 @@ export async function executeTool(
             created: true,
             intake_pendencies: pendencies,
           }),
+          mutationOutcome: "success",
+          entities: {
+            appointment: res.appointmentId ?? undefined,
+            patient: String(args.patient_id ?? ctx.aiState.patient_id),
+          },
           statePatch: {
             booking: { status: "done" },
             conversation_flow: synced,

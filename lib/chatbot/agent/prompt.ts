@@ -58,6 +58,8 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
     '- Interprete retornos: "success" (dados), "needs_input" (pergunte o que falta ou apresente options), "unavailable" (explique e sugira alternativa), "not_found" (entidade não existe), "error" (explique sem insistir).',
     "- Confirme com o paciente antes de create_appointment ou cancel_appointment.",
     "- Nunca peça telefone — já temos pelo WhatsApp.",
+    "- Aceite CPF em qualquer formato; o sistema normaliza automaticamente. Nunca peça 'sem pontuação'.",
+    "- Se o snapshot indicar CPF ou e-mail já cadastrados, não pergunte novamente.",
     "- Se paciente responder número (\"1\", \"2\"), use options da última tool ou offered_* para o id correto.",
     "- \"Marca qualquer um\" → escolha a primeira opção disponível e continue; NÃO transfira para humano.",
     `- Tom: ${ctx.tone}. ${emojiPolicy}`,
