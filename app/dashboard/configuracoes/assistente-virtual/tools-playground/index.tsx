@@ -18,6 +18,7 @@ import { ToolSidebar } from "./tool-sidebar";
 import { ContextPanel } from "./context-panel";
 import { ConversationStateEditor } from "./conversation-state-editor";
 import { ToolParamsForm } from "./tool-params-form";
+import { BookingSlotPicker } from "./booking-slot-picker";
 import { ExecutionPipeline } from "./execution-pipeline";
 import { ExecutionHistory } from "./execution-history";
 import { PresetsBar } from "./presets-bar";
@@ -104,7 +105,12 @@ export function ToolsPlayground({ toolDefinitions }: Props) {
     if (execute) void runExecution(entry);
   }
 
-  async function runExecution(override?: Partial<PlaygroundHistoryEntry>) {
+  async function runExecution(
+    override?: Partial<PlaygroundHistoryEntry> & {
+      args?: Record<string, unknown>;
+      silent?: boolean;
+    }
+  ): Promise<ExecuteResponse | null> {
     const tool = override?.toolName ?? selectedTool;
     const phoneVal = override?.phone ?? phone;
     const convId = override?.conversationId ?? conversationId;
@@ -115,29 +121,30 @@ export function ToolsPlayground({ toolDefinitions }: Props) {
 
     if (!phoneVal.trim()) {
       toast("Informe o telefone de contexto", "error");
-      return;
+      return null;
     }
 
     if (mode === "production" && !CHATBOT_TOOL_SET.has(tool)) {
       toast("Ferramenta não disponível no modo produção", "error");
-      return;
+      return null;
     }
 
     const mutating = MUTATING_TOOLS.has(tool);
-    if (mutating) {
+    if (mutating && !override?.silent) {
       const label = ASSISTANT_TOOL_CATALOG.find((t) => t.name === tool)?.label ?? tool;
       const ok = confirm(
         `A ferramenta "${label}" altera dados reais no sistema.\n\nTelefone: ${phoneVal}\n\nDeseja continuar?`
       );
-      if (!ok) return;
+      if (!ok) return null;
     }
 
-    const args = buildArgsFromForm(
+    const formArgs = buildArgsFromForm(
       def
         ? ((def.function.parameters as { properties?: Record<string, JsonSchemaProperty> }).properties ?? {})
         : {},
       forms
     );
+    const args = override?.args ? { ...formArgs, ...override.args } : formArgs;
 
     const required =
       def
@@ -147,9 +154,9 @@ export function ToolsPlayground({ toolDefinitions }: Props) {
       const val = args[key];
       return val === undefined || val === null || val === "";
     });
-    if (missing.length > 0) {
+    if (missing.length > 0 && !override?.args) {
       toast(`Campos obrigatórios: ${missing.join(", ")}`, "error");
-      return;
+      return null;
     }
 
     setRunning(true);
@@ -171,7 +178,7 @@ export function ToolsPlayground({ toolDefinitions }: Props) {
       const json = (await res.json()) as ExecuteResponse & { requiresConfirmation?: boolean };
       if (!res.ok) {
         toast(json.error ?? "Erro ao executar ferramenta", "error");
-        return;
+        return null;
       }
 
       setLastResult(json);
@@ -181,6 +188,8 @@ export function ToolsPlayground({ toolDefinitions }: Props) {
       } else if (json.statePatch && Object.keys(json.statePatch).length > 0) {
         setAiState({ ...state, ...json.statePatch });
       }
+
+      if (override?.formValues) setFormValues(override.formValues);
 
       addEntry({
         toolName: json.toolName,
@@ -195,12 +204,16 @@ export function ToolsPlayground({ toolDefinitions }: Props) {
         durationMs: json.durationMs,
         handoff: json.handoff,
         debug: json.debug,
-        formValues: forms,
+        formValues: override?.formValues ?? forms,
       });
 
-      toast(`Ferramenta executada em ${json.durationMs}ms`, "success");
+      if (!override?.silent) {
+        toast(`Ferramenta executada em ${json.durationMs}ms`, "success");
+      }
+      return json;
     } catch {
       toast("Falha ao executar ferramenta", "error");
+      return null;
     } finally {
       setRunning(false);
     }
@@ -226,6 +239,82 @@ export function ToolsPlayground({ toolDefinitions }: Props) {
     if (!context?.aiState) return;
     setAiState(context.aiState as Record<string, unknown>);
     if (context.conversationId) setConversationId(context.conversationId);
+  }
+
+  const offeredDays = Array.isArray(aiState.offered_days) ? aiState.offered_days : [];
+  const booking = aiState.booking as { offered_slots?: unknown[] } | undefined;
+  const showBookingPicker =
+    selectedTool === "find_available_slots" ||
+    selectedTool === "create_appointment" ||
+    offeredDays.length > 0 ||
+    (booking?.offered_slots?.length ?? 0) > 0 ||
+    (lastResult?.toolName === "find_available_slots");
+
+  async function handleFetchDays() {
+    await runExecution({
+      toolName: "find_available_slots",
+      args: {
+        doctor_id: formValues.doctor_id,
+        procedure_id: formValues.procedure_id,
+      },
+    });
+  }
+
+  async function handleFetchTimesForDay(date: string) {
+    const json = await runExecution({
+      toolName: "find_available_slots",
+      silent: true,
+      args: {
+        doctor_id: formValues.doctor_id,
+        procedure_id: formValues.procedure_id,
+        date,
+      },
+      formValues: { ...formValues, date },
+    });
+    return json?.result ?? null;
+  }
+
+  async function handleLoadMoreDays(skipDays: number) {
+    await runExecution({
+      toolName: "find_available_slots",
+      args: {
+        doctor_id: formValues.doctor_id,
+        procedure_id: formValues.procedure_id,
+        skip_days: skipDays,
+      },
+      formValues: { ...formValues, skip_days: String(skipDays) },
+    });
+  }
+
+  async function handleCreateAppointment(
+    scheduledAt: string,
+    _dayLabel?: string,
+    _timeLabel?: string
+  ) {
+    const patient =
+      formValues.patient_id ||
+      String(aiState.patient_id ?? "") ||
+      context?.patient?.id ||
+      "";
+    setSelectedTool("create_appointment");
+    const nextForms = {
+      ...formValues,
+      patient_id: patient,
+      doctor_id: formValues.doctor_id,
+      procedure_id: formValues.procedure_id,
+      scheduled_at: scheduledAt,
+    };
+    setFormValues(nextForms);
+    await runExecution({
+      toolName: "create_appointment",
+      formValues: nextForms,
+      args: {
+        patient_id: patient,
+        doctor_id: formValues.doctor_id,
+        procedure_id: formValues.procedure_id,
+        scheduled_at: scheduledAt,
+      },
+    });
   }
 
   return (
@@ -334,20 +423,59 @@ export function ToolsPlayground({ toolDefinitions }: Props) {
                 appointments={context?.appointments}
               />
 
-              <ToolParamsForm
-                properties={schemaParams.properties}
-                required={schemaParams.required}
-                formValues={formValues}
-                onFormChange={setFormValues}
-                catalog={catalog}
-                phoneContext={context}
-                aiState={aiState}
-              />
+              {showBookingPicker ? (
+                <BookingSlotPicker
+                  catalog={catalog}
+                  phoneContext={context}
+                  aiState={aiState}
+                  onAiStateChange={setAiState}
+                  formValues={formValues}
+                  onFormChange={setFormValues}
+                  lastResult={lastResult?.result ?? null}
+                  lastToolName={lastResult?.toolName}
+                  running={running}
+                  onFetchDays={handleFetchDays}
+                  onFetchTimesForDay={handleFetchTimesForDay}
+                  onLoadMoreDays={handleLoadMoreDays}
+                  onCreateAppointment={handleCreateAppointment}
+                  showAdvancedParams={selectedTool === "find_available_slots"}
+                  advancedParams={
+                    <ToolParamsForm
+                      properties={schemaParams.properties}
+                      required={schemaParams.required}
+                      formValues={formValues}
+                      onFormChange={setFormValues}
+                      catalog={catalog}
+                      phoneContext={context}
+                      aiState={aiState}
+                    />
+                  }
+                />
+              ) : (
+                <ToolParamsForm
+                  properties={schemaParams.properties}
+                  required={schemaParams.required}
+                  formValues={formValues}
+                  onFormChange={setFormValues}
+                  catalog={catalog}
+                  phoneContext={context}
+                  aiState={aiState}
+                />
+              )}
 
-              <Button onClick={() => void runExecution()} disabled={running}>
-                <Play className="mr-2 h-4 w-4" />
-                {running ? "Executando…" : "Executar ferramenta"}
-              </Button>
+              {!showBookingPicker && (
+                <Button onClick={() => void runExecution()} disabled={running}>
+                  <Play className="mr-2 h-4 w-4" />
+                  {running ? "Executando…" : "Executar ferramenta"}
+                </Button>
+              )}
+
+              {showBookingPicker && selectedTool !== "find_available_slots" && (
+                <Button onClick={() => void runExecution()} disabled={running}>
+                  <Play className="mr-2 h-4 w-4" />
+                  {running ? "Executando…" : "Executar ferramenta"}
+                </Button>
+              )}
             </CardContent>
           </Card>
 

@@ -146,10 +146,15 @@ export function ExecutionPipeline({
       <PipelineSection
         id="output"
         title="OUTPUT"
-        defaultOpen
+        defaultOpen={toolName !== "find_available_slots"}
         badge={statusBadge(result)}
         onCopy={() => copyToClipboard(formatJson(result))}
       >
+        {toolName === "find_available_slots" && (
+          <p className="mb-2 text-xs text-muted-foreground">
+            Use o painel de agendamento acima para escolher dia e horário. JSON bruto abaixo.
+          </p>
+        )}
         <pre className="max-h-80 overflow-auto rounded bg-muted/50 p-3 text-xs">{formatJson(result)}</pre>
       </PipelineSection>
 
