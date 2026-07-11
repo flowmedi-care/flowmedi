@@ -22,6 +22,7 @@ import { BookingSlotPicker } from "./booking-slot-picker";
 import { ExecutionPipeline } from "./execution-pipeline";
 import { ExecutionHistory } from "./execution-history";
 import { PresetsBar } from "./presets-bar";
+import { FlowDebuggerPanel } from "./flow-debugger-panel";
 import { usePlaygroundCatalog, usePhoneContext } from "./hooks/use-playground-catalog";
 import {
   usePlaygroundHistory,
@@ -59,7 +60,7 @@ export function ToolsPlayground({ toolDefinitions }: Props) {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"all" | import("@/lib/virtual-assistant/tools/catalog").AssistantToolCategory>("all");
   const [selectedTool, setSelectedTool] = useState(ASSISTANT_TOOL_CATALOG[0]?.name ?? "list_doctors");
-  const [executorMode, setExecutorMode] = useState<"production" | "full">("full");
+  const [executorMode, setExecutorMode] = useState<"production" | "full">("production");
   const [phone, setPhone] = useState("5511999999999");
   const [conversationId, setConversationId] = useState("");
   const [aiState, setAiState] = useState<Record<string, unknown>>({});
@@ -342,7 +343,10 @@ export function ToolsPlayground({ toolDefinitions }: Props) {
                 <option value="production">Modo produção (chatbot)</option>
               </Select>
               {executorMode === "production" && (
-                <p className="text-[10px] text-muted-foreground">12 ferramentas do runtime WhatsApp</p>
+                <p className="text-[10px] text-muted-foreground">12 ferramentas · fluxo conversacional ativo</p>
+              )}
+              {executorMode === "full" && (
+                <p className="text-[10px] text-amber-600">Modo VA ignora política de fluxo</p>
               )}
             </div>
           </div>
@@ -421,6 +425,23 @@ export function ToolsPlayground({ toolDefinitions }: Props) {
                 onChange={setAiState}
                 catalog={catalog}
                 appointments={context?.appointments}
+              />
+
+              <FlowDebuggerPanel
+                conversationFlow={(() => {
+                  const after = lastResult?.debug?.aiStateAfter as Record<string, unknown> | undefined;
+                  const cf = after?.conversation_flow ?? aiState.conversation_flow;
+                  return cf as import("@/lib/attendance-flow/types").ConversationFlowState | undefined;
+                })()}
+                workflowLabel={String(
+                  (
+                    (lastResult?.debug?.aiStateAfter as Record<string, unknown> | undefined)
+                      ?.conversation_flow as { active_workflow_id?: string } | undefined
+                  )?.active_workflow_id ??
+                    (aiState.conversation_flow as { active_workflow_id?: string } | undefined)
+                      ?.active_workflow_id ??
+                    "consulta"
+                )}
               />
 
               {showBookingPicker ? (

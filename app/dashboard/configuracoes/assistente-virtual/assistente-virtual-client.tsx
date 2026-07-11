@@ -14,17 +14,21 @@ import { AssistenteVirtualDiagnostics } from "./assistente-virtual-diagnostics";
 import { AssistenteVirtualFaqTab } from "./assistente-virtual-faq-tab";
 import { AssistenteVirtualToolsPlayground } from "./assistente-virtual-tools-playground";
 import { AssistenteVirtualPipelineTab } from "./assistente-virtual-pipeline-tab";
+import { AssistenteVirtualFlowsTab } from "./assistente-virtual-flows-tab";
 import type { ToolDefinition } from "@/lib/virtual-assistant/openai-client";
+import type { ConversationFlowsConfig } from "@/lib/attendance-flow/types";
+import { mergeConversationFlows } from "@/lib/attendance-flow/defaults";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 
-type TabId = "geral" | "politicas" | "faq" | "comportamento" | "ferramentas" | "pipeline" | "diagnostico";
+type TabId = "geral" | "politicas" | "faq" | "comportamento" | "ferramentas" | "fluxos" | "pipeline" | "diagnostico";
 
 interface Props {
   canUse: boolean;
   initialSettings: Partial<VirtualAssistantSettings> | null;
   initialFaq: VirtualAssistantFaq[];
   toolDefinitions: ToolDefinition[];
+  initialConversationFlows?: ConversationFlowsConfig;
   clinic: {
     auto_message_send_start: string | null;
     auto_message_send_end: string | null;
@@ -36,6 +40,7 @@ export function AssistenteVirtualClient({
   initialSettings,
   initialFaq,
   toolDefinitions,
+  initialConversationFlows,
   clinic,
 }: Props) {
   const [tab, setTab] = useState<TabId>("geral");
@@ -66,6 +71,7 @@ export function AssistenteVirtualClient({
     { id: "faq", label: "FAQ" },
     { id: "comportamento", label: "Comportamento" },
     { id: "ferramentas", label: "Ferramentas" },
+    { id: "fluxos", label: "Fluxos Conversacionais" },
     { id: "pipeline", label: "Pipeline" },
     { id: "diagnostico", label: "Diagnóstico" },
   ];
@@ -282,6 +288,12 @@ export function AssistenteVirtualClient({
 
       {tab === "ferramentas" && (
         <AssistenteVirtualToolsPlayground toolDefinitions={toolDefinitions} />
+      )}
+
+      {tab === "fluxos" && (
+        <AssistenteVirtualFlowsTab
+          initialFlows={mergeConversationFlows(initialConversationFlows ?? null)}
+        />
       )}
 
       {tab === "pipeline" && (

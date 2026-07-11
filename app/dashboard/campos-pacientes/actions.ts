@@ -13,6 +13,7 @@ export type CustomFieldInsert = {
   options?: string[];
   display_order: number;
   include_in_public_form?: boolean;
+  whatsapp_policy?: "ignore" | "optional" | "required";
 };
 
 export type CustomFieldUpdate = Partial<CustomFieldInsert>;
@@ -100,6 +101,7 @@ export async function createCustomField(data: CustomFieldInsert) {
     options: data.options || null,
     display_order: data.display_order,
     include_in_public_form: data.include_in_public_form ?? false,
+    whatsapp_policy: data.whatsapp_policy ?? "ignore",
   });
 
   if (error) return { error: error.message };

@@ -604,6 +604,11 @@ function ConsultaListItem({
         <Badge className={getStatusBadgeClassName(c.status) + " shrink-0 self-center"}>
           {STATUS_OPTIONS.find((s) => s.value === c.status)?.label ?? c.status}
         </Badge>
+        {(c.intake_pendencies?.length ?? 0) > 0 && (
+          <Badge variant="outline" className="shrink-0 self-center text-amber-700 border-amber-300">
+            Incompleto WhatsApp
+          </Badge>
+        )}
       </Link>
     </li>
   );

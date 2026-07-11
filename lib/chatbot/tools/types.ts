@@ -31,6 +31,9 @@ export type ToolResult<T = unknown> = {
 
 export type FaqItem = { id: string; question: string; answer: string };
 
+import type { ClinicFlowConfig } from "@/lib/attendance-flow/flow-sync";
+import type { CustomFieldForGoals } from "@/lib/attendance-flow/types";
+
 export type ToolContext = {
   supabase: SupabaseClient;
   clinicId: string;
@@ -39,6 +42,8 @@ export type ToolContext = {
   aiState: AiState;
   settings: Partial<VirtualAssistantSettings>;
   faqs: FaqItem[];
+  flowConfig?: ClinicFlowConfig;
+  customFields?: CustomFieldForGoals[];
 };
 
 export type ToolExecutionOutcome = {

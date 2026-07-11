@@ -9,6 +9,8 @@ import {
   isInsideHandoffWindow,
 } from "@/lib/virtual-assistant/handoff-hours";
 import type { VirtualAssistantSettings } from "@/lib/virtual-assistant/types";
+import { canExecuteMutation } from "@/lib/attendance-flow/engine";
+import type { EngineInput } from "@/lib/attendance-flow/engine";
 
 const APPOINTMENT_MUTATIONS = new Set([
   "cancel_appointment",
@@ -20,7 +22,8 @@ export function validateToolCall(
   args: Record<string, unknown>,
   aiState: AiState,
   settings: Partial<VirtualAssistantSettings>,
-  facts?: NormalizedFacts
+  facts?: NormalizedFacts,
+  engineInput?: EngineInput
 ): ToolResult | null {
   if (toolName === "create_appointment") {
     const patientId = args.patient_id ?? aiState.patient_id;
@@ -57,6 +60,23 @@ export function validateToolCall(
         "Horário fora das opções oferecidas. Use um horário de offered_slots ou busque novamente."
       );
     }
+
+    if (engineInput) {
+      const gate = canExecuteMutation(
+        "booking_created",
+        engineInput.flowState.mode,
+        engineInput.policy,
+        engineInput.registry,
+        engineInput.flowState.pending,
+        engineInput.workflow.id
+      );
+      if (!gate.ok) {
+        return needsInputResult(
+          gate.missing.map((m) => ({ field: m })),
+          gate.message
+        );
+      }
+    }
   }
 
   if (toolName === "find_available_slots") {
@@ -82,6 +102,23 @@ export function validateToolCall(
         ["appointment_id"],
         "Consulta não identificada. Chame list_patient_appointments antes."
       );
+    }
+
+    if (toolName === "cancel_appointment" && engineInput) {
+      const gate = canExecuteMutation(
+        "cancel_booking",
+        engineInput.flowState.mode,
+        engineInput.policy,
+        engineInput.registry,
+        engineInput.flowState.pending,
+        engineInput.workflow.id
+      );
+      if (!gate.ok) {
+        return needsInputResult(
+          gate.missing.map((m) => ({ field: m })),
+          gate.message
+        );
+      }
     }
   }
 

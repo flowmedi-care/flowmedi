@@ -47,6 +47,8 @@ export type VirtualAssistantSettings = {
   confirmation_flow_id?: string | null;
   confirmation_flow_template_name?: string | null;
   tool_execution_modes?: ToolExecutionModesConfig | null;
+  appointment_policy?: Record<string, unknown> | null;
+  conversation_flows?: Record<string, unknown> | null;
 };
 
 export type VirtualAssistantLocation = {

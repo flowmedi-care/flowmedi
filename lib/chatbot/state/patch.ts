@@ -168,6 +168,19 @@ export function mergeAiState(current: AiState, patch: Partial<AiState>): AiState
         ? undefined
         : ({ ...current.booking, ...patch.booking } as AiState["booking"]);
   }
+  if (patch.conversation_flow !== undefined) {
+    next.conversation_flow =
+      patch.conversation_flow === undefined
+        ? undefined
+        : ({
+            ...current.conversation_flow,
+            ...patch.conversation_flow,
+            collected: {
+              ...(current.conversation_flow?.collected ?? {}),
+              ...(patch.conversation_flow.collected ?? {}),
+            },
+          } as AiState["conversation_flow"]);
+  }
   return next;
 }
 

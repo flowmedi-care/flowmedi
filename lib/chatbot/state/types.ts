@@ -24,9 +24,25 @@ export type BookingState = {
   status: "collecting" | "confirming" | "done";
 };
 
+export type ConversationFlowState = {
+  active_workflow_id: string;
+  mode: "express" | "assisted" | "strict";
+  satisfied: string[];
+  pending: string[];
+  collected: Record<string, unknown>;
+  focus_goal_id?: string;
+  pending_confirmation?: {
+    goal_id: string;
+    tool: string;
+    args: Record<string, unknown>;
+  };
+  mutation_done?: Record<string, boolean>;
+};
+
 export type AiState = {
   patient_id?: string;
   booking?: BookingState;
+  conversation_flow?: ConversationFlowState;
   offered_doctors?: OfferedOption[];
   offered_procedures?: OfferedOption[];
   offered_days?: OfferedDay[];

@@ -18,7 +18,11 @@ import {
   linkConversationToPatient,
   lookupPatientByPhone,
   registerPatientViaAssistant,
+  updatePatientIntakeViaAssistant,
 } from "@/lib/virtual-assistant/services/patients";
+import { computePendencies, markMutationDone, syncFlowState, getWorkflowFromConfig } from "@/lib/attendance-flow/engine";
+import { mergeClinicFlowConfig, buildGoalRegistry } from "@/lib/attendance-flow/flow-sync";
+import { DEFAULT_WORKFLOW_CONSULTA } from "@/lib/attendance-flow/defaults";
 import {
   getProcedureInfo,
   resolveServicePriceForClinic,
@@ -137,6 +141,64 @@ export async function executeTool(
         return {
           result: successResult(res),
           statePatch: res.patientId ? { patient_id: res.patientId } : undefined,
+        };
+      }
+
+      case "update_patient_intake": {
+        const patientId = String(args.patient_id ?? ctx.aiState.patient_id ?? "");
+        if (!patientId) {
+          return {
+            result: needsInputResult(["patient_id"], "Paciente não identificado."),
+          };
+        }
+
+        const intakeFields: Record<string, unknown> = {};
+        if (args.cpf) intakeFields.cpf = args.cpf;
+        if (args.email) intakeFields.email = args.email;
+        if (args.insurance) intakeFields.insurance = args.insurance;
+        if (args.payment_method) intakeFields.payment_method = args.payment_method;
+        if (args.guardian) intakeFields.guardian = args.guardian;
+        if (args.cancel_reason) intakeFields.cancel_reason = args.cancel_reason;
+        if (args.custom_fields && typeof args.custom_fields === "object") {
+          for (const [k, v] of Object.entries(args.custom_fields as Record<string, unknown>)) {
+            intakeFields[`custom:${k}`] = v;
+          }
+        }
+
+        if (Object.keys(intakeFields).length === 0) {
+          return {
+            result: needsInputResult([], "Informe ao menos um campo para atualizar."),
+          };
+        }
+
+        const res = await updatePatientIntakeViaAssistant(
+          supabase,
+          clinicId,
+          patientId,
+          intakeFields
+        );
+        if (!res.ok) {
+          await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "err", false);
+          return { result: errorResult(res.error ?? "Erro ao atualizar dados.") };
+        }
+
+        const prevCollected = ctx.aiState.conversation_flow?.collected ?? {};
+        const collected = { ...prevCollected, ...intakeFields };
+
+        await logToolCall(supabase, clinicId, conversationId, name, args, "ok", true);
+        return {
+          result: successResult({ updated: true, fields: Object.keys(intakeFields) }),
+          statePatch: {
+            conversation_flow: {
+              ...(ctx.aiState.conversation_flow ?? {
+                active_workflow_id: "consulta",
+                mode: "assisted",
+                satisfied: [],
+                pending: [],
+              }),
+              collected,
+            },
+          },
         };
       }
 
@@ -404,6 +466,29 @@ export async function executeTool(
 
       case "create_appointment": {
         const offeredSlots = ctx.aiState.booking?.offered_slots ?? [];
+        const flowConfig = ctx.flowConfig ?? mergeClinicFlowConfig({});
+        const registry = buildGoalRegistry(ctx.customFields);
+        const workflow =
+          getWorkflowFromConfig(
+            flowConfig.conversationFlows,
+            ctx.aiState.conversation_flow?.active_workflow_id ?? "consulta"
+          ) ?? DEFAULT_WORKFLOW_CONSULTA;
+        const flowState = ctx.aiState.conversation_flow ?? {
+          active_workflow_id: workflow.id,
+          mode: workflow.mode,
+          satisfied: [],
+          pending: [],
+          collected: {},
+        };
+        const engineInput = {
+          workflow,
+          policy: flowConfig.appointmentPolicy,
+          registry,
+          aiState: ctx.aiState,
+          flowState,
+        };
+        const pendencies = computePendencies(engineInput);
+
         const res = await createAppointmentViaAssistant(supabase, {
           clinicId,
           patientId: String(args.patient_id ?? ctx.aiState.patient_id),
@@ -412,6 +497,7 @@ export async function executeTool(
           scheduledAt: String(args.scheduled_at ?? ctx.aiState.booking?.pending_slot),
           dimensionValueIds: [],
           offeredSlots,
+          intakePendencies: pendencies,
         });
         await logToolCall(
           supabase,
@@ -425,12 +511,18 @@ export async function executeTool(
         if (res.error) {
           return { result: errorResult(res.error) };
         }
+        const updatedFlow = markMutationDone(flowState, "create_booking");
+        const synced = syncFlowState({ ...engineInput, flowState: updatedFlow });
         return {
           result: successResult({
             appointment_id: res.appointmentId,
             created: true,
+            intake_pendencies: pendencies,
           }),
-          statePatch: { booking: { status: "done" } },
+          statePatch: {
+            booking: { status: "done" },
+            conversation_flow: synced,
+          },
         };
       }
 
@@ -505,9 +597,16 @@ export async function executeTool(
         );
         await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "cancelada", !res.error);
         if (res.error) return { result: errorResult(res.error) };
+        const flowState = ctx.aiState.conversation_flow;
+        const updatedFlow = flowState
+          ? markMutationDone(flowState, "cancel_booking")
+          : undefined;
         return {
           result: successResult({ cancelled: true, appointment_id: appointmentId }),
-          statePatch: { focused_appointment_id: undefined },
+          statePatch: {
+            focused_appointment_id: undefined,
+            ...(updatedFlow ? { conversation_flow: updatedFlow } : {}),
+          },
         };
       }
 

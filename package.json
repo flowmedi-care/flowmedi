@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:clinical": "npx tsx --test lib/clinical-documents/validate.test.ts",
-    "test:pipeline": "npx tsx --test lib/chatbot/guardrails/__tests__/validators.test.ts lib/chatbot/guardrails/__tests__/handoff-guard.test.ts lib/chatbot/state/__tests__/migrate.test.ts lib/chatbot/state/__tests__/resolve-facts.test.ts lib/chatbot/__tests__/conversation-eval.test.ts lib/chatbot/__tests__/booking-continuity.test.ts lib/chatbot/extractors/__tests__/extractors.test.ts lib/chatbot/observability/__tests__/tool-score.test.ts lib/virtual-assistant/__tests__/bot-loop-guard.test.ts lib/contact-journey/__tests__/timeout-policy.test.ts lib/contact-journey/__tests__/dropout-inference.test.ts",
+    "test:pipeline": "npx tsx --test lib/attendance-flow/__tests__/engine.test.ts lib/chatbot/guardrails/__tests__/validators.test.ts lib/chatbot/guardrails/__tests__/handoff-guard.test.ts lib/chatbot/state/__tests__/migrate.test.ts lib/chatbot/state/__tests__/resolve-facts.test.ts lib/chatbot/__tests__/conversation-eval.test.ts lib/chatbot/__tests__/booking-continuity.test.ts lib/chatbot/extractors/__tests__/extractors.test.ts lib/chatbot/observability/__tests__/tool-score.test.ts lib/virtual-assistant/__tests__/bot-loop-guard.test.ts lib/contact-journey/__tests__/timeout-policy.test.ts lib/contact-journey/__tests__/dropout-inference.test.ts",
     "verify:subdomain": "node scripts/verify-subdomain-setup.mjs"
   },
   "dependencies": {

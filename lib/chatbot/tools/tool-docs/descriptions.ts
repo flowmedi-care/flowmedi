@@ -17,6 +17,12 @@ export const TOOL_DESCRIPTIONS: Record<ChatbotToolName, string> = {
     "When NOT: paciente já cadastrado; sem nome completo.\n" +
     "Output success: patientId.",
 
+  update_patient_intake:
+    "Purpose: Persistir dados coletados do paciente (CPF, convênio, pagamento, campos custom).\n" +
+    "When to use: após paciente informar dado de intake no fluxo conversacional.\n" +
+    "When NOT: cadastro inicial (register_patient); agendamento (create_appointment).\n" +
+    "Output success: updated=true.",
+
   list_procedures:
     "Purpose: Listar procedimentos da clínica (id, nome, duração).\n" +
     "When to use: discovery (\"o que vocês fazem?\"); início de booking; paciente não sabe procedimento.\n" +

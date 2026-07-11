@@ -24,7 +24,7 @@ export default async function CamposPersonalizadosPage({
   const [fieldsRes, templatesRaw, patientsRes] = await Promise.all([
     supabase
       .from("patient_custom_fields")
-      .select("id, field_name, field_type, field_label, required, options, display_order, include_in_public_form")
+      .select("id, field_name, field_type, field_label, required, options, display_order, include_in_public_form, whatsapp_policy")
       .eq("clinic_id", profile.clinic_id)
       .order("display_order"),
     supabase

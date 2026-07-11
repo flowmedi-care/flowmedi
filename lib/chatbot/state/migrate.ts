@@ -1,4 +1,4 @@
-import type { AiState, BookingState, OfferedSlot } from "./types";
+import type { AiState, BookingState, ConversationFlowState, OfferedSlot } from "./types";
 import { initialAiState } from "./types";
 
 type LegacyRaw = Record<string, unknown>;
@@ -32,6 +32,26 @@ export function normalizeAiState(raw: LegacyRaw | null | undefined): AiState {
       ? String(raw.bot_loop_window_since)
       : undefined,
   };
+
+  if (raw.conversation_flow && typeof raw.conversation_flow === "object") {
+    const cf = raw.conversation_flow as ConversationFlowState;
+    base.conversation_flow = {
+      active_workflow_id: String(cf.active_workflow_id ?? "consulta"),
+      mode: cf.mode ?? "assisted",
+      satisfied: Array.isArray(cf.satisfied) ? cf.satisfied.map(String) : [],
+      pending: Array.isArray(cf.pending) ? cf.pending.map(String) : [],
+      collected:
+        cf.collected && typeof cf.collected === "object"
+          ? (cf.collected as Record<string, unknown>)
+          : {},
+      focus_goal_id: cf.focus_goal_id ? String(cf.focus_goal_id) : undefined,
+      pending_confirmation: cf.pending_confirmation,
+      mutation_done:
+        cf.mutation_done && typeof cf.mutation_done === "object"
+          ? (cf.mutation_done as Record<string, boolean>)
+          : {},
+    };
+  }
 
   if (raw.booking && typeof raw.booking === "object") {
     const b = raw.booking as BookingState;

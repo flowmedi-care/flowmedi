@@ -15,6 +15,7 @@ export type ClinicContext = {
   settings: Partial<VirtualAssistantSettings>;
   aiState?: AiState;
   facts?: NormalizedFacts;
+  flowBlock?: string;
 };
 
 export function formatContextForPrompt(
@@ -72,6 +73,10 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
   const contextBlock = formatContextForPrompt(ctx.facts, ctx.aiState);
   if (contextBlock) {
     lines.push("", contextBlock);
+  }
+
+  if (ctx.flowBlock) {
+    lines.push("", "Fluxo conversacional (siga o foco atual):", ctx.flowBlock);
   }
 
   return lines.join("\n");

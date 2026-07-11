@@ -4,6 +4,7 @@ import { TOOL_DESCRIPTIONS } from "./tool-docs/descriptions";
 export const CHATBOT_TOOL_NAMES = [
   "lookup_patient_by_phone",
   "register_patient",
+  "update_patient_intake",
   "list_procedures",
   "list_doctors",
   "find_available_slots",
@@ -43,6 +44,22 @@ export const CHATBOT_TOOLS: ToolDefinition[] = [
       email: { type: "string", description: "E-mail opcional" },
     },
     required: ["full_name"],
+  }),
+  toolDef("update_patient_intake", {
+    type: "object",
+    properties: {
+      patient_id: { type: "string", description: "UUID do paciente" },
+      cpf: { type: "string", description: "CPF do paciente" },
+      email: { type: "string", description: "E-mail do paciente" },
+      insurance: { type: "string", description: "Convênio ou 'particular'" },
+      payment_method: { type: "string", description: "Forma de pagamento preferida" },
+      guardian: { type: "string", description: "Nome do responsável (menor de idade)" },
+      cancel_reason: { type: "string", description: "Motivo do cancelamento" },
+      custom_fields: {
+        type: "object",
+        description: "Campos personalizados { field_name: value }",
+      },
+    },
   }),
   toolDef("list_procedures", {
     type: "object",

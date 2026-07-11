@@ -19,6 +19,7 @@ import { HANDOFF_REPLY_BODY } from "@/lib/whatsapp-sender-display";
 import { tryReactivateAiAfterHandoff } from "./handoff-reactivation";
 import { ensureAiPrivacyNoticeSent } from "./ai-privacy-notice";
 import { buildClinicContext } from "./clinic-context";
+import { loadClinicFlowConfig } from "@/lib/attendance-flow/load-clinic-flow-config";
 
 export interface SkipMenuChatbotResult {
   skipMenu: boolean;
@@ -563,6 +564,7 @@ async function processConversationAiInner(
   }
 
   const clinicCtx = await buildClinicContext(supabase, conv.clinic_id);
+  const { flowConfig, customFields } = await loadClinicFlowConfig(supabase, conv.clinic_id);
   const combinedUserText = userTexts.join("\n").trim();
   const { data: faqRows } = await supabase
     .from("clinic_virtual_assistant_faq")
@@ -598,6 +600,8 @@ async function processConversationAiInner(
     clinicName: clinicCtx.clinicName,
     hoursText: undefined,
     address: undefined,
+    flowConfig,
+    customFields,
   }).catch((e) => {
     console.error("[Chatbot] turn error:", e);
     const msg =

@@ -20,6 +20,7 @@ import {
 import { buildConsumptionFromProcedures, commitStockForAppointment } from "@/lib/clinic-operations";
 import type { OfferedSlot } from "@/lib/virtual-assistant/types";
 import { resolveServicePriceForClinic } from "./pricing";
+import type { IntakePendency } from "@/lib/attendance-flow/types";
 
 export async function createAppointmentViaAssistant(
   supabase: SupabaseClient,
@@ -32,6 +33,7 @@ export async function createAppointmentViaAssistant(
     dimensionValueIds?: string[];
     serviceId?: string | null;
     offeredSlots?: OfferedSlot[];
+    intakePendencies?: IntakePendency[];
   }
 ): Promise<{ appointmentId: string | null; error: string | null }> {
   const futureCheck = validateScheduledInFuture(opts.scheduledAt);
@@ -130,6 +132,7 @@ export async function createAppointmentViaAssistant(
       status: "agendada",
       recommendations: procData?.recommendations ?? null,
       created_by: null,
+      intake_pendencies: opts.intakePendencies?.length ? opts.intakePendencies : [],
       ...(roomId ? { room_id: roomId } : {}),
     })
     .select("id")

@@ -66,3 +66,55 @@ export async function linkConversationToPatient(
     .eq("id", conversationId)
     .eq("clinic_id", clinicId);
 }
+
+export async function updatePatientIntakeViaAssistant(
+  supabase: SupabaseClient,
+  clinicId: string,
+  patientId: string,
+  fields: Record<string, unknown>
+): Promise<{ ok: boolean; error: string | null }> {
+  const { data: patient, error: fetchErr } = await supabase
+    .from("patients")
+    .select("id, cpf, email, custom_fields")
+    .eq("id", patientId)
+    .eq("clinic_id", clinicId)
+    .maybeSingle();
+
+  if (fetchErr || !patient) {
+    return { ok: false, error: fetchErr?.message ?? "Paciente não encontrado." };
+  }
+
+  const updateData: Record<string, unknown> = {};
+  const customFields = { ...((patient.custom_fields as Record<string, unknown>) ?? {}) };
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined || value === null || value === "") continue;
+    if (key === "cpf") {
+      updateData.cpf = String(value).trim();
+    } else if (key === "email") {
+      updateData.email = String(value).trim();
+    } else if (key.startsWith("custom:")) {
+      const fieldName = key.slice("custom:".length);
+      customFields[fieldName] = value;
+    } else {
+      customFields[key] = value;
+    }
+  }
+
+  if (Object.keys(customFields).length) {
+    updateData.custom_fields = customFields;
+  }
+
+  if (!Object.keys(updateData).length) {
+    return { ok: true, error: null };
+  }
+
+  const { error } = await supabase
+    .from("patients")
+    .update(updateData)
+    .eq("id", patientId)
+    .eq("clinic_id", clinicId);
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, error: null };
+}

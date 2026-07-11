@@ -24,6 +24,7 @@ export type CustomFieldRow = {
   options: string[] | null;
   display_order: number;
   include_in_public_form?: boolean;
+  whatsapp_policy?: "ignore" | "optional" | "required";
 };
 
 export function CamposPacientesClient({
@@ -54,6 +55,7 @@ export function CamposPacientesClient({
     options: [],
     display_order: fields.length,
     include_in_public_form: false,
+    whatsapp_policy: "ignore",
   });
   const [optionsText, setOptionsText] = useState("");
 
@@ -87,6 +89,7 @@ export function CamposPacientesClient({
       options: f.options || [],
       display_order: f.display_order,
       include_in_public_form: f.include_in_public_form ?? false,
+      whatsapp_policy: f.whatsapp_policy ?? "ignore",
     });
     setOptionsText((f.options || []).join(", "));
     setError(null);
@@ -147,6 +150,7 @@ export function CamposPacientesClient({
       options: form.field_type === "select" ? options : undefined,
       display_order: form.display_order,
       include_in_public_form: form.include_in_public_form ?? false,
+      whatsapp_policy: form.whatsapp_policy ?? "ignore",
     };
 
     if (isNew) {
@@ -285,6 +289,22 @@ export function CamposPacientesClient({
                     <p className="text-xs text-muted-foreground mt-0.5">
                       O paciente precisará preencher este campo ao se cadastrar
                     </p>
+                  </div>
+                </div>
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <Label className="text-sm font-medium">WhatsApp (fluxo conversacional)</Label>
+                  <div className="flex flex-wrap gap-4 text-sm">
+                    {(["ignore", "optional", "required"] as const).map((level) => (
+                      <label key={level} className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="whatsapp_policy"
+                          checked={(form.whatsapp_policy ?? "ignore") === level}
+                          onChange={() => setForm((f) => ({ ...f, whatsapp_policy: level }))}
+                        />
+                        {level === "ignore" ? "Ignorar" : level === "optional" ? "Perguntar" : "Obrigatório"}
+                      </label>
+                    ))}
                   </div>
                 </div>
                 <div className="flex items-start gap-3">

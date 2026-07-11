@@ -9,6 +9,7 @@ export type ConsultaRow = {
   notes: string | null;
   valor?: number | null;
   dimension_value_ids?: string[];
+  intake_pendencies?: Array<{ goal_id: string; label: string; required: boolean }>;
   patient: { id: string; full_name: string; phone: string | null };
   doctor: { id: string; full_name: string | null };
   service_id: string | null;
@@ -54,6 +55,7 @@ export default async function ConsultaPage() {
       scheduled_at,
       status,
       notes,
+      intake_pendencies,
       patient:patients ( id, full_name, phone ),
       doctor:profiles!doctor_id ( id, full_name ),
       service_id,

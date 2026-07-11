@@ -16,6 +16,16 @@ import type { FaqItem } from "../tools/types";
 import { toolResultToJson } from "../tools/types";
 import { buildSystemPrompt } from "./prompt";
 import { createChatCompletion, logTokenUsage, type ChatMessage } from "./llm";
+import {
+  filterToolsByNames,
+  syncFlowState,
+} from "@/lib/attendance-flow/engine";
+import {
+  mergeClinicFlowConfig,
+  syncConversationFlowTurn,
+  type ClinicFlowConfig,
+} from "@/lib/attendance-flow/flow-sync";
+import type { CustomFieldForGoals } from "@/lib/attendance-flow/types";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -37,6 +47,8 @@ export type RunTurnInput = {
   clinicName?: string;
   hoursText?: string;
   address?: string;
+  flowConfig?: ClinicFlowConfig;
+  customFields?: CustomFieldForGoals[];
 };
 
 export type RunTurnResult = {
@@ -45,9 +57,34 @@ export type RunTurnResult = {
   statePatch: Record<string, unknown>;
 };
 
+function reapplyFlowSync(
+  aiState: AiState,
+  userText: string,
+  flowConfig: ClinicFlowConfig,
+  customFields?: CustomFieldForGoals[]
+) {
+  const sync = syncConversationFlowTurn(aiState, userText, flowConfig, customFields);
+  const merged = mergeAiState(aiState, sync.aiStatePatch);
+  const engineInput = { ...sync.engineInput, aiState: merged };
+  const synced = syncFlowState(engineInput);
+  return {
+    aiState: mergeAiState(merged, { conversation_flow: synced }),
+    flowBlock: sync.flowBlock,
+    allowedTools: sync.allowedTools,
+    engineInput: { ...engineInput, flowState: synced, aiState: mergeAiState(merged, { conversation_flow: synced }) },
+  };
+}
+
 export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   let aiState: AiState = normalizeAiState(input.aiState);
   const trace = createTurnTrace(input.conversationId, input.userText);
+
+  const flowConfig =
+    input.flowConfig ??
+    mergeClinicFlowConfig({
+      appointment_policy: input.settings.appointment_policy as ClinicFlowConfig["appointmentPolicy"],
+      conversation_flows: input.settings.conversation_flows as ClinicFlowConfig["conversationFlows"],
+    });
 
   const facts = extractFacts(input.userText);
   trace.extractorsApplied = facts;
@@ -55,6 +92,9 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   if (Object.keys(factPatch).length > 0) {
     aiState = mergeAiState(aiState, factPatch);
   }
+
+  let flowSync = reapplyFlowSync(aiState, input.userText, flowConfig, input.customFields);
+  aiState = flowSync.aiState;
 
   const systemContent = buildSystemPrompt({
     clinicName: input.clinicName ?? "clínica",
@@ -67,9 +107,11 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     settings: input.settings,
     aiState,
     facts,
+    flowBlock: flowSync.flowBlock,
   });
 
   const messages: ChatMessage[] = [{ role: "system", content: systemContent }];
+  const filteredTools = filterToolsByNames(CHATBOT_TOOLS, flowSync.allowedTools);
 
   const maxContext = input.settings.max_context_messages ?? 20;
   for (const h of input.history.slice(-maxContext)) {
@@ -85,7 +127,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     const completion = await createChatCompletion({
       model: input.settings.ai_model ?? "gpt-4o-mini",
       messages,
-      tools: CHATBOT_TOOLS,
+      tools: filteredTools.length ? filteredTools : CHATBOT_TOOLS,
       temperature: 0.2,
     });
 
@@ -113,7 +155,14 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       }
 
       const started = Date.now();
-      const validation = validateToolCall(toolName, args, aiState, input.settings, facts);
+      const validation = validateToolCall(
+        toolName,
+        args,
+        aiState,
+        input.settings,
+        facts,
+        flowSync.engineInput
+      );
       let outcome;
       let blocked = false;
 
@@ -130,6 +179,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
             aiState,
             settings: input.settings,
             faqs: input.faqs,
+            flowConfig,
+            customFields: input.customFields,
           },
           toolName,
           args
@@ -149,6 +200,9 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         aiState = mergeAiState(aiState, outcome.statePatch);
       }
       aiState = mergeAiState(aiState, patchAiState(toolName, args, outcome.result, aiState));
+
+      flowSync = reapplyFlowSync(aiState, input.userText, flowConfig, input.customFields);
+      aiState = flowSync.aiState;
 
       if (outcome.handoff) {
         handoff = true;
@@ -174,6 +228,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
           aiState,
           settings: input.settings,
           faqs: input.faqs,
+          flowConfig,
+          customFields: input.customFields,
         },
         "transfer_to_human",
         { reason: "consecutive_tool_failures" }
