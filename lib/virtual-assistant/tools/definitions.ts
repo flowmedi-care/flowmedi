@@ -18,8 +18,8 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: "object",
         properties: {
-          full_name: { type: "string" },
-          email: { type: "string" },
+          full_name: { type: "string", description: "Nome completo informado pelo paciente" },
+          email: { type: "string", description: "E-mail opcional" },
         },
         required: ["full_name"],
       },
@@ -42,7 +42,10 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: "object",
         properties: {
-          doctor_id: { type: "string" },
+          doctor_id: {
+            type: "string",
+            description: "UUID do médico para filtrar procedimentos compatíveis",
+          },
         },
       },
     },
@@ -56,8 +59,8 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: "object",
         properties: {
-          doctor_id: { type: "string" },
-          procedure_id: { type: "string" },
+          doctor_id: { type: "string", description: "UUID do médico" },
+          procedure_id: { type: "string", description: "UUID do procedimento" },
           days_ahead: { type: "number", description: "Quantos dias à frente buscar (padrão 14)" },
           date: { type: "string", description: "Data escolhida pelo paciente no formato YYYY-MM-DD" },
           period: {
@@ -82,11 +85,18 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: "object",
         properties: {
-          patient_id: { type: "string" },
-          doctor_id: { type: "string" },
-          procedure_id: { type: "string" },
-          scheduled_at: { type: "string", description: "ISO 8601" },
-          dimension_value_ids: { type: "array", items: { type: "string" } },
+          patient_id: { type: "string", description: "UUID do paciente" },
+          doctor_id: { type: "string", description: "UUID do médico" },
+          procedure_id: { type: "string", description: "UUID do procedimento" },
+          scheduled_at: {
+            type: "string",
+            description: "ISO 8601 do horário escolhido (de find_available_slots)",
+          },
+          dimension_value_ids: {
+            type: "array",
+            items: { type: "string" },
+            description: "IDs de dimensões de preço (convênio, turno, etc.)",
+          },
         },
         required: ["patient_id", "doctor_id", "procedure_id", "scheduled_at"],
       },
@@ -99,7 +109,9 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       description: "Detalhes e recomendações de um procedimento.",
       parameters: {
         type: "object",
-        properties: { procedure_id: { type: "string" } },
+        properties: {
+          procedure_id: { type: "string", description: "UUID do procedimento" },
+        },
         required: ["procedure_id"],
       },
     },
@@ -113,10 +125,14 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: "object",
         properties: {
-          service_id: { type: "string" },
-          doctor_id: { type: "string" },
-          procedure_id: { type: "string" },
-          dimension_value_ids: { type: "array", items: { type: "string" } },
+          service_id: { type: "string", description: "UUID do serviço (alternativa a procedure_id)" },
+          doctor_id: { type: "string", description: "UUID do médico" },
+          procedure_id: { type: "string", description: "UUID do procedimento" },
+          dimension_value_ids: {
+            type: "array",
+            items: { type: "string" },
+            description: "IDs de dimensões de preço selecionadas",
+          },
         },
         required: ["doctor_id"],
       },
@@ -131,9 +147,9 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: "object",
         properties: {
-          procedure_id: { type: "string" },
-          service_id: { type: "string" },
-          doctor_id: { type: "string" },
+          procedure_id: { type: "string", description: "UUID do procedimento" },
+          service_id: { type: "string", description: "UUID do serviço" },
+          doctor_id: { type: "string", description: "UUID do médico" },
         },
       },
     },
@@ -168,7 +184,9 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       description: "Confirma presença em consulta agendada.",
       parameters: {
         type: "object",
-        properties: { appointment_id: { type: "string" } },
+        properties: {
+          appointment_id: { type: "string", description: "UUID da consulta" },
+        },
         required: ["appointment_id"],
       },
     },
@@ -182,7 +200,7 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: "object",
         properties: {
-          appointment_id: { type: "string" },
+          appointment_id: { type: "string", description: "UUID da consulta" },
           cancellation_reason: {
             type: "string",
             enum: ["reschedule", "dropped", "other"],
@@ -211,8 +229,8 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: "object",
         properties: {
-          procedure_id: { type: "string" },
-          doctor_id: { type: "string" },
+          procedure_id: { type: "string", description: "UUID do procedimento" },
+          doctor_id: { type: "string", description: "UUID do médico" },
         },
         required: ["procedure_id"],
       },
@@ -227,8 +245,8 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: "object",
         properties: {
-          procedure_id: { type: "string" },
-          doctor_id: { type: "string" },
+          procedure_id: { type: "string", description: "UUID do procedimento" },
+          doctor_id: { type: "string", description: "UUID do médico" },
         },
         required: ["procedure_id"],
       },
@@ -257,7 +275,9 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       description: "Reenvia link de formulário pendente quando o paciente pedir (não substitui compliance automático).",
       parameters: {
         type: "object",
-        properties: { appointment_id: { type: "string" } },
+        properties: {
+          appointment_id: { type: "string", description: "UUID da consulta" },
+        },
         required: ["appointment_id"],
       },
     },
@@ -279,8 +299,11 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: "object",
         properties: {
-          appointment_id: { type: "string" },
-          new_scheduled_at: { type: "string", description: "ISO 8601" },
+          appointment_id: { type: "string", description: "UUID da consulta" },
+          new_scheduled_at: {
+            type: "string",
+            description: "ISO 8601 do novo horário escolhido",
+          },
         },
         required: ["appointment_id", "new_scheduled_at"],
       },
@@ -294,9 +317,9 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: "object",
         properties: {
-          score: { type: "number" },
-          comment: { type: "string" },
-          appointment_id: { type: "string" },
+          score: { type: "number", description: "Nota de 0 a 10" },
+          comment: { type: "string", description: "Comentário opcional" },
+          appointment_id: { type: "string", description: "UUID da consulta (opcional)" },
         },
         required: ["score"],
       },
@@ -324,7 +347,9 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
         "Transfere para atendente humano. Use SOMENTE se o paciente pedir EXPLICITAMENTE para falar com atendente/pessoa humana. NUNCA use durante agendamento, dúvidas de horário ou quando não souber uma resposta — use as ferramentas.",
       parameters: {
         type: "object",
-        properties: { reason: { type: "string" } },
+        properties: {
+          reason: { type: "string", description: "Motivo objetivo da transferência" },
+        },
       },
     },
   },

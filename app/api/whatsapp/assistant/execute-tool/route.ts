@@ -6,6 +6,10 @@ import { executeAssistantTool } from "@/lib/virtual-assistant/tools";
 import type { AiConversationState } from "@/lib/virtual-assistant/types";
 import { normalizeAiState } from "@/lib/chatbot/state/migrate";
 import { initialAiState } from "@/lib/chatbot/state/types";
+import { mergeAiState, patchAiState } from "@/lib/chatbot/state/patch";
+import { executeTool } from "@/lib/chatbot/tools/execute";
+import { isChatbotTool } from "@/lib/chatbot/tools/definitions";
+import type { ToolResult } from "@/lib/chatbot/tools/types";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-utils";
 
 const MUTATING_TOOLS = new Set([
@@ -20,9 +24,53 @@ const MUTATING_TOOLS = new Set([
   "transfer_to_human",
 ]);
 
+function extractWarnings(result: unknown): string[] {
+  if (!result || typeof result !== "object") return [];
+  const r = result as ToolResult;
+  const warnings: string[] = [];
+  if (r.message) warnings.push(r.message);
+  if (r.suggestion) warnings.push(`Sugestão: ${r.suggestion}`);
+  if (r.missing?.length) {
+    warnings.push(`Campos faltando: ${r.missing.map((m) => m.field).join(", ")}`);
+  }
+  if (r.status && r.status !== "success") {
+    warnings.push(`Status: ${r.status}`);
+  }
+  return warnings;
+}
+
+function mergeConversationState(
+  before: Record<string, unknown>,
+  patch: Record<string, unknown> | null | undefined
+): Record<string, unknown> {
+  if (!patch || !Object.keys(patch).length) return before;
+  const normalizedBefore = normalizeAiState(before);
+  const normalizedPatch = normalizeAiState(patch);
+  const merged = mergeAiState(normalizedBefore, normalizedPatch);
+  const legacyKeys = [
+    "booking_step",
+    "doctor_id",
+    "procedure_id",
+    "service_id",
+    "pending_slot",
+    "offered_slots",
+    "offered_days",
+    "journey_step_code",
+    "last_created_appointment_id",
+    "dimension_value_ids",
+    "intent",
+    "pipeline_stage",
+  ] as const;
+  const next: Record<string, unknown> = { ...before, ...merged };
+  for (const key of legacyKeys) {
+    if (key in patch) next[key] = patch[key];
+  }
+  return next;
+}
+
 /**
  * POST /api/whatsapp/assistant/execute-tool
- * Body: { toolName, args?, phone, conversationId?, aiState?, confirmMutating? }
+ * Body: { toolName, args?, phone, conversationId?, aiState?, confirmMutating?, executorMode?, debug? }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -34,6 +82,8 @@ export async function POST(request: NextRequest) {
       conversationId?: string;
       aiState?: AiConversationState;
       confirmMutating?: boolean;
+      executorMode?: "production" | "full";
+      debug?: boolean;
     };
 
     const toolName = String(body.toolName ?? "").trim();
@@ -42,6 +92,16 @@ export async function POST(request: NextRequest) {
     }
     if (!ASSISTANT_TOOL_NAMES.includes(toolName)) {
       return NextResponse.json({ error: `Ferramenta desconhecida: ${toolName}` }, { status: 400 });
+    }
+
+    const executorMode = body.executorMode ?? "full";
+    if (executorMode === "production" && !isChatbotTool(toolName)) {
+      return NextResponse.json(
+        {
+          error: `"${toolName}" não está disponível no modo produção. Use modo completo (VA) ou escolha uma das 12 ferramentas do chatbot.`,
+        },
+        { status: 400 }
+      );
     }
 
     const phoneRaw = String(body.phone ?? "").trim();
@@ -61,9 +121,10 @@ export async function POST(request: NextRequest) {
 
     const phone = normalizeWhatsAppPhone(phoneRaw.replace(/\D/g, ""));
     const args = body.args ?? {};
-    const aiState: AiConversationState = body.aiState
-      ? normalizeAiState(body.aiState as Record<string, unknown>)
-      : initialAiState();
+    const aiStateBefore = body.aiState
+      ? (body.aiState as Record<string, unknown>)
+      : (initialAiState() as Record<string, unknown>);
+    const aiStateNormalized = normalizeAiState(aiStateBefore);
 
     const supabase = createServiceRoleClient();
 
@@ -109,35 +170,112 @@ export async function POST(request: NextRequest) {
     }
 
     const startedAt = Date.now();
-    const toolResult = await executeAssistantTool(
-      {
-        supabase,
-        clinicId,
-        conversationId,
-        phoneNumber: phone,
-        aiState,
-      },
-      toolName,
-      args
-    );
-
     let parsedResult: unknown;
-    try {
-      parsedResult = JSON.parse(toolResult.result);
-    } catch {
-      parsedResult = toolResult.result;
+    let handoff = false;
+    let statePatch: Record<string, unknown> | null = null;
+    let implicitPatch: Record<string, unknown> | null = null;
+    let rawResult: string | undefined;
+
+    if (executorMode === "production") {
+      const [{ data: settingsRow }, { data: faqRows }] = await Promise.all([
+        supabase.from("clinic_virtual_assistant_settings").select("*").eq("clinic_id", clinicId).maybeSingle(),
+        supabase
+          .from("clinic_virtual_assistant_faq")
+          .select("id, question, answer")
+          .eq("clinic_id", clinicId)
+          .order("display_order"),
+      ]);
+
+      const outcome = await executeTool(
+        {
+          supabase,
+          clinicId,
+          conversationId,
+          phoneNumber: phone,
+          aiState: aiStateNormalized,
+          settings: (settingsRow ?? {}) as Partial<import("@/lib/virtual-assistant/types").VirtualAssistantSettings>,
+          faqs: (faqRows ?? []).map((f) => ({
+            id: f.id,
+            question: f.question,
+            answer: f.answer,
+          })),
+        },
+        toolName,
+        args
+      );
+
+      parsedResult = outcome.result;
+      handoff = outcome.handoff ?? false;
+      rawResult = JSON.stringify(outcome.result);
+
+      const explicitPatch = outcome.statePatch ?? {};
+      implicitPatch = patchAiState(toolName, args, outcome.result, aiStateNormalized);
+      statePatch = { ...explicitPatch, ...implicitPatch };
+    } else {
+      const toolResult = await executeAssistantTool(
+        {
+          supabase,
+          clinicId,
+          conversationId,
+          phoneNumber: phone,
+          aiState: aiStateNormalized as AiConversationState,
+        },
+        toolName,
+        args
+      );
+
+      rawResult = toolResult.result;
+      try {
+        parsedResult = JSON.parse(toolResult.result);
+      } catch {
+        parsedResult = toolResult.result;
+      }
+      handoff = toolResult.handoff ?? false;
+      statePatch = (toolResult.statePatch as Record<string, unknown>) ?? null;
     }
+
+    const durationMs = Date.now() - startedAt;
+    const aiStateAfter = mergeConversationState(aiStateBefore, statePatch);
+
+    let toolLogId: string | undefined;
+    if (body.debug !== false) {
+      const { data: logRow } = await supabase
+        .from("whatsapp_ai_tool_log")
+        .select("id, params, result_summary, success, pipeline_stage")
+        .eq("clinic_id", clinicId)
+        .eq("conversation_id", conversationId)
+        .eq("tool_name", toolName)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      toolLogId = logRow?.id;
+    }
+
+    const warnings = extractWarnings(parsedResult);
+    const debugEnabled = body.debug !== false;
 
     return NextResponse.json({
       ok: true,
       toolName,
       conversationId,
       phone,
-      durationMs: Date.now() - startedAt,
+      durationMs,
       result: parsedResult,
-      rawResult: toolResult.result,
-      handoff: toolResult.handoff ?? false,
-      statePatch: toolResult.statePatch ?? null,
+      rawResult,
+      handoff,
+      statePatch,
+      ...(debugEnabled && {
+        debug: {
+          executorMode,
+          argsSent: args,
+          aiStateBefore,
+          aiStateAfter,
+          implicitPatch: implicitPatch ?? undefined,
+          toolLogId,
+          warnings,
+          httpStatus: 200,
+        },
+      }),
     });
   } catch (e) {
     if (e instanceof ApiAuthError) {
