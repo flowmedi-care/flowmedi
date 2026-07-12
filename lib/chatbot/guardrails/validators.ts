@@ -9,6 +9,11 @@ import {
 } from "../state/patch";
 import { resolveBookingEntityId } from "../state/resolve-entity-id";
 import {
+  resolveBookingDate,
+  resolveBookingDateFailureMessage,
+} from "../state/resolve-booking-date";
+import { DEFAULT_CLINIC_TIMEZONE } from "@/lib/clinic-timezone";
+import {
   handoffOutsideHoursMessage,
   isInsideHandoffWindow,
 } from "@/lib/virtual-assistant/handoff-hours";
@@ -117,6 +122,32 @@ export function validateToolCall(
         ["procedure_id"],
         "Informe o procedimento. Chame list_procedures primeiro."
       );
+    }
+
+    const hasDateArg = args.date != null && String(args.date).trim() !== "";
+    if (hasDateArg) {
+      const resolvedDate = resolveBookingDate({
+        dateArg: args.date,
+        offeredDays: aiState.offered_days,
+        bookingDate: aiState.booking?.date,
+        clinicTimezone: DEFAULT_CLINIC_TIMEZONE,
+      });
+      if (!resolvedDate.ok) {
+        const dayOptions = aiState.offered_days?.length
+          ? aiState.offered_days.map((d, i) => ({
+              id: d.date,
+              label: d.label,
+              index: d.index ?? i + 1,
+            }))
+          : undefined;
+        return needsInputResult(
+          ["date"],
+          resolveBookingDateFailureMessage(resolvedDate.reason),
+          dayOptions
+        );
+      }
+      // Mutate args so execute receives the sanitized date if validator runs first.
+      args.date = resolvedDate.date;
     }
   }
 

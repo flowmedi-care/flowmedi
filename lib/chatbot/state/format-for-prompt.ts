@@ -40,8 +40,11 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
   }
   if ((state.offered_days?.length ?? 0) > 0) {
     lines.push(
-      `Dias oferecidos: ${state.offered_days!.length} opção(ões) numeradas — se o paciente responder "1", "2" ou mencionar dia da semana, use a data correspondente.`
+      `Dias oferecidos (${state.offered_days!.length}) — use a data YYYY-MM-DD correspondente (não invente o ano):`
     );
+    for (const d of state.offered_days!) {
+      lines.push(`  ${d.index ?? "?"}. ${d.label} → date: ${d.date}`);
+    }
   }
   if ((state.booking?.offered_slots?.length ?? 0) > 0) {
     const slots = state.booking!.offered_slots!;

@@ -41,7 +41,12 @@ import {
 } from "./types";
 import { isChatbotTool } from "./definitions";
 import { resolveCreateAppointmentScheduledAt } from "../state/patch";
+import {
+  resolveBookingDate,
+  resolveBookingDateFailureMessage,
+} from "../state/resolve-booking-date";
 import { resolveBookingEntityId } from "../state/resolve-entity-id";
+import { DEFAULT_CLINIC_TIMEZONE } from "@/lib/clinic-timezone";
 
 function isMissingToolLogColumnError(message: string): boolean {
   return (
@@ -392,9 +397,47 @@ export async function executeTool(
         }
 
         const daysAhead = Number(args.days_ahead) || 14;
-        const date = args.date ? String(args.date) : undefined;
         const period = normalizeSlotPeriod(args.period);
         const skipDays = Number(args.skip_days) || 0;
+
+        const hasDateArg = args.date != null && String(args.date).trim() !== "";
+        let date: string | undefined;
+        if (hasDateArg) {
+          const resolvedDate = resolveBookingDate({
+            dateArg: args.date,
+            offeredDays: ctx.aiState.offered_days,
+            bookingDate: ctx.aiState.booking?.date,
+            clinicTimezone: DEFAULT_CLINIC_TIMEZONE,
+          });
+          if (!resolvedDate.ok) {
+            const reason = resolvedDate.reason;
+            const message = resolveBookingDateFailureMessage(reason);
+            const dayOptions: ToolOption[] | undefined = ctx.aiState.offered_days?.length
+              ? ctx.aiState.offered_days.map((d, i) => ({
+                  id: d.date,
+                  label: d.label,
+                  index: d.index ?? i + 1,
+                }))
+              : undefined;
+            await logToolCall(
+              supabase,
+              clinicId,
+              conversationId,
+              name,
+              args,
+              `date rejected: ${reason}`,
+              false,
+              "needs_input",
+              reason
+            );
+            return {
+              result: needsInputResult(["date"], message, dayOptions),
+            };
+          }
+          date = resolvedDate.date;
+        }
+
+        const loggedArgs = date ? { ...args, date } : args;
 
         const { count: doctorProcedureCount } = await supabase
           .from("doctor_procedures")
@@ -411,7 +454,7 @@ export async function executeTool(
             .eq("procedure_id", procedureId)
             .maybeSingle();
           if (!doctorProcedure) {
-            await logToolCall(supabase, clinicId, conversationId, name, args, "par inválido", false);
+            await logToolCall(supabase, clinicId, conversationId, name, loggedArgs, "par inválido", false);
             return {
               result: unavailableResult(
                 "Este profissional não realiza o procedimento selecionado.",
@@ -440,7 +483,7 @@ export async function executeTool(
           if (slots.length === 0) {
             const periodLabel = period === "manha" ? "manhã" : period === "tarde" ? "tarde" : "";
             const periodPart = periodLabel ? ` no período da ${periodLabel}` : "";
-            await logToolCall(supabase, clinicId, conversationId, name, args, "0 horários", true);
+            await logToolCall(supabase, clinicId, conversationId, name, loggedArgs, "0 horários", true);
             return {
               result: unavailableResult(
                 `Não há horários disponíveis em ${date}${periodPart}.`,
@@ -477,7 +520,15 @@ export async function executeTool(
             slots,
             available_periods: availablePeriods.map(formatSlotPeriodLabel),
           };
-          await logToolCall(supabase, clinicId, conversationId, name, args, `${slots.length} horários`, true);
+          await logToolCall(
+            supabase,
+            clinicId,
+            conversationId,
+            name,
+            loggedArgs,
+            `${slots.length} horários`,
+            true
+          );
           return {
             result: successResult(payload, slotOptions),
             statePatch: {
@@ -508,7 +559,7 @@ export async function executeTool(
         }));
 
         if (daysForDisplay.length === 0) {
-          await logToolCall(supabase, clinicId, conversationId, name, args, "0 dias", true);
+          await logToolCall(supabase, clinicId, conversationId, name, loggedArgs, "0 dias", true);
           return {
             result: unavailableResult(
               "Não há dias disponíveis no período buscado.",
@@ -539,7 +590,7 @@ export async function executeTool(
           skip_days_used: skipDays,
           next_skip_days: skipDays + days.length,
         };
-        await logToolCall(supabase, clinicId, conversationId, name, args, `${days.length} dias`, true, "success");
+        await logToolCall(supabase, clinicId, conversationId, name, loggedArgs, `${days.length} dias`, true, "success");
         return {
           result: successResult(payload, dayOptions),
           statePatch: {
