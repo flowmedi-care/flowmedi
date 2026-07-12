@@ -16,6 +16,7 @@ import {
   ArrowRight,
   Copy,
   Check,
+  RotateCcw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -283,10 +284,14 @@ function FlowTraceCard({
   trace,
   rawEvents,
   toolLogs,
+  onClearContext,
+  clearingConversationId,
 }: {
   trace: MessageFlowTrace;
   rawEvents: AiEventRow[];
   toolLogs?: AiToolLogRow[];
+  onClearContext?: (conversationId: string) => void;
+  clearingConversationId?: string | null;
 }) {
   const [stepsExpanded, setStepsExpanded] = useState(false);
   const [rawExpanded, setRawExpanded] = useState(false);
@@ -375,6 +380,24 @@ function FlowTraceCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
+          {stepsExpanded && trace.conversationId && onClearContext && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs border-amber-200 text-amber-900 hover:bg-amber-50"
+              disabled={clearingConversationId === trace.conversationId}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClearContext(trace.conversationId!);
+              }}
+            >
+              <RotateCcw className="mr-1 h-3 w-3" />
+              {clearingConversationId === trace.conversationId
+                ? "Limpando…"
+                : "Limpar contexto"}
+            </Button>
+          )}
           {stepsExpanded && (
             <Button
               type="button"
@@ -508,6 +531,8 @@ interface Props {
   toolLogs?: AiToolLogRow[];
   showRaw: boolean;
   onToggleRaw: (show: boolean) => void;
+  onClearContext?: (conversationId: string) => void;
+  clearingConversationId?: string | null;
 }
 
 function levelDot(level: string): string {
@@ -522,6 +547,8 @@ export function AssistenteVirtualFlowTimeline({
   toolLogs,
   showRaw,
   onToggleRaw,
+  onClearContext,
+  clearingConversationId,
 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAllFlows, setShowAllFlows] = useState(false);
@@ -550,7 +577,14 @@ export function AssistenteVirtualFlowTimeline({
         ) : (
           <div className="space-y-3">
             {visibleFlows.map((trace) => (
-              <FlowTraceCard key={trace.id} trace={trace} rawEvents={events} toolLogs={toolLogs} />
+              <FlowTraceCard
+                key={trace.id}
+                trace={trace}
+                rawEvents={events}
+                toolLogs={toolLogs}
+                onClearContext={onClearContext}
+                clearingConversationId={clearingConversationId}
+              />
             ))}
             {hiddenFlowCount > 0 && !showAllFlows && (
               <button

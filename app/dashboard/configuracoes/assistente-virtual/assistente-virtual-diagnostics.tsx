@@ -13,6 +13,7 @@ import {
   Server,
   Shield,
   Trash2,
+  RotateCcw,
   Zap,
   Wrench,
 } from "lucide-react";
@@ -198,6 +199,8 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
   const [simulating, setSimulating] = useState(false);
   const [reactivatingId, setReactivatingId] = useState<string | null>(null);
   const [clearingId, setClearingId] = useState<string | null>(null);
+  const [clearPhone, setClearPhone] = useState("");
+  const [clearingByPhone, setClearingByPhone] = useState(false);
   const [data, setData] = useState<DiagnosticsResponse | null>(null);
   const [simulatePhone, setSimulatePhone] = useState("");
   const [simulateText, setSimulateText] = useState("Oi, quero agendar uma consulta");
@@ -371,10 +374,14 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
     }
   }
 
-  async function handleClearContext(conversationId: string) {
+  async function handleClearContext(
+    conversationId: string,
+    opts?: { phone?: string; silentConfirm?: boolean }
+  ) {
     if (
+      !opts?.silentConfirm &&
       !window.confirm(
-        "Limpar contexto da IA nesta conversa? O histórico de mensagens permanece, mas agendamento em andamento e listas oferecidas serão apagados."
+        "Limpar contexto da IA nesta conversa? O histórico de mensagens permanece, mas agendamento em andamento, listas oferecidas e memória da IA serão apagados. A IA continua ativa."
       )
     ) {
       return;
@@ -384,7 +391,7 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
       const res = await fetch("/api/whatsapp/assistant/clear-conversation-context", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId }),
+        body: JSON.stringify({ conversationId, reactivate: true }),
       });
       const json = (await res.json()) as DiagnosticsResponse & { error?: string };
       if (!res.ok) {
@@ -392,11 +399,54 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
         return;
       }
       setData(json);
-      toast("Contexto da IA limpo. Conversa reativada.", "success");
+      toast(
+        opts?.phone
+          ? `Contexto limpo para ${opts.phone}.`
+          : "Contexto da IA limpo. Pode retestar o fluxo.",
+        "success"
+      );
     } catch {
       toast("Falha ao limpar contexto", "error");
     } finally {
       setClearingId(null);
+    }
+  }
+
+  async function handleClearContextByPhone() {
+    const phone = clearPhone.replace(/\D/g, "").trim();
+    if (phone.length < 10) {
+      toast("Informe um telefone válido (com DDD).", "error");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Limpar contexto da IA para ${phone}? Mensagens permanecem; estado de agendamento e memória da IA serão resetados.`
+      )
+    ) {
+      return;
+    }
+    setClearingByPhone(true);
+    try {
+      const res = await fetch("/api/whatsapp/assistant/clear-conversation-context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, reactivate: true }),
+      });
+      const json = (await res.json()) as DiagnosticsResponse & {
+        error?: string;
+        conversationId?: string;
+      };
+      if (!res.ok) {
+        toast(json.error ?? "Erro ao limpar contexto", "error");
+        return;
+      }
+      setData(json);
+      setClearPhone("");
+      toast(`Contexto limpo para ${phone}.`, "success");
+    } catch {
+      toast("Falha ao limpar contexto", "error");
+    } finally {
+      setClearingByPhone(false);
     }
   }
 
@@ -806,17 +856,49 @@ export function AssistenteVirtualDiagnostics({ active }: Props) {
         <CardHeader>
           <CardTitle>Passo a passo das mensagens</CardTitle>
           <CardDescription>
-            Clique em um fluxo para ver os passos. Mensagens com badge <strong>Descartado</strong>{" "}
-            não receberão resposta da IA — use <em>Zerar fila</em> antes de ativar o assistente.
+            Clique em um fluxo para ver os passos e o debug do chatbot. Use{" "}
+            <strong>Limpar contexto</strong> para resetar a memória da IA (funciona com IA ativa —
+            não precisa estar em handoff). Mensagens com badge <strong>Descartado</strong> não
+            receberão resposta — use <em>Zerar fila</em> antes de ativar o assistente.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-4">
+            <div className="min-w-[200px] flex-1 space-y-1">
+              <Label htmlFor="clear-context-phone" className="text-xs">
+                Limpar contexto por telefone
+              </Label>
+              <Input
+                id="clear-context-phone"
+                placeholder="5562999999999"
+                value={clearPhone}
+                onChange={(e) => setClearPhone(e.target.value)}
+                className="h-9 font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Apaga ai_state e agendamento em andamento. Histórico de mensagens permanece.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={clearingByPhone || !clearPhone.trim()}
+              onClick={() => void handleClearContextByPhone()}
+            >
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+              {clearingByPhone ? "Limpando…" : "Limpar contexto"}
+            </Button>
+          </div>
+
           <AssistenteVirtualFlowTimeline
             flows={data?.flows ?? []}
             events={data?.events ?? []}
             toolLogs={data?.toolLogs ?? []}
             showRaw={showRawEvents}
             onToggleRaw={setShowRawEvents}
+            clearingConversationId={clearingId}
+            onClearContext={(conversationId) => void handleClearContext(conversationId)}
           />
         </CardContent>
       </Card>
