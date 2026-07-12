@@ -37,7 +37,8 @@ export async function loadPatientSlice(
       .eq("id", opts.patientId)
       .maybeSingle();
     if (!data) return null;
-    const firstName = String(data.full_name ?? "").trim().split(/\s+/)[0] || data.full_name;
+    const firstName =
+      String(data.full_name ?? "").trim().split(/\s+/)[0] || String(data.full_name ?? "");
     return {
       id: data.id,
       full_name: String(data.full_name ?? ""),
@@ -54,9 +55,10 @@ export async function loadPatientSlice(
   if (opts.phone) {
     const row = await lookupPatientByPhone(supabase, clinicId, opts.phone);
     if (!row) return null;
-    const firstName = String(row.full_name ?? "").trim().split(/\s+/)[0] || row.full_name;
-    const custom = (row as { custom_fields?: Record<string, unknown> }).custom_fields ?? {};
-    const cpfRaw = (row as { cpf?: string | null }).cpf;
+    const firstName =
+      String(row.full_name ?? "").trim().split(/\s+/)[0] || String(row.full_name ?? "");
+    const custom = (row.custom_fields as Record<string, unknown> | null) ?? {};
+    const cpfRaw = row.cpf;
     return {
       id: row.id,
       full_name: String(row.full_name ?? ""),

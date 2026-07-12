@@ -4,7 +4,7 @@ import { normalizeCpf } from "../normalize-cpf";
 
 export type PatientPhoneRow = {
   id: string;
-  full_name: string | null;
+  full_name: string;
   email: string | null;
   phone: string | null;
   birth_date: string | null;
@@ -24,9 +24,17 @@ export async function lookupPatientsByPhone(
     .eq("clinic_id", clinicId)
     .not("phone", "is", null);
 
-  return (patients ?? []).filter((p) =>
-    phonesMatch(String(p.phone ?? ""), phone)
-  ) as PatientPhoneRow[];
+  return (patients ?? [])
+    .filter((p) => phonesMatch(String(p.phone ?? ""), phone))
+    .map((p) => ({
+      id: String(p.id),
+      full_name: String(p.full_name ?? ""),
+      email: p.email != null ? String(p.email) : null,
+      phone: p.phone != null ? String(p.phone) : null,
+      birth_date: p.birth_date != null ? String(p.birth_date) : null,
+      cpf: p.cpf != null ? String(p.cpf) : null,
+      custom_fields: p.custom_fields ?? {},
+    }));
 }
 
 /**
