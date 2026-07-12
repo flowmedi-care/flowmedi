@@ -1,4 +1,7 @@
-import { DEFAULT_CLINIC_TIMEZONE } from "@/lib/clinic-timezone";
+import {
+  DEFAULT_CLINIC_TIMEZONE,
+  getZonedYmd,
+} from "@/lib/clinic-timezone";
 import { extractDate } from "../extractors/date";
 import type { OfferedDay } from "./types";
 
@@ -14,7 +17,8 @@ export type ResolveBookingDateReason =
   | "date_not_in_offered_days"
   | "ambiguous_mmdd"
   | "invalid_date"
-  | "missing_date";
+  | "missing_date"
+  | "past_date";
 
 export type ResolveBookingDateResult =
   | { ok: true; date: string; matchedBy: ResolveBookingDateMatchedBy }
@@ -129,17 +133,30 @@ function matchAgainstOffered(
   return { ok: false, reason: "date_not_in_offered_days" };
 }
 
-function parseStandalone(raw: string): ResolveBookingDateResult {
+function isPastClinicDate(date: string, clinicTimezone: string, now = new Date()): boolean {
+  if (!isValidIsoDate(date)) return false;
+  const today = getZonedYmd(now, clinicTimezone);
+  return date < today;
+}
+
+function parseStandalone(
+  raw: string,
+  clinicTimezone: string
+): ResolveBookingDateResult {
   const trimmed = raw.trim();
   if (!trimmed) return { ok: false, reason: "invalid_date" };
+  let date: string | null = null;
   if (isValidIsoDate(trimmed)) {
-    return { ok: true, date: trimmed, matchedBy: "parsed" };
+    date = trimmed;
+  } else {
+    const extracted = extractDate(trimmed);
+    if (extracted && isValidIsoDate(extracted)) date = extracted;
   }
-  const extracted = extractDate(trimmed);
-  if (extracted && isValidIsoDate(extracted)) {
-    return { ok: true, date: extracted, matchedBy: "parsed" };
+  if (!date) return { ok: false, reason: "invalid_date" };
+  if (isPastClinicDate(date, clinicTimezone)) {
+    return { ok: false, reason: "past_date" };
   }
-  return { ok: false, reason: "invalid_date" };
+  return { ok: true, date, matchedBy: "parsed" };
 }
 
 /**
@@ -153,7 +170,7 @@ export function resolveBookingDate(opts: {
   clinicTimezone?: string;
   userMessage?: string | null;
 }): ResolveBookingDateResult {
-  void (opts.clinicTimezone ?? DEFAULT_CLINIC_TIMEZONE);
+  const clinicTimezone = opts.clinicTimezone ?? DEFAULT_CLINIC_TIMEZONE;
 
   const offered = (opts.offeredDays ?? []).filter((d) => d?.date);
   const candidates: Array<{ value: string; fromBooking: boolean }> = [];
@@ -204,16 +221,18 @@ export function resolveBookingDate(opts: {
     return { ok: false, reason: "missing_date" };
   }
 
+  let sawPast = false;
   for (const c of candidates) {
-    const result = parseStandalone(c.value);
+    const result = parseStandalone(c.value, clinicTimezone);
     if (result.ok) {
       return c.fromBooking
         ? { ok: true, date: result.date, matchedBy: "booking_date" }
         : result;
     }
+    if (result.reason === "past_date") sawPast = true;
   }
 
-  return { ok: false, reason: "invalid_date" };
+  return { ok: false, reason: sawPast ? "past_date" : "invalid_date" };
 }
 
 export function resolveBookingDateFailureMessage(
@@ -226,6 +245,8 @@ export function resolveBookingDateFailureMessage(
       return "Informe o dia desejado a partir das opções oferecidas.";
     case "invalid_date":
       return "Não entendi a data. Escolha um dos dias listados.";
+    case "past_date":
+      return "Essa data já passou. Escolha um dos dias disponíveis na lista.";
     case "date_not_in_offered_days":
     default:
       return "Essa data não está entre os dias oferecidos. Escolha um dos dias listados.";

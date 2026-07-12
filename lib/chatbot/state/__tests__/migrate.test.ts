@@ -20,6 +20,25 @@ describe("normalizeAiState", () => {
     assert.equal(state.booking?.doctor_id, "doc1");
     assert.equal(state.booking?.offered_slots?.length, 1);
   });
+
+  it("preserva offered_days no round-trip", () => {
+    const offered_days = [
+      { date: "2026-07-15", label: "qua. 15/07", index: 1 },
+      { date: "2026-07-20", label: "seg. 20/07", index: 7 },
+    ];
+    const state = normalizeAiState({
+      patient_id: "p1",
+      booking: {
+        doctor_id: "d1",
+        procedure_id: "pr1",
+        status: "collecting",
+      },
+      offered_days,
+    });
+    assert.equal(state.offered_days?.length, 2);
+    assert.equal(state.offered_days?.[1]?.date, "2026-07-20");
+    assert.equal(state.offered_days?.[1]?.index, 7);
+  });
 });
 
 describe("initialAiState", () => {

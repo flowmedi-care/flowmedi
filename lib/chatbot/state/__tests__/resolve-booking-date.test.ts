@@ -98,13 +98,35 @@ describe("resolveBookingDate", () => {
 
   it("without offered_days accepts valid ISO as parsed", () => {
     const result = resolveBookingDate({
-      dateArg: "2026-07-15",
+      dateArg: "2099-07-15",
       offeredDays: [],
     });
     assert.deepEqual(result, {
       ok: true,
-      date: "2026-07-15",
+      date: "2099-07-15",
       matchedBy: "parsed",
+    });
+  });
+
+  it("without offered_days rejects past ISO as past_date", () => {
+    const result = resolveBookingDate({
+      dateArg: "2023-07-20",
+      offeredDays: [],
+    });
+    assert.deepEqual(result, { ok: false, reason: "past_date" });
+  });
+
+  it("remaps 2023-07-20 to offered 2026-07-20 via mmdd", () => {
+    const result = resolveBookingDate({
+      dateArg: "2023-07-20",
+      offeredDays: [
+        { date: "2026-07-20", label: "seg. 20/07", index: 7 },
+      ],
+    });
+    assert.deepEqual(result, {
+      ok: true,
+      date: "2026-07-20",
+      matchedBy: "mmdd",
     });
   });
 

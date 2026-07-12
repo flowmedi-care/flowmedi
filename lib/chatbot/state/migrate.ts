@@ -14,6 +14,9 @@ export function normalizeAiState(raw: LegacyRaw | null | undefined): AiState {
     offered_procedures: Array.isArray(raw.offered_procedures)
       ? (raw.offered_procedures as AiState["offered_procedures"])
       : undefined,
+    offered_days: Array.isArray(raw.offered_days)
+      ? (raw.offered_days as AiState["offered_days"])
+      : undefined,
     focused_appointment_id: raw.focused_appointment_id
       ? String(raw.focused_appointment_id)
       : undefined,

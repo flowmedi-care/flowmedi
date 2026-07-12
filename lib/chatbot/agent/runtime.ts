@@ -39,6 +39,7 @@ import {
 import type { PolicySlice } from "../snapshot/loaders/policy-loader";
 import { outcomeFromToolResult } from "../tools/error-class";
 import { createTurnContext } from "./turn-context";
+import { resolveDeterministicActions } from "./deterministic-actions";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -190,6 +191,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
 
   aiState = snapshot.aiState;
 
+  const aiStateBeforeFacts: AiState = { ...aiState, booking: aiState.booking ? { ...aiState.booking } : undefined };
+
   const facts = extractFacts(
     input.userText,
     new Date(),
@@ -217,7 +220,6 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   recordSnapshotBuild(trace, "post_extractors", snapshot, postExtractorsStarted);
   aiState = snapshot.aiState;
 
-  const snapshotBlock = formatSnapshotForPrompt(snapshot);
   let flowSync = reapplyFlowSync(
     aiState,
     input.userText,
@@ -227,6 +229,137 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     facts
   );
   aiState = flowSync.aiState;
+
+  const deterministicActions = resolveDeterministicActions({
+    before: aiStateBeforeFacts,
+    after: aiState,
+    facts,
+  });
+
+  const deterministicToolMessages: ChatMessage[] = [];
+  for (const action of deterministicActions) {
+    const snapshotBefore = sliceSnapshotForTrace(snapshot) as unknown as Record<
+      string,
+      unknown
+    >;
+    const started = Date.now();
+    const args = { ...action.args };
+    const validation = validateToolCall(
+      action.toolName,
+      args,
+      aiState,
+      input.settings,
+      facts,
+      flowSync.engineInput
+    );
+    let outcome;
+    let blocked = false;
+    if (validation) {
+      outcome = { result: validation };
+      blocked = true;
+      void logBlockedToolCall(
+        input.supabase,
+        input.clinicId,
+        input.conversationId,
+        action.toolName,
+        args,
+        validation.message ?? "blocked"
+      );
+    } else {
+      outcome = await executeTool(
+        {
+          supabase: input.supabase,
+          clinicId: input.clinicId,
+          conversationId: input.conversationId,
+          phoneNumber: input.phoneNumber,
+          aiState,
+          settings: input.settings,
+          faqs: input.faqs,
+          flowConfig: snapshot.flowConfig,
+          customFields: snapshot.customFields,
+        },
+        action.toolName,
+        args
+      );
+    }
+
+    const mutationOutcome =
+      outcome.mutationOutcome ??
+      (blocked ? "recoverable" : outcomeFromToolResult(outcome.result));
+
+    const toolCallId = `det_${action.reason}_${started}`;
+    trace.tools.push({
+      toolName: action.toolName,
+      round: -1,
+      blocked,
+      blockReason: blocked
+        ? validation?.message
+        : `deterministic:${action.reason}`,
+      status: outcome.result.status,
+      durationMs: Date.now() - started,
+      resultMessage: outcome.result.message,
+    });
+
+    trace.executionTraces.push({
+      kind: "tool",
+      name: action.toolName,
+      outcome: mutationOutcome,
+      duration_ms: Date.now() - started,
+      snapshotBefore,
+      validation_gate: blocked ? validation?.message : undefined,
+      detail: `deterministic:${action.reason} ${outcome.result.message ?? ""}`.trim(),
+    });
+
+    if (outcome.statePatch) {
+      aiState = mergeAiState(aiState, outcome.statePatch);
+    }
+    aiState = mergeAiState(
+      aiState,
+      patchAiState(action.toolName, args, outcome.result, aiState, mutationOutcome)
+    );
+
+    snapshot = await rebuildSnapshotAfterMutation(
+      input,
+      aiState,
+      facts,
+      policySlice,
+      trace
+    );
+    aiState = snapshot.aiState;
+
+    flowSync = reapplyFlowSync(
+      aiState,
+      input.userText,
+      snapshot.flowConfig,
+      snapshot.customFields,
+      snapshot.patient,
+      facts
+    );
+    aiState = flowSync.aiState;
+
+    deterministicToolMessages.push({
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: toolCallId,
+          type: "function",
+          function: {
+            name: action.toolName,
+            arguments: JSON.stringify(args),
+          },
+        },
+      ],
+    });
+    deterministicToolMessages.push({
+      role: "tool",
+      tool_call_id: toolCallId,
+      name: action.toolName,
+      content: toolResultToJson(outcome.result),
+    });
+  }
+
+  const snapshotBlock = formatSnapshotForPrompt(snapshot);
 
   trace.allowedTools =
     snapshot.derived.allowedTools.length > 0
@@ -256,6 +389,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     messages.push({ role: h.role, content: h.content });
   }
   messages.push({ role: "user", content: input.userText });
+  messages.push(...deterministicToolMessages);
 
   createTurnContext({
     conversationId: input.conversationId,
