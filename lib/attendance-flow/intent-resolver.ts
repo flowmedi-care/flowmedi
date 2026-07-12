@@ -7,6 +7,20 @@ const RESCHEDULE_PATTERNS = /\b(remarcar|remarca|mudar hor[aá]rio|trocar hor[a�
 const QUOTE_PATTERNS = /\b(pre[cç]o|valor|quanto custa|or[cç]amento)\b/i;
 const BOOKING_PATTERNS = /\b(agendar|agenda|marcar consulta|marca[r]?|consulta|hor[aá]rio dispon[ií]vel)\b/i;
 
+const MUTATION_WORKFLOWS = new Set(["reschedule", "cancelamento"]);
+
+/**
+ * Current Operation still has a mutation goal pending (cancel/reschedule).
+ * While true, isActiveBooking must not steal the turn into consulta.
+ */
+export function hasPendingMutationOperation(aiState: AiState): boolean {
+  const flow = aiState.conversation_flow;
+  if (!flow || !MUTATION_WORKFLOWS.has(flow.active_workflow_id)) return false;
+  if (flow.pending.includes("reschedule_booking")) return true;
+  if (flow.pending.includes("cancel_booking")) return true;
+  return false;
+}
+
 export type IntentResolverInput = {
   userText: string;
   aiState: AiState;
@@ -15,6 +29,7 @@ export type IntentResolverInput = {
 export function resolveIntent(input: IntentResolverInput): IntentResolution {
   const text = input.userText.trim();
   const activeWorkflow = input.aiState.conversation_flow?.active_workflow_id;
+  const mutationOp = hasPendingMutationOperation(input.aiState);
 
   if (CANCEL_PATTERNS.test(text)) {
     return {
@@ -40,7 +55,8 @@ export function resolveIntent(input: IntentResolverInput): IntentResolution {
     };
   }
 
-  if (BOOKING_PATTERNS.test(text) || isActiveBooking(input.aiState)) {
+  // Booking collecting during remarcação/cancel is NOT a new consulta.
+  if (!mutationOp && (BOOKING_PATTERNS.test(text) || isActiveBooking(input.aiState))) {
     return {
       workflow_id: "consulta",
       confidence: isActiveBooking(input.aiState) ? "high" : "medium",

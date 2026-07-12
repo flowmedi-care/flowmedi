@@ -334,8 +334,25 @@ export function mergeConversationFlows(
   const defaults = DEFAULT_CONVERSATION_FLOWS.workflows;
   const storedWorkflows = stored?.workflows ?? {};
   const merged: Record<string, WorkflowDefinition> = { ...defaults };
+
+  /** First-class mutation workflows: stored must not destroy structural goals/runtime. */
+  const STRUCTURAL_PIN = new Set(["cancelamento", "reschedule"]);
+
   for (const [id, wf] of Object.entries(storedWorkflows)) {
-    merged[id] = { ...defaults[id], ...wf, id };
+    const base = defaults[id];
+    if (base && STRUCTURAL_PIN.has(id)) {
+      merged[id] = {
+        ...base,
+        ...wf,
+        id,
+        goal_ids: base.goal_ids,
+        phases: base.phases,
+        enabled: base.enabled,
+        runtime: base.runtime,
+      };
+      continue;
+    }
+    merged[id] = { ...base, ...wf, id };
   }
   return { workflows: merged };
 }

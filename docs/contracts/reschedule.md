@@ -2,6 +2,14 @@
 
 Este documento define como a remarcação de consultas é resolvida no assistente, em paridade com [cancel.md](./cancel.md). Objetivo: seleção, hydrate e mutação determinísticos, independentes do comportamento da LLM.
 
+## Princípio UX
+
+Remarcação **preserva** médico/procedimento da consulta focada. O chatbot pede só novo dia/horário. Não reinicia o funil de novo agendamento.
+
+**Intent:** enquanto Current Operation de remarcação/cancelamento tem mutation pendente, `isActiveBooking` **não** troca o workflow para `consulta` (booking.collecting após hydrate não é consulta nova).
+
+**Hydrate:** com `focused_appointment_id` e sem doctor/procedure no booking, o runtime hidrata a partir da linha do appointment antes da LLM.
+
 ## Duas máquinas concorrentes
 
 | Máquina | Responsabilidade |

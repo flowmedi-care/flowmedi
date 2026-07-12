@@ -16,6 +16,7 @@ import { formatExecutionTrace } from "../observability/execution-trace";
 import { mergeAiState, patchAiState, resolveCreateAppointmentScheduledAt } from "../state/patch";
 import { resolveReferenceFacts, applySemanticFacts } from "../state/resolve-facts";
 import { buildChatbotFallbackReply } from "../state/format-for-prompt";
+import { hydrateBookingFromAppointment } from "../state/hydrate-booking-from-appointment";
 import { normalizeAiState, serializeAiState } from "../state/migrate";
 import type { AiState } from "../state/types";
 import { CHATBOT_TOOLS } from "../tools/definitions";
@@ -80,6 +81,42 @@ export type RunTurnResult = {
   statePatch: Record<string, unknown>;
   trace: TurnTrace;
 };
+
+function needsRescheduleHydrate(aiState: AiState): boolean {
+  if (aiState.conversation_flow?.active_workflow_id !== "reschedule") return false;
+  const focus = aiState.focused_appointment_id?.trim();
+  if (!focus) return false;
+  if (aiState.booking?.doctor_id && aiState.booking?.procedure_id) return false;
+  return true;
+}
+
+/** When remarcação has focus but booking lacks doctor/procedure, hydrate from appointment row. */
+async function hydrateRescheduleFocusIfNeeded(
+  supabase: SupabaseClient,
+  clinicId: string,
+  aiState: AiState
+): Promise<AiState> {
+  if (!needsRescheduleHydrate(aiState)) return aiState;
+  const appointmentId = aiState.focused_appointment_id!.trim();
+  const { data } = await supabase
+    .from("appointments")
+    .select("id, doctor_id, procedure_id")
+    .eq("id", appointmentId)
+    .eq("clinic_id", clinicId)
+    .maybeSingle();
+  if (!data?.id) return aiState;
+  return mergeAiState(
+    aiState,
+    hydrateBookingFromAppointment(
+      {
+        id: String(data.id),
+        doctor_id: data.doctor_id,
+        procedure_id: data.procedure_id,
+      },
+      aiState
+    )
+  );
+}
 
 function reapplyFlowSync(
   aiState: AiState,
@@ -239,6 +276,28 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     facts
   );
   aiState = flowSync.aiState;
+
+  aiState = await hydrateRescheduleFocusIfNeeded(
+    input.supabase,
+    input.clinicId,
+    aiState
+  );
+  // Re-sync after hydrate so tools/pending reflect doctor+procedure.
+  if (
+    aiState.conversation_flow?.active_workflow_id === "reschedule" &&
+    aiState.booking?.doctor_id &&
+    aiState.booking?.procedure_id
+  ) {
+    flowSync = reapplyFlowSync(
+      aiState,
+      input.userText,
+      snapshot.flowConfig,
+      snapshot.customFields,
+      snapshot.patient,
+      facts
+    );
+    aiState = flowSync.aiState;
+  }
 
   const deterministicActions = resolveDeterministicActions({
     before: aiStateBeforeFacts,

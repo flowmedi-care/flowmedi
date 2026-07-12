@@ -6,6 +6,15 @@ const STEP_LABELS: Record<string, string> = {
   done: "agendamento concluído",
 };
 
+function isRescheduleHydrated(state: AiState): boolean {
+  return (
+    state.conversation_flow?.active_workflow_id === "reschedule" &&
+    Boolean(state.focused_appointment_id?.trim()) &&
+    Boolean(state.booking?.doctor_id) &&
+    Boolean(state.booking?.procedure_id)
+  );
+}
+
 /** Formata ai_state para o prompt sem expor JSON cru. */
 export function formatChatbotAiStateForPrompt(state: AiState): string {
   const lines: string[] = [];
@@ -13,16 +22,25 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
   if (state.patient_id) {
     lines.push("Paciente já identificado no sistema.");
   }
-  if (state.booking?.procedure_id) {
-    lines.push("Procedimento já selecionado — não pergunte de novo.");
-  }
-  if (state.booking?.doctor_id) {
-    lines.push("Médico já selecionado — não pergunte de novo.");
-  } else if (state.booking?.procedure_id || state.booking?.pending_slot) {
+
+  if (isRescheduleHydrated(state)) {
     lines.push(
-      "Médico AINDA NÃO selecionado — chame list_doctors antes de find_available_slots ou create_appointment."
+      "REMARCAÇÃO: médico e procedimento já definidos pela consulta focada — NÃO pergunte médico nem procedimento; NÃO chame list_doctors.",
+      "Próximo objetivo: descobrir apenas o novo dia e/ou horário e usar find_available_slots → reschedule_appointment."
     );
+  } else {
+    if (state.booking?.procedure_id) {
+      lines.push("Procedimento já selecionado — não pergunte de novo.");
+    }
+    if (state.booking?.doctor_id) {
+      lines.push("Médico já selecionado — não pergunte de novo.");
+    } else if (state.booking?.procedure_id || state.booking?.pending_slot) {
+      lines.push(
+        "Médico AINDA NÃO selecionado — chame list_doctors antes de find_available_slots ou create_appointment."
+      );
+    }
   }
+
   if (state.booking?.status) {
     lines.push(`Status do agendamento: ${STEP_LABELS[state.booking.status] ?? state.booking.status}.`);
   }
@@ -56,15 +74,23 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
     });
   }
   if (state.booking?.pending_slot) {
+    const useReschedule =
+      state.conversation_flow?.active_workflow_id === "reschedule";
     lines.push(
-      `Horário selecionado (pending_slot): ${state.booking.pending_slot} — use EXATAMENTE este ISO em create_appointment.`
+      useReschedule
+        ? `Horário selecionado (pending_slot): ${state.booking.pending_slot} — use EXATAMENTE este ISO em reschedule_appointment.`
+        : `Horário selecionado (pending_slot): ${state.booking.pending_slot} — use EXATAMENTE este ISO em create_appointment.`
     );
   }
   if (state.booking?.date) {
     lines.push(`Data em análise: ${state.booking.date}.`);
   }
   if (state.focused_appointment_id) {
-    lines.push("Consulta focada para cancelamento/remarcação.");
+    lines.push(
+      state.conversation_flow?.active_workflow_id === "reschedule"
+        ? "Consulta focada para remarcação (preserve médico/procedimento)."
+        : "Consulta focada para cancelamento/remarcação."
+    );
   }
 
   if (!lines.length) {
@@ -74,6 +100,12 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
 }
 
 export function buildChatbotFallbackReply(state: AiState): string {
+  if (isRescheduleHydrated(state)) {
+    if (!state.booking?.offered_slots?.length && !state.booking?.date) {
+      return "Qual dia ou horário você gostaria de remarcar essa consulta?";
+    }
+    return "Falta só confirmar o novo horário. Qual opção você prefere?";
+  }
   if (state.booking?.status === "collecting" || state.booking?.status === "confirming") {
     if (!state.booking.procedure_id && !state.offered_procedures?.length) {
       return "Para agendar, preciso saber qual procedimento ou tipo de consulta você quer.";
