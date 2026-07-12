@@ -483,14 +483,13 @@ export function completeCurrentOperation(
 
 /** Minimal state for Safety ↔ Conversation continuation check. */
 export type DeterministicStepState = {
-  conversation_flow?: ConversationFlowState;
-  focused_appointment_id?: string;
-  active_appointments?: string[];
-  booking?: AiState["booking"];
-  offered_doctors?: AiState["offered_doctors"];
-  offered_procedures?: AiState["offered_procedures"];
-  offered_days?: AiState["offered_days"];
-  offered_slots?: AiState["booking"] extends { offered_slots?: infer S } ? S : never;
+  conversation_flow?: ConversationFlowState | null;
+  focused_appointment_id?: string | null;
+  active_appointments?: string[] | null;
+  booking?: AiState["booking"] | null;
+  offered_doctors?: AiState["offered_doctors"] | null;
+  offered_procedures?: AiState["offered_procedures"] | null;
+  offered_days?: AiState["offered_days"] | null;
 };
 
 function hasMigrationBookingContinuation(aiState: DeterministicStepState): boolean {

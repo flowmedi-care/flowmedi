@@ -889,7 +889,8 @@ export async function executeTool(
           );
           const flowConfig = ctx.flowConfig ?? mergeClinicFlowConfig({});
           const rescheduleWf =
-            getWorkflowFromConfig(flowConfig, "reschedule") ?? DEFAULT_WORKFLOW_REMARCACAO;
+            getWorkflowFromConfig(flowConfig.conversationFlows, "reschedule") ??
+            DEFAULT_WORKFLOW_REMARCACAO;
           await logToolCall(supabase, clinicId, conversationId, name, args, "fluxo remarcação", true);
           return {
             result: successResult({
@@ -962,7 +963,7 @@ export async function executeTool(
 
         const flowConfig = ctx.flowConfig ?? mergeClinicFlowConfig({});
         const cancelWf =
-          getWorkflowFromConfig(flowConfig, flowState.active_workflow_id) ??
+          getWorkflowFromConfig(flowConfig.conversationFlows, flowState.active_workflow_id) ??
           DEFAULT_WORKFLOW_CANCELAMENTO;
 
         return {
@@ -1073,7 +1074,7 @@ export async function executeTool(
 
         const flowConfig = ctx.flowConfig ?? mergeClinicFlowConfig({});
         const rescheduleWf =
-          getWorkflowFromConfig(flowConfig, flowState.active_workflow_id) ??
+          getWorkflowFromConfig(flowConfig.conversationFlows, flowState.active_workflow_id) ??
           DEFAULT_WORKFLOW_REMARCACAO;
 
         return {
