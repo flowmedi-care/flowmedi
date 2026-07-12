@@ -23,6 +23,47 @@ describe("chatbot guardrails validators", () => {
     assert.ok(result);
     assert.equal(result!.status, "needs_input");
   });
+
+  it("find_available_slots rejeita doctor_id índice sem offered_doctors", () => {
+    const result = validateToolCall(
+      "find_available_slots",
+      { doctor_id: "1", procedure_id: "490ed952-9e01-4ff7-b85c-0ab258017fa0" },
+      {
+        ...initialAiState(),
+        booking: {
+          procedure_id: "490ed952-9e01-4ff7-b85c-0ab258017fa0",
+          status: "collecting",
+        },
+      },
+      {}
+    );
+    assert.ok(result);
+    assert.equal(result!.status, "needs_input");
+    assert.match(String(result!.message ?? ""), /médico|list_doctors/i);
+  });
+
+  it("find_available_slots aceita doctor_id resolvido via offered_doctors índice", () => {
+    const result = validateToolCall(
+      "find_available_slots",
+      { doctor_id: "1", procedure_id: "490ed952-9e01-4ff7-b85c-0ab258017fa0" },
+      {
+        ...initialAiState(),
+        offered_doctors: [
+          {
+            id: "82950bcf-2d9d-4760-a9a5-99a315ca3dd9",
+            name: "Daniel Medico",
+            index: 1,
+          },
+        ],
+        booking: {
+          procedure_id: "490ed952-9e01-4ff7-b85c-0ab258017fa0",
+          status: "collecting",
+        },
+      },
+      {}
+    );
+    assert.equal(result, null);
+  });
 });
 
 describe("chatbot reply guards", () => {

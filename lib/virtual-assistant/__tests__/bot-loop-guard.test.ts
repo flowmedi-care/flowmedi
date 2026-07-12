@@ -160,4 +160,26 @@ describe("checkBotLoopRisk", () => {
     );
     assert.equal(result.block, false);
   });
+
+  it("não bloqueia escolha numérica de médico com offered_doctors e sem doctor_id", async () => {
+    const { supabase } = createBotLoopMockSupabase({ outboundCount: 5 });
+    const aiState: AiConversationState = {
+      booking: {
+        procedure_id: "proc-endo",
+        status: "collecting",
+      },
+      offered_doctors: [
+        { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", name: "Daniel Medico", index: 1 },
+        { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", name: "Doc", index: 2 },
+      ],
+    };
+    const result = await checkBotLoopRisk(
+      supabase as never,
+      "conv-1",
+      "clinic-1",
+      "1",
+      aiState
+    );
+    assert.equal(result.block, false);
+  });
 });

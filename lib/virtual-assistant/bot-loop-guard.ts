@@ -98,11 +98,33 @@ export function resolveOfferedSlots(aiState?: AiConversationState): OfferedSlot[
   return aiState?.booking?.offered_slots ?? [];
 }
 
+/** Menu numerado ativo (médico/procedimento/dia/horário) — escolha "1" não é loop. */
+export function hasOfferedBookingMenu(aiState?: AiConversationState): boolean {
+  if (!aiState) return false;
+  if ((aiState.offered_doctors?.length ?? 0) > 0) return true;
+  if ((aiState.offered_procedures?.length ?? 0) > 0) return true;
+  if ((aiState.offered_days?.length ?? 0) > 0) return true;
+  if ((resolveOfferedSlots(aiState).length ?? 0) > 0) return true;
+  return false;
+}
+
+/**
+ * Booking em andamento para isentar o loop guard.
+ * Inclui núcleo incompleto (ex.: procedure sem doctor + lista de médicos).
+ */
 export function isActiveBookingForLoopGuard(aiState?: AiConversationState): boolean {
+  if (hasOfferedBookingMenu(aiState)) return true;
+
   const booking = aiState?.booking;
   if (!booking || booking.status === "done") return false;
+
+  if (booking.procedure_id || booking.doctor_id) {
+    if (booking.status === "collecting" || booking.status === "confirming") {
+      return true;
+    }
+  }
+
   if (!(booking.doctor_id && booking.procedure_id)) return false;
-  if ((resolveOfferedSlots(aiState).length ?? 0) > 0) return true;
   return booking.status === "collecting" || booking.status === "confirming";
 }
 

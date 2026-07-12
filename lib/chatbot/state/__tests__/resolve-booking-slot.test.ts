@@ -17,10 +17,10 @@ const OFFERED = [
 function stateWithPending(pending: string): AiState {
   return {
     consecutive_tool_failures: 0,
-    patient_id: "p-1",
+    patient_id: "f2ed8c79-53e9-4fae-aa2c-96a0ee30cedf",
     booking: {
-      doctor_id: "dr-1",
-      procedure_id: "proc-1",
+      doctor_id: "82950bcf-2d9d-4760-a9a5-99a315ca3dd9",
+      procedure_id: "490ed952-9e01-4ff7-b85c-0ab258017fa0",
       offered_slots: OFFERED,
       pending_slot: pending,
       status: "confirming",
@@ -91,9 +91,9 @@ describe("validateToolCall create_appointment", () => {
     const result = validateToolCall(
       "create_appointment",
       {
-        patient_id: "p-1",
-        doctor_id: "dr-1",
-        procedure_id: "proc-1",
+        patient_id: "f2ed8c79-53e9-4fae-aa2c-96a0ee30cedf",
+        doctor_id: "82950bcf-2d9d-4760-a9a5-99a315ca3dd9",
+        procedure_id: "490ed952-9e01-4ff7-b85c-0ab258017fa0",
         scheduled_at: "2026-07-15T09:00:00.000Z",
       },
       state,

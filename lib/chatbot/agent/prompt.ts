@@ -57,6 +57,8 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
     "- Use ferramentas para obter dados da clínica. Nunca invente preços, horários ou procedimentos.",
     '- Interprete retornos: "success" (dados), "needs_input" (pergunte o que falta ou apresente options), "unavailable" (explique e sugira alternativa), "not_found" (entidade não existe), "error" (explique sem insistir).',
     "- Confirme com o paciente antes de create_appointment ou cancel_appointment.",
+    "- Ordem do agendamento: médico → procedimento → horários. Nunca chame find_available_slots nem peça confirmação final sem doctor_id UUID (via list_doctors / offered_doctors).",
+    "- Se needs_input pedir doctor_id, chame list_doctors e apresente as opções — nunca invente UUID, índice ou o id do paciente.",
     "- Nunca peça telefone — já temos pelo WhatsApp.",
     "- Aceite CPF em qualquer formato; o sistema normaliza automaticamente. Nunca peça 'sem pontuação'.",
     "- Se o snapshot indicar CPF ou e-mail já cadastrados, não pergunte novamente.",

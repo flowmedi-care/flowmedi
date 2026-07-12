@@ -18,19 +18,25 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
   }
   if (state.booking?.doctor_id) {
     lines.push("Médico já selecionado — não pergunte de novo.");
+  } else if (state.booking?.procedure_id || state.booking?.pending_slot) {
+    lines.push(
+      "Médico AINDA NÃO selecionado — chame list_doctors antes de find_available_slots ou create_appointment."
+    );
   }
   if (state.booking?.status) {
     lines.push(`Status do agendamento: ${STEP_LABELS[state.booking.status] ?? state.booking.status}.`);
   }
   if ((state.offered_procedures?.length ?? 0) > 0) {
-    lines.push(
-      `Procedimentos oferecidos: ${state.offered_procedures!.length} opção(ões) numeradas — se o paciente responder "1", "2", etc., use o id correspondente em options.`
-    );
+    lines.push("Procedimentos oferecidos — use o id da opção escolhida:");
+    for (const p of state.offered_procedures!) {
+      lines.push(`  ${p.index ?? "?"}. ${p.name} → id: ${p.id}`);
+    }
   }
   if ((state.offered_doctors?.length ?? 0) > 0) {
-    lines.push(
-      `Médicos oferecidos: ${state.offered_doctors!.length} opção(ões) numeradas — se o paciente responder "1", "2", etc., use o id correspondente em options.`
-    );
+    lines.push("Médicos oferecidos — use o id da opção escolhida:");
+    for (const d of state.offered_doctors!) {
+      lines.push(`  ${d.index ?? "?"}. ${d.name} → id: ${d.id}`);
+    }
   }
   if ((state.offered_days?.length ?? 0) > 0) {
     lines.push(

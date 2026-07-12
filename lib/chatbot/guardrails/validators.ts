@@ -7,6 +7,7 @@ import {
   resolveCreateAppointmentScheduledAt,
   slotIsInOffered,
 } from "../state/patch";
+import { resolveBookingEntityId } from "../state/resolve-entity-id";
 import {
   handoffOutsideHoursMessage,
   isInsideHandoffWindow,
@@ -36,14 +37,24 @@ export function validateToolCall(
         "Paciente não identificado. Chame lookup_patient_by_phone ou register_patient antes."
       );
     }
-    const procedureId = args.procedure_id ?? aiState.booking?.procedure_id;
+    const procedureId = resolveBookingEntityId({
+      arg: args.procedure_id,
+      stateId: aiState.booking?.procedure_id,
+      offered: aiState.offered_procedures,
+      rejectId: aiState.patient_id,
+    });
     if (!procedureId) {
       return needsInputResult(
         ["procedure_id"],
         "Procedimento não definido. Chame list_procedures antes."
       );
     }
-    const doctorId = args.doctor_id ?? aiState.booking?.doctor_id;
+    const doctorId = resolveBookingEntityId({
+      arg: args.doctor_id,
+      stateId: aiState.booking?.doctor_id,
+      offered: aiState.offered_doctors,
+      rejectId: aiState.patient_id,
+    });
     if (!doctorId) {
       return needsInputResult(
         ["doctor_id"],
@@ -83,13 +94,29 @@ export function validateToolCall(
   }
 
   if (toolName === "find_available_slots") {
-    const doctorId = args.doctor_id ?? aiState.booking?.doctor_id;
+    const doctorId = resolveBookingEntityId({
+      arg: args.doctor_id,
+      stateId: aiState.booking?.doctor_id,
+      offered: aiState.offered_doctors,
+      rejectId: aiState.patient_id,
+    });
     if (!doctorId) {
-      return needsInputResult(["doctor_id"], "Informe o médico. Chame list_doctors primeiro.");
+      return needsInputResult(
+        ["doctor_id"],
+        "Informe o médico com UUID válido. Chame list_doctors primeiro."
+      );
     }
-    const procedureId = args.procedure_id ?? aiState.booking?.procedure_id;
+    const procedureId = resolveBookingEntityId({
+      arg: args.procedure_id,
+      stateId: aiState.booking?.procedure_id,
+      offered: aiState.offered_procedures,
+      rejectId: aiState.patient_id,
+    });
     if (!procedureId) {
-      return needsInputResult(["procedure_id"], "Informe o procedimento. Chame list_procedures primeiro.");
+      return needsInputResult(
+        ["procedure_id"],
+        "Informe o procedimento. Chame list_procedures primeiro."
+      );
     }
   }
 
