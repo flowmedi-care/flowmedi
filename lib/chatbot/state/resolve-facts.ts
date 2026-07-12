@@ -70,6 +70,21 @@ export function resolveReferenceFacts(
     }
   }
 
+  // appointments[i] ↔ option i+1 — only when booking menus are not the active choice set.
+  const bookingMenusActive =
+    (aiState.offered_doctors?.length ?? 0) > 0 ||
+    (aiState.offered_procedures?.length ?? 0) > 0 ||
+    (aiState.offered_days?.length ?? 0) > 0 ||
+    slots.length > 0;
+  const activeAppts = aiState.active_appointments ?? [];
+  if (!bookingMenusActive && activeAppts.length > 0) {
+    const pick = activeAppts[facts.selectedIndex - 1];
+    if (pick) {
+      patch.focused_appointment_id = pick;
+      return patch;
+    }
+  }
+
   return patch;
 }
 

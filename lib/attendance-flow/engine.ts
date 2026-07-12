@@ -214,13 +214,8 @@ export function resolveAvailableTools(input: EngineInput): string[] {
     if (tools.has("lookup_patient_by_phone")) tools.add(t);
   }
 
-  if (input.flowState.pending.includes("appointment_selected")) {
-    tools.add("list_patient_appointments");
-  }
-
-  // Cancel contract: user can list/review cancellable appointments throughout cancelamento
-  // (must not be blocked solely because appointment_selected is already satisfied).
-  if (input.workflow.id === "cancelamento") {
+  // Read tool for existing appointments — any workflow once patient is known.
+  if (input.aiState.patient_id) {
     tools.add("list_patient_appointments");
   }
 

@@ -8,6 +8,7 @@ import {
 import {
   DEFAULT_APPOINTMENT_POLICY,
   DEFAULT_WORKFLOW_CANCELAMENTO,
+  DEFAULT_WORKFLOW_CONSULTA,
 } from "@/lib/attendance-flow/defaults";
 import { defaultGoalRegistry } from "@/lib/attendance-flow/goal-registry";
 import { initialAiState } from "../../state/types";
@@ -15,13 +16,19 @@ import {
   resolveCancelAppointmentId,
 } from "../../state/resolve-cancel-appointment-id";
 import { validateToolCall } from "../../guardrails/validators";
+import {
+  cancelNeedsListRule,
+  resolveDeterministicActions,
+} from "../../agent/deterministic-actions";
+import { resolveReferenceFacts } from "../../state/resolve-facts";
 
 const PATIENT = "1679cbdc-f69b-4f99-afb6-72f80caf5a14";
 const APPT = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+const APPT2 = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+const APPT3 = "cccccccc-cccc-cccc-cccc-cccccccccccc";
 
 describe("cancel replay: engine tools", () => {
   it("list stays available when appointment_selected already satisfied", () => {
-    // Transcript shape: cancelamento + selection satisfied → list was gated out (bug).
     const aiState = {
       ...initialAiState(),
       patient_id: PATIENT,
@@ -51,6 +58,31 @@ describe("cancel replay: engine tools", () => {
     );
   });
 
+  it("consulta + patient_id allows list_patient_appointments", () => {
+    const aiState = {
+      ...initialAiState(),
+      patient_id: PATIENT,
+    };
+    const flowState = syncFlowState({
+      workflow: DEFAULT_WORKFLOW_CONSULTA,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState: initConversationFlowState(DEFAULT_WORKFLOW_CONSULTA),
+    });
+    const tools = resolveAvailableTools({
+      workflow: DEFAULT_WORKFLOW_CONSULTA,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState,
+    });
+    assert.ok(
+      tools.includes("list_patient_appointments"),
+      `expected list on consulta, got: ${tools.join(",")}`
+    );
+  });
+
   it("keeps valid focused id (invariant 5 — no wipe required for tools)", () => {
     const aiState = {
       ...initialAiState(),
@@ -74,6 +106,84 @@ describe("cancel replay: engine tools", () => {
     });
     assert.ok(tools.includes("list_patient_appointments"));
     assert.ok(tools.includes("cancel_appointment"));
+  });
+});
+
+describe("cancel deterministic list", () => {
+  it("cancelamento without focus → list_patient_appointments", () => {
+    const after = {
+      ...initialAiState(),
+      patient_id: PATIENT,
+      conversation_flow: {
+        ...initConversationFlowState(DEFAULT_WORKFLOW_CANCELAMENTO),
+        active_workflow_id: "cancelamento",
+        pending: ["appointment_selected", "cancel_reason", "cancel_booking"],
+        focus_goal_id: "appointment_selected",
+      },
+    };
+    assert.equal(cancelNeedsListRule.matches({ before: after, after, facts: {} }), true);
+    const actions = resolveDeterministicActions({
+      before: initialAiState(),
+      after,
+      facts: {},
+    });
+    assert.equal(actions.length, 1);
+    assert.equal(actions[0]!.toolName, "list_patient_appointments");
+    assert.equal(actions[0]!.reason, "cancel_needs_list");
+  });
+
+  it("does not list when focused already set", () => {
+    const after = {
+      ...initialAiState(),
+      patient_id: PATIENT,
+      focused_appointment_id: APPT,
+      conversation_flow: {
+        ...initConversationFlowState(DEFAULT_WORKFLOW_CANCELAMENTO),
+        active_workflow_id: "cancelamento",
+        pending: ["cancel_booking"],
+        satisfied: ["appointment_selected"],
+      },
+    };
+    assert.equal(cancelNeedsListRule.matches({ before: after, after, facts: {} }), false);
+  });
+});
+
+describe("appointment index order → focus", () => {
+  it("selectedIndex 2 → appointments[1] focused", () => {
+    const state = {
+      ...initialAiState(),
+      patient_id: PATIENT,
+      active_appointments: [APPT, APPT2, APPT3],
+    };
+    const patch = resolveReferenceFacts({ selectedIndex: 2 }, state);
+    assert.equal(patch.focused_appointment_id, APPT2);
+  });
+
+  it("after focus, cancel_appointment is available", () => {
+    const aiState = {
+      ...initialAiState(),
+      patient_id: PATIENT,
+      focused_appointment_id: APPT2,
+      active_appointments: [APPT, APPT2, APPT3],
+    };
+    const flowState = syncFlowState({
+      workflow: DEFAULT_WORKFLOW_CANCELAMENTO,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState: initConversationFlowState(DEFAULT_WORKFLOW_CANCELAMENTO),
+    });
+    const tools = resolveAvailableTools({
+      workflow: DEFAULT_WORKFLOW_CANCELAMENTO,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState,
+    });
+    assert.ok(tools.includes("cancel_appointment"));
+    const resolved = resolveCancelAppointmentId({}, aiState);
+    assert.equal(resolved.ok, true);
+    if (resolved.ok) assert.equal(resolved.appointmentId, APPT2);
   });
 });
 

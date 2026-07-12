@@ -48,6 +48,22 @@ Focused válido?
 
 > Durante o workflow de cancelamento, o usuário deve poder **listar ou revisar** as consultas canceláveis a qualquer momento.
 
+`list_patient_appointments` também fica disponível em qualquer workflow quando `patient_id` está definido (intenção de consultas existentes).
+
+### Structured output (authoritative)
+
+Patient-visible content must be a **deterministic projection** of the returned `appointments` array (`renderStrategy: appointment_list`). The LLM must not invent, omit, or summarize away rows.
+
+With N>1 canceláveis, selection requires presenting the full numbered list. Order:
+
+```
+appointments[0]  →  option 1
+appointments[1]  →  option 2
+selectedIndex k  →  appointments[k - 1]  →  focused_appointment_id
+```
+
+When cancelamento starts without `focused_appointment_id`, the runtime deterministically calls `list_patient_appointments`.
+
 ## Invariants
 
 1. Never cancel without a valid `appointment_id`.

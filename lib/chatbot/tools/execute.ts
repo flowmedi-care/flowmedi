@@ -777,13 +777,18 @@ export async function executeTool(
           true
         );
         const ids = appointments.map((a) => a.id).filter(Boolean) as string[];
+        // appointments[i] ↔ option i+1 — same order for presentation and selection.
         const options: ToolOption[] = appointments.map((a, i) => ({
           id: a.id,
           label: [a.procedure_name, a.doctor_name, a.scheduled_at].filter(Boolean).join(" — ") || `Consulta ${i + 1}`,
           index: i + 1,
         }));
         return {
-          result: successResult({ appointments }, options.length > 1 ? options : undefined),
+          result: successResult(
+            { appointments },
+            options.length >= 1 ? options : undefined,
+            { renderStrategy: "appointment_list" }
+          ),
           statePatch: {
             patient_id: listed.resolvedPatientId,
             active_appointments: ids,

@@ -49,9 +49,32 @@ export const daySelectedRule: DeterministicActionRule = {
   },
 };
 
+/**
+ * Cancelamento without a focused appointment → must list canceláveis.
+ * Does not invent selection — user (or N=1 auto-focus) chooses after the list.
+ */
+export const cancelNeedsListRule: DeterministicActionRule = {
+  id: "cancel_needs_list",
+  matches(ctx) {
+    const flow = ctx.after.conversation_flow;
+    if (flow?.active_workflow_id !== "cancelamento") return false;
+    if (!flow.pending.includes("appointment_selected")) return false;
+    if (ctx.after.focused_appointment_id?.trim()) return false;
+    return true;
+  },
+  execute() {
+    return {
+      toolName: "list_patient_appointments",
+      args: {},
+      reason: "cancel_needs_list",
+    };
+  },
+};
+
 /** Declarative rules — only obligatory next tools, never conversation strategy. */
 const rules: DeterministicActionRule[] = [
   daySelectedRule,
+  cancelNeedsListRule,
   // doctorSelectedRule / procedureSelectedRule / slotConfirmedRule: add when transition is inevitable
 ];
 

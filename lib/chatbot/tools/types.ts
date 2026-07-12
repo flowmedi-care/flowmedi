@@ -27,6 +27,8 @@ export type ToolResult<T = unknown> = {
   missing?: MissingField[];
   options?: ToolOption[];
   suggestion?: string;
+  /** When set, runtime uses structured renderer for patient-visible content. */
+  renderStrategy?: string;
 };
 
 export type FaqItem = { id: string; question: string; answer: string };
@@ -63,10 +65,12 @@ export function toolResultToJson(result: ToolResult): string {
 
 export function successResult<T>(
   data: T,
-  options?: ToolOption[]
+  options?: ToolOption[],
+  extras?: { renderStrategy?: string }
 ): ToolResult<T> {
   const result: ToolResult<T> = { status: "success", data };
   if (options?.length) result.options = options;
+  if (extras?.renderStrategy) result.renderStrategy = extras.renderStrategy;
   return result;
 }
 

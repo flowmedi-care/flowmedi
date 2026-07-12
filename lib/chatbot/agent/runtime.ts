@@ -40,8 +40,14 @@ import type { PolicySlice } from "../snapshot/loaders/policy-loader";
 import { outcomeFromToolResult } from "../tools/error-class";
 import { createTurnContext } from "./turn-context";
 import { resolveDeterministicActions } from "./deterministic-actions";
+import { renderStructuredToolResult } from "../tools/render-structured";
 
 const MAX_TOOL_ROUNDS = 5;
+
+const STRUCTURED_RENDER_OPTS = {
+  locale: "pt-BR",
+  timezone: "America/Sao_Paulo",
+} as const;
 
 export type HistoryMessage = {
   role: "user" | "assistant";
@@ -240,6 +246,9 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     facts,
   });
 
+  /** Structured tool projections own patient-visible content when present. */
+  let authoritativeStructuredReply: string | null = null;
+
   const deterministicToolMessages: ChatMessage[] = [];
   for (const action of deterministicActions) {
     const snapshotBefore = sliceSnapshotForTrace(snapshot) as unknown as Record<
@@ -304,7 +313,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       resultMessage: outcome.result.message,
     });
 
-    trace.executionTraces.push({
+    const detExec: ExecutionTrace = {
       kind: "tool",
       name: action.toolName,
       outcome: mutationOutcome,
@@ -312,7 +321,12 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       snapshotBefore,
       validation_gate: blocked ? validation?.message : undefined,
       detail: `deterministic:${action.reason} ${outcome.result.message ?? ""}`.trim(),
-    });
+    };
+    if (outcome.listExecutionTrace) {
+      detExec.listExecutionTrace = outcome.listExecutionTrace;
+      detExec.detail = `deterministic:${action.reason} stages ${outcome.listExecutionTrace.stages.beforeFilters}→${outcome.listExecutionTrace.stages.afterStatusFilter}→${outcome.listExecutionTrace.stages.afterDateFilter}→${outcome.listExecutionTrace.stages.resultCount}`;
+    }
+    trace.executionTraces.push(detExec);
 
     if (outcome.statePatch) {
       aiState = mergeAiState(aiState, outcome.statePatch);
@@ -321,6 +335,11 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       aiState,
       patchAiState(action.toolName, args, outcome.result, aiState, mutationOutcome)
     );
+
+    const rendered = renderStructuredToolResult(outcome.result, STRUCTURED_RENDER_OPTS);
+    if (rendered?.text) {
+      authoritativeStructuredReply = rendered.text;
+    }
 
     snapshot = await rebuildSnapshotAfterMutation(
       input,
@@ -590,6 +609,11 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         trace.handoffReason = String(args.reason ?? toolName);
       }
 
+      const rendered = renderStructuredToolResult(outcome.result, STRUCTURED_RENDER_OPTS);
+      if (rendered?.text) {
+        authoritativeStructuredReply = rendered.text;
+      }
+
       messages.push({
         role: "tool",
         tool_call_id: call.id,
@@ -622,6 +646,11 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         break;
       }
     }
+  }
+
+  // Structured results are authoritative when a renderer produced patient-visible content.
+  if (authoritativeStructuredReply && !handoff) {
+    finalReply = authoritativeStructuredReply;
   }
 
   if (!finalReply) {
