@@ -64,6 +64,96 @@ selectedIndex k  →  appointments[k - 1]  →  focused_appointment_id
 
 When cancelamento starts without `focused_appointment_id`, the runtime deterministically calls `list_patient_appointments`.
 
+### Refresh invariant
+
+> Um refresh de uma coleção não deve invalidar uma referência ainda existente nessa coleção.
+
+Ao listar com N>1, se `focused_appointment_id` atual ainda está em `active_appointments`, o focus é **preservado**. Só é limpo quando deixa de existir na lista nova (ou a lista tem exatamente 1 item, que passa a ser o focus).
+
+## Identity Resolution Contract
+
+Contrato interno de domínio para transformar a referência em `cancel_appointment.appointment_id` em um UUID canônico. Não é uma API pública.
+
+`appointment_id` no arg da tool representa:
+
+- um **UUID** de consulta (referência absoluta), **ou**
+- um **índice da lista** (`active_appointments`), **1-based** — mesma ordem da listagem acima.
+
+### Pipeline
+
+```
+appointment_id (arg da tool)
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│  resolveReference(arg, active)              │
+│  Puro: só o que o chamador enviou.          │
+│  Sem estado conversacional. Sem allowlist.  │
+│                                             │
+│  1. UUID sintaticamente válido? → esse UUID │
+│  2. índice 1..N em active? → active[n-1]    │
+│  3. senão → null                            │
+└─────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│  Orquestrador (fallback de estado)          │
+│                                             │
+│  canonical = resolveReference(arg)          │
+│              ?? focused                     │
+│                                             │
+│  focused NÃO faz parte do resolve.          │
+│  É contexto implícito escolhido pelo        │
+│  orquestrador se a referência explícita     │
+│  não resolveu.                              │
+│                                             │
+│  se !canonical → erro de resolução          │
+└─────────────────────────────────────────────┘
+        │
+        ▼  canonicalUuid
+┌─────────────────────────────────────────────┐
+│  authorizeTarget(uuid, allowedAppointments) │
+│  "Esse UUID pode ser usado neste contexto?" │
+│                                             │
+│  hoje allowed = active ∪ focused            │
+│  (parametrizado pelo caller)                │
+│                                             │
+│  também rejeitar: patient_id, pending_slot  │
+│                                             │
+│  sim → ok | não → erro tipado               │
+└─────────────────────────────────────────────┘
+```
+
+| Peça | Responsabilidade | Fontes |
+|------|------------------|--------|
+| `resolveReference` | Ref explícita → UUID canônico | arg + lista ativa |
+| Orquestrador | Fallback se resolve falhou | `focused` do estado |
+| `authorizeTarget` | Pode usar neste contexto? | `allowedAppointments` |
+
+### Pós-condição
+
+`resolveCancelAppointmentId` sempre retorna **ou**:
+
+- um **UUID canônico** de consulta, **ou**
+- um **erro tipado** (resolução ou autorização)
+
+Nunca retorna índices de lista nem identificadores parcialmente resolvidos.
+
+### Idempotência (`resolveReference`)
+
+- `resolveReference(UUID) = UUID`
+- `resolveReference(resolveReference(UUID)) = UUID`
+- `resolveReference("2") → B` então `resolveReference(B) → B`
+
+### Conceitos
+
+1. Resolve ≠ Authorize
+2. Allowlist parametrizado (`allowedAppointments`)
+3. UUID canônico
+4. Erro tipado
+5. Idempotência
+6. Refresh preserva focus
+
 ## Invariants
 
 1. Never cancel without a valid `appointment_id`.
@@ -73,9 +163,11 @@ When cancelamento starts without `focused_appointment_id`, the runtime determini
 5. A **valid** `focused_appointment_id` must not be discarded automatically on workflow entry.
 6. Appointment selection must always derive from a **validated domain reference**.
 
-   **Examples (current):** result of `list_patient_appointments`; previously validated `focused_appointment_id`.
+   **Examples (current):** result of `list_patient_appointments`; previously validated `focused_appointment_id`; 1-based list index resolved via `resolveReference`.
 
    **Future:** other explicit domain entry points (e.g. confirmation deep-link with a server-validated id) may be added without changing this rule.
+
+7. A collection refresh must not invalidate a reference still present in that collection.
 
 ## Related
 

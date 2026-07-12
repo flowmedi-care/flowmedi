@@ -7,6 +7,7 @@ import type { MutationOutcome } from "../tools/mutation-result";
 import { shouldIncrementToolFailures } from "../tools/mutation-result";
 import { outcomeFromToolResult } from "../tools/error-class";
 import { resolveBookingEntityId } from "./resolve-entity-id";
+import { focusedAfterAppointmentListRefresh } from "./resolve-cancel-appointment-id";
 
 export function patchAiState(
   toolName: string,
@@ -171,7 +172,11 @@ export function patchAiState(
       if (Array.isArray(appointments)) {
         const ids = appointments.map((a) => a.id).filter(Boolean) as string[];
         patch.active_appointments = ids;
-        if (ids.length === 1) patch.focused_appointment_id = ids[0];
+        // Refresh invariant: do not invalidate focus still present in the new list.
+        patch.focused_appointment_id = focusedAfterAppointmentListRefresh(
+          ids,
+          current.focused_appointment_id
+        );
       }
       break;
     }

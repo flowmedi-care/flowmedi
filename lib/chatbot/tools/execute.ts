@@ -41,6 +41,7 @@ import {
 } from "./types";
 import { isChatbotTool } from "./definitions";
 import { resolveCreateAppointmentScheduledAt } from "../state/patch";
+import { focusedAfterAppointmentListRefresh } from "../state/resolve-cancel-appointment-id";
 import {
   resolveBookingDate,
   resolveBookingDateFailureMessage,
@@ -792,7 +793,10 @@ export async function executeTool(
           statePatch: {
             patient_id: listed.resolvedPatientId,
             active_appointments: ids,
-            focused_appointment_id: ids.length === 1 ? ids[0] : undefined,
+            focused_appointment_id: focusedAfterAppointmentListRefresh(
+              ids,
+              ctx.aiState.focused_appointment_id
+            ),
           },
           listExecutionTrace,
         };
