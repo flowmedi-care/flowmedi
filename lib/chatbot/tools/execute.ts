@@ -20,9 +20,13 @@ import {
   registerPatientViaAssistant,
   updatePatientIntakeViaAssistant,
 } from "@/lib/virtual-assistant/services/patients";
-import { computePendencies, markMutationDone, resetCurrentCancelOperation, syncFlowState, getWorkflowFromConfig } from "@/lib/attendance-flow/engine";
+import { computePendencies, completeCurrentOperation, markMutationDone, syncFlowState, getWorkflowFromConfig } from "@/lib/attendance-flow/engine";
 import { mergeClinicFlowConfig, buildGoalRegistry } from "@/lib/attendance-flow/flow-sync";
-import { DEFAULT_WORKFLOW_CONSULTA } from "@/lib/attendance-flow/defaults";
+import {
+  DEFAULT_WORKFLOW_CANCELAMENTO,
+  DEFAULT_WORKFLOW_CONSULTA,
+  DEFAULT_WORKFLOW_REMARCACAO,
+} from "@/lib/attendance-flow/defaults";
 import {
   getProcedureInfo,
   resolveServicePriceForClinic,
@@ -42,6 +46,7 @@ import {
 import { isChatbotTool } from "./definitions";
 import { resolveCreateAppointmentScheduledAt } from "../state/patch";
 import { focusedAfterAppointmentListRefresh } from "../state/resolve-cancel-appointment-id";
+import { hydrateBookingFromAppointment } from "../state/hydrate-booking-from-appointment";
 import {
   resolveBookingDate,
   resolveBookingDateFailureMessage,
@@ -58,6 +63,14 @@ function resolveAppointmentListRenderMode(aiState: AiState): AppointmentListRend
     flow?.active_workflow_id === "cancelamento" &&
     flow.pending.includes("appointment_selected") &&
     flow.pending.includes("cancel_booking") &&
+    !aiState.focused_appointment_id?.trim()
+  ) {
+    return "select";
+  }
+  if (
+    flow?.active_workflow_id === "reschedule" &&
+    flow.pending.includes("appointment_selected") &&
+    flow.pending.includes("reschedule_booking") &&
     !aiState.focused_appointment_id?.trim()
   ) {
     return "select";
@@ -801,6 +814,25 @@ export async function executeTool(
           index: i + 1,
         }));
         const listMode = resolveAppointmentListRenderMode(ctx.aiState);
+        const focusedId = focusedAfterAppointmentListRefresh(
+          ids,
+          ctx.aiState.focused_appointment_id
+        );
+        const focusedRow = focusedId
+          ? appointments.find((a) => a.id === focusedId)
+          : undefined;
+        const hydratePatch =
+          focusedRow != null
+            ? hydrateBookingFromAppointment(
+                {
+                  id: focusedRow.id,
+                  doctor_id: focusedRow.doctor_id,
+                  procedure_id: focusedRow.procedure_id,
+                },
+                ctx.aiState
+              )
+            : { focused_appointment_id: focusedId };
+
         return {
           result: successResult(
             { appointments, renderMode: listMode },
@@ -810,10 +842,7 @@ export async function executeTool(
           statePatch: {
             patient_id: listed.resolvedPatientId,
             active_appointments: ids,
-            focused_appointment_id: focusedAfterAppointmentListRefresh(
-              ids,
-              ctx.aiState.focused_appointment_id
-            ),
+            ...hydratePatch,
           },
           listExecutionTrace,
         };
@@ -844,6 +873,23 @@ export async function executeTool(
         const reason = args.cancellation_reason === "reschedule" ? "reschedule" : "other";
 
         if (reason === "reschedule") {
+          const { data: apptRow } = await supabase
+            .from("appointments")
+            .select("id, doctor_id, procedure_id")
+            .eq("id", appointmentId)
+            .eq("clinic_id", clinicId)
+            .maybeSingle();
+          const hydrated = hydrateBookingFromAppointment(
+            {
+              id: appointmentId,
+              doctor_id: apptRow?.doctor_id,
+              procedure_id: apptRow?.procedure_id,
+            },
+            ctx.aiState
+          );
+          const flowConfig = ctx.flowConfig ?? mergeClinicFlowConfig({});
+          const rescheduleWf =
+            getWorkflowFromConfig(flowConfig, "reschedule") ?? DEFAULT_WORKFLOW_REMARCACAO;
           await logToolCall(supabase, clinicId, conversationId, name, args, "fluxo remarcação", true);
           return {
             result: successResult({
@@ -851,8 +897,18 @@ export async function executeTool(
               appointment_id: appointmentId,
             }),
             statePatch: {
-              focused_appointment_id: appointmentId,
-              booking: { status: "collecting" },
+              ...hydrated,
+              conversation_flow: {
+                ...(ctx.aiState.conversation_flow ?? {
+                  active_workflow_id: rescheduleWf.id,
+                  mode: rescheduleWf.mode,
+                  satisfied: [],
+                  pending: [],
+                  collected: {},
+                }),
+                active_workflow_id: rescheduleWf.id,
+                mode: rescheduleWf.mode,
+              },
             },
           };
         }
@@ -904,29 +960,26 @@ export async function executeTool(
           };
         }
 
-        if (remaining.length > 0) {
-          // Current Operation reset — workflow stays alive for the next cancel.
-          return {
-            result: successResult({
-              cancelled: true,
-              appointment_id: appointmentId,
-              remaining_count: remaining.length,
-            }),
-            statePatch: {
-              focused_appointment_id: undefined,
-              active_appointments: remaining,
-              conversation_flow: resetCurrentCancelOperation(flowState),
-            },
-          };
-        }
+        const flowConfig = ctx.flowConfig ?? mergeClinicFlowConfig({});
+        const cancelWf =
+          getWorkflowFromConfig(flowConfig, flowState.active_workflow_id) ??
+          DEFAULT_WORKFLOW_CANCELAMENTO;
 
-        // Last appointment cancelled — mark mutation done; workflow can complete.
         return {
-          result: successResult({ cancelled: true, appointment_id: appointmentId }),
+          result: successResult({
+            cancelled: true,
+            appointment_id: appointmentId,
+            ...(remaining.length > 0 ? { remaining_count: remaining.length } : {}),
+          }),
           statePatch: {
             focused_appointment_id: undefined,
             active_appointments: remaining,
-            conversation_flow: markMutationDone(flowState, "cancel_booking"),
+            conversation_flow: completeCurrentOperation({
+              workflow: cancelWf,
+              flowState,
+              mutationSucceeded: true,
+              remainingTargets: remaining,
+            }),
           },
         };
       }
@@ -937,29 +990,110 @@ export async function executeTool(
             ? { id: ctx.aiState.patient_id }
             : await lookupPatientByPhone(supabase, clinicId, phoneNumber);
         if (!patient?.id) return { result: errorResult("Paciente não encontrado.") };
-        const appointmentId = String(
-          args.appointment_id ?? ctx.aiState.focused_appointment_id ?? ""
-        );
-        if (!appointmentId) {
+
+        const { resolveCancelAppointmentId, cancelAppointmentIdFailureMessage } =
+          await import("../state/resolve-cancel-appointment-id");
+        const resolvedId = resolveCancelAppointmentId(args, {
+          ...ctx.aiState,
+          patient_id: patient.id,
+        });
+        if (!resolvedId.ok) {
           return {
-            result: needsInputResult(["appointment_id"], "Preciso saber qual consulta remarcar."),
+            result: needsInputResult(
+              ["appointment_id"],
+              cancelAppointmentIdFailureMessage(resolvedId.reason)
+            ),
           };
         }
+        const appointmentId = resolvedId.appointmentId;
         const newScheduledAt = String(args.new_scheduled_at ?? "");
         if (!newScheduledAt) {
           return {
-            result: needsInputResult(["new_scheduled_at"], "Preciso do novo horário (scheduled_at de find_available_slots)."),
+            result: needsInputResult(
+              ["new_scheduled_at"],
+              "Preciso do novo horário (scheduled_at de find_available_slots)."
+            ),
           };
         }
+
+        let reschedulePatientId = patient.id;
+        const { data: apptRow } = await supabase
+          .from("appointments")
+          .select("patient_id, doctor_id, procedure_id, status")
+          .eq("id", appointmentId)
+          .eq("clinic_id", clinicId)
+          .maybeSingle();
+        if (apptRow?.patient_id) {
+          reschedulePatientId = String(apptRow.patient_id);
+        }
+
         const res = await rescheduleAppointmentViaAssistant(supabase, {
           clinicId,
           appointmentId,
-          patientId: patient.id,
+          patientId: reschedulePatientId,
           newScheduledAt,
         });
-        await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "remarcada", !res.error);
-        if (res.error) return { result: errorResult(res.error) };
-        return { result: successResult({ rescheduled: true, appointment_id: appointmentId }) };
+        await logToolCall(
+          supabase,
+          clinicId,
+          conversationId,
+          name,
+          args,
+          res.error ?? "remarcada",
+          !res.error
+        );
+        if (res.error) {
+          return {
+            result: errorResult(
+              `${res.error} Chame list_patient_appointments para listar as consultas remarcáveis.`
+            ),
+            statePatch: {
+              focused_appointment_id: undefined,
+              active_appointments: undefined,
+            },
+          };
+        }
+
+        const flowState = ctx.aiState.conversation_flow;
+        const prevActive = (ctx.aiState.active_appointments ?? [])
+          .map((id) => String(id).trim())
+          .filter(Boolean);
+        const remaining = prevActive.filter((id) => id !== appointmentId);
+
+        if (!flowState) {
+          return {
+            result: successResult({ rescheduled: true, appointment_id: appointmentId }),
+            statePatch: {
+              focused_appointment_id: undefined,
+              active_appointments: remaining.length ? remaining : [appointmentId],
+              booking: { status: "done" },
+            },
+          };
+        }
+
+        const flowConfig = ctx.flowConfig ?? mergeClinicFlowConfig({});
+        const rescheduleWf =
+          getWorkflowFromConfig(flowConfig, flowState.active_workflow_id) ??
+          DEFAULT_WORKFLOW_REMARCACAO;
+
+        return {
+          result: successResult({
+            rescheduled: true,
+            appointment_id: appointmentId,
+            ...(remaining.length > 0 ? { remaining_count: remaining.length } : {}),
+          }),
+          statePatch: {
+            focused_appointment_id: undefined,
+            active_appointments: remaining,
+            booking: { status: remaining.length > 0 ? "collecting" : "done" },
+            conversation_flow: completeCurrentOperation({
+              workflow: rescheduleWf,
+              flowState,
+              mutationSucceeded: true,
+              remainingTargets: remaining,
+            }),
+          },
+        };
       }
 
       case "get_service_price": {

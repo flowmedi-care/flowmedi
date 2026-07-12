@@ -3,11 +3,15 @@ import { describe, it } from "node:test";
 import {
   daySelectedRule,
   cancelNeedsListRule,
+  rescheduleNeedsListRule,
   resolveDeterministicActions,
 } from "../deterministic-actions";
 import { initialAiState } from "../../state/types";
 import { initConversationFlowState } from "@/lib/attendance-flow/engine";
-import { DEFAULT_WORKFLOW_CANCELAMENTO } from "@/lib/attendance-flow/defaults";
+import {
+  DEFAULT_WORKFLOW_CANCELAMENTO,
+  DEFAULT_WORKFLOW_REMARCACAO,
+} from "@/lib/attendance-flow/defaults";
 
 describe("resolveDeterministicActions / daySelectedRule", () => {
   const doctorId = "82950bcf-2d9d-4760-a9a5-99a315ca3dd9";
@@ -120,5 +124,36 @@ describe("cancelNeedsListRule", () => {
       },
     };
     assert.equal(cancelNeedsListRule.matches({ before: after, after, facts: {} }), false);
+  });
+});
+
+describe("rescheduleNeedsListRule", () => {
+  it("emits list when reschedule Selecting without focus", () => {
+    const after = {
+      ...initialAiState(),
+      conversation_flow: {
+        ...initConversationFlowState(DEFAULT_WORKFLOW_REMARCACAO),
+        pending: ["appointment_selected", "reschedule_booking"],
+      },
+    };
+    const actions = resolveDeterministicActions({
+      before: initialAiState(),
+      after,
+      facts: {},
+    });
+    assert.equal(actions[0]?.toolName, "list_patient_appointments");
+    assert.equal(actions[0]?.reason, "reschedule_needs_list");
+  });
+
+  it("does not match when focused_appointment_id set", () => {
+    const after = {
+      ...initialAiState(),
+      focused_appointment_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      conversation_flow: {
+        ...initConversationFlowState(DEFAULT_WORKFLOW_REMARCACAO),
+        pending: ["slot_selected", "reschedule_booking"],
+      },
+    };
+    assert.equal(rescheduleNeedsListRule.matches({ before: after, after, facts: {} }), false);
   });
 });

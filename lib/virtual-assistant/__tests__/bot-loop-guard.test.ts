@@ -205,4 +205,42 @@ describe("checkBotLoopRisk", () => {
     );
     assert.equal(result.block, false);
   });
+
+  it("não bloqueia high_outbound_rate após listagem (active_appointments)", async () => {
+    const { supabase } = createBotLoopMockSupabase({ outboundCount: 5 });
+    const aiState: AiConversationState = {
+      active_appointments: ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"],
+    };
+    assert.equal(hasDeterministicPendingAction(aiState), true);
+    const result = await checkBotLoopRisk(
+      supabase as never,
+      "conv-1",
+      "clinic-1",
+      "Queria remarcar essa",
+      aiState
+    );
+    assert.equal(result.block, false);
+  });
+
+  it("não bloqueia high_outbound_rate com remarcação Current Operation pending", async () => {
+    const { supabase } = createBotLoopMockSupabase({ outboundCount: 5 });
+    const aiState: AiConversationState = {
+      conversation_flow: {
+        active_workflow_id: "reschedule",
+        mode: "assisted",
+        satisfied: [],
+        pending: ["appointment_selected", "slot_selected", "reschedule_booking"],
+        collected: {},
+      },
+    };
+    assert.equal(hasDeterministicPendingAction(aiState), true);
+    const result = await checkBotLoopRisk(
+      supabase as never,
+      "conv-1",
+      "clinic-1",
+      "Queria remarcar essa",
+      aiState
+    );
+    assert.equal(result.block, false);
+  });
 });

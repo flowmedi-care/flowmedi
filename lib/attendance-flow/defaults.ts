@@ -27,6 +27,7 @@ export const DEFAULT_APPOINTMENT_POLICY: AppointmentPolicy = {
     appointment_selected: "required",
     cancel_reason: "optional",
     cancel_booking: "required",
+    reschedule_booking: "required",
   },
 };
 
@@ -146,7 +147,7 @@ export const BUILTIN_GOAL_DEFINITIONS: GoalDefinition[] = [
     phase_id: "cancelamento",
     completion: { type: "state_path", path: "focused_appointment_id" },
     allowed_tools: ["list_patient_appointments"],
-    prompt_hint: "Liste as consultas do paciente e identifique qual cancelar.",
+    prompt_hint: "Liste as consultas do paciente e identifique qual.",
     priority: 100,
     default_policy: "required",
   },
@@ -167,6 +168,18 @@ export const BUILTIN_GOAL_DEFINITIONS: GoalDefinition[] = [
     completion: { type: "mutation", key: "cancel_booking" },
     allowed_tools: ["cancel_appointment"],
     prompt_hint: "Confirme e cancele a consulta selecionada.",
+    priority: 10,
+    default_policy: "required",
+    requires_confirmation: true,
+    is_mutation: true,
+  },
+  {
+    id: "reschedule_booking",
+    label: "Remarcação realizada",
+    phase_id: "remarcacao",
+    completion: { type: "mutation", key: "reschedule_booking" },
+    allowed_tools: ["reschedule_appointment"],
+    prompt_hint: "Confirme o novo horário e remarque a consulta selecionada.",
     priority: 10,
     default_policy: "required",
     requires_confirmation: true,
@@ -205,6 +218,14 @@ const CANCEL_PHASES = [
   },
 ];
 
+const RESCHEDULE_PHASES = [
+  {
+    id: "remarcacao",
+    label: "Remarcação",
+    goal_ids: ["appointment_selected", "slot_selected", "reschedule_booking"],
+  },
+];
+
 export const DEFAULT_WORKFLOW_CONSULTA: WorkflowDefinition = {
   id: "consulta",
   label: "Consulta",
@@ -231,6 +252,27 @@ export const DEFAULT_WORKFLOW_CANCELAMENTO: WorkflowDefinition = {
   goal_ids: ["appointment_selected", "cancel_reason", "cancel_booking"],
   phases: CANCEL_PHASES,
   enabled: true,
+  runtime: {
+    resetSpec: {
+      mutationKeys: ["cancel_booking"],
+      collectedKeys: ["cancel_reason", "custom:cancel_reason"],
+    },
+  },
+};
+
+export const DEFAULT_WORKFLOW_REMARCACAO: WorkflowDefinition = {
+  id: "reschedule",
+  label: "Remarcação",
+  mode: "assisted",
+  goal_ids: ["appointment_selected", "slot_selected", "reschedule_booking"],
+  phases: RESCHEDULE_PHASES,
+  enabled: true,
+  runtime: {
+    resetSpec: {
+      mutationKeys: ["reschedule_booking"],
+      collectedKeys: [],
+    },
+  },
 };
 
 export const SCAFFOLD_WORKFLOWS: WorkflowDefinition[] = [
@@ -257,14 +299,6 @@ export const SCAFFOLD_WORKFLOWS: WorkflowDefinition[] = [
     enabled: false,
   },
   {
-    id: "reschedule",
-    label: "Remarcação",
-    mode: "assisted",
-    goal_ids: ["appointment_selected", "slot_selected", "booking_created"],
-    phases: [],
-    enabled: false,
-  },
-  {
     id: "quotation",
     label: "Orçamento",
     mode: "assisted",
@@ -278,6 +312,7 @@ export const DEFAULT_CONVERSATION_FLOWS: ConversationFlowsConfig = {
   workflows: {
     consulta: DEFAULT_WORKFLOW_CONSULTA,
     cancelamento: DEFAULT_WORKFLOW_CANCELAMENTO,
+    reschedule: DEFAULT_WORKFLOW_REMARCACAO,
     ...Object.fromEntries(SCAFFOLD_WORKFLOWS.map((w) => [w.id, w])),
   },
 };

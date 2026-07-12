@@ -2,7 +2,7 @@ import type { AiState } from "@/lib/chatbot/state/types";
 import { BOOKING_CORE_GOAL_IDS } from "./defaults";
 import { isGoalSatisfied } from "./completion";
 import { evaluateWhen } from "./conditions";
-import type { GoalRegistry } from "./goal-registry";
+import { defaultGoalRegistry, type GoalRegistry } from "./goal-registry";
 import type {
   AppointmentPolicy,
   ConversationFlowState,
@@ -160,7 +160,8 @@ function isBookingConfirming(aiState: AiState): boolean {
 }
 
 function mutationGoalIdFor(goal: GoalDefinition): string {
-  return goal.id === "cancel_booking" ? "cancel_booking" : "booking_created";
+  if (goal.is_mutation) return goal.id;
+  return "booking_created";
 }
 
 function shouldExposePendingGoalTools(goal: GoalDefinition, input: EngineInput): boolean {
@@ -219,7 +220,11 @@ export function resolveAvailableTools(input: EngineInput): string[] {
     tools.add("list_patient_appointments");
   }
 
-  if (input.workflow.id === "cancelamento" || input.workflow.id === "consulta") {
+  if (
+    input.workflow.id === "cancelamento" ||
+    input.workflow.id === "consulta" ||
+    input.workflow.id === "reschedule"
+  ) {
     tools.add("transfer_to_human");
   }
 
@@ -259,7 +264,9 @@ export function canExecuteMutation(
   const coreIds =
     workflowId === "cancelamento"
       ? ["appointment_selected"]
-      : [...BOOKING_CORE_GOAL_IDS];
+      : workflowId === "reschedule"
+        ? ["appointment_selected", "slot_selected"]
+        : [...BOOKING_CORE_GOAL_IDS];
 
   const missingCore = coreIds.filter((id) => pending.includes(id));
   if (missingCore.length) {
@@ -374,7 +381,12 @@ export function getWorkflowFromConfig(
   workflowId: string
 ): WorkflowDefinition | undefined {
   const wf = config.workflows[workflowId];
-  if (!wf?.enabled && workflowId !== "cancelamento" && workflowId !== "consulta") {
+  if (
+    !wf?.enabled &&
+    workflowId !== "cancelamento" &&
+    workflowId !== "consulta" &&
+    workflowId !== "reschedule"
+  ) {
     return undefined;
   }
   return wf;
@@ -394,24 +406,146 @@ export function markMutationDone(
 }
 
 /**
- * Reset Current Operation after a successful cancel while the workflow stays alive.
- * Clears operation-scoped collected + mutation flag for the next cancel; syncFlowState
- * re-derives pending goals from aiState (no focus → appointment_selected pending, etc.).
+ * Reset Current Operation from workflow.runtime.resetSpec (metadata).
+ * Prefer completeCurrentOperation from tool executes.
  */
-export function resetCurrentCancelOperation(
-  flowState: ConversationFlowState
+export function resetCurrentOperation(
+  flowState: ConversationFlowState,
+  workflow: WorkflowDefinition
 ): ConversationFlowState {
+  const spec = workflow.runtime?.resetSpec;
+  if (!spec) return flowState;
+
   const collected = { ...(flowState.collected ?? {}) };
-  delete collected.cancel_reason;
-  delete collected["custom:cancel_reason"];
+  for (const key of spec.collectedKeys ?? []) {
+    delete collected[key];
+  }
 
   const mutation_done = { ...(flowState.mutation_done ?? {}) };
-  mutation_done.cancel_booking = false;
+  for (const key of spec.mutationKeys) {
+    mutation_done[key] = false;
+  }
 
   return {
     ...flowState,
     collected,
     mutation_done,
   };
+}
+
+/**
+ * @deprecated Use completeCurrentOperation from executes. Kept as shim for cancel resetSpec.
+ */
+export function resetCurrentCancelOperation(
+  flowState: ConversationFlowState,
+  workflow?: WorkflowDefinition
+): ConversationFlowState {
+  if (workflow) return resetCurrentOperation(flowState, workflow);
+  // Shim when workflow not passed: mirror cancel resetSpec defaults.
+  const collected = { ...(flowState.collected ?? {}) };
+  delete collected.cancel_reason;
+  delete collected["custom:cancel_reason"];
+  const mutation_done = { ...(flowState.mutation_done ?? {}) };
+  mutation_done.cancel_booking = false;
+  return { ...flowState, collected, mutation_done };
+}
+
+export type CompleteCurrentOperationInput = {
+  workflow: WorkflowDefinition;
+  flowState: ConversationFlowState;
+  mutationSucceeded: boolean;
+  /** Remaining appointment ids after mutation; if omitted and success, treats as none remaining. */
+  remainingTargets?: string[];
+};
+
+/**
+ * Sole authorized API for finishing a Current Operation after a mutation.
+ * Executes must not call markMutationDone / resetCurrentOperation directly.
+ */
+export function completeCurrentOperation(
+  input: CompleteCurrentOperationInput
+): ConversationFlowState {
+  const { workflow, flowState, mutationSucceeded, remainingTargets } = input;
+  if (!mutationSucceeded) return flowState;
+
+  const remaining = remainingTargets ?? [];
+  if (remaining.length > 0) {
+    return resetCurrentOperation(flowState, workflow);
+  }
+
+  const keys = workflow.runtime?.resetSpec?.mutationKeys ?? [];
+  let next = flowState;
+  for (const key of keys) {
+    next = markMutationDone(next, key);
+  }
+  return next;
+}
+
+/** Minimal state for Safety ↔ Conversation continuation check. */
+export type DeterministicStepState = {
+  conversation_flow?: ConversationFlowState;
+  focused_appointment_id?: string;
+  active_appointments?: string[];
+  booking?: AiState["booking"];
+  offered_doctors?: AiState["offered_doctors"];
+  offered_procedures?: AiState["offered_procedures"];
+  offered_days?: AiState["offered_days"];
+  offered_slots?: AiState["booking"] extends { offered_slots?: infer S } ? S : never;
+};
+
+function hasMigrationBookingContinuation(aiState: DeterministicStepState): boolean {
+  if ((aiState.offered_doctors?.length ?? 0) > 0) return true;
+  if ((aiState.offered_procedures?.length ?? 0) > 0) return true;
+  if ((aiState.offered_days?.length ?? 0) > 0) return true;
+  if ((aiState.booking?.offered_slots?.length ?? 0) > 0) return true;
+
+  const booking = aiState.booking;
+  if (!booking || booking.status === "done") return false;
+  if (booking.procedure_id || booking.doctor_id) {
+    return booking.status === "collecting" || booking.status === "confirming";
+  }
+  return false;
+}
+
+/**
+ * Does Conversation State have a next step the system can take without the LLM deciding?
+ * Prefer Current Operation (pending mutation / deterministic pending goals).
+ * Migration fallbacks (booking menus, focus, active_appointments) must shrink over time.
+ */
+export function hasPendingDeterministicStep(
+  aiState?: DeterministicStepState | null,
+  registry: GoalRegistry = defaultGoalRegistry
+): boolean {
+  if (!aiState) return false;
+
+  const flow = aiState.conversation_flow;
+  if (flow?.pending?.length) {
+    for (const goalId of flow.pending) {
+      const goal = registry.get(goalId);
+      if (goal?.is_mutation) return true;
+    }
+    // Selecting without focus → list is obligatory (Current Operation).
+    if (
+      flow.pending.includes("appointment_selected") &&
+      !aiState.focused_appointment_id?.trim()
+    ) {
+      return true;
+    }
+    // Slot collection with hydrated doctor/procedure → slots are obligatory.
+    if (
+      flow.pending.includes("slot_selected") &&
+      aiState.booking?.doctor_id &&
+      aiState.booking?.procedure_id
+    ) {
+      return true;
+    }
+  }
+
+  // --- Migration fallbacks (debt; shrink over time, do not grow) ---
+  if (hasMigrationBookingContinuation(aiState)) return true;
+  if (aiState.focused_appointment_id?.trim()) return true;
+  if ((aiState.active_appointments?.length ?? 0) > 0) return true;
+
+  return false;
 }
 

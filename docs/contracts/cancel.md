@@ -9,7 +9,11 @@ Este documento define como o cancelamento de consultas é resolvido no assistent
 | **Conversation State** | Workflow, goals, focus, tools |
 | **Safety / Loop State** | `bot_loop_detected` / `high_outbound_rate` |
 
-Um handoff por `high_outbound_rate` **não** significa que o workflow terminou — o loop guard (Safety) cortou a resposta enquanto a Conversation State pode continuar viva. Isenção: `hasDeterministicPendingAction` (ex.: Current Operation de cancel em andamento, menus de booking).
+Um handoff por `high_outbound_rate` **não** significa que o workflow terminou — o loop guard (Safety) cortou a resposta enquanto a Conversation State pode continuar viva. Isenção: o guard consulta apenas `hasPendingDeterministicStep` no Conversation Engine (sem nomes de workflow/goal). Alias legado: `hasDeterministicPendingAction`.
+
+**`completeCurrentOperation`** é a única API autorizada para finalizar uma Current Operation após uma mutation (executes não chamam `markMutationDone` / `resetCurrentOperation` diretamente).
+
+`WorkflowDefinition.runtime` é **só metadata** (ex. `resetSpec`); nunca funções de comportamento.
 
 ## Workflow vs Current Operation
 
@@ -29,9 +33,13 @@ Current Operation → reset → New Current Operation
 Workflow permanece vivo
 ```
 
-`resetCurrentCancelOperation`: limpa `cancel_reason` / `custom:cancel_reason` e `mutation_done.cancel_booking = false` para a **operação corrente**. O controle de fluxo depende dos goals; `mutation_done` permanece por compatibilidade e **não** decide sozinho se o workflow continua ou termina.
+Internamente `completeCurrentOperation` usa `resetCurrentOperation` (via `runtime.resetSpec`) ou marca mutation done. O controle de fluxo depende dos goals; `mutation_done` permanece por compatibilidade e **não** decide sozinho se o workflow continua ou termina.
 
-Se não há restantes → `markMutationDone(cancel_booking)`; workflow completa.
+Se não há restantes → mutation done; workflow completa.
+
+## Related
+
+- [reschedule.md](./reschedule.md) — remarcação (paridade)
 
 ## State machine
 
@@ -213,4 +221,5 @@ Nunca retorna índices de lista nem identificadores parcialmente resolvidos.
 ## Related
 
 - [booking.md](./booking.md) — booking state contracts
+- [reschedule.md](./reschedule.md) — remarcação (paridade de Current Operation)
 - [reference-resolution.md](./reference-resolution.md) — menu index → domain entity

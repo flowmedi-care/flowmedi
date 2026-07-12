@@ -182,6 +182,23 @@ export function validateToolCall(
         );
       }
     }
+
+    if (toolName === "reschedule_appointment" && engineInput) {
+      const gate = canExecuteMutation(
+        "reschedule_booking",
+        engineInput.flowState.mode,
+        engineInput.policy,
+        engineInput.registry,
+        engineInput.flowState.pending,
+        engineInput.workflow.id
+      );
+      if (!gate.ok) {
+        return needsInputResult(
+          gate.missing.map((m) => ({ field: m })),
+          gate.message
+        );
+      }
+    }
   }
 
   if (toolName === "register_patient") {

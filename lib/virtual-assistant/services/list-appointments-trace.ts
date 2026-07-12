@@ -4,13 +4,15 @@ export const CANCELABLE_APPOINTMENT_STATUSES = ["agendada", "confirmada"] as con
 
 /** Disambiguated select — bare `procedures(name)` fails when appointment_procedures exists. */
 export const LIST_PATIENT_APPOINTMENTS_SELECT =
-  "id, scheduled_at, status, valor, patient_id, doctor:profiles!appointments_doctor_id_fkey(full_name), procedure:procedures!procedure_id(name)";
+  "id, scheduled_at, status, valor, patient_id, doctor_id, procedure_id, doctor:profiles!appointments_doctor_id_fkey(full_name), procedure:procedures!procedure_id(name)";
 
 export type ListAppointmentRow = {
   id: string;
   scheduled_at: string;
   status: string;
   patient_id?: string;
+  doctor_id?: string | null;
+  procedure_id?: string | null;
   doctor_name?: string | null;
   procedure_name?: string | null;
   valor?: number | null;
@@ -131,6 +133,8 @@ export function mapListedAppointmentRows(
     status: string;
     valor?: number | null;
     patient_id?: string | null;
+    doctor_id?: string | null;
+    procedure_id?: string | null;
     doctor?: { full_name: string } | { full_name: string }[] | null;
     procedure?: { name: string } | { name: string }[] | null;
   }>,
@@ -145,6 +149,8 @@ export function mapListedAppointmentRows(
       id: row.id,
       scheduled_at: row.scheduled_at,
       status: row.status,
+      doctor_id: row.doctor_id ? String(row.doctor_id) : null,
+      procedure_id: row.procedure_id ? String(row.procedure_id) : null,
       doctor_name: doctorName ?? null,
       procedure_name: procedureName ?? null,
       valor: row.valor != null ? Number(row.valor) : null,

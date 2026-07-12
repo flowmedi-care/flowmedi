@@ -65,9 +65,10 @@ export const TOOL_DESCRIPTIONS: Record<ChatbotToolName, string> = {
 
   reschedule_appointment:
     "Purpose: Remarcar consulta para novo horário.\n" +
-    "When to use: após find_available_slots e confirmação do paciente.\n" +
+    "When to use: após focus + find_available_slots e confirmação do paciente.\n" +
     "When NOT: new_scheduled_at inventado — deve vir de find_available_slots.\n" +
-    "Output success: rescheduled=true.",
+    "Identity: resolveCancelAppointmentId (UUID/índice/focused).\n" +
+    "Output success: rescheduled=true; pós-sucesso via completeCurrentOperation.",
 
   get_service_price:
     "Purpose: Consultar preço exato de procedimento para um médico.\n" +

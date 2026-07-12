@@ -48,6 +48,18 @@ export type FlowPhaseUI = {
   goal_ids: string[];
 };
 
+export type WorkflowRuntimeMetadata = {
+  /**
+   * Metadata only — never behavior (no reset()/execute()/interpreter() functions).
+   * Engine reads this to reset Current Operation after a successful mutation with remaining targets.
+   */
+  resetSpec?: {
+    mutationKeys: string[];
+    collectedKeys?: string[];
+  };
+  /** Future metadata slots: timeout, retryPolicy, etc. */
+};
+
 export type WorkflowDefinition = {
   id: string;
   label: string;
@@ -56,6 +68,8 @@ export type WorkflowDefinition = {
   phases?: FlowPhaseUI[];
   priority_overrides?: Record<string, number>;
   enabled: boolean;
+  /** Runtime metadata only — never executable behavior on the definition. */
+  runtime?: WorkflowRuntimeMetadata;
 };
 
 export type ConversationFlowsConfig = {

@@ -428,6 +428,8 @@ export async function listPatientAppointmentsViaAssistant(
     id: string;
     scheduled_at: string;
     status: string;
+    doctor_id?: string | null;
+    procedure_id?: string | null;
     doctor_name: string | null;
     procedure_name: string | null;
     valor: number | null;
@@ -492,6 +494,8 @@ export async function listPatientAppointmentsViaAssistantWithTail(
     id: row.id,
     scheduled_at: row.scheduled_at,
     status: row.status,
+    doctor_id: row.doctor_id ?? null,
+    procedure_id: row.procedure_id ?? null,
     doctor_name: row.doctor_name ?? null,
     procedure_name: row.procedure_name ?? null,
     valor: row.valor ?? null,

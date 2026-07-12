@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hasPendingDeterministicStep as engineHasPendingDeterministicStep } from "@/lib/attendance-flow/engine";
 import { logAiEvent } from "./event-log";
 import { sendHandoffReply } from "./send-reply";
 import { isSlotSelectionMessage } from "@/lib/virtual-assistant/booking-slot-messages";
@@ -130,24 +131,15 @@ export function isActiveBookingForLoopGuard(aiState?: AiConversationState): bool
 
 /**
  * Conversation has a deterministic next step (independent of LLM).
- * Used by Safety/Loop State so high_outbound_rate does not hand off mid-flow.
- * Conversation State may still be healthy — these are concurrent machines.
+ * Delegates to Conversation Engine — guard must not know workflow/goal names.
  */
 export function hasDeterministicPendingAction(aiState?: AiConversationState): boolean {
-  if (isActiveBookingForLoopGuard(aiState)) return true;
+  return engineHasPendingDeterministicStep(aiState);
+}
 
-  const flow = aiState?.conversation_flow;
-  if (!flow) return false;
-
-  // Cancel Current Operation in flight (Selecting or later goals still pending).
-  if (
-    flow.active_workflow_id === "cancelamento" &&
-    flow.pending.includes("cancel_booking")
-  ) {
-    return true;
-  }
-
-  return false;
+/** @see hasPendingDeterministicStep on the Conversation Engine. */
+export function hasPendingDeterministicStep(aiState?: AiConversationState): boolean {
+  return engineHasPendingDeterministicStep(aiState);
 }
 
 export function resolveBotLoopWindowSince(
