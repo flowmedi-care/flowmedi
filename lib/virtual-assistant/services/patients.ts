@@ -1,21 +1,65 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { phonesMatch } from "../patient-lookup";
+import { phonesMatch, normalizePhoneForMatch } from "../patient-lookup";
 import { normalizeCpf } from "../normalize-cpf";
 
-export async function lookupPatientByPhone(
+export type PatientPhoneRow = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  birth_date: string | null;
+  cpf: string | null;
+  custom_fields: unknown;
+};
+
+/** All clinic patients whose phone matches (handles duplicates). */
+export async function lookupPatientsByPhone(
   supabase: SupabaseClient,
   clinicId: string,
   phone: string
-) {
+): Promise<PatientPhoneRow[]> {
   const { data: patients } = await supabase
     .from("patients")
     .select("id, full_name, email, phone, birth_date, cpf, custom_fields")
     .eq("clinic_id", clinicId)
     .not("phone", "is", null);
 
-  const patient = (patients ?? []).find((p) => phonesMatch(String(p.phone ?? ""), phone));
-  if (!patient) return null;
-  return patient;
+  return (patients ?? []).filter((p) =>
+    phonesMatch(String(p.phone ?? ""), phone)
+  ) as PatientPhoneRow[];
+}
+
+/**
+ * Canonical patient for a phone.
+ * Root cause of empty cancel lists: duplicates + `.find` first match without appointments.
+ * Prefer the match that has cancellable (agendada|confirmada) appointments; else first match.
+ */
+export async function lookupPatientByPhone(
+  supabase: SupabaseClient,
+  clinicId: string,
+  phone: string
+) {
+  const matches = await lookupPatientsByPhone(supabase, clinicId, phone);
+  if (matches.length === 0) return null;
+  if (matches.length === 1) return matches[0];
+
+  const ids = matches.map((m) => m.id);
+  const now = new Date().toISOString();
+  const { data: appts } = await supabase
+    .from("appointments")
+    .select("patient_id, scheduled_at")
+    .eq("clinic_id", clinicId)
+    .in("patient_id", ids)
+    .in("status", ["agendada", "confirmada"])
+    .gte("scheduled_at", now)
+    .order("scheduled_at", { ascending: true });
+
+  if (appts?.length) {
+    const preferredId = String(appts[0].patient_id);
+    return matches.find((m) => m.id === preferredId) ?? matches[0];
+  }
+
+  return matches[0];
 }
 
 export async function registerPatientViaAssistant(
@@ -26,12 +70,15 @@ export async function registerPatientViaAssistant(
   const existing = await lookupPatientByPhone(supabase, clinicId, data.phone);
   if (existing) return { patientId: existing.id, error: null };
 
+  // Store national digits (no country code) to reduce duplicate keys with/without 55.
+  const phoneDigits = normalizePhoneForMatch(data.phone.replace(/\D/g, ""));
+
   const { data: newPatient, error } = await supabase
     .from("patients")
     .insert({
       clinic_id: clinicId,
       full_name: data.full_name.trim(),
-      phone: data.phone.replace(/\D/g, ""),
+      phone: phoneDigits,
       email: data.email?.trim() || null,
       custom_fields: {},
     })

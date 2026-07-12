@@ -11,7 +11,7 @@ import { applyRoutingOnNewConversation } from "@/lib/whatsapp-routing";
 import {
   cancelAppointmentViaAssistant,
   createAppointmentViaAssistant,
-  listPatientAppointmentsViaAssistant,
+  listCancellableAppointmentsWithPhoneFallback,
   rescheduleAppointmentViaAssistant,
 } from "@/lib/virtual-assistant/services/appointments";
 import {
@@ -759,19 +759,20 @@ export async function executeTool(
             result: errorResult("Paciente não cadastrado."),
           };
         }
-        const appointments = await listPatientAppointmentsViaAssistant(
-          supabase,
+        const listed = await listCancellableAppointmentsWithPhoneFallback(supabase, {
           clinicId,
-          patient.id,
-          { upcomingOnly: !args.include_past }
-        );
+          patientId: patient.id,
+          phone: phoneNumber,
+          upcomingOnly: !args.include_past,
+        });
+        const appointments = listed.appointments;
         await logToolCall(
           supabase,
           clinicId,
           conversationId,
           name,
           args,
-          `${appointments.length} consultas`,
+          `${appointments.length} consultas${listed.usedPhoneFallback ? " (phone fallback)" : ""}`,
           true
         );
         const ids = appointments.map((a) => a.id).filter(Boolean) as string[];
@@ -783,7 +784,7 @@ export async function executeTool(
         return {
           result: successResult({ appointments }, options.length > 1 ? options : undefined),
           statePatch: {
-            patient_id: patient.id,
+            patient_id: listed.resolvedPatientId,
             active_appointments: ids,
             focused_appointment_id: ids.length === 1 ? ids[0] : undefined,
           },
@@ -824,11 +825,23 @@ export async function executeTool(
           };
         }
 
+        // Owner of the appointment row (may differ from state after phone-fallback list).
+        let cancelPatientId = patient.id;
+        const { data: apptOwner } = await supabase
+          .from("appointments")
+          .select("patient_id, status")
+          .eq("id", appointmentId)
+          .eq("clinic_id", clinicId)
+          .maybeSingle();
+        if (apptOwner?.patient_id) {
+          cancelPatientId = String(apptOwner.patient_id);
+        }
+
         const res = await cancelAppointmentViaAssistant(
           supabase,
           clinicId,
           appointmentId,
-          patient.id
+          cancelPatientId
         );
         await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "cancelada", !res.error);
         if (res.error) return { result: errorResult(res.error) };

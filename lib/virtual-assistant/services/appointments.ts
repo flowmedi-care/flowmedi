@@ -21,6 +21,7 @@ import { buildConsumptionFromProcedures, commitStockForAppointment } from "@/lib
 import type { OfferedSlot } from "@/lib/virtual-assistant/types";
 import { resolveServicePriceForClinic } from "./pricing";
 import type { IntakePendency } from "@/lib/attendance-flow/types";
+import { lookupPatientsByPhone } from "./patients";
 
 export type CreateAppointmentConflict = {
   type: "conflict";
@@ -339,6 +340,12 @@ export async function cancelAppointmentViaAssistantOperational(
     return { error: "Consulta não encontrada." };
   }
   if (appt.status === "cancelada") return { error: null };
+  if (appt.status !== "agendada" && appt.status !== "confirmada") {
+    return {
+      error:
+        "Só é possível cancelar consultas agendadas ou confirmadas. Esta já foi realizada, marcada como falta ou não está ativa.",
+    };
+  }
 
   const { data: comanda } = await supabase
     .from("comandas")
@@ -416,13 +423,14 @@ export async function listPatientAppointmentsViaAssistant(
     doctor_name: string | null;
     procedure_name: string | null;
     valor: number | null;
+    patient_id?: string;
   }[]
 > {
   const now = new Date().toISOString();
   let query = supabase
     .from("appointments")
     .select(
-      "id, scheduled_at, status, valor, doctor:profiles!appointments_doctor_id_fkey(full_name), procedure:procedures(name)"
+      "id, scheduled_at, status, valor, patient_id, doctor:profiles!appointments_doctor_id_fkey(full_name), procedure:procedures(name)"
     )
     .eq("clinic_id", clinicId)
     .eq("patient_id", patientId)
@@ -448,8 +456,95 @@ export async function listPatientAppointmentsViaAssistant(
       doctor_name: doctorName ?? null,
       procedure_name: procedureName ?? null,
       valor: row.valor != null ? Number(row.valor) : null,
+      patient_id: row.patient_id ? String(row.patient_id) : patientId,
     };
   });
+}
+
+/**
+ * List cancellable appointments for patient_id first.
+ * Legacy fallback: if empty, union by phone across duplicate patient rows (does not make phone identity).
+ */
+export async function listCancellableAppointmentsWithPhoneFallback(
+  supabase: SupabaseClient,
+  opts: {
+    clinicId: string;
+    patientId: string;
+    phone: string;
+    upcomingOnly?: boolean;
+  }
+): Promise<{
+  appointments: Awaited<ReturnType<typeof listPatientAppointmentsViaAssistant>>;
+  resolvedPatientId: string;
+  usedPhoneFallback: boolean;
+}> {
+  const upcomingOnly = opts.upcomingOnly !== false;
+  let appointments = await listPatientAppointmentsViaAssistant(
+    supabase,
+    opts.clinicId,
+    opts.patientId,
+    { upcomingOnly }
+  );
+
+  if (appointments.length > 0) {
+    return {
+      appointments,
+      resolvedPatientId: opts.patientId,
+      usedPhoneFallback: false,
+    };
+  }
+
+  // Legacy: empty for state patient_id — check sibling rows with same phone.
+  const siblings = await lookupPatientsByPhone(supabase, opts.clinicId, opts.phone);
+  const otherIds = siblings.map((s) => s.id).filter((id) => id !== opts.patientId);
+  if (otherIds.length === 0) {
+    // Still empty: one more try without date floor (overdue but still agendada/confirmada).
+    if (upcomingOnly) {
+      appointments = await listPatientAppointmentsViaAssistant(
+        supabase,
+        opts.clinicId,
+        opts.patientId,
+        { upcomingOnly: false }
+      );
+      if (appointments.length > 0) {
+        return {
+          appointments,
+          resolvedPatientId: opts.patientId,
+          usedPhoneFallback: false,
+        };
+      }
+    }
+    return {
+      appointments: [],
+      resolvedPatientId: opts.patientId,
+      usedPhoneFallback: false,
+    };
+  }
+
+  const merged: Awaited<ReturnType<typeof listPatientAppointmentsViaAssistant>> = [];
+  const seen = new Set<string>();
+  for (const id of otherIds) {
+    const rows = await listPatientAppointmentsViaAssistant(supabase, opts.clinicId, id, {
+      upcomingOnly,
+    });
+    for (const row of rows) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      merged.push(row);
+    }
+  }
+  merged.sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+
+  const resolvedPatientId =
+    merged[0]?.patient_id && merged.every((a) => a.patient_id === merged[0]?.patient_id)
+      ? String(merged[0].patient_id)
+      : opts.patientId;
+
+  return {
+    appointments: merged,
+    resolvedPatientId: merged.length ? resolvedPatientId : opts.patientId,
+    usedPhoneFallback: merged.length > 0,
+  };
 }
 
 export async function rescheduleAppointmentViaAssistant(

@@ -2,6 +2,8 @@
 
 When a booking bug appears, ask: **which contract was violated?** — not “where do I add another if?”.
 
+Menu index resolution is defined in [reference-resolution.md](./reference-resolution.md).
+
 ## Contract 1 — Day selection
 
 ```
@@ -16,7 +18,7 @@ offered_days + selectedIndex → booking.date
 offered_slots + selectedIndex → pending_slot
 ```
 
-Time choice resolves against offered displays / clinic timezone, not host-local `Date` hours alone.
+Bare integer → index only (see reference-resolution). Clock forms (`"10:00"`, `"10h"`) → semantic mapping via `selected_scheduled_at`. Time match uses clinic timezone / display labels, not host-local `Date` hours alone.
 
 ## Contract 3 — Confirm create
 

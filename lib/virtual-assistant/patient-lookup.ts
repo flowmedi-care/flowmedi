@@ -6,10 +6,9 @@ export function normalizePhoneForMatch(phone: string): string {
   return digits;
 }
 
+/** Symmetric match — national vs 55-prefixed must be the same person. */
 export function phonesMatch(patientPhone: string, incomingPhone: string): boolean {
-  const pDigits = patientPhone.replace(/\D/g, "");
-  const incoming = incomingPhone.replace(/\D/g, "");
-  const normalized = normalizePhoneForMatch(incoming);
-  if (!pDigits) return false;
-  return pDigits === normalized || `55${pDigits}` === incoming;
+  const a = normalizePhoneForMatch(patientPhone);
+  const b = normalizePhoneForMatch(incomingPhone);
+  return a.length > 0 && a === b;
 }

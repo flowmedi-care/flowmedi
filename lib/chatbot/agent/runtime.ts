@@ -14,7 +14,7 @@ import {
 import type { ExecutionTrace } from "../observability/execution-trace";
 import { formatExecutionTrace } from "../observability/execution-trace";
 import { mergeAiState, patchAiState, resolveCreateAppointmentScheduledAt } from "../state/patch";
-import { resolveReferenceFacts } from "../state/resolve-facts";
+import { resolveReferenceFacts, applySemanticFacts } from "../state/resolve-facts";
 import { buildChatbotFallbackReply } from "../state/format-for-prompt";
 import { normalizeAiState, serializeAiState } from "../state/migrate";
 import type { AiState } from "../state/types";
@@ -200,9 +200,13 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   );
   trace.extractorsApplied = facts;
 
-  const factPatch = resolveReferenceFacts(facts, aiState);
-  if (Object.keys(factPatch).length > 0) {
-    aiState = mergeAiState(aiState, factPatch);
+  const refPatch = resolveReferenceFacts(facts, aiState);
+  if (Object.keys(refPatch).length > 0) {
+    aiState = mergeAiState(aiState, refPatch);
+  }
+  const semanticPatch = applySemanticFacts(facts, aiState);
+  if (Object.keys(semanticPatch).length > 0) {
+    aiState = mergeAiState(aiState, semanticPatch);
   }
 
   const postExtractorsStarted = Date.now();

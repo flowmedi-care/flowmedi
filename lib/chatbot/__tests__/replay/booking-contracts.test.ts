@@ -7,6 +7,7 @@ import { buildGoalRegistry } from "@/lib/attendance-flow/flow-sync";
 import { canExecuteMutation } from "@/lib/attendance-flow/engine";
 import { resolveBookingEntityId } from "../../state/resolve-entity-id";
 import { resolveReferenceFacts } from "../../state/resolve-facts";
+import { extractFacts } from "../../extractors";
 import { patchAiState } from "../../state/patch";
 import { applyReplyGuards } from "../../guardrails/reply-guards";
 import { extractPeriod } from "../../extractors/period";
@@ -212,5 +213,28 @@ describe("replay doctor_selection", () => {
       }
     );
     assert.equal(patch.booking?.date, "2026-07-14");
+  });
+
+  it("bare 10 with offered slots resolves index not clock", () => {
+    const offered_slots = [
+      { scheduled_at: "2026-07-17T13:00:00.000Z", display: "10:00" },
+      { scheduled_at: "2026-07-17T13:30:00.000Z", display: "10:30" },
+      { scheduled_at: "2026-07-17T15:00:00.000Z", display: "12:00" },
+      { scheduled_at: "2026-07-17T15:30:00.000Z", display: "12:30" },
+      { scheduled_at: "2026-07-17T16:00:00.000Z", display: "13:00" },
+      { scheduled_at: "2026-07-17T16:30:00.000Z", display: "13:30" },
+      { scheduled_at: "2026-07-17T17:00:00.000Z", display: "14:00" },
+      { scheduled_at: "2026-07-17T17:30:00.000Z", display: "14:30" },
+      { scheduled_at: "2026-07-17T18:00:00.000Z", display: "15:00" },
+      { scheduled_at: "2026-07-17T18:30:00.000Z", display: "15:30" },
+    ];
+    const facts = extractFacts("10", new Date(), offered_slots);
+    assert.equal(facts.selectedIndex, 10);
+    assert.equal(facts.selected_scheduled_at, undefined);
+    const patch = resolveReferenceFacts(facts, {
+      ...initialAiState(),
+      booking: { offered_slots, status: "collecting" },
+    });
+    assert.equal(patch.booking?.pending_slot, "2026-07-17T18:30:00.000Z");
   });
 });

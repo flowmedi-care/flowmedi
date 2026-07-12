@@ -62,5 +62,6 @@ export async function saveAppointmentPolicy(goals: Record<string, string>) {
   if (error) return { error: error.message };
 
   revalidatePath("/dashboard/configuracoes/agendamento");
+  revalidatePath("/dashboard/configuracoes/assistente-virtual");
   return { error: null };
 }

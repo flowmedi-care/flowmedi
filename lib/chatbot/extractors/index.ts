@@ -72,10 +72,14 @@ export function extractFacts(
   );
   if (emailMatch?.[1]) facts.email = emailMatch[1].toLowerCase();
 
-  const timePick = extractTimeChoice(text, offeredSlots);
-  if (timePick) {
-    facts.selected_hour = timePick.selected_hour;
-    facts.selected_scheduled_at = timePick.scheduled_at;
+  // Bare integer = selectedIndex only (reference-resolution contract).
+  // Clock forms ("10:00", "10h", "às 10") still produce semantic time facts.
+  if (index == null) {
+    const timePick = extractTimeChoice(text, offeredSlots);
+    if (timePick) {
+      facts.selected_hour = timePick.selected_hour;
+      facts.selected_scheduled_at = timePick.scheduled_at;
+    }
   }
 
   return facts;

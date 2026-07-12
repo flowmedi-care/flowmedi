@@ -15,8 +15,9 @@ import { AssistenteVirtualFaqTab } from "./assistente-virtual-faq-tab";
 import { AssistenteVirtualToolsPlayground } from "./assistente-virtual-tools-playground";
 import { AssistenteVirtualPipelineTab } from "./assistente-virtual-pipeline-tab";
 import { AssistenteVirtualFlowsTab } from "./assistente-virtual-flows-tab";
+import { AssistenteVirtualPoliticasIaTab } from "./assistente-virtual-politicas-ia-tab";
 import type { ToolDefinition } from "@/lib/virtual-assistant/openai-client";
-import type { ConversationFlowsConfig } from "@/lib/attendance-flow/types";
+import type { AppointmentPolicy, ConversationFlowsConfig } from "@/lib/attendance-flow/types";
 import { mergeConversationFlows } from "@/lib/attendance-flow/defaults";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
@@ -29,6 +30,7 @@ interface Props {
   initialFaq: VirtualAssistantFaq[];
   toolDefinitions: ToolDefinition[];
   initialConversationFlows?: ConversationFlowsConfig;
+  initialAppointmentPolicy: AppointmentPolicy;
   clinic: {
     auto_message_send_start: string | null;
     auto_message_send_end: string | null;
@@ -41,6 +43,7 @@ export function AssistenteVirtualClient({
   initialFaq,
   toolDefinitions,
   initialConversationFlows,
+  initialAppointmentPolicy,
   clinic,
 }: Props) {
   const [tab, setTab] = useState<TabId>("geral");
@@ -67,7 +70,7 @@ export function AssistenteVirtualClient({
   );
   const tabs: { id: TabId; label: string }[] = [
     { id: "geral", label: "Geral" },
-    { id: "politicas", label: "Políticas" },
+    { id: "politicas", label: "Políticas da IA" },
     { id: "faq", label: "FAQ" },
     { id: "comportamento", label: "Comportamento" },
     { id: "ferramentas", label: "Ferramentas" },
@@ -222,40 +225,48 @@ export function AssistenteVirtualClient({
       )}
 
       {tab === "politicas" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Políticas operacionais</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Formas de pagamento (separadas por vírgula)</Label>
-              <Input value={paymentMethods} onChange={(e) => setPaymentMethods(e.target.value)} />
-            </div>
-            <div>
-              <Label>Cancelamento / reembolso</Label>
-              <textarea
-                className="w-full min-h-[60px] rounded-md border px-3 py-2 text-sm"
-                value={cancellationPolicy}
-                onChange={(e) => setCancellationPolicy(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Tempo médio de espera</Label>
-              <Input value={avgWait} onChange={(e) => setAvgWait(e.target.value)} />
-            </div>
-            <div>
-              <Label>Promoções ativas</Label>
-              <textarea
-                className="w-full min-h-[60px] rounded-md border px-3 py-2 text-sm"
-                value={promotions}
-                onChange={(e) => setPromotions(e.target.value)}
-              />
-            </div>
-            <Button onClick={() => handleSave()} disabled={saving}>
-              Salvar
-            </Button>
-          </CardContent>
-        </Card>
+        <AssistenteVirtualPoliticasIaTab
+          initialPolicy={initialAppointmentPolicy}
+          operationalSlot={
+            <Card>
+              <CardHeader>
+                <CardTitle>Políticas operacionais</CardTitle>
+                <CardDescription>
+                  Textos livres usados nas respostas (pagamento, cancelamento, espera, promoções).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Formas de pagamento (separadas por vírgula)</Label>
+                  <Input value={paymentMethods} onChange={(e) => setPaymentMethods(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Cancelamento / reembolso</Label>
+                  <textarea
+                    className="w-full min-h-[60px] rounded-md border px-3 py-2 text-sm"
+                    value={cancellationPolicy}
+                    onChange={(e) => setCancellationPolicy(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Tempo médio de espera</Label>
+                  <Input value={avgWait} onChange={(e) => setAvgWait(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Promoções ativas</Label>
+                  <textarea
+                    className="w-full min-h-[60px] rounded-md border px-3 py-2 text-sm"
+                    value={promotions}
+                    onChange={(e) => setPromotions(e.target.value)}
+                  />
+                </div>
+                <Button onClick={() => handleSave()} disabled={saving}>
+                  Salvar
+                </Button>
+              </CardContent>
+            </Card>
+          }
+        />
       )}
 
       {tab === "faq" && <AssistenteVirtualFaqTab initialFaq={initialFaq} />}

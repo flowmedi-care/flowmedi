@@ -1,10 +1,10 @@
 /**
- * @deprecated Use extractors + resolveReferenceFacts. Kept for backward compatibility in tests.
+ * @deprecated Use extractors + resolveReferenceFacts + applySemanticFacts.
  */
 import type { AiState } from "./state/types";
 import { extractFacts } from "./extractors";
 import { mergeAiState } from "./state/patch";
-import { resolveReferenceFacts } from "./state/resolve-facts";
+import { resolveReferenceFacts, applySemanticFacts } from "./state/resolve-facts";
 
 export type BookingContinuityPatch = {
   statePatch: Partial<AiState>;
@@ -16,8 +16,15 @@ export function applyBookingContinuity(
   userText: string,
   aiState: AiState
 ): BookingContinuityPatch {
-  const facts = extractFacts(userText);
-  const statePatch = resolveReferenceFacts(facts, aiState);
+  const facts = extractFacts(userText, new Date(), aiState.booking?.offered_slots);
+  const refPatch = resolveReferenceFacts(facts, aiState);
+  const afterRef =
+    Object.keys(refPatch).length > 0 ? mergeAiState(aiState, refPatch) : aiState;
+  const semanticPatch = applySemanticFacts(facts, afterRef);
+  const statePatch: Partial<AiState> = { ...refPatch };
+  if (semanticPatch.booking) {
+    statePatch.booking = { ...refPatch.booking, ...semanticPatch.booking };
+  }
   return { statePatch };
 }
 

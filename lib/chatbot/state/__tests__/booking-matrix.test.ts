@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { extractFacts } from "../../extractors";
-import { resolveReferenceFacts } from "../resolve-facts";
+import { resolveReferenceFacts, applySemanticFacts } from "../resolve-facts";
 import { initialAiState } from "../types";
 import {
   resolveAvailableTools,
@@ -43,7 +43,7 @@ describe("booking matrix: 10:00 then create_appointment gate", () => {
     const facts = extractFacts("10:00", new Date(), offered);
     assert.equal(facts.selected_scheduled_at, "2026-07-15T13:00:00.000Z");
 
-    const patch = resolveReferenceFacts(facts, before);
+    const patch = applySemanticFacts(facts, before);
     assert.equal(patch.booking?.pending_slot, "2026-07-15T13:00:00.000Z");
     assert.equal(patch.booking?.status, "confirming");
 
