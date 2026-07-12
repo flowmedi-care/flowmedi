@@ -6,6 +6,7 @@ import type { AiState, OfferedOption } from "./types";
 import type { MutationOutcome } from "../tools/mutation-result";
 import { shouldIncrementToolFailures } from "../tools/mutation-result";
 import { outcomeFromToolResult } from "../tools/error-class";
+import { resolveBookingEntityId } from "./resolve-entity-id";
 
 export function patchAiState(
   toolName: string,
@@ -56,18 +57,24 @@ export function patchAiState(
           index: i + 1,
         }));
       }
-      if (args.procedure_id) {
+      const procedureId = resolveBookingEntityId({
+        arg: args.procedure_id,
+        stateId: current.booking?.procedure_id,
+        offered: patch.offered_procedures ?? current.offered_procedures,
+        rejectId: current.patient_id,
+      });
+      const doctorId = resolveBookingEntityId({
+        arg: args.doctor_id,
+        stateId: current.booking?.doctor_id,
+        offered: current.offered_doctors,
+        rejectId: current.patient_id,
+      });
+      if (procedureId || doctorId) {
         patch.booking = {
           ...current.booking,
-          procedure_id: String(args.procedure_id),
+          ...(procedureId ? { procedure_id: procedureId } : {}),
+          ...(doctorId ? { doctor_id: doctorId } : {}),
           status: current.booking?.status ?? "collecting",
-        };
-      }
-      if (args.doctor_id) {
-        patch.booking = {
-          ...(patch.booking ?? current.booking),
-          doctor_id: String(args.doctor_id),
-          status: patch.booking?.status ?? current.booking?.status ?? "collecting",
         };
       }
       break;
@@ -81,10 +88,16 @@ export function patchAiState(
           index: i + 1,
         }));
       }
-      if (args.doctor_id) {
+      const doctorId = resolveBookingEntityId({
+        arg: args.doctor_id,
+        stateId: current.booking?.doctor_id,
+        offered: patch.offered_doctors ?? current.offered_doctors,
+        rejectId: current.patient_id,
+      });
+      if (doctorId) {
         patch.booking = {
           ...current.booking,
-          doctor_id: String(args.doctor_id),
+          doctor_id: doctorId,
           status: current.booking?.status ?? "collecting",
         };
       }
@@ -92,13 +105,23 @@ export function patchAiState(
     }
     case "find_available_slots": {
       const mode = data.mode as string | undefined;
-      const doctorId = String(args.doctor_id ?? current.booking?.doctor_id ?? "");
-      const procedureId = String(args.procedure_id ?? current.booking?.procedure_id ?? "");
+      const doctorId = resolveBookingEntityId({
+        arg: args.doctor_id,
+        stateId: current.booking?.doctor_id,
+        offered: current.offered_doctors,
+        rejectId: current.patient_id,
+      });
+      const procedureId = resolveBookingEntityId({
+        arg: args.procedure_id,
+        stateId: current.booking?.procedure_id,
+        offered: current.offered_procedures,
+        rejectId: current.patient_id,
+      });
       const booking = {
-        procedure_id: procedureId || current.booking?.procedure_id,
-        doctor_id: doctorId || current.booking?.doctor_id,
-        status: "collecting" as const,
         ...current.booking,
+        ...(procedureId ? { procedure_id: procedureId } : {}),
+        ...(doctorId ? { doctor_id: doctorId } : {}),
+        status: "collecting" as const,
       };
 
       if (mode === "times" && Array.isArray(data.slots)) {
@@ -162,10 +185,16 @@ export function patchAiState(
       break;
     }
     case "get_service_price": {
-      if (args.procedure_id) {
+      const procedureId = resolveBookingEntityId({
+        arg: args.procedure_id,
+        stateId: current.booking?.procedure_id,
+        offered: current.offered_procedures,
+        rejectId: current.patient_id,
+      });
+      if (procedureId) {
         patch.booking = {
           ...current.booking,
-          procedure_id: String(args.procedure_id),
+          procedure_id: procedureId,
           status: current.booking?.status ?? "collecting",
         };
       }

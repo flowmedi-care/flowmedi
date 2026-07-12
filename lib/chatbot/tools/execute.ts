@@ -41,6 +41,7 @@ import {
 } from "./types";
 import { isChatbotTool } from "./definitions";
 import { resolveCreateAppointmentScheduledAt } from "../state/patch";
+import { resolveBookingEntityId } from "../state/resolve-entity-id";
 
 function isMissingToolLogColumnError(message: string): boolean {
   return (
@@ -301,7 +302,13 @@ export async function executeTool(
       }
 
       case "list_procedures": {
-        const doctorId = args.doctor_id ? String(args.doctor_id) : null;
+        const doctorId =
+          resolveBookingEntityId({
+            arg: args.doctor_id,
+            stateId: ctx.aiState.booking?.doctor_id,
+            offered: ctx.aiState.offered_doctors,
+            rejectId: ctx.aiState.patient_id,
+          }) || null;
         let procedureIds: string[] | null = null;
         if (doctorId) {
           const { data: dp } = await supabase
@@ -361,8 +368,18 @@ export async function executeTool(
       }
 
       case "find_available_slots": {
-        const doctorId = String(args.doctor_id ?? ctx.aiState.booking?.doctor_id ?? "");
-        const procedureId = String(args.procedure_id ?? ctx.aiState.booking?.procedure_id ?? "");
+        const doctorId = resolveBookingEntityId({
+          arg: args.doctor_id,
+          stateId: ctx.aiState.booking?.doctor_id,
+          offered: ctx.aiState.offered_doctors,
+          rejectId: ctx.aiState.patient_id,
+        });
+        const procedureId = resolveBookingEntityId({
+          arg: args.procedure_id,
+          stateId: ctx.aiState.booking?.procedure_id,
+          offered: ctx.aiState.offered_procedures,
+          rejectId: ctx.aiState.patient_id,
+        });
         if (!doctorId) {
           return {
             result: needsInputResult(["doctor_id"], "Preciso do médico antes de buscar horários."),

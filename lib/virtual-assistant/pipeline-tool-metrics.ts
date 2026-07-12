@@ -24,7 +24,11 @@ export async function gatherPipelineToolMetrics(
     .gte("created_at", since.toISOString())
     .limit(5000);
 
-  if (error?.message?.includes("pipeline_stage")) {
+  if (
+    error &&
+    (/pipeline_stage|block_reason|does not exist|schema cache/i.test(error.message) ||
+      error.code === "PGRST204")
+  ) {
     const fallback = await supabase
       .from("whatsapp_ai_tool_log")
       .select("tool_name, success, created_at")

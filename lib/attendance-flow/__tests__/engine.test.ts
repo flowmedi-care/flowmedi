@@ -153,6 +153,38 @@ describe("attendance-flow engine", () => {
     assert.ok(tools.includes("create_appointment"));
   });
 
+  it("resolveAvailableTools excludes create_appointment when slot_selected pending", () => {
+    const aiState: AiState = {
+      patient_id: "p-1",
+      booking: {
+        doctor_id: "dr-1",
+        procedure_id: "proc-1",
+        date: "2026-07-15",
+        offered_slots: [
+          { scheduled_at: "2026-07-15T13:00:00.000Z", display: "10:00" },
+        ],
+        status: "collecting",
+      },
+      consecutive_tool_failures: 0,
+    };
+    const flowState = syncFlowState({
+      workflow: DEFAULT_WORKFLOW_CONSULTA,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState: initConversationFlowState(DEFAULT_WORKFLOW_CONSULTA),
+    });
+    assert.ok(flowState.pending.includes("slot_selected"));
+    const tools = resolveAvailableTools({
+      workflow: DEFAULT_WORKFLOW_CONSULTA,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState,
+    });
+    assert.ok(!tools.includes("create_appointment"));
+  });
+
   it("resolveAvailableTools excludes intake tools during confirming", () => {
     const aiState: AiState = {
       patient_id: "p-1",
