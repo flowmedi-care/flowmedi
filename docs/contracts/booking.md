@@ -3,6 +3,7 @@
 When a booking bug appears, ask: **which contract was violated?** — not “where do I add another if?”.
 
 Menu index resolution is defined in [reference-resolution.md](./reference-resolution.md).
+Cancel selection is defined in [cancel.md](./cancel.md).
 
 ## Contract 1 — Day selection
 

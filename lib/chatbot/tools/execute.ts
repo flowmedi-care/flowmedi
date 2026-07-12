@@ -797,9 +797,22 @@ export async function executeTool(
             ? { id: ctx.aiState.patient_id }
             : await lookupPatientByPhone(supabase, clinicId, phoneNumber);
         if (!patient?.id) return { result: errorResult("Paciente não encontrado.") };
-        const appointmentId = String(
-          args.appointment_id ?? ctx.aiState.focused_appointment_id ?? ctx.aiState.active_appointments?.[0] ?? ""
-        );
+
+        const { resolveCancelAppointmentId, cancelAppointmentIdFailureMessage } =
+          await import("../state/resolve-cancel-appointment-id");
+        const resolvedId = resolveCancelAppointmentId(args, {
+          ...ctx.aiState,
+          patient_id: patient.id,
+        });
+        if (!resolvedId.ok) {
+          return {
+            result: needsInputResult(
+              ["appointment_id"],
+              cancelAppointmentIdFailureMessage(resolvedId.reason)
+            ),
+          };
+        }
+        const appointmentId = resolvedId.appointmentId;
         const reason = args.cancellation_reason === "reschedule" ? "reschedule" : "other";
 
         if (reason === "reschedule") {
@@ -813,15 +826,6 @@ export async function executeTool(
               focused_appointment_id: appointmentId,
               booking: { status: "collecting" },
             },
-          };
-        }
-
-        if (!appointmentId) {
-          return {
-            result: needsInputResult(
-              ["appointment_id"],
-              "Não identifiquei qual consulta cancelar. Posso listar suas consultas?"
-            ),
           };
         }
 
@@ -844,7 +848,18 @@ export async function executeTool(
           cancelPatientId
         );
         await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "cancelada", !res.error);
-        if (res.error) return { result: errorResult(res.error) };
+        if (res.error) {
+          // Domain error → invalidate invalid focus, reopen list path (cancel contract).
+          return {
+            result: errorResult(
+              `${res.error} Chame list_patient_appointments para listar as consultas canceláveis.`
+            ),
+            statePatch: {
+              focused_appointment_id: undefined,
+              active_appointments: undefined,
+            },
+          };
+        }
         const flowState = ctx.aiState.conversation_flow;
         const updatedFlow = flowState
           ? markMutationDone(flowState, "cancel_booking")

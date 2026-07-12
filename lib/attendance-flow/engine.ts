@@ -218,6 +218,12 @@ export function resolveAvailableTools(input: EngineInput): string[] {
     tools.add("list_patient_appointments");
   }
 
+  // Cancel contract: user can list/review cancellable appointments throughout cancelamento
+  // (must not be blocked solely because appointment_selected is already satisfied).
+  if (input.workflow.id === "cancelamento") {
+    tools.add("list_patient_appointments");
+  }
+
   if (input.workflow.id === "cancelamento" || input.workflow.id === "consulta") {
     tools.add("transfer_to_human");
   }

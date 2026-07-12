@@ -20,6 +20,10 @@ import {
 import type { VirtualAssistantSettings } from "@/lib/virtual-assistant/types";
 import { canExecuteMutation } from "@/lib/attendance-flow/engine";
 import type { EngineInput } from "@/lib/attendance-flow/engine";
+import {
+  cancelAppointmentIdFailureMessage,
+  resolveCancelAppointmentId,
+} from "../state/resolve-cancel-appointment-id";
 
 const APPOINTMENT_MUTATIONS = new Set([
   "cancel_appointment",
@@ -152,18 +156,15 @@ export function validateToolCall(
   }
 
   if (APPOINTMENT_MUTATIONS.has(toolName)) {
-    const appointmentId =
-      args.appointment_id ?? aiState.focused_appointment_id;
-    const hasSingle =
-      aiState.active_appointments?.length === 1
-        ? aiState.active_appointments[0]
-        : null;
-    if (!appointmentId && !hasSingle) {
+    const resolved = resolveCancelAppointmentId(args, aiState);
+    if (!resolved.ok) {
       return needsInputResult(
         ["appointment_id"],
-        "Consulta não identificada. Chame list_patient_appointments antes."
+        cancelAppointmentIdFailureMessage(resolved.reason)
       );
     }
+    // Sanitize args so execute uses the validated domain reference.
+    args.appointment_id = resolved.appointmentId;
 
     if (toolName === "cancel_appointment" && engineInput) {
       const gate = canExecuteMutation(
