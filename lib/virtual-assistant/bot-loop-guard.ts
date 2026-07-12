@@ -128,6 +128,28 @@ export function isActiveBookingForLoopGuard(aiState?: AiConversationState): bool
   return booking.status === "collecting" || booking.status === "confirming";
 }
 
+/**
+ * Conversation has a deterministic next step (independent of LLM).
+ * Used by Safety/Loop State so high_outbound_rate does not hand off mid-flow.
+ * Conversation State may still be healthy — these are concurrent machines.
+ */
+export function hasDeterministicPendingAction(aiState?: AiConversationState): boolean {
+  if (isActiveBookingForLoopGuard(aiState)) return true;
+
+  const flow = aiState?.conversation_flow;
+  if (!flow) return false;
+
+  // Cancel Current Operation in flight (Selecting or later goals still pending).
+  if (
+    flow.active_workflow_id === "cancelamento" &&
+    flow.pending.includes("cancel_booking")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export function resolveBotLoopWindowSince(
   defaultSinceMs: number,
   aiState?: AiConversationState
@@ -158,7 +180,7 @@ export async function checkBotLoopRisk(
     return { block: false };
   }
 
-  if (isMenuNumericReply(inboundText) && isActiveBookingForLoopGuard(aiState)) {
+  if (isMenuNumericReply(inboundText) && hasDeterministicPendingAction(aiState)) {
     return { block: false };
   }
 
@@ -200,7 +222,7 @@ export async function checkBotLoopRisk(
   }
 
   if (outboundCount >= PING_PONG_OUTBOUND_THRESHOLD + 1) {
-    if (isActiveBookingForLoopGuard(aiState)) {
+    if (hasDeterministicPendingAction(aiState)) {
       return { block: false };
     }
     if (aiState?.intent === "booking" && offeredSlots.length > 0) {

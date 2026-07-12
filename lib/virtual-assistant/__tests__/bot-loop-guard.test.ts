@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   checkBotLoopRisk,
   freshBotLoopWindowState,
+  hasDeterministicPendingAction,
   resolveBotLoopWindowSince,
 } from "../bot-loop-guard";
 import type { AiConversationState } from "../types";
@@ -178,6 +179,28 @@ describe("checkBotLoopRisk", () => {
       "conv-1",
       "clinic-1",
       "1",
+      aiState
+    );
+    assert.equal(result.block, false);
+  });
+
+  it("não bloqueia high_outbound_rate com cancel Current Operation pending", async () => {
+    const { supabase } = createBotLoopMockSupabase({ outboundCount: 5 });
+    const aiState: AiConversationState = {
+      conversation_flow: {
+        active_workflow_id: "cancelamento",
+        mode: "assisted",
+        satisfied: [],
+        pending: ["appointment_selected", "cancel_reason", "cancel_booking"],
+        collected: {},
+      },
+    };
+    assert.equal(hasDeterministicPendingAction(aiState), true);
+    const result = await checkBotLoopRisk(
+      supabase as never,
+      "conv-1",
+      "clinic-1",
+      "Pode me falar as outras que tenho?",
       aiState
     );
     assert.equal(result.block, false);

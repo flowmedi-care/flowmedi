@@ -392,3 +392,26 @@ export function markMutationDone(
     },
   };
 }
+
+/**
+ * Reset Current Operation after a successful cancel while the workflow stays alive.
+ * Clears operation-scoped collected + mutation flag for the next cancel; syncFlowState
+ * re-derives pending goals from aiState (no focus → appointment_selected pending, etc.).
+ */
+export function resetCurrentCancelOperation(
+  flowState: ConversationFlowState
+): ConversationFlowState {
+  const collected = { ...(flowState.collected ?? {}) };
+  delete collected.cancel_reason;
+  delete collected["custom:cancel_reason"];
+
+  const mutation_done = { ...(flowState.mutation_done ?? {}) };
+  mutation_done.cancel_booking = false;
+
+  return {
+    ...flowState,
+    collected,
+    mutation_done,
+  };
+}
+

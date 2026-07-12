@@ -29,6 +29,8 @@ export type ToolResult<T = unknown> = {
   suggestion?: string;
   /** When set, runtime uses structured renderer for patient-visible content. */
   renderStrategy?: string;
+  /** Appointment list presentation intent: browse | select | summary. */
+  renderMode?: string;
 };
 
 export type FaqItem = { id: string; question: string; answer: string };
@@ -66,11 +68,12 @@ export function toolResultToJson(result: ToolResult): string {
 export function successResult<T>(
   data: T,
   options?: ToolOption[],
-  extras?: { renderStrategy?: string }
+  extras?: { renderStrategy?: string; renderMode?: string }
 ): ToolResult<T> {
   const result: ToolResult<T> = { status: "success", data };
   if (options?.length) result.options = options;
   if (extras?.renderStrategy) result.renderStrategy = extras.renderStrategy;
+  if (extras?.renderMode) result.renderMode = extras.renderMode;
   return result;
 }
 

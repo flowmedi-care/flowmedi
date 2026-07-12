@@ -20,7 +20,7 @@ import {
   registerPatientViaAssistant,
   updatePatientIntakeViaAssistant,
 } from "@/lib/virtual-assistant/services/patients";
-import { computePendencies, markMutationDone, syncFlowState, getWorkflowFromConfig } from "@/lib/attendance-flow/engine";
+import { computePendencies, markMutationDone, resetCurrentCancelOperation, syncFlowState, getWorkflowFromConfig } from "@/lib/attendance-flow/engine";
 import { mergeClinicFlowConfig, buildGoalRegistry } from "@/lib/attendance-flow/flow-sync";
 import { DEFAULT_WORKFLOW_CONSULTA } from "@/lib/attendance-flow/defaults";
 import {
@@ -48,6 +48,22 @@ import {
 } from "../state/resolve-booking-date";
 import { resolveBookingEntityId } from "../state/resolve-entity-id";
 import { DEFAULT_CLINIC_TIMEZONE } from "@/lib/clinic-timezone";
+import type { AiState } from "../state/types";
+import type { AppointmentListRenderMode } from "./render-structured";
+
+/** Current Operation in Selecting → select; otherwise browse. */
+function resolveAppointmentListRenderMode(aiState: AiState): AppointmentListRenderMode {
+  const flow = aiState.conversation_flow;
+  if (
+    flow?.active_workflow_id === "cancelamento" &&
+    flow.pending.includes("appointment_selected") &&
+    flow.pending.includes("cancel_booking") &&
+    !aiState.focused_appointment_id?.trim()
+  ) {
+    return "select";
+  }
+  return "browse";
+}
 
 function isMissingToolLogColumnError(message: string): boolean {
   return (
@@ -784,11 +800,12 @@ export async function executeTool(
           label: [a.procedure_name, a.doctor_name, a.scheduled_at].filter(Boolean).join(" — ") || `Consulta ${i + 1}`,
           index: i + 1,
         }));
+        const listMode = resolveAppointmentListRenderMode(ctx.aiState);
         return {
           result: successResult(
-            { appointments },
+            { appointments, renderMode: listMode },
             options.length >= 1 ? options : undefined,
-            { renderStrategy: "appointment_list" }
+            { renderStrategy: "appointment_list", renderMode: listMode }
           ),
           statePatch: {
             patient_id: listed.resolvedPatientId,
@@ -872,14 +889,44 @@ export async function executeTool(
           };
         }
         const flowState = ctx.aiState.conversation_flow;
-        const updatedFlow = flowState
-          ? markMutationDone(flowState, "cancel_booking")
-          : undefined;
+        const prevActive = (ctx.aiState.active_appointments ?? [])
+          .map((id) => String(id).trim())
+          .filter(Boolean);
+        const remaining = prevActive.filter((id) => id !== appointmentId);
+
+        if (!flowState) {
+          return {
+            result: successResult({ cancelled: true, appointment_id: appointmentId }),
+            statePatch: {
+              focused_appointment_id: undefined,
+              active_appointments: remaining,
+            },
+          };
+        }
+
+        if (remaining.length > 0) {
+          // Current Operation reset — workflow stays alive for the next cancel.
+          return {
+            result: successResult({
+              cancelled: true,
+              appointment_id: appointmentId,
+              remaining_count: remaining.length,
+            }),
+            statePatch: {
+              focused_appointment_id: undefined,
+              active_appointments: remaining,
+              conversation_flow: resetCurrentCancelOperation(flowState),
+            },
+          };
+        }
+
+        // Last appointment cancelled — mark mutation done; workflow can complete.
         return {
           result: successResult({ cancelled: true, appointment_id: appointmentId }),
           statePatch: {
             focused_appointment_id: undefined,
-            ...(updatedFlow ? { conversation_flow: updatedFlow } : {}),
+            active_appointments: remaining,
+            conversation_flow: markMutationDone(flowState, "cancel_booking"),
           },
         };
       }

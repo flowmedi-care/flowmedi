@@ -50,8 +50,8 @@ export const daySelectedRule: DeterministicActionRule = {
 };
 
 /**
- * Cancelamento without a focused appointment → must list canceláveis.
- * Does not invent selection — user (or N=1 auto-focus) chooses after the list.
+ * Cancelamento Current Operation in Selecting (needs appointment choice) → list.
+ * Requires cancel_booking still pending so a completed-only workflow does not re-list.
  */
 export const cancelNeedsListRule: DeterministicActionRule = {
   id: "cancel_needs_list",
@@ -59,6 +59,7 @@ export const cancelNeedsListRule: DeterministicActionRule = {
     const flow = ctx.after.conversation_flow;
     if (flow?.active_workflow_id !== "cancelamento") return false;
     if (!flow.pending.includes("appointment_selected")) return false;
+    if (!flow.pending.includes("cancel_booking")) return false;
     if (ctx.after.focused_appointment_id?.trim()) return false;
     return true;
   },

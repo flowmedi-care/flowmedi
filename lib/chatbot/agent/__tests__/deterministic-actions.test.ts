@@ -80,7 +80,7 @@ describe("resolveDeterministicActions / daySelectedRule", () => {
 });
 
 describe("cancelNeedsListRule", () => {
-  it("emits list when cancelamento pending selection without focus", () => {
+  it("emits list when cancelamento Selecting without focus", () => {
     const after = {
       ...initialAiState(),
       conversation_flow: {
@@ -101,7 +101,23 @@ describe("cancelNeedsListRule", () => {
     const after = {
       ...initialAiState(),
       focused_appointment_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-      conversation_flow: initConversationFlowState(DEFAULT_WORKFLOW_CANCELAMENTO),
+      conversation_flow: {
+        ...initConversationFlowState(DEFAULT_WORKFLOW_CANCELAMENTO),
+        pending: ["cancel_reason", "cancel_booking"],
+      },
+    };
+    assert.equal(cancelNeedsListRule.matches({ before: after, after, facts: {} }), false);
+  });
+
+  it("does not match when cancel_booking already satisfied (mutation done)", () => {
+    const after = {
+      ...initialAiState(),
+      conversation_flow: {
+        ...initConversationFlowState(DEFAULT_WORKFLOW_CANCELAMENTO),
+        pending: ["appointment_selected"],
+        satisfied: ["cancel_booking"],
+        mutation_done: { cancel_booking: true },
+      },
     };
     assert.equal(cancelNeedsListRule.matches({ before: after, after, facts: {} }), false);
   });

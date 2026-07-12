@@ -2,6 +2,37 @@
 
 Este documento define como o cancelamento de consultas é resolvido no assistente. O objetivo é garantir seleção e cancelamento determinísticos, independentes do comportamento da LLM.
 
+## Duas máquinas concorrentes
+
+| Máquina | Responsabilidade |
+|---------|------------------|
+| **Conversation State** | Workflow, goals, focus, tools |
+| **Safety / Loop State** | `bot_loop_detected` / `high_outbound_rate` |
+
+Um handoff por `high_outbound_rate` **não** significa que o workflow terminou — o loop guard (Safety) cortou a resposta enquanto a Conversation State pode continuar viva. Isenção: `hasDeterministicPendingAction` (ex.: Current Operation de cancel em andamento, menus de booking).
+
+## Workflow vs Current Operation
+
+```
+Workflow (cancelamento)
+  └── Current Operation   ← conceito (não entidade persistida):
+        goals + focus + collected da vez
+        └── Mutation (cancel_appointment) como transição
+```
+
+**Current Operation** = goals atuais (`pending`/`satisfied`) + `focused_appointment_id` + `collected` da operação (`cancel_reason`, …).
+
+Após cancel OK com restantes:
+
+```
+Current Operation → reset → New Current Operation
+Workflow permanece vivo
+```
+
+`resetCurrentCancelOperation`: limpa `cancel_reason` / `custom:cancel_reason` e `mutation_done.cancel_booking = false` para a **operação corrente**. O controle de fluxo depende dos goals; `mutation_done` permanece por compatibilidade e **não** decide sozinho se o workflow continua ou termina.
+
+Se não há restantes → `markMutationDone(cancel_booking)`; workflow completa.
+
 ## State machine
 
 ```
@@ -12,7 +43,8 @@ Focused válido?
       │
       ├── Sim ─► Confirmar ─► Cancelar
       │                     │
-      │                     ├── OK
+      │                     ├── OK + restantes → reset Current Operation
+      │                     ├── OK sem restantes → workflow completa
       │                     └── Erro domínio
       │                              │
       │                              ▼
@@ -32,7 +64,7 @@ Focused válido?
                       ▼
                 Confirmar ─► Cancelar
                                  │
-                                 ├── OK
+                                 ├── OK (+ reset ou fim)
                                  └── Erro domínio → Invalidar focused → Listar
 ```
 
@@ -54,7 +86,15 @@ Focused válido?
 
 Patient-visible content must be a **deterministic projection** of the returned `appointments` array (`renderStrategy: appointment_list`). The LLM must not invent, omit, or summarize away rows.
 
-With N>1 canceláveis, selection requires presenting the full numbered list. Order:
+`AppointmentListRenderMode`:
+
+| Mode | Uso |
+|------|-----|
+| `browse` | Só listar |
+| `select` | Current Operation em Selecting |
+| `summary` | Restantes pós-cancel, sem forçar “Qual delas?” |
+
+With N>1 em modo `select`, order:
 
 ```
 appointments[0]  →  option 1
@@ -62,7 +102,7 @@ appointments[1]  →  option 2
 selectedIndex k  →  appointments[k - 1]  →  focused_appointment_id
 ```
 
-When cancelamento starts without `focused_appointment_id`, the runtime deterministically calls `list_patient_appointments`.
+When cancelamento starts without `focused_appointment_id` and Current Operation needs selection, the runtime deterministically calls `list_patient_appointments` (`cancel_needs_list` só com `cancel_booking` pending).
 
 ### Refresh invariant
 
@@ -168,6 +208,7 @@ Nunca retorna índices de lista nem identificadores parcialmente resolvidos.
    **Future:** other explicit domain entry points (e.g. confirmation deep-link with a server-validated id) may be added without changing this rule.
 
 7. A collection refresh must not invalidate a reference still present in that collection.
+8. After a successful cancel with remaining appointments, reset Current Operation; do not treat `mutation_done` as end of workflow.
 
 ## Related
 

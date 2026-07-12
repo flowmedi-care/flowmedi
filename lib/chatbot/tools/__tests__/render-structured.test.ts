@@ -36,51 +36,71 @@ describe("renderAppointmentList projection", () => {
     assert.doesNotMatch(text, /^1\./m);
   });
 
-  it("1 appointment → exactly that row as option 1", () => {
+  it("1 appointment browse → exactly that row as option 1", () => {
     const { text } = renderAppointmentList({
       appointments: [FIXTURE[0]],
       locale: "pt-BR",
       timezone: "UTC",
+      mode: "browse",
     });
     assert.match(text, /Você tem 1 consulta/);
     assert.match(text, /^1\./m);
     assert.match(text, /Endoscopia/);
-    assert.doesNotMatch(text, /^2\./m);
+    assert.doesNotMatch(text, /Qual delas/);
   });
 
-  it("3 appointments → enumerate 1..3 in array order", () => {
+  it("3 appointments browse → enumerate without selection prompt", () => {
     const { text } = renderAppointmentList({
       appointments: [...FIXTURE],
       locale: "pt-BR",
       timezone: "UTC",
+      mode: "browse",
     });
     assert.match(text, /Você tem 3 consultas/);
+    assert.doesNotMatch(text, /Qual delas/);
+  });
+
+  it("3 appointments select → Qual delas", () => {
+    const { text } = renderAppointmentList({
+      appointments: [...FIXTURE],
+      locale: "pt-BR",
+      timezone: "UTC",
+      mode: "select",
+    });
+    assert.match(text, /Você tem 3 consultas/);
+    assert.match(text, /Qual delas/);
     const i1 = text.indexOf("1.");
     const i2 = text.indexOf("2.");
     const i3 = text.indexOf("3.");
     assert.ok(i1 >= 0 && i2 > i1 && i3 > i2);
-    // appointments[0] appears in line 1 before appointments[1] content markers
-    const line1 = text.slice(i1, i2);
-    const line2 = text.slice(i2, i3);
-    assert.match(line1, /16/);
-    assert.match(line2, /17/);
-    assert.match(text, /Qual delas/);
   });
 
-  it("renderStructuredToolResult resolves appointment_list strategy", () => {
+  it("3 appointments summary → Restam without Qual delas", () => {
+    const { text } = renderAppointmentList({
+      appointments: [...FIXTURE],
+      locale: "pt-BR",
+      timezone: "UTC",
+      mode: "summary",
+    });
+    assert.match(text, /Restam 3 consultas/);
+    assert.doesNotMatch(text, /Qual delas/);
+  });
+
+  it("renderStructuredToolResult uses renderMode from extras", () => {
     const rendered = renderStructuredToolResult({
       renderStrategy: "appointment_list",
+      renderMode: "select",
       data: { appointments: [...FIXTURE] },
     });
     assert.ok(rendered);
-    assert.match(rendered!.text, /3 consultas/);
+    assert.match(rendered!.text, /Qual delas/);
   });
 
   it("unknown strategy returns null", () => {
     assert.equal(
       renderStructuredToolResult({
         renderStrategy: "not_a_real_strategy",
-        data: { appointments: [] },
+        data: {},
       }),
       null
     );

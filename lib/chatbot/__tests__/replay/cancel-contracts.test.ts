@@ -4,6 +4,7 @@ import {
   resolveAvailableTools,
   initConversationFlowState,
   syncFlowState,
+  resetCurrentCancelOperation,
 } from "@/lib/attendance-flow/engine";
 import {
   DEFAULT_APPOINTMENT_POLICY,
@@ -184,6 +185,74 @@ describe("appointment index order → focus", () => {
     const resolved = resolveCancelAppointmentId({}, aiState);
     assert.equal(resolved.ok, true);
     if (resolved.ok) assert.equal(resolved.appointmentId, APPT2);
+  });
+});
+
+describe("Current Operation reset after cancel", () => {
+  it("reset clears cancel_reason and reopens goals for next op", () => {
+    const flow = {
+      ...initConversationFlowState(DEFAULT_WORKFLOW_CANCELAMENTO),
+      collected: {
+        cancel_reason: "Vou pra outro lugar",
+        "custom:cancel_reason": "Vou pra outro lugar",
+      },
+      mutation_done: { cancel_booking: true },
+      satisfied: ["appointment_selected", "cancel_reason", "cancel_booking"],
+      pending: [],
+    };
+    const reset = resetCurrentCancelOperation(flow);
+    assert.equal(reset.mutation_done?.cancel_booking, false);
+    assert.equal(reset.collected.cancel_reason, undefined);
+    assert.equal(reset.collected["custom:cancel_reason"], undefined);
+
+    const aiState = {
+      ...initialAiState(),
+      patient_id: PATIENT,
+      active_appointments: [APPT2, APPT3],
+      conversation_flow: reset,
+    };
+    const synced = syncFlowState({
+      workflow: DEFAULT_WORKFLOW_CANCELAMENTO,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState,
+      flowState: reset,
+    });
+    assert.ok(synced.pending.includes("appointment_selected"));
+    assert.ok(synced.pending.includes("cancel_reason"));
+    assert.ok(synced.pending.includes("cancel_booking"));
+
+    const toolsSelecting = resolveAvailableTools({
+      workflow: DEFAULT_WORKFLOW_CANCELAMENTO,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState: { ...aiState, conversation_flow: synced },
+      flowState: synced,
+    });
+    assert.ok(toolsSelecting.includes("list_patient_appointments"));
+    // Mutation gated until appointment_selected is satisfied.
+    assert.ok(!toolsSelecting.includes("cancel_appointment"));
+
+    const withFocus = {
+      ...aiState,
+      focused_appointment_id: APPT2,
+      conversation_flow: synced,
+    };
+    const syncedFocused = syncFlowState({
+      workflow: DEFAULT_WORKFLOW_CANCELAMENTO,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState: withFocus,
+      flowState: synced,
+    });
+    const toolsReady = resolveAvailableTools({
+      workflow: DEFAULT_WORKFLOW_CANCELAMENTO,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState: { ...withFocus, conversation_flow: syncedFocused },
+      flowState: syncedFocused,
+    });
+    assert.ok(toolsReady.includes("cancel_appointment"));
   });
 });
 

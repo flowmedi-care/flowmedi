@@ -14,10 +14,14 @@ export type AppointmentListItem = {
   patient_id?: string;
 };
 
+/** Intent for how the list is presented to the patient. */
+export type AppointmentListRenderMode = "browse" | "select" | "summary";
+
 export type RenderAppointmentListInput = {
   appointments: AppointmentListItem[];
   locale?: string;
   timezone?: string;
+  mode?: AppointmentListRenderMode;
 };
 
 function formatAppointmentWhen(
@@ -53,15 +57,31 @@ function formatOneLine(
   return `${withDoctor} — ${when}`;
 }
 
+function numberedLines(
+  appointments: AppointmentListItem[],
+  locale: string,
+  timezone: string
+): string[] {
+  return appointments.map(
+    (a, i) => `${i + 1}. ${formatOneLine(a, locale, timezone)}`
+  );
+}
+
 /**
  * Deterministic projection of appointments[] → patient-visible text.
  * Order is array order: appointments[i] ↔ option i+1.
+ *
+ * Modes:
+ * - browse: list only
+ * - select: list + ask which number (Current Operation Selecting)
+ * - summary: remaining after a cancel, no forced selection
  */
 export function renderAppointmentList(
   input: RenderAppointmentListInput
 ): RenderedMessage {
   const locale = input.locale ?? "pt-BR";
   const timezone = input.timezone ?? "America/Sao_Paulo";
+  const mode: AppointmentListRenderMode = input.mode ?? "browse";
   const appointments = input.appointments ?? [];
 
   if (appointments.length === 0) {
@@ -70,21 +90,38 @@ export function renderAppointmentList(
     };
   }
 
+  const lines = numberedLines(appointments, locale, timezone);
+
   if (appointments.length === 1) {
-    const line = formatOneLine(appointments[0]!, locale, timezone);
+    if (mode === "summary") {
+      return { text: `Resta 1 consulta:\n${lines[0]}` };
+    }
+    if (mode === "select") {
+      return {
+        text: `Você tem 1 consulta:\n${lines[0]}\n\nConfirma que é essa? Responda com 1.`,
+      };
+    }
     return {
-      text: `Você tem 1 consulta:\n1. ${line}`,
+      text: `Você tem 1 consulta:\n${lines[0]}`,
     };
   }
 
-  const lines = appointments.map(
-    (a, i) => `${i + 1}. ${formatOneLine(a, locale, timezone)}`
-  );
+  const header =
+    mode === "summary"
+      ? `Restam ${appointments.length} consultas:`
+      : `Você tem ${appointments.length} consultas:`;
+
+  if (mode === "select") {
+    return {
+      text:
+        `${header}\n` +
+        lines.join("\n") +
+        `\n\nQual delas? Responda com o número (1 a ${appointments.length}).`,
+    };
+  }
+
   return {
-    text:
-      `Você tem ${appointments.length} consultas:\n` +
-      lines.join("\n") +
-      `\n\nQual delas? Responda com o número (1 a ${appointments.length}).`,
+    text: `${header}\n` + lines.join("\n"),
   };
 }
 
@@ -92,6 +129,7 @@ export type StructuredRenderStrategy = "appointment_list";
 
 type ToolResultLike = {
   renderStrategy?: string;
+  renderMode?: string;
   data?: unknown;
 };
 
@@ -99,6 +137,14 @@ type StrategyFn = (
   result: ToolResultLike,
   opts: { locale: string; timezone: string }
 ) => RenderedMessage | null;
+
+function resolveListMode(result: ToolResultLike): AppointmentListRenderMode {
+  const fromExtras = result.renderMode;
+  const data = result.data as { renderMode?: string } | undefined;
+  const raw = fromExtras ?? data?.renderMode;
+  if (raw === "select" || raw === "summary" || raw === "browse") return raw;
+  return "browse";
+}
 
 /** Light strategy map — add slots/doctors later without tool-name branching. */
 const STRUCTURED_RENDERERS: Record<string, StrategyFn> = {
@@ -109,6 +155,7 @@ const STRUCTURED_RENDERERS: Record<string, StrategyFn> = {
       appointments,
       locale: opts.locale,
       timezone: opts.timezone,
+      mode: resolveListMode(result),
     });
   },
 };
