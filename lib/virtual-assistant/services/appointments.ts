@@ -22,6 +22,11 @@ import type { OfferedSlot } from "@/lib/virtual-assistant/types";
 import { resolveServicePriceForClinic } from "./pricing";
 import type { IntakePendency } from "@/lib/attendance-flow/types";
 import { lookupPatientsByPhone } from "./patients";
+import {
+  applyListAppointmentStages,
+  type ListAppointmentRow,
+  type ListExecutionTrace,
+} from "./list-appointments-trace";
 
 export type CreateAppointmentConflict = {
   type: "conflict";
@@ -461,9 +466,90 @@ export async function listPatientAppointmentsViaAssistant(
   });
 }
 
+type ListedAppointment = Awaited<ReturnType<typeof listPatientAppointmentsViaAssistant>>[number];
+
+/** Raw rows for surgical replay (all statuses, no date floor). */
+async function fetchAppointmentRowsForListTrace(
+  supabase: SupabaseClient,
+  clinicId: string,
+  patientId: string
+): Promise<ListAppointmentRow[]> {
+  const { data } = await supabase
+    .from("appointments")
+    .select("id, scheduled_at, status, patient_id")
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .order("scheduled_at", { ascending: true })
+    .limit(50);
+
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    scheduled_at: String(row.scheduled_at),
+    status: String(row.status),
+    patient_id: row.patient_id ? String(row.patient_id) : patientId,
+  }));
+}
+
+function buildListExecutionTrace(input: {
+  clinicId: string;
+  phone: string;
+  matchedPatientIds: string[];
+  selectedPatientId: string;
+  resolvedPatientId: string;
+  usedPhoneFallback: boolean;
+  upcomingOnly: boolean;
+  rawSelected: ListAppointmentRow[];
+  resultCount: number;
+  nowIso: string;
+}): ListExecutionTrace {
+  const staged = applyListAppointmentStages(input.rawSelected, {
+    upcomingOnly: input.upcomingOnly,
+    nowIso: input.nowIso,
+  });
+  return {
+    clinicId: input.clinicId,
+    phone: input.phone,
+    matchedPatientIds: input.matchedPatientIds,
+    patientsMatchedByPhone: input.matchedPatientIds.length,
+    selectedPatientId: input.selectedPatientId,
+    resolvedPatientId: input.resolvedPatientId,
+    usedPhoneFallback: input.usedPhoneFallback,
+    effectiveFilters: {
+      statuses: ["agendada", "confirmada"],
+      upcomingOnly: input.upcomingOnly,
+    },
+    stages: {
+      beforeFilters: staged.counts.totalForSelectedPatient,
+      afterStatusFilter: staged.counts.cancelable,
+      afterDateFilter: staged.afterDate.length,
+      resultCount: input.resultCount,
+    },
+    counts: staged.counts,
+  };
+}
+
+async function listCancelableForPatientPreferUpcoming(
+  supabase: SupabaseClient,
+  clinicId: string,
+  patientId: string,
+  upcomingOnly: boolean
+): Promise<ListedAppointment[]> {
+  let rows = await listPatientAppointmentsViaAssistant(supabase, clinicId, patientId, {
+    upcomingOnly,
+  });
+  // Overdue canceláveis: retry only when the requested filter was upcoming-only and empty.
+  if (rows.length === 0 && upcomingOnly) {
+    rows = await listPatientAppointmentsViaAssistant(supabase, clinicId, patientId, {
+      upcomingOnly: false,
+    });
+  }
+  return rows;
+}
+
 /**
  * List cancellable appointments for patient_id first.
  * Legacy fallback: if empty, union by phone across duplicate patient rows (does not make phone identity).
+ * Observability: `listExecutionTrace` is for ToolTrace / playground debug only — not the LLM payload.
  */
 export async function listCancellableAppointmentsWithPhoneFallback(
   supabase: SupabaseClient,
@@ -474,16 +560,28 @@ export async function listCancellableAppointmentsWithPhoneFallback(
     upcomingOnly?: boolean;
   }
 ): Promise<{
-  appointments: Awaited<ReturnType<typeof listPatientAppointmentsViaAssistant>>;
+  appointments: ListedAppointment[];
   resolvedPatientId: string;
   usedPhoneFallback: boolean;
+  listExecutionTrace: ListExecutionTrace;
 }> {
   const upcomingOnly = opts.upcomingOnly !== false;
-  let appointments = await listPatientAppointmentsViaAssistant(
+  const nowIso = new Date().toISOString();
+
+  const siblings = await lookupPatientsByPhone(supabase, opts.clinicId, opts.phone);
+  const matchedPatientIds = siblings.map((s) => s.id);
+  const rawSelected = await fetchAppointmentRowsForListTrace(
+    supabase,
+    opts.clinicId,
+    opts.patientId
+  );
+
+  // Primary: upcoming first; if empty, overdue canceláveis (same policy as before — now also when siblings exist).
+  let appointments = await listCancelableForPatientPreferUpcoming(
     supabase,
     opts.clinicId,
     opts.patientId,
-    { upcomingOnly }
+    upcomingOnly
   );
 
   if (appointments.length > 0) {
@@ -491,42 +589,51 @@ export async function listCancellableAppointmentsWithPhoneFallback(
       appointments,
       resolvedPatientId: opts.patientId,
       usedPhoneFallback: false,
+      listExecutionTrace: buildListExecutionTrace({
+        clinicId: opts.clinicId,
+        phone: opts.phone,
+        matchedPatientIds,
+        selectedPatientId: opts.patientId,
+        resolvedPatientId: opts.patientId,
+        usedPhoneFallback: false,
+        upcomingOnly,
+        rawSelected,
+        resultCount: appointments.length,
+        nowIso,
+      }),
     };
   }
 
-  // Legacy: empty for state patient_id — check sibling rows with same phone.
-  const siblings = await lookupPatientsByPhone(supabase, opts.clinicId, opts.phone);
-  const otherIds = siblings.map((s) => s.id).filter((id) => id !== opts.patientId);
+  const otherIds = matchedPatientIds.filter((id) => id !== opts.patientId);
   if (otherIds.length === 0) {
-    // Still empty: one more try without date floor (overdue but still agendada/confirmada).
-    if (upcomingOnly) {
-      appointments = await listPatientAppointmentsViaAssistant(
-        supabase,
-        opts.clinicId,
-        opts.patientId,
-        { upcomingOnly: false }
-      );
-      if (appointments.length > 0) {
-        return {
-          appointments,
-          resolvedPatientId: opts.patientId,
-          usedPhoneFallback: false,
-        };
-      }
-    }
     return {
       appointments: [],
       resolvedPatientId: opts.patientId,
       usedPhoneFallback: false,
+      listExecutionTrace: buildListExecutionTrace({
+        clinicId: opts.clinicId,
+        phone: opts.phone,
+        matchedPatientIds,
+        selectedPatientId: opts.patientId,
+        resolvedPatientId: opts.patientId,
+        usedPhoneFallback: false,
+        upcomingOnly,
+        rawSelected,
+        resultCount: 0,
+        nowIso,
+      }),
     };
   }
 
-  const merged: Awaited<ReturnType<typeof listPatientAppointmentsViaAssistant>> = [];
+  const merged: ListedAppointment[] = [];
   const seen = new Set<string>();
   for (const id of otherIds) {
-    const rows = await listPatientAppointmentsViaAssistant(supabase, opts.clinicId, id, {
-      upcomingOnly,
-    });
+    const rows = await listCancelableForPatientPreferUpcoming(
+      supabase,
+      opts.clinicId,
+      id,
+      upcomingOnly
+    );
     for (const row of rows) {
       if (seen.has(row.id)) continue;
       seen.add(row.id);
@@ -544,6 +651,18 @@ export async function listCancellableAppointmentsWithPhoneFallback(
     appointments: merged,
     resolvedPatientId: merged.length ? resolvedPatientId : opts.patientId,
     usedPhoneFallback: merged.length > 0,
+    listExecutionTrace: buildListExecutionTrace({
+      clinicId: opts.clinicId,
+      phone: opts.phone,
+      matchedPatientIds,
+      selectedPatientId: opts.patientId,
+      resolvedPatientId: merged.length ? resolvedPatientId : opts.patientId,
+      usedPhoneFallback: merged.length > 0,
+      upcomingOnly,
+      rawSelected,
+      resultCount: merged.length,
+      nowIso,
+    }),
   };
 }
 

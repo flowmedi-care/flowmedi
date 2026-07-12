@@ -16,6 +16,7 @@ type DebugInfo = {
   toolLogId?: string;
   warnings?: string[];
   httpStatus?: number;
+  listExecutionTrace?: Record<string, unknown>;
 };
 
 type Props = {
@@ -184,6 +185,23 @@ export function ExecutionPipeline({
               </pre>
             </>
           )}
+        </PipelineSection>
+      )}
+
+      {debug?.listExecutionTrace && (
+        <PipelineSection
+          id="list-trace"
+          title="LIST EXECUTION TRACE"
+          defaultOpen
+          onCopy={() => copyToClipboard(formatJson(debug.listExecutionTrace))}
+        >
+          <p className="mb-2 text-xs text-muted-foreground">
+            Observabilidade (não faz parte do payload da ferramenta). Estágios: phone → patients →
+            selected → before filters → status → date → result.
+          </p>
+          <pre className="max-h-80 overflow-auto rounded bg-muted/50 p-3 text-xs">
+            {formatJson(debug.listExecutionTrace)}
+          </pre>
         </PipelineSection>
       )}
 

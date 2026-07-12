@@ -530,6 +530,12 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         detail: outcome.result.message,
         ...(outcome.executionTrace ?? {}),
       };
+      // Measured duration and list surgical replay must not be overwritten by tool-provided partials.
+      execTrace.duration_ms = toolTrace.durationMs;
+      if (outcome.listExecutionTrace) {
+        execTrace.listExecutionTrace = outcome.listExecutionTrace;
+        execTrace.detail = `stages ${outcome.listExecutionTrace.stages.beforeFilters}→${outcome.listExecutionTrace.stages.afterStatusFilter}→${outcome.listExecutionTrace.stages.afterDateFilter}→${outcome.listExecutionTrace.stages.resultCount}`;
+      }
       trace.executionTraces.push(execTrace);
 
       if (outcome.executionTrace) {

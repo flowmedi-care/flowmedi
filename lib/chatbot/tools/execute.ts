@@ -766,12 +766,13 @@ export async function executeTool(
           upcomingOnly: !args.include_past,
         });
         const appointments = listed.appointments;
+        const listExecutionTrace = listed.listExecutionTrace;
         await logToolCall(
           supabase,
           clinicId,
           conversationId,
           name,
-          args,
+          { ...args, _listExecutionTrace: listExecutionTrace },
           `${appointments.length} consultas${listed.usedPhoneFallback ? " (phone fallback)" : ""}`,
           true
         );
@@ -788,6 +789,7 @@ export async function executeTool(
             active_appointments: ids,
             focused_appointment_id: ids.length === 1 ? ids[0] : undefined,
           },
+          listExecutionTrace,
         };
       }
 

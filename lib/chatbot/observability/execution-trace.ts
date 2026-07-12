@@ -1,4 +1,5 @@
 import type { MutationOutcome } from "../tools/mutation-result";
+import type { ListExecutionTrace } from "@/lib/virtual-assistant/services/list-appointments-trace";
 
 export type ExecutionTraceKind = "tool" | "extractor" | "snapshot_build";
 
@@ -17,6 +18,8 @@ export type ExecutionTrace = {
   snapshotBefore?: Record<string, unknown>;
   snapshotAfter?: Record<string, unknown>;
   detail?: string;
+  /** Observability only — list_patient_appointments surgical replay. */
+  listExecutionTrace?: ListExecutionTrace;
 };
 
 export function formatExecutionTrace(trace: ExecutionTrace): string {

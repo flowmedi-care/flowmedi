@@ -175,6 +175,9 @@ export async function POST(request: NextRequest) {
     let statePatch: Record<string, unknown> | null = null;
     let implicitPatch: Record<string, unknown> | null = null;
     let rawResult: string | undefined;
+    let listExecutionTraceFromOutcome:
+      | import("@/lib/virtual-assistant/services/list-appointments-trace").ListExecutionTrace
+      | undefined;
 
     if (executorMode === "production") {
       const [{ data: settingsRow }, { data: faqRows }] = await Promise.all([
@@ -207,6 +210,7 @@ export async function POST(request: NextRequest) {
       parsedResult = outcome.result;
       handoff = outcome.handoff ?? false;
       rawResult = JSON.stringify(outcome.result);
+      listExecutionTraceFromOutcome = outcome.listExecutionTrace;
 
       const explicitPatch = outcome.statePatch ?? {};
       implicitPatch = patchAiState(toolName, args, outcome.result, aiStateNormalized);
@@ -274,6 +278,9 @@ export async function POST(request: NextRequest) {
           toolLogId,
           warnings,
           httpStatus: 200,
+          ...(listExecutionTraceFromOutcome
+            ? { listExecutionTrace: listExecutionTraceFromOutcome }
+            : {}),
         },
       }),
     });

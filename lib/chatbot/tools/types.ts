@@ -53,6 +53,8 @@ export type ToolExecutionOutcome = {
   mutationOutcome?: import("./mutation-result").MutationOutcome;
   entities?: import("./mutation-result").MutationEntities;
   executionTrace?: import("../observability/execution-trace").ExecutionTrace;
+  /** Observability only — never merged into LLM-facing tool `data`. */
+  listExecutionTrace?: import("@/lib/virtual-assistant/services/list-appointments-trace").ListExecutionTrace;
 };
 
 export function toolResultToJson(result: ToolResult): string {
