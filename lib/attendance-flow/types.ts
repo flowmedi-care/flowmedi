@@ -32,6 +32,12 @@ export type GoalDefinition = {
   prompt_hint: string;
   priority: number;
   default_policy?: GoalPolicyLevel;
+  /**
+   * When this goal must be satisfied relative to booking create.
+   * before_booking + policy required → blocks create_appointment.
+   * after_booking → never blocks create; collect post-booking.
+   */
+  requiredStage?: "before_booking" | "after_booking" | "optional";
   requires_confirmation?: boolean;
   is_mutation?: boolean;
 };

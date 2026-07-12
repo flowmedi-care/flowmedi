@@ -15,11 +15,27 @@ export type GoalResolverContext = {
 export const GOAL_SEMANTIC_KEYS: Record<string, { field: string; patientKey?: string }> = {
   cpf: { field: "cpf", patientKey: "cpf" },
   email: { field: "email", patientKey: "email" },
-  insurance: { field: "insurance" },
+  insurance: { field: "insurance", patientKey: "insurance" },
   payment_method: { field: "payment_method" },
   guardian: { field: "guardian" },
   cancel_reason: { field: "cancel_reason" },
 };
+
+const INSURANCE_CUSTOM_KEY_RE = /^(convenio|conv[eê]nio|insurance|plano|health_?plan|operadora)$/i;
+
+/** Resolve convênio from patient custom_fields by conventional keys. */
+export function resolveInsuranceFromCustomFields(
+  customFields: Record<string, unknown> | null | undefined
+): unknown {
+  if (!customFields || typeof customFields !== "object") return undefined;
+  for (const [k, v] of Object.entries(customFields)) {
+    if (!isFilled(v)) continue;
+    if (INSURANCE_CUSTOM_KEY_RE.test(k) || INSURANCE_CUSTOM_KEY_RE.test(k.replace(/^custom:/, ""))) {
+      return v;
+    }
+  }
+  return undefined;
+}
 
 export function isFilled(val: unknown): boolean {
   return val !== undefined && val !== null && val !== "";
@@ -71,6 +87,12 @@ export function resolveSemanticValue(
     if (custom && typeof custom === "object") {
       const cVal = (custom as Record<string, unknown>)[opts?.customFieldName ?? field];
       if (isFilled(cVal)) return cVal;
+      if (field === "insurance") {
+        const fromInsuranceKey = resolveInsuranceFromCustomFields(
+          custom as Record<string, unknown>
+        );
+        if (isFilled(fromInsuranceKey)) return fromInsuranceKey;
+      }
     }
   }
 

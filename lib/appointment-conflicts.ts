@@ -349,6 +349,8 @@ async function scanDaySlots(
     period?: SlotPeriod;
     timeOnlyLabel?: boolean;
     excludeAppointmentId?: string | null;
+    /** When clinic requires rooms, only offer slots with at least one free room. */
+    requireRoom?: boolean;
   }
 ): Promise<AvailableSlot[]> {
   const slots: AvailableSlot[] = [];
@@ -382,6 +384,17 @@ async function scanDaySlots(
     });
 
     if (!conflict) {
+      if (opts.requireRoom) {
+        const roomId = await findFirstAvailableRoom(supabase, {
+          clinicId: ctx.clinicId,
+          scheduledAt,
+          scheduledEndAt,
+        });
+        if (!roomId) {
+          minute += opts.slotStep;
+          continue;
+        }
+      }
       slots.push({
         scheduled_at: scheduledAt,
         scheduled_end_at: scheduledEndAt,
@@ -672,12 +685,39 @@ export async function findSlotsForDay(
     }
   }
 
+  const requireRoom = await clinicRequiresRoom(supabase, opts.clinicId);
+  const slotStep = opts.slotStepMinutes ?? 30;
+  const maxPerPeriod = opts.maxSlots ?? 6;
+
+  // No period filter: cover morning and afternoon separately so maxSlots
+  // does not truncate to morning-only.
+  if (!opts.period) {
+    const manha = await scanDaySlots(supabase, ctx, opts.date, dayConfig, {
+      slotStep,
+      maxSlots: maxPerPeriod,
+      period: "manha",
+      timeOnlyLabel: true,
+      excludeAppointmentId: excludeId,
+      requireRoom,
+    });
+    const tarde = await scanDaySlots(supabase, ctx, opts.date, dayConfig, {
+      slotStep,
+      maxSlots: maxPerPeriod,
+      period: "tarde",
+      timeOnlyLabel: true,
+      excludeAppointmentId: excludeId,
+      requireRoom,
+    });
+    return [...manha, ...tarde];
+  }
+
   return scanDaySlots(supabase, ctx, opts.date, dayConfig, {
-    slotStep: opts.slotStepMinutes ?? 30,
-    maxSlots: opts.maxSlots ?? 6,
+    slotStep,
+    maxSlots: maxPerPeriod,
     period: opts.period,
     timeOnlyLabel: true,
     excludeAppointmentId: excludeId,
+    requireRoom,
   });
 }
 

@@ -71,7 +71,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     scheduledAt,
   });
 
-  if (apptRes.error || !apptRes.appointmentId) {
+  if (!apptRes.ok) {
     return NextResponse.json({ error: apptRes.error ?? "Erro ao agendar." }, { status: 400 });
   }
 

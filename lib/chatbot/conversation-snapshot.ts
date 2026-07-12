@@ -21,6 +21,7 @@ import {
 import { evaluateGoalsFromEngine } from "./snapshot/goal-evaluator";
 import { mergeAiState } from "@/lib/chatbot/state/patch";
 import { normalizeAiState } from "@/lib/chatbot/state/migrate";
+import { isFilled } from "@/lib/attendance-flow/data-resolver";
 
 export type ConversationSnapshot = Readonly<{
   conversation: {
@@ -171,13 +172,24 @@ export async function buildConversationSnapshot(
 
 export function formatSnapshotForPrompt(snapshot: ConversationSnapshot): string {
   const lines: string[] = ["Contexto do snapshot (dados já conhecidos):"];
+  const collected = snapshot.aiState.conversation_flow?.collected ?? {};
 
   if (snapshot.patient) {
     lines.push(`- Paciente: ${snapshot.patient.display_name} (id: ${snapshot.patient.id})`);
-    if (snapshot.patient.cpf) lines.push("- CPF já cadastrado — não peça novamente.");
-    if (snapshot.patient.email) lines.push(`- E-mail no cadastro: ${snapshot.patient.email}`);
   } else {
     lines.push("- Paciente ainda não identificado no cadastro.");
+  }
+
+  const known: string[] = [];
+  if (isFilled(collected.cpf) || snapshot.patient?.cpf) known.push("CPF");
+  if (isFilled(collected.email) || snapshot.patient?.email) {
+    known.push(`E-mail (${String(collected.email ?? snapshot.patient?.email)})`);
+  }
+  if (isFilled(collected.insurance)) known.push(`Convênio (${String(collected.insurance)})`);
+
+  if (known.length) {
+    lines.push("", "Known (já temos — NÃO pergunte de novo):");
+    for (const k of known) lines.push(`- ${k}`);
   }
 
   if (snapshot.turnFacts.cpf) lines.push(`- CPF informado nesta mensagem: ${snapshot.turnFacts.cpf}`);
@@ -202,15 +214,12 @@ export function formatSnapshotForPrompt(snapshot: ConversationSnapshot): string 
   }
 
   if (snapshot.derived.intakeGap.length) {
-    lines.push(
-      "",
-      "Campos ainda faltantes (pergunte SOMENTE estes se relevante ao fluxo):"
-    );
+    lines.push("", "Missing (pergunte SOMENTE estes se o fluxo exigir):");
     for (const g of snapshot.derived.intakeGap) {
-      lines.push(`- ${g.label}${g.required ? " (obrigatório)" : " (opcional)"}`);
+      lines.push(`- ${g.label}${g.required ? " (obrigatório antes de agendar)" : " (opcional)"}`);
     }
   } else {
-    lines.push("", "Cadastro completo para os campos configurados — não peça CPF/dados já presentes.");
+    lines.push("", "Missing: nenhum — cadastro completo para os campos configurados.");
   }
 
   if (snapshot.appointments.length) {

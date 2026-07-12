@@ -5,6 +5,7 @@ import {
   GOAL_SEMANTIC_KEYS,
   isFilled,
   mergeCollectedSources,
+  resolveInsuranceFromCustomFields,
   resolveSemanticValue,
   type GoalResolverContext,
 } from "@/lib/attendance-flow/data-resolver";
@@ -105,6 +106,12 @@ export function hydrateCollectedFromSnapshot(input: {
   for (const [k, v] of Object.entries(input.patient?.custom_fields ?? {})) {
     const key = `custom:${k}`;
     if (!isFilled(base[key]) && isFilled(v)) base[key] = v;
+  }
+
+  // Ensure insurance is on collected when only present under custom field keys.
+  if (!isFilled(base.insurance)) {
+    const fromCustom = resolveInsuranceFromCustomFields(input.patient?.custom_fields);
+    if (isFilled(fromCustom)) base.insurance = fromCustom;
   }
 
   return base;

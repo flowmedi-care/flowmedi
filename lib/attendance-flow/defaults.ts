@@ -50,6 +50,7 @@ export const BUILTIN_GOAL_DEFINITIONS: GoalDefinition[] = [
     prompt_hint: "Colete o CPF do paciente.",
     priority: 95,
     default_policy: "optional",
+    requiredStage: "before_booking",
   },
   {
     id: "email",
@@ -60,6 +61,7 @@ export const BUILTIN_GOAL_DEFINITIONS: GoalDefinition[] = [
     prompt_hint: "Colete o e-mail do paciente (opcional se não quiser informar).",
     priority: 92,
     default_policy: "optional",
+    requiredStage: "after_booking",
   },
   {
     id: "guardian",
@@ -71,6 +73,7 @@ export const BUILTIN_GOAL_DEFINITIONS: GoalDefinition[] = [
     prompt_hint: "Paciente menor de idade — colete nome do responsável.",
     priority: 94,
     default_policy: "optional",
+    requiredStage: "before_booking",
   },
   {
     id: "doctor_selected",
@@ -106,11 +109,12 @@ export const BUILTIN_GOAL_DEFINITIONS: GoalDefinition[] = [
     id: "insurance",
     label: "Convênio",
     phase_id: "financeiro",
-    completion: { type: "collected", key: "insurance" },
+    completion: { type: "patient_or_collected", key: "insurance", patientKey: "insurance" },
     allowed_tools: ["update_patient_intake", "get_service_price"],
     prompt_hint: "Pergunte qual convênio ou se é particular.",
     priority: 30,
     default_policy: "optional",
+    requiredStage: "before_booking",
   },
   {
     id: "payment_method",
@@ -122,6 +126,7 @@ export const BUILTIN_GOAL_DEFINITIONS: GoalDefinition[] = [
     prompt_hint: "Pergunte a forma de pagamento preferida.",
     priority: 25,
     default_policy: "optional",
+    requiredStage: "after_booking",
   },
   {
     id: "booking_created",

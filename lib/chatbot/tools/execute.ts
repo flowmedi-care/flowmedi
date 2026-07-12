@@ -645,21 +645,88 @@ export async function executeTool(
           offeredSlots,
           intakePendencies: pendencies,
         });
+
+        if (!res.ok) {
+          await logToolCall(
+            supabase,
+            clinicId,
+            conversationId,
+            name,
+            args,
+            res.error,
+            false
+          );
+
+          // Domain conflict → runtime refetches slots (service does not own UX lists).
+          if (res.conflict) {
+            const date =
+              ctx.aiState.booking?.date ??
+              (scheduledAt ? String(scheduledAt).slice(0, 10) : undefined);
+            const doctorId = String(args.doctor_id ?? ctx.aiState.booking?.doctor_id ?? "");
+            const procedureId = String(
+              args.procedure_id ?? ctx.aiState.booking?.procedure_id ?? ""
+            );
+            if (date && doctorId && procedureId) {
+              const slots = await findSlotsForDay(supabase, {
+                clinicId,
+                doctorId,
+                procedureId,
+                date,
+                patientId: ctx.aiState.patient_id ?? null,
+              });
+              const slotOptions: ToolOption[] = slots.map((s, i) => ({
+                id: s.scheduled_at,
+                label: s.label,
+                index: i + 1,
+              }));
+                return {
+                  result: {
+                    ...unavailableResult(
+                      res.conflict.message,
+                      slots.length
+                        ? "Escolha outro horário da lista atualizada."
+                        : "Não há outros horários neste dia. Peça outro dia.",
+                      {
+                        conflict: true,
+                        date,
+                        slots,
+                      }
+                    ),
+                    options: slotOptions.length ? slotOptions : undefined,
+                  },
+                  mutationOutcome: outcomeFromServiceError(res.error),
+                  statePatch: {
+                    booking: {
+                      procedure_id: procedureId,
+                      doctor_id: doctorId,
+                      date,
+                      offered_slots: slots.map((s) => ({
+                        scheduled_at: s.scheduled_at,
+                        display: s.label,
+                      })),
+                      pending_slot: undefined,
+                      status: "collecting",
+                    },
+                  },
+                };
+            }
+          }
+
+          return {
+            result: errorResult(res.error),
+            mutationOutcome: outcomeFromServiceError(res.error),
+          };
+        }
+
         await logToolCall(
           supabase,
           clinicId,
           conversationId,
           name,
           args,
-          res.error ?? res.appointmentId ?? "ok",
-          !res.error
+          res.appointmentId,
+          true
         );
-        if (res.error) {
-          return {
-            result: errorResult(res.error),
-            mutationOutcome: outcomeFromServiceError(res.error),
-          };
-        }
         const updatedFlow = markMutationDone(flowState, "create_booking");
         const synced = syncFlowState({ ...engineInput, flowState: updatedFlow });
         return {
@@ -670,11 +737,13 @@ export async function executeTool(
           }),
           mutationOutcome: "success",
           entities: {
-            appointment: res.appointmentId ?? undefined,
+            appointment: res.appointmentId,
             patient: String(args.patient_id ?? ctx.aiState.patient_id),
           },
           statePatch: {
             booking: { status: "done" },
+            focused_appointment_id: res.appointmentId,
+            active_appointments: [res.appointmentId],
             conversation_flow: synced,
           },
         };
@@ -722,8 +791,11 @@ export async function executeTool(
       }
 
       case "cancel_appointment": {
-        const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
-        if (!patient) return { result: errorResult("Paciente não encontrado.") };
+        const patient =
+          ctx.aiState.patient_id != null
+            ? { id: ctx.aiState.patient_id }
+            : await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        if (!patient?.id) return { result: errorResult("Paciente não encontrado.") };
         const appointmentId = String(
           args.appointment_id ?? ctx.aiState.focused_appointment_id ?? ctx.aiState.active_appointments?.[0] ?? ""
         );
@@ -740,6 +812,15 @@ export async function executeTool(
               focused_appointment_id: appointmentId,
               booking: { status: "collecting" },
             },
+          };
+        }
+
+        if (!appointmentId) {
+          return {
+            result: needsInputResult(
+              ["appointment_id"],
+              "Não identifiquei qual consulta cancelar. Posso listar suas consultas?"
+            ),
           };
         }
 
@@ -765,8 +846,11 @@ export async function executeTool(
       }
 
       case "reschedule_appointment": {
-        const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
-        if (!patient) return { result: errorResult("Paciente não encontrado.") };
+        const patient =
+          ctx.aiState.patient_id != null
+            ? { id: ctx.aiState.patient_id }
+            : await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        if (!patient?.id) return { result: errorResult("Paciente não encontrado.") };
         const appointmentId = String(
           args.appointment_id ?? ctx.aiState.focused_appointment_id ?? ""
         );

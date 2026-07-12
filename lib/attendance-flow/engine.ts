@@ -260,21 +260,42 @@ export function canExecuteMutation(
       ? ["appointment_selected"]
       : [...BOOKING_CORE_GOAL_IDS];
 
-  if (mode === "express" || mode === "assisted") {
-    const missingCore = coreIds.filter((id) => pending.includes(id));
-    if (missingCore.length) {
+  const missingCore = coreIds.filter((id) => pending.includes(id));
+  if (missingCore.length) {
+    return {
+      ok: false,
+      missing: [...missingCore],
+      message: `Núcleo incompleto: ${missingCore.join(", ")}`,
+    };
+  }
+
+  // before_booking + required → blocks create (all modes)
+  if (goalId === "booking_created" || goalId === "create_booking") {
+    const missingBefore = pending.filter((id) => {
+      const g = registry.get(id);
+      if (!g) return false;
+      const stage = g.requiredStage ?? "optional";
+      if (stage !== "before_booking") return false;
+      return resolveEffectivePolicy(id, registry, policy) === "required";
+    });
+    if (missingBefore.length) {
       return {
         ok: false,
-        missing: [...missingCore],
-        message: `Núcleo incompleto: ${missingCore.join(", ")}`,
+        missing: missingBefore,
+        message: `Cadastro obrigatório pendente: ${missingBefore.join(", ")}`,
       };
     }
+  }
+
+  if (mode === "express" || mode === "assisted") {
     return { ok: true };
   }
 
-  // strict
+  // strict: all required pending (except after_booking intake)
   const missingRequired = pending.filter((id) => {
     if (id === goalId) return false;
+    const g = registry.get(id);
+    if (g?.requiredStage === "after_booking") return false;
     const pol = resolveEffectivePolicy(id, registry, policy);
     return pol === "required";
   });

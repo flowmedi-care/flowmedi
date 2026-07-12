@@ -413,22 +413,23 @@ export async function tryExecuteBookingSlotSelection(
     offeredSlots: offeredSlots.length ? offeredSlots : [selectedSlot],
   });
 
-  if (res.error || !res.appointmentId) {
+  if (!res.ok) {
+    const errMsg = res.error;
     await logAgentRun(supabase, {
       clinicId: opts.clinicId,
       agentType: "booking",
       status: "failed",
       conversationId: opts.conversationId,
       action: "create_appointment",
-      detail: { error: res.error },
+      detail: { error: errMsg, conflict: res.conflict ?? null },
       durationMs: Date.now() - startedAt,
     });
     return {
       handled: true,
       reply:
-        res.error?.includes("sala") || res.error?.includes("Sala")
+        errMsg.includes("sala") || errMsg.includes("Sala")
           ? "Este agendamento precisa de confirmação da equipe para escolher a sala. Vou chamar alguém para concluir."
-          : `Não consegui reservar esse horário: ${res.error ?? "tente outro horário."}`,
+          : `Não consegui reservar esse horário: ${errMsg}`,
       statePatch: {
         intent: "booking",
         booking_step: "slot",
@@ -438,9 +439,11 @@ export async function tryExecuteBookingSlotSelection(
     };
   }
 
+  const appointmentId = res.appointmentId;
+
   const reply = await buildPostCreateReply(supabase, {
     clinicId: opts.clinicId,
-    appointmentId: res.appointmentId,
+    appointmentId,
     patientId,
   });
 
@@ -450,7 +453,7 @@ export async function tryExecuteBookingSlotSelection(
     status: "done",
     conversationId: opts.conversationId,
     action: "create_appointment",
-    detail: { appointmentId: res.appointmentId },
+    detail: { appointmentId },
     durationMs: Date.now() - startedAt,
   });
 
@@ -460,7 +463,7 @@ export async function tryExecuteBookingSlotSelection(
     statePatch: {
       intent: undefined,
       booking_step: "done",
-      last_created_appointment_id: res.appointmentId,
+      last_created_appointment_id: appointmentId,
       patient_id: patientId,
       pending_slot: undefined,
       offered_slots: undefined,

@@ -22,6 +22,16 @@ import type { OfferedSlot } from "@/lib/virtual-assistant/types";
 import { resolveServicePriceForClinic } from "./pricing";
 import type { IntakePendency } from "@/lib/attendance-flow/types";
 
+export type CreateAppointmentConflict = {
+  type: "conflict";
+  message: string;
+  conflictingAt?: string;
+};
+
+export type CreateAppointmentResult =
+  | { ok: true; appointmentId: string }
+  | { ok: false; error: string; conflict?: CreateAppointmentConflict };
+
 export async function createAppointmentViaAssistant(
   supabase: SupabaseClient,
   opts: {
@@ -35,14 +45,19 @@ export async function createAppointmentViaAssistant(
     offeredSlots?: OfferedSlot[];
     intakePendencies?: IntakePendency[];
   }
-): Promise<{ appointmentId: string | null; error: string | null }> {
+): Promise<CreateAppointmentResult> {
   const futureCheck = validateScheduledInFuture(opts.scheduledAt);
-  if (!futureCheck.ok) return { appointmentId: null, error: futureCheck.error };
+  if (!futureCheck.ok) return { ok: false, error: futureCheck.error };
 
   if (opts.offeredSlots?.length && !isScheduledAtInOfferedSlots(opts.scheduledAt, opts.offeredSlots)) {
     return {
-      appointmentId: null,
+      ok: false,
       error: "Horário não está entre as opções oferecidas. Escolha um horário da lista.",
+      conflict: {
+        type: "conflict",
+        message: "Horário não está entre as opções oferecidas. Escolha um horário da lista.",
+        conflictingAt: opts.scheduledAt,
+      },
     };
   }
 
@@ -52,7 +67,7 @@ export async function createAppointmentViaAssistant(
     const planCheck = canCreateAppointment(planLimits, monthCount);
     if (!planCheck.allowed) {
       return {
-        appointmentId: null,
+        ok: false,
         error: `${planCheck.reason ?? "Limite de consultas atingido."} ${getUpgradeMessage("consultas/mês")}`,
       };
     }
@@ -61,7 +76,7 @@ export async function createAppointmentViaAssistant(
   const durationMinutes = await resolveProcedureDurationMinutes(supabase, opts.clinicId, [opts.procedureId]);
   const scheduledEndAt = buildScheduledEndFromDuration(opts.scheduledAt, durationMinutes);
   const intervalCheck = validateScheduledInterval(opts.scheduledAt, scheduledEndAt);
-  if (!intervalCheck.ok) return { appointmentId: null, error: intervalCheck.error };
+  if (!intervalCheck.ok) return { ok: false, error: intervalCheck.error };
 
   let roomId: string | null = null;
   const roomRequired = await clinicRequiresRoom(supabase, opts.clinicId);
@@ -73,8 +88,15 @@ export async function createAppointmentViaAssistant(
     });
     if (!roomId) {
       return {
-        appointmentId: null,
-        error: "Esta clínica exige sala e não há sala livre neste horário. Peça à equipe para concluir o agendamento.",
+        ok: false,
+        error:
+          "Esta clínica exige sala e não há sala livre neste horário. Peça à equipe para concluir o agendamento.",
+        conflict: {
+          type: "conflict",
+          message:
+            "Esta clínica exige sala e não há sala livre neste horário.",
+          conflictingAt: opts.scheduledAt,
+        },
       };
     }
   }
@@ -87,7 +109,17 @@ export async function createAppointmentViaAssistant(
     roomId,
     excludeAppointmentId: null,
   });
-  if (conflict) return { appointmentId: null, error: conflict };
+  if (conflict) {
+    return {
+      ok: false,
+      error: conflict,
+      conflict: {
+        type: "conflict",
+        message: conflict,
+        conflictingAt: opts.scheduledAt,
+      },
+    };
+  }
 
   let serviceId = opts.serviceId ?? null;
   if (!serviceId) {
@@ -138,8 +170,8 @@ export async function createAppointmentViaAssistant(
     .select("id")
     .single();
 
-  if (insertErr) return { appointmentId: null, error: insertErr.message };
-  if (!appointment?.id) return { appointmentId: null, error: "Erro ao criar consulta." };
+  if (insertErr) return { ok: false, error: insertErr.message };
+  if (!appointment?.id) return { ok: false, error: "Erro ao criar consulta." };
 
   await supabase.from("appointment_procedures").insert({
     appointment_id: appointment.id,
@@ -198,7 +230,7 @@ export async function createAppointmentViaAssistant(
     console.warn("[VirtualAssistant] link forms:", e);
   }
 
-  return { appointmentId: appointment.id, error: null };
+  return { ok: true, appointmentId: appointment.id };
 }
 
 export async function formatAppointmentConfirmationMessage(

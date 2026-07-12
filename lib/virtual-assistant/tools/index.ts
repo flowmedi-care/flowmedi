@@ -396,30 +396,49 @@ export async function executeAssistantTool(
           dimensionValueIds: (args.dimension_value_ids as string[]) ?? [],
           offeredSlots,
         });
-        await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? res.appointmentId ?? "ok", !res.error);
+        const legacy = res.ok
+          ? { appointmentId: res.appointmentId, error: null as string | null }
+          : {
+              appointmentId: null as string | null,
+              error: res.error,
+              conflict: res.conflict,
+            };
+        await logToolCall(
+          supabase,
+          clinicId,
+          conversationId,
+          name,
+          args,
+          legacy.error ?? legacy.appointmentId ?? "ok",
+          !legacy.error
+        );
 
-        const stepPatch = patchBookingStepFromTool(name, args, res as Record<string, unknown>, ctx.aiState);
+        const stepPatch = patchBookingStepFromTool(name, args, legacy as Record<string, unknown>, ctx.aiState);
 
-        if (res.appointmentId && !res.error) {
+        if (legacy.appointmentId && !legacy.error) {
           const confirmationText = await formatAppointmentConfirmationMessage(supabase, {
             clinicId,
-            appointmentId: res.appointmentId,
+            appointmentId: legacy.appointmentId,
             patientId: String(args.patient_id),
           });
           return {
             result: JSON.stringify({
-              ...res,
+              ...legacy,
               confirmation_message: confirmationText,
               hint: "Use confirmation_message como resposta ao paciente — não reescreva como confirmado antes disso.",
             }),
-            statePatch: stepPatch,
+            statePatch: {
+              ...stepPatch,
+              focused_appointment_id: legacy.appointmentId,
+              active_appointments: [legacy.appointmentId],
+            },
           };
         }
 
         return {
           result: JSON.stringify({
-            ...res,
-            hint: res.error?.includes("já tem consulta")
+            ...legacy,
+            hint: legacy.error?.includes("já tem consulta")
               ? "Chame list_patient_appointments — pode ser a consulta deste paciente."
               : undefined,
           }),
@@ -526,8 +545,11 @@ export async function executeAssistantTool(
       }
 
       case "confirm_appointment": {
-        const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
-        if (!patient) return { result: JSON.stringify({ error: "Paciente não encontrado." }) };
+        const patient =
+          ctx.aiState.patient_id != null
+            ? { id: ctx.aiState.patient_id }
+            : await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        if (!patient?.id) return { result: JSON.stringify({ error: "Paciente não encontrado." }) };
         const res = await confirmAppointmentViaAssistant(
           supabase,
           clinicId,
@@ -539,9 +561,25 @@ export async function executeAssistantTool(
       }
 
       case "cancel_appointment": {
-        const patient = await lookupPatientByPhone(supabase, clinicId, phoneNumber);
-        if (!patient) return { result: JSON.stringify({ error: "Paciente não encontrado." }) };
-        const appointmentId = String(args.appointment_id);
+        const patient =
+          ctx.aiState.patient_id != null
+            ? { id: ctx.aiState.patient_id }
+            : await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        if (!patient?.id) return { result: JSON.stringify({ error: "Paciente não encontrado." }) };
+        const appointmentId = String(
+          args.appointment_id ??
+            ctx.aiState.focused_appointment_id ??
+            (ctx.aiState as { pending_confirmation_appointment_id?: string })
+              .pending_confirmation_appointment_id ??
+            ""
+        );
+        if (!appointmentId) {
+          return {
+            result: JSON.stringify({
+              error: "Não identifiquei qual consulta cancelar. Chame list_patient_appointments.",
+            }),
+          };
+        }
         const reason = args.cancellation_reason === "reschedule" ? "reschedule" : args.cancellation_reason === "dropped" ? "dropped" : "other";
 
         if (reason === "reschedule") {
@@ -569,7 +607,12 @@ export async function executeAssistantTool(
           patient.id
         );
         await logToolCall(supabase, clinicId, conversationId, name, args, res.error ?? "cancelada", !res.error, ctx);
-        return { result: JSON.stringify({ ...res, cancellation_reason: reason }) };
+        return {
+          result: JSON.stringify({ ...res, cancellation_reason: reason }),
+          statePatch: res.error
+            ? undefined
+            : { focused_appointment_id: undefined },
+        };
       }
 
       case "get_contact_journey": {

@@ -159,6 +159,11 @@ export function patchAiState(
       patch.offered_doctors = undefined;
       patch.offered_procedures = undefined;
       patch.offered_days = undefined;
+      if (data.appointment_id) {
+        const id = String(data.appointment_id);
+        patch.focused_appointment_id = id;
+        patch.active_appointments = [id];
+      }
       break;
     }
     case "list_patient_appointments": {
