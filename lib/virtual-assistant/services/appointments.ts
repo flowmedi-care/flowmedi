@@ -24,8 +24,11 @@ import type { IntakePendency } from "@/lib/attendance-flow/types";
 import { lookupPatientsByPhone } from "./patients";
 import {
   applyListAppointmentStages,
+  LIST_PATIENT_APPOINTMENTS_SELECT,
+  mapListedAppointmentRows,
   type ListAppointmentRow,
   type ListExecutionTrace,
+  type ListQueryTailTrace,
 } from "./list-appointments-trace";
 
 export type CreateAppointmentConflict = {
@@ -246,7 +249,7 @@ export async function formatAppointmentConfirmationMessage(
   const { data: appt } = await supabase
     .from("appointments")
     .select(
-      "scheduled_at, profiles!appointments_doctor_id_fkey(full_name), procedures(name), recommendations"
+      "scheduled_at, profiles!appointments_doctor_id_fkey(full_name), procedures!procedure_id(name), recommendations"
     )
     .eq("id", opts.appointmentId)
     .eq("clinic_id", opts.clinicId)
@@ -431,39 +434,79 @@ export async function listPatientAppointmentsViaAssistant(
     patient_id?: string;
   }[]
 > {
-  const now = new Date().toISOString();
+  const { appointments } = await listPatientAppointmentsViaAssistantWithTail(
+    supabase,
+    clinicId,
+    patientId,
+    opts
+  );
+  return appointments;
+}
+
+/**
+ * Functional list + observability tail (query → error → data.length → afterMap).
+ * Callers that only need rows should use `listPatientAppointmentsViaAssistant`.
+ */
+export async function listPatientAppointmentsViaAssistantWithTail(
+  supabase: SupabaseClient,
+  clinicId: string,
+  patientId: string,
+  opts?: { upcomingOnly?: boolean }
+): Promise<{
+  appointments: Awaited<ReturnType<typeof listPatientAppointmentsViaAssistant>>;
+  queryTail: ListQueryTailTrace;
+}> {
+  const upcomingOnly = opts?.upcomingOnly !== false;
+  const nowIso = new Date().toISOString();
+  const select = LIST_PATIENT_APPOINTMENTS_SELECT;
+
   let query = supabase
     .from("appointments")
-    .select(
-      "id, scheduled_at, status, valor, patient_id, doctor:profiles!appointments_doctor_id_fkey(full_name), procedure:procedures(name)"
-    )
+    .select(select)
     .eq("clinic_id", clinicId)
     .eq("patient_id", patientId)
     .in("status", ["agendada", "confirmada"])
     .order("scheduled_at", { ascending: true })
     .limit(20);
 
-  if (opts?.upcomingOnly !== false) {
-    query = query.gte("scheduled_at", now);
+  if (upcomingOnly) {
+    query = query.gte("scheduled_at", nowIso);
   }
 
-  const { data } = await query;
+  const { data, error } = await query;
 
-  return (data ?? []).map((row) => {
-    const doctor = row.doctor as { full_name: string } | { full_name: string }[] | null;
-    const procedure = row.procedure as { name: string } | { name: string }[] | null;
-    const doctorName = Array.isArray(doctor) ? doctor[0]?.full_name : doctor?.full_name;
-    const procedureName = Array.isArray(procedure) ? procedure[0]?.name : procedure?.name;
-    return {
-      id: row.id,
-      scheduled_at: row.scheduled_at,
-      status: row.status,
-      doctor_name: doctorName ?? null,
-      procedure_name: procedureName ?? null,
-      valor: row.valor != null ? Number(row.valor) : null,
-      patient_id: row.patient_id ? String(row.patient_id) : patientId,
-    };
-  });
+  if (error) {
+    console.error("[listPatientAppointmentsViaAssistant] query failed:", error.message, {
+      clinicId,
+      patientId,
+      upcomingOnly,
+      select,
+    });
+  }
+
+  const rows = data ?? [];
+  const appointments = mapListedAppointmentRows(
+    rows as Parameters<typeof mapListedAppointmentRows>[0],
+    patientId
+  ).map((row) => ({
+    id: row.id,
+    scheduled_at: row.scheduled_at,
+    status: row.status,
+    doctor_name: row.doctor_name ?? null,
+    procedure_name: row.procedure_name ?? null,
+    valor: row.valor ?? null,
+    patient_id: row.patient_id,
+  }));
+
+  return {
+    appointments,
+    queryTail: {
+      queryExecuted: { select, upcomingOnly, nowIso },
+      supabaseError: error?.message ?? null,
+      supabaseDataLength: rows.length,
+      afterMap: appointments.length,
+    },
+  };
 }
 
 type ListedAppointment = Awaited<ReturnType<typeof listPatientAppointmentsViaAssistant>>[number];
@@ -501,6 +544,7 @@ function buildListExecutionTrace(input: {
   rawSelected: ListAppointmentRow[];
   resultCount: number;
   nowIso: string;
+  queryTail?: ListQueryTailTrace;
 }): ListExecutionTrace {
   const staged = applyListAppointmentStages(input.rawSelected, {
     upcomingOnly: input.upcomingOnly,
@@ -524,6 +568,7 @@ function buildListExecutionTrace(input: {
       afterDateFilter: staged.afterDate.length,
       resultCount: input.resultCount,
     },
+    ...(input.queryTail ? { queryTail: input.queryTail } : {}),
     counts: staged.counts,
   };
 }
@@ -533,17 +578,40 @@ async function listCancelableForPatientPreferUpcoming(
   clinicId: string,
   patientId: string,
   upcomingOnly: boolean
-): Promise<ListedAppointment[]> {
-  let rows = await listPatientAppointmentsViaAssistant(supabase, clinicId, patientId, {
-    upcomingOnly,
-  });
+): Promise<{ appointments: ListedAppointment[]; queryTail: ListQueryTailTrace }> {
+  let listed = await listPatientAppointmentsViaAssistantWithTail(
+    supabase,
+    clinicId,
+    patientId,
+    { upcomingOnly }
+  );
   // Overdue canceláveis: retry only when the requested filter was upcoming-only and empty.
-  if (rows.length === 0 && upcomingOnly) {
-    rows = await listPatientAppointmentsViaAssistant(supabase, clinicId, patientId, {
-      upcomingOnly: false,
-    });
+  if (listed.appointments.length === 0 && upcomingOnly) {
+    const retry = await listPatientAppointmentsViaAssistantWithTail(
+      supabase,
+      clinicId,
+      patientId,
+      { upcomingOnly: false }
+    );
+    // Keep first queryTail (the upcoming attempt) if retry also empty; prefer retry tail when it finds rows.
+    if (retry.appointments.length > 0) {
+      return retry;
+    }
+    return {
+      appointments: [],
+      queryTail: {
+        ...listed.queryTail,
+        // Preserve both attempts in error string when both failed empty.
+        supabaseError:
+          listed.queryTail.supabaseError ??
+          retry.queryTail.supabaseError ??
+          (listed.queryTail.supabaseDataLength === 0 && retry.queryTail.supabaseDataLength === 0
+            ? listed.queryTail.supabaseError
+            : null),
+      },
+    };
   }
-  return rows;
+  return listed;
 }
 
 /**
@@ -577,12 +645,14 @@ export async function listCancellableAppointmentsWithPhoneFallback(
   );
 
   // Primary: upcoming first; if empty, overdue canceláveis (same policy as before — now also when siblings exist).
-  let appointments = await listCancelableForPatientPreferUpcoming(
+  const primary = await listCancelableForPatientPreferUpcoming(
     supabase,
     opts.clinicId,
     opts.patientId,
     upcomingOnly
   );
+  let appointments = primary.appointments;
+  const queryTail = primary.queryTail;
 
   if (appointments.length > 0) {
     return {
@@ -600,6 +670,7 @@ export async function listCancellableAppointmentsWithPhoneFallback(
         rawSelected,
         resultCount: appointments.length,
         nowIso,
+        queryTail,
       }),
     };
   }
@@ -621,6 +692,7 @@ export async function listCancellableAppointmentsWithPhoneFallback(
         rawSelected,
         resultCount: 0,
         nowIso,
+        queryTail,
       }),
     };
   }
@@ -628,7 +700,7 @@ export async function listCancellableAppointmentsWithPhoneFallback(
   const merged: ListedAppointment[] = [];
   const seen = new Set<string>();
   for (const id of otherIds) {
-    const rows = await listCancelableForPatientPreferUpcoming(
+    const { appointments: rows } = await listCancelableForPatientPreferUpcoming(
       supabase,
       opts.clinicId,
       id,
@@ -662,6 +734,7 @@ export async function listCancellableAppointmentsWithPhoneFallback(
       rawSelected,
       resultCount: merged.length,
       nowIso,
+      queryTail,
     }),
   };
 }

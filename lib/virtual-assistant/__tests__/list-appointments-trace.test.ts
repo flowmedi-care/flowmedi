@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import {
   applyListAppointmentStages,
   classifyListEmptyDiagnosis,
+  LIST_PATIENT_APPOINTMENTS_SELECT,
+  mapListedAppointmentRows,
   resolveListRecoverySource,
   type ListExecutionTrace,
 } from "../services/list-appointments-trace";
@@ -80,6 +82,34 @@ describe("list appointments surgical replay", () => {
     assert.equal(classifyListEmptyDiagnosis(trace), "all_cancelable_are_overdue");
   });
 
+  it("diagnosis: query_failed when afterDateFilter>0 but supabase returned 0 rows", () => {
+    const trace = baseTrace({
+      stages: {
+        beforeFilters: 22,
+        afterStatusFilter: 14,
+        afterDateFilter: 3,
+        resultCount: 0,
+      },
+      counts: {
+        totalForSelectedPatient: 22,
+        cancelable: 14,
+        upcomingCancelable: 3,
+        overdueCancelable: 11,
+      },
+      queryTail: {
+        queryExecuted: {
+          select: LIST_PATIENT_APPOINTMENTS_SELECT,
+          upcomingOnly: true,
+          nowIso: NOW,
+        },
+        supabaseError: "Could not embed because more than one relationship was found",
+        supabaseDataLength: 0,
+        afterMap: 0,
+      },
+    });
+    assert.equal(classifyListEmptyDiagnosis(trace), "query_failed");
+  });
+
   it("functional payload stays { appointments } — diagnostics are observability-only", () => {
     const functional = { appointments: [] as unknown[] };
     assert.deepEqual(Object.keys(functional), ["appointments"]);
@@ -87,8 +117,40 @@ describe("list appointments surgical replay", () => {
     assert.equal("listExecutionTrace" in functional, false);
   });
 
+  it("list select uses disambiguated procedures!procedure_id", () => {
+    assert.match(LIST_PATIENT_APPOINTMENTS_SELECT, /procedures!procedure_id/);
+    assert.doesNotMatch(LIST_PATIENT_APPOINTMENTS_SELECT, /procedure:procedures\(name\)/);
+  });
+
+  it("map never discards rows when doctor/procedure embeds are null", () => {
+    const mapped = mapListedAppointmentRows(
+      [
+        {
+          id: "b2225551",
+          scheduled_at: "2026-07-16T13:00:00.000Z",
+          status: "agendada",
+          valor: null,
+          patient_id: "f2ed8c79",
+          doctor: null,
+          procedure: null,
+        },
+        {
+          id: "b2",
+          scheduled_at: "2026-07-17T13:00:00.000Z",
+          status: "confirmada",
+          doctor: { full_name: "Dr X" },
+          procedure: { name: "Consulta" },
+        },
+      ],
+      "f2ed8c79"
+    );
+    assert.equal(mapped.length, 2);
+    assert.equal(mapped[0]?.doctor_name, null);
+    assert.equal(mapped[0]?.procedure_name, null);
+    assert.equal(mapped[1]?.doctor_name, "Dr X");
+  });
+
   it("regression: primary overdue wins before sibling merge when upcoming empty", () => {
-    // Pre-fix smell: siblings present → overdue primary skipped → empty if siblings also empty upcoming.
     assert.equal(
       resolveListRecoverySource({
         primaryUpcoming: 0,
@@ -118,7 +180,7 @@ describe("list appointments surgical replay", () => {
     );
   });
 
-  it("trace shape includes matchedPatientIds, filters, and stage counts", () => {
+  it("trace shape includes matchedPatientIds, filters, stage counts, and queryTail", () => {
     const trace = baseTrace({
       matchedPatientIds: ["primary", "sibling"],
       patientsMatchedByPhone: 2,
@@ -134,6 +196,16 @@ describe("list appointments surgical replay", () => {
         upcomingCancelable: 0,
         overdueCancelable: 1,
       },
+      queryTail: {
+        queryExecuted: {
+          select: LIST_PATIENT_APPOINTMENTS_SELECT,
+          upcomingOnly: true,
+          nowIso: NOW,
+        },
+        supabaseError: null,
+        supabaseDataLength: 1,
+        afterMap: 1,
+      },
     });
     assert.ok(Array.isArray(trace.matchedPatientIds));
     assert.deepEqual(trace.effectiveFilters.statuses, ["agendada", "confirmada"]);
@@ -142,6 +214,8 @@ describe("list appointments surgical replay", () => {
     assert.equal(trace.stages.afterStatusFilter, 1);
     assert.equal(trace.stages.afterDateFilter, 0);
     assert.equal(trace.stages.resultCount, 1);
+    assert.equal(trace.queryTail?.supabaseDataLength, 1);
+    assert.equal(trace.queryTail?.afterMap, 1);
     assert.equal(classifyListEmptyDiagnosis(trace), null);
   });
 });

@@ -2,6 +2,10 @@
 
 export const CANCELABLE_APPOINTMENT_STATUSES = ["agendada", "confirmada"] as const;
 
+/** Disambiguated select — bare `procedures(name)` fails when appointment_procedures exists. */
+export const LIST_PATIENT_APPOINTMENTS_SELECT =
+  "id, scheduled_at, status, valor, patient_id, doctor:profiles!appointments_doctor_id_fkey(full_name), procedure:procedures!procedure_id(name)";
+
 export type ListAppointmentRow = {
   id: string;
   scheduled_at: string;
@@ -10,6 +14,18 @@ export type ListAppointmentRow = {
   doctor_name?: string | null;
   procedure_name?: string | null;
   valor?: number | null;
+};
+
+/** Tail stages between in-memory afterDateFilter and final resultCount. */
+export type ListQueryTailTrace = {
+  queryExecuted: {
+    select: string;
+    upcomingOnly: boolean;
+    nowIso: string;
+  };
+  supabaseError: string | null;
+  supabaseDataLength: number;
+  afterMap: number;
 };
 
 export type ListExecutionTrace = {
@@ -30,6 +46,8 @@ export type ListExecutionTrace = {
     afterDateFilter: number;
     resultCount: number;
   };
+  /** Functional list query tail (observability only). */
+  queryTail?: ListQueryTailTrace;
   counts: {
     totalForSelectedPatient: number;
     cancelable: number;
@@ -43,6 +61,7 @@ export type ListEmptyDiagnosis =
   | "no_appointments_for_patient"
   | "none_cancelable_status"
   | "all_cancelable_are_overdue"
+  | "query_failed"
   | "empty_after_filters";
 
 /** Debug/replay classifier — not used by domain service return type. */
@@ -52,6 +71,15 @@ export function classifyListEmptyDiagnosis(
   if (trace.stages.resultCount > 0) return null;
   if (trace.patientsMatchedByPhone === 0 && !trace.selectedPatientId) {
     return "patient_not_found";
+  }
+  if (trace.queryTail?.supabaseError) {
+    return "query_failed";
+  }
+  if (
+    trace.stages.afterDateFilter > 0 &&
+    (trace.queryTail?.supabaseDataLength ?? -1) === 0
+  ) {
+    return "query_failed";
   }
   if (trace.counts.totalForSelectedPatient === 0 && !trace.usedPhoneFallback) {
     return "no_appointments_for_patient";
@@ -93,6 +121,36 @@ export function resolveListRecoverySource(input: {
 
 export function isCancelableStatus(status: string): boolean {
   return (CANCELABLE_APPOINTMENT_STATUSES as readonly string[]).includes(status);
+}
+
+/** Pure map of list rows — must never discard rows (names may be null). */
+export function mapListedAppointmentRows(
+  rows: Array<{
+    id: string;
+    scheduled_at: string;
+    status: string;
+    valor?: number | null;
+    patient_id?: string | null;
+    doctor?: { full_name: string } | { full_name: string }[] | null;
+    procedure?: { name: string } | { name: string }[] | null;
+  }>,
+  patientId: string
+): ListAppointmentRow[] {
+  return rows.map((row) => {
+    const doctor = row.doctor ?? null;
+    const procedure = row.procedure ?? null;
+    const doctorName = Array.isArray(doctor) ? doctor[0]?.full_name : doctor?.full_name;
+    const procedureName = Array.isArray(procedure) ? procedure[0]?.name : procedure?.name;
+    return {
+      id: row.id,
+      scheduled_at: row.scheduled_at,
+      status: row.status,
+      doctor_name: doctorName ?? null,
+      procedure_name: procedureName ?? null,
+      valor: row.valor != null ? Number(row.valor) : null,
+      patient_id: row.patient_id ? String(row.patient_id) : patientId,
+    };
+  });
 }
 
 /** Pure stage filters — unit-testable replay of filter layers. */
