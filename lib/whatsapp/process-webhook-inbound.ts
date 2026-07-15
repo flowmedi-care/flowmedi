@@ -312,14 +312,6 @@ export async function processWhatsAppWebhookInbound(rawBody: string): Promise<vo
           if (convAiRow?.ai_user_opt_out) {
             const cmd = parseUserAiCommand(bodyText ?? "");
             if (!cmd) {
-              await sendAssistantReply(
-                supabase,
-                clinicId,
-                conversationId,
-                from,
-                "Respostas automáticas estão desligadas. Envie ATIVAR para religar ou aguarde a equipe.",
-                { skipHeader: true }
-              );
               if (messageId) {
                 await supabase
                   .from("whatsapp_messages")
