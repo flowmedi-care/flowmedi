@@ -17,7 +17,7 @@ export async function requireClinicalTranscriptionAccess(appointmentId: string) 
   const supabase = await createClient();
   const { data: appointment } = await supabase
     .from("appointments")
-    .select("id, clinic_id, patient:patients(full_name), doctor:profiles!appointments_doctor_id_fkey(full_name)")
+    .select("id, clinic_id, patient:patients!patient_id(full_name), doctor:profiles!appointments_doctor_id_fkey(full_name)")
     .eq("id", appointmentId)
     .eq("clinic_id", clinicId)
     .maybeSingle();

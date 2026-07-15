@@ -145,7 +145,7 @@ export async function getAppointmentCancelPreview(
   const { data: appt } = await supabase
     .from("appointments")
     .select(
-      "id, status, scheduled_at, patient_id, patients(full_name)"
+      "id, status, scheduled_at, patient_id, patients!patient_id(full_name)"
     )
     .eq("id", appointmentId)
     .eq("clinic_id", profile.clinic_id)

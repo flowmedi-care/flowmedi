@@ -415,7 +415,7 @@ export async function getVisaoGeralData(clinicId: string, period: Period = "30d"
 
   const { data: patientAppointments } = await supabase
     .from("appointments")
-    .select("id, status, scheduled_at, patient_id, patient:patients(full_name, phone)")
+    .select("id, status, scheduled_at, patient_id, patient:patients!patient_id(full_name, phone)")
     .eq("clinic_id", clinicId)
     .gte("scheduled_at", historyStart.toISOString())
     .lte("scheduled_at", upcomingEnd.toISOString());
@@ -536,7 +536,7 @@ export async function getVisaoGeralWeekData(weekStartYMD: string) {
         status,
         doctor_id,
         procedure_id,
-        patient:patients ( full_name ),
+        patient:patients!patient_id ( full_name ),
         doctor:profiles!doctor_id ( full_name ),
         appointment_procedures ( procedure_id )
       `

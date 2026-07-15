@@ -11,7 +11,7 @@ const BASE_SELECT = `
   status,
   notes,
   doctor_id,
-  patient:patients ( id, full_name, email, phone, birth_date, cpf ),
+  patient:patients!patient_id ( id, full_name, email, phone, birth_date, cpf ),
   doctor:profiles!doctor_id ( id, full_name ),
   appointment_type:appointment_types ( id, name ),
   procedure:procedures!procedure_id ( id, name )
@@ -22,7 +22,7 @@ const BASE_SELECT_ATENDIMENTO = `
   scheduled_at,
   status,
   doctor_id,
-  patient:patients ( id, full_name, email, phone, birth_date, cpf ),
+  patient:patients!patient_id ( id, full_name, email, phone, birth_date, cpf ),
   doctor:profiles!doctor_id ( id, full_name ),
   appointment_type:appointment_types ( id, name ),
   procedure:procedures!procedure_id ( id, name )

@@ -56,7 +56,7 @@ export default async function ConsultaPage() {
       status,
       notes,
       intake_pendencies,
-      patient:patients ( id, full_name, phone ),
+      patient:patients!patient_id ( id, full_name, phone ),
       doctor:profiles!doctor_id ( id, full_name ),
       service_id,
       procedure:procedures!procedure_id ( id, name )

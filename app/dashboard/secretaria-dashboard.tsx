@@ -61,7 +61,7 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
           `
           id,
           scheduled_at,
-          patient:patients ( full_name ),
+          patient:patients!patient_id ( full_name ),
           doctor:profiles!doctor_id ( full_name )
         `
         )
@@ -191,7 +191,7 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
         id,
         scheduled_at,
         status,
-        patient:patients ( full_name ),
+        patient:patients!patient_id ( full_name ),
         doctor:profiles!doctor_id ( full_name )
       `
       )
@@ -262,7 +262,7 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
       id,
       scheduled_at,
       started_at,
-      patient:patients ( full_name ),
+      patient:patients!patient_id ( full_name ),
       doctor:profiles!doctor_id ( full_name )
     `
     )

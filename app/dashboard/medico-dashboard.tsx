@@ -22,7 +22,7 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
       scheduled_at,
       status,
       notes,
-      patient:patients ( id, full_name, email, phone, birth_date ),
+      patient:patients!patient_id ( id, full_name, email, phone, birth_date ),
       service:services ( id, nome ),
       procedure:procedures!procedure_id ( id, name ),
       appointment_type:appointment_types ( id, name )
@@ -50,7 +50,7 @@ export async function MedicoDashboard({ profile }: { profile: any }) {
       appointments!inner (
         id,
         scheduled_at,
-        patient:patients ( full_name ),
+        patient:patients!patient_id ( full_name ),
         doctor_id
       )
     `

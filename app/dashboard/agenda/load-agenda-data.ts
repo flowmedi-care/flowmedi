@@ -285,7 +285,7 @@ export async function loadAgendaAppointments(
       notes,
       service_id,
       valor,
-      patient:patients ( id, full_name ),
+      patient:patients!patient_id ( id, full_name ),
       doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( id, name ),
       procedure:procedures!procedure_id ( id, name ),

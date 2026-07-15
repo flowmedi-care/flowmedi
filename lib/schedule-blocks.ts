@@ -301,7 +301,7 @@ export async function checkBlockAgainstAppointments(
     const { dayStart, dayEnd } = dayBoundsForScheduledAt(occ.startsAt);
     let apptQuery = supabase
       .from("appointments")
-      .select("id, scheduled_at, scheduled_end_at, doctor:profiles!doctor_id(full_name), patient:patients(full_name)")
+      .select("id, scheduled_at, scheduled_end_at, doctor:profiles!doctor_id(full_name), patient:patients!patient_id(full_name)")
       .eq("clinic_id", opts.clinicId)
       .neq("status", "cancelada")
       .gte("scheduled_at", dayStart)

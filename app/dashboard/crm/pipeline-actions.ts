@@ -429,7 +429,7 @@ export async function getAppointmentPipeline(): Promise<{
     status,
     valor,
     doctor_id,
-    patient:patients ( full_name ),
+    patient:patients!patient_id ( full_name ),
     doctor:profiles!doctor_id ( full_name )
   `;
 

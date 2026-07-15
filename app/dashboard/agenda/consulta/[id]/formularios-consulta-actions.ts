@@ -215,7 +215,7 @@ export async function linkFormToAppointment(
     .select(`
       clinic_id,
       patient_id,
-      patient:patients!inner(full_name)
+      patient:patients!patient_id!inner(full_name)
     `)
     .eq("id", appointmentId)
     .single();

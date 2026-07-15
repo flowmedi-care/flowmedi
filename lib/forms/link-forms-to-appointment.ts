@@ -44,7 +44,7 @@ export async function linkFormsToAppointment(
 
   const { data: patient } = await supabase
     .from("appointments")
-    .select("patient:patients(full_name, email)")
+    .select("patient:patients!patient_id(full_name, email)")
     .eq("id", opts.appointmentId)
     .single();
 

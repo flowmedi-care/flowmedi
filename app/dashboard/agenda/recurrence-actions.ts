@@ -283,7 +283,7 @@ export async function getRecurrenceSeries(recurrenceGroupId: string): Promise<{
       scheduled_at,
       status,
       treatment_plan_id,
-      patient:patients ( full_name )
+      patient:patients!patient_id ( full_name )
     `
     )
     .eq("clinic_id", profile.clinic_id)

@@ -44,7 +44,7 @@ type TranscriptionRow = {
 async function loadContext(supabase: ReturnType<typeof getServiceSupabase>, row: TranscriptionRow) {
   const { data: appointment } = await supabase
     .from("appointments")
-    .select("patient:patients(full_name), doctor:profiles!appointments_doctor_id_fkey(full_name)")
+    .select("patient:patients!patient_id(full_name), doctor:profiles!appointments_doctor_id_fkey(full_name)")
     .eq("id", row.appointment_id)
     .maybeSingle();
 

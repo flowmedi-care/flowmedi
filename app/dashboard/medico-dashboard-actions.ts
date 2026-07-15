@@ -119,7 +119,7 @@ export async function getWeeklyAppointments(
       id,
       scheduled_at,
       status,
-      patient:patients ( full_name ),
+      patient:patients!patient_id ( full_name ),
       service:services ( nome ),
       procedure:procedures!procedure_id ( name ),
       appointment_type:appointment_types ( name )
@@ -216,7 +216,7 @@ export async function getMedicoDashboardData(
       scheduled_at,
       status,
       notes,
-      patient:patients ( id, full_name, email, phone, birth_date ),
+      patient:patients!patient_id ( id, full_name, email, phone, birth_date ),
       service:services ( id, nome ),
       procedure:procedures!procedure_id ( id, name ),
       appointment_type:appointment_types ( id, name )
@@ -242,7 +242,7 @@ export async function getMedicoDashboardData(
       appointments!inner (
         id,
         scheduled_at,
-        patient:patients ( full_name ),
+        patient:patients!patient_id ( full_name ),
         doctor_id
       )
     `

@@ -464,7 +464,7 @@ export async function ensureFormInstanceAndGetLink(
   const { data: appointment } = await supabase
     .from("appointments")
     .select(`
-      patient:patients!inner(full_name)
+      patient:patients!patient_id!inner(full_name)
     `)
     .eq("id", appointmentId)
     .single();

@@ -346,7 +346,7 @@ export async function getAppointmentEventSummary(
       doctor_id,
       service_id,
       room_id,
-      patient:patients ( id, full_name, phone ),
+      patient:patients!patient_id ( id, full_name, phone ),
       doctor:profiles!doctor_id ( id, full_name ),
       appointment_type:appointment_types ( name ),
       procedure:procedures!procedure_id ( id, name ),
