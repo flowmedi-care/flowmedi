@@ -63,7 +63,6 @@ import {
   getAgendaTimeSlots,
   formatAgendaSlotLabel,
   agendaSlotKey,
-  getAppointmentSlotSpan,
   parseDropSlotFromId,
   type AgendaTimeSlot,
   getWeekOfMonthLabel,
@@ -522,8 +521,8 @@ export function AgendaClient({
     const ymdEnd = toYMD(effectiveEnd);
     
     const filtered = appointments.filter((a) => {
-      // Filtro por período
-      const d = a.scheduled_at.slice(0, 10);
+      // Filtro por período (dia local — evita mismatch UTC vs toYMD das colunas)
+      const d = toYMD(new Date(a.scheduled_at));
       if (d < ymdStart || d > ymdEnd) {
         return false;
       }
@@ -739,7 +738,7 @@ export function AgendaClient({
       if (targetAppointment) {
         // Se arrastamos sobre um appointment, usar o dayId desse appointment
         // Isso mantém o comportamento de reordenar dentro do mesmo dia
-        targetDate = targetAppointment.scheduled_at.slice(0, 10);
+        targetDate = toYMD(new Date(targetAppointment.scheduled_at));
         // Não mudamos a hora quando arrastamos sobre outro appointment
       } else {
         // Se não encontramos, pode ser que o drop foi em uma área vazia
@@ -756,7 +755,7 @@ export function AgendaClient({
 
     // Usar data local para evitar problemas de timezone
     const oldDate = new Date(draggedAppointment.scheduled_at);
-    const oldDateStr = draggedAppointment.scheduled_at.slice(0, 10);
+    const oldDateStr = toYMD(oldDate);
     const oldHour = oldDate.getHours();
     const oldMinute = oldDate.getMinutes();
 
@@ -1379,7 +1378,7 @@ function TimelineListView({
   const byDay = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
     appointments.forEach((a) => {
-      const key = a.scheduled_at.slice(0, 10);
+      const key = toYMD(new Date(a.scheduled_at));
       if (!map[key]) map[key] = [];
       map[key].push(a);
     });
@@ -1687,7 +1686,7 @@ function CalendarWeekView({
   const byDay = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
     appointments.forEach((a) => {
-      const key = a.scheduled_at.slice(0, 10);
+      const key = toYMD(new Date(a.scheduled_at));
       if (!map[key]) map[key] = [];
       map[key].push(a);
     });
@@ -1730,7 +1729,7 @@ function CalendarWeekView({
     for (const block of scheduleBlocks) {
       const occurrences = expandBlockOccurrences(block, rangeStart, rangeEnd);
       for (const occ of occurrences) {
-        const dayKey = occ.startsAt.slice(0, 10);
+        const dayKey = toYMD(new Date(occ.startsAt));
         if (!map[dayKey]) map[dayKey] = [];
         map[dayKey].push({
           ...occ,
@@ -1966,7 +1965,7 @@ function CalendarMonthView({
   const byDay = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
     appointments.forEach((a) => {
-      const key = a.scheduled_at.slice(0, 10);
+      const key = toYMD(new Date(a.scheduled_at));
       if (!map[key]) map[key] = [];
       map[key].push(a);
     });
@@ -2239,10 +2238,6 @@ function DraggableAppointmentItem({
     opacity: isDragging ? 0.5 : 1,
   };
   const accentColor = getAccentColor?.(appointment);
-  const slotSpan = getAppointmentSlotSpan(
-    appointment.scheduled_at,
-    appointment.scheduled_end_at
-  );
   const timeLabel = formatAppointmentTimeRange(
     appointment.scheduled_at,
     appointment.scheduled_end_at
@@ -2255,10 +2250,9 @@ function DraggableAppointmentItem({
         style={{
           ...baseStyle,
           borderLeftColor: accentColor,
-          minHeight: `${Math.max(1, slotSpan) * 34}px`,
         }}
         className={cn(
-          "flex items-center gap-1 rounded border border-border border-l-2 bg-background px-1.5 py-0.5 text-foreground hover:bg-muted/40 transition-colors"
+          "flex items-center gap-1 rounded border border-border border-l-2 bg-background px-1.5 py-0.5 text-foreground hover:bg-muted/40 transition-colors min-h-[22px]"
         )}
       >
         <button
