@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { AppointmentPolicy } from "@/lib/attendance-flow/types";
+import type { AppointmentPolicyInput } from "@/lib/attendance-flow/types";
 import { mergeAppointmentPolicy } from "@/lib/attendance-flow/defaults";
 
 async function requireAdminClinic() {
@@ -38,7 +38,7 @@ export async function getAgendamentoPolicyPageData() {
   return {
     error: null,
     policy: mergeAppointmentPolicy(
-      clinic?.appointment_policy as Partial<AppointmentPolicy> | null
+      clinic?.appointment_policy as AppointmentPolicyInput | null
     ),
   };
 }
@@ -61,7 +61,7 @@ export async function saveAppointmentPolicy(goals: Record<string, string>) {
     .single();
 
   const merged = mergeAppointmentPolicy(
-    clinic?.appointment_policy as Partial<AppointmentPolicy> | null
+    clinic?.appointment_policy as AppointmentPolicyInput | null
   );
 
   const { error } = await ctx.supabase

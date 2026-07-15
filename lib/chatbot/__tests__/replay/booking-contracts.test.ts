@@ -84,6 +84,7 @@ describe("replay known_patient", () => {
 describe("replay new_patient", () => {
   it("before_booking required CPF blocks create", () => {
     const policy = {
+      ...DEFAULT_APPOINTMENT_POLICY,
       goals: { ...DEFAULT_APPOINTMENT_POLICY.goals, cpf: "required" as const },
     };
     const result = canExecuteMutation(
@@ -101,6 +102,7 @@ describe("replay new_patient", () => {
     const emailGoal = BUILTIN_GOAL_DEFINITIONS.find((g) => g.id === "email");
     assert.equal(emailGoal?.requiredStage, "after_booking");
     const policy = {
+      ...DEFAULT_APPOINTMENT_POLICY,
       goals: { ...DEFAULT_APPOINTMENT_POLICY.goals, email: "required" as const },
     };
     const result = canExecuteMutation(

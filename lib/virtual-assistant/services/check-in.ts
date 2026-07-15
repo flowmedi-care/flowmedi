@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AppointmentPolicy, CheckInPolicy } from "@/lib/attendance-flow/types";
+import type {
+  AppointmentPolicy,
+  AppointmentPolicyInput,
+  CheckInPolicy,
+} from "@/lib/attendance-flow/types";
 import type { DomainMutationResult } from "@/lib/domain/mutation-result";
 import {
   CANCELABLE_APPOINTMENT_STATUSES,
@@ -44,7 +48,7 @@ const CHECK_IN_SELECT =
   "id, scheduled_at, status, valor, patient_id, doctor_id, procedure_id, checked_in_at, doctor:profiles!appointments_doctor_id_fkey(full_name), procedure:procedures!procedure_id(name)";
 
 export function resolveCheckInPolicy(
-  policy: AppointmentPolicy | Partial<AppointmentPolicy> | null | undefined
+  policy: AppointmentPolicy | AppointmentPolicyInput | null | undefined
 ): CheckInPolicy {
   const defaults: CheckInPolicy = {
     enabled: false,
@@ -116,7 +120,7 @@ export async function listAppointmentsForCheckIn(
   opts: {
     clinicId: string;
     patientId: string;
-    policy: AppointmentPolicy | Partial<AppointmentPolicy> | null | undefined;
+    policy: AppointmentPolicy | AppointmentPolicyInput | null | undefined;
     now?: Date;
   }
 ): Promise<ListCheckInResult> {
@@ -195,7 +199,7 @@ export async function performCheckIn(
     clinicId: string;
     appointmentId: string;
     patientId: string;
-    policy: AppointmentPolicy | Partial<AppointmentPolicy> | null | undefined;
+    policy: AppointmentPolicy | AppointmentPolicyInput | null | undefined;
     source: CheckInSource;
     actorPatientId?: string | null;
     now?: Date;

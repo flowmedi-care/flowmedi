@@ -155,10 +155,8 @@ export function buildChatbotFallbackReply(state: AiState): string {
     }
     return "Falta só confirmar o novo horário. Qual opção você prefere?";
   }
-  if (
-    state.conversation_flow?.active_workflow_id === "check_in" &&
-    state.conversation_flow.current_operation?.status !== "completed"
-  ) {
+  // current_operation.completed already returned above — remaining check_in is active.
+  if (state.conversation_flow?.active_workflow_id === "check_in") {
     if (state.focused_appointment_id) {
       return "Posso confirmar o check-in dessa consulta?";
     }

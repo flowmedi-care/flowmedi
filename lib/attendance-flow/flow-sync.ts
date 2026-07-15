@@ -16,6 +16,7 @@ import { defaultGoalRegistry, GoalRegistry } from "./goal-registry";
 import { resolveIntent, shouldSwitchWorkflow } from "./intent-resolver";
 import type {
   AppointmentPolicy,
+  AppointmentPolicyInput,
   ConversationFlowsConfig,
   ConversationFlowState,
   CustomFieldForGoals,
@@ -36,7 +37,7 @@ export function buildGoalRegistry(customFields?: CustomFieldForGoals[]): GoalReg
 }
 
 export function mergeClinicFlowConfig(raw: {
-  appointment_policy?: Partial<AppointmentPolicy> | null;
+  appointment_policy?: AppointmentPolicyInput | null;
   conversation_flows?: Partial<ConversationFlowsConfig> | null;
 }): ClinicFlowConfig {
   return {

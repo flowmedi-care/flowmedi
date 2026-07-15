@@ -1,5 +1,6 @@
 import type {
   AppointmentPolicy,
+  AppointmentPolicyInput,
   ConversationFlowsConfig,
   GoalDefinition,
   WorkflowDefinition,
@@ -370,7 +371,7 @@ export const DEFAULT_CONVERSATION_FLOWS: ConversationFlowsConfig = {
 };
 
 export function mergeAppointmentPolicy(
-  stored: Partial<AppointmentPolicy> | null | undefined
+  stored: AppointmentPolicyInput | null | undefined
 ): AppointmentPolicy {
   const storedCheckIn = stored?.check_in;
   return {

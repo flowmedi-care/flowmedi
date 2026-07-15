@@ -67,6 +67,7 @@ describe("attendance-flow engine", () => {
   it("canExecuteMutation strict blocks when required pending", () => {
     const pending = ["cpf", "booking_created"];
     const policy = {
+      ...DEFAULT_APPOINTMENT_POLICY,
       goals: { ...DEFAULT_APPOINTMENT_POLICY.goals, cpf: "required" as const },
     };
     const result = canExecuteMutation(
