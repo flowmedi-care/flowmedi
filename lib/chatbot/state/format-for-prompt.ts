@@ -1,5 +1,7 @@
 import type { AiState } from "./types";
 import { formatWhenLabel } from "../tools/render-structured";
+import { DEFAULT_CLINIC_TIMEZONE, getZonedYmd } from "@/lib/clinic-timezone";
+import { getValidOfferedSlots } from "./selection-context";
 
 const STEP_LABELS: Record<string, string> = {
   collecting: "coletando dados do agendamento",
@@ -20,7 +22,7 @@ function isRescheduleHydrated(state: AiState): boolean {
 function pendingSlotHumanLabel(state: AiState): string {
   const pending = state.booking?.pending_slot?.trim();
   if (!pending) return "";
-  const fromOffered = state.booking?.offered_slots?.find(
+  const fromOffered = getValidOfferedSlots(state.booking).find(
     (s) => s.scheduled_at === pending
   );
   if (fromOffered?.display) {
@@ -33,6 +35,10 @@ function pendingSlotHumanLabel(state: AiState): string {
 /** Formata ai_state para o prompt sem expor JSON cru. */
 export function formatChatbotAiStateForPrompt(state: AiState): string {
   const lines: string[] = [];
+
+  lines.push(
+    `Hoje (clínica, ${DEFAULT_CLINIC_TIMEZONE}): ${getZonedYmd(new Date(), DEFAULT_CLINIC_TIMEZONE)}.`
+  );
 
   if (state.patient_id) {
     lines.push("Paciente já identificado no sistema.");
@@ -85,8 +91,8 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
       lines.push(`  ${d.index ?? "?"}. ${d.label} → date: ${d.date}`);
     }
   }
-  if ((state.booking?.offered_slots?.length ?? 0) > 0) {
-    const slots = state.booking!.offered_slots!;
+  if ((getValidOfferedSlots(state.booking).length ?? 0) > 0) {
+    const slots = getValidOfferedSlots(state.booking);
     lines.push(
       `Horários oferecidos (${slots.length}) — paciente escolhe por número ou horário:`
     );

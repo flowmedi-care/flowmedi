@@ -50,6 +50,8 @@ import {
   renderStructuredToolResult,
 } from "../tools/render-structured";
 import type { NormalizedFacts } from "../extractors/types";
+import { getValidOfferedSlots, hasValidPendingSlot } from "../state/selection-context";
+import { hasDateIntent } from "../extractors/date";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -61,14 +63,20 @@ const STRUCTURED_RENDER_OPTS = {
 /**
  * Guards for slot selection contract (no LLM inventing choices).
  * Returns patient-visible text when the turn must stop without calling the LLM.
+ * Uses only selection-context-valid offered slots (never stale lists).
  */
 function resolveSlotSelectionGuardReply(
   aiState: AiState,
-  facts: NormalizedFacts & Record<string, unknown>
+  facts: NormalizedFacts & Record<string, unknown>,
+  userText: string
 ): string | null {
-  const offered = aiState.booking?.offered_slots ?? [];
+  const offered = getValidOfferedSlots(aiState.booking);
   if (!offered.length) return null;
-  const pending = aiState.booking?.pending_slot?.trim();
+
+  // Date-correction turns must reach daySelectedRule / LLM — not relist stale day.
+  if (facts.date || hasDateIntent(userText)) return null;
+
+  const pendingOk = hasValidPendingSlot(aiState.booking);
 
   if (facts.time_unmatched === true) {
     return renderSlotList({
@@ -79,7 +87,7 @@ function resolveSlotSelectionGuardReply(
     }).text;
   }
 
-  if (facts.confirmed === true && !pending) {
+  if (facts.confirmed === true && !pendingOk) {
     return renderSlotList({ slots: offered }).text;
   }
 
@@ -275,7 +283,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   const facts = extractFacts(
     input.userText,
     new Date(),
-    aiState.booking?.offered_slots
+    getValidOfferedSlots(aiState.booking)
   );
   trace.extractorsApplied = facts;
 
@@ -479,7 +487,11 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     });
   }
 
-  const slotGuardReply = resolveSlotSelectionGuardReply(aiState, facts);
+  const slotGuardReply = resolveSlotSelectionGuardReply(
+    aiState,
+    facts,
+    input.userText
+  );
   if (slotGuardReply) {
     authoritativeStructuredReply = slotGuardReply;
   }

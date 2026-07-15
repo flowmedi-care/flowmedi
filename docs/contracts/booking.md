@@ -23,7 +23,11 @@ Bare integer → index only (see reference-resolution). Clock forms (`"10:00"`, 
 
 **State is the only truth:** the LLM must not say “Você escolheu…” unless `pending_slot` is set. `find_available_slots` always returns structured `slot_list` (display only).
 
-Runtime guards: `confirmed && !pending_slot` or unmatched clock → re-show `slot_list` without calling the LLM / spinning `find_available_slots`.
+`offered_slots` / `pending_slot` depend on `selection_context` (doctor, procedure, date, period, duration). Any filter change bumps `version` and invalidates the list until a new search.
+
+Relative dates (`hoje` / `amanhã` / `dia N`) are extracted in clinic TZ; bare `dia N` is not a clock.
+
+Runtime guards: `confirmed && !pending_slot` or unmatched clock → re-show `slot_list` without calling the LLM / spinning `find_available_slots` (only for valid lists; date-intent turns do not use this guard).
 
 ## Contract 3 — Confirm create
 

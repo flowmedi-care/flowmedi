@@ -15,12 +15,28 @@ export type OfferedDay = {
   index?: number;
 };
 
+export type SelectionPeriod = "manha" | "tarde" | null;
+
+/** Search filters that derive offered_slots / pending_slot. */
+export type SelectionContext = {
+  version: number;
+  doctor_id?: string;
+  procedure_id?: string;
+  date?: string;
+  period?: SelectionPeriod;
+  duration_minutes?: number | null;
+};
+
 export type BookingState = {
   procedure_id?: string;
   doctor_id?: string;
   date?: string;
   offered_slots?: OfferedSlot[];
   pending_slot?: string;
+  /** Current search filter snapshot; bump version invalidates slot selection. */
+  selection_context?: SelectionContext;
+  /** Version at which offered_slots / pending_slot were last written. */
+  selection_epoch?: number;
   status: "collecting" | "confirming" | "done";
 };
 

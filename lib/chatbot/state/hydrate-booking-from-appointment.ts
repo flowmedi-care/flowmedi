@@ -1,4 +1,5 @@
 import type { AiState, BookingState } from "./types";
+import { withSelectionFilters } from "./selection-context";
 
 /** Minimal appointment row fields needed to continue remarcação / confirmação. */
 export type AppointmentHydrateSource = {
@@ -11,6 +12,7 @@ export type AppointmentHydrateSource = {
 /**
  * Appointment → Conversation State patch (doctor/procedure/focus).
  * Does not call tools — used after focus is known so find_available_slots can run.
+ * Filter changes invalidate offered_slots / pending via selection_context.
  */
 export function hydrateBookingFromAppointment(
   appointment: AppointmentHydrateSource,
@@ -21,14 +23,22 @@ export function hydrateBookingFromAppointment(
   const procedureId = appointment.procedure_id
     ? String(appointment.procedure_id)
     : prev.procedure_id;
+  const duration =
+    appointment.duration_minutes != null
+      ? Number(appointment.duration_minutes)
+      : prev.selection_context?.duration_minutes;
+
+  const booking = withSelectionFilters(prev, {
+    ...(doctorId ? { doctor_id: doctorId } : {}),
+    ...(procedureId ? { procedure_id: procedureId } : {}),
+    ...(duration !== undefined ? { duration_minutes: duration } : {}),
+  });
 
   return {
     focused_appointment_id: String(appointment.id),
     booking: {
-      ...prev,
+      ...booking,
       status: "collecting",
-      ...(doctorId ? { doctor_id: doctorId } : {}),
-      ...(procedureId ? { procedure_id: procedureId } : {}),
     },
   };
 }

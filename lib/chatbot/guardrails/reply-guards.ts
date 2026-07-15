@@ -1,6 +1,10 @@
 import type { AiState } from "../state/types";
 import { isFilled } from "@/lib/attendance-flow/data-resolver";
 import { renderSlotList } from "../tools/render-structured";
+import {
+  getValidOfferedSlots,
+  hasValidPendingSlot,
+} from "../state/selection-context";
 
 const CONFIRMED_PATTERN =
   /\b(confirmad[oa]|agendamento (feito|confirmado|realizado)|está marcad[oa]|consulta marcada)\b/i;
@@ -26,15 +30,15 @@ export function applyReplyGuards(reply: string, state: AiState): string {
   let out = reply.trim();
   const bookingDone = state.booking?.status === "done";
   const collected = state.conversation_flow?.collected ?? {};
-  const pendingSlot = state.booking?.pending_slot?.trim();
-  const offered = state.booking?.offered_slots ?? [];
+  const pendingOk = hasValidPendingSlot(state.booking);
+  const offered = getValidOfferedSlots(state.booking);
 
   if (!bookingDone && CONFIRMED_PATTERN.test(out)) {
     return "Ainda estou finalizando o agendamento. Um momento, por favor.";
   }
 
-  // Contract: never affirm a slot choice without pending_slot in state.
-  if (!pendingSlot && SLOT_SELECTION_CLAIM_PATTERN.test(out)) {
+  // Contract: never affirm a slot choice without valid pending_slot in state.
+  if (!pendingOk && SLOT_SELECTION_CLAIM_PATTERN.test(out)) {
     if (offered.length > 0) {
       return renderSlotList({ slots: offered }).text;
     }
@@ -51,7 +55,7 @@ export function applyReplyGuards(reply: string, state: AiState): string {
   if (CPF_ASK_PATTERN.test(out) && isFilled(collected.cpf)) {
     return (
       "Já tenho seu CPF cadastrado. " +
-      (pendingSlot
+      (pendingOk
         ? "Posso confirmar o horário escolhido?"
         : "Como posso ajudar a continuar o agendamento?")
     );
@@ -60,7 +64,7 @@ export function applyReplyGuards(reply: string, state: AiState): string {
   if (INSURANCE_ASK_PATTERN.test(out) && isFilled(collected.insurance)) {
     return (
       `Já consta o convênio ${String(collected.insurance)} no seu cadastro. ` +
-      (pendingSlot
+      (pendingOk
         ? "Posso confirmar o horário escolhido?"
         : "Quer continuar o agendamento?")
     );

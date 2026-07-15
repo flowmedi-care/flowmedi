@@ -32,6 +32,11 @@ describe("extractTimeChoice", () => {
     { scheduled_at: "2026-07-17T17:00:00.000Z", display: "14:00" },
   ];
 
+  it("dia 16 alone is not a clock intent", () => {
+    assert.equal(extractClockPeriodIntent("Mas amanhã e dia 16"), null);
+    assert.equal(extractClockPeriodIntent("Hoje é dia 15"), null);
+  });
+
   it("matches 'Pode ser 13' via display / clinic timezone", () => {
     const pick = extractTimeChoice("Pode ser 13", slotsSpAfternoon);
     assert.ok(pick);

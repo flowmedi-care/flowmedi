@@ -56,6 +56,10 @@ import { DEFAULT_CLINIC_TIMEZONE } from "@/lib/clinic-timezone";
 import type { AiState } from "../state/types";
 import type { AppointmentListRenderMode } from "./render-structured";
 import { whenLabelFromOffered } from "./render-structured";
+import {
+  stampOfferedSlots,
+  withSelectionFilters,
+} from "../state/selection-context";
 
 /** Current Operation in Selecting → select; otherwise browse. */
 function resolveAppointmentListRenderMode(aiState: AiState): AppointmentListRenderMode {
@@ -517,7 +521,31 @@ export async function executeTool(
           if (slots.length === 0) {
             const periodLabel = period === "manha" ? "manhã" : period === "tarde" ? "tarde" : "";
             const periodPart = periodLabel ? ` no período da ${periodLabel}` : "";
-            await logToolCall(supabase, clinicId, conversationId, name, loggedArgs, "0 horários", true);
+            const emptyBooking = withSelectionFilters(ctx.aiState.booking, {
+              doctor_id: doctorId,
+              procedure_id: procedureId,
+              date,
+              period: period ?? null,
+            });
+            const tele = {
+              date,
+              doctor_id: doctorId,
+              procedure_id: procedureId,
+              period: period ?? null,
+              period_arg_raw: args.period ?? null,
+              returned_count: 0,
+              returned_displays: [] as string[],
+              selection_context_version: emptyBooking.selection_context?.version ?? null,
+            };
+            await logToolCall(
+              supabase,
+              clinicId,
+              conversationId,
+              name,
+              { ...loggedArgs, ...tele },
+              "0 horários",
+              true
+            );
             return {
               result: unavailableResult(
                 `Não há horários disponíveis em ${date}${periodPart}.`,
@@ -529,15 +557,11 @@ export async function executeTool(
                   date,
                   period: period ?? null,
                   available_periods: availablePeriods.map(formatSlotPeriodLabel),
+                  ...tele,
                 }
               ),
               statePatch: {
-                booking: {
-                  procedure_id: procedureId,
-                  doctor_id: doctorId,
-                  date,
-                  status: "collecting",
-                },
+                booking: emptyBooking,
               },
             };
           }
@@ -551,19 +575,41 @@ export async function executeTool(
             scheduled_at: s.scheduled_at,
             display: s.label,
           }));
+          const stamped = stampOfferedSlots(
+            ctx.aiState.booking,
+            offered,
+            {
+              doctor_id: doctorId,
+              procedure_id: procedureId,
+              date,
+              period: period ?? null,
+            },
+            { pendingIfSingle: true }
+          );
+          const tele = {
+            date,
+            doctor_id: doctorId,
+            procedure_id: procedureId,
+            period: period ?? null,
+            period_arg_raw: args.period ?? null,
+            returned_count: offered.length,
+            returned_displays: offered.map((s) => s.display),
+            selection_context_version: stamped.selection_context?.version ?? null,
+          };
           const payload = {
             mode: "times" as const,
             date,
             period: period ?? null,
             slots: offered,
             available_periods: availablePeriods.map(formatSlotPeriodLabel),
+            ...tele,
           };
           await logToolCall(
             supabase,
             clinicId,
             conversationId,
             name,
-            loggedArgs,
+            { ...loggedArgs, ...tele },
             `${slots.length} horários`,
             true
           );
@@ -572,13 +618,7 @@ export async function executeTool(
               renderStrategy: "slot_list",
             }),
             statePatch: {
-              booking: {
-                procedure_id: procedureId,
-                doctor_id: doctorId,
-                date,
-                offered_slots: offered,
-                status: slots.length === 1 ? "confirming" : "collecting",
-              },
+              booking: stamped,
             },
           };
         }

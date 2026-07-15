@@ -69,6 +69,8 @@ export function normalizeAiState(raw: LegacyRaw | null | undefined): AiState {
       date: b.date,
       offered_slots: b.offered_slots,
       pending_slot: b.pending_slot,
+      selection_context: b.selection_context,
+      selection_epoch: b.selection_epoch,
       status: b.status ?? "collecting",
     };
     return base;

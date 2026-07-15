@@ -8,6 +8,10 @@ import { shouldIncrementToolFailures } from "../tools/mutation-result";
 import { outcomeFromToolResult } from "../tools/error-class";
 import { resolveBookingEntityId } from "./resolve-entity-id";
 import { focusedAfterAppointmentListRefresh } from "./resolve-cancel-appointment-id";
+import {
+  stampOfferedSlots,
+  withSelectionFilters,
+} from "./selection-context";
 
 export function patchAiState(
   toolName: string,
@@ -71,12 +75,10 @@ export function patchAiState(
         rejectId: current.patient_id,
       });
       if (procedureId || doctorId) {
-        patch.booking = {
-          ...current.booking,
+        patch.booking = withSelectionFilters(current.booking, {
           ...(procedureId ? { procedure_id: procedureId } : {}),
           ...(doctorId ? { doctor_id: doctorId } : {}),
-          status: current.booking?.status ?? "collecting",
-        };
+        });
       }
       break;
     }
@@ -96,11 +98,9 @@ export function patchAiState(
         rejectId: current.patient_id,
       });
       if (doctorId) {
-        patch.booking = {
-          ...current.booking,
+        patch.booking = withSelectionFilters(current.booking, {
           doctor_id: doctorId,
-          status: current.booking?.status ?? "collecting",
-        };
+        });
       }
       break;
     }
@@ -118,12 +118,9 @@ export function patchAiState(
         offered: current.offered_procedures,
         rejectId: current.patient_id,
       });
-      const booking = {
-        ...current.booking,
-        ...(procedureId ? { procedure_id: procedureId } : {}),
-        ...(doctorId ? { doctor_id: doctorId } : {}),
-        status: "collecting" as const,
-      };
+      const periodRaw = data.period ?? args.period;
+      const periodNorm =
+        periodRaw === "manha" || periodRaw === "tarde" ? periodRaw : null;
 
       if (mode === "times" && Array.isArray(data.slots)) {
         const slots = (data.slots as Array<{ scheduled_at: string; display?: string; label?: string }>).map(
@@ -132,18 +129,24 @@ export function patchAiState(
             display: s.display ?? s.label ?? s.scheduled_at,
           })
         );
-        patch.booking = {
-          ...booking,
-          date: data.date ? String(data.date) : booking.date,
-          offered_slots: slots,
-          status: slots.length === 1 ? "confirming" : "collecting",
-        };
+        const date = data.date ? String(data.date) : current.booking?.date;
+        patch.booking = stampOfferedSlots(
+          current.booking,
+          slots,
+          {
+            doctor_id: doctorId,
+            procedure_id: procedureId,
+            date,
+            period: periodNorm,
+          },
+          { pendingIfSingle: true }
+        );
       } else if (mode === "days") {
-        patch.booking = {
-          ...booking,
-          offered_slots: undefined,
-          status: "collecting",
-        };
+        patch.booking = withSelectionFilters(current.booking, {
+          ...(procedureId ? { procedure_id: procedureId } : {}),
+          ...(doctorId ? { doctor_id: doctorId } : {}),
+          period: null,
+        });
         if (Array.isArray(data.days)) {
           const days = data.days as Array<{ date: string; label: string }>;
           patch.offered_days = days.map((d, i) => ({

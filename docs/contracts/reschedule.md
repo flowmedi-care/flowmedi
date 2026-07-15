@@ -82,8 +82,20 @@ Para horário:
 
 - `find_available_slots` (modo times) **sempre** emite `renderStrategy: "slot_list"` (só `display` numerado; nunca ISO).
 - Extrator em 2 etapas: clock + período → minutos locais → match por `display` / hora clinic-local (nunca comparar ISO cru).
-- Guards de runtime: `confirmed && !pending_slot` ou `time_unmatched` → reexibir `slot_list` **sem** LLM e sem novo `find_available_slots`.
+- Guards de runtime: `confirmed && !pending_slot` ou `time_unmatched` → reexibir `slot_list` **sem** LLM e sem novo `find_available_slots` — só contra lista **válida** (ver selection_context). Mensagens de data (`hoje`/`amanhã`/`dia N`) não disparam esse guard.
 - Mensagem de sucesso / whenLabel prioritiza `offered_slots[].display`.
+
+### `selection_context`
+
+`offered_slots` e `pending_slot` são derivados dos filtros de busca:
+
+- `doctor_id`, `procedure_id`, `date`, `period`, `duration_minutes`
+- Qualquer mudança → `selection_context.version++`, limpa slots/pending, `selection_epoch` só volta a casar após novo `find_available_slots`
+- Readers usam `getValidOfferedSlots` (epoch ≠ version → lista ignorada)
+
+Datas relativas (`hoje`/`amanhã`/`dia N`) são determinísticas em TZ da clínica; `dia N` **não** é horário.
+
+`find_available_slots` registra no trace: `date`, ids, `period`, `period_arg_raw`, `returned_displays`, `selection_context_version`.
 
 ## Hydrate
 

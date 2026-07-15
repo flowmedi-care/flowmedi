@@ -1,13 +1,19 @@
 import type { OfferedOption } from "../state/types";
 import type { NormalizedFacts } from "./types";
-import { extractDate } from "./date";
+import { extractDate, hasDateIntent } from "./date";
 import { extractPeriod } from "./period";
 import { attemptTimeChoice } from "./time";
 import { extractCpfFromText } from "@/lib/virtual-assistant/normalize-cpf";
 import type { OfferedSlot } from "../state/types";
 
 export type { NormalizedFacts } from "./types";
-export { extractDate, parseDateFromText, weekdayFromText } from "./date";
+export {
+  extractDate,
+  parseDateFromText,
+  weekdayFromText,
+  relativeDateFromText,
+  hasDateIntent,
+} from "./date";
 export { extractPeriod } from "./period";
 export {
   extractTimeChoice,
@@ -79,14 +85,19 @@ export function extractFacts(
 
   // Bare integer = selectedIndex only (reference-resolution contract).
   // Clock forms: 2-step extract → resolve local → match display / clinic-local.
+  // Date-intent messages must not set time_unmatched against a stale day list.
   if (index == null) {
+    const dateIntent = Boolean(date) || hasDateIntent(text);
     const attempt = attemptTimeChoice(text, offeredSlots, {
       periodFromFacts: period ?? null,
     });
-    if (attempt.ok) {
+    if (attempt.ok && !dateIntent) {
       facts.selected_hour = attempt.pick.selected_hour;
       facts.selected_scheduled_at = attempt.pick.scheduled_at;
-    } else if (attempt.reason === "no_match") {
+    } else if (attempt.ok && dateIntent) {
+      // Keep hour label for UX; do not bind pending_slot to the old day's ISO.
+      facts.selected_hour = attempt.pick.selected_hour;
+    } else if (attempt.reason === "no_match" && !dateIntent) {
       facts.time_unmatched = true;
       if (attempt.resolvedHour) facts.unresolved_hour = attempt.resolvedHour;
     }

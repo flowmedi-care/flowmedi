@@ -47,15 +47,31 @@ export function parseClockLabel(text: string): number | null {
   return null;
 }
 
+function hasClockCue(t: string): boolean {
+  return (
+    /\b\d{1,2}:\d{2}\b/.test(t) ||
+    /\b\d{1,2}\s*h\b/.test(t) ||
+    /\b(?:as|às|umas?|pelas?)\s+\d{1,2}\b/.test(t) ||
+    /\b(?:pode ser|quero|prefiro)\s+(?:as|às|umas?|pelas?)?\s*\d{1,2}\b/.test(t) ||
+    /\b\d{1,2}\s+da\s+(?:manha|tarde|noite)\b/.test(t) ||
+    /\bhorario\b/.test(t)
+  );
+}
+
 /**
  * Etapa A: extract intermediate clock + optional period from free text.
  * Does not match slots yet.
+ * Calendar phrases like "dia 16" without a clock cue do not yield a clock intent.
  */
 export function extractClockPeriodIntent(
   text: string,
   periodFromFacts?: PeriodHint | null
 ): ClockPeriodIntent | null {
   const t = text.trim().toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+
+  const diaOnly =
+    /\bdia\s+\d{1,2}\b/.test(t) && !hasClockCue(t);
+  if (diaOnly) return null;
 
   let periodHint: PeriodHint | null = periodFromFacts ?? null;
   if (/\bda\s+tarde\b/.test(t) || /\btarde\b/.test(t)) periodHint = "tarde";
@@ -73,10 +89,10 @@ export function extractClockPeriodIntent(
     }
   }
 
-  // "4 da tarde", "umas 4", "lá pelas 4", "pode ser as 4"
+  // Soft forms require an hour cue prefix (never bare "16" in "dia 16").
   const soft = t.match(
-    /\b(?:as|às|umas?|pelas?|pode ser|quero|prefiro|horario)?\s*(\d{1,2})(?::(\d{2}))?\b/
-  );
+    /\b(?:as|às|umas?|pelas?|pode ser(?:\s+(?:as|às))?|quero|prefiro|horario)\s+(\d{1,2})(?::(\d{2}))?\b/
+  ) ?? t.match(/\b(\d{1,2})\s+da\s+(?:manha|tarde|noite)\b/);
   if (soft) {
     const h = Number(soft[1]);
     const min = soft[2] != null ? Number(soft[2]) : 0;

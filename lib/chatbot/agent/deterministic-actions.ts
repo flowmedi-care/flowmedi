@@ -1,5 +1,6 @@
 import type { NormalizedFacts } from "../extractors/types";
 import type { AiState } from "../state/types";
+import { getValidOfferedSlots } from "../state/selection-context";
 
 export type DeterministicAction = {
   toolName: string;
@@ -19,30 +20,52 @@ export type DeterministicActionRule = {
   execute: (ctx: DeterministicActionContext) => DeterministicAction | null;
 };
 
+function selectionFiltersChanged(before: AiState, after: AiState): boolean {
+  const b = before.booking;
+  const a = after.booking;
+  if ((b?.date ?? "") !== (a?.date ?? "")) return true;
+  if ((b?.doctor_id ?? "") !== (a?.doctor_id ?? "")) return true;
+  if ((b?.procedure_id ?? "") !== (a?.procedure_id ?? "")) return true;
+  if ((b?.selection_context?.version ?? 0) !== (a?.selection_context?.version ?? 0)) {
+    return true;
+  }
+  if ((b?.selection_context?.period ?? null) !== (a?.selection_context?.period ?? null)) {
+    return true;
+  }
+  return false;
+}
+
 /**
- * Day just resolved + doctor/procedure ready + no slots yet → must fetch times.
- * Does not invent period — let the tool return all available slots for the day.
+ * Day/filters resolved + doctor/procedure ready + no valid slots → must fetch times.
+ * Passes period only when present on this turn's facts or selection_context (not invent).
  */
 export const daySelectedRule: DeterministicActionRule = {
   id: "day_selected",
   matches(ctx) {
     const date = ctx.after.booking?.date?.trim();
     if (!date) return false;
-    const dateJustSet = ctx.before.booking?.date !== date;
-    if (!dateJustSet) return false;
     if (!ctx.after.booking?.doctor_id || !ctx.after.booking?.procedure_id) return false;
-    if ((ctx.after.booking.offered_slots?.length ?? 0) > 0) return false;
-    return true;
+    if (getValidOfferedSlots(ctx.after.booking).length > 0) return false;
+    return selectionFiltersChanged(ctx.before, ctx.after);
   },
   execute(ctx) {
     const date = ctx.after.booking?.date?.trim();
     if (!date) return null;
+    const periodFromFacts =
+      ctx.facts.period === "manha" || ctx.facts.period === "tarde"
+        ? ctx.facts.period
+        : undefined;
+    const periodFromCtx = ctx.after.booking?.selection_context?.period;
+    const period =
+      periodFromFacts ??
+      (periodFromCtx === "manha" || periodFromCtx === "tarde" ? periodFromCtx : undefined);
     return {
       toolName: "find_available_slots",
       args: {
         date,
         doctor_id: ctx.after.booking?.doctor_id,
         procedure_id: ctx.after.booking?.procedure_id,
+        ...(period ? { period } : {}),
       },
       reason: "day_selected",
     };
@@ -109,6 +132,13 @@ export const rescheduleSlotConfirmedRule: DeterministicActionRule = {
     if (!flow.pending.includes("reschedule_booking")) return false;
     if (!ctx.after.focused_appointment_id?.trim()) return false;
     if (!ctx.after.booking?.pending_slot?.trim()) return false;
+    // Stale pending after filter change must not mutate.
+    if (
+      ctx.after.booking.selection_context?.version != null &&
+      ctx.after.booking.selection_epoch !== ctx.after.booking.selection_context.version
+    ) {
+      return false;
+    }
     return true;
   },
   execute(ctx) {

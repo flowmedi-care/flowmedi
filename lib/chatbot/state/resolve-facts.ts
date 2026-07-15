@@ -1,6 +1,12 @@
 import type { NormalizedFacts } from "../extractors/types";
 import type { AiState, OfferedOption } from "./types";
 import { resolveOptionByIndex } from "./patch";
+import {
+  getValidOfferedSlots,
+  hasValidPendingSlot,
+  withPendingSlot,
+  withSelectionFilters,
+} from "./selection-context";
 
 function offeredDaysAsOptions(
   days: AiState["offered_days"]
@@ -29,43 +35,35 @@ export function resolveReferenceFacts(
 
   const doctorPick = resolveOptionByIndex(aiState.offered_doctors, idx);
   if (doctorPick && !aiState.booking?.doctor_id) {
-    patch.booking = {
-      ...aiState.booking,
+    patch.booking = withSelectionFilters(aiState.booking, {
       doctor_id: doctorPick.id,
-      status: aiState.booking?.status ?? "collecting",
-    };
+    });
     return patch;
   }
 
   const procedurePick = resolveOptionByIndex(aiState.offered_procedures, idx);
   if (procedurePick && !aiState.booking?.procedure_id) {
-    patch.booking = {
-      ...aiState.booking,
+    patch.booking = withSelectionFilters(aiState.booking, {
       procedure_id: procedurePick.id,
-      status: aiState.booking?.status ?? "collecting",
-    };
+    });
     return patch;
   }
 
   const dayPick = resolveOptionByIndex(offeredDaysAsOptions(aiState.offered_days), idx);
   if (dayPick) {
-    patch.booking = {
-      ...aiState.booking,
+    // Date change resets period so we do not keep a sticky tarde/manhã from prior search.
+    patch.booking = withSelectionFilters(aiState.booking, {
       date: dayPick.id,
-      status: aiState.booking?.status ?? "collecting",
-    };
+      period: null,
+    });
     return patch;
   }
 
-  const slots = aiState.booking?.offered_slots ?? [];
+  const slots = getValidOfferedSlots(aiState.booking);
   if (slots.length > 0) {
     const slot = slots[facts.selectedIndex - 1];
     if (slot) {
-      patch.booking = {
-        ...aiState.booking,
-        pending_slot: slot.scheduled_at,
-        status: "confirming",
-      };
+      patch.booking = withPendingSlot(aiState.booking, slot.scheduled_at);
       return patch;
     }
   }
@@ -98,24 +96,48 @@ export function applySemanticFacts(
 ): Partial<AiState> {
   const patch: Partial<AiState> = {};
 
-  const scheduledAt = facts.selected_scheduled_at as string | undefined;
-  if (scheduledAt && !aiState.booking?.pending_slot) {
-    patch.booking = {
-      ...aiState.booking,
-      ...(patch.booking ?? {}),
-      pending_slot: scheduledAt,
-      status: "confirming",
-    };
+  const dateFact = typeof facts.date === "string" ? facts.date.trim() : "";
+  const periodFact =
+    facts.period === "manha" || facts.period === "tarde" ? facts.period : undefined;
+  const hasPeriodFact = facts.period === "manha" || facts.period === "tarde";
+  // "4 da tarde" / unmatched clock: period is a clock cue, not a search filter change.
+  const periodIsClockCue =
+    Boolean(facts.selected_scheduled_at) ||
+    Boolean(facts.selected_hour) ||
+    Boolean(facts.unresolved_hour) ||
+    facts.time_unmatched === true;
+
+  if (dateFact) {
+    const currentDate = aiState.booking?.date?.trim();
+    const offered = aiState.offered_days?.find((d) => d.date === dateFact);
+    const nextDate = offered?.date ?? dateFact;
+    const nextPeriod =
+      hasPeriodFact && !periodIsClockCue ? periodFact! : null;
+    if (nextDate !== currentDate || (hasPeriodFact && !periodIsClockCue)) {
+      patch.booking = withSelectionFilters(aiState.booking, {
+        date: nextDate,
+        period: nextPeriod,
+      });
+    }
+  } else if (hasPeriodFact && !periodIsClockCue) {
+    patch.booking = withSelectionFilters(aiState.booking, {
+      period: periodFact!,
+    });
   }
 
-  if (facts.date && !aiState.booking?.date && !patch.booking?.date) {
-    const offered = aiState.offered_days?.find((d) => d.date === facts.date);
-    patch.booking = {
-      ...aiState.booking,
-      ...(patch.booking ?? {}),
-      date: offered?.date ?? facts.date,
-      status: aiState.booking?.status ?? "collecting",
-    };
+  const scheduledAt = facts.selected_scheduled_at as string | undefined;
+  const bookingAfter = patch.booking ?? aiState.booking;
+  if (
+    scheduledAt &&
+    !hasValidPendingSlot(bookingAfter) &&
+    getValidOfferedSlots(bookingAfter).some((s) => s.scheduled_at === scheduledAt)
+  ) {
+    patch.booking = withPendingSlot(bookingAfter, scheduledAt);
+  } else if (scheduledAt && !hasValidPendingSlot(aiState.booking) && !patch.booking) {
+    // Legacy path: match was against slots passed to extractors (still valid epoch).
+    if (getValidOfferedSlots(aiState.booking).some((s) => s.scheduled_at === scheduledAt)) {
+      patch.booking = withPendingSlot(aiState.booking, scheduledAt);
+    }
   }
 
   return patch;
