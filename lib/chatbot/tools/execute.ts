@@ -6,6 +6,7 @@ import {
   formatPeriodsLabel,
   formatSlotPeriodLabel,
   normalizeSlotPeriod,
+  type SlotScanStats,
 } from "@/lib/appointment-conflicts";
 import { applyRoutingOnNewConversation } from "@/lib/whatsapp-routing";
 import {
@@ -62,6 +63,9 @@ import { DEFAULT_CLINIC_TIMEZONE } from "@/lib/clinic-timezone";
 import type { AiState } from "../state/types";
 import type { AppointmentListRenderMode } from "./render-structured";
 import { formatWhenLabel, whenLabelFromOffered } from "./render-structured";
+import {
+  preparePendingActiveSelection,
+} from "../state/active-selection";
 import {
   stampOfferedSlots,
   withSelectionFilters,
@@ -368,6 +372,14 @@ export async function executeTool(
               name: o.label,
               index: o.index!,
             })),
+            pending_active_selection: preparePendingActiveSelection(
+              "doctor",
+              options.map((o) => ({
+                id: o.id,
+                label: o.label,
+                index: o.index!,
+              }))
+            ),
           },
         };
       }
@@ -425,6 +437,14 @@ export async function executeTool(
               name: o.label,
               index: o.index!,
             })),
+            pending_active_selection: preparePendingActiveSelection(
+              "procedure",
+              options.map((o) => ({
+                id: o.id,
+                label: o.label,
+                index: o.index!,
+              }))
+            ),
             ...(doctorId
               ? {
                   booking: {
@@ -531,6 +551,7 @@ export async function executeTool(
         }
 
         if (date) {
+          let scanStats: SlotScanStats | undefined;
           const slots = await findSlotsForDay(supabase, {
             clinicId,
             doctorId,
@@ -538,6 +559,9 @@ export async function executeTool(
             date,
             period,
             patientId: ctx.aiState.patient_id ?? null,
+            onScanStats: (s) => {
+              scanStats = s;
+            },
           });
           const availablePeriods = await findAvailablePeriodsForDay(supabase, {
             clinicId,
@@ -564,6 +588,7 @@ export async function executeTool(
               returned_count: 0,
               returned_displays: [] as string[],
               selection_context_version: emptyBooking.selection_context?.version ?? null,
+              scan_stats: scanStats ?? null,
             };
             await logToolCall(
               supabase,
@@ -621,6 +646,7 @@ export async function executeTool(
             returned_count: offered.length,
             returned_displays: offered.map((s) => s.display),
             selection_context_version: stamped.selection_context?.version ?? null,
+            scan_stats: scanStats ?? null,
           };
           const payload = {
             mode: "times" as const,
@@ -643,6 +669,15 @@ export async function executeTool(
             }),
             statePatch: {
               booking: stamped,
+              offered_days: undefined,
+              pending_active_selection: preparePendingActiveSelection(
+                "slot",
+                offered.map((s, i) => ({
+                  id: s.scheduled_at,
+                  label: s.display,
+                  index: i + 1,
+                }))
+              ),
             },
           };
         }
@@ -700,6 +735,14 @@ export async function executeTool(
               label: d.label,
               index: i + 1,
             })),
+            pending_active_selection: preparePendingActiveSelection(
+              "day",
+              daysForDisplay.map((d, i) => ({
+                id: d.date,
+                label: d.label,
+                index: i + 1,
+              }))
+            ),
             booking: {
               procedure_id: procedureId,
               doctor_id: doctorId,

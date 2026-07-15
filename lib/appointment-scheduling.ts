@@ -1,6 +1,12 @@
 /** Helpers de intervalo de agendamento (início/fim explícitos). */
 
-import { assertScheduledInFuture as assertFuture, isScheduledInFuture } from "@/lib/clinic-timezone";
+import {
+  assertScheduledInFuture as assertFuture,
+  isScheduledInFuture,
+  getZonedYmd,
+  zonedLocalToUtcIso,
+  DEFAULT_CLINIC_TIMEZONE,
+} from "@/lib/clinic-timezone";
 
 export const DEFAULT_APPOINTMENT_DURATION_MINUTES = 30;
 
@@ -74,16 +80,24 @@ export function formatConflictTimeRange(startMs: number, endMs: number): string 
   return `${fmt(startMs)} às ${fmt(endMs)}`;
 }
 
-export function dayBoundsForScheduledAt(scheduledAt: string): {
+export function dayBoundsForScheduledAt(
+  scheduledAt: string,
+  timeZone: string = DEFAULT_CLINIC_TIMEZONE
+): {
   dayStart: string;
   dayEnd: string;
 } {
-  const d = new Date(scheduledAt);
-  const dayStart = new Date(d);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(d);
-  dayEnd.setHours(23, 59, 59, 999);
-  return { dayStart: dayStart.toISOString(), dayEnd: dayEnd.toISOString() };
+  const ymd = getZonedYmd(new Date(scheduledAt), timeZone);
+  const dayStart = zonedLocalToUtcIso(ymd, 0, 0, timeZone);
+  // End of clinic-local day (23:59:59.999 approximated via next-day midnight - 1ms).
+  const nextYmdParts = (() => {
+    const noon = new Date(zonedLocalToUtcIso(ymd, 12, 0, timeZone));
+    noon.setUTCDate(noon.getUTCDate() + 1);
+    return getZonedYmd(noon, timeZone);
+  })();
+  const nextMidnight = new Date(zonedLocalToUtcIso(nextYmdParts, 0, 0, timeZone)).getTime();
+  const dayEnd = new Date(nextMidnight - 1).toISOString();
+  return { dayStart, dayEnd };
 }
 
 /** Monta ISO de término no mesmo dia local que o início. */

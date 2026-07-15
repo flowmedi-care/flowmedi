@@ -91,6 +91,25 @@ export function freshBotLoopWindowState(now = new Date()): Pick<AiConversationSt
   return { bot_loop_window_since: now.toISOString() };
 }
 
+/**
+ * After a successful terminal mutation (e.g. create_appointment), reset the
+ * outbound-rate window so the booking confirmation cascade cannot trip handoff.
+ */
+export function resetLoopGuardAfterSuccessfulMutation<
+  T extends {
+    bot_loop_detected_at?: string;
+    handoff_reason?: string;
+    bot_loop_window_since?: string;
+  },
+>(state: T, now = new Date()): T {
+  const next = { ...state, ...freshBotLoopWindowState(now) };
+  delete next.bot_loop_detected_at;
+  if (next.handoff_reason === "bot_loop_detected") {
+    delete next.handoff_reason;
+  }
+  return next;
+}
+
 /** Início efetivo da janela: max(últimos N min, bot_loop_window_since). */
 /** Slots may live under booking.* (chatbot) or legacy root offered_slots. */
 export function resolveOfferedSlots(aiState?: AiConversationState): OfferedSlot[] {

@@ -10,7 +10,14 @@ import {
   runChatbotTurn,
   shouldSkipDuplicateReply,
   tryAcquireProcessingLock,
+  withProcessingLockStamp,
+  normalizeAiState,
+  serializeAiState,
 } from "@/lib/chatbot";
+import {
+  commitPendingActiveSelection,
+  discardPendingActiveSelection,
+} from "@/lib/chatbot/state/active-selection";
 import { createTurnTrace, serializeTurnTraceForEvent } from "@/lib/chatbot/observability/turn-trace";
 import { logAiEvent, logAiEventAwait } from "./event-log";
 import { sendAssistantReply } from "./send-reply";
@@ -22,6 +29,7 @@ import { ensureAiPrivacyNoticeSent } from "./ai-privacy-notice";
 import { buildClinicContext } from "./clinic-context";
 import { ensurePatientLinkedByPhone } from "@/lib/chatbot/auto-patient-lookup";
 import { loadPolicySlice } from "@/lib/chatbot/snapshot/loaders/policy-loader";
+import { resetLoopGuardAfterSuccessfulMutation } from "./bot-loop-guard";
 
 export interface SkipMenuChatbotResult {
   skipMenu: boolean;
@@ -203,10 +211,8 @@ async function processConversationAiInner(
 
   if (!pending?.length) return;
 
-  let aiState = (conv.ai_state ?? {}) as AiConversationState;
-
-  const acquired = await tryAcquireProcessingLock(supabase, conversationId);
-  if (!acquired) {
+  const lock = await tryAcquireProcessingLock(supabase, conversationId);
+  if (!lock.ok) {
     const retryAt = new Date(Date.now() + 5_000).toISOString();
     await supabase
       .from("whatsapp_conversations")
@@ -239,6 +245,10 @@ async function processConversationAiInner(
     });
     return;
   }
+
+  // Authoritative state after claim — includes lock stamp. No mutation before this.
+  let aiState = lock.aiState as AiConversationState;
+  const lockStamp = lock.lockStamp;
 
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
@@ -278,7 +288,14 @@ async function processConversationAiInner(
   aiState = resolved.aiState;
 
   if (resolved.waitingForTranscription) {
-    await scheduleTranscriptionRetry(supabase, conversationId, aiState);
+    await scheduleTranscriptionRetry(
+      supabase,
+      conversationId,
+      withProcessingLockStamp(
+        aiState as unknown as Record<string, unknown>,
+        lockStamp
+      ) as typeof aiState
+    );
     logAiEvent(supabase, {
       clinicId: conv.clinic_id,
       conversationId,
@@ -329,7 +346,10 @@ async function processConversationAiInner(
     await supabase
       .from("whatsapp_conversations")
       .update({
-        ai_state: aiState,
+        ai_state: withProcessingLockStamp(
+          aiState as unknown as Record<string, unknown>,
+          lockStamp
+        ),
         ai_debounce_until: null,
       })
       .eq("id", conversationId);
@@ -435,7 +455,13 @@ async function processConversationAiInner(
         .from("whatsapp_conversations")
         .update({
           ai_last_processed_message_at: now,
-          ai_state: { ...aiState, pending_confirmation_appointment_id: undefined, intent: undefined },
+          ai_state: withProcessingLockStamp(
+            { ...aiState, pending_confirmation_appointment_id: undefined, intent: undefined } as unknown as Record<
+              string,
+              unknown
+            >,
+            lockStamp
+          ),
           ai_debounce_until: null,
         })
         .eq("id", conversationId);
@@ -475,7 +501,13 @@ async function processConversationAiInner(
         .from("whatsapp_conversations")
         .update({
           ai_last_processed_message_at: now,
-          ai_state: { ...aiState, pending_confirmation_appointment_id: undefined },
+          ai_state: withProcessingLockStamp(
+            { ...aiState, pending_confirmation_appointment_id: undefined } as unknown as Record<
+              string,
+              unknown
+            >,
+            lockStamp
+          ),
           ai_debounce_until: null,
         })
         .eq("id", conversationId);
@@ -508,12 +540,15 @@ async function processConversationAiInner(
         .from("whatsapp_conversations")
         .update({
           ai_last_processed_message_at: now,
-          ai_state: {
-            ...aiState,
-            pending_confirmation_appointment_id: undefined,
-            pending_reschedule_appointment_id: appointmentId,
-            intent: "booking",
-          },
+          ai_state: withProcessingLockStamp(
+            {
+              ...aiState,
+              pending_confirmation_appointment_id: undefined,
+              pending_reschedule_appointment_id: appointmentId,
+              intent: "booking",
+            } as unknown as Record<string, unknown>,
+            lockStamp
+          ),
           ai_debounce_until: null,
         })
         .eq("id", conversationId);
@@ -698,14 +733,11 @@ async function processConversationAiInner(
       .eq("id", conversationId);
   }
 
-  await supabase
-    .from("whatsapp_conversations")
-    .update({
-      ai_last_processed_message_at: now,
-      ai_state: { ...aiState, ...statePatch },
-      ai_debounce_until: null,
-    })
-    .eq("id", conversationId);
+  // Merge turn patch in memory; commit active_selection only after outbound succeeds.
+  let nextState = normalizeAiState({
+    ...aiState,
+    ...statePatch,
+  } as Record<string, unknown>);
 
   await ensureAiPrivacyNoticeSent(supabase, {
     conversationId,
@@ -719,6 +751,19 @@ async function processConversationAiInner(
 
   const inboundIds = pending.map((m) => m.id);
   if (shouldSkipDuplicateReply(conversationId, inboundIds, effectiveReply)) {
+    // Duplicate: still persist progress without promoting unreceived menus.
+    nextState = discardPendingActiveSelection(nextState);
+    await supabase
+      .from("whatsapp_conversations")
+      .update({
+        ai_last_processed_message_at: now,
+        ai_state: withProcessingLockStamp(
+          serializeAiState(nextState),
+          lockStamp
+        ),
+        ai_debounce_until: null,
+      })
+      .eq("id", conversationId);
     logAiEvent(supabase, {
       clinicId: conv.clinic_id,
       conversationId,
@@ -729,14 +774,51 @@ async function processConversationAiInner(
     return;
   }
 
-  await sendAssistantReply(
-    supabase,
-    conv.clinic_id,
-    conversationId,
-    conv.phone_number,
-    effectiveReply,
-    { skipHeader: await shouldSkipAssistantHeader(supabase, conversationId) }
-  );
+  try {
+    await sendAssistantReply(
+      supabase,
+      conv.clinic_id,
+      conversationId,
+      conv.phone_number,
+      effectiveReply,
+      { skipHeader: await shouldSkipAssistantHeader(supabase, conversationId) }
+    );
+  } catch (sendErr) {
+    nextState = discardPendingActiveSelection(nextState);
+    await supabase
+      .from("whatsapp_conversations")
+      .update({
+        ai_last_processed_message_at: now,
+        ai_state: withProcessingLockStamp(
+          serializeAiState(nextState),
+          lockStamp
+        ),
+        ai_debounce_until: null,
+      })
+      .eq("id", conversationId);
+    throw sendErr;
+  }
+
+  // Outbound OK → last interactive menu becomes authoritative.
+  nextState = commitPendingActiveSelection(nextState, now);
+
+  const createOutcome = turnTracePayload.createAppointmentOutcome as
+    | { status?: string; blocked?: boolean }
+    | null
+    | undefined;
+  if (createOutcome?.status === "success" && !createOutcome?.blocked) {
+    nextState = resetLoopGuardAfterSuccessfulMutation(nextState);
+  }
+
+  await supabase
+    .from("whatsapp_conversations")
+    .update({
+      ai_last_processed_message_at: now,
+      ai_state: withProcessingLockStamp(serializeAiState(nextState), lockStamp),
+      ai_debounce_until: null,
+    })
+    .eq("id", conversationId);
+
   logAiEvent(supabase, {
     clinicId: conv.clinic_id,
     conversationId,

@@ -9,6 +9,10 @@ import { outcomeFromToolResult } from "../tools/error-class";
 import { resolveBookingEntityId } from "./resolve-entity-id";
 import { focusedAfterAppointmentListRefresh } from "./resolve-cancel-appointment-id";
 import {
+  preparePendingActiveSelection,
+  optionsFromAppointments,
+} from "./active-selection";
+import {
   stampOfferedSlots,
   withSelectionFilters,
 } from "./selection-context";
@@ -61,6 +65,14 @@ export function patchAiState(
           name: p.name,
           index: i + 1,
         }));
+        patch.pending_active_selection = preparePendingActiveSelection(
+          "procedure",
+          patch.offered_procedures.map((p) => ({
+            id: p.id,
+            label: p.name,
+            index: p.index ?? 0,
+          }))
+        );
       }
       const procedureId = resolveBookingEntityId({
         arg: args.procedure_id,
@@ -90,6 +102,14 @@ export function patchAiState(
           name: d.full_name,
           index: i + 1,
         }));
+        patch.pending_active_selection = preparePendingActiveSelection(
+          "doctor",
+          patch.offered_doctors.map((d) => ({
+            id: d.id,
+            label: d.name,
+            index: d.index ?? 0,
+          }))
+        );
       }
       const doctorId = resolveBookingEntityId({
         arg: args.doctor_id,
@@ -141,6 +161,16 @@ export function patchAiState(
           },
           { pendingIfSingle: true }
         );
+        // New interactive menu = slots; clear day menu so indices cannot steal.
+        patch.offered_days = undefined;
+        patch.pending_active_selection = preparePendingActiveSelection(
+          "slot",
+          slots.map((s, i) => ({
+            id: s.scheduled_at,
+            label: s.display,
+            index: i + 1,
+          }))
+        );
       } else if (mode === "days") {
         patch.booking = withSelectionFilters(current.booking, {
           ...(procedureId ? { procedure_id: procedureId } : {}),
@@ -154,6 +184,14 @@ export function patchAiState(
             label: d.label,
             index: i + 1,
           }));
+          patch.pending_active_selection = preparePendingActiveSelection(
+            "day",
+            patch.offered_days.map((d) => ({
+              id: d.date,
+              label: d.label,
+              index: d.index ?? 0,
+            }))
+          );
         }
       }
       break;
@@ -163,6 +201,8 @@ export function patchAiState(
       patch.offered_doctors = undefined;
       patch.offered_procedures = undefined;
       patch.offered_days = undefined;
+      patch.active_selection = undefined;
+      patch.pending_active_selection = undefined;
       if (data.appointment_id) {
         const id = String(data.appointment_id);
         patch.focused_appointment_id = id;
@@ -180,6 +220,12 @@ export function patchAiState(
           ids,
           current.focused_appointment_id
         );
+        if (ids.length > 0) {
+          patch.pending_active_selection = preparePendingActiveSelection(
+            "appointment",
+            optionsFromAppointments(ids)
+          );
+        }
       }
       break;
     }

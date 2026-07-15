@@ -54,11 +54,15 @@ import {
   type ReplyDecision,
 } from "./reply-policy";
 import {
+  renderSlotConfirmation,
   renderSlotList,
   renderStructuredToolResult,
 } from "../tools/render-structured";
 import type { NormalizedFacts } from "../extractors/types";
-import { getValidOfferedSlots, hasValidPendingSlot } from "../state/selection-context";
+import {
+  getValidOfferedSlots,
+  hasValidPendingSlot,
+} from "../state/selection-context";
 import { hasDateIntent } from "../extractors/date";
 
 const MAX_TOOL_ROUNDS = 5;
@@ -533,8 +537,32 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     structuredReason = "slot_selection_guard";
   }
 
+  // Operational datetime: never let the LLM invent confirmation copy.
+  const pendingThisTurn =
+    hasValidPendingSlot(aiState.booking) &&
+    facts.confirmed !== true &&
+    (!hasValidPendingSlot(aiStateBeforeFacts.booking) ||
+      aiState.booking?.pending_slot !== aiStateBeforeFacts.booking?.pending_slot);
+
+  if (
+    pendingThisTurn &&
+    !authoritativeStructuredReply &&
+    !authoritativeDomainMessage
+  ) {
+    const conf = renderSlotConfirmation({
+      pendingSlot: aiState.booking?.pending_slot,
+      offeredSlots: getValidOfferedSlots(aiState.booking),
+      askConfirm: true,
+    });
+    if (conf?.text) {
+      authoritativeStructuredReply = conf.text;
+      structuredReason = "pending_slot_confirmation";
+    }
+  }
+
   const skipLlm =
     Boolean(slotGuardReply) ||
+    structuredReason === "pending_slot_confirmation" ||
     shouldSkipLlmForAuthoritativeReply(
       authoritativeStructuredReply,
       authoritativeDomainMessage

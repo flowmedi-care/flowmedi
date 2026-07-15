@@ -10,6 +10,7 @@ import {
 import { checkScheduleBlockConflict } from "./schedule-blocks";
 import {
   addDaysToYmd,
+  DEFAULT_CLINIC_TIMEZONE,
   formatZonedDayLabel,
   formatZonedSlotLabel,
   formatZonedTimeLabel,
@@ -51,11 +52,13 @@ export async function checkAppointmentConflict(
     scheduledEndAt: string;
     roomId?: string | null;
     excludeAppointmentId: string | null;
+    timeZone?: string;
   }
 ): Promise<string | null> {
   const start = new Date(opts.scheduledAt).getTime();
   const end = new Date(opts.scheduledEndAt).getTime();
-  const { dayStart, dayEnd } = dayBoundsForScheduledAt(opts.scheduledAt);
+  const timeZone = opts.timeZone ?? DEFAULT_CLINIC_TIMEZONE;
+  const { dayStart, dayEnd } = dayBoundsForScheduledAt(opts.scheduledAt, timeZone);
 
   const { data: doctor } = await supabase
     .from("profiles")
@@ -164,6 +167,7 @@ export async function checkAppointmentConflict(
     doctorId: opts.doctorId,
     scheduledAt: opts.scheduledAt,
     scheduledEndAt: opts.scheduledEndAt,
+    timeZone: opts.timeZone,
   });
   if (blockConflict) return blockConflict;
 
@@ -338,6 +342,14 @@ function isMinuteInLunch(dayConfig: DayOperatingConfig, minute: number, duration
   return minute < lunchEnd && minute + durationMinutes > lunchStart;
 }
 
+export type SlotScanStats = {
+  date: string;
+  generatedSlots: number;
+  blockedSlotsDetected: number;
+  removedSlots: string[];
+  returnedDisplays: string[];
+};
+
 async function scanDaySlots(
   supabase: SupabaseClient,
   ctx: SlotSearchContext,
@@ -351,6 +363,7 @@ async function scanDaySlots(
     excludeAppointmentId?: string | null;
     /** When clinic requires rooms, only offer slots with at least one free room. */
     requireRoom?: boolean;
+    stats?: SlotScanStats;
   }
 ): Promise<AvailableSlot[]> {
   const slots: AvailableSlot[] = [];
@@ -367,6 +380,9 @@ async function scanDaySlots(
     const hour = Math.floor(minute / 60);
     const min = minute % 60;
     const scheduledAt = zonedLocalToUtcIso(dateYmd, hour, min, ctx.timeZone);
+    const labelHm = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+
+    if (opts.stats) opts.stats.generatedSlots += 1;
 
     if (new Date(scheduledAt).getTime() <= now) {
       minute += opts.slotStep;
@@ -381,6 +397,7 @@ async function scanDaySlots(
       scheduledAt,
       scheduledEndAt,
       excludeAppointmentId: opts.excludeAppointmentId ?? null,
+      timeZone: ctx.timeZone,
     });
 
     if (!conflict) {
@@ -391,6 +408,10 @@ async function scanDaySlots(
           scheduledEndAt,
         });
         if (!roomId) {
+          if (opts.stats) {
+            opts.stats.blockedSlotsDetected += 1;
+            opts.stats.removedSlots.push(labelHm);
+          }
           minute += opts.slotStep;
           continue;
         }
@@ -402,6 +423,16 @@ async function scanDaySlots(
           ? formatTimeLabel(scheduledAt, ctx.timeZone)
           : formatSlotLabel(scheduledAt, ctx.timeZone),
       });
+      if (opts.stats) {
+        opts.stats.returnedDisplays.push(
+          opts.timeOnlyLabel
+            ? formatTimeLabel(scheduledAt, ctx.timeZone)
+            : formatSlotLabel(scheduledAt, ctx.timeZone)
+        );
+      }
+    } else if (opts.stats) {
+      opts.stats.blockedSlotsDetected += 1;
+      opts.stats.removedSlots.push(labelHm);
     }
 
     minute += opts.slotStep;
@@ -510,7 +541,7 @@ export async function findFirstAvailableRoom(
 
   const start = new Date(opts.scheduledAt).getTime();
   const end = new Date(opts.scheduledEndAt).getTime();
-  const { dayStart, dayEnd } = dayBoundsForScheduledAt(opts.scheduledAt);
+  const { dayStart, dayEnd } = dayBoundsForScheduledAt(opts.scheduledAt, DEFAULT_CLINIC_TIMEZONE);
 
   for (const room of rooms ?? []) {
     let roomQuery = supabase
@@ -663,6 +694,7 @@ export async function findSlotsForDay(
     slotStepMinutes?: number;
     excludeAppointmentId?: string | null;
     patientId?: string | null;
+    onScanStats?: (stats: SlotScanStats) => void;
   }
 ): Promise<AvailableSlot[]> {
   const ctx = await loadSlotSearchContext(supabase, opts);
@@ -688,6 +720,13 @@ export async function findSlotsForDay(
   const requireRoom = await clinicRequiresRoom(supabase, opts.clinicId);
   const slotStep = opts.slotStepMinutes ?? 30;
   const maxPerPeriod = opts.maxSlots ?? 6;
+  const stats: SlotScanStats = {
+    date: opts.date,
+    generatedSlots: 0,
+    blockedSlotsDetected: 0,
+    removedSlots: [],
+    returnedDisplays: [],
+  };
 
   // No period filter: cover morning and afternoon separately so maxSlots
   // does not truncate to morning-only.
@@ -699,6 +738,7 @@ export async function findSlotsForDay(
       timeOnlyLabel: true,
       excludeAppointmentId: excludeId,
       requireRoom,
+      stats,
     });
     const tarde = await scanDaySlots(supabase, ctx, opts.date, dayConfig, {
       slotStep,
@@ -707,18 +747,24 @@ export async function findSlotsForDay(
       timeOnlyLabel: true,
       excludeAppointmentId: excludeId,
       requireRoom,
+      stats,
     });
-    return [...manha, ...tarde];
+    const combined = [...manha, ...tarde];
+    if (opts.onScanStats) opts.onScanStats(stats);
+    return combined;
   }
 
-  return scanDaySlots(supabase, ctx, opts.date, dayConfig, {
+  const slots = await scanDaySlots(supabase, ctx, opts.date, dayConfig, {
     slotStep,
     maxSlots: maxPerPeriod,
     period: opts.period,
     timeOnlyLabel: true,
     excludeAppointmentId: excludeId,
     requireRoom,
+    stats,
   });
+  if (opts.onScanStats) opts.onScanStats(stats);
+  return slots;
 }
 
 export async function findDaySlotGrid(

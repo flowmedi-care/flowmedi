@@ -5,7 +5,14 @@ export type { ClinicContext } from "./agent/prompt";
 export { CHATBOT_TOOLS, CHATBOT_TOOL_NAMES, executeTool } from "./tools/registry";
 export type { ToolResult, ToolContext, FaqItem } from "./tools/registry";
 export { normalizeAiState, serializeAiState } from "./state/migrate";
-export type { AiState, BookingState, OfferedSlot, OfferedOption, OfferedDay } from "./state/types";
+export type {
+  AiState,
+  BookingState,
+  OfferedSlot,
+  OfferedOption,
+  OfferedDay,
+  ActiveSelection,
+} from "./state/types";
 export { initialAiState, isActiveBooking } from "./state/types";
 export { validateToolCall } from "./guardrails/validators";
 export { applyReplyGuards } from "./guardrails/reply-guards";
@@ -14,4 +21,6 @@ export {
   releaseProcessingLock,
   shouldSkipDuplicateReply,
   isProcessingLockActive,
+  withProcessingLockStamp,
 } from "./infra/lock";
+export type { AcquireProcessingLockResult } from "./infra/lock";

@@ -13,7 +13,17 @@ export type SnapshotTraceSlice = {
     satisfiedGoals: string[];
     allowedTools: string[];
   };
-  aiState: Pick<AiState, "patient_id" | "booking" | "conversation_flow">;
+  aiState: Pick<
+    AiState,
+    | "patient_id"
+    | "booking"
+    | "conversation_flow"
+    | "active_selection"
+    | "pending_active_selection"
+    | "offered_doctors"
+    | "offered_procedures"
+    | "offered_days"
+  >;
 };
 
 export type SnapshotTraceEntry = {
@@ -75,6 +85,11 @@ export function sliceSnapshotForTrace(snapshot: ConversationSnapshot): SnapshotT
       patient_id: snapshot.aiState.patient_id,
       booking: snapshot.aiState.booking,
       conversation_flow: snapshot.aiState.conversation_flow,
+      active_selection: snapshot.aiState.active_selection,
+      pending_active_selection: snapshot.aiState.pending_active_selection,
+      offered_doctors: snapshot.aiState.offered_doctors,
+      offered_procedures: snapshot.aiState.offered_procedures,
+      offered_days: snapshot.aiState.offered_days,
     },
   };
 }

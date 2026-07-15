@@ -15,6 +15,27 @@ export type OfferedDay = {
   index?: number;
 };
 
+/** Last interactive menu the patient actually received (committed after outbound). */
+export type ActiveSelectionType =
+  | "doctor"
+  | "procedure"
+  | "day"
+  | "slot"
+  | "appointment";
+
+export type ActiveSelectionOption = {
+  id: string;
+  label: string;
+  index: number;
+};
+
+export type ActiveSelection = {
+  type: ActiveSelectionType;
+  options: ActiveSelectionOption[];
+  /** ISO of outbound commit (when the menu was confirmed delivered). */
+  created_at?: string;
+};
+
 export type SelectionPeriod = "manha" | "tarde" | null;
 
 /** Search filters that derive offered_slots / pending_slot. */
@@ -77,6 +98,13 @@ export type AiState = {
   offered_doctors?: OfferedOption[];
   offered_procedures?: OfferedOption[];
   offered_days?: OfferedDay[];
+  /**
+   * Authoritative menu for bare-index resolution (committed with successful outbound).
+   * See docs/contracts/reference-resolution.md.
+   */
+  active_selection?: ActiveSelection;
+  /** Draft from tools this turn — only becomes active_selection after reply_sent. */
+  pending_active_selection?: ActiveSelection;
   focused_appointment_id?: string;
   active_appointments?: string[];
   consecutive_tool_failures?: number;

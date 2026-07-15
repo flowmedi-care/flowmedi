@@ -1,6 +1,9 @@
 import type { NormalizedFacts } from "../extractors/types";
-import type { AiState, OfferedOption } from "./types";
-import { resolveOptionByIndex } from "./patch";
+import type { AiState } from "./types";
+import {
+  deriveActiveSelection,
+  resolveActiveOptionByIndex,
+} from "./active-selection";
 import {
   getValidOfferedSlots,
   hasValidPendingSlot,
@@ -8,18 +11,12 @@ import {
   withSelectionFilters,
 } from "./selection-context";
 
-function offeredDaysAsOptions(
-  days: AiState["offered_days"]
-): OfferedOption[] | undefined {
-  return days?.map((d) => ({ id: d.date, name: d.label, index: d.index }));
-}
-
 /**
  * Resolves active references (menus) to domain entities via selectedIndex.
  * Produces a StatePatch only — does not mutate AiState, does not interpret semantics
  * (clock, names). See docs/contracts/reference-resolution.md.
  *
- * @deprecated name — prefer thinking of this as resolveReferences / applyReferenceSelections.
+ * Index resolution belongs ONLY to active_selection (last menu the user received).
  */
 export function resolveReferenceFacts(
   facts: NormalizedFacts & Record<string, unknown>,
@@ -31,59 +28,51 @@ export function resolveReferenceFacts(
     return patch;
   }
 
-  const idx = String(facts.selectedIndex);
-
-  const doctorPick = resolveOptionByIndex(aiState.offered_doctors, idx);
-  if (doctorPick && !aiState.booking?.doctor_id) {
-    patch.booking = withSelectionFilters(aiState.booking, {
-      doctor_id: doctorPick.id,
-    });
+  const selection = deriveActiveSelection(aiState);
+  const pick = resolveActiveOptionByIndex(selection, facts.selectedIndex);
+  if (!selection || !pick) {
     return patch;
   }
 
-  const procedurePick = resolveOptionByIndex(aiState.offered_procedures, idx);
-  if (procedurePick && !aiState.booking?.procedure_id) {
-    patch.booking = withSelectionFilters(aiState.booking, {
-      procedure_id: procedurePick.id,
-    });
-    return patch;
-  }
-
-  const dayPick = resolveOptionByIndex(offeredDaysAsOptions(aiState.offered_days), idx);
-  if (dayPick) {
-    // Date change resets period so we do not keep a sticky tarde/manhã from prior search.
-    patch.booking = withSelectionFilters(aiState.booking, {
-      date: dayPick.id,
-      period: null,
-    });
-    return patch;
-  }
-
-  const slots = getValidOfferedSlots(aiState.booking);
-  if (slots.length > 0) {
-    const slot = slots[facts.selectedIndex - 1];
-    if (slot) {
-      patch.booking = withPendingSlot(aiState.booking, slot.scheduled_at);
+  switch (selection.type) {
+    case "doctor": {
+      if (aiState.booking?.doctor_id) return patch;
+      patch.booking = withSelectionFilters(aiState.booking, {
+        doctor_id: pick.id,
+      });
       return patch;
     }
-  }
-
-  // appointments[i] ↔ option i+1 — only when booking menus are not the active choice set.
-  const bookingMenusActive =
-    (aiState.offered_doctors?.length ?? 0) > 0 ||
-    (aiState.offered_procedures?.length ?? 0) > 0 ||
-    (aiState.offered_days?.length ?? 0) > 0 ||
-    slots.length > 0;
-  const activeAppts = aiState.active_appointments ?? [];
-  if (!bookingMenusActive && activeAppts.length > 0) {
-    const pick = activeAppts[facts.selectedIndex - 1];
-    if (pick) {
-      patch.focused_appointment_id = pick;
+    case "procedure": {
+      if (aiState.booking?.procedure_id) return patch;
+      patch.booking = withSelectionFilters(aiState.booking, {
+        procedure_id: pick.id,
+      });
       return patch;
     }
+    case "day": {
+      patch.booking = withSelectionFilters(aiState.booking, {
+        date: pick.id,
+        period: null,
+      });
+      return patch;
+    }
+    case "slot": {
+      const slots = getValidOfferedSlots(aiState.booking);
+      const slot =
+        slots.find((s) => s.scheduled_at === pick.id) ??
+        slots[facts.selectedIndex - 1];
+      if (slot) {
+        patch.booking = withPendingSlot(aiState.booking, slot.scheduled_at);
+      }
+      return patch;
+    }
+    case "appointment": {
+      patch.focused_appointment_id = pick.id;
+      return patch;
+    }
+    default:
+      return patch;
   }
-
-  return patch;
 }
 
 /**

@@ -6,6 +6,11 @@ import {
   intervalsOverlap,
   resolveAppointmentEndMs,
 } from "@/lib/appointment-scheduling";
+import {
+  DEFAULT_CLINIC_TIMEZONE,
+  getClinicTimezone,
+  zonedLocalToUtcIso,
+} from "@/lib/clinic-timezone";
 import type { RecurrenceFrequency } from "@/lib/recurrence-schedule";
 
 export type ScheduleBlockKind = "once" | "recurring";
@@ -67,8 +72,16 @@ function parseTimeHm(time: string): string {
   return time.slice(0, 5);
 }
 
-function combineDateAndTime(dateYmd: string, timeStr: string): Date {
-  return new Date(`${dateYmd}T${parseTimeHm(timeStr)}:00`);
+function combineDateAndTime(
+  dateYmd: string,
+  timeStr: string,
+  timeZone: string = DEFAULT_CLINIC_TIMEZONE
+): Date {
+  const hm = parseTimeHm(timeStr);
+  const [hourStr, minStr] = hm.split(":");
+  const hour = Number(hourStr);
+  const minute = Number(minStr);
+  return new Date(zonedLocalToUtcIso(dateYmd, hour, minute, timeZone));
 }
 
 function alignToWeekday(dateYmd: string, weekday: number): string {
@@ -95,7 +108,8 @@ function advanceRecurringDate(d: Date, frequency: RecurrenceFrequency): void {
 export function expandBlockOccurrences(
   block: ScheduleBlockRow,
   rangeStart: Date,
-  rangeEnd: Date
+  rangeEnd: Date,
+  timeZone: string = DEFAULT_CLINIC_TIMEZONE
 ): BlockOccurrence[] {
   const rangeStartMs = rangeStart.getTime();
   const rangeEndMs = rangeEnd.getTime();
@@ -131,7 +145,7 @@ export function expandBlockOccurrences(
   const timeStartHm = parseTimeHm(block.time_start);
   const timeEndHm = parseTimeHm(block.time_end);
   const seriesEndMs = block.recurrence_end_date
-    ? new Date(`${block.recurrence_end_date}T23:59:59`).getTime()
+    ? new Date(zonedLocalToUtcIso(block.recurrence_end_date, 23, 59, timeZone)).getTime()
     : rangeEndMs;
   const effectiveEndMs = Math.min(rangeEndMs, seriesEndMs);
 
@@ -140,8 +154,8 @@ export function expandBlockOccurrences(
 
   for (let i = 0; i < 500; i++) {
     const dateYmd = toYMD(current);
-    const occStart = combineDateAndTime(dateYmd, timeStartHm);
-    const occEnd = combineDateAndTime(dateYmd, timeEndHm);
+    const occStart = combineDateAndTime(dateYmd, timeStartHm, timeZone);
+    const occEnd = combineDateAndTime(dateYmd, timeEndHm, timeZone);
     const occStartMs = occStart.getTime();
     const occEndMs = occEnd.getTime();
 
@@ -166,19 +180,22 @@ export function expandBlockOccurrences(
 /** Expande todas as ocorrências futuras de um bloqueio (até 2 anos ou recurrence_end_date). */
 export function expandAllBlockOccurrences(
   block: ScheduleBlockRow,
-  fromDate: Date = new Date()
+  fromDate: Date = new Date(),
+  timeZone: string = DEFAULT_CLINIC_TIMEZONE
 ): BlockOccurrence[] {
   const start = new Date(fromDate);
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
   end.setFullYear(end.getFullYear() + 2);
   if (block.recurrence_end_date) {
-    const seriesEnd = new Date(`${block.recurrence_end_date}T23:59:59`);
+    const seriesEnd = new Date(
+      zonedLocalToUtcIso(block.recurrence_end_date, 23, 59, timeZone)
+    );
     if (seriesEnd.getTime() < end.getTime()) {
       end.setTime(seriesEnd.getTime());
     }
   }
-  return expandBlockOccurrences(block, start, end);
+  return expandBlockOccurrences(block, start, end, timeZone);
 }
 
 function formatBlockConflictMessage(
@@ -206,11 +223,14 @@ export async function checkScheduleBlockConflict(
     scheduledAt: string;
     scheduledEndAt: string;
     excludeBlockId?: string | null;
+    timeZone?: string;
   }
 ): Promise<string | null> {
   const start = new Date(opts.scheduledAt).getTime();
   const end = new Date(opts.scheduledEndAt).getTime();
-  const { dayStart, dayEnd } = dayBoundsForScheduledAt(opts.scheduledAt);
+  const timeZone =
+    opts.timeZone ?? (await getClinicTimezone(supabase, opts.clinicId));
+  const { dayStart, dayEnd } = dayBoundsForScheduledAt(opts.scheduledAt, timeZone);
 
   let query = supabase
     .from("schedule_blocks")
@@ -237,7 +257,12 @@ export async function checkScheduleBlockConflict(
 
   for (const raw of blocks) {
     const block = raw as ScheduleBlockRow;
-    const occurrences = expandBlockOccurrences(block, dayStartDate, dayEndDate);
+    const occurrences = expandBlockOccurrences(
+      block,
+      dayStartDate,
+      dayEndDate,
+      timeZone
+    );
     for (const occ of occurrences) {
       const occStart = new Date(occ.startsAt).getTime();
       const occEnd = new Date(occ.endsAt).getTime();

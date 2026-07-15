@@ -17,6 +17,14 @@ export function normalizeAiState(raw: LegacyRaw | null | undefined): AiState {
     offered_days: Array.isArray(raw.offered_days)
       ? (raw.offered_days as AiState["offered_days"])
       : undefined,
+    active_selection:
+      raw.active_selection && typeof raw.active_selection === "object"
+        ? (raw.active_selection as AiState["active_selection"])
+        : undefined,
+    pending_active_selection:
+      raw.pending_active_selection && typeof raw.pending_active_selection === "object"
+        ? (raw.pending_active_selection as AiState["pending_active_selection"])
+        : undefined,
     focused_appointment_id: raw.focused_appointment_id
       ? String(raw.focused_appointment_id)
       : undefined,
