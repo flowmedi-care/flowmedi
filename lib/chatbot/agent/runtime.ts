@@ -137,6 +137,8 @@ export type RunTurnInput = {
   clinicName?: string;
   hoursText?: string;
   address?: string;
+  /** Serialized Knowledge Package from Information Sources (ACL-filtered) */
+  knowledgePackageText?: string;
   flowConfig?: ClinicFlowConfig;
   customFields?: CustomFieldForGoals[];
   patientId?: string | null;
@@ -495,6 +497,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
           faqs: input.faqs,
           flowConfig: snapshot.flowConfig,
           customFields: snapshot.customFields,
+          allowedTools: trace.allowedTools,
         },
         action.toolName,
         args
@@ -676,6 +679,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     useEmojis: input.settings.use_emojis ?? true,
     hoursText: input.hoursText,
     address: input.address,
+    knowledgePackageText: input.knowledgePackageText,
     faqs: input.faqs,
     settings: input.settings,
     aiState,
@@ -727,7 +731,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     const completion = await createChatCompletion({
       model: input.settings.ai_model ?? "gpt-4o-mini",
       messages,
-      tools: filteredTools.length ? filteredTools : CHATBOT_TOOLS,
+      tools: filteredTools,
       temperature: 0.2,
     });
 
@@ -818,6 +822,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
             faqs: input.faqs,
             flowConfig: snapshot.flowConfig,
             customFields: snapshot.customFields,
+            allowedTools: trace.allowedTools,
           },
           toolName,
           args
@@ -953,6 +958,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
           faqs: input.faqs,
           flowConfig: snapshot.flowConfig,
           customFields: snapshot.customFields,
+          allowedTools: [...(trace.allowedTools ?? []), "transfer_to_human"],
         },
         "transfer_to_human",
         { reason: "consecutive_tool_failures" }

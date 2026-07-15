@@ -625,7 +625,7 @@ async function processConversationAiInner(
 
   const { data: faqRows } = await supabase
     .from("clinic_virtual_assistant_faq")
-    .select("id, question, answer")
+    .select("id, question, answer, keywords, category")
     .eq("clinic_id", conv.clinic_id)
     .order("display_order");
 
@@ -653,8 +653,13 @@ async function processConversationAiInner(
       id: String(f.id),
       question: String(f.question),
       answer: String(f.answer),
+      keywords: Array.isArray((f as { keywords?: string[] }).keywords)
+        ? ((f as { keywords?: string[] }).keywords ?? [])
+        : [],
+      category: (f as { category?: string | null }).category ?? null,
     })),
     clinicName: clinicCtx.clinicName,
+    knowledgePackageText: clinicCtx.text,
     hoursText: undefined,
     address: undefined,
     flowConfig,

@@ -195,7 +195,7 @@ const READ_TOOLS_ALWAYS = new Set([
   "lookup_patient_by_phone",
   "search_faq",
   "get_service_price",
-  "list_price_options",
+  "get_procedure_info",
 ]);
 
 const INTAKE_GOAL_IDS = new Set([

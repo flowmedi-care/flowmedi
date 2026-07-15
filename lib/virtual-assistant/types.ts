@@ -67,6 +67,8 @@ export type VirtualAssistantFaq = {
   clinic_id: string;
   question: string;
   answer: string;
+  keywords?: string[] | null;
+  category?: string | null;
   display_order: number;
 };
 

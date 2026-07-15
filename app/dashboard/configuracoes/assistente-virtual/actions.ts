@@ -216,21 +216,32 @@ export async function upsertVirtualAssistantFaq(
   id: string | null,
   question: string,
   answer: string,
-  displayOrder: number
+  displayOrder: number,
+  extras?: { keywords?: string[]; category?: string | null }
 ) {
   const ctx = await requireAdminClinic();
   if (ctx.error || !ctx.supabase || !ctx.clinicId) return { error: ctx.error };
 
+  const keywords = extras?.keywords ?? [];
+  const category = extras?.category?.trim() || null;
+
   if (id) {
     const { data, error } = await ctx.supabase
       .from("clinic_virtual_assistant_faq")
-      .update({ question, answer, display_order: displayOrder })
+      .update({
+        question,
+        answer,
+        display_order: displayOrder,
+        keywords,
+        category,
+      })
       .eq("id", id)
       .eq("clinic_id", ctx.clinicId)
       .select("*")
       .single();
     if (error) return { error: error.message };
     revalidatePath("/dashboard/configuracoes/assistente-virtual");
+    revalidatePath("/dashboard/configuracoes/base-de-conhecimento");
     revalidatePath("/dashboard/configuracoes/clinica");
     return { error: null, item: data as VirtualAssistantFaq };
   }
@@ -242,12 +253,15 @@ export async function upsertVirtualAssistantFaq(
       question,
       answer,
       display_order: displayOrder,
+      keywords,
+      category,
     })
     .select("*")
     .single();
   if (error) return { error: error.message };
 
   revalidatePath("/dashboard/configuracoes/assistente-virtual");
+  revalidatePath("/dashboard/configuracoes/base-de-conhecimento");
   revalidatePath("/dashboard/configuracoes/clinica");
   return { error: null, item: data as VirtualAssistantFaq };
 }

@@ -33,7 +33,13 @@ export type ToolResult<T = unknown> = {
   renderMode?: string;
 };
 
-export type FaqItem = { id: string; question: string; answer: string };
+export type FaqItem = {
+  id: string;
+  question: string;
+  answer: string;
+  keywords?: string[] | null;
+  category?: string | null;
+};
 
 import type { ClinicFlowConfig } from "@/lib/attendance-flow/flow-sync";
 import type { CustomFieldForGoals } from "@/lib/attendance-flow/types";
@@ -48,6 +54,8 @@ export type ToolContext = {
   faqs: FaqItem[];
   flowConfig?: ClinicFlowConfig;
   customFields?: CustomFieldForGoals[];
+  /** Hard-gated allowlist for this turn (platform ACL). */
+  allowedTools?: string[];
 };
 
 export type ToolExecutionOutcome = {

@@ -2,6 +2,7 @@ export type FaqSearchRow = {
   id: string;
   question: string;
   answer: string;
+  keywords?: string[] | null;
   question_embedding?: number[] | null;
 };
 
@@ -87,9 +88,11 @@ export function semanticFaqSearch(
   let bestScore = 0;
 
   for (const faq of faqs) {
+    const keywordBlob = (faq.keywords ?? []).join(" ");
     const score = Math.max(
       scoreOverlap(tokens, faq.question),
-      scoreOverlap(tokens, faq.answer) * 0.9
+      scoreOverlap(tokens, faq.answer) * 0.9,
+      keywordBlob ? scoreOverlap(tokens, keywordBlob) * 1.15 : 0
     );
     if (score > bestScore) {
       bestScore = score;

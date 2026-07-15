@@ -11,6 +11,8 @@ export type ClinicContext = {
   useEmojis: boolean;
   hoursText?: string;
   address?: string;
+  /** ACL-filtered facts from Information Sources (Prompt Builder output) */
+  knowledgePackageText?: string;
   faqs: FaqItem[];
   settings: Partial<VirtualAssistantSettings>;
   aiState?: AiState;
@@ -75,10 +77,14 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
     `- Tom: ${ctx.tone}. ${emojiPolicy}`,
   ];
 
-  if (ctx.hoursText) lines.push(`Horário de funcionamento: ${ctx.hoursText}`);
-  if (ctx.address) lines.push(`Endereço: ${ctx.address}`);
+  if (ctx.knowledgePackageText?.trim()) {
+    lines.push("", ctx.knowledgePackageText.trim());
+  } else {
+    if (ctx.hoursText) lines.push(`Horário de funcionamento: ${ctx.hoursText}`);
+    if (ctx.address) lines.push(`Endereço: ${ctx.address}`);
+  }
 
-  if (ctx.faqs.length) {
+  if (ctx.faqs.length && !ctx.knowledgePackageText?.includes("# Base de conhecimento")) {
     lines.push("", "Perguntas frequentes disponíveis via search_faq.");
   }
 

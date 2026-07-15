@@ -23,8 +23,6 @@ export const proceduresSource: InformationSource = {
     { id: "prep", label: "Preparo", aclKey: "prep" },
     { id: "duration", label: "Duração", aclKey: "duration" },
     { id: "recovery", label: "Recuperação", aclKey: "recovery" },
-    { id: "indications", label: "Indicações", aclKey: "indications" },
-    { id: "contraindications", label: "Contraindicações", aclKey: "contraindications" },
     { id: "supplies", label: "Insumos", aclKey: "supplies" },
   ],
   async load(ctx: SourceLoadContext) {

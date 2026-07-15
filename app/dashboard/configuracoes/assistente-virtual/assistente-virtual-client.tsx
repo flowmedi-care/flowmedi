@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import type { VirtualAssistantFaq, VirtualAssistantSettings } from "@/lib/virtual-assistant/types";
+import type { VirtualAssistantSettings } from "@/lib/virtual-assistant/types";
 import { AssistenteVirtualDiagnostics } from "./assistente-virtual-diagnostics";
 import { AssistenteVirtualToolsPlayground } from "./assistente-virtual-tools-playground";
 import { AssistenteVirtualPipelineTab } from "./assistente-virtual-pipeline-tab";
@@ -22,7 +22,6 @@ type AdvancedSubId = "pipeline" | "ferramentas" | "diagnostico";
 interface Props {
   canUse: boolean;
   initialSettings: Partial<VirtualAssistantSettings> | null;
-  initialFaq: VirtualAssistantFaq[];
   toolDefinitions: ToolDefinition[];
   initialConversationFlows?: ConversationFlowsConfig;
   initialAppointmentPolicy: AppointmentPolicy;

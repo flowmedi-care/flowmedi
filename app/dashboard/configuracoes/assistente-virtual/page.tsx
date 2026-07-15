@@ -25,7 +25,6 @@ export default async function AssistenteVirtualPage() {
           import("@/lib/virtual-assistant/types").VirtualAssistantSettings
         > | null
       }
-      initialFaq={data.faq ?? []}
       toolDefinitions={ASSISTANT_TOOLS}
       initialConversationFlows={conversationFlows}
       initialAppointmentPolicy={appointmentPolicy}

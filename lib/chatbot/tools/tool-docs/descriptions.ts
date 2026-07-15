@@ -26,8 +26,14 @@ export const TOOL_DESCRIPTIONS: Record<ChatbotToolName, string> = {
   list_procedures:
     "Purpose: Listar procedimentos da clínica (id, nome, duração).\n" +
     "When to use: discovery (\"o que vocês fazem?\"); início de booking; paciente não sabe procedimento.\n" +
-    "When NOT: paciente já disse procedimento; preços (get_service_price); horários (find_available_slots).\n" +
+    "When NOT: paciente já disse procedimento; detalhes (get_procedure_info); preços (get_service_price); horários (find_available_slots).\n" +
     "Output success: data.procedures + options numeradas (1,2,3). Resposta \"2\" → options[2].id.",
+
+  get_procedure_info:
+    "Purpose: Detalhes do procedimento (descrição, como realizamos, preparo, recuperação) conforme políticas da clínica.\n" +
+    "When to use: paciente pergunta como funciona / preparo / recuperação de um procedimento conhecido.\n" +
+    "When NOT: listar todos (list_procedures); preços (get_service_price).\n" +
+    "Output success: campos liberados pela clínica; preço nunca vem desta tool.",
 
   list_doctors:
     "Purpose: Listar médicos (id, nome, especialidade).\n" +

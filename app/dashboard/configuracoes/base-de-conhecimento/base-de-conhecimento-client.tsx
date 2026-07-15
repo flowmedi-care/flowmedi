@@ -24,9 +24,24 @@ type FormState = {
   id: string | null;
   question: string;
   answer: string;
+  keywords: string;
+  category: string;
 };
 
-const EMPTY: FormState = { id: null, question: "", answer: "" };
+const EMPTY: FormState = {
+  id: null,
+  question: "",
+  answer: "",
+  keywords: "",
+  category: "",
+};
+
+function parseKeywords(raw: string): string[] {
+  return raw
+    .split(/[,;]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 export function BaseDeConhecimentoClient({ initialEntries }: Props) {
   const [entries, setEntries] = useState(initialEntries);
@@ -41,7 +56,13 @@ export function BaseDeConhecimentoClient({ initialEntries }: Props) {
   }
 
   function openEdit(item: VirtualAssistantFaq) {
-    setForm({ id: item.id, question: item.question, answer: item.answer });
+    setForm({
+      id: item.id,
+      question: item.question,
+      answer: item.answer,
+      keywords: (item.keywords ?? []).join(", "),
+      category: item.category ?? "",
+    });
     setDialogOpen(true);
   }
 
@@ -67,7 +88,16 @@ export function BaseDeConhecimentoClient({ initialEntries }: Props) {
       ? (entries.find((f) => f.id === form.id)?.display_order ?? entries.length)
       : entries.length;
 
-    const result = await upsertVirtualAssistantFaq(form.id, question, answer, displayOrder);
+    const keywords = parseKeywords(form.keywords);
+    const category = form.category.trim() || null;
+
+    const result = await upsertVirtualAssistantFaq(
+      form.id,
+      question,
+      answer,
+      displayOrder,
+      { keywords, category }
+    );
     setSaving(false);
 
     if (result.error) {
@@ -149,6 +179,13 @@ export function BaseDeConhecimentoClient({ initialEntries }: Props) {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{item.question}</p>
                       <p className="truncate text-xs text-muted-foreground">{item.answer}</p>
+                      {(item.category || (item.keywords ?? []).length > 0) && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {[item.category, ...(item.keywords ?? []).slice(0, 4)]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <Button
@@ -207,6 +244,25 @@ export function BaseDeConhecimentoClient({ initialEntries }: Props) {
                 placeholder="Resposta que a IA deve usar…"
                 rows={5}
               />
+            </div>
+            <div>
+              <Label htmlFor="kb-category">Categoria (opcional)</Label>
+              <Input
+                id="kb-category"
+                value={form.category}
+                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                placeholder="Ex.: Localização, Pagamento"
+              />
+            </div>
+            <div>
+              <Label htmlFor="kb-keywords">Palavras-chave (opcional)</Label>
+              <Input
+                id="kb-keywords"
+                value={form.keywords}
+                onChange={(e) => setForm((f) => ({ ...f, keywords: e.target.value }))}
+                placeholder="estacionamento, vaga, carro"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">Separe por vírgula.</p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={closeDialog} disabled={saving}>

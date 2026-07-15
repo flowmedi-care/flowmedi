@@ -16,6 +16,7 @@ export type ToolDependency = {
   requiresFinanceAction?: keyof FinanceActions;
 };
 
+/** Names match CHATBOT_TOOLS / execute.ts */
 export const TOOL_DEPENDENCIES: ToolDependency[] = [
   {
     name: "list_procedures",
@@ -28,19 +29,7 @@ export const TOOL_DEPENDENCIES: ToolDependency[] = [
     requiresSources: ["procedures"],
   },
   {
-    name: "list_services",
-    requiresCapabilities: ["service_information"],
-    requiresSources: ["services"],
-    requiresAclFields: ["services.list"],
-  },
-  {
     name: "get_service_price",
-    requiresCapabilities: ["pricing"],
-    requiresSources: ["services"],
-    requiresAclFields: ["services.showPrices"],
-  },
-  {
-    name: "list_price_options",
     requiresCapabilities: ["pricing"],
     requiresSources: ["services"],
     requiresAclFields: ["services.showPrices"],
@@ -51,26 +40,20 @@ export const TOOL_DEPENDENCIES: ToolDependency[] = [
     requiresSources: ["knowledge_base"],
   },
   {
-    name: "resolve_quote_offer",
-    requiresCapabilities: ["quote"],
-    requiresFinanceAction: "allowGenerateQuote",
-  },
-  {
-    name: "create_and_send_quote",
-    requiresCapabilities: ["quote"],
-    requiresFinanceAction: "allowSendQuote",
-  },
-  {
-    name: "get_quote_status",
-    requiresCapabilities: ["quote"],
-  },
-  {
     name: "transfer_to_human",
     requiresCapabilities: ["handoff"],
   },
   {
-    name: "check_in_appointment",
+    name: "perform_check_in",
     requiresCapabilities: ["check_in"],
+  },
+  {
+    name: "lookup_patient_by_phone",
+    requiresCapabilities: ["patient_lookup"],
+  },
+  {
+    name: "register_patient",
+    requiresCapabilities: ["patient_lookup"],
   },
 ];
 

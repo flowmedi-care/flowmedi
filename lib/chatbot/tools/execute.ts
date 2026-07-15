@@ -230,6 +230,15 @@ export async function executeTool(
     };
   }
 
+  if (ctx.allowedTools && !ctx.allowedTools.includes(name)) {
+    return {
+      result: unavailableResult(
+        "Esta informação não está disponível pelo assistente no momento.",
+        "Oriente o paciente a consultar a clínica ou peça transferência humana se permitido."
+      ),
+    };
+  }
+
   const { supabase, clinicId, conversationId, phoneNumber } = ctx;
 
   try {
@@ -353,6 +362,68 @@ export async function executeTool(
             },
           },
         };
+      }
+
+      case "get_procedure_info": {
+        const procedureId = String(args.procedure_id ?? "").trim();
+        if (!procedureId) {
+          return {
+            result: needsInputResult(["procedure_id"], "Preciso saber qual procedimento."),
+          };
+        }
+        const proc = (await getProcedureInfo(supabase, clinicId, procedureId)) as {
+          id: string;
+          name: string;
+          duration_minutes?: number | null;
+          recommendations?: string | null;
+          short_description?: string | null;
+          how_we_perform?: string | null;
+          recovery?: string | null;
+          default_service_id?: string | null;
+        } | null;
+        if (!proc) {
+          return {
+            result: notFoundResult("Procedimento não encontrado."),
+          };
+        }
+        const acl = ctx.flowConfig?.appointmentPolicy.knowledge_acl;
+        const fields = acl?.procedures.fields;
+        const payload: Record<string, unknown> = {
+          id: proc.id,
+          name: proc.name,
+        };
+        if (!fields || fields.duration !== false) {
+          payload.duration_minutes = proc.duration_minutes ?? 30;
+        }
+        if (!fields || fields.shortDescription !== false) {
+          if (proc.short_description) payload.short_description = proc.short_description;
+        }
+        if (!fields || fields.howWePerform !== false) {
+          if (proc.how_we_perform) payload.how_we_perform = proc.how_we_perform;
+        }
+        if (!fields || fields.prep !== false) {
+          if (proc.recommendations) payload.prep = proc.recommendations;
+        }
+        if (!fields || fields.recovery !== false) {
+          if (proc.recovery) payload.recovery = proc.recovery;
+        }
+        if (proc.default_service_id) {
+          payload.default_service_id = proc.default_service_id;
+          payload.price_hint =
+            "Use get_service_price com procedure_id para valores (se política permitir).";
+        } else {
+          payload.price_hint = "consultar";
+        }
+        await logToolCall(
+          supabase,
+          clinicId,
+          conversationId,
+          name,
+          { procedure_id: procedureId },
+          proc.name,
+          true
+        );
+        return { result: successResult(payload) };
       }
 
       case "list_doctors": {

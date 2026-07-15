@@ -107,8 +107,6 @@ const PROC_LABELS: Record<string, string> = {
   prep: "Preparo",
   duration: "Duração",
   recovery: "Recuperação",
-  indications: "Indicações",
-  contraindications: "Contraindicações",
   supplies: "Insumos",
 };
 

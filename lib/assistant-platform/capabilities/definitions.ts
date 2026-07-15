@@ -39,19 +39,19 @@ export const RUNTIME_CAPABILITY_DEFS: Record<RuntimeCapabilityId, RuntimeCapabil
   },
   cancel: {
     id: "cancel",
-    requiredTools: ["list_appointments", "cancel_appointment"],
+    requiredTools: ["list_patient_appointments", "cancel_appointment"],
     requiredSources: [],
     requiredContext: [],
   },
   reschedule: {
     id: "reschedule",
-    requiredTools: ["list_appointments", "find_available_slots", "reschedule_appointment"],
+    requiredTools: ["list_patient_appointments", "find_available_slots", "reschedule_appointment"],
     requiredSources: ["procedures"],
     requiredContext: ["clinic.hours"],
   },
   check_in: {
     id: "check_in",
-    requiredTools: ["check_in_appointment"],
+    requiredTools: ["perform_check_in"],
     requiredSources: [],
     requiredContext: [],
   },
@@ -69,7 +69,7 @@ export const RUNTIME_CAPABILITY_DEFS: Record<RuntimeCapabilityId, RuntimeCapabil
   },
   service_information: {
     id: "service_information",
-    requiredTools: ["list_services", "list_price_options"],
+    requiredTools: [],
     requiredSources: ["services"],
     requiredContext: [],
   },
@@ -81,14 +81,15 @@ export const RUNTIME_CAPABILITY_DEFS: Record<RuntimeCapabilityId, RuntimeCapabil
   },
   pricing: {
     id: "pricing",
-    requiredTools: ["get_service_price", "list_price_options"],
+    requiredTools: ["get_service_price"],
     requiredSources: ["services"],
     requiredContext: [],
-    requiredPrompt: "Só informe preços quando a tabela estiver disponível; caso contrário oriente a consultar a clínica.",
+    requiredPrompt:
+      "Só informe preços quando a tabela estiver disponível; caso contrário oriente a consultar a clínica.",
   },
   quote: {
     id: "quote",
-    requiredTools: ["resolve_quote_offer", "create_and_send_quote", "get_quote_status"],
+    requiredTools: [],
     requiredSources: ["services", "procedures"],
     requiredContext: [],
   },

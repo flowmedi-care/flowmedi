@@ -6,6 +6,7 @@ export const CHATBOT_TOOL_NAMES = [
   "register_patient",
   "update_patient_intake",
   "list_procedures",
+  "get_procedure_info",
   "list_doctors",
   "find_available_slots",
   "create_appointment",
@@ -67,6 +68,13 @@ export const CHATBOT_TOOLS: ToolDefinition[] = [
     properties: {
       doctor_id: { type: "string", description: "UUID do médico para filtrar procedimentos compatíveis" },
     },
+  }),
+  toolDef("get_procedure_info", {
+    type: "object",
+    properties: {
+      procedure_id: { type: "string", description: "UUID do procedimento" },
+    },
+    required: ["procedure_id"],
   }),
   toolDef("list_doctors", { type: "object", properties: {}, required: [] }),
   toolDef("find_available_slots", {
