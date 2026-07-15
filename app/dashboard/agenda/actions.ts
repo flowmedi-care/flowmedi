@@ -1676,10 +1676,10 @@ export async function updateUserPreferences(preferences: {
   agenda_calendar_granularity?: "week" | "month";
   agenda_status_filter?: string[];
   agenda_form_filter?: "confirmados_sem_formulario" | "confirmados_com_formulario" | null;
-  agenda_filter_by_service_id?: string;
-  agenda_filter_by_doctor_id?: string;
-  agenda_filter_by_procedure_id?: string;
-  agenda_filter_by_room_id?: string;
+  agenda_filter_by_service_id?: string | null;
+  agenda_filter_by_doctor_id?: string | null;
+  agenda_filter_by_procedure_id?: string | null;
+  agenda_filter_by_room_id?: string | null;
   agenda_color_by?: "status" | "dimension";
   agenda_color_by_dimension_id?: string;
 }) {
@@ -1695,7 +1695,34 @@ export async function updateUserPreferences(preferences: {
     .single();
 
   const currentPrefs = (profile?.preferences as Record<string, unknown>) || {};
-  const newPrefs = { ...currentPrefs, ...preferences };
+  const newPrefs: Record<string, unknown> = { ...currentPrefs };
+
+  const clearableKeys = new Set([
+    "agenda_form_filter",
+    "agenda_filter_by_service_id",
+    "agenda_filter_by_doctor_id",
+    "agenda_filter_by_procedure_id",
+    "agenda_filter_by_room_id",
+    "agenda_status_filter",
+    "agenda_color_by_dimension_id",
+  ]);
+
+  for (const [key, value] of Object.entries(preferences)) {
+    const shouldClear =
+      value === undefined ||
+      value === null ||
+      (key === "agenda_status_filter" && Array.isArray(value) && value.length === 0) ||
+      (typeof value === "string" &&
+        value === "" &&
+        (key.startsWith("agenda_filter_by_") || key === "agenda_color_by_dimension_id"));
+
+    if (shouldClear && clearableKeys.has(key)) {
+      delete newPrefs[key];
+      continue;
+    }
+    if (value === undefined) continue;
+    newPrefs[key] = value;
+  }
 
   const { error } = await supabase
     .from("profiles")

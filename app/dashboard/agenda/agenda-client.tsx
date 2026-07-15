@@ -500,11 +500,7 @@ export function AgendaClient({
     start <= end ? [start, end] : [end, start];
   const calendarDate = rangeStart;
 
-  // Filtrar appointments pelo período e filtros apenas para visualização
-  // Mas manter todos os appointments disponíveis para drag and drop
-  const appointmentsInPeriod = useMemo(() => {
-    // Na visão de calendário, sempre filtrar pelo período visual completo
-    // (semana inteira ou mês inteiro), não apenas pelo dateInicio bruto.
+  const periodBounds = useMemo(() => {
     let effectiveStart = rangeStart;
     let effectiveEnd = rangeEnd;
     if (viewMode === "calendar") {
@@ -516,10 +512,22 @@ export function AgendaClient({
         effectiveEnd = getEndOfMonth(rangeStart);
       }
     }
+    return { ymdStart: toYMD(effectiveStart), ymdEnd: toYMD(effectiveEnd) };
+  }, [rangeStart, rangeEnd, viewMode, calendarGranularity]);
 
-    const ymdStart = toYMD(effectiveStart);
-    const ymdEnd = toYMD(effectiveEnd);
-    
+  const appointmentsInPeriodOnly = useMemo(() => {
+    const { ymdStart, ymdEnd } = periodBounds;
+    return appointments.filter((a) => {
+      const d = toYMD(new Date(a.scheduled_at));
+      return d >= ymdStart && d <= ymdEnd;
+    });
+  }, [appointments, periodBounds]);
+
+  // Filtrar appointments pelo período e filtros apenas para visualização
+  // Mas manter todos os appointments disponíveis para drag and drop
+  const appointmentsInPeriod = useMemo(() => {
+    const { ymdStart, ymdEnd } = periodBounds;
+
     const filtered = appointments.filter((a) => {
       // Filtro por período (dia local — evita mismatch UTC vs toYMD das colunas)
       const d = toYMD(new Date(a.scheduled_at));
@@ -545,8 +553,8 @@ export function AgendaClient({
         return false;
       }
 
-      // Filtro por sala
-      if (filterByRoomId && a.room_id !== filterByRoomId) {
+      // Filtro por sala (sem sala continua visível — ex.: agendamentos da IA)
+      if (filterByRoomId && a.room_id != null && a.room_id !== filterByRoomId) {
         return false;
       }
 
@@ -586,10 +594,7 @@ export function AgendaClient({
     return filtered;
   }, [
     appointments,
-    rangeStart,
-    rangeEnd,
-    viewMode,
-    calendarGranularity,
+    periodBounds,
     statusFilter,
     formFilter,
     filterByDoctorId,
@@ -597,6 +602,32 @@ export function AgendaClient({
     filterByServiceId,
     filterByRoomId,
   ]);
+
+  const hiddenByFiltersCount = Math.max(
+    0,
+    appointmentsInPeriodOnly.length - appointmentsInPeriod.length
+  );
+
+  function clearAllAgendaFilters() {
+    setStatusFilter([]);
+    setFormFilter(null);
+    setFilterByDoctorId("");
+    setFilterByProcedureId("");
+    setFilterByServiceId("");
+    setFilterByRoomId("");
+    setColorBy("status");
+    setColorByDimensionId("");
+    updateUserPreferences({
+      agenda_status_filter: [],
+      agenda_form_filter: null,
+      agenda_filter_by_doctor_id: null,
+      agenda_filter_by_procedure_id: null,
+      agenda_filter_by_service_id: null,
+      agenda_filter_by_room_id: null,
+      agenda_color_by: "status",
+      agenda_color_by_dimension_id: "",
+    }).catch(console.error);
+  }
 
   const getEventStyle = useCallback(
     (appointment: AppointmentRow) =>
@@ -903,6 +934,24 @@ export function AgendaClient({
         </div>
       </div>
 
+      {hiddenByFiltersCount > 0 && (
+        <div className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-foreground">
+            Filtros ativos ocultam {hiddenByFiltersCount} consulta
+            {hiddenByFiltersCount === 1 ? "" : "s"} neste período.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 self-start sm:self-auto"
+            onClick={clearAllAgendaFilters}
+          >
+            Limpar filtros
+          </Button>
+        </div>
+      )}
+
       {/* Toolbar único: visualização, período e filtros em blocos claros */}
       <div className="rounded-lg border border-border bg-card p-4 min-w-0">
         <div className="flex flex-col gap-4">
@@ -1041,7 +1090,7 @@ export function AgendaClient({
                   onChange={async (e) => {
                     const v = e.target.value;
                     setFilterByDoctorId(v);
-                    await updateUserPreferences({ agenda_filter_by_doctor_id: v || undefined });
+                    await updateUserPreferences({ agenda_filter_by_doctor_id: v || null });
                   }}
                   className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
@@ -1060,7 +1109,7 @@ export function AgendaClient({
                   onChange={async (e) => {
                     const v = e.target.value;
                     setFilterByProcedureId(v);
-                    await updateUserPreferences({ agenda_filter_by_procedure_id: v || undefined });
+                    await updateUserPreferences({ agenda_filter_by_procedure_id: v || null });
                   }}
                   className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
@@ -1096,7 +1145,7 @@ export function AgendaClient({
                   onChange={async (e) => {
                     const v = e.target.value;
                     setFilterByServiceId(v);
-                    await updateUserPreferences({ agenda_filter_by_service_id: v || undefined });
+                    await updateUserPreferences({ agenda_filter_by_service_id: v || null });
                   }}
                   className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
@@ -1115,7 +1164,7 @@ export function AgendaClient({
                   onChange={async (e) => {
                     const v = e.target.value;
                     setFilterByRoomId(v);
-                    await updateUserPreferences({ agenda_filter_by_room_id: v || undefined });
+                    await updateUserPreferences({ agenda_filter_by_room_id: v || null });
                   }}
                   className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
@@ -1158,24 +1207,7 @@ export function AgendaClient({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setStatusFilter([]);
-                  setFormFilter(null);
-                  setFilterByDoctorId("");
-                  setFilterByProcedureId("");
-                  setFilterByServiceId("");
-                  setFilterByRoomId("");
-                  setColorBy("status");
-                  setColorByDimensionId("");
-                  updateUserPreferences({
-                    agenda_status_filter: [],
-                    agenda_form_filter: null,
-                    agenda_filter_by_doctor_id: undefined,
-                    agenda_filter_by_procedure_id: undefined,
-                    agenda_filter_by_service_id: undefined,
-                    agenda_filter_by_room_id: undefined,
-                    agenda_color_by: "status",
-                    agenda_color_by_dimension_id: "",
-                  }).catch(console.error);
+                  clearAllAgendaFilters();
                 }}
               >
                 Limpar tudo
@@ -2252,7 +2284,7 @@ function DraggableAppointmentItem({
           borderLeftColor: accentColor,
         }}
         className={cn(
-          "flex items-center gap-1 rounded border border-border border-l-2 bg-background px-1.5 py-0.5 text-foreground hover:bg-muted/40 transition-colors min-h-[22px]"
+          "flex items-center gap-1 rounded border border-border border-l-2 bg-background px-1.5 py-0.5 text-foreground hover:bg-muted/40 transition-colors"
         )}
       >
         <button
