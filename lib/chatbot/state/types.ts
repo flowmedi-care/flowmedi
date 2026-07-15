@@ -85,10 +85,17 @@ export type ConversationFlowState = {
   mutation_done?: Record<string, boolean>;
 };
 
+/** Soft fork when starting booking with upcoming appointments already on file. */
+export type BookingForkState = {
+  status: "awaiting_choice" | "new" | "alter";
+};
+
 export type AiState = {
   patient_id?: string;
   booking?: BookingState;
   conversation_flow?: ConversationFlowState;
+  /** Soft path: new booking vs alter existing (see booking-fork). */
+  booking_fork?: BookingForkState;
   /** Idempotence for deterministic rules (skip when fingerprint unchanged). */
   last_deterministic_action?: {
     id: string;

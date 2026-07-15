@@ -20,6 +20,9 @@ describe("chatbot extractors", () => {
     assert.equal(extractPeriod("à tarde"), "tarde");
     assert.equal(extractPeriod("oi"), null);
     assert.equal(extractPeriod("manhã e tarde"), null);
+    assert.equal(extractPeriod("amanhã"), null);
+    assert.equal(extractPeriod("amanha"), null);
+    assert.equal(extractPeriod("pela manhã"), "manha");
   });
 
   it("extractIndex", () => {

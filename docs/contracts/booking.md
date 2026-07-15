@@ -29,13 +29,29 @@ Relative dates (`hoje` / `amanhã` / `dia N`) are extracted in clinic TZ; bare `
 
 Runtime guards: `confirmed && !pending_slot` or unmatched clock → re-show `slot_list` without calling the LLM / spinning `find_available_slots` (only for valid lists; date-intent turns do not use this guard).
 
-## Contract 3 — Confirm create
+## Contract 3 — Confirm create (confirmed mutation)
 
 ```
-pending_slot + confirmed → create_appointment(scheduled_at = pending_slot)
+facts.confirmed → create_slot_confirmed → args só do domain state → create_appointment → renderer
 ```
+
+LLM only acknowledges confirmation. It does **not** supply `doctor_id` / `procedure_id` / `scheduled_at`.
+
+`buildCreateAppointmentArgsFromState` / `create_slot_confirmed` use `booking.*` + `patient_id` + `pending_slot` only. Execute never prefers LLM placeholders (`doc_id`).
 
 `resolveCreateAppointmentScheduledAt` prefers valid `pending_slot` over a hallucinated LLM `scheduled_at`.
+
+## Contract 3b — Atomic terminal mutation
+
+After `create_appointment` / `reschedule_appointment` / `cancel_appointment` starts in a turn:
+
+| Resultado | Reply | Estado |
+|---|---|---|
+| OK | Renderer de sucesso | operação completa |
+| ERRO | “Não consegui concluir …” + retry | **permanece** na mesma operação (`confirming` + `pending_slot` no create) |
+| Nunca | erro → listar consultas / outra mutation | trocar operação no mesmo turno |
+
+Until the terminal tool returns success **or** error, no further mutation or operation-changing tool runs in that turn.
 
 ## Contract 4 — Known patient intake
 
@@ -70,4 +86,17 @@ extractPeriod → "manha" | "tarde" | null
 null = all periods (e.g. "manhã e tarde")
 ```
 
+Word boundary intent: `amanhã` / `amanha` must **not** match as morning (`(?<!a)manhã`). Phrases like “de manhã” / “pela manhã” do.
+
 Listing without period covers morning and afternoon (not truncated to six morning slots only).
+
+## Contract 8 — Soft fork (existing upcoming)
+
+When starting `consulta` with upcoming appointments and no doctor/procedure yet:
+
+> Vi que você já possui consultas futuras. Deseja marcar uma **nova** mesmo assim, ou pretende **alterar** alguma existente?
+
+- nova → booking normal (`booking_fork.status = "new"`)
+- alterar → remarcação (`booking_fork.status = "alter"` + workflow reschedule)
+
+No mandatory 1/2 menu.

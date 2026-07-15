@@ -197,16 +197,18 @@ export function patchAiState(
       break;
     }
     case "create_appointment": {
-      patch.booking = { status: "done" };
-      patch.offered_doctors = undefined;
-      patch.offered_procedures = undefined;
-      patch.offered_days = undefined;
-      patch.active_selection = undefined;
-      patch.pending_active_selection = undefined;
-      if (data.appointment_id) {
-        const id = String(data.appointment_id);
-        patch.focused_appointment_id = id;
-        patch.active_appointments = [id];
+      if (outcome === "success") {
+        patch.booking = { status: "done" };
+        patch.offered_doctors = undefined;
+        patch.offered_procedures = undefined;
+        patch.offered_days = undefined;
+        patch.active_selection = undefined;
+        patch.pending_active_selection = undefined;
+        if (data.appointment_id) {
+          const id = String(data.appointment_id);
+          patch.focused_appointment_id = id;
+          patch.active_appointments = [id];
+        }
       }
       break;
     }

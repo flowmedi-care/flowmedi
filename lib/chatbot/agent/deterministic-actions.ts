@@ -1,6 +1,6 @@
 import type { NormalizedFacts } from "../extractors/types";
 import type { AiState } from "../state/types";
-import { getValidOfferedSlots } from "../state/selection-context";
+import { getValidOfferedSlots, hasValidPendingSlot } from "../state/selection-context";
 
 export type DeterministicAction = {
   toolName: string;
@@ -238,6 +238,57 @@ export const rescheduleSlotConfirmedRule: DeterministicActionRule = {
 };
 
 /**
+ * Confirmed mutation (create): LLM only acknowledges Sim.
+ * Args are built exclusively from booking / patient domain state.
+ */
+export const createSlotConfirmedRule: DeterministicActionRule = {
+  id: "create_slot_confirmed",
+  workflow: "consulta",
+  matches(ctx) {
+    if (ctx.facts.confirmed !== true) return false;
+    const flow = ctx.after.conversation_flow;
+    if (flow?.current_operation?.status != null && flow.current_operation.status !== "active") {
+      return false;
+    }
+    if (flow?.active_workflow_id && flow.active_workflow_id !== "consulta") {
+      return false;
+    }
+    if (!ctx.after.patient_id?.trim()) return false;
+    if (!ctx.after.booking?.doctor_id?.trim()) return false;
+    if (!ctx.after.booking?.procedure_id?.trim()) return false;
+    if (!hasValidPendingSlot(ctx.after.booking)) return false;
+    return true;
+  },
+  execute(ctx) {
+    const patientId = ctx.after.patient_id?.trim();
+    const doctorId = ctx.after.booking?.doctor_id?.trim();
+    const procedureId = ctx.after.booking?.procedure_id?.trim();
+    const pending = ctx.after.booking?.pending_slot?.trim();
+    if (!patientId || !doctorId || !procedureId || !pending) return null;
+    return {
+      toolName: "create_appointment",
+      args: {
+        patient_id: patientId,
+        doctor_id: doctorId,
+        procedure_id: procedureId,
+        scheduled_at: pending,
+      },
+      reason: "create_slot_confirmed",
+    };
+  },
+  fingerprint(ctx) {
+    return [
+      "create_slot_confirmed",
+      ctx.after.patient_id ?? "",
+      ctx.after.booking?.doctor_id ?? "",
+      ctx.after.booking?.procedure_id ?? "",
+      ctx.after.booking?.pending_slot ?? "",
+      String(ctx.after.booking?.selection_epoch ?? ""),
+    ].join("|");
+  },
+};
+
+/**
  * day_selected also applies during remarcação when booking date filters change.
  * Dual registration: same logic, different workflow authority.
  */
@@ -253,6 +304,7 @@ const rules: DeterministicActionRule[] = [
   cancelNeedsListRule,
   rescheduleNeedsListRule,
   checkInNeedsListRule,
+  createSlotConfirmedRule,
   rescheduleSlotConfirmedRule,
   checkInConfirmedRule,
 ];
@@ -285,6 +337,8 @@ function shouldSkipIdempotent(
 ): boolean {
   const last = ctx.after.last_deterministic_action;
   if (!last || last.id !== rule.id) return false;
+  // Failed / empty confirmed mutations must be retriable (e.g. Sim after create error).
+  if (last.outcome !== "success") return false;
   const fp =
     rule.fingerprint?.(ctx) ?? defaultFingerprint(ctx, rule.id);
   return last.fingerprint === fp;

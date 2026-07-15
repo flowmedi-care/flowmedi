@@ -31,6 +31,20 @@ export function normalizeAiState(raw: LegacyRaw | null | undefined): AiState {
     active_appointments: Array.isArray(raw.active_appointments)
       ? raw.active_appointments.map(String)
       : undefined,
+    booking_fork:
+      raw.booking_fork && typeof raw.booking_fork === "object"
+        ? (() => {
+            const status = (raw.booking_fork as { status?: string }).status;
+            if (
+              status === "awaiting_choice" ||
+              status === "new" ||
+              status === "alter"
+            ) {
+              return { status };
+            }
+            return undefined;
+          })()
+        : undefined,
     consecutive_tool_failures: Number(raw.consecutive_tool_failures) || 0,
     ai_processing_started_at: raw.ai_processing_started_at
       ? String(raw.ai_processing_started_at)

@@ -26,7 +26,7 @@ import type { FaqItem } from "../tools/types";
 import { toolResultToJson } from "../tools/types";
 import { buildSystemPrompt } from "./prompt";
 import { createChatCompletion, logTokenUsage, type ChatMessage } from "./llm";
-import { canExecuteMutation, filterToolsByNames } from "@/lib/attendance-flow/engine";
+import { canExecuteMutation, filterToolsByNames, initConversationFlowState } from "@/lib/attendance-flow/engine";
 import {
   mergeClinicFlowConfig,
   syncConversationFlowTurn,
@@ -64,6 +64,18 @@ import {
   hasValidPendingSlot,
 } from "../state/selection-context";
 import { hasDateIntent } from "../extractors/date";
+import {
+  buildCreateAppointmentArgsFromState,
+  isOperationChangingTool,
+  isTerminalMutationFailure,
+  terminalMutationErrorMessage,
+} from "./terminal-mutation";
+import {
+  BOOKING_FORK_PROMPT,
+  shouldOfferBookingFork,
+  shouldResolveBookingFork,
+} from "./booking-fork";
+import { DEFAULT_WORKFLOW_REMARCACAO } from "@/lib/attendance-flow/defaults";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -358,11 +370,49 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     aiState = flowSync.aiState;
   }
 
-  const deterministicActions = resolveDeterministicActions({
-    before: aiStateBeforeFacts,
-    after: aiState,
-    facts,
-  });
+  // Soft fork: upcoming appointments + starting consulta without doctor/procedure.
+  const upcomingCount = snapshot.appointments?.length ?? 0;
+  const forkResolution = shouldResolveBookingFork(aiState, input.userText);
+  let bookingForkBlocksTurn = false;
+
+  if (forkResolution === "reprompt") {
+    aiState = mergeAiState(aiState, {
+      booking_fork: { status: "awaiting_choice" },
+    });
+    bookingForkBlocksTurn = true;
+  } else if (forkResolution === "new") {
+    aiState = mergeAiState(aiState, { booking_fork: { status: "new" } });
+  } else if (forkResolution === "alter") {
+    aiState = mergeAiState(aiState, {
+      booking_fork: { status: "alter" },
+      conversation_flow: {
+        ...initConversationFlowState(DEFAULT_WORKFLOW_REMARCACAO),
+        pending: ["appointment_selected", "reschedule_booking"],
+      },
+    });
+    flowSync = reapplyFlowSync(
+      aiState,
+      input.userText,
+      snapshot.flowConfig,
+      snapshot.customFields,
+      snapshot.patient,
+      facts
+    );
+    aiState = flowSync.aiState;
+  } else if (shouldOfferBookingFork(aiState, upcomingCount, input.userText)) {
+    aiState = mergeAiState(aiState, {
+      booking_fork: { status: "awaiting_choice" },
+    });
+    bookingForkBlocksTurn = true;
+  }
+
+  const deterministicActions = bookingForkBlocksTurn
+    ? []
+    : resolveDeterministicActions({
+        before: aiStateBeforeFacts,
+        after: aiState,
+        facts,
+      });
 
   /** Structured renderer projections own patient-visible content when present. */
   let authoritativeStructuredReply: string | null = null;
@@ -370,6 +420,11 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   /** Domain / tool.message when no structured projection. */
   let authoritativeDomainMessage: string | null = null;
   let domainReason = "domain_message";
+
+  if (bookingForkBlocksTurn) {
+    authoritativeDomainMessage = BOOKING_FORK_PROMPT;
+    domainReason = "booking_fork";
+  }
 
   const absorbToolReply = (
     result: { message?: string; renderStrategy?: string; status?: string },
@@ -389,13 +444,23 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   };
 
   const deterministicToolMessages: ChatMessage[] = [];
+  /** After a terminal mutation fails, freeze the turn (no further mutations / op changes). */
+  let terminalMutationFailed = false;
+
   for (const action of deterministicActions) {
+    if (terminalMutationFailed && isOperationChangingTool(action.toolName)) {
+      break;
+    }
     const snapshotBefore = sliceSnapshotForTrace(snapshot) as unknown as Record<
       string,
       unknown
     >;
     const started = Date.now();
-    const args = { ...action.args };
+    let args = { ...action.args };
+    if (action.toolName === "create_appointment") {
+      const fromState = buildCreateAppointmentArgsFromState(aiState);
+      if (fromState) args = fromState;
+    }
     const validation = validateToolCall(
       action.toolName,
       args,
@@ -450,6 +515,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       status: outcome.result.status,
       durationMs: Date.now() - started,
       resultMessage: outcome.result.message,
+      resolvedArgs:
+        action.toolName === "create_appointment" ? { ...args } : undefined,
     });
 
     const detExec: ExecutionTrace = {
@@ -476,6 +543,20 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     );
 
     absorbToolReply(outcome.result, `deterministic:${action.reason}`);
+
+    if (isTerminalMutationFailure(action.toolName, mutationOutcome, outcome.result)) {
+      terminalMutationFailed = true;
+      // Hard errors freeze with retry copy. Soft domain outcomes (conflict → new slots)
+      // keep their structured/domain absorb reply.
+      if (outcome.result.status === "error") {
+        authoritativeStructuredReply = null;
+        authoritativeDomainMessage = terminalMutationErrorMessage(
+          action.toolName,
+          outcome.result.message
+        );
+        domainReason = `terminal_mutation_failed:${action.toolName}`;
+      }
+    }
 
     aiState = mergeAiState(
       aiState,
@@ -525,6 +606,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       name: action.toolName,
       content: toolResultToJson(outcome.result),
     });
+
+    if (terminalMutationFailed) break;
   }
 
   const slotGuardReply = resolveSlotSelectionGuardReply(
@@ -651,6 +734,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     });
 
     for (const call of completion.tool_calls) {
+      if (terminalMutationFailed) break;
+
       const toolName = call.function.name;
       let args: Record<string, unknown> = {};
       try {
@@ -659,19 +744,26 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         args = {};
       }
 
-      if (toolName === "create_appointment" || toolName === "reschedule_appointment") {
+      if (terminalMutationFailed && isOperationChangingTool(toolName)) {
+        break;
+      }
+
+      if (toolName === "create_appointment") {
+        const fromState = buildCreateAppointmentArgsFromState(aiState);
+        if (fromState) {
+          args = fromState;
+        } else {
+          const scheduledAt = resolveCreateAppointmentScheduledAt(args, aiState, facts);
+          if (scheduledAt) args = { ...args, scheduled_at: scheduledAt };
+        }
+      } else if (toolName === "reschedule_appointment") {
         const scheduledAt = resolveCreateAppointmentScheduledAt(
-          toolName === "reschedule_appointment"
-            ? { ...args, scheduled_at: args.new_scheduled_at ?? args.scheduled_at }
-            : args,
+          { ...args, scheduled_at: args.new_scheduled_at ?? args.scheduled_at },
           aiState,
           facts
         );
         if (scheduledAt) {
-          args =
-            toolName === "reschedule_appointment"
-              ? { ...args, new_scheduled_at: scheduledAt }
-              : { ...args, scheduled_at: scheduledAt };
+          args = { ...args, new_scheduled_at: scheduledAt };
         }
       }
 
@@ -808,13 +900,29 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
 
       absorbToolReply(outcome.result, `llm_tool:${toolName}`);
 
+      if (isTerminalMutationFailure(toolName, mutationOutcome, outcome.result)) {
+        terminalMutationFailed = true;
+        if (outcome.result.status === "error") {
+          authoritativeStructuredReply = null;
+          authoritativeDomainMessage = terminalMutationErrorMessage(
+            toolName,
+            outcome.result.message
+          );
+          domainReason = `terminal_mutation_failed:${toolName}`;
+        }
+      }
+
       messages.push({
         role: "tool",
         tool_call_id: call.id,
         name: toolName,
         content: toolResultToJson(outcome.result),
       });
+
+      if (terminalMutationFailed) break;
     }
+
+    if (terminalMutationFailed) break;
 
     if (shouldEscalateOnToolFailures(aiState) && !handoff) {
       const escalation = await executeTool(

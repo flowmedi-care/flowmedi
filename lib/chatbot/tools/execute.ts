@@ -52,6 +52,7 @@ import {
 } from "./types";
 import { isChatbotTool } from "./definitions";
 import { resolveCreateAppointmentScheduledAt } from "../state/patch";
+import { buildCreateAppointmentArgsFromState } from "../agent/terminal-mutation";
 import { focusedAfterAppointmentListRefresh } from "../state/resolve-cancel-appointment-id";
 import { hydrateBookingFromAppointment } from "../state/hydrate-booking-from-appointment";
 import {
@@ -777,13 +778,27 @@ export async function executeTool(
         };
         const pendencies = computePendencies(engineInput);
 
-        const scheduledAt = resolveCreateAppointmentScheduledAt(args, ctx.aiState);
+        // Confirmed mutation: domain state is the only source of truth for create args.
+        // Never prefer LLM placeholders (e.g. "doc_id") over booking.* / patient_id.
+        const fromState = buildCreateAppointmentArgsFromState(ctx.aiState);
+        const patientId = String(
+          fromState?.patient_id ?? ctx.aiState.patient_id ?? ""
+        );
+        const doctorId = String(
+          fromState?.doctor_id ?? ctx.aiState.booking?.doctor_id ?? ""
+        );
+        const procedureId = String(
+          fromState?.procedure_id ?? ctx.aiState.booking?.procedure_id ?? ""
+        );
+        const scheduledAt =
+          (fromState?.scheduled_at as string | undefined) ??
+          resolveCreateAppointmentScheduledAt(args, ctx.aiState);
 
         const res = await createAppointmentViaAssistant(supabase, {
           clinicId,
-          patientId: String(args.patient_id ?? ctx.aiState.patient_id),
-          doctorId: String(args.doctor_id ?? ctx.aiState.booking?.doctor_id),
-          procedureId: String(args.procedure_id ?? ctx.aiState.booking?.procedure_id),
+          patientId,
+          doctorId,
+          procedureId,
           scheduledAt,
           dimensionValueIds: [],
           offeredSlots,
@@ -796,7 +811,7 @@ export async function executeTool(
             clinicId,
             conversationId,
             name,
-            args,
+            { patient_id: patientId, doctor_id: doctorId, procedure_id: procedureId, scheduled_at: scheduledAt },
             res.error,
             false
           );
@@ -806,10 +821,6 @@ export async function executeTool(
             const date =
               ctx.aiState.booking?.date ??
               (scheduledAt ? String(scheduledAt).slice(0, 10) : undefined);
-            const doctorId = String(args.doctor_id ?? ctx.aiState.booking?.doctor_id ?? "");
-            const procedureId = String(
-              args.procedure_id ?? ctx.aiState.booking?.procedure_id ?? ""
-            );
             if (date && doctorId && procedureId) {
               const slots = await findSlotsForDay(supabase, {
                 clinicId,
@@ -857,8 +868,12 @@ export async function executeTool(
           }
 
           return {
-            result: errorResult(res.error),
+            result: errorResult(
+              res.error,
+              "Podemos tentar de novo? Responda Sim para confirmar o mesmo horário."
+            ),
             mutationOutcome: outcomeFromServiceError(res.error),
+            // Fail closed: keep confirming + pending_slot (no booking wipe).
           };
         }
 
