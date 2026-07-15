@@ -554,8 +554,6 @@ export async function executeTool(
                   : "Buscar outros dias sem filtro de data ou com skip_days.",
                 {
                   mode: "times",
-                  date,
-                  period: period ?? null,
                   available_periods: availablePeriods.map(formatSlotPeriodLabel),
                   ...tele,
                 }
@@ -598,8 +596,6 @@ export async function executeTool(
           };
           const payload = {
             mode: "times" as const,
-            date,
-            period: period ?? null,
             slots: offered,
             available_periods: availablePeriods.map(formatSlotPeriodLabel),
             ...tele,

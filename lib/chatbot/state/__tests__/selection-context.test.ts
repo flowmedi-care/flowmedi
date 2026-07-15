@@ -57,7 +57,7 @@ describe("selection_context", () => {
         date: "2026-07-16",
         doctor_id: doctorId,
         procedure_id: procedureId,
-        period: null as const,
+        period: null,
       },
       selection_epoch: 2,
     };

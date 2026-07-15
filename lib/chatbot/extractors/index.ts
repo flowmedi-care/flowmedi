@@ -91,12 +91,12 @@ export function extractFacts(
     const attempt = attemptTimeChoice(text, offeredSlots, {
       periodFromFacts: period ?? null,
     });
-    if (attempt.ok && !dateIntent) {
+    if (attempt.ok) {
       facts.selected_hour = attempt.pick.selected_hour;
-      facts.selected_scheduled_at = attempt.pick.scheduled_at;
-    } else if (attempt.ok && dateIntent) {
-      // Keep hour label for UX; do not bind pending_slot to the old day's ISO.
-      facts.selected_hour = attempt.pick.selected_hour;
+      // Date-intent: keep hour label for UX; do not bind pending_slot to the old day's ISO.
+      if (!dateIntent) {
+        facts.selected_scheduled_at = attempt.pick.scheduled_at;
+      }
     } else if (attempt.reason === "no_match" && !dateIntent) {
       facts.time_unmatched = true;
       if (attempt.resolvedHour) facts.unresolved_hour = attempt.resolvedHour;
