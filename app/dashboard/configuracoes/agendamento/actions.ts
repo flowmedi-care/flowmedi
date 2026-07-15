@@ -2,7 +2,11 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { AppointmentPolicyInput } from "@/lib/attendance-flow/types";
+import type {
+  AppointmentPolicyInput,
+  CheckInPolicyInput,
+  GoalPolicyLevel,
+} from "@/lib/attendance-flow/types";
 import { mergeAppointmentPolicy } from "@/lib/attendance-flow/defaults";
 
 async function requireAdminClinic() {
@@ -43,16 +47,17 @@ export async function getAgendamentoPolicyPageData() {
   };
 }
 
+/** @deprecated prefer saveAppointmentPolicyPatch — kept for old callers. */
 export async function saveAppointmentPolicy(goals: Record<string, string>) {
+  return saveAppointmentPolicyPatch({ goals });
+}
+
+export async function saveAppointmentPolicyPatch(input: {
+  goals?: Record<string, string | GoalPolicyLevel>;
+  check_in?: CheckInPolicyInput;
+}) {
   const ctx = await requireAdminClinic();
   if (ctx.error || !ctx.supabase || !ctx.clinicId) return { error: ctx.error };
-
-  const sanitized: Record<string, "ignore" | "optional" | "required"> = {};
-  for (const [k, v] of Object.entries(goals)) {
-    if (v === "ignore" || v === "optional" || v === "required") {
-      sanitized[k] = v;
-    }
-  }
 
   const { data: clinic } = await ctx.supabase
     .from("clinics")
@@ -64,12 +69,30 @@ export async function saveAppointmentPolicy(goals: Record<string, string>) {
     clinic?.appointment_policy as AppointmentPolicyInput | null
   );
 
+  let nextGoals = merged.goals;
+  if (input.goals) {
+    const sanitized: Record<string, GoalPolicyLevel> = { ...merged.goals };
+    for (const [k, v] of Object.entries(input.goals)) {
+      if (v === "ignore" || v === "optional" || v === "required") {
+        sanitized[k] = v;
+      }
+    }
+    nextGoals = sanitized;
+  }
+
+  const nextCheckIn = mergeAppointmentPolicy({
+    check_in: { ...merged.check_in, ...input.check_in, window: {
+      ...merged.check_in.window,
+      ...input.check_in?.window,
+    } },
+  }).check_in;
+
   const { error } = await ctx.supabase
     .from("clinics")
     .update({
       appointment_policy: {
-        goals: sanitized,
-        check_in: merged.check_in,
+        goals: nextGoals,
+        check_in: input.check_in ? nextCheckIn : merged.check_in,
       },
     })
     .eq("id", ctx.clinicId);

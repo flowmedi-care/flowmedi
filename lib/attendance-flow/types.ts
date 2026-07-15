@@ -2,12 +2,17 @@
 export type GoalPolicyLevel = "ignore" | "optional" | "required";
 
 /** Presence check-in (WhatsApp / channels) — not workflow.enabled. */
+export type CheckInWhenUnavailable = "show_next_eligible" | "closed_only";
+export type CheckInAfterCheckIn = "confirm_patient_only" | "notify_reception";
+
 export type CheckInPolicy = {
   enabled: boolean;
   window: {
     opens_before_hours: number;
     closes_after_minutes: number;
   };
+  when_unavailable: CheckInWhenUnavailable;
+  after_check_in: CheckInAfterCheckIn;
 };
 
 /** Partial input for stored clinic JSON / merge. */
@@ -17,6 +22,8 @@ export type CheckInPolicyInput = {
     opens_before_hours?: number;
     closes_after_minutes?: number;
   };
+  when_unavailable?: CheckInWhenUnavailable;
+  after_check_in?: CheckInAfterCheckIn;
 };
 
 export type AppointmentPolicy = {

@@ -47,22 +47,25 @@ export type PerformCheckInResult = DomainMutationResult<PerformCheckInSuccess>;
 const CHECK_IN_SELECT =
   "id, scheduled_at, status, valor, patient_id, doctor_id, procedure_id, checked_in_at, doctor:profiles!appointments_doctor_id_fkey(full_name), procedure:procedures!procedure_id(name)";
 
+import { DEFAULT_CHECK_IN_POLICY } from "@/lib/attendance-flow/defaults";
+
 export function resolveCheckInPolicy(
   policy: AppointmentPolicy | AppointmentPolicyInput | null | undefined
 ): CheckInPolicy {
-  const defaults: CheckInPolicy = {
-    enabled: false,
-    window: { opens_before_hours: 2, closes_after_minutes: 30 },
-  };
   const stored = policy?.check_in;
   return {
-    enabled: stored?.enabled ?? defaults.enabled,
+    enabled: stored?.enabled ?? DEFAULT_CHECK_IN_POLICY.enabled,
     window: {
       opens_before_hours:
-        stored?.window?.opens_before_hours ?? defaults.window.opens_before_hours,
+        stored?.window?.opens_before_hours ??
+        DEFAULT_CHECK_IN_POLICY.window.opens_before_hours,
       closes_after_minutes:
-        stored?.window?.closes_after_minutes ?? defaults.window.closes_after_minutes,
+        stored?.window?.closes_after_minutes ??
+        DEFAULT_CHECK_IN_POLICY.window.closes_after_minutes,
     },
+    when_unavailable:
+      stored?.when_unavailable ?? DEFAULT_CHECK_IN_POLICY.when_unavailable,
+    after_check_in: stored?.after_check_in ?? DEFAULT_CHECK_IN_POLICY.after_check_in,
   };
 }
 

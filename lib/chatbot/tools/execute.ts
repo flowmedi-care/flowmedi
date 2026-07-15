@@ -17,6 +17,7 @@ import {
 import {
   listAppointmentsForCheckIn,
   performCheckIn,
+  resolveCheckInPolicy,
 } from "@/lib/virtual-assistant/services/check-in";
 import {
   linkConversationToPatient,
@@ -68,6 +69,16 @@ import {
 
 function formatCheckInNextEligible(iso: string): string {
   return formatWhenLabel(iso);
+}
+
+function checkInUnavailableMessage(
+  whenUnavailable: "show_next_eligible" | "closed_only",
+  nextEligibleAt?: string
+): string {
+  if (whenUnavailable === "closed_only" || !nextEligibleAt) {
+    return "Ainda não é possível fazer check-in. A janela ainda não está aberta.";
+  }
+  return `Ainda não é possível fazer check-in. A janela abre em ${formatCheckInNextEligible(nextEligibleAt)}.`;
 }
 
 /** Current Operation in Selecting → select; otherwise browse. */
@@ -917,7 +928,10 @@ export async function executeTool(
               );
               return {
                 result: unavailableResult(
-                  `Ainda não é possível fazer check-in. A janela abre em ${formatCheckInNextEligible(listResult.nextEligibleAt)}.`
+                  checkInUnavailableMessage(
+                    resolveCheckInPolicy(flowConfig.appointmentPolicy).when_unavailable,
+                    listResult.nextEligibleAt
+                  )
                 ),
               };
             case "NO_ELIGIBLE_APPOINTMENTS":
@@ -1085,7 +1099,10 @@ export async function executeTool(
             if (domain.reason === "TOO_EARLY" && domain.nextEligibleAt) {
               return {
                 result: unavailableResult(
-                  `Ainda não é possível fazer check-in. A janela abre em ${formatCheckInNextEligible(domain.nextEligibleAt)}.`
+                  checkInUnavailableMessage(
+                    resolveCheckInPolicy(flowConfig.appointmentPolicy).when_unavailable,
+                    domain.nextEligibleAt
+                  )
                 ),
               };
             }

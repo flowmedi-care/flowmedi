@@ -19,7 +19,9 @@ export const DEFAULT_CHECK_IN_POLICY = {
     opens_before_hours: 2,
     closes_after_minutes: 30,
   },
-} as const;
+  when_unavailable: "show_next_eligible" as const,
+  after_check_in: "confirm_patient_only" as const,
+};
 
 export const DEFAULT_APPOINTMENT_POLICY: AppointmentPolicy = {
   goals: {
@@ -389,6 +391,10 @@ export function mergeAppointmentPolicy(
           storedCheckIn?.window?.closes_after_minutes ??
           DEFAULT_CHECK_IN_POLICY.window.closes_after_minutes,
       },
+      when_unavailable:
+        storedCheckIn?.when_unavailable ?? DEFAULT_CHECK_IN_POLICY.when_unavailable,
+      after_check_in:
+        storedCheckIn?.after_check_in ?? DEFAULT_CHECK_IN_POLICY.after_check_in,
     },
   };
 }
@@ -412,7 +418,8 @@ export function mergeConversationFlows(
         id,
         goal_ids: base.goal_ids,
         phases: base.phases,
-        enabled: base.enabled,
+        // Product toggles may disable; goals/runtime stay pinned.
+        enabled: typeof wf.enabled === "boolean" ? wf.enabled : base.enabled,
         runtime: base.runtime,
       };
       continue;
