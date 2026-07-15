@@ -57,6 +57,7 @@ export const cancelNeedsListRule: DeterministicActionRule = {
   id: "cancel_needs_list",
   matches(ctx) {
     const flow = ctx.after.conversation_flow;
+    if (flow?.current_operation?.status === "completed") return false;
     if (flow?.active_workflow_id !== "cancelamento") return false;
     if (!flow.pending.includes("appointment_selected")) return false;
     if (!flow.pending.includes("cancel_booking")) return false;
@@ -79,6 +80,7 @@ export const rescheduleNeedsListRule: DeterministicActionRule = {
   id: "reschedule_needs_list",
   matches(ctx) {
     const flow = ctx.after.conversation_flow;
+    if (flow?.current_operation?.status === "completed") return false;
     if (flow?.active_workflow_id !== "reschedule") return false;
     if (!flow.pending.includes("appointment_selected")) return false;
     if (!flow.pending.includes("reschedule_booking")) return false;
@@ -94,12 +96,42 @@ export const rescheduleNeedsListRule: DeterministicActionRule = {
   },
 };
 
+/**
+ * Confirmed pending slot during remarcação → reschedule_appointment (LLM out of the loop).
+ */
+export const rescheduleSlotConfirmedRule: DeterministicActionRule = {
+  id: "reschedule_slot_confirmed",
+  matches(ctx) {
+    if (ctx.facts.confirmed !== true) return false;
+    const flow = ctx.after.conversation_flow;
+    if (flow?.current_operation?.status === "completed") return false;
+    if (flow?.active_workflow_id !== "reschedule") return false;
+    if (!flow.pending.includes("reschedule_booking")) return false;
+    if (!ctx.after.focused_appointment_id?.trim()) return false;
+    if (!ctx.after.booking?.pending_slot?.trim()) return false;
+    return true;
+  },
+  execute(ctx) {
+    const pending = ctx.after.booking?.pending_slot?.trim();
+    const appointmentId = ctx.after.focused_appointment_id?.trim();
+    if (!pending || !appointmentId) return null;
+    return {
+      toolName: "reschedule_appointment",
+      args: {
+        appointment_id: appointmentId,
+        new_scheduled_at: pending,
+      },
+      reason: "reschedule_slot_confirmed",
+    };
+  },
+};
+
 /** Declarative rules — only obligatory next tools, never conversation strategy. */
 const rules: DeterministicActionRule[] = [
   daySelectedRule,
   cancelNeedsListRule,
   rescheduleNeedsListRule,
-  // doctorSelectedRule / procedureSelectedRule / slotConfirmedRule: add when transition is inevitable
+  rescheduleSlotConfirmedRule,
 ];
 
 /**
@@ -115,4 +147,22 @@ export function resolveDeterministicActions(
     if (action) actions.push(action);
   }
   return actions;
+}
+
+/**
+ * Auto-focus the only active appointment during remarcação Selecting.
+ * Safe heuristics: N===1 && !focus && workflow===reschedule && mutation pending.
+ */
+export function autoFocusSingleRescheduleAppointment(aiState: AiState): AiState {
+  const flow = aiState.conversation_flow;
+  if (!flow) return aiState;
+  if (flow.current_operation?.status === "completed") return aiState;
+  if (flow.active_workflow_id !== "reschedule") return aiState;
+  if (!flow.pending.includes("reschedule_booking")) return aiState;
+  if (aiState.focused_appointment_id?.trim()) return aiState;
+  const active = (aiState.active_appointments ?? [])
+    .map((id) => String(id).trim())
+    .filter(Boolean);
+  if (active.length !== 1) return aiState;
+  return { ...aiState, focused_appointment_id: active[0] };
 }

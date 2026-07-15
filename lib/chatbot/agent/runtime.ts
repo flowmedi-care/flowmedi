@@ -17,6 +17,7 @@ import { mergeAiState, patchAiState, resolveCreateAppointmentScheduledAt } from 
 import { resolveReferenceFacts, applySemanticFacts } from "../state/resolve-facts";
 import { buildChatbotFallbackReply } from "../state/format-for-prompt";
 import { hydrateBookingFromAppointment } from "../state/hydrate-booking-from-appointment";
+import { sanitizeStaleBooking } from "../state/sanitize-stale-booking";
 import { normalizeAiState, serializeAiState } from "../state/migrate";
 import type { AiState } from "../state/types";
 import { CHATBOT_TOOLS } from "../tools/definitions";
@@ -40,7 +41,10 @@ import {
 import type { PolicySlice } from "../snapshot/loaders/policy-loader";
 import { outcomeFromToolResult } from "../tools/error-class";
 import { createTurnContext } from "./turn-context";
-import { resolveDeterministicActions } from "./deterministic-actions";
+import {
+  autoFocusSingleRescheduleAppointment,
+  resolveDeterministicActions,
+} from "./deterministic-actions";
 import { renderStructuredToolResult } from "../tools/render-structured";
 
 const MAX_TOOL_ROUNDS = 5;
@@ -200,7 +204,7 @@ function computeMutationGate(
 }
 
 export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
-  let aiState: AiState = normalizeAiState(input.aiState);
+  let aiState: AiState = sanitizeStaleBooking(normalizeAiState(input.aiState));
   const trace = createTurnTrace(input.conversationId, input.userText);
 
   const flowConfig =
@@ -276,6 +280,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     facts
   );
   aiState = flowSync.aiState;
+
+  aiState = autoFocusSingleRescheduleAppointment(aiState);
 
   aiState = await hydrateRescheduleFocusIfNeeded(
     input.supabase,
@@ -530,10 +536,19 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         args = {};
       }
 
-      if (toolName === "create_appointment") {
-        const scheduledAt = resolveCreateAppointmentScheduledAt(args, aiState, facts);
+      if (toolName === "create_appointment" || toolName === "reschedule_appointment") {
+        const scheduledAt = resolveCreateAppointmentScheduledAt(
+          toolName === "reschedule_appointment"
+            ? { ...args, scheduled_at: args.new_scheduled_at ?? args.scheduled_at }
+            : args,
+          aiState,
+          facts
+        );
         if (scheduledAt) {
-          args = { ...args, scheduled_at: scheduledAt };
+          args =
+            toolName === "reschedule_appointment"
+              ? { ...args, new_scheduled_at: scheduledAt }
+              : { ...args, scheduled_at: scheduledAt };
         }
       }
 

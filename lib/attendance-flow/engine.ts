@@ -115,10 +115,28 @@ export function initConversationFlowState(
     pending: [],
     collected: {},
     mutation_done: {},
+    current_operation: { status: "active" },
   };
 }
 
+export function isCurrentOperationCompleted(
+  flowState: ConversationFlowState
+): boolean {
+  return flowState.current_operation?.status === "completed";
+}
+
 export function syncFlowState(input: EngineInput): ConversationFlowState {
+  // Explicit engine status — do not infer closed from mutation_done.
+  if (isCurrentOperationCompleted(input.flowState)) {
+    return {
+      ...input.flowState,
+      active_workflow_id: input.workflow.id,
+      mode: input.workflow.mode,
+      pending: [],
+      focus_goal_id: undefined,
+    };
+  }
+
   const { satisfied, pending } = reevaluateGoals(input);
   const goals = getApplicableGoals(input);
   const focus_goal_id = resolveFocusGoal(
@@ -135,6 +153,7 @@ export function syncFlowState(input: EngineInput): ConversationFlowState {
     satisfied,
     pending,
     focus_goal_id,
+    current_operation: input.flowState.current_operation ?? { status: "active" },
   };
 }
 
@@ -392,7 +411,8 @@ export function getWorkflowFromConfig(
   return wf;
 }
 
-export function markMutationDone(
+/** Private — only completeCurrentOperation may mark mutation_done. */
+function markMutationDoneInternal(
   flowState: ConversationFlowState,
   key: string
 ): ConversationFlowState {
@@ -414,7 +434,12 @@ export function resetCurrentOperation(
   workflow: WorkflowDefinition
 ): ConversationFlowState {
   const spec = workflow.runtime?.resetSpec;
-  if (!spec) return flowState;
+  if (!spec) {
+    return {
+      ...flowState,
+      current_operation: { status: "active" },
+    };
+  }
 
   const collected = { ...(flowState.collected ?? {}) };
   for (const key of spec.collectedKeys ?? []) {
@@ -430,6 +455,10 @@ export function resetCurrentOperation(
     ...flowState,
     collected,
     mutation_done,
+    current_operation: { status: "active" },
+    pending: [],
+    satisfied: [],
+    focus_goal_id: undefined,
   };
 }
 
@@ -447,38 +476,66 @@ export function resetCurrentCancelOperation(
   delete collected["custom:cancel_reason"];
   const mutation_done = { ...(flowState.mutation_done ?? {}) };
   mutation_done.cancel_booking = false;
-  return { ...flowState, collected, mutation_done };
+  return {
+    ...flowState,
+    collected,
+    mutation_done,
+    current_operation: { status: "active" },
+  };
 }
 
 export type CompleteCurrentOperationInput = {
   workflow: WorkflowDefinition;
   flowState: ConversationFlowState;
   mutationSucceeded: boolean;
-  /** Remaining appointment ids after mutation; if omitted and success, treats as none remaining. */
+  /**
+   * When true: always close the Current Operation (ignore remainingTargets).
+   * Used by reschedule / create.
+   */
+  complete?: boolean;
+  /** Cancel (multi-target): remaining after cancel; ignored when complete: true. */
   remainingTargets?: string[];
 };
 
+function closeCurrentOperation(
+  flowState: ConversationFlowState,
+  workflow: WorkflowDefinition
+): ConversationFlowState {
+  const keys = workflow.runtime?.resetSpec?.mutationKeys ?? [];
+  let next: ConversationFlowState = {
+    ...flowState,
+    current_operation: { status: "completed" },
+    pending: [],
+    focus_goal_id: undefined,
+  };
+  for (const key of keys) {
+    next = markMutationDoneInternal(next, key);
+  }
+  return next;
+}
+
 /**
  * Sole authorized API for finishing a Current Operation after a mutation.
- * Executes must not call markMutationDone / resetCurrentOperation directly.
+ * Executes must not call markMutationDoneInternal / resetCurrentOperation directly
+ * except through this helper (reset path for multi-cancel remaining).
  */
 export function completeCurrentOperation(
   input: CompleteCurrentOperationInput
 ): ConversationFlowState {
-  const { workflow, flowState, mutationSucceeded, remainingTargets } = input;
+  const { workflow, flowState, mutationSucceeded, complete, remainingTargets } =
+    input;
   if (!mutationSucceeded) return flowState;
+
+  if (complete) {
+    return closeCurrentOperation(flowState, workflow);
+  }
 
   const remaining = remainingTargets ?? [];
   if (remaining.length > 0) {
     return resetCurrentOperation(flowState, workflow);
   }
 
-  const keys = workflow.runtime?.resetSpec?.mutationKeys ?? [];
-  let next = flowState;
-  for (const key of keys) {
-    next = markMutationDone(next, key);
-  }
-  return next;
+  return closeCurrentOperation(flowState, workflow);
 }
 
 /** Minimal state for Safety ↔ Conversation continuation check. */
@@ -518,6 +575,11 @@ export function hasPendingDeterministicStep(
   if (!aiState) return false;
 
   const flow = aiState.conversation_flow;
+  // Closed operation: no Current Operation continuation (focus alone is not enough).
+  if (flow && isCurrentOperationCompleted(flow)) {
+    return hasMigrationBookingContinuation(aiState);
+  }
+
   if (flow?.pending?.length) {
     for (const goalId of flow.pending) {
       const goal = registry.get(goalId);

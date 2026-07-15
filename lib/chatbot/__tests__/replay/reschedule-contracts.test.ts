@@ -115,10 +115,40 @@ describe("hydrateBookingFromAppointment", () => {
 });
 
 describe("completeCurrentOperation after reschedule", () => {
-  it("with remaining → reset Current Operation; workflow continues", () => {
+  it("complete: true → status completed + mutation done; sync does not reopen", () => {
+    const flow = initConversationFlowState(DEFAULT_WORKFLOW_REMARCACAO);
+    const next = completeCurrentOperation({
+      workflow: DEFAULT_WORKFLOW_REMARCACAO,
+      flowState: flow,
+      mutationSucceeded: true,
+      complete: true,
+    });
+    assert.equal(next.current_operation?.status, "completed");
+    assert.equal(next.mutation_done?.reschedule_booking, true);
+    assert.deepEqual(next.pending, []);
+
+    const synced = syncFlowState({
+      workflow: DEFAULT_WORKFLOW_REMARCACAO,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState: {
+        ...initialAiState(),
+        patient_id: PATIENT,
+        focused_appointment_id: APPT,
+        conversation_flow: next,
+      },
+      flowState: next,
+    });
+    assert.equal(synced.current_operation?.status, "completed");
+    assert.deepEqual(synced.pending, []);
+    assert.equal(synced.focus_goal_id, undefined);
+  });
+
+  it("remainingTargets without complete → reset to active", () => {
     const flow = {
       ...initConversationFlowState(DEFAULT_WORKFLOW_REMARCACAO),
       mutation_done: { reschedule_booking: true },
+      current_operation: { status: "completed" as const },
       satisfied: ["appointment_selected", "slot_selected", "reschedule_booking"],
       pending: [],
     };
@@ -129,25 +159,25 @@ describe("completeCurrentOperation after reschedule", () => {
       remainingTargets: [APPT2],
     });
     assert.equal(next.mutation_done?.reschedule_booking, false);
+    assert.equal(next.current_operation?.status, "active");
 
-    const aiState = {
-      ...initialAiState(),
-      patient_id: PATIENT,
-      active_appointments: [APPT2],
-      conversation_flow: next,
-    };
     const synced = syncFlowState({
       workflow: DEFAULT_WORKFLOW_REMARCACAO,
       policy: DEFAULT_APPOINTMENT_POLICY,
       registry: defaultGoalRegistry,
-      aiState,
+      aiState: {
+        ...initialAiState(),
+        patient_id: PATIENT,
+        active_appointments: [APPT2],
+        conversation_flow: next,
+      },
       flowState: next,
     });
     assert.ok(synced.pending.includes("appointment_selected"));
     assert.ok(synced.pending.includes("reschedule_booking"));
   });
 
-  it("without remaining → mark mutation done", () => {
+  it("without remaining → status completed + mutation done", () => {
     const flow = initConversationFlowState(DEFAULT_WORKFLOW_REMARCACAO);
     const next = completeCurrentOperation({
       workflow: DEFAULT_WORKFLOW_REMARCACAO,
@@ -156,15 +186,34 @@ describe("completeCurrentOperation after reschedule", () => {
       remainingTargets: [],
     });
     assert.equal(next.mutation_done?.reschedule_booking, true);
+    assert.equal(next.current_operation?.status, "completed");
   });
 
-  it("resetCurrentOperation reads runtime.resetSpec", () => {
+  it("resetCurrentOperation reads runtime.resetSpec and sets active", () => {
     const flow = {
       ...initConversationFlowState(DEFAULT_WORKFLOW_REMARCACAO),
       mutation_done: { reschedule_booking: true },
+      current_operation: { status: "completed" as const },
     };
     const reset = resetCurrentOperation(flow, DEFAULT_WORKFLOW_REMARCACAO);
     assert.equal(reset.mutation_done?.reschedule_booking, false);
+    assert.equal(reset.current_operation?.status, "active");
+  });
+
+  it("sync does not infer closed from mutation_done alone", () => {
+    const flow = {
+      ...initConversationFlowState(DEFAULT_WORKFLOW_REMARCACAO),
+      mutation_done: { reschedule_booking: true },
+      current_operation: { status: "active" as const },
+    };
+    const synced = syncFlowState({
+      workflow: DEFAULT_WORKFLOW_REMARCACAO,
+      policy: DEFAULT_APPOINTMENT_POLICY,
+      registry: defaultGoalRegistry,
+      aiState: { ...initialAiState(), patient_id: PATIENT, conversation_flow: flow },
+      flowState: flow,
+    });
+    assert.ok(synced.pending.includes("appointment_selected"));
   });
 });
 
@@ -201,6 +250,22 @@ describe("hasPendingDeterministicStep (reschedule / post-list)", () => {
         active_appointments: [APPT],
       }),
       true
+    );
+  });
+
+  it("completed operation ignores focus fallback", () => {
+    assert.equal(
+      hasPendingDeterministicStep({
+        focused_appointment_id: APPT,
+        active_appointments: [APPT],
+        conversation_flow: {
+          ...initConversationFlowState(DEFAULT_WORKFLOW_REMARCACAO),
+          current_operation: { status: "completed" },
+          pending: [],
+          mutation_done: { reschedule_booking: true },
+        },
+      }),
+      false
     );
   });
 });

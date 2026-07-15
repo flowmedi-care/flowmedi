@@ -180,7 +180,12 @@ export function patchAiState(
       }
       break;
     }
-    case "cancel_appointment":
+    case "cancel_appointment": {
+      if (outcome === "success" || data.cancelled) {
+        patch.focused_appointment_id = undefined;
+      }
+      break;
+    }
     case "reschedule_appointment": {
       if (data.reschedule_flow) {
         patch.booking = {
@@ -188,7 +193,14 @@ export function patchAiState(
           doctor_id: current.booking?.doctor_id,
           status: "collecting",
         };
-        patch.focused_appointment_id = String(args.appointment_id ?? current.focused_appointment_id ?? "");
+        patch.focused_appointment_id = String(
+          args.appointment_id ?? current.focused_appointment_id ?? ""
+        );
+      } else if (data.rescheduled || outcome === "success") {
+        // Success patch from execute owns focus + clearing draft; do not wipe focus.
+        if (data.appointment_id) {
+          patch.focused_appointment_id = String(data.appointment_id);
+        }
       } else {
         patch.focused_appointment_id = undefined;
       }
@@ -219,7 +231,7 @@ export function patchAiState(
 
 export function mergeAiState(current: AiState, patch: Partial<AiState>): AiState {
   const next: AiState = { ...current, ...patch };
-  if (patch.booking !== undefined) {
+  if ("booking" in patch) {
     next.booking =
       patch.booking === undefined
         ? undefined
@@ -266,7 +278,9 @@ export function resolveCreateAppointmentScheduledAt(
   const fromArgs =
     args.scheduled_at != null && String(args.scheduled_at).trim() !== ""
       ? String(args.scheduled_at).trim()
-      : "";
+      : args.new_scheduled_at != null && String(args.new_scheduled_at).trim() !== ""
+        ? String(args.new_scheduled_at).trim()
+        : "";
 
   const pendingValid = pending !== "" && isScheduledInOffered(state, pending);
   const argsValid = fromArgs !== "" && isScheduledInOffered(state, fromArgs);

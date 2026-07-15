@@ -76,6 +76,9 @@ export type ConversationFlowsConfig = {
   workflows: Record<string, WorkflowDefinition>;
 };
 
+/** Engine lifecycle for the Current Operation (not domain mutation status). */
+export type CurrentOperationStatus = "active" | "completed";
+
 export type ConversationFlowState = {
   active_workflow_id: string;
   mode: WorkflowMode;
@@ -87,6 +90,10 @@ export type ConversationFlowState = {
     goal_id: string;
     tool: string;
     args: Record<string, unknown>;
+  };
+  /** Engine status of the Current Operation. Closed ops are not re-evaluated by sync. */
+  current_operation?: {
+    status: CurrentOperationStatus;
   };
   mutation_done?: Record<string, boolean>;
 };

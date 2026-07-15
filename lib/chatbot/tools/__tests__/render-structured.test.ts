@@ -105,4 +105,18 @@ describe("renderAppointmentList projection", () => {
       null
     );
   });
+
+  it("mutation_success reschedule uses whenLabel without ISO", () => {
+    const rendered = renderStructuredToolResult({
+      renderStrategy: "mutation_success",
+      data: {
+        action: "reschedule",
+        whenLabel: "sexta-feira, 17 de julho às 10:00",
+      },
+    });
+    assert.ok(rendered);
+    assert.match(rendered!.text, /remarcada com sucesso/i);
+    assert.match(rendered!.text, /sexta-feira, 17 de julho às 10:00/);
+    assert.doesNotMatch(rendered!.text, /T\d{2}:\d{2}:\d{2}/);
+  });
 });

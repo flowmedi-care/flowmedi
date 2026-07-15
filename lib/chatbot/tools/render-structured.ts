@@ -24,10 +24,19 @@ export type RenderAppointmentListInput = {
   mode?: AppointmentListRenderMode;
 };
 
-function formatAppointmentWhen(
+export type MutationSuccessAction = "reschedule" | "cancel" | "create";
+
+export type MutationSuccessData = {
+  action: MutationSuccessAction;
+  whenLabel?: string;
+  doctorName?: string;
+  procedureName?: string;
+};
+
+export function formatWhenLabel(
   iso: string,
-  locale: string,
-  timezone: string
+  locale = "pt-BR",
+  timezone = "America/Sao_Paulo"
 ): string {
   try {
     const dt = new Date(iso);
@@ -43,6 +52,14 @@ function formatAppointmentWhen(
   } catch {
     return iso;
   }
+}
+
+function formatAppointmentWhen(
+  iso: string,
+  locale: string,
+  timezone: string
+): string {
+  return formatWhenLabel(iso, locale, timezone);
 }
 
 function formatOneLine(
@@ -125,7 +142,40 @@ export function renderAppointmentList(
   };
 }
 
-export type StructuredRenderStrategy = "appointment_list";
+export function renderMutationSuccess(
+  data: MutationSuccessData
+): RenderedMessage {
+  const when = data.whenLabel?.trim();
+  const proc = data.procedureName?.trim();
+  const doctor = data.doctorName?.trim();
+  const what =
+    proc && doctor ? `${proc} com ${doctor}` : proc || doctor || "consulta";
+
+  switch (data.action) {
+    case "reschedule":
+      return {
+        text: when
+          ? `Sua consulta foi remarcada com sucesso para ${when}.`
+          : "Sua consulta foi remarcada com sucesso.",
+      };
+    case "cancel":
+      return {
+        text: when
+          ? `Sua consulta (${what} — ${when}) foi cancelada com sucesso.`
+          : `Sua ${what} foi cancelada com sucesso.`,
+      };
+    case "create":
+      return {
+        text: when
+          ? `Sua consulta foi agendada com sucesso para ${when}.`
+          : "Sua consulta foi agendada com sucesso.",
+      };
+    default:
+      return { text: "Operação concluída com sucesso." };
+  }
+}
+
+export type StructuredRenderStrategy = "appointment_list" | "mutation_success";
 
 type ToolResultLike = {
   renderStrategy?: string;
@@ -157,6 +207,11 @@ const STRUCTURED_RENDERERS: Record<string, StrategyFn> = {
       timezone: opts.timezone,
       mode: resolveListMode(result),
     });
+  },
+  mutation_success: (result) => {
+    const data = result.data as MutationSuccessData | undefined;
+    if (!data?.action) return null;
+    return renderMutationSuccess(data);
   },
 };
 

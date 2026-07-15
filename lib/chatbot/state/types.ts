@@ -36,6 +36,9 @@ export type ConversationFlowState = {
     tool: string;
     args: Record<string, unknown>;
   };
+  current_operation?: {
+    status: "active" | "completed";
+  };
   mutation_done?: Record<string, boolean>;
 };
 

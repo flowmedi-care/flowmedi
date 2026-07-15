@@ -20,7 +20,7 @@ import {
   registerPatientViaAssistant,
   updatePatientIntakeViaAssistant,
 } from "@/lib/virtual-assistant/services/patients";
-import { computePendencies, completeCurrentOperation, markMutationDone, syncFlowState, getWorkflowFromConfig } from "@/lib/attendance-flow/engine";
+import { computePendencies, completeCurrentOperation, syncFlowState, getWorkflowFromConfig } from "@/lib/attendance-flow/engine";
 import { mergeClinicFlowConfig, buildGoalRegistry } from "@/lib/attendance-flow/flow-sync";
 import {
   DEFAULT_WORKFLOW_CANCELAMENTO,
@@ -55,10 +55,14 @@ import { resolveBookingEntityId } from "../state/resolve-entity-id";
 import { DEFAULT_CLINIC_TIMEZONE } from "@/lib/clinic-timezone";
 import type { AiState } from "../state/types";
 import type { AppointmentListRenderMode } from "./render-structured";
+import { formatWhenLabel } from "./render-structured";
 
 /** Current Operation in Selecting → select; otherwise browse. */
 function resolveAppointmentListRenderMode(aiState: AiState): AppointmentListRenderMode {
   const flow = aiState.conversation_flow;
+  if (flow?.current_operation?.status === "completed") {
+    return "browse";
+  }
   if (
     flow?.active_workflow_id === "cancelamento" &&
     flow.pending.includes("appointment_selected") &&
@@ -757,21 +761,45 @@ export async function executeTool(
           res.appointmentId,
           true
         );
-        const updatedFlow = markMutationDone(flowState, "create_booking");
-        const synced = syncFlowState({ ...engineInput, flowState: updatedFlow });
+        const closedFlow = completeCurrentOperation({
+          workflow,
+          flowState,
+          mutationSucceeded: true,
+          complete: true,
+        });
+        const synced = syncFlowState({
+          ...engineInput,
+          flowState: closedFlow,
+          aiState: {
+            ...ctx.aiState,
+            booking: undefined,
+            focused_appointment_id: res.appointmentId,
+            active_appointments: [res.appointmentId],
+            conversation_flow: closedFlow,
+          },
+        });
+        const whenLabel = scheduledAt
+          ? formatWhenLabel(String(scheduledAt))
+          : undefined;
         return {
-          result: successResult({
-            appointment_id: res.appointmentId,
-            created: true,
-            intake_pendencies: pendencies,
-          }),
+          result: successResult(
+            {
+              appointment_id: res.appointmentId,
+              created: true,
+              intake_pendencies: pendencies,
+              action: "create" as const,
+              whenLabel,
+            },
+            undefined,
+            { renderStrategy: "mutation_success" }
+          ),
           mutationOutcome: "success",
           entities: {
             appointment: res.appointmentId,
             patient: String(args.patient_id ?? ctx.aiState.patient_id),
           },
           statePatch: {
-            booking: { status: "done" },
+            booking: undefined,
             focused_appointment_id: res.appointmentId,
             active_appointments: [res.appointmentId],
             conversation_flow: synced,
@@ -953,7 +981,15 @@ export async function executeTool(
 
         if (!flowState) {
           return {
-            result: successResult({ cancelled: true, appointment_id: appointmentId }),
+            result: successResult(
+              {
+                cancelled: true,
+                appointment_id: appointmentId,
+                action: "cancel" as const,
+              },
+              undefined,
+              { renderStrategy: "mutation_success" }
+            ),
             statePatch: {
               focused_appointment_id: undefined,
               active_appointments: remaining,
@@ -967,11 +1003,16 @@ export async function executeTool(
           DEFAULT_WORKFLOW_CANCELAMENTO;
 
         return {
-          result: successResult({
-            cancelled: true,
-            appointment_id: appointmentId,
-            ...(remaining.length > 0 ? { remaining_count: remaining.length } : {}),
-          }),
+          result: successResult(
+            {
+              cancelled: true,
+              appointment_id: appointmentId,
+              action: "cancel" as const,
+              ...(remaining.length > 0 ? { remaining_count: remaining.length } : {}),
+            },
+            undefined,
+            remaining.length === 0 ? { renderStrategy: "mutation_success" } : undefined
+          ),
           statePatch: {
             focused_appointment_id: undefined,
             active_appointments: remaining,
@@ -1007,7 +1048,11 @@ export async function executeTool(
           };
         }
         const appointmentId = resolvedId.appointmentId;
-        const newScheduledAt = String(args.new_scheduled_at ?? "");
+        const newScheduledAt =
+          resolveCreateAppointmentScheduledAt(
+            { ...args, scheduled_at: args.new_scheduled_at },
+            ctx.aiState
+          ) || String(args.new_scheduled_at ?? "");
         if (!newScheduledAt) {
           return {
             result: needsInputResult(
@@ -1056,18 +1101,23 @@ export async function executeTool(
         }
 
         const flowState = ctx.aiState.conversation_flow;
-        const prevActive = (ctx.aiState.active_appointments ?? [])
-          .map((id) => String(id).trim())
-          .filter(Boolean);
-        const remaining = prevActive.filter((id) => id !== appointmentId);
+        const whenLabel = formatWhenLabel(newScheduledAt);
+        const successData = {
+          rescheduled: true,
+          appointment_id: appointmentId,
+          action: "reschedule" as const,
+          whenLabel,
+        };
 
         if (!flowState) {
           return {
-            result: successResult({ rescheduled: true, appointment_id: appointmentId }),
+            result: successResult(successData, undefined, {
+              renderStrategy: "mutation_success",
+            }),
             statePatch: {
-              focused_appointment_id: undefined,
-              active_appointments: remaining.length ? remaining : [appointmentId],
-              booking: { status: "done" },
+              focused_appointment_id: appointmentId,
+              active_appointments: [appointmentId],
+              booking: undefined,
             },
           };
         }
@@ -1077,22 +1127,22 @@ export async function executeTool(
           getWorkflowFromConfig(flowConfig.conversationFlows, flowState.active_workflow_id) ??
           DEFAULT_WORKFLOW_REMARCACAO;
 
+        const closedFlow = completeCurrentOperation({
+          workflow: rescheduleWf,
+          flowState,
+          mutationSucceeded: true,
+          complete: true,
+        });
+
         return {
-          result: successResult({
-            rescheduled: true,
-            appointment_id: appointmentId,
-            ...(remaining.length > 0 ? { remaining_count: remaining.length } : {}),
+          result: successResult(successData, undefined, {
+            renderStrategy: "mutation_success",
           }),
           statePatch: {
-            focused_appointment_id: undefined,
-            active_appointments: remaining,
-            booking: { status: remaining.length > 0 ? "collecting" : "done" },
-            conversation_flow: completeCurrentOperation({
-              workflow: rescheduleWf,
-              flowState,
-              mutationSucceeded: true,
-              remainingTargets: remaining,
-            }),
+            focused_appointment_id: appointmentId,
+            active_appointments: [appointmentId],
+            booking: undefined,
+            conversation_flow: closedFlow,
           },
         };
       }

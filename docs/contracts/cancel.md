@@ -11,7 +11,9 @@ Este documento define como o cancelamento de consultas é resolvido no assistent
 
 Um handoff por `high_outbound_rate` **não** significa que o workflow terminou — o loop guard (Safety) cortou a resposta enquanto a Conversation State pode continuar viva. Isenção: o guard consulta apenas `hasPendingDeterministicStep` no Conversation Engine (sem nomes de workflow/goal). Alias legado: `hasDeterministicPendingAction`.
 
-**`completeCurrentOperation`** é a única API autorizada para finalizar uma Current Operation após uma mutation (executes não chamam `markMutationDone` / `resetCurrentOperation` diretamente).
+**`completeCurrentOperation`** é a única API autorizada para finalizar uma Current Operation após uma mutation (executes não chamam markMutationDone — é interno ao engine; preferem `complete: true` ou `remainingTargets`).
+
+Com `remainingTargets` vazios (ou omitidos), a operação fica `current_operation.status = "completed"` e o sync não reavalia goals.
 
 `WorkflowDefinition.runtime` é **só metadata** (ex. `resetSpec`); nunca funções de comportamento.
 

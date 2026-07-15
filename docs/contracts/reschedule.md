@@ -26,24 +26,32 @@ Fallbacks auxiliares no engine (focus / `active_appointments` / booking ativo) e
 ```
 Workflow (reschedule)
   └── Current Operation
-        goals + focus + collected + booking hidratado
+        status: active | completed
+        goals + focus + collected + booking draft
         └── Mutation (reschedule_appointment) como transição
 ```
 
-Após remarcação OK com restantes:
+### Encerramento
 
-```
-Current Operation → completeCurrentOperation → reset → New Current Operation
-Workflow permanece vivo
-```
+`completeCurrentOperation({ complete: true })` é a **única** porta de saída:
 
-Se não há restantes → `completeCurrentOperation` marca mutation done; workflow completa.
+1. `current_operation.status = "completed"`
+2. `markMutationDoneInternal` (privado ao engine) nas `runtime.resetSpec.mutationKeys`
+3. `pending = []` — a operação **deixa de existir** para o sync
 
-**Regra arquitetural:** `completeCurrentOperation` é a **única** API autorizada para finalizar uma Current Operation após uma mutation. Executes não chamam `markMutationDone` nem `resetCurrentOperation` diretamente.
+`syncFlowState` consulta **`current_operation.status === "completed"`** e **não** reavalia goals. Não infere fechamento por `mutation_done`.
+
+Após remarcação OK:
+
+- `booking = undefined` (draft sumiu)
+- `focused_appointment_id` preservado
+- reply estruturada `renderStrategy: "mutation_success"`, `action: "reschedule"`
+
+Cancel multi-alvo continua com `remainingTargets` (sem `complete`) → `resetCurrentOperation` → `status = "active"`.
 
 ## `runtime` metadata
 
-`WorkflowDefinition.runtime` contém **somente metadata** (ex.: `resetSpec`, futuros `timeout` / `retryPolicy`). Nunca funções (`reset()`, `execute()`, `interpreter()`).
+`WorkflowDefinition.runtime` contém **somente metadata** (ex.: `resetSpec`). Nunca funções.
 
 ## State machine
 
@@ -51,18 +59,14 @@ Se não há restantes → `completeCurrentOperation` marca mutation done; workfl
 RescheduleIntent
       │
       ▼
-Focused válido?
+Focused válido? (auto-focus se N=1 && !focus && mutation pending)
       │
-      ├── Sim ─► hydrateBookingFromAppointment ─► Slots ─► Confirmar ─► Remarcar
+      ├── Sim ─► hydrate ─► Slots ─► Confirmar ─► rescheduleSlotConfirmedRule / tool
       │                                                              │
-      │                                                              ├── OK + restantes → reset Current Operation
-      │                                                              ├── OK sem restantes → workflow completa
+      │                                                              ├── OK → complete: true → completed
       │                                                              └── Erro domínio → invalidar focus → Listar
       │
       └── Não ─► Listar (rescheduleNeedsListRule)
-                      │
-                      ▼
-                Usuário escolhe → focus → hydrate → …
 ```
 
 ## Hydrate
@@ -70,24 +74,24 @@ Focused válido?
 Após focus válido, o estado recebe do appointment:
 
 - `focused_appointment_id`
-- `booking.doctor_id` / `booking.procedure_id`
+- `booking.doctor_id` / `booking.procedure_id` (draft)
 - `booking.status = collecting`
 
-Sem reperguntar médico/procedimento. Utilitário: `hydrateBookingFromAppointment`.
+Após sucesso o draft some (`booking = undefined`).
 
 ## Identity Resolution
 
-Mesmo contrato de [cancel.md](./cancel.md): `resolveCancelAppointmentId` (UUID / índice 1-based / focused / active allowlist).
+Mesmo contrato de [cancel.md](./cancel.md): `resolveCancelAppointmentId`.
 
 ## Critérios de sucesso
 
 1. "Quero remarcar essa" após listagem não dispara bot-loop / `high_outbound_rate`.
 2. Remarcação reutiliza `resolveCancelAppointmentId`.
 3. Doctor/procedure hidratados automaticamente do appointment focado.
-4. Execute só usa `completeCurrentOperation` após mutation.
+4. Execute só usa `completeCurrentOperation` após mutation (nunca `markMutationDone` externo).
 5. Guard sem nomes de workflows/goals.
 6. Cancelamento continua passando nos testes.
-7. Após remarcação OK: se há outra consulta na Current Operation, o workflow continua; senão, a operação conclui.
+7. Após remarcação OK: `current_operation.status = completed`, `booking = undefined`, mensagem `mutation_success`, sync não reabre seleção.
 
 ## Related
 

@@ -1,4 +1,5 @@
 import type { AiState } from "./types";
+import { formatWhenLabel } from "../tools/render-structured";
 
 const STEP_LABELS: Record<string, string> = {
   collecting: "coletando dados do agendamento",
@@ -9,10 +10,24 @@ const STEP_LABELS: Record<string, string> = {
 function isRescheduleHydrated(state: AiState): boolean {
   return (
     state.conversation_flow?.active_workflow_id === "reschedule" &&
+    state.conversation_flow?.current_operation?.status !== "completed" &&
     Boolean(state.focused_appointment_id?.trim()) &&
     Boolean(state.booking?.doctor_id) &&
     Boolean(state.booking?.procedure_id)
   );
+}
+
+function pendingSlotHumanLabel(state: AiState): string {
+  const pending = state.booking?.pending_slot?.trim();
+  if (!pending) return "";
+  const fromOffered = state.booking?.offered_slots?.find(
+    (s) => s.scheduled_at === pending
+  );
+  if (fromOffered?.display) {
+    const datePart = state.booking?.date ? ` (${state.booking.date})` : "";
+    return `${fromOffered.display}${datePart}`;
+  }
+  return formatWhenLabel(pending);
 }
 
 /** Formata ai_state para o prompt sem expor JSON cru. */
@@ -23,12 +38,18 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
     lines.push("Paciente já identificado no sistema.");
   }
 
+  if (state.conversation_flow?.current_operation?.status === "completed") {
+    lines.push(
+      "Operação atual concluída — não reinicie seleção/confirmação; responda perguntas com o contexto da consulta focada ou list_patient_appointments (modo browse)."
+    );
+  }
+
   if (isRescheduleHydrated(state)) {
     lines.push(
       "REMARCAÇÃO: médico e procedimento já definidos pela consulta focada — NÃO pergunte médico nem procedimento; NÃO chame list_doctors.",
       "Próximo objetivo: descobrir apenas o novo dia e/ou horário e usar find_available_slots → reschedule_appointment."
     );
-  } else {
+  } else if (state.conversation_flow?.current_operation?.status !== "completed") {
     if (state.booking?.procedure_id) {
       lines.push("Procedimento já selecionado — não pergunte de novo.");
     }
@@ -76,10 +97,14 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
   if (state.booking?.pending_slot) {
     const useReschedule =
       state.conversation_flow?.active_workflow_id === "reschedule";
+    const human = pendingSlotHumanLabel(state);
+    lines.push(
+      `Horário selecionado para o paciente: ${human} — NÃO mostre ISO/timezone cru na mensagem.`
+    );
     lines.push(
       useReschedule
-        ? `Horário selecionado (pending_slot): ${state.booking.pending_slot} — use EXATAMENTE este ISO em reschedule_appointment.`
-        : `Horário selecionado (pending_slot): ${state.booking.pending_slot} — use EXATAMENTE este ISO em create_appointment.`
+        ? `Para a tool reschedule_appointment use exatamente pending_slot (interno): ${state.booking.pending_slot}.`
+        : `Para a tool create_appointment use exatamente pending_slot (interno): ${state.booking.pending_slot}.`
     );
   }
   if (state.booking?.date) {
@@ -100,6 +125,9 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
 }
 
 export function buildChatbotFallbackReply(state: AiState): string {
+  if (state.conversation_flow?.current_operation?.status === "completed") {
+    return "Posso ajudar com mais alguma coisa?";
+  }
   if (isRescheduleHydrated(state)) {
     if (!state.booking?.offered_slots?.length && !state.booking?.date) {
       return "Qual dia ou horário você gostaria de remarcar essa consulta?";

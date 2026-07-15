@@ -243,6 +243,12 @@ export const DEFAULT_WORKFLOW_CONSULTA: WorkflowDefinition = {
   ],
   phases: BOOKING_PHASES,
   enabled: true,
+  runtime: {
+    resetSpec: {
+      mutationKeys: ["create_booking"],
+      collectedKeys: [],
+    },
+  },
 };
 
 export const DEFAULT_WORKFLOW_CANCELAMENTO: WorkflowDefinition = {

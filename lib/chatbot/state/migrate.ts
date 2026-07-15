@@ -49,6 +49,11 @@ export function normalizeAiState(raw: LegacyRaw | null | undefined): AiState {
           : {},
       focus_goal_id: cf.focus_goal_id ? String(cf.focus_goal_id) : undefined,
       pending_confirmation: cf.pending_confirmation,
+      current_operation:
+        cf.current_operation?.status === "completed" ||
+        cf.current_operation?.status === "active"
+          ? { status: cf.current_operation.status }
+          : { status: "active" },
       mutation_done:
         cf.mutation_done && typeof cf.mutation_done === "object"
           ? (cf.mutation_done as Record<string, boolean>)
