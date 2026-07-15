@@ -2,14 +2,19 @@ import type { OfferedOption } from "../state/types";
 import type { NormalizedFacts } from "./types";
 import { extractDate } from "./date";
 import { extractPeriod } from "./period";
-import { extractTimeChoice } from "./time";
+import { attemptTimeChoice } from "./time";
 import { extractCpfFromText } from "@/lib/virtual-assistant/normalize-cpf";
 import type { OfferedSlot } from "../state/types";
 
 export type { NormalizedFacts } from "./types";
 export { extractDate, parseDateFromText, weekdayFromText } from "./date";
 export { extractPeriod } from "./period";
-export { extractTimeChoice } from "./time";
+export {
+  extractTimeChoice,
+  attemptTimeChoice,
+  extractClockPeriodIntent,
+  resolveLocalMinutes,
+} from "./time";
 
 export function extractIndex(text: string): number | null {
   const m = text.trim().match(/^(\d{1,2})$/);
@@ -73,12 +78,17 @@ export function extractFacts(
   if (emailMatch?.[1]) facts.email = emailMatch[1].toLowerCase();
 
   // Bare integer = selectedIndex only (reference-resolution contract).
-  // Clock forms ("10:00", "10h", "às 10") still produce semantic time facts.
+  // Clock forms: 2-step extract → resolve local → match display / clinic-local.
   if (index == null) {
-    const timePick = extractTimeChoice(text, offeredSlots);
-    if (timePick) {
-      facts.selected_hour = timePick.selected_hour;
-      facts.selected_scheduled_at = timePick.scheduled_at;
+    const attempt = attemptTimeChoice(text, offeredSlots, {
+      periodFromFacts: period ?? null,
+    });
+    if (attempt.ok) {
+      facts.selected_hour = attempt.pick.selected_hour;
+      facts.selected_scheduled_at = attempt.pick.scheduled_at;
+    } else if (attempt.reason === "no_match") {
+      facts.time_unmatched = true;
+      if (attempt.resolvedHour) facts.unresolved_hour = attempt.resolvedHour;
     }
   }
 

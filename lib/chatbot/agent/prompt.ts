@@ -59,6 +59,8 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
     "- Consultas existentes: chame list_patient_appointments. Resultados estruturados (lista) são autoritativos — não invente, omita nem resuma consultas que a tool retornou.",
     "- Confirme com o paciente antes de create_appointment, cancel_appointment ou reschedule_appointment.",
     "- Nunca mostre datas/horários em ISO (ex.: 2026-07-17T13:00:00.000Z) ao paciente — use dia da semana, data e hora em português.",
+    "- SELEÇÃO: nunca afirme que o paciente escolheu médico, procedimento, data, horário ou consulta se o contexto/estado não mostrar essa seleção (ex.: pending_slot para horário). Sem pending_slot, NÃO diga \"Você escolheu…\" — peça o número ou o horário da lista estruturada.",
+    "- Listas de horários vindas da tool (slot_list) são autoritativas — use exatamente os displays numerados; não reescreva nem converta fuso.",
     "- Ordem do agendamento NOVO: médico → procedimento → horários. Nunca chame find_available_slots nem peça confirmação final sem doctor_id UUID (via list_doctors / offered_doctors).",
     "- REMARCAÇÃO: se o contexto indicar médico/procedimento já definidos pela consulta focada, NÃO reinicie agendamento — peça só o novo dia/horário e use find_available_slots → reschedule_appointment.",
     "- Se a operação já estiver concluída, não peça confirmação de consulta de novo; responda direto.",

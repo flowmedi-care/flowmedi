@@ -45,7 +45,11 @@ import {
   autoFocusSingleRescheduleAppointment,
   resolveDeterministicActions,
 } from "./deterministic-actions";
-import { renderStructuredToolResult } from "../tools/render-structured";
+import {
+  renderSlotList,
+  renderStructuredToolResult,
+} from "../tools/render-structured";
+import type { NormalizedFacts } from "../extractors/types";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -53,6 +57,34 @@ const STRUCTURED_RENDER_OPTS = {
   locale: "pt-BR",
   timezone: "America/Sao_Paulo",
 } as const;
+
+/**
+ * Guards for slot selection contract (no LLM inventing choices).
+ * Returns patient-visible text when the turn must stop without calling the LLM.
+ */
+function resolveSlotSelectionGuardReply(
+  aiState: AiState,
+  facts: NormalizedFacts & Record<string, unknown>
+): string | null {
+  const offered = aiState.booking?.offered_slots ?? [];
+  if (!offered.length) return null;
+  const pending = aiState.booking?.pending_slot?.trim();
+
+  if (facts.time_unmatched === true) {
+    return renderSlotList({
+      slots: offered,
+      notFoundHour: facts.unresolved_hour
+        ? String(facts.unresolved_hour)
+        : undefined,
+    }).text;
+  }
+
+  if (facts.confirmed === true && !pending) {
+    return renderSlotList({ slots: offered }).text;
+  }
+
+  return null;
+}
 
 export type HistoryMessage = {
   role: "user" | "assistant";
@@ -447,6 +479,20 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     });
   }
 
+  const slotGuardReply = resolveSlotSelectionGuardReply(aiState, facts);
+  if (slotGuardReply) {
+    authoritativeStructuredReply = slotGuardReply;
+  }
+
+  const skipLlm =
+    Boolean(slotGuardReply) ||
+    (Boolean(authoritativeStructuredReply) &&
+      deterministicActions.some(
+        (a) =>
+          a.toolName === "reschedule_appointment" ||
+          a.toolName === "create_appointment"
+      ));
+
   const snapshotBlock = formatSnapshotForPrompt(snapshot);
 
   trace.allowedTools =
@@ -455,6 +501,10 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       : flowSync.allowedTools;
   trace.mutationGate = computeMutationGate(flowSync);
 
+  let handoff = false;
+  let finalReply: string | null = null;
+
+  if (!skipLlm) {
   const systemContent = buildSystemPrompt({
     clinicName: input.clinicName ?? "clínica",
     assistantName: input.settings.assistant_name ?? "assistente virtual",
@@ -494,8 +544,6 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     trace,
   });
 
-  let handoff = false;
-  let finalReply: string | null = null;
   let filteredTools = filterToolsByNames(CHATBOT_TOOLS, allowedTools);
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -721,6 +769,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       }
     }
   }
+  } // end if (!skipLlm)
 
   // Structured results are authoritative when a renderer produced patient-visible content.
   if (authoritativeStructuredReply && !handoff) {

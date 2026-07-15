@@ -55,7 +55,7 @@ import { resolveBookingEntityId } from "../state/resolve-entity-id";
 import { DEFAULT_CLINIC_TIMEZONE } from "@/lib/clinic-timezone";
 import type { AiState } from "../state/types";
 import type { AppointmentListRenderMode } from "./render-structured";
-import { formatWhenLabel } from "./render-structured";
+import { whenLabelFromOffered } from "./render-structured";
 
 /** Current Operation in Selecting → select; otherwise browse. */
 function resolveAppointmentListRenderMode(aiState: AiState): AppointmentListRenderMode {
@@ -547,11 +547,15 @@ export async function executeTool(
             label: s.label,
             index: i + 1,
           }));
+          const offered = slots.map((s) => ({
+            scheduled_at: s.scheduled_at,
+            display: s.label,
+          }));
           const payload = {
             mode: "times" as const,
             date,
             period: period ?? null,
-            slots,
+            slots: offered,
             available_periods: availablePeriods.map(formatSlotPeriodLabel),
           };
           await logToolCall(
@@ -564,16 +568,15 @@ export async function executeTool(
             true
           );
           return {
-            result: successResult(payload, slotOptions),
+            result: successResult(payload, slotOptions, {
+              renderStrategy: "slot_list",
+            }),
             statePatch: {
               booking: {
                 procedure_id: procedureId,
                 doctor_id: doctorId,
                 date,
-                offered_slots: slots.map((s) => ({
-                  scheduled_at: s.scheduled_at,
-                  display: s.label,
-                })),
+                offered_slots: offered,
                 status: slots.length === 1 ? "confirming" : "collecting",
               },
             },
@@ -779,7 +782,11 @@ export async function executeTool(
           },
         });
         const whenLabel = scheduledAt
-          ? formatWhenLabel(String(scheduledAt))
+          ? whenLabelFromOffered(
+              String(scheduledAt),
+              ctx.aiState.booking?.offered_slots,
+              ctx.aiState.booking?.date
+            )
           : undefined;
         return {
           result: successResult(
@@ -1101,7 +1108,11 @@ export async function executeTool(
         }
 
         const flowState = ctx.aiState.conversation_flow;
-        const whenLabel = formatWhenLabel(newScheduledAt);
+        const whenLabel = whenLabelFromOffered(
+          newScheduledAt,
+          ctx.aiState.booking?.offered_slots,
+          ctx.aiState.booking?.date
+        );
         const successData = {
           rescheduled: true,
           appointment_id: appointmentId,

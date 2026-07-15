@@ -19,7 +19,11 @@ offered_days + selectedIndex → booking.date
 offered_slots + selectedIndex → pending_slot
 ```
 
-Bare integer → index only (see reference-resolution). Clock forms (`"10:00"`, `"10h"`) → semantic mapping via `selected_scheduled_at`. Time match uses clinic timezone / display labels, not host-local `Date` hours alone.
+Bare integer → index only (see reference-resolution). Clock forms (`"10:00"`, `"10h"`, `"4 da tarde"`) → 2-step extract (clock + period → local minutes) then match by **`display` / clinic-local**, never raw ISO comparison.
+
+**State is the only truth:** the LLM must not say “Você escolheu…” unless `pending_slot` is set. `find_available_slots` always returns structured `slot_list` (display only).
+
+Runtime guards: `confirmed && !pending_slot` or unmatched clock → re-show `slot_list` without calling the LLM / spinning `find_available_slots`.
 
 ## Contract 3 — Confirm create
 

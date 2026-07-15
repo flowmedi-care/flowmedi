@@ -175,7 +175,84 @@ export function renderMutationSuccess(
   }
 }
 
-export type StructuredRenderStrategy = "appointment_list" | "mutation_success";
+export type SlotListItem = {
+  display: string;
+  scheduled_at?: string;
+};
+
+export type RenderSlotListInput = {
+  slots: SlotListItem[];
+  /** Prefixed when the requested time was not in the list. */
+  notFoundHour?: string;
+};
+
+/**
+ * Authoritative patient-visible slot list — only display labels, never ISO.
+ */
+export function renderSlotList(input: RenderSlotListInput): RenderedMessage {
+  const slots = input.slots ?? [];
+  if (slots.length === 0) {
+    return { text: "Não há horários disponíveis no momento." };
+  }
+
+  const lines = slots.map((s, i) => `${i + 1}. ${(s.display ?? "").trim() || "—"}`);
+  const header = input.notFoundHour
+    ? `Não encontrei o horário ${input.notFoundHour}. Escolha um dos disponíveis:`
+    : "Horários disponíveis:";
+
+  return {
+    text:
+      `${header}\n` +
+      lines.join("\n") +
+      `\n\nQual horário? Responda com o número ou o horário (ex.: ${slots[0]?.display ?? "10:00"}).`,
+  };
+}
+
+/**
+ * Prefer offered display for the clock; keep weekday/date from clinic-local ISO format.
+ */
+export function whenLabelFromOffered(
+  scheduledAt: string,
+  offeredSlots?: Array<{ scheduled_at: string; display: string }>,
+  _dateLabel?: string
+): string {
+  const match = offeredSlots?.find((s) => s.scheduled_at === scheduledAt);
+  const display = match?.display?.trim();
+  const fromIso = formatWhenLabel(scheduledAt);
+  if (display) {
+    // Replace the local HH:MM in the formatted string with authoritative display.
+    const replaced = fromIso.replace(/\d{1,2}:\d{2}/, display);
+    if (replaced !== fromIso) return replaced;
+    return `${fromIso.replace(/\d{1,2}:\d{2}.*$/, "").trim()} às ${display}`.replace(
+      /\s+às\s+às\s+/i,
+      " às "
+    );
+  }
+  return fromIso;
+}
+
+/**
+ * Slot confirmation line — requires pending_slot (never invent).
+ */
+export function renderSlotConfirmation(input: {
+  pendingSlot?: string | null;
+  offeredSlots?: Array<{ scheduled_at: string; display: string }>;
+  askConfirm?: boolean;
+}): RenderedMessage | null {
+  const pending = input.pendingSlot?.trim();
+  if (!pending) return null;
+  const label = whenLabelFromOffered(pending, input.offeredSlots);
+  const base = `Você escolheu o horário ${label} para a sua consulta.`;
+  if (input.askConfirm === false) return { text: base };
+  return {
+    text: `${base}\n\nConfirma que deseja usar esse horário?`,
+  };
+}
+
+export type StructuredRenderStrategy =
+  | "appointment_list"
+  | "mutation_success"
+  | "slot_list";
 
 type ToolResultLike = {
   renderStrategy?: string;
@@ -212,6 +289,21 @@ const STRUCTURED_RENDERERS: Record<string, StrategyFn> = {
     const data = result.data as MutationSuccessData | undefined;
     if (!data?.action) return null;
     return renderMutationSuccess(data);
+  },
+  slot_list: (result) => {
+    const data = result.data as {
+      slots?: Array<{ display?: string; label?: string; scheduled_at?: string }>;
+      notFoundHour?: string;
+    } | undefined;
+    const raw = Array.isArray(data?.slots) ? data!.slots! : [];
+    const slots = raw.map((s) => ({
+      display: (s.display ?? s.label ?? "").trim(),
+      scheduled_at: s.scheduled_at,
+    }));
+    return renderSlotList({
+      slots,
+      notFoundHour: data?.notFoundHour,
+    });
   },
 };
 

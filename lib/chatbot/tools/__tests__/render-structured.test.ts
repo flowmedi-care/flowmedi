@@ -119,4 +119,34 @@ describe("renderAppointmentList projection", () => {
     assert.match(rendered!.text, /sexta-feira, 17 de julho às 10:00/);
     assert.doesNotMatch(rendered!.text, /T\d{2}:\d{2}:\d{2}/);
   });
+
+  it("slot_list uses only display labels", () => {
+    const rendered = renderStructuredToolResult({
+      renderStrategy: "slot_list",
+      data: {
+        slots: [
+          { display: "12:00", scheduled_at: "2026-07-17T15:00:00.000Z" },
+          { display: "13:00", scheduled_at: "2026-07-17T16:00:00.000Z" },
+        ],
+      },
+    });
+    assert.ok(rendered);
+    assert.match(rendered!.text, /Horários disponíveis/);
+    assert.match(rendered!.text, /^1\. 12:00/m);
+    assert.match(rendered!.text, /^2\. 13:00/m);
+    assert.doesNotMatch(rendered!.text, /T15:00|2026-07-17T/);
+  });
+
+  it("slot_list notFoundHour prefix", () => {
+    const rendered = renderStructuredToolResult({
+      renderStrategy: "slot_list",
+      data: {
+        notFoundHour: "16:00",
+        slots: [{ display: "13:00", scheduled_at: "2026-07-17T16:00:00.000Z" }],
+      },
+    });
+    assert.ok(rendered);
+    assert.match(rendered!.text, /Não encontrei o horário 16:00/);
+    assert.match(rendered!.text, /13:00/);
+  });
 });

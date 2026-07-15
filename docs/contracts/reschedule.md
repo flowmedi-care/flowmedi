@@ -69,6 +69,22 @@ Focused válido? (auto-focus se N=1 && !focus && mutation pending)
       └── Não ─► Listar (rescheduleNeedsListRule)
 ```
 
+## Seleção de horário (contrato)
+
+Princípio (vale para médico/procedimento/data/horário/consulta): a LLM **nunca** afirma que algo foi selecionado se o estado não contém essa seleção.
+
+Para horário:
+
+| Estado | Permitido |
+|--------|-----------|
+| `booking.pending_slot` definido | Confirmar / mutar |
+| `pending_slot` ausente | Proibido “Você escolheu…” |
+
+- `find_available_slots` (modo times) **sempre** emite `renderStrategy: "slot_list"` (só `display` numerado; nunca ISO).
+- Extrator em 2 etapas: clock + período → minutos locais → match por `display` / hora clinic-local (nunca comparar ISO cru).
+- Guards de runtime: `confirmed && !pending_slot` ou `time_unmatched` → reexibir `slot_list` **sem** LLM e sem novo `find_available_slots`.
+- Mensagem de sucesso / whenLabel prioritiza `offered_slots[].display`.
+
 ## Hydrate
 
 Após focus válido, o estado recebe do appointment:
