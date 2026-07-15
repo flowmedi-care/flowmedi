@@ -515,14 +515,6 @@ export function AgendaClient({
     return { ymdStart: toYMD(effectiveStart), ymdEnd: toYMD(effectiveEnd) };
   }, [rangeStart, rangeEnd, viewMode, calendarGranularity]);
 
-  const appointmentsInPeriodOnly = useMemo(() => {
-    const { ymdStart, ymdEnd } = periodBounds;
-    return appointments.filter((a) => {
-      const d = toYMD(new Date(a.scheduled_at));
-      return d >= ymdStart && d <= ymdEnd;
-    });
-  }, [appointments, periodBounds]);
-
   // Filtrar appointments pelo período e filtros apenas para visualização
   // Mas manter todos os appointments disponíveis para drag and drop
   const appointmentsInPeriod = useMemo(() => {
@@ -602,11 +594,6 @@ export function AgendaClient({
     filterByServiceId,
     filterByRoomId,
   ]);
-
-  const hiddenByFiltersCount = Math.max(
-    0,
-    appointmentsInPeriodOnly.length - appointmentsInPeriod.length
-  );
 
   function clearAllAgendaFilters() {
     setStatusFilter([]);
@@ -933,24 +920,6 @@ export function AgendaClient({
           </Button>
         </div>
       </div>
-
-      {hiddenByFiltersCount > 0 && (
-        <div className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-foreground">
-            Filtros ativos ocultam {hiddenByFiltersCount} consulta
-            {hiddenByFiltersCount === 1 ? "" : "s"} neste período.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0 self-start sm:self-auto"
-            onClick={clearAllAgendaFilters}
-          >
-            Limpar filtros
-          </Button>
-        </div>
-      )}
 
       {/* Toolbar único: visualização, período e filtros em blocos claros */}
       <div className="rounded-lg border border-border bg-card p-4 min-w-0">
@@ -2284,7 +2253,7 @@ function DraggableAppointmentItem({
           borderLeftColor: accentColor,
         }}
         className={cn(
-          "flex items-center gap-1 rounded border border-border border-l-2 bg-background px-1.5 py-0.5 text-foreground hover:bg-muted/40 transition-colors"
+          "flex items-center gap-1.5 rounded border border-border border-l-2 bg-background px-2 py-1.5 min-h-[34px] text-foreground hover:bg-muted/40 transition-colors"
         )}
       >
         <button
@@ -2293,7 +2262,7 @@ function DraggableAppointmentItem({
           className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
           type="button"
         >
-          <GripVertical className="h-3 w-3" />
+          <GripVertical className="h-3.5 w-3.5" />
         </button>
         {onEdit && (
           <button
@@ -2306,13 +2275,13 @@ function DraggableAppointmentItem({
               onEdit(appointment.id);
             }}
           >
-            <Pencil className="h-3 w-3" />
+            <Pencil className="h-3.5 w-3.5" />
           </button>
         )}
         <button
           type="button"
           onClick={() => onOpenDetails?.(appointment.id)}
-          className="flex-1 truncate text-xs font-semibold text-left hover:underline"
+          className="flex-1 truncate text-sm font-semibold text-left hover:underline"
           title={formatAppointmentTooltip(appointment)}
         >
           {appointment.patient.full_name}
@@ -2331,7 +2300,7 @@ function DraggableAppointmentItem({
           title="Abrir consulta"
           onClick={(e) => e.stopPropagation()}
         >
-          <ExternalLink className="h-3 w-3" />
+          <ExternalLink className="h-3.5 w-3.5" />
         </Link>
       </div>
     );
