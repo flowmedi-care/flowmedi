@@ -53,7 +53,13 @@ export type ConversationFlowState = {
     args: Record<string, unknown>;
   };
   current_operation?: {
-    status: "active" | "completed";
+    status: "active" | "completed" | "abandoned";
+    endReason?:
+      | "no_eligible"
+      | "too_early"
+      | "disabled"
+      | "user_interrupt"
+      | "workflow_switch";
   };
   mutation_done?: Record<string, boolean>;
 };
@@ -62,6 +68,12 @@ export type AiState = {
   patient_id?: string;
   booking?: BookingState;
   conversation_flow?: ConversationFlowState;
+  /** Idempotence for deterministic rules (skip when fingerprint unchanged). */
+  last_deterministic_action?: {
+    id: string;
+    fingerprint: string;
+    outcome: "empty" | "success" | "blocked";
+  };
   offered_doctors?: OfferedOption[];
   offered_procedures?: OfferedOption[];
   offered_days?: OfferedDay[];

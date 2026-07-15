@@ -10,10 +10,15 @@ import {
   getWorkflowFromConfig,
   initConversationFlowState,
   syncFlowState,
+  abandonCurrentOperation,
   type EngineInput,
 } from "./engine";
 import { defaultGoalRegistry, GoalRegistry } from "./goal-registry";
-import { resolveIntent, shouldSwitchWorkflow } from "./intent-resolver";
+import {
+  resolveIntent,
+  shouldSwitchWorkflow,
+  resolveConversationInterruption,
+} from "./intent-resolver";
 import type {
   AppointmentPolicy,
   AppointmentPolicyInput,
@@ -87,20 +92,34 @@ export function syncConversationFlowTurn(
   turnFacts?: Record<string, unknown>
 ): FlowSyncResult {
   const registry = buildGoalRegistry(customFields);
+  const transition = resolveConversationInterruption(userText);
   const intent = resolveIntent({ userText, aiState });
 
   let workflowId = aiState.conversation_flow?.active_workflow_id ?? "consulta";
-  if (shouldSwitchWorkflow(workflowId, intent)) {
+  const switching = shouldSwitchWorkflow(workflowId, intent);
+  if (switching) {
     workflowId = intent.workflow_id;
   }
 
   const workflow =
     getWorkflowFromConfig(config.conversationFlows, workflowId) ?? DEFAULT_WORKFLOW_CONSULTA;
 
-  let flowState = ensureConversationFlow(aiState, config, workflow.id);
+  let flowState: ConversationFlowState;
 
-  if (shouldSwitchWorkflow(aiState.conversation_flow?.active_workflow_id, intent)) {
+  if (switching) {
+    // New Current Operation; previous workflow loses authority by replacement.
     flowState = initConversationFlowState(workflow);
+  } else if (
+    transition.interrupted &&
+    !transition.nextWorkflow &&
+    aiState.conversation_flow?.current_operation?.status === "active"
+  ) {
+    flowState = abandonCurrentOperation(
+      ensureConversationFlow(aiState, config, workflow.id),
+      "user_interrupt"
+    );
+  } else {
+    flowState = ensureConversationFlow(aiState, config, workflow.id);
   }
 
   const engineInput: EngineInput = {

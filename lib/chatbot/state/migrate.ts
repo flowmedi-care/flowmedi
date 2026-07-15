@@ -49,11 +49,18 @@ export function normalizeAiState(raw: LegacyRaw | null | undefined): AiState {
           : {},
       focus_goal_id: cf.focus_goal_id ? String(cf.focus_goal_id) : undefined,
       pending_confirmation: cf.pending_confirmation,
-      current_operation:
-        cf.current_operation?.status === "completed" ||
-        cf.current_operation?.status === "active"
-          ? { status: cf.current_operation.status }
-          : { status: "active" },
+      current_operation: (() => {
+        const status = cf.current_operation?.status;
+        if (status === "completed" || status === "active" || status === "abandoned") {
+          return {
+            status,
+            ...(cf.current_operation?.endReason
+              ? { endReason: cf.current_operation.endReason }
+              : {}),
+          };
+        }
+        return { status: "active" as const };
+      })(),
       mutation_done:
         cf.mutation_done && typeof cf.mutation_done === "object"
           ? (cf.mutation_done as Record<string, boolean>)

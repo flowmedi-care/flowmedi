@@ -52,6 +52,11 @@ export type TurnTrace = {
   executionTraces: ExecutionTrace[];
   handoff: boolean;
   handoffReason?: string;
+  replyDecision?: {
+    source: string;
+    reason: string;
+    llmUsed: boolean;
+  };
 };
 
 export function sliceSnapshotForTrace(snapshot: ConversationSnapshot): SnapshotTraceSlice {
@@ -117,6 +122,7 @@ export function serializeTurnTraceForEvent(trace: TurnTrace): Record<string, unk
     llmRounds: trace.llmRounds,
     handoff: trace.handoff,
     handoffReason: trace.handoffReason,
+    replyDecision: trace.replyDecision,
     toolsCount: trace.tools.length,
     hadBlockedTools: trace.tools.some((t) => t.blocked),
     createAppointmentOutcome: lastCreate

@@ -12,7 +12,7 @@ const STEP_LABELS: Record<string, string> = {
 function isRescheduleHydrated(state: AiState): boolean {
   return (
     state.conversation_flow?.active_workflow_id === "reschedule" &&
-    state.conversation_flow?.current_operation?.status !== "completed" &&
+    state.conversation_flow?.current_operation?.status === "active" &&
     Boolean(state.focused_appointment_id?.trim()) &&
     Boolean(state.booking?.doctor_id) &&
     Boolean(state.booking?.procedure_id)
@@ -44,9 +44,14 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
     lines.push("Paciente já identificado no sistema.");
   }
 
-  if (state.conversation_flow?.current_operation?.status === "completed") {
+  const opStatus = state.conversation_flow?.current_operation?.status;
+  if (opStatus === "completed") {
     lines.push(
       "Operação atual concluída — não reinicie seleção/confirmação; responda perguntas com o contexto da consulta focada ou list_patient_appointments (modo browse)."
+    );
+  } else if (opStatus === "abandoned") {
+    lines.push(
+      "Operação atual encerrada sem conclusão — não reinicie a mesma operação; ajude com um novo pedido (agendar, remarcar, etc.)."
     );
   }
 
@@ -55,7 +60,7 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
       "REMARCAÇÃO: médico e procedimento já definidos pela consulta focada — NÃO pergunte médico nem procedimento; NÃO chame list_doctors.",
       "Próximo objetivo: descobrir apenas o novo dia e/ou horário e usar find_available_slots → reschedule_appointment."
     );
-  } else if (state.conversation_flow?.current_operation?.status !== "completed") {
+  } else if (state.conversation_flow?.current_operation?.status === "active") {
     if (state.booking?.procedure_id) {
       lines.push("Procedimento já selecionado — não pergunte de novo.");
     }
@@ -146,7 +151,8 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
 }
 
 export function buildChatbotFallbackReply(state: AiState): string {
-  if (state.conversation_flow?.current_operation?.status === "completed") {
+  const opStatus = state.conversation_flow?.current_operation?.status;
+  if (opStatus === "completed" || opStatus === "abandoned") {
     return "Posso ajudar com mais alguma coisa?";
   }
   if (isRescheduleHydrated(state)) {
@@ -155,12 +161,11 @@ export function buildChatbotFallbackReply(state: AiState): string {
     }
     return "Falta só confirmar o novo horário. Qual opção você prefere?";
   }
-  // current_operation.completed already returned above — remaining check_in is active.
   if (state.conversation_flow?.active_workflow_id === "check_in") {
     if (state.focused_appointment_id) {
       return "Posso confirmar o check-in dessa consulta?";
     }
-    return "Vou listar suas consultas elegíveis para check-in.";
+    return "Não há consultas elegíveis para check-in no momento. Quer agendar uma nova ou tentar de novo mais perto do horário?";
   }
   if (state.booking?.status === "collecting" || state.booking?.status === "confirming") {
     if (!state.booking.procedure_id && !state.offered_procedures?.length) {

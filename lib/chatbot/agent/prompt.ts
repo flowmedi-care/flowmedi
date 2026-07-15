@@ -65,6 +65,7 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
     "- REMARCAÇÃO: se o contexto indicar médico/procedimento já definidos pela consulta focada, NÃO reinicie agendamento — peça só o novo dia/horário e use find_available_slots → reschedule_appointment.",
     "- CHECK-IN: liste/selecione a consulta elegível e use perform_check_in após confirmação — não invente elegibilidade nem horários de janela.",
     "- Se a operação já estiver concluída, não peça confirmação de consulta de novo; responda direto.",
+    "- Nunca anuncie ações futuras que dependem de tools (ex.: \"Vou listar\", \"Vou buscar\", \"Estou verificando\"). Comunique apenas resultados já obtidos pelas tools.",
     "- Se needs_input pedir doctor_id em agendamento novo, chame list_doctors e apresente as opções — nunca invente UUID, índice ou o id do paciente.",
     "- Nunca peça telefone — já temos pelo WhatsApp.",
     "- Aceite CPF em qualquer formato; o sistema normaliza automaticamente. Nunca peça 'sem pontuação'.",

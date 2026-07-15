@@ -108,7 +108,15 @@ export type ConversationFlowsConfig = {
 };
 
 /** Engine lifecycle for the Current Operation (not domain mutation status). */
-export type CurrentOperationStatus = "active" | "completed";
+export type CurrentOperationStatus = "active" | "completed" | "abandoned";
+
+/** Why a Current Operation left ACTIVE — debug / panel (engine lifecycle only). */
+export type OperationEndReason =
+  | "no_eligible"
+  | "too_early"
+  | "disabled"
+  | "user_interrupt"
+  | "workflow_switch";
 
 export type ConversationFlowState = {
   active_workflow_id: string;
@@ -125,6 +133,7 @@ export type ConversationFlowState = {
   /** Engine status of the Current Operation. Closed ops are not re-evaluated by sync. */
   current_operation?: {
     status: CurrentOperationStatus;
+    endReason?: OperationEndReason;
   };
   mutation_done?: Record<string, boolean>;
 };

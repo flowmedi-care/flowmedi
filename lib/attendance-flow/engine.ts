@@ -11,6 +11,7 @@ import type {
   GoalEvaluationContext,
   GoalPolicyLevel,
   IntakePendency,
+  OperationEndReason,
   WorkflowDefinition,
   WorkflowMode,
 } from "./types";
@@ -125,15 +126,48 @@ export function isCurrentOperationCompleted(
   return flowState.current_operation?.status === "completed";
 }
 
+/** Completed or abandoned — operation no longer has execution authority. */
+export function isCurrentOperationClosed(
+  flowState: ConversationFlowState
+): boolean {
+  const status = flowState.current_operation?.status;
+  return status === "completed" || status === "abandoned";
+}
+
+export function isCurrentOperationActive(
+  flowState: ConversationFlowState
+): boolean {
+  return flowState.current_operation?.status === "active";
+}
+
+/**
+ * Lifecycle only: mark Current Operation abandoned + endReason.
+ * Sync/reconcile clears pending and conversation consequences.
+ */
+export function abandonCurrentOperation(
+  flowState: ConversationFlowState,
+  reason: OperationEndReason
+): ConversationFlowState {
+  return {
+    ...flowState,
+    current_operation: {
+      status: "abandoned",
+      endReason: reason,
+    },
+  };
+}
+
 export function syncFlowState(input: EngineInput): ConversationFlowState {
   // Explicit engine status — do not infer closed from mutation_done.
-  if (isCurrentOperationCompleted(input.flowState)) {
+  // Closed ops: sync derives cleanup (pending / focus / pending_confirmation).
+  if (isCurrentOperationClosed(input.flowState)) {
     return {
       ...input.flowState,
       active_workflow_id: input.workflow.id,
       mode: input.workflow.mode,
       pending: [],
       focus_goal_id: undefined,
+      pending_confirmation: undefined,
     };
   }
 
@@ -578,7 +612,7 @@ export function hasPendingDeterministicStep(
 
   const flow = aiState.conversation_flow;
   // Closed operation: no Current Operation continuation (focus alone is not enough).
-  if (flow && isCurrentOperationCompleted(flow)) {
+  if (flow && isCurrentOperationClosed(flow)) {
     return hasMigrationBookingContinuation(aiState);
   }
 

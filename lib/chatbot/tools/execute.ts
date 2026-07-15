@@ -25,7 +25,7 @@ import {
   registerPatientViaAssistant,
   updatePatientIntakeViaAssistant,
 } from "@/lib/virtual-assistant/services/patients";
-import { computePendencies, completeCurrentOperation, syncFlowState, getWorkflowFromConfig } from "@/lib/attendance-flow/engine";
+import { computePendencies, completeCurrentOperation, abandonCurrentOperation, syncFlowState, getWorkflowFromConfig } from "@/lib/attendance-flow/engine";
 import { mergeClinicFlowConfig, buildGoalRegistry } from "@/lib/attendance-flow/flow-sync";
 import {
   DEFAULT_WORKFLOW_CANCELAMENTO,
@@ -84,7 +84,7 @@ function checkInUnavailableMessage(
 /** Current Operation in Selecting → select; otherwise browse. */
 function resolveAppointmentListRenderMode(aiState: AiState): AppointmentListRenderMode {
   const flow = aiState.conversation_flow;
-  if (flow?.current_operation?.status === "completed") {
+  if (flow?.current_operation?.status !== "active") {
     return "browse";
   }
   if (
@@ -915,6 +915,16 @@ export async function executeTool(
                 result: unavailableResult(
                   "O check-in pelo assistente não está disponível nesta clínica."
                 ),
+                ...(ctx.aiState.conversation_flow
+                  ? {
+                      statePatch: {
+                        conversation_flow: abandonCurrentOperation(
+                          ctx.aiState.conversation_flow,
+                          "disabled"
+                        ),
+                      },
+                    }
+                  : {}),
               };
             case "TOO_EARLY":
               await logToolCall(
@@ -933,6 +943,16 @@ export async function executeTool(
                     listResult.nextEligibleAt
                   )
                 ),
+                ...(ctx.aiState.conversation_flow
+                  ? {
+                      statePatch: {
+                        conversation_flow: abandonCurrentOperation(
+                          ctx.aiState.conversation_flow,
+                          "too_early"
+                        ),
+                      },
+                    }
+                  : {}),
               };
             case "NO_ELIGIBLE_APPOINTMENTS":
               await logToolCall(
@@ -948,6 +968,16 @@ export async function executeTool(
                 result: notFoundResult(
                   "Não há consultas elegíveis para check-in no momento."
                 ),
+                ...(ctx.aiState.conversation_flow
+                  ? {
+                      statePatch: {
+                        conversation_flow: abandonCurrentOperation(
+                          ctx.aiState.conversation_flow,
+                          "no_eligible"
+                        ),
+                      },
+                    }
+                  : {}),
               };
             case "SUCCESS": {
               const appointments = listResult.appointments;

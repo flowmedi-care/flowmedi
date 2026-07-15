@@ -37,7 +37,7 @@ describe("check-in intent", () => {
       aiState: initialAiState(),
     });
     assert.equal(resolved.workflow_id, "check_in");
-    assert.equal(resolved.reason, "keyword_check_in");
+    assert.equal(resolved.reason, "explicit_check_in");
   });
 
   it("sticky mutation while check_in pending", () => {
@@ -194,6 +194,102 @@ describe("completeCurrentOperation after check-in", () => {
     });
     assert.equal(synced.current_operation?.status, "completed");
     assert.deepEqual(synced.pending, []);
+  });
+});
+
+describe("abandonCurrentOperation (PR1 sticky)", () => {
+  it("abandon is lifecycle-only; sync clears pending; rules do not re-fire", async () => {
+    const { abandonCurrentOperation } = await import("@/lib/attendance-flow/engine");
+    const flow = {
+      ...initConversationFlowState(DEFAULT_WORKFLOW_CHECK_IN),
+      pending: ["appointment_selected", "check_in"],
+      focus_goal_id: "appointment_selected",
+    };
+    const abandoned = abandonCurrentOperation(flow, "no_eligible");
+    assert.equal(abandoned.current_operation?.status, "abandoned");
+    assert.equal(abandoned.current_operation?.endReason, "no_eligible");
+    // Engine must not clear pending — sync does.
+    assert.deepEqual(abandoned.pending, ["appointment_selected", "check_in"]);
+
+    const synced = syncFlowState({
+      workflow: DEFAULT_WORKFLOW_CHECK_IN,
+      policy: policyEnabled,
+      registry: defaultGoalRegistry,
+      aiState: { ...initialAiState(), conversation_flow: abandoned },
+      flowState: abandoned,
+    });
+    assert.equal(synced.current_operation?.status, "abandoned");
+    assert.deepEqual(synced.pending, []);
+    assert.equal(synced.focus_goal_id, undefined);
+
+    const after = {
+      ...initialAiState(),
+      conversation_flow: synced,
+    };
+    const actions = resolveDeterministicActions({
+      before: after,
+      after,
+      facts: {},
+    });
+    assert.deepEqual(actions, []);
+    assert.equal(
+      checkInNeedsListRule.matches({ before: after, after, facts: {} }),
+      false
+    );
+  });
+});
+
+describe("conversation interruption (PR3)", () => {
+  it("quero agendar escapes sticky check_in", () => {
+    const aiState = {
+      ...initialAiState(),
+      conversation_flow: {
+        ...initConversationFlowState(DEFAULT_WORKFLOW_CHECK_IN),
+        pending: ["appointment_selected", "check_in"],
+      },
+    };
+    const resolved = resolveIntent({
+      userText: "Quero agendar uma consulta",
+      aiState,
+    });
+    assert.equal(resolved.workflow_id, "consulta");
+    assert.equal(resolved.reason, "explicit_booking");
+    assert.equal(resolved.confidence, "high");
+  });
+
+  it("consulta alone does not escape sticky check_in", () => {
+    const aiState = {
+      ...initialAiState(),
+      conversation_flow: {
+        ...initConversationFlowState(DEFAULT_WORKFLOW_CHECK_IN),
+        pending: ["appointment_selected", "check_in"],
+      },
+    };
+    const resolved = resolveIntent({
+      userText: "consulta",
+      aiState,
+    });
+    assert.equal(resolved.workflow_id, "check_in");
+    assert.equal(resolved.reason, "keep_active_workflow");
+  });
+});
+
+describe("authority: consulta does not run check_in_needs_list", () => {
+  it("active_workflow_id=consulta → check-in list rule offline", () => {
+    const after = {
+      ...initialAiState(),
+      conversation_flow: {
+        ...initConversationFlowState(DEFAULT_WORKFLOW_CHECK_IN),
+        active_workflow_id: "consulta",
+        pending: ["appointment_selected", "check_in"],
+      },
+    };
+    const actions = resolveDeterministicActions({
+      before: after,
+      after,
+      facts: {},
+    });
+    assert.ok(!actions.some((a) => a.reason === "check_in_needs_list"));
   });
 });
 

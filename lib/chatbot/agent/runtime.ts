@@ -45,7 +45,14 @@ import {
   autoFocusSingleRescheduleAppointment,
   autoFocusSingleCheckInAppointment,
   resolveDeterministicActions,
+  buildLastDeterministicActionPatch,
+  mapToolStatusToDeterministicOutcome,
 } from "./deterministic-actions";
+import {
+  resolveReply,
+  shouldSkipLlmForAuthoritativeReply,
+  type ReplyDecision,
+} from "./reply-policy";
 import {
   renderSlotList,
   renderStructuredToolResult,
@@ -353,8 +360,29 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     facts,
   });
 
-  /** Structured tool projections own patient-visible content when present. */
+  /** Structured renderer projections own patient-visible content when present. */
   let authoritativeStructuredReply: string | null = null;
+  let structuredReason = "structured_renderer";
+  /** Domain / tool.message when no structured projection. */
+  let authoritativeDomainMessage: string | null = null;
+  let domainReason = "domain_message";
+
+  const absorbToolReply = (
+    result: { message?: string; renderStrategy?: string; status?: string },
+    reasonPrefix: string
+  ) => {
+    const rendered = renderStructuredToolResult(result, STRUCTURED_RENDER_OPTS);
+    if (rendered?.text?.trim()) {
+      authoritativeStructuredReply = rendered.text.trim();
+      structuredReason = `${reasonPrefix}_structured`;
+      return;
+    }
+    const msg = result.message?.trim();
+    if (msg) {
+      authoritativeDomainMessage = msg;
+      domainReason = `${reasonPrefix}_${result.status ?? "message"}`;
+    }
+  };
 
   const deterministicToolMessages: ChatMessage[] = [];
   for (const action of deterministicActions) {
@@ -443,10 +471,16 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       patchAiState(action.toolName, args, outcome.result, aiState, mutationOutcome)
     );
 
-    const rendered = renderStructuredToolResult(outcome.result, STRUCTURED_RENDER_OPTS);
-    if (rendered?.text) {
-      authoritativeStructuredReply = rendered.text;
-    }
+    absorbToolReply(outcome.result, `deterministic:${action.reason}`);
+
+    aiState = mergeAiState(
+      aiState,
+      buildLastDeterministicActionPatch(
+        action.reason,
+        { before: aiStateBeforeFacts, after: aiState, facts },
+        mapToolStatusToDeterministicOutcome(outcome.result.status)
+      )
+    );
 
     snapshot = await rebuildSnapshotAfterMutation(
       input,
@@ -496,17 +530,15 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   );
   if (slotGuardReply) {
     authoritativeStructuredReply = slotGuardReply;
+    structuredReason = "slot_selection_guard";
   }
 
   const skipLlm =
     Boolean(slotGuardReply) ||
-    (Boolean(authoritativeStructuredReply) &&
-      deterministicActions.some(
-        (a) =>
-          a.toolName === "reschedule_appointment" ||
-          a.toolName === "create_appointment" ||
-          a.toolName === "perform_check_in"
-      ));
+    shouldSkipLlmForAuthoritativeReply(
+      authoritativeStructuredReply,
+      authoritativeDomainMessage
+    );
 
   const snapshotBlock = formatSnapshotForPrompt(snapshot);
 
@@ -746,10 +778,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         trace.handoffReason = String(args.reason ?? toolName);
       }
 
-      const rendered = renderStructuredToolResult(outcome.result, STRUCTURED_RENDER_OPTS);
-      if (rendered?.text) {
-        authoritativeStructuredReply = rendered.text;
-      }
+      absorbToolReply(outcome.result, `llm_tool:${toolName}`);
 
       messages.push({
         role: "tool",
@@ -786,14 +815,33 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   }
   } // end if (!skipLlm)
 
-  // Structured results are authoritative when a renderer produced patient-visible content.
-  if (authoritativeStructuredReply && !handoff) {
-    finalReply = authoritativeStructuredReply;
+  // ReplyPolicy: Structured → Domain → LLM → Fallback (authoritative tools beat LLM).
+  let replyDecision: ReplyDecision;
+  if (handoff && finalReply) {
+    replyDecision = {
+      reply: finalReply,
+      source: "domain",
+      reason: "handoff",
+      llmUsed: !skipLlm,
+    };
+  } else {
+    replyDecision = resolveReply({
+      structuredReply: authoritativeStructuredReply,
+      structuredReason,
+      domainMessage: authoritativeDomainMessage,
+      domainReason,
+      llmReply: skipLlm ? null : finalReply,
+      llmReason: "llm_completion",
+      fallbackReply: buildChatbotFallbackReply(aiState),
+      fallbackReason: "fallback_static",
+    });
   }
-
-  if (!finalReply) {
-    finalReply = buildChatbotFallbackReply(aiState);
-  }
+  trace.replyDecision = {
+    source: replyDecision.source,
+    reason: replyDecision.reason,
+    llmUsed: replyDecision.llmUsed,
+  };
+  finalReply = replyDecision.reply;
 
   const reply = applyReplyGuards(finalReply, aiState);
   logTurnTrace(trace);

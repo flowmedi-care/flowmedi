@@ -14,11 +14,30 @@ export type DeterministicActionContext = {
   facts: NormalizedFacts;
 };
 
+export type DeterministicActionOutcome = "empty" | "success" | "blocked";
+
+export type LastDeterministicAction = {
+  id: string;
+  fingerprint: string;
+  outcome: DeterministicActionOutcome;
+};
+
 export type DeterministicActionRule = {
   id: string;
+  /** Required — authority is active_workflow_id. Missing → configuration error. */
+  workflow: string;
   matches: (ctx: DeterministicActionContext) => boolean;
   execute: (ctx: DeterministicActionContext) => DeterministicAction | null;
+  /** Fingerprint of facts that gate this rule (for idempotence). */
+  fingerprint?: (ctx: DeterministicActionContext) => string;
 };
+
+export class DeterministicRuleConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DeterministicRuleConfigurationError";
+  }
+}
 
 function selectionFiltersChanged(before: AiState, after: AiState): boolean {
   const b = before.booking;
@@ -35,12 +54,28 @@ function selectionFiltersChanged(before: AiState, after: AiState): boolean {
   return false;
 }
 
+function defaultFingerprint(ctx: DeterministicActionContext, ruleId: string): string {
+  const flow = ctx.after.conversation_flow;
+  return [
+    ruleId,
+    flow?.active_workflow_id ?? "",
+    flow?.current_operation?.status ?? "",
+    (flow?.pending ?? []).join(","),
+    ctx.after.focused_appointment_id ?? "",
+    ctx.after.booking?.date ?? "",
+    ctx.after.booking?.doctor_id ?? "",
+    ctx.after.booking?.procedure_id ?? "",
+    String(ctx.facts.selectedIndex ?? ""),
+    String(ctx.facts.confirmed ?? ""),
+  ].join("|");
+}
+
 /**
  * Day/filters resolved + doctor/procedure ready + no valid slots → must fetch times.
- * Passes period only when present on this turn's facts or selection_context (not invent).
  */
 export const daySelectedRule: DeterministicActionRule = {
   id: "day_selected",
+  workflow: "consulta",
   matches(ctx) {
     const date = ctx.after.booking?.date?.trim();
     if (!date) return false;
@@ -72,15 +107,14 @@ export const daySelectedRule: DeterministicActionRule = {
   },
 };
 
-/**
- * Cancelamento Current Operation in Selecting (needs appointment choice) → list.
- * Requires cancel_booking still pending so a completed-only workflow does not re-list.
- */
 export const cancelNeedsListRule: DeterministicActionRule = {
   id: "cancel_needs_list",
+  workflow: "cancelamento",
   matches(ctx) {
     const flow = ctx.after.conversation_flow;
-    if (flow?.current_operation?.status === "completed") return false;
+    if (flow?.current_operation?.status != null && flow.current_operation.status !== "active") {
+      return false;
+    }
     if (flow?.active_workflow_id !== "cancelamento") return false;
     if (!flow.pending.includes("appointment_selected")) return false;
     if (!flow.pending.includes("cancel_booking")) return false;
@@ -96,14 +130,14 @@ export const cancelNeedsListRule: DeterministicActionRule = {
   },
 };
 
-/**
- * Remarcação Current Operation in Selecting → list (parity with cancel).
- */
 export const rescheduleNeedsListRule: DeterministicActionRule = {
   id: "reschedule_needs_list",
+  workflow: "reschedule",
   matches(ctx) {
     const flow = ctx.after.conversation_flow;
-    if (flow?.current_operation?.status === "completed") return false;
+    if (flow?.current_operation?.status != null && flow.current_operation.status !== "active") {
+      return false;
+    }
     if (flow?.active_workflow_id !== "reschedule") return false;
     if (!flow.pending.includes("appointment_selected")) return false;
     if (!flow.pending.includes("reschedule_booking")) return false;
@@ -119,14 +153,14 @@ export const rescheduleNeedsListRule: DeterministicActionRule = {
   },
 };
 
-/**
- * Check-in Current Operation in Selecting → list (parity with cancel/reschedule).
- */
 export const checkInNeedsListRule: DeterministicActionRule = {
   id: "check_in_needs_list",
+  workflow: "check_in",
   matches(ctx) {
     const flow = ctx.after.conversation_flow;
-    if (flow?.current_operation?.status === "completed") return false;
+    if (flow?.current_operation?.status != null && flow.current_operation.status !== "active") {
+      return false;
+    }
     if (flow?.active_workflow_id !== "check_in") return false;
     if (!flow.pending.includes("appointment_selected")) return false;
     if (!flow.pending.includes("check_in")) return false;
@@ -142,15 +176,15 @@ export const checkInNeedsListRule: DeterministicActionRule = {
   },
 };
 
-/**
- * Confirmed focus during check-in → perform_check_in (LLM out of the loop).
- */
 export const checkInConfirmedRule: DeterministicActionRule = {
   id: "check_in_confirmed",
+  workflow: "check_in",
   matches(ctx) {
     if (ctx.facts.confirmed !== true) return false;
     const flow = ctx.after.conversation_flow;
-    if (flow?.current_operation?.status === "completed") return false;
+    if (flow?.current_operation?.status != null && flow.current_operation.status !== "active") {
+      return false;
+    }
     if (flow?.active_workflow_id !== "check_in") return false;
     if (!flow.pending.includes("check_in")) return false;
     if (!ctx.after.focused_appointment_id?.trim()) return false;
@@ -167,20 +201,19 @@ export const checkInConfirmedRule: DeterministicActionRule = {
   },
 };
 
-/**
- * Confirmed pending slot during remarcação → reschedule_appointment (LLM out of the loop).
- */
 export const rescheduleSlotConfirmedRule: DeterministicActionRule = {
   id: "reschedule_slot_confirmed",
+  workflow: "reschedule",
   matches(ctx) {
     if (ctx.facts.confirmed !== true) return false;
     const flow = ctx.after.conversation_flow;
-    if (flow?.current_operation?.status === "completed") return false;
+    if (flow?.current_operation?.status != null && flow.current_operation.status !== "active") {
+      return false;
+    }
     if (flow?.active_workflow_id !== "reschedule") return false;
     if (!flow.pending.includes("reschedule_booking")) return false;
     if (!ctx.after.focused_appointment_id?.trim()) return false;
     if (!ctx.after.booking?.pending_slot?.trim()) return false;
-    // Stale pending after filter change must not mutate.
     if (
       ctx.after.booking.selection_context?.version != null &&
       ctx.after.booking.selection_epoch !== ctx.after.booking.selection_context.version
@@ -204,9 +237,19 @@ export const rescheduleSlotConfirmedRule: DeterministicActionRule = {
   },
 };
 
-/** Declarative rules — only obligatory next tools, never conversation strategy. */
+/**
+ * day_selected also applies during remarcação when booking date filters change.
+ * Dual registration: same logic, different workflow authority.
+ */
+export const daySelectedRescheduleRule: DeterministicActionRule = {
+  ...daySelectedRule,
+  id: "day_selected_reschedule",
+  workflow: "reschedule",
+};
+
 const rules: DeterministicActionRule[] = [
   daySelectedRule,
+  daySelectedRescheduleRule,
   cancelNeedsListRule,
   rescheduleNeedsListRule,
   checkInNeedsListRule,
@@ -214,14 +257,56 @@ const rules: DeterministicActionRule[] = [
   checkInConfirmedRule,
 ];
 
+function isOperationActive(ctx: DeterministicActionContext): boolean {
+  const status = ctx.after.conversation_flow?.current_operation?.status;
+  if (status == null) return true;
+  return status === "active";
+}
+
+function canExecuteRule(
+  rule: DeterministicActionRule,
+  activeWorkflowId: string | undefined
+): boolean {
+  if (rule.workflow === undefined) {
+    throw new DeterministicRuleConfigurationError(
+      `deterministic rule "${rule.id}" missing workflow`
+    );
+  }
+  // day_selected for consulta: also allow when no conversation_flow (legacy) or consulta
+  if (!activeWorkflowId) {
+    return rule.workflow === "consulta";
+  }
+  return rule.workflow === activeWorkflowId;
+}
+
+function shouldSkipIdempotent(
+  rule: DeterministicActionRule,
+  ctx: DeterministicActionContext
+): boolean {
+  const last = ctx.after.last_deterministic_action;
+  if (!last || last.id !== rule.id) return false;
+  const fp =
+    rule.fingerprint?.(ctx) ?? defaultFingerprint(ctx, rule.id);
+  return last.fingerprint === fp;
+}
+
 /**
  * Given state before/after fact resolution: is there a tool that must run without the LLM?
+ * Barriers: ACTIVE operation → workflow authority → idempotence.
  */
 export function resolveDeterministicActions(
   ctx: DeterministicActionContext
 ): DeterministicAction[] {
+  if (!isOperationActive(ctx)) {
+    return [];
+  }
+
+  const activeWorkflow = ctx.after.conversation_flow?.active_workflow_id;
   const actions: DeterministicAction[] = [];
+
   for (const rule of rules) {
+    if (!canExecuteRule(rule, activeWorkflow)) continue;
+    if (shouldSkipIdempotent(rule, ctx)) continue;
     if (!rule.matches(ctx)) continue;
     const action = rule.execute(ctx);
     if (action) actions.push(action);
@@ -229,14 +314,36 @@ export function resolveDeterministicActions(
   return actions;
 }
 
-/**
- * Auto-focus the only active appointment during remarcação Selecting.
- * Safe heuristics: N===1 && !focus && workflow===reschedule && mutation pending.
- */
+/** Build fingerprint + outcome patch after a deterministic tool runs. */
+export function buildLastDeterministicActionPatch(
+  ruleId: string,
+  ctx: DeterministicActionContext,
+  outcome: DeterministicActionOutcome
+): Partial<AiState> {
+  const rule = rules.find((r) => r.id === ruleId || r.id === ruleId.replace(/^det_/, ""));
+  const fingerprint =
+    rule?.fingerprint?.(ctx) ?? defaultFingerprint(ctx, ruleId);
+  return {
+    last_deterministic_action: {
+      id: rule?.id ?? ruleId,
+      fingerprint,
+      outcome,
+    },
+  };
+}
+
+export function mapToolStatusToDeterministicOutcome(
+  status: string | undefined
+): DeterministicActionOutcome {
+  if (status === "success") return "success";
+  if (status === "not_found" || status === "unavailable") return "empty";
+  return "blocked";
+}
+
 export function autoFocusSingleRescheduleAppointment(aiState: AiState): AiState {
   const flow = aiState.conversation_flow;
   if (!flow) return aiState;
-  if (flow.current_operation?.status === "completed") return aiState;
+  if (flow.current_operation?.status !== "active") return aiState;
   if (flow.active_workflow_id !== "reschedule") return aiState;
   if (!flow.pending.includes("reschedule_booking")) return aiState;
   if (aiState.focused_appointment_id?.trim()) return aiState;
@@ -247,13 +354,10 @@ export function autoFocusSingleRescheduleAppointment(aiState: AiState): AiState 
   return { ...aiState, focused_appointment_id: active[0] };
 }
 
-/**
- * Auto-focus the only active appointment during check-in Selecting.
- */
 export function autoFocusSingleCheckInAppointment(aiState: AiState): AiState {
   const flow = aiState.conversation_flow;
   if (!flow) return aiState;
-  if (flow.current_operation?.status === "completed") return aiState;
+  if (flow.current_operation?.status !== "active") return aiState;
   if (flow.active_workflow_id !== "check_in") return aiState;
   if (!flow.pending.includes("check_in")) return aiState;
   if (aiState.focused_appointment_id?.trim()) return aiState;

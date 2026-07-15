@@ -22,9 +22,13 @@ const CPF_ASK_PATTERN =
 const INSURANCE_ASK_PATTERN =
   /\b(você tem (um )?conv[eê]nio|qual (é o )?conv[eê]nio|tem conv[eê]nio)\b/i;
 
+const FUTURE_TOOL_ACTION_PATTERN =
+  /\b((vou|vamos|estou)\s+(listar|buscar|verificar|procurar|conferir|consultar|cancelar|remarcar|agendar|confirmar)|vou\s+fazer\s+check[\s-]?in)\b/i;
+
 /**
  * Minimal absurdity shield — not the conversation brain.
  * Known/Missing prompt + GapResolver drive normal flow.
+ * Future-tool-action phrases are last-defense only; ReplyPolicy should skip LLM first.
  */
 export function applyReplyGuards(reply: string, state: AiState): string {
   let out = reply.trim();
@@ -32,6 +36,12 @@ export function applyReplyGuards(reply: string, state: AiState): string {
   const collected = state.conversation_flow?.collected ?? {};
   const pendingOk = hasValidPendingSlot(state.booking);
   const offered = getValidOfferedSlots(state.booking);
+
+  if (FUTURE_TOOL_ACTION_PATTERN.test(out)) {
+    // Last defense: strip promise-style replies; prefer honest question from fallback path callers.
+    return out.replace(FUTURE_TOOL_ACTION_PATTERN, "").trim() ||
+      "Posso ajudar com agendar, valores ou outra dúvida?";
+  }
 
   if (!bookingDone && CONFIRMED_PATTERN.test(out)) {
     return "Ainda estou finalizando o agendamento. Um momento, por favor.";

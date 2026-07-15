@@ -93,7 +93,9 @@ CheckInIntent ("cheguei" / check-in)
       ▼
 listAppointmentsForCheckIn
       │
-      ├── DISABLED / TOO_EARLY / NO_ELIGIBLE_APPOINTMENTS → envelope
+      ├── DISABLED / TOO_EARLY / NO_ELIGIBLE_APPOINTMENTS
+      │         → abandon(endReason) → sync limpa pending
+      │         → ReplyPolicy (domain/structured), LLM skip
       └── SUCCESS → Selecting (autofocus se N=1)
                         │
                         ▼
@@ -102,6 +104,8 @@ listAppointmentsForCheckIn
                         ├── SUCCESS | ALREADY_DONE → complete: true → mutation_success
                         └── NOT_ALLOWED | NOT_FOUND → envelope
 ```
+
+Interrupção explícita (`quero agendar`, …) → `ConversationTransition` HIGH → troca para `consulta` (ver [ARCHITECTURE.md](../../lib/chatbot/ARCHITECTURE.md)).
 
 ## Extensões futuras (fora do v1)
 
