@@ -141,7 +141,7 @@ async function fetchJourneyData(clinicId: string) {
       ? supabase
           .from("appointments")
           .select(
-            "id, patient_id, status, scheduled_at, appointment_type_id, appointment_types(slug, name)"
+            "id, patient_id, status, scheduled_at, checked_in_at, appointment_type_id, appointment_types(slug, name)"
           )
           .eq("clinic_id", clinicId)
           .in("patient_id", patientIds)
@@ -267,7 +267,7 @@ function pickRelevantAppointment(
     scheduled_at: String(chosen.scheduled_at),
     is_return: slug === "retorno",
     encounter_status: encounter ? String(encounter.status) : null,
-    checked_in: false,
+    checked_in: Boolean(chosen.checked_in_at),
   };
 }
 

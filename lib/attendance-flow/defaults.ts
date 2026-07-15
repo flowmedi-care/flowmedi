@@ -12,6 +12,14 @@ export const BOOKING_CORE_GOAL_IDS = [
   "slot_selected",
 ] as const;
 
+export const DEFAULT_CHECK_IN_POLICY = {
+  enabled: false,
+  window: {
+    opens_before_hours: 2,
+    closes_after_minutes: 30,
+  },
+} as const;
+
 export const DEFAULT_APPOINTMENT_POLICY: AppointmentPolicy = {
   goals: {
     patient_identified: "required",
@@ -28,7 +36,9 @@ export const DEFAULT_APPOINTMENT_POLICY: AppointmentPolicy = {
     cancel_reason: "optional",
     cancel_booking: "required",
     reschedule_booking: "required",
+    check_in: "required",
   },
+  check_in: { ...DEFAULT_CHECK_IN_POLICY, window: { ...DEFAULT_CHECK_IN_POLICY.window } },
 };
 
 export const BUILTIN_GOAL_DEFINITIONS: GoalDefinition[] = [
@@ -185,6 +195,18 @@ export const BUILTIN_GOAL_DEFINITIONS: GoalDefinition[] = [
     requires_confirmation: true,
     is_mutation: true,
   },
+  {
+    id: "check_in",
+    label: "Check-in realizado",
+    phase_id: "check_in",
+    completion: { type: "mutation", key: "check_in" },
+    allowed_tools: ["perform_check_in"],
+    prompt_hint: "Confirme e registre o check-in da consulta selecionada.",
+    priority: 10,
+    default_policy: "required",
+    requires_confirmation: true,
+    is_mutation: true,
+  },
 ];
 
 const BOOKING_PHASES = [
@@ -223,6 +245,14 @@ const RESCHEDULE_PHASES = [
     id: "remarcacao",
     label: "Remarcação",
     goal_ids: ["appointment_selected", "slot_selected", "reschedule_booking"],
+  },
+];
+
+const CHECK_IN_PHASES = [
+  {
+    id: "check_in",
+    label: "Check-in",
+    goal_ids: ["appointment_selected", "check_in"],
   },
 ];
 
@@ -281,6 +311,21 @@ export const DEFAULT_WORKFLOW_REMARCACAO: WorkflowDefinition = {
   },
 };
 
+export const DEFAULT_WORKFLOW_CHECK_IN: WorkflowDefinition = {
+  id: "check_in",
+  label: "Check-in",
+  mode: "assisted",
+  goal_ids: ["appointment_selected", "check_in"],
+  phases: CHECK_IN_PHASES,
+  enabled: true,
+  runtime: {
+    resetSpec: {
+      mutationKeys: ["check_in"],
+      collectedKeys: [],
+    },
+  },
+};
+
 export const SCAFFOLD_WORKFLOWS: WorkflowDefinition[] = [
   {
     id: "exame",
@@ -319,6 +364,7 @@ export const DEFAULT_CONVERSATION_FLOWS: ConversationFlowsConfig = {
     consulta: DEFAULT_WORKFLOW_CONSULTA,
     cancelamento: DEFAULT_WORKFLOW_CANCELAMENTO,
     reschedule: DEFAULT_WORKFLOW_REMARCACAO,
+    check_in: DEFAULT_WORKFLOW_CHECK_IN,
     ...Object.fromEntries(SCAFFOLD_WORKFLOWS.map((w) => [w.id, w])),
   },
 };
@@ -326,10 +372,22 @@ export const DEFAULT_CONVERSATION_FLOWS: ConversationFlowsConfig = {
 export function mergeAppointmentPolicy(
   stored: Partial<AppointmentPolicy> | null | undefined
 ): AppointmentPolicy {
+  const storedCheckIn = stored?.check_in;
   return {
     goals: {
       ...DEFAULT_APPOINTMENT_POLICY.goals,
       ...(stored?.goals ?? {}),
+    },
+    check_in: {
+      enabled: storedCheckIn?.enabled ?? DEFAULT_CHECK_IN_POLICY.enabled,
+      window: {
+        opens_before_hours:
+          storedCheckIn?.window?.opens_before_hours ??
+          DEFAULT_CHECK_IN_POLICY.window.opens_before_hours,
+        closes_after_minutes:
+          storedCheckIn?.window?.closes_after_minutes ??
+          DEFAULT_CHECK_IN_POLICY.window.closes_after_minutes,
+      },
     },
   };
 }
@@ -342,7 +400,7 @@ export function mergeConversationFlows(
   const merged: Record<string, WorkflowDefinition> = { ...defaults };
 
   /** First-class mutation workflows: stored must not destroy structural goals/runtime. */
-  const STRUCTURAL_PIN = new Set(["cancelamento", "reschedule"]);
+  const STRUCTURAL_PIN = new Set(["cancelamento", "reschedule", "check_in"]);
 
   for (const [id, wf] of Object.entries(storedWorkflows)) {
     const base = defaults[id];

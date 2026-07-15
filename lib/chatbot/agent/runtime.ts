@@ -43,6 +43,7 @@ import { outcomeFromToolResult } from "../tools/error-class";
 import { createTurnContext } from "./turn-context";
 import {
   autoFocusSingleRescheduleAppointment,
+  autoFocusSingleCheckInAppointment,
   resolveDeterministicActions,
 } from "./deterministic-actions";
 import {
@@ -322,6 +323,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   aiState = flowSync.aiState;
 
   aiState = autoFocusSingleRescheduleAppointment(aiState);
+  aiState = autoFocusSingleCheckInAppointment(aiState);
 
   aiState = await hydrateRescheduleFocusIfNeeded(
     input.supabase,
@@ -502,7 +504,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       deterministicActions.some(
         (a) =>
           a.toolName === "reschedule_appointment" ||
-          a.toolName === "create_appointment"
+          a.toolName === "create_appointment" ||
+          a.toolName === "perform_check_in"
       ));
 
   const snapshotBlock = formatSnapshotForPrompt(snapshot);

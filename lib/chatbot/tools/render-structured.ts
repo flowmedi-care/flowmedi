@@ -24,14 +24,30 @@ export type RenderAppointmentListInput = {
   mode?: AppointmentListRenderMode;
 };
 
-export type MutationSuccessAction = "reschedule" | "cancel" | "create";
+export type MutationSuccessAction = "reschedule" | "cancel" | "create" | "check_in";
 
 export type MutationSuccessData = {
-  action: MutationSuccessAction;
+  /** Legacy field — prefer `mutation` for new callers. */
+  action?: MutationSuccessAction;
+  /** Aligns with mutationKeys / DomainMutationResult. */
+  mutation?: MutationSuccessAction;
   whenLabel?: string;
   doctorName?: string;
   procedureName?: string;
+  payload?: {
+    whenLabel?: string;
+    doctorName?: string;
+    procedureName?: string;
+  };
 };
+
+function resolveMutationKey(data: MutationSuccessData): MutationSuccessAction | undefined {
+  const raw = data.mutation ?? data.action;
+  if (raw === "reschedule" || raw === "cancel" || raw === "create" || raw === "check_in") {
+    return raw;
+  }
+  return undefined;
+}
 
 export function formatWhenLabel(
   iso: string,
@@ -145,13 +161,13 @@ export function renderAppointmentList(
 export function renderMutationSuccess(
   data: MutationSuccessData
 ): RenderedMessage {
-  const when = data.whenLabel?.trim();
-  const proc = data.procedureName?.trim();
-  const doctor = data.doctorName?.trim();
+  const when = (data.payload?.whenLabel ?? data.whenLabel)?.trim();
+  const proc = (data.payload?.procedureName ?? data.procedureName)?.trim();
+  const doctor = (data.payload?.doctorName ?? data.doctorName)?.trim();
   const what =
     proc && doctor ? `${proc} com ${doctor}` : proc || doctor || "consulta";
 
-  switch (data.action) {
+  switch (resolveMutationKey(data)) {
     case "reschedule":
       return {
         text: when
@@ -169,6 +185,10 @@ export function renderMutationSuccess(
         text: when
           ? `Sua consulta foi agendada com sucesso para ${when}.`
           : "Sua consulta foi agendada com sucesso.",
+      };
+    case "check_in":
+      return {
+        text: "Seu check-in foi realizado com sucesso. A recepção foi avisada.",
       };
     default:
       return { text: "Operação concluída com sucesso." };

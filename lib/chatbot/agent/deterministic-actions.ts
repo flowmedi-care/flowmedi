@@ -120,6 +120,54 @@ export const rescheduleNeedsListRule: DeterministicActionRule = {
 };
 
 /**
+ * Check-in Current Operation in Selecting → list (parity with cancel/reschedule).
+ */
+export const checkInNeedsListRule: DeterministicActionRule = {
+  id: "check_in_needs_list",
+  matches(ctx) {
+    const flow = ctx.after.conversation_flow;
+    if (flow?.current_operation?.status === "completed") return false;
+    if (flow?.active_workflow_id !== "check_in") return false;
+    if (!flow.pending.includes("appointment_selected")) return false;
+    if (!flow.pending.includes("check_in")) return false;
+    if (ctx.after.focused_appointment_id?.trim()) return false;
+    return true;
+  },
+  execute() {
+    return {
+      toolName: "list_patient_appointments",
+      args: {},
+      reason: "check_in_needs_list",
+    };
+  },
+};
+
+/**
+ * Confirmed focus during check-in → perform_check_in (LLM out of the loop).
+ */
+export const checkInConfirmedRule: DeterministicActionRule = {
+  id: "check_in_confirmed",
+  matches(ctx) {
+    if (ctx.facts.confirmed !== true) return false;
+    const flow = ctx.after.conversation_flow;
+    if (flow?.current_operation?.status === "completed") return false;
+    if (flow?.active_workflow_id !== "check_in") return false;
+    if (!flow.pending.includes("check_in")) return false;
+    if (!ctx.after.focused_appointment_id?.trim()) return false;
+    return true;
+  },
+  execute(ctx) {
+    const appointmentId = ctx.after.focused_appointment_id?.trim();
+    if (!appointmentId) return null;
+    return {
+      toolName: "perform_check_in",
+      args: { appointment_id: appointmentId },
+      reason: "check_in_confirmed",
+    };
+  },
+};
+
+/**
  * Confirmed pending slot during remarcação → reschedule_appointment (LLM out of the loop).
  */
 export const rescheduleSlotConfirmedRule: DeterministicActionRule = {
@@ -161,7 +209,9 @@ const rules: DeterministicActionRule[] = [
   daySelectedRule,
   cancelNeedsListRule,
   rescheduleNeedsListRule,
+  checkInNeedsListRule,
   rescheduleSlotConfirmedRule,
+  checkInConfirmedRule,
 ];
 
 /**
@@ -189,6 +239,23 @@ export function autoFocusSingleRescheduleAppointment(aiState: AiState): AiState 
   if (flow.current_operation?.status === "completed") return aiState;
   if (flow.active_workflow_id !== "reschedule") return aiState;
   if (!flow.pending.includes("reschedule_booking")) return aiState;
+  if (aiState.focused_appointment_id?.trim()) return aiState;
+  const active = (aiState.active_appointments ?? [])
+    .map((id) => String(id).trim())
+    .filter(Boolean);
+  if (active.length !== 1) return aiState;
+  return { ...aiState, focused_appointment_id: active[0] };
+}
+
+/**
+ * Auto-focus the only active appointment during check-in Selecting.
+ */
+export function autoFocusSingleCheckInAppointment(aiState: AiState): AiState {
+  const flow = aiState.conversation_flow;
+  if (!flow) return aiState;
+  if (flow.current_operation?.status === "completed") return aiState;
+  if (flow.active_workflow_id !== "check_in") return aiState;
+  if (!flow.pending.includes("check_in")) return aiState;
   if (aiState.focused_appointment_id?.trim()) return aiState;
   const active = (aiState.active_appointments ?? [])
     .map((id) => String(id).trim())

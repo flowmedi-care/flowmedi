@@ -4,13 +4,15 @@ import type { IntentResolution } from "./types";
 
 const CANCEL_PATTERNS = /\b(cancelar|cancela|desmarcar|desmarca)\b/i;
 const RESCHEDULE_PATTERNS = /\b(remarcar|remarca|mudar hor[aá]rio|trocar hor[aá]rio)\b/i;
+const CHECK_IN_PATTERNS =
+  /\b(check[\s-]?in|cheguei|j[aá]\s+cheguei|fazer\s+check[\s-]?in|realizar\s+check[\s-]?in)\b/i;
 const QUOTE_PATTERNS = /\b(pre[cç]o|valor|quanto custa|or[cç]amento)\b/i;
 const BOOKING_PATTERNS = /\b(agendar|agenda|marcar consulta|marca[r]?|consulta|hor[aá]rio dispon[ií]vel)\b/i;
 
-const MUTATION_WORKFLOWS = new Set(["reschedule", "cancelamento"]);
+const MUTATION_WORKFLOWS = new Set(["reschedule", "cancelamento", "check_in"]);
 
 /**
- * Current Operation still has a mutation goal pending (cancel/reschedule).
+ * Current Operation still has a mutation goal pending (cancel/reschedule/check-in).
  * While true, isActiveBooking must not steal the turn into consulta.
  */
 export function hasPendingMutationOperation(aiState: AiState): boolean {
@@ -18,6 +20,7 @@ export function hasPendingMutationOperation(aiState: AiState): boolean {
   if (!flow || !MUTATION_WORKFLOWS.has(flow.active_workflow_id)) return false;
   if (flow.pending.includes("reschedule_booking")) return true;
   if (flow.pending.includes("cancel_booking")) return true;
+  if (flow.pending.includes("check_in")) return true;
   return false;
 }
 
@@ -44,6 +47,14 @@ export function resolveIntent(input: IntentResolverInput): IntentResolution {
       workflow_id: "reschedule",
       confidence: "medium",
       reason: "keyword_reschedule",
+    };
+  }
+
+  if (CHECK_IN_PATTERNS.test(text)) {
+    return {
+      workflow_id: "check_in",
+      confidence: "high",
+      reason: "keyword_check_in",
     };
   }
 

@@ -54,9 +54,24 @@ export async function saveAppointmentPolicy(goals: Record<string, string>) {
     }
   }
 
+  const { data: clinic } = await ctx.supabase
+    .from("clinics")
+    .select("appointment_policy")
+    .eq("id", ctx.clinicId)
+    .single();
+
+  const merged = mergeAppointmentPolicy(
+    clinic?.appointment_policy as Partial<AppointmentPolicy> | null
+  );
+
   const { error } = await ctx.supabase
     .from("clinics")
-    .update({ appointment_policy: { goals: sanitized } })
+    .update({
+      appointment_policy: {
+        goals: sanitized,
+        check_in: merged.check_in,
+      },
+    })
     .eq("id", ctx.clinicId);
 
   if (error) return { error: error.message };

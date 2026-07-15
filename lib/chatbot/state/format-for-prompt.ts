@@ -117,10 +117,25 @@ export function formatChatbotAiStateForPrompt(state: AiState): string {
     lines.push(`Data em análise: ${state.booking.date}.`);
   }
   if (state.focused_appointment_id) {
+    const wf = state.conversation_flow?.active_workflow_id;
+    if (wf === "reschedule") {
+      lines.push("Consulta focada para remarcação (preserve médico/procedimento).");
+    } else if (wf === "check_in") {
+      lines.push(
+        "Consulta focada para check-in — confirme e chame perform_check_in (não invente elegibilidade)."
+      );
+    } else {
+      lines.push("Consulta focada para cancelamento/remarcação.");
+    }
+  }
+
+  if (
+    state.conversation_flow?.active_workflow_id === "check_in" &&
+    state.conversation_flow.pending.includes("check_in") &&
+    !state.focused_appointment_id
+  ) {
     lines.push(
-      state.conversation_flow?.active_workflow_id === "reschedule"
-        ? "Consulta focada para remarcação (preserve médico/procedimento)."
-        : "Consulta focada para cancelamento/remarcação."
+      "Check-in: liste consultas elegíveis com list_patient_appointments e peça o número."
     );
   }
 
@@ -139,6 +154,15 @@ export function buildChatbotFallbackReply(state: AiState): string {
       return "Qual dia ou horário você gostaria de remarcar essa consulta?";
     }
     return "Falta só confirmar o novo horário. Qual opção você prefere?";
+  }
+  if (
+    state.conversation_flow?.active_workflow_id === "check_in" &&
+    state.conversation_flow.current_operation?.status !== "completed"
+  ) {
+    if (state.focused_appointment_id) {
+      return "Posso confirmar o check-in dessa consulta?";
+    }
+    return "Vou listar suas consultas elegíveis para check-in.";
   }
   if (state.booking?.status === "collecting" || state.booking?.status === "confirming") {
     if (!state.booking.procedure_id && !state.offered_procedures?.length) {

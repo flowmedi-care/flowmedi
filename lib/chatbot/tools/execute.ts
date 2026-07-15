@@ -15,6 +15,10 @@ import {
   rescheduleAppointmentViaAssistant,
 } from "@/lib/virtual-assistant/services/appointments";
 import {
+  listAppointmentsForCheckIn,
+  performCheckIn,
+} from "@/lib/virtual-assistant/services/check-in";
+import {
   linkConversationToPatient,
   lookupPatientByPhone,
   registerPatientViaAssistant,
@@ -24,6 +28,7 @@ import { computePendencies, completeCurrentOperation, syncFlowState, getWorkflow
 import { mergeClinicFlowConfig, buildGoalRegistry } from "@/lib/attendance-flow/flow-sync";
 import {
   DEFAULT_WORKFLOW_CANCELAMENTO,
+  DEFAULT_WORKFLOW_CHECK_IN,
   DEFAULT_WORKFLOW_CONSULTA,
   DEFAULT_WORKFLOW_REMARCACAO,
 } from "@/lib/attendance-flow/defaults";
@@ -55,11 +60,15 @@ import { resolveBookingEntityId } from "../state/resolve-entity-id";
 import { DEFAULT_CLINIC_TIMEZONE } from "@/lib/clinic-timezone";
 import type { AiState } from "../state/types";
 import type { AppointmentListRenderMode } from "./render-structured";
-import { whenLabelFromOffered } from "./render-structured";
+import { formatWhenLabel, whenLabelFromOffered } from "./render-structured";
 import {
   stampOfferedSlots,
   withSelectionFilters,
 } from "../state/selection-context";
+
+function formatCheckInNextEligible(iso: string): string {
+  return formatWhenLabel(iso);
+}
 
 /** Current Operation in Selecting → select; otherwise browse. */
 function resolveAppointmentListRenderMode(aiState: AiState): AppointmentListRenderMode {
@@ -79,6 +88,14 @@ function resolveAppointmentListRenderMode(aiState: AiState): AppointmentListRend
     flow?.active_workflow_id === "reschedule" &&
     flow.pending.includes("appointment_selected") &&
     flow.pending.includes("reschedule_booking") &&
+    !aiState.focused_appointment_id?.trim()
+  ) {
+    return "select";
+  }
+  if (
+    flow?.active_workflow_id === "check_in" &&
+    flow.pending.includes("appointment_selected") &&
+    flow.pending.includes("check_in") &&
     !aiState.focused_appointment_id?.trim()
   ) {
     return "select";
@@ -860,6 +877,105 @@ export async function executeTool(
             result: errorResult("Paciente não cadastrado."),
           };
         }
+
+        const isCheckInWorkflow =
+          ctx.aiState.conversation_flow?.active_workflow_id === "check_in";
+
+        if (isCheckInWorkflow) {
+          const flowConfig = ctx.flowConfig ?? mergeClinicFlowConfig({});
+          const listResult = await listAppointmentsForCheckIn(supabase, {
+            clinicId,
+            patientId: patient.id,
+            policy: flowConfig.appointmentPolicy,
+          });
+
+          switch (listResult.type) {
+            case "DISABLED":
+              await logToolCall(
+                supabase,
+                clinicId,
+                conversationId,
+                name,
+                args,
+                "check_in disabled",
+                true
+              );
+              return {
+                result: unavailableResult(
+                  "O check-in pelo assistente não está disponível nesta clínica."
+                ),
+              };
+            case "TOO_EARLY":
+              await logToolCall(
+                supabase,
+                clinicId,
+                conversationId,
+                name,
+                args,
+                `check_in too_early ${listResult.nextEligibleAt}`,
+                true
+              );
+              return {
+                result: unavailableResult(
+                  `Ainda não é possível fazer check-in. A janela abre em ${formatCheckInNextEligible(listResult.nextEligibleAt)}.`
+                ),
+              };
+            case "NO_ELIGIBLE_APPOINTMENTS":
+              await logToolCall(
+                supabase,
+                clinicId,
+                conversationId,
+                name,
+                args,
+                "check_in no_eligible",
+                true
+              );
+              return {
+                result: notFoundResult(
+                  "Não há consultas elegíveis para check-in no momento."
+                ),
+              };
+            case "SUCCESS": {
+              const appointments = listResult.appointments;
+              await logToolCall(
+                supabase,
+                clinicId,
+                conversationId,
+                name,
+                args,
+                `${appointments.length} check-in elegíveis`,
+                true
+              );
+              const ids = appointments.map((a) => a.id).filter(Boolean);
+              const options: ToolOption[] = appointments.map((a, i) => ({
+                id: a.id,
+                label:
+                  [a.procedure_name, a.doctor_name, a.scheduled_at]
+                    .filter(Boolean)
+                    .join(" — ") || `Consulta ${i + 1}`,
+                index: i + 1,
+              }));
+              const listMode = resolveAppointmentListRenderMode(ctx.aiState);
+              const focusedId = focusedAfterAppointmentListRefresh(
+                ids,
+                ctx.aiState.focused_appointment_id
+              );
+              return {
+                result: successResult(
+                  { appointments, renderMode: listMode },
+                  options.length >= 1 ? options : undefined,
+                  { renderStrategy: "appointment_list", renderMode: listMode }
+                ),
+                statePatch: {
+                  patient_id: patient.id,
+                  active_appointments: ids,
+                  focused_appointment_id: focusedId,
+                },
+              };
+            }
+          }
+        }
+
         const listed = await listCancellableAppointmentsWithPhoneFallback(supabase, {
           clinicId,
           patientId: patient.id,
@@ -917,6 +1033,124 @@ export async function executeTool(
           },
           listExecutionTrace,
         };
+      }
+
+      case "perform_check_in": {
+        const patient =
+          ctx.aiState.patient_id != null
+            ? { id: ctx.aiState.patient_id }
+            : await lookupPatientByPhone(supabase, clinicId, phoneNumber);
+        if (!patient?.id) return { result: errorResult("Paciente não encontrado.") };
+
+        const { resolveCancelAppointmentId, cancelAppointmentIdFailureMessage } =
+          await import("../state/resolve-cancel-appointment-id");
+        const resolvedId = resolveCancelAppointmentId(args, {
+          ...ctx.aiState,
+          patient_id: patient.id,
+        });
+        if (!resolvedId.ok) {
+          return {
+            result: needsInputResult(
+              ["appointment_id"],
+              cancelAppointmentIdFailureMessage(resolvedId.reason)
+            ),
+          };
+        }
+        const appointmentId = resolvedId.appointmentId;
+        const flowConfig = ctx.flowConfig ?? mergeClinicFlowConfig({});
+        const domain = await performCheckIn(supabase, {
+          clinicId,
+          appointmentId,
+          patientId: patient.id,
+          policy: flowConfig.appointmentPolicy,
+          source: "assistant",
+          actorPatientId: patient.id,
+        });
+
+        switch (domain.type) {
+          case "NOT_FOUND":
+            return {
+              result: notFoundResult(
+                "Consulta não encontrada. Chame list_patient_appointments para listar as elegíveis."
+              ),
+            };
+          case "NOT_ALLOWED": {
+            if (domain.reason === "DISABLED") {
+              return {
+                result: unavailableResult(
+                  "O check-in pelo assistente não está disponível nesta clínica."
+                ),
+              };
+            }
+            if (domain.reason === "TOO_EARLY" && domain.nextEligibleAt) {
+              return {
+                result: unavailableResult(
+                  `Ainda não é possível fazer check-in. A janela abre em ${formatCheckInNextEligible(domain.nextEligibleAt)}.`
+                ),
+              };
+            }
+            if (domain.reason === "WINDOW_CLOSED") {
+              return {
+                result: unavailableResult(
+                  "A janela de check-in desta consulta já encerrou."
+                ),
+              };
+            }
+            return {
+              result: unavailableResult(
+                "Esta consulta não está elegível para check-in no momento."
+              ),
+            };
+          }
+          case "SUCCESS":
+          case "ALREADY_DONE": {
+            const flowState = ctx.aiState.conversation_flow;
+            if (!flowState) {
+              return {
+                result: successResult(
+                  {
+                    mutation: "check_in" as const,
+                    checked_in: true,
+                    appointment_id: domain.data?.appointmentId ?? appointmentId,
+                  },
+                  undefined,
+                  { renderStrategy: "mutation_success" }
+                ),
+                statePatch: {
+                  focused_appointment_id: appointmentId,
+                  active_appointments: [appointmentId],
+                },
+              };
+            }
+            const checkInWf =
+              getWorkflowFromConfig(flowConfig.conversationFlows, flowState.active_workflow_id) ??
+              DEFAULT_WORKFLOW_CHECK_IN;
+            const closedFlow = completeCurrentOperation({
+              workflow: checkInWf,
+              flowState,
+              mutationSucceeded: true,
+              complete: true,
+            });
+            return {
+              result: successResult(
+                {
+                  mutation: "check_in" as const,
+                  checked_in: true,
+                  appointment_id: domain.data?.appointmentId ?? appointmentId,
+                  already_done: domain.type === "ALREADY_DONE",
+                },
+                undefined,
+                { renderStrategy: "mutation_success" }
+              ),
+              statePatch: {
+                focused_appointment_id: appointmentId,
+                active_appointments: [appointmentId],
+                conversation_flow: closedFlow,
+              },
+            };
+          }
+        }
+        break;
       }
 
       case "cancel_appointment": {

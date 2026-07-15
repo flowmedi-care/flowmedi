@@ -28,7 +28,7 @@ Mesma entrada + mesmo estado relevante → extractors produzem a mesma saída. S
 
 | Domínio | Tools |
 |---------|-------|
-| Scheduling | `list_doctors`, `list_procedures`, `find_available_slots`, `create_appointment`, `cancel_appointment`, `reschedule_appointment` |
+| Scheduling | `list_doctors`, `list_procedures`, `find_available_slots`, `create_appointment`, `cancel_appointment`, `reschedule_appointment`, `perform_check_in` |
 | Pricing | `get_service_price` |
 | FAQ | `search_faq` |
 | Patient | `lookup_patient_by_phone`, `register_patient` |

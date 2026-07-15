@@ -242,7 +242,8 @@ export function resolveAvailableTools(input: EngineInput): string[] {
   if (
     input.workflow.id === "cancelamento" ||
     input.workflow.id === "consulta" ||
-    input.workflow.id === "reschedule"
+    input.workflow.id === "reschedule" ||
+    input.workflow.id === "check_in"
   ) {
     tools.add("transfer_to_human");
   }
@@ -281,7 +282,7 @@ export function canExecuteMutation(
   }
 
   const coreIds =
-    workflowId === "cancelamento"
+    workflowId === "cancelamento" || workflowId === "check_in"
       ? ["appointment_selected"]
       : workflowId === "reschedule"
         ? ["appointment_selected", "slot_selected"]
@@ -404,7 +405,8 @@ export function getWorkflowFromConfig(
     !wf?.enabled &&
     workflowId !== "cancelamento" &&
     workflowId !== "consulta" &&
-    workflowId !== "reschedule"
+    workflowId !== "reschedule" &&
+    workflowId !== "check_in"
   ) {
     return undefined;
   }

@@ -28,6 +28,7 @@ import {
 const APPOINTMENT_MUTATIONS = new Set([
   "cancel_appointment",
   "reschedule_appointment",
+  "perform_check_in",
 ]);
 
 export function validateToolCall(
@@ -186,6 +187,28 @@ export function validateToolCall(
     if (toolName === "reschedule_appointment" && engineInput) {
       const gate = canExecuteMutation(
         "reschedule_booking",
+        engineInput.flowState.mode,
+        engineInput.policy,
+        engineInput.registry,
+        engineInput.flowState.pending,
+        engineInput.workflow.id
+      );
+      if (!gate.ok) {
+        return needsInputResult(
+          gate.missing.map((m) => ({ field: m })),
+          gate.message
+        );
+      }
+    }
+
+    if (toolName === "perform_check_in" && engineInput) {
+      if (!engineInput.policy.check_in?.enabled) {
+        return unavailableResult(
+          "O check-in pelo assistente não está disponível nesta clínica."
+        );
+      }
+      const gate = canExecuteMutation(
+        "check_in",
         engineInput.flowState.mode,
         engineInput.policy,
         engineInput.registry,

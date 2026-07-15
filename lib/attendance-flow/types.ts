@@ -1,8 +1,18 @@
 /** Política de atendimento por goal (Configurações da Clínica). */
 export type GoalPolicyLevel = "ignore" | "optional" | "required";
 
+/** Presence check-in (WhatsApp / channels) — not workflow.enabled. */
+export type CheckInPolicy = {
+  enabled: boolean;
+  window: {
+    opens_before_hours: number;
+    closes_after_minutes: number;
+  };
+};
+
 export type AppointmentPolicy = {
   goals: Record<string, GoalPolicyLevel>;
+  check_in: CheckInPolicy;
 };
 
 export type WorkflowMode = "express" | "assisted" | "strict";

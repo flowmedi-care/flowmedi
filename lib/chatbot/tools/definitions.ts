@@ -12,6 +12,7 @@ export const CHATBOT_TOOL_NAMES = [
   "list_patient_appointments",
   "cancel_appointment",
   "reschedule_appointment",
+  "perform_check_in",
   "get_service_price",
   "search_faq",
   "transfer_to_human",
@@ -119,6 +120,15 @@ export const CHATBOT_TOOLS: ToolDefinition[] = [
       new_scheduled_at: { type: "string", description: "ISO 8601 do novo horário" },
     },
     required: ["appointment_id", "new_scheduled_at"],
+  }),
+  toolDef("perform_check_in", {
+    type: "object",
+    properties: {
+      appointment_id: {
+        type: "string",
+        description: "UUID da consulta (ou índice da lista / focused)",
+      },
+    },
   }),
   toolDef("get_service_price", {
     type: "object",

@@ -209,6 +209,16 @@ export function patchAiState(
       }
       break;
     }
+    case "perform_check_in": {
+      if (outcome === "success" || data.checked_in) {
+        const id = data.appointment_id ? String(data.appointment_id) : undefined;
+        if (id) {
+          patch.focused_appointment_id = id;
+          patch.active_appointments = [id];
+        }
+      }
+      break;
+    }
     case "get_service_price": {
       const procedureId = resolveBookingEntityId({
         arg: args.procedure_id,

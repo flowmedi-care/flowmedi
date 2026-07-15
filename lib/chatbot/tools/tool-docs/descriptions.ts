@@ -52,7 +52,7 @@ export const TOOL_DESCRIPTIONS: Record<ChatbotToolName, string> = {
 
   list_patient_appointments:
     "Purpose: Listar consultas do paciente (telefone da conversa).\n" +
-    "When to use: \"minhas consultas\"; \"consulta agendada\"; antes de cancel/reschedule.\n" +
+    "When to use: \"minhas consultas\"; \"consulta agendada\"; antes de cancel/reschedule/check-in.\n" +
     "When NOT: agendar nova consulta.\n" +
     "Output success: data.appointments + options (1..N na mesma ordem). Nunca invente consultas.\n" +
     "Contrato: appointments[i] = opção i+1; renderStrategy=appointment_list (lista autoritativa).",
@@ -69,6 +69,13 @@ export const TOOL_DESCRIPTIONS: Record<ChatbotToolName, string> = {
     "When NOT: new_scheduled_at inventado — deve vir de find_available_slots.\n" +
     "Identity: resolveCancelAppointmentId (UUID/índice/focused).\n" +
     "Output success: rescheduled=true; pós-sucesso via completeCurrentOperation.",
+
+  perform_check_in:
+    "Purpose: Registrar check-in (presença anunciada) da consulta focada.\n" +
+    "When to use: após seleção da consulta e confirmação explícita no workflow check_in.\n" +
+    "When NOT: cancelar/remarcar; inventar appointment_id.\n" +
+    "Identity: resolveCancelAppointmentId (UUID/índice/focused).\n" +
+    "Output success: mutation check_in; regras de janela só no domínio.",
 
   get_service_price:
     "Purpose: Consultar preço exato de procedimento para um médico.\n" +

@@ -90,7 +90,7 @@ function pickRelevantAppointment(
     scheduled_at: String(chosen.scheduled_at),
     is_return: slug === "retorno",
     encounter_status: encounter ? String(encounter.status) : null,
-    checked_in: false,
+    checked_in: Boolean(chosen.checked_in_at),
   };
 }
 
@@ -180,7 +180,7 @@ async function loadPatientJourney(
 
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, patient_id, status, scheduled_at, appointment_types(slug)")
+    .select("id, patient_id, status, scheduled_at, checked_in_at, appointment_types(slug)")
     .eq("clinic_id", clinicId)
     .eq("patient_id", patientId)
     .order("scheduled_at", { ascending: false })
