@@ -175,6 +175,9 @@ export type ProcedureRow = {
   id: string;
   name: string;
   recommendations: string | null;
+  short_description: string | null;
+  how_we_perform: string | null;
+  recovery: string | null;
   display_order: number;
   default_service_id: string | null;
   duration_minutes: number;
@@ -195,7 +198,9 @@ export async function listProcedures(): Promise<{ error: string | null; data: Pr
 
   const { data, error } = await supabase
     .from("procedures")
-    .select("id, name, recommendations, display_order, default_service_id, duration_minutes")
+    .select(
+      "id, name, recommendations, short_description, how_we_perform, recovery, display_order, default_service_id, duration_minutes"
+    )
     .eq("clinic_id", profile.clinic_id)
     .order("display_order", { ascending: true });
 
@@ -204,6 +209,10 @@ export async function listProcedures(): Promise<{ error: string | null; data: Pr
     error: null,
     data: (data ?? []).map((p) => ({
       ...p,
+      recommendations: p.recommendations ?? null,
+      short_description: (p as { short_description?: string | null }).short_description ?? null,
+      how_we_perform: (p as { how_we_perform?: string | null }).how_we_perform ?? null,
+      recovery: (p as { recovery?: string | null }).recovery ?? null,
       display_order: p.display_order ?? 0,
       default_service_id: p.default_service_id ?? null,
       duration_minutes: p.duration_minutes ?? 30,
@@ -344,6 +353,9 @@ export async function createProcedure(
   opts?: {
     default_service_id?: string | null;
     duration_minutes?: number;
+    short_description?: string | null;
+    how_we_perform?: string | null;
+    recovery?: string | null;
   }
 ) {
   const supabase = await createClient();
@@ -373,6 +385,9 @@ export async function createProcedure(
     clinic_id: profile.clinic_id,
     name: name.trim(),
     recommendations: recommendations?.trim() || null,
+    short_description: opts?.short_description?.trim() || null,
+    how_we_perform: opts?.how_we_perform?.trim() || null,
+    recovery: opts?.recovery?.trim() || null,
     display_order,
     default_service_id: opts?.default_service_id || null,
     duration_minutes: opts?.duration_minutes ?? 30,
@@ -389,6 +404,9 @@ export async function updateProcedure(
   data: {
     name: string;
     recommendations: string | null;
+    short_description?: string | null;
+    how_we_perform?: string | null;
+    recovery?: string | null;
     default_service_id?: string | null;
     duration_minutes?: number;
   }
@@ -410,6 +428,9 @@ export async function updateProcedure(
     .update({
       name: data.name.trim(),
       recommendations: data.recommendations?.trim() || null,
+      short_description: data.short_description?.trim() || null,
+      how_we_perform: data.how_we_perform?.trim() || null,
+      recovery: data.recovery?.trim() || null,
       default_service_id: data.default_service_id ?? null,
       duration_minutes: data.duration_minutes ?? 30,
       updated_at: new Date().toISOString(),

@@ -3,13 +3,11 @@
 import { createContext, useContext } from "react";
 
 export type AssistantTopTab =
-  | "geral"
   | "politicas"
-  | "faq"
-  | "comportamento"
-  | "ferramentas"
   | "fluxos"
+  | "avancado"
   | "pipeline"
+  | "ferramentas"
   | "diagnostico";
 
 const AssistantNavContext = createContext<{

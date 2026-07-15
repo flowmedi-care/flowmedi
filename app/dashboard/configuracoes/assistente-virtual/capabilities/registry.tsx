@@ -10,45 +10,33 @@ import {
   bookingSettingsToGoals,
   policyToBookingSettings,
 } from "@/lib/assistant-capabilities/booking/mapper";
-import type { BookingSettings } from "@/lib/assistant-capabilities/booking/types";
 import { checkInDefaults } from "@/lib/assistant-capabilities/check-in/defaults";
 import {
   checkInSettingsToPolicyInput,
   policyToCheckInSettings,
 } from "@/lib/assistant-capabilities/check-in/mapper";
-import type { CheckInSettings } from "@/lib/assistant-capabilities/check-in/types";
 import { generalDefaults } from "@/lib/assistant-capabilities/general/defaults";
 import {
   generalToVaPatch,
   vaSettingsToGeneral,
 } from "@/lib/assistant-capabilities/general/mapper";
 import type { GeneralSettings } from "@/lib/assistant-capabilities/general/types";
-import { financeDefaults } from "@/lib/assistant-capabilities/finance/defaults";
+import { knowledgeAclDefaults } from "@/lib/assistant-capabilities/knowledge/types";
+import type { KnowledgeAclSettings } from "@/lib/assistant-capabilities/knowledge/types";
+import { policyToKnowledgeAcl } from "@/lib/assistant-capabilities/knowledge/mapper";
 import {
-  financeToGoals,
-  financeToVaPatch,
-  toFinanceSettings,
-} from "@/lib/assistant-capabilities/finance/mapper";
-import type { FinanceSettings } from "@/lib/assistant-capabilities/finance/types";
-import {
-  knowledgeDefaults,
-  type KnowledgeSettings,
-} from "@/lib/assistant-capabilities/knowledge/types";
-import {
-  advancedDefaults,
-  type AdvancedSettings,
-} from "@/lib/assistant-capabilities/advanced/types";
-import { BookingCapabilityForm } from "./booking-form";
-import { CheckInCapabilityForm } from "./check-in-form";
+  financeActionDefaults,
+  type FinanceActionSettings,
+} from "@/lib/assistant-capabilities/finance/action-types";
 import { GeneralCapabilityForm } from "./general-form";
-import { FinanceCapabilityForm } from "./finance-form";
+import { AttendanceCapabilityForm, type AttendanceSettings } from "./attendance-form";
 import { KnowledgeCapabilityForm } from "./knowledge-form";
-import { AdvancedCapabilityForm } from "./advanced-form";
+import { FinanceActionsForm } from "./finance-actions-form";
 
 export const GeneralCapability: Capability<GeneralSettings> = {
   id: "general",
   title: "Geral",
-  description: "Personalidade e funcionamento do assistente.",
+  description: "Comportamento do assistente (sem conteúdo).",
   order: 1,
   defaults: generalDefaults,
   load: (ctx) => vaSettingsToGeneral(ctx.vaSettings),
@@ -61,96 +49,66 @@ export const GeneralCapability: Capability<GeneralSettings> = {
   Form: GeneralCapabilityForm,
 };
 
-export const BookingCapability: Capability<BookingSettings> = {
-  id: "booking",
-  title: "Agendamentos",
-  description: "O que a IA pode fazer com consultas e quais dados pedir.",
+export const AttendanceCapability: Capability<AttendanceSettings> = {
+  id: "attendance",
+  title: "Atendimento",
+  description: "Capacidades de agendamento, check-in, cancelamento e remarcação.",
   order: 2,
-  defaults: bookingDefaults,
-  load: (ctx) =>
-    policyToBookingSettings(ctx.appointmentPolicy, ctx.conversationFlows),
+  defaults: () => ({
+    booking: bookingDefaults(),
+    checkIn: checkInDefaults(),
+  }),
+  load: (ctx) => ({
+    booking: policyToBookingSettings(ctx.appointmentPolicy, ctx.conversationFlows),
+    checkIn: policyToCheckInSettings(ctx.appointmentPolicy),
+  }),
   save: async (ctx, value) => {
     const goalsRes = await saveAppointmentPolicyPatch({
-      goals: bookingSettingsToGoals(value),
+      goals: bookingSettingsToGoals(value.booking),
+      check_in: checkInSettingsToPolicyInput(value.checkIn),
     });
     if (goalsRes.error) return { error: goalsRes.error };
-    const nextFlows = applyBookingToFlows(ctx.conversationFlows, value);
+    const nextFlows = applyBookingToFlows(ctx.conversationFlows, value.booking);
     const flowsRes = await saveConversationFlows(nextFlows.workflows);
     return { error: flowsRes.error ?? null };
   },
-  Form: BookingCapabilityForm,
+  Form: AttendanceCapabilityForm,
 };
 
-export const CheckInCapability: Capability<CheckInSettings> = {
-  id: "check_in",
-  title: "Check-in",
-  description: "Permite que pacientes avisem sua chegada pelo WhatsApp.",
+export const KnowledgeCapability: Capability<KnowledgeAclSettings> = {
+  id: "conhecimento",
+  title: "Conhecimento",
+  description: "Fontes de informação que a IA pode consultar.",
   order: 3,
-  defaults: checkInDefaults,
-  load: (ctx) => policyToCheckInSettings(ctx.appointmentPolicy),
+  defaults: knowledgeAclDefaults,
+  load: (ctx) => policyToKnowledgeAcl(ctx.appointmentPolicy),
   save: async (_ctx, value) => {
-    const res = await saveAppointmentPolicyPatch({
-      check_in: checkInSettingsToPolicyInput(value),
-    });
+    const res = await saveAppointmentPolicyPatch({ knowledge_acl: value });
     return { error: res.error ?? null };
   },
-  summary: (v) =>
-    v.enabled
-      ? `Ativo · abre ${v.opensBeforeHours}h antes · encerra ${v.closesAfterMinutes} min após`
-      : "Desativado",
-  Form: CheckInCapabilityForm,
-};
-
-export const FinanceCapability: Capability<FinanceSettings> = {
-  id: "finance",
-  title: "Financeiro",
-  description: "Cobrança e informações de pagamento nas conversas.",
-  order: 4,
-  defaults: financeDefaults,
-  load: (ctx) => toFinanceSettings(ctx.appointmentPolicy, ctx.vaSettings),
-  save: async (_ctx, value) => {
-    const goalsRes = await saveAppointmentPolicyPatch({
-      goals: financeToGoals(value),
-    });
-    if (goalsRes.error) return { error: goalsRes.error };
-    const vaRes = await saveVirtualAssistantSettings(
-      financeToVaPatch(value) as SaveVirtualAssistantInput
-    );
-    return { error: vaRes.error ?? null };
-  },
-  Form: FinanceCapabilityForm,
-};
-
-export const KnowledgeCapability: Capability<KnowledgeSettings> = {
-  id: "knowledge",
-  title: "Base de conhecimento",
-  description: "FAQ, documentos e protocolos para respostas do assistente.",
-  order: 5,
-  defaults: knowledgeDefaults,
-  load: () => knowledgeDefaults(),
-  save: async () => ({ error: null }),
   Form: KnowledgeCapabilityForm,
 };
 
-export const AdvancedCapability: Capability<AdvancedSettings> = {
-  id: "advanced",
-  title: "Avançado",
-  description: "Pipeline, ferramentas e diagnóstico.",
-  order: 6,
-  defaults: advancedDefaults,
-  load: () => advancedDefaults(),
-  save: async () => ({ error: null }),
-  Form: AdvancedCapabilityForm,
+export const FinanceActionsCapability: Capability<FinanceActionSettings> = {
+  id: "acoes_financeiras",
+  title: "Ações Financeiras",
+  description: "Permissões de ação (não dados).",
+  order: 4,
+  defaults: financeActionDefaults,
+  load: (ctx) => ctx.appointmentPolicy.finance_actions ?? financeActionDefaults(),
+  save: async (_ctx, value) => {
+    const res = await saveAppointmentPolicyPatch({ finance_actions: value });
+    return { error: res.error ?? null };
+  },
+  Form: FinanceActionsForm,
 };
 
-/** Registry order drives Políticas da IA tabs. */
+/** Registry order drives Políticas tabs. */
 export const capabilities = [
   GeneralCapability,
-  BookingCapability,
-  CheckInCapability,
-  FinanceCapability,
+  AttendanceCapability,
   KnowledgeCapability,
-  AdvancedCapability,
+  FinanceActionsCapability,
 ] as const;
 
 export type AnyCapability = (typeof capabilities)[number];

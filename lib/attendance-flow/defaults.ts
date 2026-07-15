@@ -5,6 +5,11 @@ import type {
   GoalDefinition,
   WorkflowDefinition,
 } from "./types";
+import { defaultKnowledgeAcl, mergeKnowledgeAcl } from "@/lib/assistant-platform/knowledge-acl";
+import {
+  defaultFinanceActions,
+  mergeFinanceActions,
+} from "@/lib/assistant-platform/finance-actions";
 
 export const BOOKING_CORE_GOAL_IDS = [
   "patient_identified",
@@ -42,6 +47,8 @@ export const DEFAULT_APPOINTMENT_POLICY: AppointmentPolicy = {
     check_in: "required",
   },
   check_in: { ...DEFAULT_CHECK_IN_POLICY, window: { ...DEFAULT_CHECK_IN_POLICY.window } },
+  knowledge_acl: defaultKnowledgeAcl(),
+  finance_actions: defaultFinanceActions(),
 };
 
 export const BUILTIN_GOAL_DEFINITIONS: GoalDefinition[] = [
@@ -396,6 +403,8 @@ export function mergeAppointmentPolicy(
       after_check_in:
         storedCheckIn?.after_check_in ?? DEFAULT_CHECK_IN_POLICY.after_check_in,
     },
+    knowledge_acl: mergeKnowledgeAcl(stored?.knowledge_acl),
+    finance_actions: mergeFinanceActions(stored?.finance_actions),
   };
 }
 

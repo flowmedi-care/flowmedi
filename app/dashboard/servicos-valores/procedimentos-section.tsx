@@ -57,7 +57,10 @@ export function ProcedimentosSection({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [shortDescription, setShortDescription] = useState("");
+  const [howWePerform, setHowWePerform] = useState("");
   const [recommendations, setRecommendations] = useState("");
+  const [recovery, setRecovery] = useState("");
   const [defaultServiceId, setDefaultServiceId] = useState("");
   const [durationMinutes, setDurationMinutes] = useState(30);
   const [bomItems, setBomItems] = useState<{ product_id: string; quantity_per_procedure: number }[]>([]);
@@ -74,7 +77,10 @@ export function ProcedimentosSection({
     setEditingId(null);
     setIsNew(true);
     setName("");
+    setShortDescription("");
+    setHowWePerform("");
     setRecommendations("");
+    setRecovery("");
     setDefaultServiceId("");
     setDurationMinutes(30);
     setBomItems([]);
@@ -87,7 +93,10 @@ export function ProcedimentosSection({
     setIsNew(false);
     setEditingId(p.id);
     setName(p.name);
+    setShortDescription(p.short_description || "");
+    setHowWePerform(p.how_we_perform || "");
     setRecommendations(p.recommendations || "");
+    setRecovery(p.recovery || "");
     setDefaultServiceId(p.default_service_id ?? "");
     setDurationMinutes(p.duration_minutes ?? 30);
     setSelectedDoctorIds(new Set(doctorIdsByProcedureId[p.id] ?? []));
@@ -141,6 +150,9 @@ export function ProcedimentosSection({
       const res = await createProcedure(name, recommendations || null, {
         default_service_id: defaultServiceId || null,
         duration_minutes: durationMinutes,
+        short_description: shortDescription || null,
+        how_we_perform: howWePerform || null,
+        recovery: recovery || null,
       });
       if (res.error) {
         setError(res.error);
@@ -180,6 +192,9 @@ export function ProcedimentosSection({
       const res = await updateProcedure(editingId, {
         name: name.trim(),
         recommendations: recommendations.trim() || null,
+        short_description: shortDescription.trim() || null,
+        how_we_perform: howWePerform.trim() || null,
+        recovery: recovery.trim() || null,
         default_service_id: defaultServiceId || null,
         duration_minutes: durationMinutes,
       });
@@ -211,7 +226,14 @@ export function ProcedimentosSection({
       setProcedures((prev) =>
         prev.map((p) =>
           p.id === editingId
-            ? { ...p, name: name.trim(), recommendations: recommendations.trim() || null }
+            ? {
+                ...p,
+                name: name.trim(),
+                recommendations: recommendations.trim() || null,
+                short_description: shortDescription.trim() || null,
+                how_we_perform: howWePerform.trim() || null,
+                recovery: recovery.trim() || null,
+              }
             : p
         )
       );
@@ -257,17 +279,47 @@ export function ProcedimentosSection({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="proc_recommendations">Recomendações padrão</Label>
+              <Label htmlFor="proc_short">Descrição curta</Label>
+              <Textarea
+                id="proc_short"
+                value={shortDescription}
+                onChange={(e) => setShortDescription(e.target.value)}
+                placeholder="Resumo em 1–2 frases para o paciente."
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="proc_how">Como realizamos</Label>
+              <Textarea
+                id="proc_how"
+                value={howWePerform}
+                onChange={(e) => setHowWePerform(e.target.value)}
+                placeholder="Explique como a clínica realiza este procedimento (WhatsApp / atendimento)."
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="proc_recommendations">Preparo / recomendações</Label>
               <Textarea
                 id="proc_recommendations"
                 value={recommendations}
                 onChange={(e) => setRecommendations(e.target.value)}
                 placeholder="Ex.: Jejum de 8h. Trazer exames anteriores..."
-                rows={4}
+                rows={3}
               />
               <p className="text-xs text-muted-foreground">
-                Será usado em e-mails e mensagens; ao agendar com este procedimento, o campo de recomendações já virá preenchido.
+                Usado em e-mails e mensagens; ao agendar, pré-preenche recomendações.
               </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="proc_recovery">Recuperação</Label>
+              <Textarea
+                id="proc_recovery"
+                value={recovery}
+                onChange={(e) => setRecovery(e.target.value)}
+                placeholder="Cuidados após o procedimento."
+                rows={3}
+              />
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">

@@ -1,4 +1,5 @@
 export type GeneralSettings = {
+  enabled: boolean;
   assistantName: string;
   tone: "formal" | "informal";
   useEmojis: boolean;

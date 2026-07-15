@@ -15,6 +15,18 @@ export function GeneralCapabilityForm({
   return (
     <div className="space-y-6">
       <section>
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            disabled={disabled}
+            checked={value.enabled}
+            onChange={(e) => onChange({ ...value, enabled: e.target.checked })}
+          />
+          Ativar assistente virtual no WhatsApp
+        </label>
+      </section>
+
+      <section>
         <h3 className="mb-3 text-sm font-semibold">Personalidade</h3>
         <div className="space-y-3">
           <div>

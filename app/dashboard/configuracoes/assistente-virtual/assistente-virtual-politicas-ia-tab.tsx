@@ -13,23 +13,24 @@ import {
   applyBookingToFlows,
   bookingSettingsToGoals,
 } from "@/lib/assistant-capabilities/booking/mapper";
-import type { BookingSettings } from "@/lib/assistant-capabilities/booking/types";
 import { checkInSettingsToPolicyInput } from "@/lib/assistant-capabilities/check-in/mapper";
-import type { CheckInSettings } from "@/lib/assistant-capabilities/check-in/types";
 import { generalToVaPatch } from "@/lib/assistant-capabilities/general/mapper";
 import type { GeneralSettings } from "@/lib/assistant-capabilities/general/types";
-import { financeToGoals, financeToVaPatch } from "@/lib/assistant-capabilities/finance/mapper";
-import type { FinanceSettings } from "@/lib/assistant-capabilities/finance/types";
+import type { AttendanceSettings } from "./capabilities/attendance-form";
+import type { KnowledgeAclSettings } from "@/lib/assistant-capabilities/knowledge/types";
+import type { FinanceActionSettings } from "@/lib/assistant-capabilities/finance/action-types";
 import { capabilities, type AnyCapability } from "./capabilities/registry";
 
 export function AssistenteVirtualPoliticasIaTab({
   initialPolicy,
   initialConversationFlows,
   initialVaSettings,
+  canUse,
 }: {
   initialPolicy: AppointmentPolicy;
   initialConversationFlows: ConversationFlowsConfig;
   initialVaSettings: Partial<VirtualAssistantSettings>;
+  canUse: boolean;
 }) {
   const [selectedId, setSelectedId] = useState(capabilities[0]!.id);
   const [saving, setSaving] = useState(false);
@@ -60,26 +61,19 @@ export function AssistenteVirtualPoliticasIaTab({
 
   function refreshCtxAfterSave(capId: string, saved: unknown) {
     setCtx((prev) => {
-      if (capId === "booking") {
-        const booking = saved as BookingSettings;
+      if (capId === "attendance") {
+        const attendance = saved as AttendanceSettings;
         return {
           ...prev,
-          conversationFlows: applyBookingToFlows(prev.conversationFlows, booking),
-          appointmentPolicy: {
-            ...prev.appointmentPolicy,
+          conversationFlows: applyBookingToFlows(prev.conversationFlows, attendance.booking),
+          appointmentPolicy: mergeAppointmentPolicy({
             goals: {
               ...prev.appointmentPolicy.goals,
-              ...bookingSettingsToGoals(booking),
+              ...bookingSettingsToGoals(attendance.booking),
             },
-          },
-        };
-      }
-      if (capId === "check_in") {
-        return {
-          ...prev,
-          appointmentPolicy: mergeAppointmentPolicy({
-            goals: prev.appointmentPolicy.goals,
-            check_in: checkInSettingsToPolicyInput(saved as CheckInSettings),
+            check_in: checkInSettingsToPolicyInput(attendance.checkIn),
+            knowledge_acl: prev.appointmentPolicy.knowledge_acl,
+            finance_actions: prev.appointmentPolicy.finance_actions,
           }),
         };
       }
@@ -89,18 +83,22 @@ export function AssistenteVirtualPoliticasIaTab({
           vaSettings: { ...prev.vaSettings, ...generalToVaPatch(saved as GeneralSettings) },
         };
       }
-      if (capId === "finance") {
-        const finance = saved as FinanceSettings;
+      if (capId === "conhecimento") {
         return {
           ...prev,
           appointmentPolicy: {
             ...prev.appointmentPolicy,
-            goals: {
-              ...prev.appointmentPolicy.goals,
-              ...financeToGoals(finance),
-            },
+            knowledge_acl: saved as KnowledgeAclSettings,
           },
-          vaSettings: { ...prev.vaSettings, ...financeToVaPatch(finance) },
+        };
+      }
+      if (capId === "acoes_financeiras") {
+        return {
+          ...prev,
+          appointmentPolicy: {
+            ...prev.appointmentPolicy,
+            finance_actions: saved as FinanceActionSettings,
+          },
         };
       }
       return prev;
@@ -124,6 +122,12 @@ export function AssistenteVirtualPoliticasIaTab({
 
   return (
     <div className="space-y-4">
+      {!canUse ? (
+        <p className="text-sm text-amber-800">
+          Plano sem assistente virtual — salve as políticas, mas a IA no WhatsApp permanece off até
+          o upgrade.
+        </p>
+      ) : null}
       <SegmentedTabs tabs={tabs} value={selectedId} onChange={selectCapability} />
 
       <Card>
@@ -133,11 +137,9 @@ export function AssistenteVirtualPoliticasIaTab({
         </CardHeader>
         <CardContent className="space-y-6">
           <Form value={value as never} onChange={setValue as never} />
-          {capability.id !== "knowledge" && capability.id !== "advanced" ? (
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Salvando…" : "Salvar"}
-            </Button>
-          ) : null}
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Salvando…" : "Salvar"}
+          </Button>
         </CardContent>
       </Card>
     </div>

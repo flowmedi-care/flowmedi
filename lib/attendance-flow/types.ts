@@ -1,5 +1,16 @@
+import type {
+  KnowledgeAcl,
+  KnowledgeAclInput,
+} from "@/lib/assistant-platform/knowledge-acl";
+import type {
+  FinanceActions,
+  FinanceActionsInput,
+} from "@/lib/assistant-platform/finance-actions";
+
 /** Política de atendimento por goal (Configurações da Clínica). */
 export type GoalPolicyLevel = "ignore" | "optional" | "required";
+
+export type { KnowledgeAcl, KnowledgeAclInput, FinanceActions, FinanceActionsInput };
 
 /** Presence check-in (WhatsApp / channels) — not workflow.enabled. */
 export type CheckInWhenUnavailable = "show_next_eligible" | "closed_only";
@@ -29,11 +40,17 @@ export type CheckInPolicyInput = {
 export type AppointmentPolicy = {
   goals: Record<string, GoalPolicyLevel>;
   check_in: CheckInPolicy;
+  /** Which information sources/fields the IA may consult */
+  knowledge_acl: KnowledgeAcl;
+  /** Commercial action permissions (not content) */
+  finance_actions: FinanceActions;
 };
 
 export type AppointmentPolicyInput = {
   goals?: Record<string, GoalPolicyLevel>;
   check_in?: CheckInPolicyInput;
+  knowledge_acl?: KnowledgeAclInput;
+  finance_actions?: FinanceActionsInput;
 };
 
 export type WorkflowMode = "express" | "assisted" | "strict";

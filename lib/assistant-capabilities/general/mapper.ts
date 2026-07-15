@@ -7,6 +7,7 @@ export function vaSettingsToGeneral(
 ): GeneralSettings {
   const d = generalDefaults();
   return {
+    enabled: settings.enabled === true,
     assistantName: settings.assistant_name?.trim() || d.assistantName,
     tone: settings.tone === "formal" ? "formal" : "informal",
     useEmojis: settings.use_emojis !== false,
@@ -22,6 +23,7 @@ export function generalToVaPatch(
   value: GeneralSettings
 ): Partial<VirtualAssistantSettings> {
   return {
+    enabled: value.enabled,
     assistant_name: value.assistantName.trim() || "Assistente",
     tone: value.tone,
     use_emojis: value.useEmojis,

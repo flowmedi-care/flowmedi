@@ -27,6 +27,7 @@ import { toolResultToJson } from "../tools/types";
 import { buildSystemPrompt } from "./prompt";
 import { createChatCompletion, logTokenUsage, type ChatMessage } from "./llm";
 import { canExecuteMutation, filterToolsByNames, initConversationFlowState } from "@/lib/attendance-flow/engine";
+import { applyPlatformToolGate } from "@/lib/assistant-platform";
 import {
   mergeClinicFlowConfig,
   syncConversationFlowTurn,
@@ -653,10 +654,15 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
 
   const snapshotBlock = formatSnapshotForPrompt(snapshot);
 
-  trace.allowedTools =
-    snapshot.derived.allowedTools.length > 0
-      ? snapshot.derived.allowedTools
-      : flowSync.allowedTools;
+  trace.allowedTools = applyPlatformToolGate({
+    toolNames:
+      snapshot.derived.allowedTools.length > 0
+        ? snapshot.derived.allowedTools
+        : flowSync.allowedTools,
+    appointmentPolicy: flowConfig.appointmentPolicy,
+    conversationFlows: flowConfig.conversationFlows,
+    vaSettings: input.settings,
+  });
   trace.mutationGate = computeMutationGate(flowSync);
 
   let handoff = false;
@@ -705,10 +711,16 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   let filteredTools = filterToolsByNames(CHATBOT_TOOLS, allowedTools);
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const roundAllowed =
+    const roundAllowedRaw =
       snapshot.derived.allowedTools.length > 0
         ? snapshot.derived.allowedTools
         : flowSync.allowedTools;
+    const roundAllowed = applyPlatformToolGate({
+      toolNames: roundAllowedRaw,
+      appointmentPolicy: flowConfig.appointmentPolicy,
+      conversationFlows: flowConfig.conversationFlows,
+      vaSettings: input.settings,
+    });
     filteredTools = filterToolsByNames(CHATBOT_TOOLS, roundAllowed);
 
     trace.llmRounds = round + 1;
@@ -887,10 +899,15 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         facts
       );
       aiState = flowSync.aiState;
-      trace.allowedTools =
-        snapshot.derived.allowedTools.length > 0
-          ? snapshot.derived.allowedTools
-          : flowSync.allowedTools;
+      trace.allowedTools = applyPlatformToolGate({
+        toolNames:
+          snapshot.derived.allowedTools.length > 0
+            ? snapshot.derived.allowedTools
+            : flowSync.allowedTools,
+        appointmentPolicy: flowConfig.appointmentPolicy,
+        conversationFlows: flowConfig.conversationFlows,
+        vaSettings: input.settings,
+      });
 
       if (outcome.handoff) {
         handoff = true;

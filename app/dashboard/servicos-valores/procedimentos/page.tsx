@@ -10,7 +10,9 @@ export default async function ServicosValoresProcedimentosPage() {
     await Promise.all([
       supabase
         .from("procedures")
-        .select("id, name, recommendations, display_order, default_service_id, duration_minutes")
+        .select(
+          "id, name, recommendations, short_description, how_we_perform, recovery, display_order, default_service_id, duration_minutes"
+        )
         .eq("clinic_id", clinicId)
         .order("display_order", { ascending: true }),
       supabase
@@ -40,6 +42,9 @@ export default async function ServicosValoresProcedimentosPage() {
     id: p.id,
     name: p.name,
     recommendations: p.recommendations ?? null,
+    short_description: (p as { short_description?: string | null }).short_description ?? null,
+    how_we_perform: (p as { how_we_perform?: string | null }).how_we_perform ?? null,
+    recovery: (p as { recovery?: string | null }).recovery ?? null,
     display_order: p.display_order ?? 0,
     default_service_id: p.default_service_id ?? null,
     duration_minutes: p.duration_minutes ?? 30,

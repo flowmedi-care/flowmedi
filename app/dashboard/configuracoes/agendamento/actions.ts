@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import type {
   AppointmentPolicyInput,
   CheckInPolicyInput,
+  FinanceActionsInput,
   GoalPolicyLevel,
+  KnowledgeAclInput,
 } from "@/lib/attendance-flow/types";
 import { mergeAppointmentPolicy } from "@/lib/attendance-flow/defaults";
 
@@ -55,6 +57,8 @@ export async function saveAppointmentPolicy(goals: Record<string, string>) {
 export async function saveAppointmentPolicyPatch(input: {
   goals?: Record<string, string | GoalPolicyLevel>;
   check_in?: CheckInPolicyInput;
+  knowledge_acl?: KnowledgeAclInput;
+  finance_actions?: FinanceActionsInput;
 }) {
   const ctx = await requireAdminClinic();
   if (ctx.error || !ctx.supabase || !ctx.clinicId) return { error: ctx.error };
@@ -80,19 +84,69 @@ export async function saveAppointmentPolicyPatch(input: {
     nextGoals = sanitized;
   }
 
-  const nextCheckIn = mergeAppointmentPolicy({
-    check_in: { ...merged.check_in, ...input.check_in, window: {
-      ...merged.check_in.window,
-      ...input.check_in?.window,
-    } },
-  }).check_in;
+  const nextCheckIn = input.check_in
+    ? mergeAppointmentPolicy({
+        check_in: {
+          ...merged.check_in,
+          ...input.check_in,
+          window: {
+            ...merged.check_in.window,
+            ...input.check_in?.window,
+          },
+        },
+      }).check_in
+    : merged.check_in;
+
+  const nextAcl = input.knowledge_acl
+    ? mergeAppointmentPolicy({
+        knowledge_acl: {
+          clinic: {
+            enabled: input.knowledge_acl.clinic?.enabled ?? merged.knowledge_acl.clinic.enabled,
+            fields: {
+              ...merged.knowledge_acl.clinic.fields,
+              ...input.knowledge_acl.clinic?.fields,
+            },
+          },
+          procedures: {
+            enabled:
+              input.knowledge_acl.procedures?.enabled ??
+              merged.knowledge_acl.procedures.enabled,
+            fields: {
+              ...merged.knowledge_acl.procedures.fields,
+              ...input.knowledge_acl.procedures?.fields,
+            },
+          },
+          services: {
+            enabled:
+              input.knowledge_acl.services?.enabled ?? merged.knowledge_acl.services.enabled,
+            fields: {
+              ...merged.knowledge_acl.services.fields,
+              ...input.knowledge_acl.services?.fields,
+            },
+          },
+          knowledge_base: {
+            enabled:
+              input.knowledge_acl.knowledge_base?.enabled ??
+              merged.knowledge_acl.knowledge_base.enabled,
+          },
+        },
+      }).knowledge_acl
+    : merged.knowledge_acl;
+
+  const nextFinance = input.finance_actions
+    ? mergeAppointmentPolicy({
+        finance_actions: { ...merged.finance_actions, ...input.finance_actions },
+      }).finance_actions
+    : merged.finance_actions;
 
   const { error } = await ctx.supabase
     .from("clinics")
     .update({
       appointment_policy: {
         goals: nextGoals,
-        check_in: input.check_in ? nextCheckIn : merged.check_in,
+        check_in: nextCheckIn,
+        knowledge_acl: nextAcl,
+        finance_actions: nextFinance,
       },
     })
     .eq("id", ctx.clinicId);
@@ -101,5 +155,6 @@ export async function saveAppointmentPolicyPatch(input: {
 
   revalidatePath("/dashboard/configuracoes/agendamento");
   revalidatePath("/dashboard/configuracoes/assistente-virtual");
+  revalidatePath("/dashboard/configuracoes/base-de-conhecimento");
   return { error: null };
 }

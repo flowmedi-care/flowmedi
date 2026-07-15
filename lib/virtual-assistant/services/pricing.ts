@@ -229,7 +229,9 @@ export async function getProcedureInfo(
 ) {
   const { data } = await supabase
     .from("procedures")
-    .select("id, name, duration_minutes, recommendations, default_service_id")
+    .select(
+      "id, name, duration_minutes, recommendations, short_description, how_we_perform, recovery, default_service_id"
+    )
     .eq("id", procedureId)
     .eq("clinic_id", clinicId)
     .single();
