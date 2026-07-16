@@ -12,7 +12,6 @@ import {
   PeriodFilter,
   useMonthPeriodUrl,
 } from "@/components/dashboard-ui/filters/period-filter";
-import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
 import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
 import { fmtCurrency, downloadCsv } from "@/lib/financeiro/format";
@@ -90,19 +89,17 @@ export function FinanceiroExtratoClient({
     <div className="space-y-6">
       <PageToolbar>
         <PageToolbar.Filters>
-          <FilterGroup>
-            <PeriodFilter
-              mode="month"
-              value={monthPeriod.value}
-              onChange={monthPeriod.onChange}
-            />
-          </FilterGroup>
+          <PeriodFilter
+            mode="month"
+            value={monthPeriod.value}
+            onChange={monthPeriod.onChange}
+            actions={
+              <Button variant="outline" size="sm" className="h-10 shadow-none" onClick={exportCsv}>
+                Exportar CSV
+              </Button>
+            }
+          />
         </PageToolbar.Filters>
-        <PageToolbar.Actions>
-          <Button variant="outline" size="sm" className="h-9 shadow-none" onClick={exportCsv}>
-            Exportar CSV
-          </Button>
-        </PageToolbar.Actions>
       </PageToolbar>
 
       <div className="grid gap-4 sm:grid-cols-3">

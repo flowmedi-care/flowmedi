@@ -10,7 +10,6 @@ import {
   PeriodFilter,
   useMonthPeriodUrl,
 } from "@/components/dashboard-ui/filters/period-filter";
-import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
 import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { fmtCurrency, downloadCsv } from "@/lib/financeiro/format";
@@ -62,28 +61,33 @@ export function FinanceiroDreClient({
     <div className="space-y-6">
       <PageToolbar>
         <PageToolbar.Filters>
-          <FilterGroup>
-            <PeriodFilter
-              mode="month"
-              value={monthPeriod.value}
-              onChange={monthPeriod.onChange}
-            />
-          </FilterGroup>
+          <PeriodFilter
+            mode="month"
+            value={monthPeriod.value}
+            onChange={monthPeriod.onChange}
+            actions={
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-10 shadow-none"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  <Settings2 className="h-4 w-4 mr-1" />
+                  Configurar provisões
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-10 shadow-none"
+                  onClick={exportCsv}
+                >
+                  Exportar CSV
+                </Button>
+              </>
+            }
+          />
         </PageToolbar.Filters>
-        <PageToolbar.Actions>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 shadow-none"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <Settings2 className="h-4 w-4 mr-1" />
-            Configurar provisões
-          </Button>
-          <Button variant="outline" size="sm" className="h-9 shadow-none" onClick={exportCsv}>
-            Exportar CSV
-          </Button>
-        </PageToolbar.Actions>
       </PageToolbar>
 
       <div className="grid gap-4 lg:grid-cols-2">

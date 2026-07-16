@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { FunnelPeriod } from "@/lib/analytics/time-buckets";
 import { PeriodFilterProvider } from "./period-filter-context";
 import { PeriodSummary } from "./period-summary";
 import { PeriodControls } from "./period-controls";
+import { ToolbarFilterButton } from "@/components/dashboard-ui/toolbar/toolbar-filter-button";
 import type { MonthPeriodValue } from "./period-filter-types";
 
 export type { MonthPeriodValue } from "./period-filter-types";
@@ -20,6 +22,15 @@ type RangeProps = {
   onChange: (period: FunnelPeriod) => void;
   className?: string;
   showGranularity?: boolean;
+  /** inline = controles na barra; modal = ícone + dialog (padrão Agenda) */
+  presentation?: "modal" | "inline";
+  /** Botões à direita do ícone de filtro (ex.: Relatório, Exportar) */
+  actions?: ReactNode;
+  /** Conteúdo extra no modal (status, profissional, etc.) */
+  extraFilters?: ReactNode;
+  /** Contagem adicional no badge (além do período) */
+  extraActiveCount?: number;
+  dialogTitle?: string;
   children?: ReactNode;
 };
 
@@ -29,10 +40,27 @@ type MonthProps = {
   onChange: (value: MonthPeriodValue) => void;
   className?: string;
   showGranularity?: never;
+  presentation?: "modal" | "inline";
+  actions?: ReactNode;
+  extraFilters?: ReactNode;
+  extraActiveCount?: number;
+  dialogTitle?: string;
   children?: ReactNode;
 };
 
 export type PeriodFilterProps = RangeProps | MonthProps;
+
+function countRangeFilters(activePreset: string, granularity: string, showGranularity: boolean) {
+  return [
+    activePreset !== "30d",
+    showGranularity && granularity !== "day",
+  ].filter(Boolean).length;
+}
+
+function countMonthFilters(year: number, month: number) {
+  const now = new Date();
+  return year !== now.getFullYear() || month !== now.getMonth() + 1 ? 1 : 0;
+}
 
 export function PeriodFilter(props: PeriodFilterProps) {
   if (props.mode === "month") {
@@ -46,11 +74,17 @@ function RangePeriodFilterRoot({
   onChange,
   className,
   showGranularity = true,
+  presentation = "modal",
+  actions,
+  extraFilters,
+  extraActiveCount = 0,
+  dialogTitle = "Filtros",
   children,
 }: RangeProps) {
   const [activePreset, setActivePreset] = useState<string>("30d");
   const [customStart, setCustomStart] = useState(value.start);
   const [customEnd, setCustomEnd] = useState(value.end);
+  const [open, setOpen] = useState(false);
 
   const applyCustom = () => {
     if (!customStart || !customEnd) return;
@@ -58,35 +92,80 @@ function RangePeriodFilterRoot({
     onChange({ start: customStart, end: customEnd, granularity: value.granularity });
   };
 
+  const badgeCount =
+    countRangeFilters(activePreset, value.granularity, showGranularity) + extraActiveCount;
+
+  const providerValue = {
+    mode: "range" as const,
+    value,
+    onChange,
+    activePreset,
+    setActivePreset,
+    customStart,
+    customEnd,
+    setCustomStart,
+    setCustomEnd,
+    applyCustom,
+    showGranularity,
+  };
+
   return (
-    <PeriodFilterProvider
-      value={{
-        mode: "range",
-        value,
-        onChange,
-        activePreset,
-        setActivePreset,
-        customStart,
-        customEnd,
-        setCustomStart,
-        setCustomEnd,
-        applyCustom,
-        showGranularity,
-      }}
-    >
-      <div className={cn("flex flex-col min-w-0 w-full", className)}>
-        {children ?? (
-          <>
+    <PeriodFilterProvider value={providerValue}>
+      {presentation === "inline" ? (
+        <div className={cn("flex flex-col min-w-0 w-full", className)}>
+          {children ?? (
+            <>
+              <PeriodSummary />
+              <PeriodControls />
+            </>
+          )}
+        </div>
+      ) : (
+        <div className={cn("flex flex-col min-w-0 w-full", className)}>
+          <div className="flex w-full items-start justify-between gap-3">
             <PeriodSummary />
-            <PeriodControls />
-          </>
-        )}
-      </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <ToolbarFilterButton
+                count={badgeCount}
+                onClick={() => setOpen(true)}
+                aria-label="Abrir filtros de período"
+              />
+              {actions}
+            </div>
+          </div>
+
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent title={dialogTitle} onClose={() => setOpen(false)} className="max-w-md">
+              <div className="space-y-4">
+                <PeriodControls />
+                {extraFilters}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
     </PeriodFilterProvider>
   );
 }
 
-function MonthPeriodFilterRoot({ value, onChange, className, children }: MonthProps) {
+function MonthPeriodFilterRoot({
+  value,
+  onChange,
+  className,
+  presentation = "modal",
+  actions,
+  extraFilters,
+  extraActiveCount = 0,
+  dialogTitle = "Filtros",
+  children,
+}: MonthProps) {
+  const [open, setOpen] = useState(false);
+
+  const badgeCount = useMemo(
+    () => countMonthFilters(value.year, value.month) + extraActiveCount,
+    [value.year, value.month, extraActiveCount]
+  );
+
   return (
     <PeriodFilterProvider
       value={{
@@ -103,14 +182,39 @@ function MonthPeriodFilterRoot({ value, onChange, className, children }: MonthPr
         showGranularity: false,
       }}
     >
-      <div className={cn("flex flex-col min-w-0 w-full", className)}>
-        {children ?? (
-          <>
+      {presentation === "inline" ? (
+        <div className={cn("flex flex-col min-w-0 w-full", className)}>
+          {children ?? (
+            <>
+              <PeriodSummary />
+              <PeriodControls />
+            </>
+          )}
+        </div>
+      ) : (
+        <div className={cn("flex flex-col min-w-0 w-full", className)}>
+          <div className="flex w-full items-start justify-between gap-3">
             <PeriodSummary />
-            <PeriodControls />
-          </>
-        )}
-      </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <ToolbarFilterButton
+                count={badgeCount}
+                onClick={() => setOpen(true)}
+                aria-label="Abrir filtros de período"
+              />
+              {actions}
+            </div>
+          </div>
+
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent title={dialogTitle} onClose={() => setOpen(false)} className="max-w-md">
+              <div className="space-y-4">
+                <PeriodControls />
+                {extraFilters}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
     </PeriodFilterProvider>
   );
 }

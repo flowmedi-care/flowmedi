@@ -28,7 +28,6 @@ import { Button } from "@/components/ui/button";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { StatCard } from "@/components/dashboard-ui/stat-card";
 import { PeriodFilter } from "@/components/dashboard-ui/filters/period-filter";
-import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
 import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
 import { ToolbarContextBadge } from "@/components/dashboard-ui/toolbar/toolbar-context-badge";
 import {
@@ -86,17 +85,19 @@ export function VendasOverviewClient({ initialMetrics }: VendasOverviewClientPro
     <div className="space-y-6">
       <PageToolbar>
         <PageToolbar.Filters>
-          <FilterGroup>
-            <PeriodFilter mode="range" value={period} onChange={handlePeriodChange} />
-          </FilterGroup>
+          <PeriodFilter
+            mode="range"
+            value={period}
+            onChange={handlePeriodChange}
+            actions={
+              <Link href="/dashboard/vendas/relatorio">
+                <Button variant="outline" size="sm" className="h-10 shadow-none shrink-0">
+                  Relatório detalhado
+                </Button>
+              </Link>
+            }
+          />
         </PageToolbar.Filters>
-        <PageToolbar.Actions>
-          <Link href="/dashboard/vendas/relatorio">
-            <Button variant="outline" size="sm" className="h-9 shadow-none shrink-0">
-              Relatório detalhado
-            </Button>
-          </Link>
-        </PageToolbar.Actions>
         <PageToolbar.Meta>
           <ToolbarContextBadge>
             {isPending ? "Atualizando métricas…" : "Baseado em comandas emitidas"}

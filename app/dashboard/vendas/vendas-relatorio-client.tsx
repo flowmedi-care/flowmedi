@@ -104,6 +104,12 @@ export function VendasRelatorioClient({ initialData }: VendasRelatorioClientProp
     });
   };
 
+  const extraActiveCount = [
+    statusFilter.length > 0,
+    professionalId !== "all",
+    patientSearch.trim() !== "",
+  ].filter(Boolean).length;
+
   const tableRows = useMemo(
     () =>
       data.rows.map((row) => ({
@@ -124,76 +130,78 @@ export function VendasRelatorioClient({ initialData }: VendasRelatorioClientProp
       <div className="space-y-6">
         <PageToolbar>
           <PageToolbar.Filters>
-            <div className="flex flex-col w-full min-w-0">
-              <PeriodFilter mode="range" value={period} onChange={handlePeriodChange} />
-              <div className="flex flex-wrap items-start gap-x-8 gap-y-3 pt-3 border-t border-border/40">
-                <FilterControlZone label="Paciente">
-                  <div className="relative w-full min-w-[200px] sm:max-w-xs">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                    <Input
-                      value={patientSearch}
-                      onChange={(e) => setPatientSearch(e.target.value)}
-                      placeholder="Buscar paciente..."
-                      className="h-9 w-full pl-9 text-sm bg-background border-border/60 shadow-none"
-                    />
-                  </div>
-                </FilterControlZone>
-                <FilterControlZone label="Status">
-                  <div
-                    className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-muted/60 p-1"
-                    role="group"
-                    aria-label="Status"
+            <PeriodFilter
+              mode="range"
+              value={period}
+              onChange={handlePeriodChange}
+              dialogTitle="Filtros do relatório"
+              extraActiveCount={extraActiveCount}
+              extraFilters={
+                <div className="space-y-4 pt-2 border-t border-border/40">
+                  <FilterControlZone label="Paciente">
+                    <div className="relative w-full">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                      <Input
+                        value={patientSearch}
+                        onChange={(e) => setPatientSearch(e.target.value)}
+                        placeholder="Buscar paciente..."
+                        className="h-9 w-full pl-9 text-sm bg-background border-border/60 shadow-none"
+                      />
+                    </div>
+                  </FilterControlZone>
+                  <FilterControlZone label="Status">
+                    <div
+                      className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-muted/60 p-1"
+                      role="group"
+                      aria-label="Status"
+                    >
+                      {STATUS_OPTIONS.map((opt) => {
+                        const active = statusFilter.includes(opt.value);
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => toggleStatus(opt.value)}
+                            className={cn(
+                              "inline-flex h-6 items-center rounded-md px-2 text-xs font-medium transition-all",
+                              active
+                                ? "bg-background text-foreground ring-1 ring-border/60"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </FilterControlZone>
+                  <FilterControlZone label="Profissional">
+                    <Select
+                      value={professionalId}
+                      onChange={(e) => setProfessionalId(e.target.value)}
+                      className="h-9 w-full"
+                    >
+                      <option value="all">Todos profissionais</option>
+                      {data.professionals.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </FilterControlZone>
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={handleFilterChange}
+                    disabled={isPending}
                   >
-                    {STATUS_OPTIONS.map((opt) => {
-                      const active = statusFilter.includes(opt.value);
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          aria-pressed={active}
-                          onClick={() => toggleStatus(opt.value)}
-                          className={cn(
-                            "inline-flex h-6 items-center rounded-md px-2 text-xs font-medium transition-all",
-                            active
-                              ? "bg-background text-foreground ring-1 ring-border/60"
-                              : "text-muted-foreground hover:text-foreground"
-                          )}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </FilterControlZone>
-                <FilterControlZone label="Profissional">
-                  <Select
-                    value={professionalId}
-                    onChange={(e) => setProfessionalId(e.target.value)}
-                    className="h-9 w-[180px]"
-                  >
-                    <option value="all">Todos profissionais</option>
-                    {data.professionals.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </Select>
-                </FilterControlZone>
-              </div>
-            </div>
+                    Aplicar filtros
+                  </Button>
+                </div>
+              }
+            />
           </PageToolbar.Filters>
-          <PageToolbar.Actions>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-9 shadow-none"
-              onClick={handleFilterChange}
-              disabled={isPending}
-            >
-              Aplicar filtros
-            </Button>
-          </PageToolbar.Actions>
           <PageToolbar.Meta>
             <ToolbarContextBadge>
               {isPending ? "Carregando…" : `${data.rows.length} registro(s)`}

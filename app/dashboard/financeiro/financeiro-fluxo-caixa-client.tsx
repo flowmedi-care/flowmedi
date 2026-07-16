@@ -17,7 +17,6 @@ import {
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { PeriodFilter } from "@/components/dashboard-ui/filters/period-filter";
-import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
 import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
 import { ToolbarContextBadge } from "@/components/dashboard-ui/toolbar/toolbar-context-badge";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
@@ -79,21 +78,23 @@ export function FinanceiroFluxoCaixaClient({
     <div className="space-y-6">
       <PageToolbar>
         <PageToolbar.Filters>
-          <FilterGroup>
-            <PeriodFilter mode="range" value={period} onChange={handlePeriodChange} />
-          </FilterGroup>
+          <PeriodFilter
+            mode="range"
+            value={period}
+            onChange={handlePeriodChange}
+            actions={
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 shadow-none"
+                onClick={exportCsv}
+                disabled={isPending}
+              >
+                Exportar CSV
+              </Button>
+            }
+          />
         </PageToolbar.Filters>
-        <PageToolbar.Actions>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 shadow-none"
-            onClick={exportCsv}
-            disabled={isPending}
-          >
-            Exportar CSV
-          </Button>
-        </PageToolbar.Actions>
         <PageToolbar.Meta>
           <ToolbarContextBadge>
             {isPending ? "Atualizando…" : "Entradas e saídas do caixa"}

@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import { StatCard } from "@/components/dashboard-ui/stat-card";
 import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
-import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
 import {
   PeriodFilter,
   useMonthPeriodUrl,
@@ -55,22 +54,20 @@ export function FinanceiroOverviewClient({
     <div className="space-y-6">
       <PageToolbar>
         <PageToolbar.Filters>
-          <FilterGroup>
-            <PeriodFilter
-              mode="month"
-              value={monthPeriod.value}
-              onChange={monthPeriod.onChange}
-            />
-          </FilterGroup>
+          <PeriodFilter
+            mode="month"
+            value={monthPeriod.value}
+            onChange={monthPeriod.onChange}
+            actions={
+              canManage ? (
+                <Button onClick={() => setShowForm(true)} className="h-10 shrink-0">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Lançamento
+                </Button>
+              ) : undefined
+            }
+          />
         </PageToolbar.Filters>
-        {canManage && (
-          <PageToolbar.Actions>
-            <Button onClick={() => setShowForm(true)} className="shrink-0">
-              <Plus className="h-4 w-4 mr-1" />
-              Lançamento
-            </Button>
-          </PageToolbar.Actions>
-        )}
       </PageToolbar>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

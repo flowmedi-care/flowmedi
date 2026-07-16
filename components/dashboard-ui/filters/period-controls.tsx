@@ -26,7 +26,7 @@ export function PeriodControls({ className }: { className?: string }) {
   if (ctx.mode === "month") {
     const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
     return (
-      <div className={cn("pt-3 border-t border-border/40", className)}>
+      <div className={cn("space-y-4", className)}>
         <FilterControlZone label="Período">
           <div className="flex flex-wrap items-center gap-2">
             <Select
@@ -86,8 +86,8 @@ export function PeriodControls({ className }: { className?: string }) {
   const showCustom = ctx.activePreset === "custom";
 
   return (
-    <div className={cn("pt-3 border-t border-border/40 space-y-3", className)}>
-      <div className="flex flex-wrap items-start gap-x-8 gap-y-3">
+    <div className={cn("space-y-4", className)}>
+      <div className="flex flex-col gap-4">
         <FilterControlZone label="Período">
           <SegmentedControl
             value={ctx.activePreset}
