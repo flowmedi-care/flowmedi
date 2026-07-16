@@ -17,9 +17,12 @@ import { Select } from "@/components/ui/select";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { DataTable } from "@/components/dashboard-ui/data-table";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
-import { FilterBar } from "@/components/dashboard-ui/layout/filter-bar";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
-import { PeriodRangePicker } from "@/components/dashboard-ui/period-range-picker";
+import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
+import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
+import { PeriodFilter } from "@/components/dashboard-ui/filters/period-filter";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import {
   MONO_CHART_SCALE,
   chartAxisProps,
@@ -122,26 +125,42 @@ export function VendasRelatorioClient({ initialData }: VendasRelatorioClientProp
       }}
     >
       <div className="space-y-6">
-        <FilterBar
-          searchValue={patientSearch}
-          onSearchChange={setPatientSearch}
-          searchPlaceholder="Buscar paciente..."
-          filters={
-            <>
-              <PeriodRangePicker period={period} onChange={handlePeriodChange} />
-              <div className="flex flex-wrap gap-1">
-                {STATUS_OPTIONS.map((opt) => (
-                  <Button
-                    key={opt.value}
-                    type="button"
-                    size="sm"
-                    variant={statusFilter.includes(opt.value) ? "secondary" : "outline"}
-                    className="h-8 text-xs"
-                    onClick={() => toggleStatus(opt.value)}
-                  >
-                    {opt.label}
-                  </Button>
-                ))}
+        <PageToolbar>
+          <PageToolbar.Filters>
+            <FilterGroup>
+              <div className="relative w-full min-w-[200px] sm:max-w-xs">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={patientSearch}
+                  onChange={(e) => setPatientSearch(e.target.value)}
+                  placeholder="Buscar paciente..."
+                  className="h-9 w-full pl-9 text-sm bg-background border-border/60 shadow-none"
+                />
+              </div>
+              <PeriodFilter mode="range" value={period} onChange={handlePeriodChange} />
+              <div
+                className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-muted/60 p-1"
+                role="group"
+                aria-label="Status"
+              >
+                {STATUS_OPTIONS.map((opt) => {
+                  const active = statusFilter.includes(opt.value);
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => toggleStatus(opt.value)}
+                      className={
+                        active
+                          ? "inline-flex h-7 items-center rounded-md bg-card px-2.5 text-xs font-medium text-foreground shadow-sm"
+                          : "inline-flex h-7 items-center rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                      }
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
               <Select
                 value={professionalId}
@@ -155,26 +174,28 @@ export function VendasRelatorioClient({ initialData }: VendasRelatorioClientProp
                   </option>
                 ))}
               </Select>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="h-9"
-                onClick={handleFilterChange}
-                disabled={isPending}
-              >
-                Aplicar filtros
-              </Button>
-            </>
-          }
-        />
+            </FilterGroup>
+          </PageToolbar.Filters>
+          <PageToolbar.Actions>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-9"
+              onClick={handleFilterChange}
+              disabled={isPending}
+            >
+              Aplicar filtros
+            </Button>
+          </PageToolbar.Actions>
+          <PageToolbar.Meta>
+            {isPending
+              ? "Carregando…"
+              : `${periodLabel} · ${data.rows.length} registro(s)`}
+          </PageToolbar.Meta>
+        </PageToolbar>
 
         {fetchError && <p className="text-sm text-destructive">{fetchError}</p>}
-        {isPending && <p className="text-sm text-muted-foreground">Carregando…</p>}
-
-        <p className="text-xs text-muted-foreground">
-          {periodLabel} · {data.rows.length} registro(s)
-        </p>
 
         <div className="grid gap-4 lg:grid-cols-3">
           <ChartCard title="Por procedimento/serviço" description="Top itens faturados">

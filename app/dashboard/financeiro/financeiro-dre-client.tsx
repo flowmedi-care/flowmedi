@@ -6,7 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PeriodSelector } from "./components/period-selector";
+import {
+  PeriodFilter,
+  useMonthPeriodUrl,
+} from "@/components/dashboard-ui/filters/period-filter";
+import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
+import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { fmtCurrency, downloadCsv } from "@/lib/financeiro/format";
 import { drePercentOfRevenue } from "@/lib/financeiro/dre-structure";
@@ -50,20 +55,32 @@ export function FinanceiroDreClient({
     }
   }
 
+  const monthPeriod = useMonthPeriodUrl(report.year, report.month);
   const totalKeys = ["receita_liquida", "lucro_bruto", "ebitda", "lair", "resultado_liquido"];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <PeriodSelector year={report.year} month={report.month} />
-        <div className="flex gap-2">
+      <PageToolbar>
+        <PageToolbar.Filters>
+          <FilterGroup>
+            <PeriodFilter
+              mode="month"
+              value={monthPeriod.value}
+              onChange={monthPeriod.onChange}
+            />
+          </FilterGroup>
+        </PageToolbar.Filters>
+        <PageToolbar.Actions>
           <Button variant="outline" onClick={() => setSettingsOpen(true)}>
             <Settings2 className="h-4 w-4 mr-1" />
             Configurar provisões
           </Button>
-          <Button variant="outline" onClick={exportCsv}>Exportar CSV</Button>
-        </div>
-      </div>
+          <Button variant="outline" onClick={exportCsv}>
+            Exportar CSV
+          </Button>
+        </PageToolbar.Actions>
+        <PageToolbar.Meta>{report.monthLabel}</PageToolbar.Meta>
+      </PageToolbar>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

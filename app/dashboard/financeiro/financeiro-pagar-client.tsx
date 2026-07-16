@@ -21,7 +21,7 @@ import { PAYMENT_METHODS } from "@/lib/financeiro/constants";
 import { todayDateOnly } from "@/lib/financeiro/date-utils";
 import type { ExpenseGroupKey, FinancialEntryRow, PendingExpenseRow } from "@/lib/financeiro/types";
 import { toast } from "@/components/ui/toast";
-import { PageToolbar } from "@/components/dashboard-ui/page-toolbar";
+import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
 import { DataTable } from "@/components/dashboard-ui/data-table";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
 
@@ -107,10 +107,12 @@ export function FinanceiroPagarClient({
     <div className="space-y-6">
       <PageToolbar>
         {canManage && (
-          <Button onClick={() => setShowForm(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            Nova despesa
-          </Button>
+          <PageToolbar.Actions>
+            <Button onClick={() => setShowForm(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Nova despesa
+            </Button>
+          </PageToolbar.Actions>
         )}
       </PageToolbar>
 

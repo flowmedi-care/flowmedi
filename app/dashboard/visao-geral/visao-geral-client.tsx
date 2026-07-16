@@ -13,7 +13,9 @@ import {
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/dashboard-ui/stat-card";
 import { GoalProgressCard } from "@/components/dashboard-ui/goal-progress-card";
-import { PageToolbar, PeriodSelect } from "@/components/dashboard-ui/page-toolbar";
+import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
+import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
+import { SegmentedControl } from "@/components/dashboard-ui/filters/segmented-control";
 import { getStartOfWeek, parseYMD, toYMD } from "@/app/dashboard/agenda/agenda-date-utils";
 import { ProcedureWeekPanel } from "./procedure-week-panel";
 import { OverviewWeekCalendar } from "./overview-week-calendar";
@@ -92,7 +94,24 @@ export function VisaoGeralClient({
 
   return (
     <div className="space-y-6">
-      <PageToolbar filters={<PeriodSelect value={period} onChange={setPeriod} options={PERIODS} />} />
+      <PageToolbar>
+        <PageToolbar.Filters>
+          <FilterGroup>
+            <SegmentedControl
+              value={period}
+              onChange={(v) => setPeriod(v as Period)}
+              size="sm"
+              aria-label="Período"
+            >
+              {PERIODS.map((p) => (
+                <SegmentedControl.Item key={p.value} value={p.value}>
+                  {p.label}
+                </SegmentedControl.Item>
+              ))}
+            </SegmentedControl>
+          </FilterGroup>
+        </PageToolbar.Filters>
+      </PageToolbar>
 
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -16,14 +16,18 @@ import {
   YAxis,
 } from "recharts";
 import { Button } from "@/components/ui/button";
-import { PeriodRangePicker } from "@/components/dashboard-ui/period-range-picker";
-import { PageToolbar } from "@/components/dashboard-ui/page-toolbar";
+import { PeriodFilter } from "@/components/dashboard-ui/filters/period-filter";
+import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
+import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { DataTable } from "@/components/dashboard-ui/data-table";
 import { fmtCurrency, downloadCsv } from "@/lib/financeiro/format";
 import { getCashFlowUnified } from "@/lib/financeiro/analytics";
 import type { CashFlowBucket, UnifiedLedgerRow } from "@/lib/financeiro/types";
-import type { FunnelPeriod } from "@/lib/analytics/time-buckets";
+import {
+  type FunnelPeriod,
+  formatPeriodRangeLabel,
+} from "@/lib/analytics/time-buckets";
 import {
   CHART_PALETTE,
   chartAxisProps,
@@ -75,8 +79,20 @@ export function FinanceiroFluxoCaixaClient({
 
   return (
     <div className="space-y-6">
-      <PageToolbar filters={<PeriodRangePicker period={period} onChange={handlePeriodChange} />}>
-        <Button variant="outline" size="sm" onClick={exportCsv} disabled={isPending}>Exportar CSV</Button>
+      <PageToolbar>
+        <PageToolbar.Filters>
+          <FilterGroup>
+            <PeriodFilter mode="range" value={period} onChange={handlePeriodChange} />
+          </FilterGroup>
+        </PageToolbar.Filters>
+        <PageToolbar.Actions>
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={isPending}>
+            Exportar CSV
+          </Button>
+        </PageToolbar.Actions>
+        <PageToolbar.Meta>
+          {isPending ? "Atualizando…" : formatPeriodRangeLabel(period)}
+        </PageToolbar.Meta>
       </PageToolbar>
 
       <ChartCard title="Fluxo de caixa" description="Entradas, saídas e líquido por período">

@@ -5,14 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import { StatCard } from "@/components/dashboard-ui/stat-card";
-import { PageToolbar } from "@/components/dashboard-ui/page-toolbar";
-import { DataTable } from "@/components/dashboard-ui/data-table";
-import { EmptyState } from "@/components/dashboard-ui/empty-state";
-import { PeriodSelector } from "./components/period-selector";
+import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
+import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
+import {
+  PeriodFilter,
+  useMonthPeriodUrl,
+} from "@/components/dashboard-ui/filters/period-filter";
 import { FinancialEntryFormDialog } from "./components/financial-entry-form-dialog";
 import { ComandaPaymentDialog } from "./components/comanda-payment-dialog";
 import { CancelComandaDialog } from "./components/cancel-comanda-dialog";
 import { FinanceOverviewCharts } from "./components/finance-overview-charts";
+import { DataTable } from "@/components/dashboard-ui/data-table";
+import { EmptyState } from "@/components/dashboard-ui/empty-state";
 import { fmtCurrency } from "@/lib/financeiro/format";
 import type {
   DashboardMetricsExtended,
@@ -45,14 +49,27 @@ export function FinanceiroOverviewClient({
   const [payComanda, setPayComanda] = useState<{ id: string; remainder: number } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<OpenComandaRow | null>(null);
 
+  const monthPeriod = useMonthPeriodUrl(year, month);
+
   return (
     <div className="space-y-6">
-      <PageToolbar filters={<PeriodSelector year={year} month={month} />}>
+      <PageToolbar>
+        <PageToolbar.Filters>
+          <FilterGroup>
+            <PeriodFilter
+              mode="month"
+              value={monthPeriod.value}
+              onChange={monthPeriod.onChange}
+            />
+          </FilterGroup>
+        </PageToolbar.Filters>
         {canManage && (
-          <Button onClick={() => setShowForm(true)} className="shrink-0">
-            <Plus className="h-4 w-4 mr-1" />
-            Lançamento
-          </Button>
+          <PageToolbar.Actions>
+            <Button onClick={() => setShowForm(true)} className="shrink-0">
+              <Plus className="h-4 w-4 mr-1" />
+              Lançamento
+            </Button>
+          </PageToolbar.Actions>
         )}
       </PageToolbar>
 

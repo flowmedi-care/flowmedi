@@ -8,8 +8,12 @@ import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { PeriodSelector } from "./components/period-selector";
-import { PageToolbar } from "@/components/dashboard-ui/page-toolbar";
+import {
+  PeriodFilter,
+  useMonthPeriodUrl,
+} from "@/components/dashboard-ui/filters/period-filter";
+import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
+import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
 import { fmtCurrency, downloadCsv } from "@/lib/financeiro/format";
 import { CATEGORY_LABELS, EXPENSE_CATEGORIES } from "@/lib/financeiro/constants";
@@ -80,10 +84,25 @@ export function FinanceiroExtratoClient({
     toast("Comprovante não disponível.", "error");
   }
 
+  const monthPeriod = useMonthPeriodUrl(year, month);
+
   return (
     <div className="space-y-6">
-      <PageToolbar filters={<PeriodSelector year={year} month={month} />}>
-        <Button variant="outline" size="sm" onClick={exportCsv}>Exportar CSV</Button>
+      <PageToolbar>
+        <PageToolbar.Filters>
+          <FilterGroup>
+            <PeriodFilter
+              mode="month"
+              value={monthPeriod.value}
+              onChange={monthPeriod.onChange}
+            />
+          </FilterGroup>
+        </PageToolbar.Filters>
+        <PageToolbar.Actions>
+          <Button variant="outline" size="sm" onClick={exportCsv}>
+            Exportar CSV
+          </Button>
+        </PageToolbar.Actions>
       </PageToolbar>
 
       <div className="grid gap-4 sm:grid-cols-3">

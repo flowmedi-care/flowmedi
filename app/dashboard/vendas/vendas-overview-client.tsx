@@ -27,8 +27,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { StatCard } from "@/components/dashboard-ui/stat-card";
-import { PeriodRangePicker } from "@/components/dashboard-ui/period-range-picker";
-import { PageToolbar } from "@/components/dashboard-ui/page-toolbar";
+import { PeriodFilter } from "@/components/dashboard-ui/filters/period-filter";
+import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
+import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
 import {
   CHART_PALETTE,
   MONO_CHART_SCALE,
@@ -86,12 +87,22 @@ export function VendasOverviewClient({ initialMetrics }: VendasOverviewClientPro
 
   return (
     <div className="space-y-6">
-      <PageToolbar filters={<PeriodRangePicker period={period} onChange={handlePeriodChange} />}>
-        <Link href="/dashboard/vendas/relatorio">
-          <Button variant="outline" size="sm" className="shrink-0">
-            Relatório detalhado
-          </Button>
-        </Link>
+      <PageToolbar>
+        <PageToolbar.Filters>
+          <FilterGroup>
+            <PeriodFilter mode="range" value={period} onChange={handlePeriodChange} />
+          </FilterGroup>
+        </PageToolbar.Filters>
+        <PageToolbar.Actions>
+          <Link href="/dashboard/vendas/relatorio">
+            <Button variant="outline" size="sm" className="shrink-0">
+              Relatório detalhado
+            </Button>
+          </Link>
+        </PageToolbar.Actions>
+        <PageToolbar.Meta>
+          {isPending ? "Atualizando métricas…" : `${periodLabel} · baseado em comandas emitidas`}
+        </PageToolbar.Meta>
       </PageToolbar>
 
       {fetchError && (
@@ -100,12 +111,6 @@ export function VendasOverviewClient({ initialMetrics }: VendasOverviewClientPro
           {fetchError}
         </p>
       )}
-
-      {isPending && (
-        <p className="text-sm text-muted-foreground">Atualizando métricas…</p>
-      )}
-
-      <p className="text-xs text-muted-foreground">{periodLabel} · baseado em comandas emitidas</p>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard

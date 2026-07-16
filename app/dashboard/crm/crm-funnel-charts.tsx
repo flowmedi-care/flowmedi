@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { StatCard } from "@/components/dashboard-ui/stat-card";
-import { PeriodRangePicker } from "@/components/dashboard-ui/period-range-picker";
+import { PeriodFilter } from "@/components/dashboard-ui/filters/period-filter";
 import { EngagementFunnelChart } from "@/components/dashboard-ui/engagement-funnel-chart";
 import {
   MONO_CHART_SCALE,
@@ -152,7 +152,7 @@ export function CrmFunnelCharts({
             Conversão cumulativa de leads e consultas · {periodLabel}
           </p>
         </div>
-        <PeriodRangePicker period={period} onChange={handlePeriodChange} className="lg:max-w-xl" />
+        <PeriodFilter mode="range" value={period} onChange={handlePeriodChange} className="lg:max-w-xl" />
       </div>
 
       {fetchError && <p className="text-sm text-destructive">{fetchError}</p>}
