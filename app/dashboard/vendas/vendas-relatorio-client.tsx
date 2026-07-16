@@ -136,6 +136,13 @@ export function VendasRelatorioClient({ initialData }: VendasRelatorioClientProp
               onChange={handlePeriodChange}
               dialogTitle="Filtros do relatório"
               extraActiveCount={extraActiveCount}
+              onClear={(cleared) => {
+                setStatusFilter([]);
+                setProfessionalId("all");
+                setPatientSearch("");
+                setPeriod(cleared);
+                fetchData(cleared, {});
+              }}
               extraFilters={
                 <div className="space-y-4 pt-2 border-t border-border/40">
                   <FilterControlZone label="Paciente">

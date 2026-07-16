@@ -2,9 +2,11 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { FunnelPeriod } from "@/lib/analytics/time-buckets";
+import { getPresetFunnelPeriod } from "@/lib/analytics/time-buckets";
 import { PeriodFilterProvider } from "./period-filter-context";
 import { PeriodSummary } from "./period-summary";
 import { PeriodControls } from "./period-controls";
@@ -31,6 +33,11 @@ type RangeProps = {
   /** Contagem adicional no badge (além do período) */
   extraActiveCount?: number;
   dialogTitle?: string;
+  /**
+   * Limpar extras + aplicar período default.
+   * Se omitido, só reseta o período (30d / dia).
+   */
+  onClear?: (defaultPeriod: FunnelPeriod) => void;
   children?: ReactNode;
 };
 
@@ -45,6 +52,7 @@ type MonthProps = {
   extraFilters?: ReactNode;
   extraActiveCount?: number;
   dialogTitle?: string;
+  onClear?: (defaultPeriod: MonthPeriodValue) => void;
   children?: ReactNode;
 };
 
@@ -60,6 +68,38 @@ function countRangeFilters(activePreset: string, granularity: string, showGranul
 function countMonthFilters(year: number, month: number) {
   const now = new Date();
   return year !== now.getFullYear() || month !== now.getMonth() + 1 ? 1 : 0;
+}
+
+function defaultMonthPeriod(): MonthPeriodValue {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
+function ModalFilterFooter({
+  onClear,
+  onClose,
+  canClear,
+}: {
+  onClear: () => void;
+  onClose: () => void;
+  canClear: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={!canClear}
+        onClick={onClear}
+      >
+        Limpar tudo
+      </Button>
+      <Button type="button" size="sm" onClick={onClose}>
+        Fechar
+      </Button>
+    </div>
+  );
 }
 
 export function PeriodFilter(props: PeriodFilterProps) {
@@ -79,6 +119,7 @@ function RangePeriodFilterRoot({
   extraFilters,
   extraActiveCount = 0,
   dialogTitle = "Filtros",
+  onClear,
   children,
 }: RangeProps) {
   const [activePreset, setActivePreset] = useState<string>("30d");
@@ -92,8 +133,29 @@ function RangePeriodFilterRoot({
     onChange({ start: customStart, end: customEnd, granularity: value.granularity });
   };
 
-  const badgeCount =
-    countRangeFilters(activePreset, value.granularity, showGranularity) + extraActiveCount;
+  const periodActiveCount = countRangeFilters(
+    activePreset,
+    value.granularity,
+    showGranularity
+  );
+  const badgeCount = periodActiveCount + extraActiveCount;
+  const canClear = badgeCount > 0;
+
+  const clearAll = () => {
+    const next = getPresetFunnelPeriod("30d");
+    const cleared: FunnelPeriod = {
+      ...next,
+      granularity: showGranularity ? "day" : value.granularity,
+    };
+    setActivePreset("30d");
+    setCustomStart(cleared.start);
+    setCustomEnd(cleared.end);
+    if (onClear) {
+      onClear(cleared);
+    } else {
+      onChange(cleared);
+    }
+  };
 
   const providerValue = {
     mode: "range" as const,
@@ -139,6 +201,11 @@ function RangePeriodFilterRoot({
               <div className="space-y-4">
                 <PeriodControls />
                 {extraFilters}
+                <ModalFilterFooter
+                  canClear={canClear}
+                  onClear={clearAll}
+                  onClose={() => setOpen(false)}
+                />
               </div>
             </DialogContent>
           </Dialog>
@@ -157,14 +224,26 @@ function MonthPeriodFilterRoot({
   extraFilters,
   extraActiveCount = 0,
   dialogTitle = "Filtros",
+  onClear,
   children,
 }: MonthProps) {
   const [open, setOpen] = useState(false);
 
-  const badgeCount = useMemo(
-    () => countMonthFilters(value.year, value.month) + extraActiveCount,
-    [value.year, value.month, extraActiveCount]
+  const periodActiveCount = useMemo(
+    () => countMonthFilters(value.year, value.month),
+    [value.year, value.month]
   );
+  const badgeCount = periodActiveCount + extraActiveCount;
+  const canClear = badgeCount > 0;
+
+  const clearAll = () => {
+    const cleared = defaultMonthPeriod();
+    if (onClear) {
+      onClear(cleared);
+    } else {
+      onChange(cleared);
+    }
+  };
 
   return (
     <PeriodFilterProvider
@@ -210,6 +289,11 @@ function MonthPeriodFilterRoot({
               <div className="space-y-4">
                 <PeriodControls />
                 {extraFilters}
+                <ModalFilterFooter
+                  canClear={canClear}
+                  onClear={clearAll}
+                  onClose={() => setOpen(false)}
+                />
               </div>
             </DialogContent>
           </Dialog>
