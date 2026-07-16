@@ -168,3 +168,38 @@ export function formatPeriodRangeLabel(period: FunnelPeriod): string {
     d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
   return `${fmt(start)} – ${fmt(end)}`;
 }
+
+/** Compact range for toolbar summary, e.g. "17 jun — 16 jul 2026" */
+export function formatPeriodRangeShort(period: FunnelPeriod): string {
+  const start = parseLocalDateKey(period.start);
+  const end = parseLocalDateKey(period.end);
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const fmt = (d: Date, withYear: boolean) =>
+    d
+      .toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "short",
+        ...(withYear ? { year: "numeric" as const } : {}),
+      })
+      .replace(/\./g, "");
+  return `${fmt(start, !sameYear)} — ${fmt(end, true)}`;
+}
+
+const PRESET_LABELS: Record<string, string> = {
+  "7d": "Últimos 7 dias",
+  "30d": "Últimos 30 dias",
+  "90d": "Últimos 90 dias",
+  this_month: "Este mês",
+  last_month: "Mês anterior",
+  custom: "Personalizado",
+};
+
+export function getPeriodPresetLabel(preset: string): string {
+  return PRESET_LABELS[preset] ?? "Período";
+}
+
+export function formatMonthPeriodLabel(year: number, month: number): string {
+  const d = new Date(year, month - 1, 1);
+  const label = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}

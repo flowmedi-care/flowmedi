@@ -99,7 +99,7 @@ export function FinanceiroExtratoClient({
           </FilterGroup>
         </PageToolbar.Filters>
         <PageToolbar.Actions>
-          <Button variant="outline" size="sm" onClick={exportCsv}>
+          <Button variant="outline" size="sm" className="h-9 shadow-none" onClick={exportCsv}>
             Exportar CSV
           </Button>
         </PageToolbar.Actions>

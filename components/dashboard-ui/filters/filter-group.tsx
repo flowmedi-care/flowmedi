@@ -10,7 +10,7 @@ export function FilterGroup({
   return (
     <div
       className={cn(
-        "flex flex-1 flex-wrap items-center gap-2 min-w-0",
+        "flex flex-1 flex-wrap items-start gap-x-8 gap-y-3 min-w-0",
         className
       )}
     >

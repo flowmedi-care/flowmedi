@@ -82,7 +82,7 @@ function SegmentedControlItem({
         "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-all whitespace-nowrap",
         size === "sm" ? "h-6 px-2 text-xs" : "h-7 px-2.5 text-sm",
         active
-          ? "bg-card text-foreground shadow-sm"
+          ? "bg-background text-foreground ring-1 ring-border/60 shadow-none"
           : "text-muted-foreground hover:text-foreground",
         className
       )}

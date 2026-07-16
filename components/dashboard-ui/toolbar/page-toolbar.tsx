@@ -31,7 +31,6 @@ function PageToolbarRoot({
     else loose.push(child);
   });
 
-  // Legacy / convenience: bare children without slots become actions
   if (!actions && loose.length > 0) {
     actions = <ToolbarActions>{loose}</ToolbarActions>;
   }
@@ -43,7 +42,7 @@ function PageToolbarRoot({
   return (
     <div
       className={cn(
-        "rounded-xl border border-border/60 bg-muted/20 p-3",
+        "rounded-xl border border-border/60 bg-muted/20 p-3.5 sm:p-4",
         className
       )}
     >

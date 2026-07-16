@@ -19,15 +19,13 @@ import { Button } from "@/components/ui/button";
 import { PeriodFilter } from "@/components/dashboard-ui/filters/period-filter";
 import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
 import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
+import { ToolbarContextBadge } from "@/components/dashboard-ui/toolbar/toolbar-context-badge";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { DataTable } from "@/components/dashboard-ui/data-table";
 import { fmtCurrency, downloadCsv } from "@/lib/financeiro/format";
 import { getCashFlowUnified } from "@/lib/financeiro/analytics";
 import type { CashFlowBucket, UnifiedLedgerRow } from "@/lib/financeiro/types";
-import {
-  type FunnelPeriod,
-  formatPeriodRangeLabel,
-} from "@/lib/analytics/time-buckets";
+import type { FunnelPeriod } from "@/lib/analytics/time-buckets";
 import {
   CHART_PALETTE,
   chartAxisProps,
@@ -86,12 +84,20 @@ export function FinanceiroFluxoCaixaClient({
           </FilterGroup>
         </PageToolbar.Filters>
         <PageToolbar.Actions>
-          <Button variant="outline" size="sm" onClick={exportCsv} disabled={isPending}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 shadow-none"
+            onClick={exportCsv}
+            disabled={isPending}
+          >
             Exportar CSV
           </Button>
         </PageToolbar.Actions>
         <PageToolbar.Meta>
-          {isPending ? "Atualizando…" : formatPeriodRangeLabel(period)}
+          <ToolbarContextBadge>
+            {isPending ? "Atualizando…" : "Entradas e saídas do caixa"}
+          </ToolbarContextBadge>
         </PageToolbar.Meta>
       </PageToolbar>
 

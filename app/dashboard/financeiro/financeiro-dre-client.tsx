@@ -71,15 +71,19 @@ export function FinanceiroDreClient({
           </FilterGroup>
         </PageToolbar.Filters>
         <PageToolbar.Actions>
-          <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 shadow-none"
+            onClick={() => setSettingsOpen(true)}
+          >
             <Settings2 className="h-4 w-4 mr-1" />
             Configurar provisões
           </Button>
-          <Button variant="outline" onClick={exportCsv}>
+          <Button variant="outline" size="sm" className="h-9 shadow-none" onClick={exportCsv}>
             Exportar CSV
           </Button>
         </PageToolbar.Actions>
-        <PageToolbar.Meta>{report.monthLabel}</PageToolbar.Meta>
       </PageToolbar>
 
       <div className="grid gap-4 lg:grid-cols-2">

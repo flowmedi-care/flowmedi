@@ -19,10 +19,12 @@ import { DataTable } from "@/components/dashboard-ui/data-table";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
-import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
+import { ToolbarContextBadge } from "@/components/dashboard-ui/toolbar/toolbar-context-badge";
+import { FilterControlZone } from "@/components/dashboard-ui/filters/filter-control-zone";
 import { PeriodFilter } from "@/components/dashboard-ui/filters/period-filter";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   MONO_CHART_SCALE,
   chartAxisProps,
@@ -39,10 +41,7 @@ import {
 } from "./vendas-actions";
 import type { VendasRelatorioData, VendasRelatorioFilters } from "@/lib/vendas/types";
 import type { ComandaStatus } from "@/lib/vendas/types";
-import {
-  type FunnelPeriod,
-  formatPeriodRangeLabel,
-} from "@/lib/analytics/time-buckets";
+import type { FunnelPeriod } from "@/lib/analytics/time-buckets";
 
 const fmt = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -105,8 +104,6 @@ export function VendasRelatorioClient({ initialData }: VendasRelatorioClientProp
     });
   };
 
-  const periodLabel = formatPeriodRangeLabel(period);
-
   const tableRows = useMemo(
     () =>
       data.rows.map((row) => ({
@@ -127,61 +124,70 @@ export function VendasRelatorioClient({ initialData }: VendasRelatorioClientProp
       <div className="space-y-6">
         <PageToolbar>
           <PageToolbar.Filters>
-            <FilterGroup>
-              <div className="relative w-full min-w-[200px] sm:max-w-xs">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                <Input
-                  value={patientSearch}
-                  onChange={(e) => setPatientSearch(e.target.value)}
-                  placeholder="Buscar paciente..."
-                  className="h-9 w-full pl-9 text-sm bg-background border-border/60 shadow-none"
-                />
-              </div>
+            <div className="flex flex-col w-full min-w-0">
               <PeriodFilter mode="range" value={period} onChange={handlePeriodChange} />
-              <div
-                className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-muted/60 p-1"
-                role="group"
-                aria-label="Status"
-              >
-                {STATUS_OPTIONS.map((opt) => {
-                  const active = statusFilter.includes(opt.value);
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => toggleStatus(opt.value)}
-                      className={
-                        active
-                          ? "inline-flex h-7 items-center rounded-md bg-card px-2.5 text-xs font-medium text-foreground shadow-sm"
-                          : "inline-flex h-7 items-center rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-                      }
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
+              <div className="flex flex-wrap items-start gap-x-8 gap-y-3 pt-3 border-t border-border/40">
+                <FilterControlZone label="Paciente">
+                  <div className="relative w-full min-w-[200px] sm:max-w-xs">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                    <Input
+                      value={patientSearch}
+                      onChange={(e) => setPatientSearch(e.target.value)}
+                      placeholder="Buscar paciente..."
+                      className="h-9 w-full pl-9 text-sm bg-background border-border/60 shadow-none"
+                    />
+                  </div>
+                </FilterControlZone>
+                <FilterControlZone label="Status">
+                  <div
+                    className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-muted/60 p-1"
+                    role="group"
+                    aria-label="Status"
+                  >
+                    {STATUS_OPTIONS.map((opt) => {
+                      const active = statusFilter.includes(opt.value);
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => toggleStatus(opt.value)}
+                          className={cn(
+                            "inline-flex h-6 items-center rounded-md px-2 text-xs font-medium transition-all",
+                            active
+                              ? "bg-background text-foreground ring-1 ring-border/60"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </FilterControlZone>
+                <FilterControlZone label="Profissional">
+                  <Select
+                    value={professionalId}
+                    onChange={(e) => setProfessionalId(e.target.value)}
+                    className="h-9 w-[180px]"
+                  >
+                    <option value="all">Todos profissionais</option>
+                    {data.professionals.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </Select>
+                </FilterControlZone>
               </div>
-              <Select
-                value={professionalId}
-                onChange={(e) => setProfessionalId(e.target.value)}
-                className="h-9 w-[180px]"
-              >
-                <option value="all">Todos profissionais</option>
-                {data.professionals.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </Select>
-            </FilterGroup>
+            </div>
           </PageToolbar.Filters>
           <PageToolbar.Actions>
             <Button
               type="button"
               size="sm"
-              variant="secondary"
-              className="h-9"
+              variant="outline"
+              className="h-9 shadow-none"
               onClick={handleFilterChange}
               disabled={isPending}
             >
@@ -189,9 +195,9 @@ export function VendasRelatorioClient({ initialData }: VendasRelatorioClientProp
             </Button>
           </PageToolbar.Actions>
           <PageToolbar.Meta>
-            {isPending
-              ? "Carregando…"
-              : `${periodLabel} · ${data.rows.length} registro(s)`}
+            <ToolbarContextBadge>
+              {isPending ? "Carregando…" : `${data.rows.length} registro(s)`}
+            </ToolbarContextBadge>
           </PageToolbar.Meta>
         </PageToolbar>
 

@@ -8,7 +8,7 @@ export function ToolbarMeta({
   className?: string;
 }) {
   return (
-    <div className={cn("text-xs text-muted-foreground pt-2 border-t border-border/40", className)}>
+    <div className={cn("pt-3 mt-3 border-t border-border/40", className)}>
       {children}
     </div>
   );

@@ -30,6 +30,7 @@ import { StatCard } from "@/components/dashboard-ui/stat-card";
 import { PeriodFilter } from "@/components/dashboard-ui/filters/period-filter";
 import { FilterGroup } from "@/components/dashboard-ui/filters/filter-group";
 import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
+import { ToolbarContextBadge } from "@/components/dashboard-ui/toolbar/toolbar-context-badge";
 import {
   CHART_PALETTE,
   MONO_CHART_SCALE,
@@ -44,10 +45,7 @@ import {
   getVendasDashboardMetrics,
 } from "./vendas-actions";
 import type { VendasDashboardMetrics } from "@/lib/vendas/types";
-import {
-  type FunnelPeriod,
-  formatPeriodRangeLabel,
-} from "@/lib/analytics/time-buckets";
+import type { FunnelPeriod } from "@/lib/analytics/time-buckets";
 
 const fmt = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -78,7 +76,6 @@ export function VendasOverviewClient({ initialMetrics }: VendasOverviewClientPro
     });
   };
 
-  const periodLabel = formatPeriodRangeLabel(period);
   const itemMixData = [
     { name: "Serviços", value: metrics.itemMix.servicos },
     { name: "Materiais", value: metrics.itemMix.materiais },
@@ -95,13 +92,15 @@ export function VendasOverviewClient({ initialMetrics }: VendasOverviewClientPro
         </PageToolbar.Filters>
         <PageToolbar.Actions>
           <Link href="/dashboard/vendas/relatorio">
-            <Button variant="outline" size="sm" className="shrink-0">
+            <Button variant="outline" size="sm" className="h-9 shadow-none shrink-0">
               Relatório detalhado
             </Button>
           </Link>
         </PageToolbar.Actions>
         <PageToolbar.Meta>
-          {isPending ? "Atualizando métricas…" : `${periodLabel} · baseado em comandas emitidas`}
+          <ToolbarContextBadge>
+            {isPending ? "Atualizando métricas…" : "Baseado em comandas emitidas"}
+          </ToolbarContextBadge>
         </PageToolbar.Meta>
       </PageToolbar>
 
