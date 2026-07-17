@@ -835,13 +835,17 @@ export async function executeAssistantTool(
           };
         }
 
-        await supabase
-          .from("whatsapp_conversations")
-          .update({
-            ai_handoff_at: new Date().toISOString(),
-            ai_enabled: false,
-          })
-          .eq("id", conversationId);
+        const { setOwner } = await import("@/lib/ops");
+        await setOwner({
+          supabase,
+          clinicId,
+          conversationId,
+          owner: "human",
+          ownerUserId: null,
+          clearAssignee: true,
+          pauseAi: true,
+          reason: String(args.reason ?? "transfer_to_human"),
+        });
         await applyRoutingOnNewConversation(supabase, clinicId, conversationId);
         await logToolCall(
           supabase,

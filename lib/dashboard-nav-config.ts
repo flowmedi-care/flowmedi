@@ -73,7 +73,7 @@ export const DASHBOARD_COMUNICACAO_GROUP: NavGroupItem = {
   prefix: "/dashboard/whatsapp",
   badgeKey: "whatsapp",
   children: [
-    { href: "/dashboard/whatsapp", label: "WhatsApp" },
+    { href: "/dashboard/whatsapp", label: "Operações" },
     { href: "/dashboard/mensagens", label: "Mensagens enviadas", roles: ["admin"] },
     {
       href: "/dashboard/mensagens/pendentes",

@@ -143,13 +143,21 @@ async function processConversationAiInner(
   const { data: conv } = await supabase
     .from("whatsapp_conversations")
     .select(
-      "id, clinic_id, phone_number, ai_enabled, ai_handoff_at, ai_user_opt_out, ai_debounce_until, ai_state, patient_id, ai_privacy_notice_sent_at"
+      "id, clinic_id, phone_number, ai_enabled, ai_handoff_at, ai_user_opt_out, ai_debounce_until, ai_state, patient_id, ai_privacy_notice_sent_at, ops_owner_type"
     )
     .eq("id", conversationId)
     .single();
 
   if (!conv) return;
-  if (conv.ai_user_opt_out || conv.ai_handoff_at || conv.ai_enabled === false) return;
+  const opsOwner = (conv as { ops_owner_type?: string | null }).ops_owner_type;
+  if (
+    conv.ai_user_opt_out ||
+    conv.ai_handoff_at ||
+    conv.ai_enabled === false ||
+    (opsOwner && opsOwner !== "ai")
+  ) {
+    return;
+  }
 
   const debounceUntil = conv.ai_debounce_until ? new Date(conv.ai_debounce_until).getTime() : 0;
   if (debounceUntil > Date.now()) {
@@ -729,13 +737,17 @@ async function processConversationAiInner(
   }
 
   if (effectiveHandoff) {
-    await supabase
-      .from("whatsapp_conversations")
-      .update({
-        ai_handoff_at: now,
-        ai_enabled: false,
-      })
-      .eq("id", conversationId);
+    const { setOwner } = await import("@/lib/ops");
+    await setOwner({
+      supabase,
+      clinicId: conv.clinic_id,
+      conversationId,
+      owner: "human",
+      ownerUserId: null,
+      clearAssignee: true,
+      pauseAi: true,
+      reason: "ai_handoff",
+    });
   }
 
   // Merge turn patch in memory; commit active_selection only after outbound succeeds.
@@ -905,20 +917,28 @@ export async function reactivateAiOnPatientInbound(
 
   const { data: conv } = await supabase
     .from("whatsapp_conversations")
-    .select("ai_handoff_at, ai_enabled")
+    .select("ai_handoff_at, ai_enabled, ops_owner_type")
     .eq("id", conversationId)
     .single();
 
   if (!conv) return false;
-  if (!conv.ai_handoff_at && conv.ai_enabled !== false) return false;
+  const opsOwner = (conv as { ops_owner_type?: string | null }).ops_owner_type;
+  if (
+    !conv.ai_handoff_at &&
+    conv.ai_enabled !== false &&
+    (!opsOwner || opsOwner === "ai")
+  ) {
+    return false;
+  }
 
-  await supabase
-    .from("whatsapp_conversations")
-    .update({
-      ai_handoff_at: null,
-      ai_enabled: true,
-    })
-    .eq("id", conversationId);
+  const { reactivateAi } = await import("@/lib/ops");
+  const result = await reactivateAi({
+    supabase,
+    clinicId,
+    conversationId,
+    reason: "patient_inbound_reactivate",
+  });
+  if (!result.ok) return false;
 
   logAiEvent(supabase, {
     clinicId,
@@ -927,6 +947,7 @@ export async function reactivateAiOnPatientInbound(
     detail: {
       hadHandoff: Boolean(conv.ai_handoff_at),
       hadAiDisabled: conv.ai_enabled === false,
+      via: "ops_mutator",
     },
   });
 
@@ -965,10 +986,28 @@ export async function shouldSkipMenuChatbot(
 
 export async function pauseAiOnManualReply(
   supabase: SupabaseClient,
-  conversationId: string
+  conversationId: string,
+  opts?: { clinicId?: string; humanUserId?: string }
 ): Promise<void> {
+  // Prefer ops mutators when we have clinic + user; fallback flags for legacy callers.
+  if (opts?.clinicId && opts?.humanUserId) {
+    const { pauseAiForHumanReply } = await import("@/lib/ops");
+    await pauseAiForHumanReply({
+      supabase,
+      clinicId: opts.clinicId,
+      conversationId,
+      humanUserId: opts.humanUserId,
+      actorUserId: opts.humanUserId,
+      reason: "human_reply",
+    });
+    return;
+  }
   await supabase
     .from("whatsapp_conversations")
-    .update({ ai_enabled: false })
+    .update({
+      ai_enabled: false,
+      ai_handoff_at: new Date().toISOString(),
+      ops_owner_type: "human",
+    })
     .eq("id", conversationId);
 }

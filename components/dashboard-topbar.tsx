@@ -14,7 +14,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/dashboard/consulta": "Consultas",
   "/dashboard/atendimento": "Atendimento",
   "/dashboard/eventos": "Eventos",
-  "/dashboard/whatsapp": "WhatsApp",
+  "/dashboard/whatsapp": "Operações",
   "/dashboard/mensagens": "Mensagens",
   "/dashboard/financeiro": "Financeiro",
   "/dashboard/crm": "CRM",

@@ -18,6 +18,14 @@ export async function GET(request: NextRequest) {
   const supabase = createServiceRoleClient();
   const now = new Date().toISOString();
 
+  let remindersFlipped = 0;
+  try {
+    const { processDueSystemReminders } = await import("@/lib/ops/event-bridge");
+    remindersFlipped = await processDueSystemReminders(supabase);
+  } catch (e) {
+    console.error("[cron/process-whatsapp-ai] reminders", e);
+  }
+
   const { data: debounced } = await supabase
     .from("whatsapp_conversations")
     .select("id")
@@ -76,5 +84,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ processed, total: ids.size });
+  return NextResponse.json({ processed, total: ids.size, remindersFlipped });
 }

@@ -304,11 +304,20 @@ export async function applyBotLoopSilence(opts: {
     await sendHandoffReply(opts.supabase, opts.clinicId, opts.conversationId, phone);
   }
 
+  const { setOwner } = await import("@/lib/ops");
+  await setOwner({
+    supabase: opts.supabase,
+    clinicId: opts.clinicId,
+    conversationId: opts.conversationId,
+    owner: "human",
+    ownerUserId: null,
+    clearAssignee: true,
+    pauseAi: true,
+    reason: "bot_loop_detected",
+  });
   await opts.supabase
     .from("whatsapp_conversations")
     .update({
-      ai_handoff_at: now,
-      ai_enabled: false,
       ai_debounce_until: null,
       ai_state: nextState,
     })

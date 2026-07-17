@@ -80,12 +80,21 @@ export async function handleInboundUserCommand(opts: {
   const now = new Date().toISOString();
 
   if (command === "opt_out") {
+    const { setOwner } = await import("@/lib/ops");
+    await setOwner({
+      supabase: opts.supabase,
+      clinicId: opts.clinicId,
+      conversationId: opts.conversationId,
+      owner: "human",
+      ownerUserId: null,
+      clearAssignee: true,
+      pauseAi: true,
+      reason: "user_opt_out",
+    });
     await opts.supabase
       .from("whatsapp_conversations")
       .update({
         ai_user_opt_out: true,
-        ai_enabled: false,
-        ai_handoff_at: null,
         ai_debounce_until: null,
       })
       .eq("id", opts.conversationId);
@@ -121,11 +130,16 @@ export async function handleInboundUserCommand(opts: {
       .from("whatsapp_conversations")
       .update({
         ai_user_opt_out: false,
-        ai_handoff_at: null,
-        ai_enabled: true,
         ai_debounce_until: null,
       })
       .eq("id", opts.conversationId);
+    const { reactivateAi } = await import("@/lib/ops");
+    await reactivateAi({
+      supabase: opts.supabase,
+      clinicId: opts.clinicId,
+      conversationId: opts.conversationId,
+      reason: "user_opt_in",
+    });
 
     if (opts.messageId) {
       await opts.supabase
@@ -177,13 +191,20 @@ export async function handleInboundUserCommand(opts: {
 
     const now = new Date().toISOString();
 
+    const { setOwner } = await import("@/lib/ops");
+    await setOwner({
+      supabase: opts.supabase,
+      clinicId: opts.clinicId,
+      conversationId: opts.conversationId,
+      owner: "human",
+      ownerUserId: null,
+      clearAssignee: true,
+      pauseAi: true,
+      reason: "user_command_handoff",
+    });
     await opts.supabase
       .from("whatsapp_conversations")
-      .update({
-        ai_handoff_at: now,
-        ai_enabled: false,
-        ai_debounce_until: null,
-      })
+      .update({ ai_debounce_until: null })
       .eq("id", opts.conversationId);
 
     await applyRoutingOnNewConversation(opts.supabase, opts.clinicId, opts.conversationId);

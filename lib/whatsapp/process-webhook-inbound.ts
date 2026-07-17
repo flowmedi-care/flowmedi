@@ -24,6 +24,7 @@ import { parseMetaInboundMessage } from "@/lib/whatsapp-inbound-parse";
 import { tryHandleInboundConfirmationFlow } from "@/lib/virtual-assistant/webhook-inbound-flow";
 import { upsertWhatsappPipelineLead } from "@/lib/leads/upsert-whatsapp-lead";
 import { resolveWhatsappWebhookClinic } from "@/lib/whatsapp/resolve-webhook-clinic";
+import { emitOpsEvent } from "@/lib/ops/event-bridge";
 
 /**
  * Processa payload inbound da Meta (mensagens, mídia, roteamento, chatbot, IA).
@@ -244,6 +245,19 @@ export async function processWhatsAppWebhookInbound(rawBody: string): Promise<vo
             if (!referred) {
               await applyRoutingOnNewConversation(supabase, clinicId, conversationId);
             }
+          }
+
+          // Event Bridge: toda mensagem inbound atualiza CRM/last_contact + pipeline_id
+          try {
+            await emitOpsEvent("message_received", {
+              supabase,
+              clinicId,
+              conversationId,
+              phone: from,
+              contactName,
+            });
+          } catch (bridgeErr) {
+            console.warn("[WhatsApp Webhook] ops event bridge:", bridgeErr);
           }
 
           const insertMsg = await supabase

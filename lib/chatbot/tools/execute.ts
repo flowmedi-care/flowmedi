@@ -284,6 +284,18 @@ export async function executeTool(
         if (res.patientId) {
           await linkConversationToPatient(supabase, clinicId, conversationId, res.patientId);
         }
+        try {
+          const { emitOpsEvent } = await import("@/lib/ops/event-bridge");
+          await emitOpsEvent("patient_registered", {
+            supabase,
+            clinicId,
+            conversationId,
+            phone: phoneNumber,
+            patientId: res.patientId,
+          });
+        } catch {
+          /* ops bridge opcional */
+        }
         await logToolCall(supabase, clinicId, conversationId, name, { full_name: fullName }, "ok", true);
         return {
           result: successResult(res),
@@ -981,6 +993,19 @@ export async function executeTool(
               ctx.aiState.booking?.date
             )
           : undefined;
+        try {
+          const { emitOpsEvent } = await import("@/lib/ops/event-bridge");
+          await emitOpsEvent("appointment_created", {
+            supabase,
+            clinicId,
+            conversationId,
+            phone: phoneNumber,
+            patientId: String(args.patient_id ?? ctx.aiState.patient_id ?? ""),
+            appointmentId: res.appointmentId,
+          });
+        } catch {
+          /* ops bridge opcional */
+        }
         return {
           result: successResult(
             {
@@ -1682,13 +1707,17 @@ export async function executeTool(
       }
 
       case "transfer_to_human": {
-        await supabase
-          .from("whatsapp_conversations")
-          .update({
-            ai_handoff_at: new Date().toISOString(),
-            ai_enabled: false,
-          })
-          .eq("id", conversationId);
+        const { setOwner } = await import("@/lib/ops");
+        await setOwner({
+          supabase,
+          clinicId,
+          conversationId,
+          owner: "human",
+          ownerUserId: null,
+          pauseAi: true,
+          clearAssignee: true,
+          reason: String(args.reason ?? "transfer_to_human"),
+        });
         await applyRoutingOnNewConversation(supabase, clinicId, conversationId);
         await logToolCall(
           supabase,

@@ -672,6 +672,36 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   let finalReply: string | null = null;
 
   if (!skipLlm) {
+  let opsBlock = "";
+  try {
+    const { loadOperationsSnapshot, formatOperationsSnapshotForPrompt } =
+      await import("@/lib/ops");
+    const opsSnap = await loadOperationsSnapshot(
+      input.supabase,
+      input.conversationId
+    );
+    if (opsSnap) {
+      // Hard stop: só owner=ai pode gerar resposta
+      if (opsSnap.owner !== "ai") {
+        trace.replyDecision = {
+          source: "domain",
+          reason: `ops_owner_${opsSnap.owner}`,
+          llmUsed: false,
+        };
+        logTurnTrace(trace);
+        return {
+          reply: "",
+          handoff: false,
+          statePatch: serializeAiState(aiState),
+          trace,
+        };
+      }
+      opsBlock = formatOperationsSnapshotForPrompt(opsSnap);
+    }
+  } catch {
+    /* migration ops ainda não aplicada */
+  }
+
   const systemContent = buildSystemPrompt({
     clinicName: input.clinicName ?? "clínica",
     assistantName: input.settings.assistant_name ?? "assistente virtual",
@@ -685,6 +715,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     aiState,
     facts,
     flowBlock: `${snapshotBlock}\n\n${snapshot.derived.flowBlock}`,
+    opsBlock,
   });
 
   const messages: ChatMessage[] = [{ role: "system", content: systemContent }];

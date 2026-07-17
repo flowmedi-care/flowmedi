@@ -46,6 +46,8 @@ export const AI_EVENT_STAGES = [
   "brain_v2_start",
   "brain_v2_shadow",
   "brain_v2_complete",
+  "ops_owner_changed",
+  "ops_claimed",
 ] as const;
 
 export type AiEventStage = (typeof AI_EVENT_STAGES)[number];

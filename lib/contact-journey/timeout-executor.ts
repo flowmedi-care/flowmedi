@@ -90,12 +90,21 @@ async function executeExhaustedAction(
   }
 
   if (action === "escalate") {
+    const { setOwner } = await import("@/lib/ops");
+    await setOwner({
+      supabase,
+      clinicId: row.clinic_id,
+      conversationId: row.id,
+      owner: "human",
+      ownerUserId: null,
+      clearAssignee: true,
+      pauseAi: true,
+      reason: "journey_timeout_escalate",
+    });
     await supabase
       .from("whatsapp_conversations")
       .update({
         ai_state: { ...state, intent: "human_handoff" },
-        ai_handoff_at: new Date().toISOString(),
-        ai_enabled: false,
       })
       .eq("id", row.id);
     return;

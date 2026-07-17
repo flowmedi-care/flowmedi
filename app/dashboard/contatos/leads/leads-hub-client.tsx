@@ -215,12 +215,24 @@ function PriorityList({ items }: { items: PipelineItem[] }) {
                     {item.next_action}
                   </p>
                 )}
-                <Link
-                  href={`/dashboard/crm/jornada?email=${encodeURIComponent(item.email)}`}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Ver jornada
-                </Link>
+                <div className="flex flex-col items-end gap-1">
+                  <Link
+                    href={`/dashboard/crm/jornada?email=${encodeURIComponent(item.email)}`}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Ver jornada
+                  </Link>
+                  {item.phone && (
+                    <Link
+                      href={`/dashboard/whatsapp?phone=${encodeURIComponent(
+                        String(item.phone).replace(/\D/g, "")
+                      )}`}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Abrir em Operações
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           </ListPanelItem>

@@ -109,6 +109,15 @@ export function JourneyListClient({ journeys }: JourneyListClientProps) {
                     <p className={cn("text-xs text-muted-foreground")}>
                       {formatIdleTime(j.updatedAt)}
                     </p>
+                    {j.phone && (
+                      <Link
+                        href={`/dashboard/whatsapp?phone=${encodeURIComponent(j.phone.replace(/\D/g, ""))}`}
+                        className="text-xs text-primary hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Abrir em Operações
+                      </Link>
+                    )}
                   </div>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />

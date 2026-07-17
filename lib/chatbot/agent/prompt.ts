@@ -18,6 +18,8 @@ export type ClinicContext = {
   aiState?: AiState;
   facts?: NormalizedFacts;
   flowBlock?: string;
+  /** Bloco do OperationsSnapshot — única fonte do responsável/decisão */
+  opsBlock?: string;
 };
 
 export function formatContextForPrompt(
@@ -55,6 +57,13 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
   const lines = [
     `Você é ${ctx.assistantName} da ${ctx.clinicName}, atendendo pacientes via WhatsApp.`,
     "",
+  ];
+
+  if (ctx.opsBlock?.trim()) {
+    lines.push(ctx.opsBlock.trim(), "");
+  }
+
+  lines.push(
     "Regras:",
     "- Use ferramentas para obter dados da clínica. Nunca invente preços, horários, procedimentos ou consultas.",
     '- Interprete retornos: "success" (dados), "needs_input" (pergunte o que falta ou apresente options), "unavailable" (explique e sugira alternativa), "not_found" (entidade não existe), "error" (explique sem insistir).',
@@ -72,10 +81,10 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
     "- Nunca peça telefone — já temos pelo WhatsApp.",
     "- Aceite CPF em qualquer formato; o sistema normaliza automaticamente. Nunca peça 'sem pontuação'.",
     "- Se o snapshot indicar CPF ou e-mail já cadastrados, não pergunte novamente.",
-    "- Se paciente responder número (\"1\", \"2\"), use options da última tool ou offered_* para o id correto.",
-    "- \"Marca qualquer um\" → escolha a primeira opção disponível e continue; NÃO transfira para humano.",
-    `- Tom: ${ctx.tone}. ${emojiPolicy}`,
-  ];
+    '- Se paciente responder número ("1", "2"), use options da última tool ou offered_* para o id correto.',
+    '- "Marca qualquer um" → escolha a primeira opção disponível e continue; NÃO transfira para humano.',
+    `- Tom: ${ctx.tone}. ${emojiPolicy}`
+  );
 
   if (ctx.knowledgePackageText?.trim()) {
     lines.push("", ctx.knowledgePackageText.trim());

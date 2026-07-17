@@ -177,24 +177,28 @@ export async function POST(request: NextRequest) {
       sender_user_id: senderType === "human" ? userId : null,
     } as Record<string, unknown>);
 
+    // Resposta humana: pausa IA e assume ownership via mutators (única porta de escrita)
     try {
-      const { pauseAiOnManualReply } = await import("@/lib/virtual-assistant/process-inbound");
-      await pauseAiOnManualReply(supabase, conversationId);
-    } catch (_) {}
-
-    // Primeira que responde assume: secretária envia em conversa em pool → atribui a ela
-    if (role === "secretaria" && existing?.assigned_secretary_id == null) {
-      await supabase
-        .from("whatsapp_conversations")
-        .update({
-          assigned_secretary_id: userId,
-          assigned_at: new Date().toISOString(),
-        })
-        .eq("id", conversationId);
-      await supabase
-        .from("conversation_eligible_secretaries")
-        .delete()
-        .eq("conversation_id", conversationId);
+      const { pauseAiForHumanReply } = await import("@/lib/ops");
+      const pauseResult = await pauseAiForHumanReply({
+        supabase,
+        clinicId,
+        conversationId,
+        actorUserId: userId,
+        humanUserId: userId,
+        reason: "human_reply",
+      });
+      if (!pauseResult.ok) {
+        console.error("[whatsapp/send] pauseAiForHumanReply failed", {
+          conversationId,
+          error: pauseResult.error,
+        });
+      }
+    } catch (err) {
+      console.error("[whatsapp/send] pauseAiForHumanReply threw", {
+        conversationId,
+        err,
+      });
     }
 
     return NextResponse.json({ success: true, messageId: result.messageId });

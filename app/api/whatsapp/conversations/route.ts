@@ -5,11 +5,13 @@ import {
   getConversationHandler,
   type HandlerFilter,
 } from "@/lib/whatsapp-ai-state";
+import { buildOperationsSnapshot, type ConversationOpsRow } from "@/lib/ops";
 
 type SecretaryRef = { id: string; full_name: string | null } | null;
 
 type ConversationRow = {
   id: string;
+  clinic_id?: string;
   phone_number: string;
   contact_name: string | null;
   status: string;
@@ -64,34 +66,44 @@ export async function GET(request: Request) {
 
     const assistantName = vaSettings?.assistant_name?.trim() || "Assistente";
 
-    const selectFields =
-      "id, phone_number, contact_name, status, last_inbound_message_at, created_at, assigned_secretary_id, patient_id, assigned_at, ai_enabled, ai_handoff_at, ai_user_opt_out";
+    const selectWithOps =
+      "id, clinic_id, phone_number, contact_name, status, last_inbound_message_at, created_at, assigned_secretary_id, patient_id, assigned_at, ai_enabled, ai_handoff_at, ai_user_opt_out, pipeline_id, operator_notes, ops_brief, pending_decision, ops_owner_type, ops_owner_user_id, ownership_history, ai_state";
+    const selectLegacy =
+      "id, clinic_id, phone_number, contact_name, status, last_inbound_message_at, created_at, assigned_secretary_id, patient_id, assigned_at, ai_enabled, ai_handoff_at, ai_user_opt_out";
 
-    let query = supabase
-      .from("whatsapp_conversations")
-      .select(
-        `${selectFields}, assigned_secretary:profiles!assigned_secretary_id(id, full_name)`
-      )
-      .eq("clinic_id", clinicId);
+    async function runQuery(selectFields: string) {
+      let query = supabase
+        .from("whatsapp_conversations")
+        .select(
+          `${selectFields}, assigned_secretary:profiles!assigned_secretary_id(id, full_name)`
+        )
+        .eq("clinic_id", clinicId);
 
-    if (status && ["open", "closed", "completed"].includes(status)) {
-      query = query.eq("status", status);
+      if (status && ["open", "closed", "completed"].includes(status)) {
+        query = query.eq("status", status);
+      }
+
+      if (handler === "ai") {
+        query = query
+          .is("ai_handoff_at", null)
+          .eq("ai_user_opt_out", false)
+          .neq("ai_enabled", false);
+      } else if (handler === "human") {
+        query = query.or(
+          "ai_handoff_at.not.is.null,ai_enabled.eq.false,ai_user_opt_out.eq.true"
+        );
+      }
+
+      return query.order("created_at", { ascending: false });
     }
 
-    if (handler === "ai") {
-      query = query
-        .is("ai_handoff_at", null)
-        .eq("ai_user_opt_out", false)
-        .neq("ai_enabled", false);
-    } else if (handler === "human") {
-      query = query.or(
-        "ai_handoff_at.not.is.null,ai_enabled.eq.false,ai_user_opt_out.eq.true"
-      );
+    let { data: rawConversations, error } = await runQuery(selectWithOps);
+    if (error) {
+      // Migration ops ainda não aplicada — fallback às colunas legadas
+      const fallback = await runQuery(selectLegacy);
+      rawConversations = fallback.data;
+      error = fallback.error;
     }
-
-    const { data: rawConversations, error } = await query.order("created_at", {
-      ascending: false,
-    });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -161,12 +173,25 @@ export async function GET(request: Request) {
       }
     }
 
+    const isAdminRole = String(role ?? "").toLowerCase().trim() === "admin";
+
     const result = conversations.map((c) => {
       const aiFields = {
         ai_enabled: c.ai_enabled,
         ai_handoff_at: c.ai_handoff_at,
         ai_user_opt_out: c.ai_user_opt_out,
       };
+      const assigned = normalizeSecretary(c.assigned_secretary);
+      const opsRow = {
+        ...(c as unknown as ConversationOpsRow),
+        clinic_id: (c as ConversationRow & { clinic_id?: string }).clinic_id || clinicId,
+      };
+      const snapshot = buildOperationsSnapshot(opsRow, {
+        assistantName,
+        assignedSecretaryName: assigned?.full_name,
+        viewerUserId: userId,
+        viewerIsAdmin: isAdminRole,
+      });
 
       return {
         id: c.id,
@@ -176,10 +201,9 @@ export async function GET(request: Request) {
         last_inbound_message_at: c.last_inbound_message_at,
         created_at: c.created_at,
         assigned_secretary_id: c.assigned_secretary_id,
-        assigned_secretary: (() => {
-          const s = normalizeSecretary(c.assigned_secretary);
-          return s ? { id: s.id, full_name: s.full_name } : null;
-        })(),
+        assigned_secretary: assigned
+          ? { id: assigned.id, full_name: assigned.full_name }
+          : null,
         assigned_at: c.assigned_at,
         ai_enabled: c.ai_enabled,
         ai_handoff_at: c.ai_handoff_at,
@@ -191,6 +215,7 @@ export async function GET(request: Request) {
           const details = eligibleDetailsByConv?.get(c.id) ?? [];
           return details;
         })(),
+        ops: snapshot,
       };
     });
 

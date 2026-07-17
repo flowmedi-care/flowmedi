@@ -506,6 +506,26 @@ export async function changeLifecycleStage(
     notes: options?.notes ?? `Funil: ${oldLifecycle} → ${newLifecycle}`,
   });
 
+  // Event Bridge: invalida journey da IA nas conversas vinculadas a este lead
+  try {
+    const { data: linked } = await supabase
+      .from("whatsapp_conversations")
+      .select("id")
+      .eq("clinic_id", currentItem.clinic_id)
+      .eq("pipeline_id", pipelineId);
+    const { emitOpsEvent } = await import("@/lib/ops/event-bridge");
+    for (const conv of linked ?? []) {
+      await emitOpsEvent("pipeline_stage_changed", {
+        supabase,
+        clinicId: String(currentItem.clinic_id),
+        conversationId: conv.id,
+        lifecycleStage: newLifecycle,
+      });
+    }
+  } catch {
+    /* colunas ops podem não existir ainda */
+  }
+
   revalidateCrm();
   return { error: null };
 }

@@ -42,8 +42,6 @@ export async function clearConversationContext(
   };
 
   if (reactivate) {
-    updatePayload.ai_handoff_at = null;
-    updatePayload.ai_enabled = true;
     updatePayload.ai_user_opt_out = false;
   }
 
@@ -53,6 +51,19 @@ export async function clearConversationContext(
     .eq("id", conversationId);
 
   if (updateErr) throw new Error(updateErr.message);
+
+  if (reactivate) {
+    const { reactivateAi } = await import("@/lib/ops");
+    const result = await reactivateAi({
+      supabase,
+      clinicId,
+      conversationId,
+      reason: "clear_conversation_context",
+    });
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+  }
 
   try {
     const checkpointer = await getCheckpointer();

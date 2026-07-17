@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MessageSquare, Plus, Send, Info, Trash2, Check, User, ArrowLeft, Bot, Headphones } from "lucide-react";
+import { MessageSquare, Plus, Send, Info, Trash2, Check, User, ArrowLeft, Bot, Headphones, PanelRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppContactSidebar, type Patient } from "./whatsapp-contact-sidebar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -21,6 +21,11 @@ import {
 import { extractFirstName } from "@/lib/whatsapp-sender-display";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TableRowsSkeleton } from "@/components/dashboard-ui/loading/table-page-skeleton";
+import { CasePanel } from "@/components/ops/case-panel";
+import type { OperationsSnapshot } from "@/lib/ops";
+import { toast } from "@/components/ui/toast";
+
+type OpsQueueFilter = "needs_decision" | "ai" | "patient_waiting" | "system" | "all";
 
 type Conversation = {
   id: string;
@@ -38,6 +43,7 @@ type Conversation = {
   ai_user_opt_out: boolean | null;
   handler: ConversationHandler;
   assistant_name?: string;
+  ops?: OperationsSnapshot;
 };
 
 type Message = {
@@ -172,6 +178,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     const stored = localStorage.getItem(WHATSAPP_HANDLER_FILTER_STORAGE_KEY);
     return isValidHandlerFilter(stored) ? stored : "all";
   });
+  const [opsQueue, setOpsQueue] = useState<OpsQueueFilter>("needs_decision");
+  const [claiming, setClaiming] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
+  const [casePanelOpen, setCasePanelOpen] = useState(false);
   const [completingConversationId, setCompletingConversationId] = useState<string | null>(null);
   const [secretaries, setSecretaries] = useState<{ id: string; full_name: string }[]>([]);
   const [usageLimit, setUsageLimit] = useState<WhatsAppUsageLimit | null>(null);
@@ -384,6 +394,25 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     localStorage.setItem(WHATSAPP_HANDLER_FILTER_STORAGE_KEY, handlerFilter);
   }, [handlerFilter]);
 
+  // Deep-link: /dashboard/whatsapp?c=<conversationId>|&phone=
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const cid = params.get("c") || params.get("conversation");
+    if (cid) setSelectedId(cid);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || selectedId) return;
+    const params = new URLSearchParams(window.location.search);
+    const phone = (params.get("phone") || "").replace(/\D/g, "");
+    if (!phone || conversations.length === 0) return;
+    const match = conversations.find((c) =>
+      c.phone_number.replace(/\D/g, "").endsWith(phone.slice(-8))
+    );
+    if (match) setSelectedId(match.id);
+  }, [conversations, selectedId]);
+
   useEffect(() => {
     loadConversations();
     loadUnreadCounts();
@@ -595,6 +624,94 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     }
   };
 
+  const matchesOpsQueue = (c: Conversation, q: OpsQueueFilter): boolean => {
+    const owner =
+      c.ops?.owner ?? (c.handler === "ai" && !c.ai_user_opt_out ? "ai" : "human");
+    if (q === "all") return true;
+    if (q === "ai") return owner === "ai";
+    if (q === "patient_waiting") return owner === "patient_waiting";
+    if (q === "system") return owner === "system";
+    // needs_decision: humano, handoff, SLA estourado ou pendingDecision humana
+    if (owner === "human") return true;
+    if (c.ops?.sla.breached) return true;
+    if (c.ops?.pendingDecision?.owner === "human") return true;
+    return false;
+  };
+
+  const visibleConversations = conversations.filter((c) =>
+    matchesOpsQueue(c, opsQueue)
+  );
+
+  const selectedOps = selectedConversation?.ops ?? null;
+
+  async function handleClaim() {
+    if (!selectedConversation) return;
+    setClaiming(true);
+    try {
+      const res = await fetch("/api/whatsapp/assign-conversation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId: selectedConversation.id,
+          claim: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast(data.error || "Não foi possível assumir", "error");
+        return;
+      }
+      toast("Você está conduzindo este atendimento", "success");
+      await loadConversations(false);
+    } finally {
+      setClaiming(false);
+    }
+  }
+
+  async function handleReactivateAi(brief: string) {
+    if (!selectedConversation) return;
+    setReactivating(true);
+    try {
+      const res = await fetch("/api/whatsapp/assign-conversation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId: selectedConversation.id,
+          secretaryId: VIRTUAL_ASSISTANT_ASSIGNEE_ID,
+          brief,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast(data.error || "Não foi possível devolver à IA", "error");
+        return;
+      }
+      toast("Atendimento devolvido à IA", "success");
+      await loadConversations(false);
+    } finally {
+      setReactivating(false);
+    }
+  }
+
+  async function handleSaveNotes(notes: string) {
+    if (!selectedConversation) return;
+    const res = await fetch("/api/whatsapp/ops/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversationId: selectedConversation.id,
+        notes,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      toast(data.error || "Erro ao salvar notas", "error");
+      return;
+    }
+    toast("Notas salvas", "success");
+    await loadConversations(false);
+  }
+
   return (
     <>
       <div
@@ -625,13 +742,19 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
             </div>
             <SegmentedTabs
               variant="pill"
-              className="gap-1"
-              value={handlerFilter}
-              onChange={(id) => setHandlerFilter(id as HandlerFilter)}
+              className="gap-1 flex-wrap"
+              value={opsQueue}
+              onChange={(id) => {
+                setOpsQueue(id as OpsQueueFilter);
+                // API: busca ampla; facet é client-side via OperationsSnapshot
+                setHandlerFilter("all");
+              }}
               tabs={[
-                { id: "all", label: "Todos" },
+                { id: "needs_decision", label: "Decidir", icon: Headphones },
                 { id: "ai", label: "IA", icon: Bot },
-                { id: "human", label: "Atend.", icon: Headphones },
+                { id: "patient_waiting", label: "Aguarda" },
+                { id: "system", label: "Sistema" },
+                { id: "all", label: "Todos" },
               ]}
             />
           </div>
@@ -693,13 +816,15 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
               <div className="p-2">
                 <TableRowsSkeleton count={6} />
               </div>
-            ) : conversations.length === 0 ? (
+            ) : visibleConversations.length === 0 ? (
               <p className="p-4 text-muted-foreground text-sm">
-                Nenhuma conversa ainda. Use o botão acima para iniciar.
+                {conversations.length === 0
+                  ? "Nenhuma conversa ainda. Use o botão acima para iniciar."
+                  : "Nenhum atendimento nesta fila."}
               </p>
             ) : (
               <ul className="divide-y divide-border">
-                {conversations.map((c) => (
+                {visibleConversations.map((c) => (
                   <li key={c.id}>
                     <button
                       type="button"
@@ -731,17 +856,16 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                              c.contact_name ?? 
                              formatPhone(c.phone_number)}
                           </span>
-                          {handlerFilter === "all" && (
-                            c.handler === "ai" ? (
-                              <Badge variant="info" className="shrink-0 text-[10px] px-1.5 py-0">
-                                IA
-                              </Badge>
-                            ) : (
-                              <Badge variant="warning" className="shrink-0 text-[10px] px-1.5 py-0">
-                                Atend.
-                              </Badge>
-                            )
-                          )}
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "shrink-0 text-[10px] px-1.5 py-0",
+                              c.ops?.sla.breached && "border-destructive text-destructive"
+                            )}
+                          >
+                            {c.ops?.ownerLabel ??
+                              (c.handler === "ai" ? "IA" : "Humano")}
+                          </Badge>
                           {unreadCounts[c.id] > 0 && (
                             <span className="flex-shrink-0 h-5 min-w-[20px] px-1.5 rounded-full bg-[#25D366] text-white text-xs font-semibold flex items-center justify-center">
                               {unreadCounts[c.id] > 99 ? "99+" : unreadCounts[c.id]}
@@ -814,16 +938,34 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                     </span>
                     {selectedConversation && (
                       <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                        {selectedConversation.handler === "ai" && !selectedConversation.ai_user_opt_out ? (
+                        {selectedOps?.owner === "ai" ||
+                        (selectedConversation.handler === "ai" &&
+                          !selectedConversation.ai_user_opt_out) ? (
                           <Bot className="h-3 w-3 shrink-0" />
                         ) : (
                           <Headphones className="h-3 w-3 shrink-0" />
                         )}
-                        {getHandlerSubtitle(selectedConversation)}
+                        {selectedOps
+                          ? `Responsável: ${selectedOps.ownerLabel}`
+                          : getHandlerSubtitle(selectedConversation)}
+                        {selectedOps?.pendingDecision
+                          ? ` · ${selectedOps.pendingDecision.label}`
+                          : ""}
                       </span>
                     )}
                   </div>
                 </button>
+                {selectedOps && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 h-9 w-9 lg:hidden"
+                    onClick={() => setCasePanelOpen(true)}
+                    title="Painel do caso"
+                  >
+                    <PanelRight className="h-5 w-5" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -985,6 +1127,29 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                       : "Esta conversa está concluída. A mensagem será enviada via template aprovado."}
                   </div>
                 )}
+                {selectedOps && !selectedOps.canCompose && (
+                  <div className="rounded-md border border-border bg-muted/40 px-3 py-2 space-y-2">
+                    <p className="text-xs text-foreground">
+                      Este atendimento está sendo conduzido por{" "}
+                      <span className="font-semibold">{selectedOps.conductorLabel}</span>.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={handleClaim} disabled={claiming}>
+                        Assumir atendimento
+                      </Button>
+                      <Button size="sm" variant="ghost" disabled title="Em breve">
+                        Enviar observação para {selectedOps.conductorLabel}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {selectedOps?.canCompose && (
+                  <div className="flex justify-end">
+                    <Button size="sm" variant="ghost" disabled title="Em breve">
+                      Enviar observação (em breve)
+                    </Button>
+                  </div>
+                )}
                 <div className="flex gap-2 items-center">
                   <Input
                     value={replyText}
@@ -992,15 +1157,25 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
+                        if (selectedOps && !selectedOps.canCompose) return;
                         handleSendInChat();
                       }
                     }}
-                    placeholder="Digite uma mensagem..."
+                    placeholder={
+                      selectedOps && !selectedOps.canCompose
+                        ? "Assuma o atendimento para responder…"
+                        : "Digite uma mensagem..."
+                    }
                     className="min-h-11 flex-1"
+                    disabled={Boolean(selectedOps && !selectedOps.canCompose)}
                   />
                   <Button
                     onClick={handleSendInChat}
-                    disabled={sendingReply || !replyText.trim()}
+                    disabled={
+                      sendingReply ||
+                      !replyText.trim() ||
+                      Boolean(selectedOps && !selectedOps.canCompose)
+                    }
                     size="icon"
                     className="rounded-lg h-11 w-11 shrink-0 bg-[#00a884] hover:bg-[#008f72] text-white disabled:opacity-50"
                   >
@@ -1021,7 +1196,42 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
             </div>
           )}
         </div>
+
+        {selectedOps && showChatPane && (
+          <div className="hidden lg:flex h-full min-h-0 shrink-0">
+            <CasePanel
+              snapshot={selectedOps}
+              onClaim={handleClaim}
+              onReactivateAi={handleReactivateAi}
+              onSaveNotes={handleSaveNotes}
+              claiming={claiming}
+              reactivating={reactivating}
+            />
+          </div>
+        )}
       </div>
+
+      {selectedOps && (
+        <Dialog open={casePanelOpen} onOpenChange={setCasePanelOpen}>
+          <DialogContent
+            title="Caso"
+            onClose={() => setCasePanelOpen(false)}
+            className="max-w-md p-0 sm:max-w-md"
+          >
+            <div className="-m-6 h-[80vh]">
+              <CasePanel
+                snapshot={selectedOps}
+                onClaim={handleClaim}
+                onReactivateAi={handleReactivateAi}
+                onSaveNotes={handleSaveNotes}
+                claiming={claiming}
+                reactivating={reactivating}
+                className="max-w-none min-w-0 border-0 h-full"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {selectedConversation && (
         <WhatsAppContactSidebar

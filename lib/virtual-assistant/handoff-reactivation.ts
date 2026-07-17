@@ -70,13 +70,22 @@ export async function tryReactivateAiAfterHandoff(opts: {
   delete clearedState.bot_loop_detected_at;
   Object.assign(clearedState, freshBotLoopWindowState());
 
+  const { reactivateAi } = await import("@/lib/ops");
+  const result = await reactivateAi({
+    supabase: opts.supabase,
+    clinicId: opts.clinicId,
+    conversationId: opts.conversationId,
+    reason: greetingAfterBotLoop
+      ? "greeting_after_bot_loop"
+      : operationalFollowUp
+        ? "operational_follow_up"
+        : "handoff_timeout",
+  });
+  if (!result.ok) return false;
+
   await opts.supabase
     .from("whatsapp_conversations")
-    .update({
-      ai_handoff_at: null,
-      ai_enabled: true,
-      ai_state: clearedState,
-    })
+    .update({ ai_state: clearedState })
     .eq("id", opts.conversationId);
 
   logAiEvent(opts.supabase, {
@@ -93,6 +102,7 @@ export async function tryReactivateAiAfterHandoff(opts: {
       thresholdMinutes: minutes,
       intent,
       handoffReason: handoffReason ?? null,
+      via: "ops_mutator",
     },
   });
 
