@@ -122,7 +122,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
       { href: "/dashboard/contatos/pacientes", label: "Pacientes" },
       { href: "/dashboard/contatos/profissionais", label: "Profissionais" },
       { href: "/dashboard/contatos/fornecedores", label: "Fornecedores", roles: ["admin", "secretaria"] },
-      { href: "/dashboard/contatos/leads", label: "Centro de Leads", roles: ["admin", "secretaria"] },
+      { href: "/dashboard/contatos/leads", label: "Leads (entrada)", roles: ["admin", "secretaria"] },
       { href: "/dashboard/contatos/todos", label: "Todos contatos" },
       { href: "/dashboard/contatos/aniversariantes", label: "Aniversariantes" },
     ],
@@ -135,10 +135,9 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     prefix: "/dashboard/crm",
     roles: ["admin", "secretaria"],
     children: [
-      { href: "/dashboard/crm/pipeline", label: "Pipeline CRM" },
       { href: "/dashboard/crm/jornada", label: "Jornada" },
-      { href: "/dashboard/crm/jornada/centro", label: "Centro de Jornada" },
-      { href: "/dashboard/crm/captacao", label: "Formulários de captação" },
+      { href: "/dashboard/crm/pipeline", label: "Pipeline (KPIs)" },
+      { href: "/dashboard/crm/captacao", label: "Formulários" },
     ],
   },
   {

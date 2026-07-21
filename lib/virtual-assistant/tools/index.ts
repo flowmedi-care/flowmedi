@@ -637,6 +637,100 @@ export async function executeAssistantTool(
         };
       }
 
+      case "publish_domain_event": {
+        const eventType = String(args.event_type ?? "");
+        const evidence = String(args.evidence ?? "").trim();
+        if (!eventType || !evidence) {
+          await logToolCall(
+            supabase,
+            clinicId,
+            conversationId,
+            name,
+            args,
+            "args inválidos",
+            false,
+            ctx
+          );
+          return {
+            result: JSON.stringify({ error: "event_type e evidence são obrigatórios." }),
+          };
+        }
+
+        const {
+          publishDomainEvent,
+          contactIdFromLead,
+          contactIdFromPatient,
+          getOpenCaseByContact,
+        } = await import("@/lib/case-management");
+
+        const patientId = ctx.aiState.patient_id ?? null;
+        let leadId: string | null = null;
+        const phoneDigits = phoneNumber.replace(/\D/g, "");
+        if (phoneDigits) {
+          const { data: leadRow } = await supabase
+            .from("non_registered_pipeline")
+            .select("id")
+            .eq("clinic_id", clinicId)
+            .ilike("phone", `%${phoneDigits.slice(-8)}%`)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          leadId = leadRow?.id ? String(leadRow.id) : null;
+        }
+
+        const contactId = patientId
+          ? contactIdFromPatient(patientId)
+          : leadId
+            ? contactIdFromLead(leadId)
+            : `lead:phone:${phoneDigits || conversationId}`;
+
+        let caseId: string | null = null;
+        const open = await getOpenCaseByContact(supabase, clinicId, contactId);
+        caseId = open?.id ?? null;
+
+        const published = await publishDomainEvent(supabase, {
+          clinicId,
+          caseId,
+          contactId,
+          leadId,
+          patientId,
+          eventType,
+          actor: "ai",
+          evidence,
+          payload: { conversation_id: conversationId, phone: phoneNumber },
+          ensureCase: {
+            journey_type: "primeira_consulta",
+            phase: "captacao",
+          },
+        });
+
+        await logToolCall(
+          supabase,
+          clinicId,
+          conversationId,
+          name,
+          args,
+          published.rejected ?? published.case?.phase ?? "ok",
+          !published.rejected,
+          ctx,
+          published.rejected
+        );
+
+        return {
+          result: JSON.stringify({
+            ok: !published.rejected,
+            rejected: published.rejected ?? null,
+            event_id: published.eventId,
+            case_id: published.case?.id ?? null,
+            phase: published.case?.phase ?? null,
+            applied_rules: published.appliedRuleIds,
+            hint: published.rejected
+              ? "Evento bloqueado pela AI Policy ou Automation."
+              : "Fato registrado. A fase do Case foi atualizada pelo sistema se as regras permitirem.",
+          }),
+        };
+      }
+
       case "resolve_quote_offer": {
         const { resolveQuoteOfferViaAssistant } = await import("../services/quotes");
         const res = await resolveQuoteOfferViaAssistant(supabase, {

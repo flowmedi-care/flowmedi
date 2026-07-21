@@ -131,6 +131,14 @@ export const ASSISTANT_TOOL_CATALOG: AssistantToolCatalogEntry[] = [
     whenToUse: "Para orientar cadastro, agendamento, follow-up ou retomada contextual.",
   },
   {
+    name: "publish_domain_event",
+    label: "Publicar fato de negócio",
+    category: "crm",
+    description:
+      "Publica Domain Event atômico (Lead.Qualified etc.). Não move estágio — Automation decide.",
+    whenToUse: "Quando o lead foi claramente qualificado ou outro fato permitido ocorreu.",
+  },
+  {
     name: "resolve_quote_offer",
     label: "Resolver oferta de orçamento",
     category: "comercial",

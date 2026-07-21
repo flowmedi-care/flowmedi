@@ -223,6 +223,35 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
   {
     type: "function",
     function: {
+      name: "publish_domain_event",
+      description:
+        "Publica um fato de negócio atômico no Case Management (ex.: Lead.Qualified). NUNCA move estágio diretamente — o sistema decide a fase via Automation. Só use quando o fato for claro na conversa.",
+      parameters: {
+        type: "object",
+        properties: {
+          event_type: {
+            type: "string",
+            enum: [
+              "Lead.Qualified",
+              "Lead.Disqualified",
+              "Conversation.Started",
+              "Message.Received",
+              "Handoff.Taken",
+            ],
+            description: "Outcome atômico permitido pela AI Policy",
+          },
+          evidence: {
+            type: "string",
+            description: "Evidência curta do que o paciente disse ou confirmou",
+          },
+        },
+        required: ["event_type", "evidence"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "resolve_quote_offer",
       description:
         "Verifica se pode gerar orçamento para um procedimento: se precisa perguntar médico, lista profissionais com preço e validade.",

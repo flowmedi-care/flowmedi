@@ -68,7 +68,7 @@ export const AGENT_PIPELINE_STAGES: AgentPipelineStageDefinition[] = [
       "lookup_patient_by_phone",
       "infer_dropout_reason",
     ],
-    mutatingTools: [],
+    mutatingTools: ["publish_domain_event"],
     timeoutPolicyRef: ["qualificacao", "negociacao", "aguardando_retorno"],
     preconditions: ["Contato identificado (lead ou paciente)"],
     exitConditions: ["Interesse em preço formal → Orçamento", "Quer agendar → Agendamento"],

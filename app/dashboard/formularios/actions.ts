@@ -14,7 +14,8 @@ export async function createFormTemplate(
   appointmentTypeId: string | null,
   isPublic: boolean = false,
   publicDoctorId: string | null = null,
-  procedureIds: string[] = []
+  procedureIds: string[] = [],
+  allowedContexts: string[] = []
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -51,6 +52,7 @@ export async function createFormTemplate(
       appointment_type_id: appointmentTypeId || null,
       is_public: isPublic,
       public_doctor_id: publicDoctorId || null,
+      allowed_contexts: allowedContexts,
     })
     .select("id")
     .single();
@@ -88,7 +90,8 @@ export async function updateFormTemplate(
   appointmentTypeId: string | null,
   isPublic: boolean = false,
   publicDoctorId: string | null = null,
-  procedureIds: string[] = []
+  procedureIds: string[] = [],
+  allowedContexts?: string[]
 ) {
   const supabase = await createClient();
   const {
@@ -105,9 +108,7 @@ export async function updateFormTemplate(
   const trimmedName = name.trim();
   const formSlug = slugify(trimmedName) || "formulario";
 
-  const { error } = await supabase
-    .from("form_templates")
-    .update({
+  const updatePayload: Record<string, unknown> = {
       name: trimmedName,
       slug: formSlug,
       definition: definition as unknown as Record<string, unknown>[],
@@ -115,7 +116,14 @@ export async function updateFormTemplate(
       is_public: isPublic,
       public_doctor_id: publicDoctorId || null,
       updated_at: new Date().toISOString(),
-    })
+    };
+  if (allowedContexts !== undefined) {
+    updatePayload.allowed_contexts = allowedContexts;
+  }
+
+  const { error } = await supabase
+    .from("form_templates")
+    .update(updatePayload)
     .eq("id", id)
     .eq("clinic_id", profile.clinic_id);
   if (error) return { error: error.message };
@@ -586,9 +594,63 @@ export async function ensureFormInstanceAndGetLink(
     .single();
 
   if (error) return { error: error.message, link: null };
+
+  try {
+    const { data: appt } = await supabase
+      .from("appointments")
+      .select("patient_id, clinic_id")
+      .eq("id", appointmentId)
+      .maybeSingle();
+    if (appt?.clinic_id) {
+      const { publishFormSentEvent } = await import("@/lib/forms/publish-form-events");
+      await publishFormSentEvent(supabase, {
+        clinicId: String(appt.clinic_id),
+        templateId: formTemplateId,
+        patientId: appt.patient_id ? String(appt.patient_id) : null,
+        appointmentId,
+        actor: `human:${user.id}`,
+      });
+    }
+  } catch {
+    /* optional until migration */
+  }
+
   // Usar slug amigável se disponível
   return {
     error: null,
     link: inserted?.slug ? `/f/${inserted.slug}` : (inserted?.link_token ? `/f/${inserted.link_token}` : null),
   };
+}
+
+/** Atualiza apenas allowed_contexts do template (Template ≠ momento de uso). */
+export async function updateFormTemplateContexts(
+  id: string,
+  allowedContexts: string[]
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.clinic_id) return { error: "Clínica não encontrada." };
+
+  const { normalizeAllowedContexts } = await import("@/lib/forms/form-contexts");
+  const { error } = await supabase
+    .from("form_templates")
+    .update({
+      allowed_contexts: normalizeAllowedContexts(allowedContexts),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("clinic_id", profile.clinic_id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/crm/captacao");
+  revalidatePath("/dashboard/formularios");
+  return { error: null };
 }

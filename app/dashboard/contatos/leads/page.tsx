@@ -1,12 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
+import { Button } from "@/components/ui/button";
 import { getLeadsHubData } from "./actions";
 import { LeadsHubClient } from "./leads-hub-client";
 
 export default async function LeadsPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/entrar");
 
   const { data: profile } = await supabase
@@ -25,9 +29,14 @@ export default async function LeadsPage() {
     <PageShell
       header={{
         breadcrumbs: [{ label: "Leads" }],
-        title: "Centro de Leads",
+        title: "Leads (lista de entrada)",
         description:
-          "Captação, repescagem e acompanhamento de contatos — do primeiro formulário até o retorno.",
+          "Lista operacional de contatos. O posto de trabalho do processo é o Workspace em Jornada.",
+        actions: (
+          <Button size="sm" asChild>
+            <Link href="/dashboard/crm/jornada">Abrir Jornada</Link>
+          </Button>
+        ),
       }}
     >
       {hubRes.error ? (

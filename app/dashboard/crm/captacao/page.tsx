@@ -33,6 +33,7 @@ export default async function CrmCaptacaoPage() {
       slug,
       appointment_type_id,
       is_public,
+      allowed_contexts,
       appointment_types ( name )
     `)
     .eq("clinic_id", profile.clinic_id)
@@ -56,6 +57,9 @@ export default async function CrmCaptacaoPage() {
       name: String(t.name),
       appointment_type_name: typeName,
       is_public: isPublic,
+      allowed_contexts: Array.isArray(t.allowed_contexts)
+        ? (t.allowed_contexts as string[])
+        : [],
       publicUrl: isPublic ? `/f/public/${clinicSlug}/${publicSlug}` : null,
     };
   });
@@ -76,10 +80,11 @@ export default async function CrmCaptacaoPage() {
       header={{
         breadcrumbs: [
           { label: "CRM", href: "/dashboard/crm/pipeline" },
-          { label: "Formulários de captação" },
+          { label: "Formulários" },
         ],
-        title: "Formulários de captação",
-        description: "Crie e gerencie formulários públicos e de pré-consulta que alimentam o pipeline.",
+        title: "Formulários",
+        description:
+          "Templates desacoplados do momento de uso — defina allowed_contexts e automações disparam o envio.",
         actions: (
           <Link href="/dashboard/crm/captacao/novo">
             <Button>
@@ -91,7 +96,7 @@ export default async function CrmCaptacaoPage() {
       }}
     >
       <p className="text-sm text-muted-foreground mb-4">
-        {templates.length} formulário(s) · marque como &quot;Uso público&quot; no editor para gerar links de captação
+        {templates.length} formulário(s) · contextos (captação, pré-consulta, etc.) controlam onde cada template pode ser usado
       </p>
       {templatesError && (
         <p className="mb-4 text-sm text-destructive">

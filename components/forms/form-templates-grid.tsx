@@ -102,6 +102,11 @@ export function FormTemplatesGrid({
               </div>
               <div className="flex flex-wrap gap-1.5 pt-2">
                 {t.is_public && <Badge variant="secondary">Público</Badge>}
+                {(t.allowed_contexts ?? []).slice(0, 3).map((c) => (
+                  <Badge key={c} variant="outline" className="text-[10px]">
+                    {c}
+                  </Badge>
+                ))}
               </div>
             </CardHeader>
             <CardContent className="mt-auto space-y-3 pt-0">

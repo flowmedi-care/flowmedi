@@ -501,7 +501,54 @@ export async function changeAppointmentPipelineStatus(
   const result = await updateAppointment(appointmentId, { status: newStatus });
   if (result.error) return { error: result.error };
 
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data: profile } = user
+      ? await supabase.from("profiles").select("clinic_id, id").eq("id", user.id).single()
+      : { data: null };
+
+    const { data: appt } = await supabase
+      .from("appointments")
+      .select("patient_id, clinic_id")
+      .eq("id", appointmentId)
+      .maybeSingle();
+
+    const clinicId = profile?.clinic_id ?? appt?.clinic_id;
+    if (clinicId && appt?.patient_id) {
+      const eventMap: Record<AppointmentPipelineStatus, string> = {
+        agendada: "Appointment.Created",
+        confirmada: "Appointment.Confirmed",
+        realizada: "Appointment.Completed",
+        falta: "Appointment.NoShow",
+        cancelada: "Appointment.Cancelled",
+      };
+      const {
+        publishDomainEvent,
+        contactIdFromPatient,
+        getOpenCaseByContact,
+      } = await import("@/lib/case-management");
+      const contactId = contactIdFromPatient(String(appt.patient_id));
+      const open = await getOpenCaseByContact(supabase, clinicId, contactId);
+      await publishDomainEvent(supabase, {
+        clinicId,
+        caseId: open?.id ?? null,
+        contactId,
+        patientId: String(appt.patient_id),
+        eventType: eventMap[newStatus],
+        actor: profile?.id ? `human:${profile.id}` : "system",
+        payload: { appointment_id: appointmentId, status: newStatus },
+        ensureCase: { journey_type: "primeira_consulta", phase: "consulta" },
+      });
+    }
+  } catch {
+    /* Case bus opcional até migration */
+  }
+
   revalidatePath("/dashboard/crm/pipeline");
+  revalidatePath("/dashboard/crm/jornada");
   return { error: null };
 }
 

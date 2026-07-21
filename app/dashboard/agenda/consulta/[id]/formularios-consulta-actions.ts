@@ -440,7 +440,7 @@ export async function submitFormPresentially(
   // Verificar se a instância pertence à mesma clínica
   const { data: instance } = await supabase
     .from("form_instances")
-    .select("appointment_id, form_template:form_templates!inner(clinic_id)")
+    .select("appointment_id, form_template_id, form_template:form_templates!inner(clinic_id)")
     .eq("id", formInstanceId)
     .single();
 
@@ -466,6 +466,32 @@ export async function submitFormPresentially(
     .eq("id", formInstanceId);
 
   if (updateError) return { error: updateError.message };
+
+  try {
+    const { publishFormCompletedEvent } = await import("@/lib/forms/publish-form-events");
+    const apptId = instance.appointment_id != null ? String(instance.appointment_id) : null;
+    let patientId: string | null = null;
+    if (apptId) {
+      const { data: appt } = await supabase
+        .from("appointments")
+        .select("patient_id")
+        .eq("id", apptId)
+        .maybeSingle();
+      patientId = appt?.patient_id ? String(appt.patient_id) : null;
+    }
+    await publishFormCompletedEvent(supabase, {
+      clinicId: profile.clinic_id,
+      formInstanceId,
+      templateId: instance.form_template_id
+        ? String(instance.form_template_id)
+        : undefined,
+      patientId,
+      appointmentId: apptId,
+      actor: `human:${user.id}`,
+    });
+  } catch {
+    /* bus opcional se migration ainda não rodou */
+  }
 
   revalidateConsultaAndAtendimento(
     instance.appointment_id != null ? String(instance.appointment_id) : null

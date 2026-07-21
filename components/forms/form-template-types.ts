@@ -3,6 +3,7 @@ export type FormTemplateRow = {
   name: string;
   appointment_type_name: string | null;
   is_public: boolean;
+  allowed_contexts?: string[];
   publicUrl?: string | null;
 };
 
