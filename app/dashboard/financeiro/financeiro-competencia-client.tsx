@@ -16,6 +16,8 @@ import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { DataTable } from "@/components/dashboard-ui/data-table";
 import { fmtCurrency } from "@/lib/financeiro/format";
 import type { CompetenceMonthRow, RevenueOriginRow } from "@/lib/financeiro/types";
+import type { ForecastResult } from "@/lib/business-pipeline/types";
+import { FinancePipelineFunnel } from "./components/finance-pipeline-funnel";
 import {
   chartAxisProps,
   chartBarProps,
@@ -27,9 +29,11 @@ import {
 export function FinanceiroCompetenciaClient({
   rows,
   origin,
+  pipeline,
 }: {
   rows: CompetenceMonthRow[];
   origin: RevenueOriginRow[];
+  pipeline: ForecastResult | null;
 }) {
   const latest = rows[rows.length - 1];
   const yoy = useMemo(() => {
@@ -42,6 +46,8 @@ export function FinanceiroCompetenciaClient({
 
   return (
     <div className="space-y-6">
+      {pipeline && <FinancePipelineFunnel forecast={pipeline} mode="competencia" />}
+
       {latest && (
         <div className="grid gap-4 sm:grid-cols-3">
           <StatCard

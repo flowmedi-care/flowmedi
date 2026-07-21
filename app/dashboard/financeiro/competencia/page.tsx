@@ -11,11 +11,15 @@ export default async function FinanceiroCompetenciaPage() {
       <div>
         <h1 className="text-2xl font-semibold">Competência</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Como faturamos — receitas, despesas, lucro e origem da receita.
+          O que foi faturado — e o funil Agendado → Previsto → Faturado.
         </p>
       </div>
       <Suspense fallback={<PageShellSkeleton withTable={false} />}>
-        <FinanceiroCompetenciaClient rows={data.rows} origin={data.origin} />
+        <FinanceiroCompetenciaClient
+          rows={data.rows}
+          origin={data.origin}
+          pipeline={data.pipeline}
+        />
       </Suspense>
     </div>
   );

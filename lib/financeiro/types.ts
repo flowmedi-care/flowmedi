@@ -230,6 +230,10 @@ export type FinanceQueueItem = {
   appointment_id: string | null;
   comanda_id: string | null;
   remainder?: number;
+  /** Ação operacional (coluna Cobrar). */
+  action?: "receber_antes" | "emitir_cobranca";
+  /** Badge de contexto (por que o card existe). */
+  policyBadge?: "antecipado" | "no_dia" | "pos_consulta";
 };
 
 export type FinanceTodayBriefing = {

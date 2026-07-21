@@ -22,6 +22,13 @@ import type {
   FinanceHomeIndicators,
   FinanceTodayBriefing,
 } from "@/lib/financeiro/types";
+import {
+  getCompetencePipelineForecast,
+  getReceberPipelineSnapshot,
+  getPerformanceMetrics,
+} from "@/lib/business-pipeline";
+import type { ForecastResult, PerformanceMetrics } from "@/lib/business-pipeline";
+
 
 export async function loadFinanceiroAuth() {
   const supabase = await createClient();
@@ -121,11 +128,13 @@ export async function loadFinanceiroPagar() {
 
 export async function loadFinanceiroReceber() {
   const { canManage, userRole } = await loadFinanceiroAuth();
-  const [{ data: openComandas }, { data: manualReceitas }, { alerts }] = await Promise.all([
-    listOpenComandasDetailed(),
-    listPendingManualReceitas(),
-    getFinanceAlerts(),
-  ]);
+  const [{ data: openComandas }, { data: manualReceitas }, { alerts }, { data: pipeline }] =
+    await Promise.all([
+      listOpenComandasDetailed(),
+      listPendingManualReceitas(),
+      getFinanceAlerts(),
+      getReceberPipelineSnapshot(),
+    ]);
   return {
     openComandas: openComandas ?? [],
     manualReceitas: manualReceitas ?? [],
@@ -135,6 +144,7 @@ export async function loadFinanceiroReceber() {
       contasVencerHojeAmanha: 0,
       contasVencidas: 0,
     },
+    pipeline: pipeline as ForecastResult | null,
     canManage,
     userRole,
   };
@@ -155,11 +165,18 @@ export async function loadFinanceiroExtrato(searchParams: { year?: string; month
 
 export async function loadFinanceiroCompetencia() {
   await loadFinanceiroAuth();
-  const [{ data }, { data: origin }] = await Promise.all([
+  const [{ data }, { data: origin }, { data: pipeline }] = await Promise.all([
     getCompetenceReport(12),
     getRevenueOriginReport(3),
+    getCompetencePipelineForecast(1),
   ]);
-  return { rows: data ?? [], origin: origin ?? [] };
+  return { rows: data ?? [], origin: origin ?? [], pipeline: pipeline as ForecastResult | null };
+}
+
+export async function loadFinanceiroPerformance() {
+  await loadFinanceiroAuth();
+  const { data, error } = await getPerformanceMetrics();
+  return { metrics: data as PerformanceMetrics | null, error };
 }
 
 export async function loadFinanceiroFluxoCaixa() {

@@ -8,11 +8,23 @@ import { fmtCurrency } from "@/lib/financeiro/format";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, Receipt } from "lucide-react";
 import type { FinanceQueueItem } from "@/lib/financeiro/types";
+import {
+  COBRAR_ACTION_LABELS,
+  COBRAR_BADGE_LABELS,
+  type CobrarAction,
+  type CobrarPolicyBadge,
+} from "@/lib/business-pipeline/types";
 
 function urgencyLabel(daysOpen: number) {
   if (daysOpen <= 0) return { text: "Hoje", tone: "today" as const };
   if (daysOpen === 1) return { text: "Ontem", tone: "today" as const };
   return { text: `${daysOpen} dias`, tone: "late" as const };
+}
+
+function badgeVariant(badge: CobrarPolicyBadge): "info" | "warning" | "secondary" {
+  if (badge === "antecipado") return "info";
+  if (badge === "no_dia") return "warning";
+  return "secondary";
 }
 
 function QueueCard({
@@ -31,6 +43,15 @@ function QueueCard({
       ? `/dashboard/financeiro/recibo/${item.comanda_id}`
       : null;
 
+  const action = (item.action ?? "emitir_cobranca") as CobrarAction;
+  const policyBadge = item.policyBadge as CobrarPolicyBadge | undefined;
+  const ctaLabel =
+    item.column === "cobrar"
+      ? action === "receber_antes"
+        ? "Receber"
+        : "Emitir"
+      : null;
+
   return (
     <div className="rounded-lg border bg-background p-3 space-y-2 shadow-sm">
       <div className="flex items-start justify-between gap-2">
@@ -38,6 +59,14 @@ function QueueCard({
           <p className="font-medium truncate">{item.patient_name}</p>
           <p className="text-xs text-muted-foreground truncate">
             {item.service_name ?? "Atendimento"}
+            {item.reference_at
+              ? ` · ${new Date(item.reference_at).toLocaleString("pt-BR", {
+                  day: "2-digit",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}`
+              : ""}
           </p>
         </div>
         {item.column !== "recebido" && (
@@ -57,11 +86,21 @@ function QueueCard({
           </span>
         )}
       </div>
+
+      {item.column === "cobrar" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium">{COBRAR_ACTION_LABELS[action]}</p>
+          {policyBadge && (
+            <Badge variant={badgeVariant(policyBadge)}>{COBRAR_BADGE_LABELS[policyBadge]}</Badge>
+          )}
+        </div>
+      )}
+
       <p className="text-base font-semibold tabular-nums">{fmtCurrency(item.amount)}</p>
       <div className="flex flex-wrap gap-1.5">
         {item.column === "cobrar" && href && (
           <Button size="sm" asChild>
-            <Link href={href}>Cobrar</Link>
+            <Link href={href}>{ctaLabel}</Link>
           </Button>
         )}
         {item.column === "receber" && canManage && item.comanda_id && (

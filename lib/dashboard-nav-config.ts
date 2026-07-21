@@ -182,6 +182,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
       { href: "/dashboard/financeiro/extrato", label: "Extrato" },
       { href: "/dashboard/financeiro/competencia", label: "Competência" },
       { href: "/dashboard/financeiro/fluxo-caixa", label: "Fluxo de caixa" },
+      { href: "/dashboard/financeiro/performance", label: "Performance" },
       { href: "/dashboard/financeiro/dre", label: "DRE" },
     ],
   },

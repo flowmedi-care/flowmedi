@@ -852,6 +852,7 @@ export async function getFinanceInboxData(): Promise<{
   const [
     { data: profileRow },
     { data: awaitingEncounters },
+    { data: earlyPayAppts },
     openRes,
     { data: paidToday },
     { data: paymentsToday },
@@ -864,7 +865,7 @@ export async function getFinanceInboxData(): Promise<{
       .select(
         `
         id, appointment_id, completed_at, created_at,
-        comandas ( id, status ),
+        comandas ( id, status, issued_at ),
         appointment:appointments (
           id, scheduled_at, valor, status,
           patient:patients ( full_name ),
@@ -874,6 +875,22 @@ export async function getFinanceInboxData(): Promise<{
       )
       .eq("clinic_id", profile.clinic_id)
       .eq("status", "finalizado_aguardando_cobranca"),
+    supabase
+      .from("appointments")
+      .select(
+        `
+        id, scheduled_at, valor, status, payment_policy,
+        patient:patients ( full_name ),
+        service:services ( nome ),
+        comandas ( id, status, issued_at )
+      `
+      )
+      .eq("clinic_id", profile.clinic_id)
+      .in("status", ["agendada", "confirmada"])
+      .in("payment_policy", ["antecipado", "no_dia"])
+      .lte("scheduled_at", todayEnd)
+      .order("scheduled_at", { ascending: true })
+      .limit(80),
     listOpenComandasDetailed(),
     supabase
       .from("comandas")
@@ -912,10 +929,15 @@ export async function getFinanceInboxData(): Promise<{
   ]);
 
   const cobrar: FinanceQueueItem[] = [];
+  const cobrarApptIds = new Set<string>();
+
   for (const e of awaitingEncounters ?? []) {
     const cmds = Array.isArray(e.comandas) ? e.comandas : e.comandas ? [e.comandas] : [];
-    const hasActive = cmds.some((c: { status?: string }) => c.status && c.status !== "cancelada");
-    if (hasActive) continue;
+    const hasIssued = cmds.some(
+      (c: { status?: string; issued_at?: string | null }) =>
+        c.status && c.status !== "cancelada" && c.issued_at
+    );
+    if (hasIssued) continue;
 
     const appt = Array.isArray(e.appointment) ? e.appointment[0] : e.appointment;
     if (!appt || (appt as { status?: string }).status === "cancelada") continue;
@@ -932,6 +954,8 @@ export async function getFinanceInboxData(): Promise<{
       (appt as { scheduled_at?: string }).scheduled_at ??
       (e.created_at as string);
 
+    const apptId = String((appt as { id: string }).id ?? e.appointment_id);
+    cobrarApptIds.add(apptId);
     cobrar.push({
       id: `enc-${e.id}`,
       column: "cobrar",
@@ -940,10 +964,45 @@ export async function getFinanceInboxData(): Promise<{
       amount: Number((appt as { valor?: number }).valor ?? 0),
       reference_at: String(ref),
       days_open: daysOpenSince(String(ref)),
-      appointment_id: String((appt as { id: string }).id ?? e.appointment_id),
+      appointment_id: apptId,
       comanda_id: null,
+      action: "emitir_cobranca",
+      policyBadge: "pos_consulta",
     });
   }
+
+  for (const a of earlyPayAppts ?? []) {
+    const apptId = String(a.id);
+    if (cobrarApptIds.has(apptId)) continue;
+
+    const cmds = Array.isArray(a.comandas) ? a.comandas : a.comandas ? [a.comandas] : [];
+    const hasIssued = cmds.some(
+      (c: { status?: string; issued_at?: string | null }) =>
+        c.status && c.status !== "cancelada" && Boolean(c.issued_at)
+    );
+    if (hasIssued) continue;
+
+    const patient = Array.isArray(a.patient) ? a.patient[0] : a.patient;
+    const service = Array.isArray(a.service) ? a.service[0] : a.service;
+    const policy = (a.payment_policy as "antecipado" | "no_dia") ?? "antecipado";
+    const ref = String(a.scheduled_at ?? today);
+
+    cobrarApptIds.add(apptId);
+    cobrar.push({
+      id: `early-${apptId}`,
+      column: "cobrar",
+      patient_name: (patient as { full_name?: string })?.full_name ?? "—",
+      service_name: (service as { nome?: string })?.nome ?? null,
+      amount: Number(a.valor ?? 0),
+      reference_at: ref,
+      days_open: daysOpenSince(ref),
+      appointment_id: apptId,
+      comanda_id: null,
+      action: "receber_antes",
+      policyBadge: policy === "no_dia" ? "no_dia" : "antecipado",
+    });
+  }
+
   cobrar.sort((a, b) => b.days_open - a.days_open || a.patient_name.localeCompare(b.patient_name));
 
   const openComandas = openRes.data ?? [];

@@ -17,6 +17,9 @@ import { PAYMENT_METHODS } from "@/lib/financeiro/constants";
 import { fmtCurrency } from "@/lib/financeiro/format";
 import { daysOpenSince, todayDateOnly } from "@/lib/financeiro/date-utils";
 import type { FinancialEntryRow, OpenComandaRow } from "@/lib/financeiro/types";
+import type { ForecastResult } from "@/lib/business-pipeline/types";
+import { FinancePipelineFunnel } from "./components/finance-pipeline-funnel";
+import { StatCard } from "@/components/dashboard-ui/stat-card";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
@@ -35,11 +38,13 @@ export function FinanceiroReceberClient({
   manualReceitas,
   canManage,
   userRole,
+  pipeline,
 }: {
   openComandas: OpenComandaRow[];
   manualReceitas: FinancialEntryRow[];
   canManage: boolean;
   userRole?: string;
+  pipeline: ForecastResult | null;
 }) {
   const router = useRouter();
   const [payComanda, setPayComanda] = useState<{ id: string; remainder: number } | null>(null);
@@ -73,6 +78,26 @@ export function FinanceiroReceberClient({
 
   return (
     <div className="space-y-6">
+      {pipeline && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <StatCard
+              title="Agendado (contexto)"
+              value={fmtCurrency(pipeline.agendado)}
+              subtitle="Não é caixa — só expectativa da agenda"
+              iconColor="info"
+            />
+            <StatCard
+              title="Previsto (contexto)"
+              value={fmtCurrency(pipeline.previsto)}
+              subtitle={`${pipeline.confidence.rationale} · ${pipeline.confidence.label}`}
+              iconColor="primary"
+            />
+          </div>
+          <FinancePipelineFunnel forecast={pipeline} mode="caixa" />
+        </>
+      )}
+
       <Card>
         <CardHeader>
           <h2 className="font-semibold">Saldo de comandas abertas</h2>

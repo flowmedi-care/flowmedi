@@ -9,7 +9,7 @@ export default async function FinanceiroReceberPage() {
       <div>
         <h1 className="text-2xl font-semibold">Contas a receber</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Comandas em aberto e receitas manuais pendentes — seções separadas.
+          Do faturado ao recebido — e o saldo que ainda falta entrar.
         </p>
       </div>
       <FinanceiroReceberClient
@@ -17,6 +17,7 @@ export default async function FinanceiroReceberPage() {
         manualReceitas={data.manualReceitas}
         canManage={data.canManage}
         userRole={data.userRole}
+        pipeline={data.pipeline}
       />
     </div>
   );
