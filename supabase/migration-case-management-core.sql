@@ -164,6 +164,7 @@ CREATE TRIGGER trigger_case_tasks_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.update_case_tasks_updated_at();
 
 -- ========== BACKFILL: 1 open case per active lead ==========
+-- non_registered_pipeline não tem patient_id — resolve por email/telefone quando possível
 INSERT INTO public.journey_cases (
   clinic_id, contact_id, lead_id, patient_id, journey_type, phase, owner, status, opened_at
 )
@@ -171,7 +172,27 @@ SELECT
   p.clinic_id,
   'lead:' || p.id::text,
   p.id,
-  p.patient_id,
+  (
+    SELECT pat.id
+    FROM public.patients pat
+    WHERE pat.clinic_id = p.clinic_id
+      AND (
+        (
+          p.email IS NOT NULL
+          AND pat.email IS NOT NULL
+          AND lower(trim(pat.email)) = lower(trim(p.email))
+        )
+        OR (
+          p.phone IS NOT NULL
+          AND pat.phone IS NOT NULL
+          AND length(regexp_replace(p.phone, '\D', '', 'g')) >= 8
+          AND right(regexp_replace(pat.phone, '\D', '', 'g'), 8)
+            = right(regexp_replace(p.phone, '\D', '', 'g'), 8)
+        )
+      )
+    ORDER BY pat.created_at DESC NULLS LAST
+    LIMIT 1
+  ),
   CASE
     WHEN p.lifecycle_stage = 'cliente' THEN 'retorno'
     ELSE 'primeira_consulta'

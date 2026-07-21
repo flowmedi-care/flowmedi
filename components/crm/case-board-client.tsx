@@ -6,13 +6,13 @@ import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  requestCasePhaseOverride,
-  type BoardPayload,
-  type BoardView,
-  type CasePhase,
-  type PipelineCard,
-} from "@/app/dashboard/crm/jornada/case-actions";
+import { requestCasePhaseOverride } from "@/app/dashboard/crm/jornada/case-actions";
+import type {
+  BoardPayload,
+  BoardView,
+  CasePhase,
+  PipelineCard,
+} from "@/app/dashboard/crm/jornada/case-types";
 import { CASE_PHASE_LABELS } from "@/lib/case-management";
 
 const VIEWS: { id: BoardView; label: string }[] = [

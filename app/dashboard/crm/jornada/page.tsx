@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { CaseBoardClient } from "@/components/crm/case-board-client";
-import { getCaseBoard, type BoardView } from "./case-actions";
+import { getCaseBoard } from "./case-actions";
+import type { BoardView } from "./case-types";
 
 type Props = {
   searchParams: Promise<{ view?: string }>;

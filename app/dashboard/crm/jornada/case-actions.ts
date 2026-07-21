@@ -2,7 +2,6 @@
 
 import { createClient } from "@/lib/supabase/server";
 import {
-  BOARD_PHASES,
   CASE_PHASE_LABELS,
   JOURNEY_TYPE_LABELS,
   PHASE_DEFAULT_OBJECTIVE,
@@ -14,22 +13,18 @@ import {
   buildTimelineProjection,
   buildWorkspaceContext,
   contactIdFromLead,
-  contactIdFromPatient,
   getCaseById,
   listCasesForClinic,
   listEventsForCase,
   listTasksForCase,
-  parseContactId,
   publishDomainEvent,
   type BoardView,
   type CaseEnrichment,
   type CasePhase,
   type CaseTask,
   type JourneyCase,
-  type JourneyEventRecord,
-  type PipelineCard,
-  type WorkspaceContext,
 } from "@/lib/case-management";
+import type { BoardPayload, WorkspacePayload } from "./case-types";
 
 async function requireClinic() {
   const supabase = await createClient();
@@ -65,10 +60,10 @@ async function buildEnrichment(
     leadIds.length
       ? supabase
           .from("non_registered_pipeline")
-          .select("id, full_name, email, phone")
+          .select("id, name, email, phone")
           .eq("clinic_id", clinicId)
           .in("id", leadIds)
-      : Promise.resolve({ data: [] as { id: string; full_name: string | null; email: string | null; phone: string | null }[] }),
+      : Promise.resolve({ data: [] as { id: string; name: string | null; email: string | null; phone: string | null }[] }),
     patientIds.length
       ? supabase
           .from("patients")
@@ -89,7 +84,7 @@ async function buildEnrichment(
   ]);
 
   const leadMap = new Map(
-    (leadsRes.data ?? []).map((l) => [l.id, l.full_name || l.email || l.phone || "Lead"])
+    (leadsRes.data ?? []).map((l) => [l.id, l.name || l.email || l.phone || "Lead"])
   );
   const patientMap = new Map((patientsRes.data ?? []).map((p) => [p.id, p.full_name]));
   const apptByPatient = new Map<string, string>();
@@ -111,15 +106,6 @@ async function buildEnrichment(
   }
   return out;
 }
-
-export type BoardPayload = {
-  view: BoardView;
-  pipeline: ReturnType<typeof buildPipelineProjection>;
-  attendance: ReturnType<typeof buildAttendanceProjection>;
-  finance: ReturnType<typeof buildFinanceProjection>;
-  aiQueue: ReturnType<typeof buildAiQueueProjection>;
-  pendingQueue: ReturnType<typeof buildPendingQueueProjection>;
-};
 
 export async function getCaseBoard(view: BoardView = "pipeline"): Promise<{
   data: BoardPayload | null;
@@ -153,18 +139,6 @@ export async function getCaseBoard(view: BoardView = "pipeline"): Promise<{
     },
   };
 }
-
-export type WorkspacePayload = {
-  case: JourneyCase;
-  tasks: CaseTask[];
-  timeline: JourneyEventRecord[];
-  context: WorkspaceContext;
-  displayName: string;
-  phaseLabel: string;
-  journeyTypeLabel: string;
-  objective: string;
-  labels: { phases: typeof CASE_PHASE_LABELS };
-};
 
 export async function getCaseWorkspace(caseId: string): Promise<{
   data: WorkspacePayload | null;
@@ -292,6 +266,3 @@ export async function ensureCaseForLead(leadId: string): Promise<{
   }
   return { caseId: existing?.id ?? null, error: existing ? null : "Falha ao criar case" };
 }
-
-export { BOARD_PHASES, CASE_PHASE_LABELS, contactIdFromPatient, parseContactId };
-export type { BoardView, PipelineCard, CasePhase };

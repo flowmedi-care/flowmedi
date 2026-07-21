@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { WorkspacePayload } from "@/app/dashboard/crm/jornada/case-actions";
+import type { WorkspacePayload } from "@/app/dashboard/crm/jornada/case-types";
 import {
   completeCaseTaskAction,
   publishCaseOutcomeAction,
