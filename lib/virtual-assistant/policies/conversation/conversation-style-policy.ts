@@ -78,6 +78,8 @@ function emojiRule(useEmojis: boolean): string {
   return useEmojis ? "Pode usar emojis com moderação." : "Não use emojis.";
 }
 
+import { buildAntiInventPromptBlock } from "./anti-invent-matrix";
+
 function buildInstructions(policy: ConversationStylePolicy): string {
   const lengthHint =
     policy.responseLength === "short"
@@ -143,6 +145,8 @@ function buildInstructions(policy: ConversationStylePolicy): string {
     "1. Resposta direta.",
     "2. Motivo, se necessário.",
     "3. Próximos passos, somente quando forem úteis.",
+    "",
+    buildAntiInventPromptBlock(),
     "",
     "## Antes de enviar",
     "Revise mentalmente: estou repetindo algo? Usando frase pronta? Existe forma mais específica? Respondo exatamente o que foi perguntado? Um profissional humano escreveria assim?"

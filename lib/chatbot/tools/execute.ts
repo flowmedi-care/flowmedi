@@ -233,8 +233,8 @@ export async function executeTool(
   if (ctx.allowedTools && !ctx.allowedTools.includes(name)) {
     return {
       result: unavailableResult(
-        "Esta informação não está disponível pelo assistente no momento.",
-        "Oriente o paciente a consultar a clínica ou peça transferência humana se permitido."
+        "Não consegui acessar essa informação agora.",
+        "Explique o contexto ao paciente e ofereça transfer_to_human — nunca peça telefone/e-mail; o canal já é o WhatsApp da clínica."
       ),
     };
   }
@@ -798,39 +798,84 @@ export async function executeTool(
           };
         }
 
-        const dayOptions: ToolOption[] = daysForDisplay.map((d, i) => ({
-          id: d.date,
-          label: `${d.label}${d.periods_label ? ` (${d.periods_label})` : ""}`,
-          index: i + 1,
-        }));
+        const dayOptions: ToolOption[] = [];
+        const offeredDayRows: {
+          date: string;
+          label: string;
+          index: number;
+          period?: "manha" | "tarde" | null;
+        }[] = [];
+        let idx = 1;
+        for (const d of daysForDisplay) {
+          const periods = (d.periods ?? []) as ("manha" | "tarde")[];
+          if (periods.length <= 1) {
+            const period = periods[0] ?? null;
+            const periodLabel = period ? formatSlotPeriodLabel(period) : "";
+            const label = periodLabel ? `${d.label} • ${periodLabel}` : d.label;
+            dayOptions.push({
+              id: period ? `${d.date}|${period}` : d.date,
+              label,
+              index: idx,
+            });
+            offeredDayRows.push({
+              date: d.date,
+              label: d.label,
+              index: idx,
+              period: period ?? null,
+            });
+            idx += 1;
+          } else {
+            for (const period of periods) {
+              const label = `${d.label} • ${formatSlotPeriodLabel(period)}`;
+              dayOptions.push({
+                id: `${d.date}|${period}`,
+                label,
+                index: idx,
+              });
+              offeredDayRows.push({
+                date: d.date,
+                label: d.label,
+                index: idx,
+                period,
+              });
+              idx += 1;
+            }
+          }
+        }
         const payload = {
           mode: "days" as const,
           days: daysForDisplay,
+          day_period_options: dayOptions.map((o) => o.label),
           has_more: hasMore,
           skip_days_used: skipDays,
           next_skip_days: skipDays + days.length,
         };
-        await logToolCall(supabase, clinicId, conversationId, name, loggedArgs, `${days.length} dias`, true, "success");
+        await logToolCall(
+          supabase,
+          clinicId,
+          conversationId,
+          name,
+          loggedArgs,
+          `${days.length} dias`,
+          true,
+          "success"
+        );
         return {
           result: successResult(payload, dayOptions),
           statePatch: {
-            offered_days: daysForDisplay.map((d, i) => ({
-              date: d.date,
-              label: d.label,
-              index: i + 1,
-            })),
+            offered_days: offeredDayRows,
             pending_active_selection: preparePendingActiveSelection(
               "day",
-              daysForDisplay.map((d, i) => ({
-                id: d.date,
-                label: d.label,
-                index: i + 1,
+              dayOptions.map((o) => ({
+                id: String(o.id),
+                label: o.label,
+                index: o.index ?? 0,
               }))
             ),
             booking: {
               procedure_id: procedureId,
               doctor_id: doctorId,
-              status: "collecting",
+              status: "collecting" as const,
             },
           },
         };
@@ -1635,7 +1680,10 @@ export async function executeTool(
           : ctx.aiState.booking?.doctor_id;
         if (!doctorId) {
           return {
-            result: needsInputResult(["doctor_id"], "Preciso do médico para consultar o preço."),
+            result: needsInputResult(
+              ["doctor_id"],
+              "Para informar o preço, preciso saber com qual profissional. Qual médico você prefere?"
+            ),
           };
         }
         let serviceId = args.service_id ? String(args.service_id) : null;
@@ -1651,21 +1699,131 @@ export async function executeTool(
           return {
             result: needsInputResult(
               ["procedure_id"],
-              "Preciso do procedimento para consultar o preço."
+              "Para informar o preço, preciso saber o procedimento. Qual você quer?"
             ),
           };
         }
+        const dimensionIds = Array.isArray(args.dimension_value_ids)
+          ? (args.dimension_value_ids as unknown[]).map(String)
+          : [];
         const price = await resolveServicePriceForClinic(
           supabase,
           clinicId,
           serviceId,
           doctorId,
-          []
+          dimensionIds
         );
-        await logToolCall(supabase, clinicId, conversationId, name, args, String(price.valor), !price.error);
+        await logToolCall(
+          supabase,
+          clinicId,
+          conversationId,
+          name,
+          args,
+          String(price.valor),
+          !price.error
+        );
         if (price.error) return { result: errorResult(price.error) };
+
+        // Progressive Resolution: FOUND | PARTIAL | NOT_CONFIGURED
+        if (price.needsDimensions) {
+          const dimHint =
+            price.dimensions
+              ?.map((d) => `${d.nome}: ${d.values.map((v) => v.valor).join(", ")}`)
+              .join("; ") ?? "";
+          return {
+            result: {
+              ...needsInputResult(
+                ["dimension_value_ids"],
+                dimHint
+                  ? `O preço depende de mais um detalhe (${dimHint}). Qual opção se aplica?`
+                  : "O preço depende de mais um detalhe (ex.: particular ou convênio). Qual se aplica?"
+              ),
+              data: {
+                resolution: "partial",
+                service_id: serviceId,
+                needs_dimensions: true,
+                dimensions: price.dimensions ?? [],
+              },
+            },
+          };
+        }
+
+        if (price.valor == null) {
+          const { listPriceOptionsForClinic } = await import(
+            "@/lib/virtual-assistant/services/pricing"
+          );
+          const options = await listPriceOptionsForClinic(supabase, clinicId, {
+            serviceId,
+            doctorId,
+          });
+          if (options.price_range && options.fixed_price == null && !options.needs_dimensions) {
+            // Multiple prices → range FOUND (or ask doctor if range is wide with multiple pros)
+            const hasMultiplePros = (await supabase
+              .from("service_prices")
+              .select("professional_id", { count: "exact", head: true })
+              .eq("clinic_id", clinicId)
+              .eq("service_id", serviceId)
+              .eq("ativo", true)
+              .not("professional_id", "is", null)).count;
+
+            if ((hasMultiplePros ?? 0) > 1 && !args.doctor_id) {
+              return {
+                result: {
+                  ...needsInputResult(
+                    ["doctor_id"],
+                    `O valor fica entre ${options.price_range}. Com qual médico você quer o preço exato?`
+                  ),
+                  data: {
+                    resolution: "partial",
+                    service_id: serviceId,
+                    price_range: options.price_range,
+                  },
+                },
+              };
+            }
+            return {
+              result: successResult({
+                resolution: "found",
+                service_id: serviceId,
+                valor: null,
+                price_range: options.price_range,
+              }),
+            };
+          }
+          if (options.needs_dimensions) {
+            return {
+              result: {
+                ...needsInputResult(
+                  ["dimension_value_ids"],
+                  "O preço depende de mais um detalhe (ex.: particular ou convênio). Qual se aplica?"
+                ),
+                data: {
+                  resolution: "partial",
+                  service_id: serviceId,
+                  needs_dimensions: true,
+                  dimensions: options.dimensions,
+                },
+              },
+            };
+          }
+          return {
+            result: unavailableResult(
+              "Ainda não tenho esse preço cadastrado.",
+              "Ofereça transfer_to_human com copy proativa (continuar no WhatsApp, sem repetir o caso). Nunca peça telefone/e-mail.",
+              {
+                resolution: "not_configured",
+                service_id: serviceId,
+              }
+            ),
+          };
+        }
+
         return {
-          result: successResult({ service_id: serviceId, ...price }),
+          result: successResult({
+            resolution: "found",
+            service_id: serviceId,
+            valor: price.valor,
+          }),
           statePatch: args.procedure_id
             ? {
                 booking: {

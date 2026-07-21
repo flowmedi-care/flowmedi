@@ -220,6 +220,22 @@ function mutationGoalIdFor(goal: GoalDefinition): string {
 function shouldExposePendingGoalTools(goal: GoalDefinition, input: EngineInput): boolean {
   if (!input.flowState.pending.includes(goal.id)) return false;
 
+  // One question at a time: only focus doctor/procedure tools while both pending.
+  if (goal.id === "doctor_selected" || goal.id === "procedure_selected") {
+    const pendingCore = input.flowState.pending.filter(
+      (id) => id === "doctor_selected" || id === "procedure_selected"
+    );
+    if (pendingCore.length > 1) {
+      const focus = input.flowState.focus_goal_id;
+      if (focus === "doctor_selected" || focus === "procedure_selected") {
+        return goal.id === focus;
+      }
+      // Default focus when both pending: procedure first (Progressive Resolution).
+      return goal.id === "procedure_selected";
+    }
+    return true;
+  }
+
   if (BOOKING_CORE_GOAL_IDS.includes(goal.id as (typeof BOOKING_CORE_GOAL_IDS)[number])) {
     return true;
   }

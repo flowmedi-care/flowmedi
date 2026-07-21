@@ -46,6 +46,31 @@ export function normalizeAiState(raw: LegacyRaw | null | undefined): AiState {
           })()
         : undefined,
     consecutive_tool_failures: Number(raw.consecutive_tool_failures) || 0,
+    confidence:
+      raw.confidence && typeof raw.confidence === "object"
+        ? (() => {
+            const c = raw.confidence as {
+              level?: string;
+              consecutive_failures?: number;
+            };
+            const level = c.level;
+            if (
+              level === "high" ||
+              level === "low" ||
+              level === "recovering" ||
+              level === "handoff"
+            ) {
+              return {
+                level,
+                consecutive_failures: Math.max(
+                  0,
+                  Number(c.consecutive_failures) || 0
+                ),
+              };
+            }
+            return undefined;
+          })()
+        : undefined,
     ai_processing_started_at: raw.ai_processing_started_at
       ? String(raw.ai_processing_started_at)
       : undefined,

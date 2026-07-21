@@ -27,6 +27,7 @@ export function buildPromptFromPackage(input: {
 }): string {
   const sections: string[] = [
     `# Dados da clínica (fatos — use ferramentas para valores/horários exatos)`,
+    `Nome oficial: ${input.clinicName.trim() || "clínica"}`,
   ];
   const clinic = input.package.clinic;
   if (clinic) {

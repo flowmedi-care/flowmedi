@@ -9,10 +9,14 @@ export type OfferedOption = {
   index?: number;
 };
 
+export type SelectionPeriod = "manha" | "tarde" | null;
+
 export type OfferedDay = {
   date: string;
   label: string;
   index?: number;
+  /** When set, option is date+period (Progressive Resolution — fewer turns). */
+  period?: SelectionPeriod;
 };
 
 /** Last interactive menu the patient actually received (committed after outbound). */
@@ -35,8 +39,6 @@ export type ActiveSelection = {
   /** ISO of outbound commit (when the menu was confirmed delivered). */
   created_at?: string;
 };
-
-export type SelectionPeriod = "manha" | "tarde" | null;
 
 /** Search filters that derive offered_slots / pending_slot. */
 export type SelectionContext = {
@@ -90,6 +92,12 @@ export type BookingForkState = {
   status: "awaiting_choice" | "new" | "alter";
 };
 
+/** Conversation Reliability — confidence temperature (Recovery capability). */
+export type ConversationConfidenceState = {
+  level: "high" | "low" | "recovering" | "handoff";
+  consecutive_failures: number;
+};
+
 export type AiState = {
   patient_id?: string;
   booking?: BookingState;
@@ -115,6 +123,8 @@ export type AiState = {
   focused_appointment_id?: string;
   active_appointments?: string[];
   consecutive_tool_failures?: number;
+  /** Conversation Reliability Framework confidence machine. */
+  confidence?: ConversationConfidenceState;
   ai_processing_started_at?: string;
   pending_transcription_jobs?: Array<{ messageId: string; jobId: string }>;
   audio_transcription_retried_message_ids?: string[];

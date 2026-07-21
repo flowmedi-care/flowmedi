@@ -30,6 +30,28 @@ describe("resolveReferenceFacts", () => {
     assert.equal(patch.booking?.date, "2026-07-14");
   });
 
+  it("resolve day•period option sets date and period", () => {
+    const offered_days = [
+      { date: "2026-07-22", label: "qua. 22/07", index: 1, period: "manha" as const },
+      { date: "2026-07-22", label: "qua. 22/07", index: 2, period: "tarde" as const },
+    ];
+    const patch = resolveReferenceFacts(
+      { selectedIndex: 2 },
+      {
+        offered_days,
+        active_selection: {
+          type: "day",
+          options: [
+            { id: "2026-07-22|manha", label: "qua. 22/07 • manhã", index: 1 },
+            { id: "2026-07-22|tarde", label: "qua. 22/07 • tarde", index: 2 },
+          ],
+        },
+      }
+    );
+    assert.equal(patch.booking?.date, "2026-07-22");
+    assert.equal(patch.booking?.selection_context?.period, "tarde");
+  });
+
   it("contrato: selectedIndex 7 → booking.date === offered_days[6].date", () => {
     const offered_days = [
       { date: "2026-07-13", label: "1", index: 1 },

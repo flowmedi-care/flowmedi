@@ -39,3 +39,27 @@ export {
   type HandoffOwnership,
   type HandoffKind,
 } from "./handoff-policy";
+
+export {
+  getDefaultConversationRecoveryPolicy,
+  mergeConversationRecoveryPolicy,
+  getDefaultConfidence,
+  normalizeConfidence,
+  recordConversationSuccess,
+  recoverConversation,
+  patientReasonForToolFailure,
+  shouldRewriteWithRecovery,
+  DEFAULT_PROACTIVE_HANDOFF_COPY,
+  type ConfidenceLevel,
+  type ConversationConfidence,
+  type ConversationRecoveryPolicy,
+  type ConversationRecoveryPolicyInput,
+  type RecoverConversationInput,
+  type ConversationRecoveryDecision,
+} from "./conversation-recovery-policy";
+
+export {
+  ANTI_INVENT_MATRIX,
+  buildAntiInventPromptBlock,
+  type AntiInventRow,
+} from "./anti-invent-matrix";

@@ -34,6 +34,15 @@ import {
 } from "@/lib/virtual-assistant/policies/conversation/handoff-policy";
 import { isInsideHandoffWindow } from "@/lib/virtual-assistant/handoff-hours";
 import {
+  mergeConversationRecoveryPolicy,
+  normalizeConfidence,
+  patientReasonForToolFailure,
+  recordConversationSuccess,
+  recoverConversation,
+  shouldRewriteWithRecovery,
+} from "@/lib/virtual-assistant/policies/conversation/conversation-recovery-policy";
+import type { ConversationConfidence } from "@/lib/virtual-assistant/policies/conversation/conversation-recovery-policy";
+import {
   mergeClinicFlowConfig,
   syncConversationFlowTurn,
   type ClinicFlowConfig,
@@ -275,6 +284,24 @@ function computeMutationGate(
   return { ok: false, missing: gate.missing, message: gate.message };
 }
 
+/** Unified tool auth — same gate for deterministic and LLM paths. */
+function refreshAllowedTools(opts: {
+  snapshot: ConversationSnapshot;
+  flowSync: ReturnType<typeof reapplyFlowSync>;
+  flowConfig: ClinicFlowConfig;
+  settings: Partial<VirtualAssistantSettings>;
+}): string[] {
+  return applyPlatformToolGate({
+    toolNames:
+      opts.snapshot.derived.allowedTools.length > 0
+        ? opts.snapshot.derived.allowedTools
+        : opts.flowSync.allowedTools,
+    appointmentPolicy: opts.flowConfig.appointmentPolicy,
+    conversationFlows: opts.flowConfig.conversationFlows,
+    vaSettings: opts.settings,
+  });
+}
+
 export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
   let aiState: AiState = sanitizeStaleBooking(normalizeAiState(input.aiState));
   const trace = createTurnTrace(input.conversationId, input.userText);
@@ -434,22 +461,90 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     domainReason = "booking_fork";
   }
 
+  const recoveryPolicy = mergeConversationRecoveryPolicy();
+  let confidence: ConversationConfidence = normalizeConfidence(aiState.confidence);
+
+  const applyRecoveryToMessage = (
+    message: string | undefined,
+    meta: { toolName?: string; status?: string; deterministicReason?: string }
+  ): string | undefined => {
+    if (!shouldRewriteWithRecovery(message) && meta.status !== "unavailable") {
+      return message;
+    }
+    if (
+      message &&
+      !shouldRewriteWithRecovery(message) &&
+      meta.status === "unavailable"
+    ) {
+      // Contextual unavailable (e.g. no slots that day) — still counts as soft failure
+      const decision = recoverConversation(recoveryPolicy, {
+        reason: meta.toolName ?? "tool_unavailable",
+        patientFacingReason: message,
+        alternative: undefined,
+        handoff: confidence.level === "handoff" || confidence.consecutive_failures >= 1,
+        confidence,
+      });
+      confidence = decision.nextConfidence;
+      return decision.patientReply;
+    }
+    const decision = recoverConversation(recoveryPolicy, {
+      reason: meta.deterministicReason ?? meta.toolName ?? "tool_auth",
+      patientFacingReason: patientReasonForToolFailure({
+        toolName: meta.toolName,
+        status: meta.status,
+        message,
+        deterministicReason: meta.deterministicReason,
+      }),
+      retry: true,
+      handoff: confidence.consecutive_failures >= 1,
+      confidence,
+    });
+    confidence = decision.nextConfidence;
+    return decision.patientReply;
+  };
+
   const absorbToolReply = (
     result: { message?: string; renderStrategy?: string; status?: string },
-    reasonPrefix: string
+    reasonPrefix: string,
+    meta?: { toolName?: string; deterministicReason?: string }
   ) => {
     const rendered = renderStructuredToolResult(result, STRUCTURED_RENDER_OPTS);
     if (rendered?.text?.trim()) {
       authoritativeStructuredReply = rendered.text.trim();
       structuredReason = `${reasonPrefix}_structured`;
+      confidence = recordConversationSuccess(confidence);
       return;
     }
-    const msg = result.message?.trim();
+    let msg = result.message?.trim();
+    if (
+      result.status === "unavailable" ||
+      result.status === "error" ||
+      shouldRewriteWithRecovery(msg)
+    ) {
+      msg = applyRecoveryToMessage(msg, {
+        toolName: meta?.toolName,
+        status: result.status,
+        deterministicReason: meta?.deterministicReason,
+      });
+    } else if (result.status === "success" || result.status === "needs_input") {
+      if (result.status === "success") {
+        confidence = recordConversationSuccess(confidence);
+      }
+    }
     if (msg) {
       authoritativeDomainMessage = msg;
       domainReason = `${reasonPrefix}_${result.status ?? "message"}`;
     }
   };
+
+  // Unified auth BEFORE deterministic tools (never pass empty allowlist).
+  trace.allowedTools = refreshAllowedTools({
+    snapshot,
+    flowSync,
+    flowConfig,
+    settings: input.settings,
+  });
+  trace.mutationGate = computeMutationGate(flowSync);
 
   const deterministicToolMessages: ChatMessage[] = [];
   /** After a terminal mutation fails, freeze the turn (no further mutations / op changes). */
@@ -551,7 +646,10 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       patchAiState(action.toolName, args, outcome.result, aiState, mutationOutcome)
     );
 
-    absorbToolReply(outcome.result, `deterministic:${action.reason}`);
+    absorbToolReply(outcome.result, `deterministic:${action.reason}`, {
+      toolName: action.toolName,
+      deterministicReason: action.reason,
+    });
 
     if (isTerminalMutationFailure(action.toolName, mutationOutcome, outcome.result)) {
       terminalMutationFailed = true;
@@ -559,10 +657,12 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       // keep their structured/domain absorb reply.
       if (outcome.result.status === "error") {
         authoritativeStructuredReply = null;
-        authoritativeDomainMessage = terminalMutationErrorMessage(
-          action.toolName,
-          outcome.result.message
-        );
+        authoritativeDomainMessage =
+          applyRecoveryToMessage(
+            terminalMutationErrorMessage(action.toolName, outcome.result.message),
+            { toolName: action.toolName, status: "error" }
+          ) ??
+          terminalMutationErrorMessage(action.toolName, outcome.result.message);
         domainReason = `terminal_mutation_failed:${action.toolName}`;
       }
     }
@@ -594,6 +694,15 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       facts
     );
     aiState = flowSync.aiState;
+
+    // Re-gate after state/snapshot mutation (same pipeline as LLM path).
+    trace.allowedTools = refreshAllowedTools({
+      snapshot,
+      flowSync,
+      flowConfig,
+      settings: input.settings,
+    });
+    trace.mutationGate = computeMutationGate(flowSync);
 
     deterministicToolMessages.push({
       role: "assistant",
@@ -662,14 +771,12 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
 
   const snapshotBlock = formatSnapshotForPrompt(snapshot);
 
-  trace.allowedTools = applyPlatformToolGate({
-    toolNames:
-      snapshot.derived.allowedTools.length > 0
-        ? snapshot.derived.allowedTools
-        : flowSync.allowedTools,
-    appointmentPolicy: flowConfig.appointmentPolicy,
-    conversationFlows: flowConfig.conversationFlows,
-    vaSettings: input.settings,
+  // Keep allowlist fresh for LLM path (already set before det; refresh once more).
+  trace.allowedTools = refreshAllowedTools({
+    snapshot,
+    flowSync,
+    flowConfig,
+    settings: input.settings,
   });
   trace.mutationGate = computeMutationGate(flowSync);
 
@@ -940,14 +1047,11 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         facts
       );
       aiState = flowSync.aiState;
-      trace.allowedTools = applyPlatformToolGate({
-        toolNames:
-          snapshot.derived.allowedTools.length > 0
-            ? snapshot.derived.allowedTools
-            : flowSync.allowedTools,
-        appointmentPolicy: flowConfig.appointmentPolicy,
-        conversationFlows: flowConfig.conversationFlows,
-        vaSettings: input.settings,
+      trace.allowedTools = refreshAllowedTools({
+        snapshot,
+        flowSync,
+        flowConfig,
+        settings: input.settings,
       });
 
       if (outcome.handoff) {
@@ -974,16 +1078,20 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         }
       }
 
-      absorbToolReply(outcome.result, `llm_tool:${toolName}`);
+      absorbToolReply(outcome.result, `llm_tool:${toolName}`, {
+        toolName,
+      });
 
       if (isTerminalMutationFailure(toolName, mutationOutcome, outcome.result)) {
         terminalMutationFailed = true;
         if (outcome.result.status === "error") {
           authoritativeStructuredReply = null;
-          authoritativeDomainMessage = terminalMutationErrorMessage(
-            toolName,
-            outcome.result.message
-          );
+          authoritativeDomainMessage =
+            applyRecoveryToMessage(
+              terminalMutationErrorMessage(toolName, outcome.result.message),
+              { toolName, status: "error" }
+            ) ??
+            terminalMutationErrorMessage(toolName, outcome.result.message);
           domainReason = `terminal_mutation_failed:${toolName}`;
         }
       }
@@ -1098,6 +1206,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
 
   const reply = applyReplyGuards(finalReply, aiState);
   logTurnTrace(trace);
+
+  aiState = mergeAiState(aiState, { confidence });
 
   return {
     reply,

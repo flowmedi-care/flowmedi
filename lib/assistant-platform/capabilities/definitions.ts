@@ -85,7 +85,7 @@ export const RUNTIME_CAPABILITY_DEFS: Record<RuntimeCapabilityId, RuntimeCapabil
     requiredSources: ["services"],
     requiredContext: [],
     requiredPrompt:
-      "Só informe preços quando a tabela estiver disponível; caso contrário oriente a consultar a clínica.",
+      "Preços: use get_service_price. FOUND → informe o valor/faixa. PARTIAL → pergunte o dado faltante (médico, particular/convênio). NOT_CONFIGURED → ofereça transfer_to_human no WhatsApp (paciente já está falando com a clínica; nunca peça telefone/e-mail). Nunca invente motivos de variação de preço.",
   },
   quote: {
     id: "quote",

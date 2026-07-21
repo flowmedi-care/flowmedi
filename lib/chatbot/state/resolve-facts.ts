@@ -50,9 +50,28 @@ export function resolveReferenceFacts(
       return patch;
     }
     case "day": {
+      // Progressive Resolution: id may be "YYYY-MM-DD" or "YYYY-MM-DD|manha|tarde"
+      const rawId = pick.id;
+      const [datePart, periodPart] = rawId.includes("|")
+        ? (rawId.split("|") as [string, string])
+        : [rawId, null];
+      const fromOffered = aiState.offered_days?.find(
+        (d) =>
+          d.index === facts.selectedIndex ||
+          (d.date === datePart &&
+            (periodPart
+              ? d.period === periodPart
+              : !d.period || d.period === null))
+      );
+      const period =
+        periodPart === "manha" || periodPart === "tarde"
+          ? periodPart
+          : fromOffered?.period === "manha" || fromOffered?.period === "tarde"
+            ? fromOffered.period
+            : null;
       patch.booking = withSelectionFilters(aiState.booking, {
-        date: pick.id,
-        period: null,
+        date: datePart,
+        period,
       });
       return patch;
     }
