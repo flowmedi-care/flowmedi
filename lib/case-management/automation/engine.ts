@@ -84,7 +84,8 @@ const DEFAULT_RULES: AutomationRule[] = [
         type: "SetPendingDecision",
         caseId: ctx.caseId,
         pending: {
-          actor_role: "secretaria",
+          type: "advance_commercial",
+          waiting_for: "secretaria",
           label: "Avançar comercial / agendar",
         },
       },
@@ -99,7 +100,8 @@ const DEFAULT_RULES: AutomationRule[] = [
         type: "SetPendingDecision",
         caseId: ctx.caseId,
         pending: {
-          actor_role: "paciente",
+          type: "confirm_slot",
+          waiting_for: "patient",
           label: "Confirmar consulta",
         },
       },

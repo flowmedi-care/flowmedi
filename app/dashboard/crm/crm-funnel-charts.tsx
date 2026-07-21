@@ -37,12 +37,6 @@ import {
 } from "@/lib/analytics/time-buckets";
 import { Target, Calendar, TrendingUp, Users, Info } from "lucide-react";
 
-const OUTCOME_BAR_STYLE = {
-  realizadas: { fill: "hsl(var(--card))", stroke: "hsl(158 55% 42%)", strokeWidth: 2 },
-  faltas: { fill: "hsl(var(--card))", stroke: "hsl(38 85% 52%)", strokeWidth: 2 },
-  canceladas: { fill: "hsl(var(--card))", stroke: "hsl(0 55% 52%)", strokeWidth: 2 },
-} as const;
-
 type CrmFunnelChartsProps = {
   initialLeadMetrics: LeadFunnelMetrics;
   initialAppointmentMetrics: AppointmentFunnelMetrics;
@@ -80,76 +74,57 @@ export function CrmFunnelCharts({
     leadMetrics.cumulativeFunnel.find((s) => s.label === "Oportunidade+")?.pct ?? 0;
   const periodLabel = formatPeriodRangeLabel(period);
 
-  const combinedTimeSeries = (() => {
+  const leadToConsultConversion =
+    leadCohortSize > 0
+      ? Math.round((appointmentMetrics.total / leadCohortSize) * 100)
+      : 0;
+  const consultToRealizada =
+    appointmentMetrics.total > 0
+      ? Math.round(
+          (appointmentMetrics.snapshot.realizadas / appointmentMetrics.total) * 100
+        )
+      : 0;
+
+  /** Tendência gerencial: só contagens (sem % diária instável). */
+  const trendSeries = (() => {
     const map = new Map<
       string,
-      {
-        dateKey: string;
-        label: string;
-        novosLeads: number;
-        agendadosLeads: number;
-        consultasAgendadas: number;
-        consultasConfirmadas: number;
-        realizadas: number;
-        faltas: number;
-        canceladas: number;
-        taxaComparecimento: number;
-      }
+      { label: string; novosLeads: number; consultasAgendadas: number; realizadas: number }
     >();
-
-    for (const appt of appointmentMetrics.timeSeries) {
-      map.set(appt.dateKey, {
-        dateKey: appt.dateKey,
-        label: appt.label,
-        novosLeads: 0,
-        agendadosLeads: 0,
-        consultasAgendadas: appt.agendadas,
-        consultasConfirmadas: appt.confirmadas,
-        realizadas: appt.realizadas,
-        faltas: appt.faltas,
-        canceladas: appt.canceladas,
-        taxaComparecimento: appt.taxaComparecimento,
+    for (const lead of leadMetrics.timeSeries) {
+      map.set(lead.dateKey, {
+        label: lead.label,
+        novosLeads: lead.novos,
+        consultasAgendadas: 0,
+        realizadas: 0,
       });
     }
-
-    for (const lead of leadMetrics.timeSeries) {
-      const existing = map.get(lead.dateKey);
+    for (const appt of appointmentMetrics.timeSeries) {
+      const existing = map.get(appt.dateKey);
       if (existing) {
-        existing.novosLeads = lead.novos;
-        existing.agendadosLeads = lead.agendados;
+        existing.consultasAgendadas = appt.agendadas;
+        existing.realizadas = appt.realizadas;
       } else {
-        map.set(lead.dateKey, {
-          dateKey: lead.dateKey,
-          label: lead.label,
-          novosLeads: lead.novos,
-          agendadosLeads: lead.agendados,
-          consultasAgendadas: 0,
-          consultasConfirmadas: 0,
-          realizadas: 0,
-          faltas: 0,
-          canceladas: 0,
-          taxaComparecimento: 0,
+        map.set(appt.dateKey, {
+          label: appt.label,
+          novosLeads: 0,
+          consultasAgendadas: appt.agendadas,
+          realizadas: appt.realizadas,
         });
       }
     }
-
-    const keys = [
-      ...new Set([
-        ...leadMetrics.timeSeries.map((b) => b.dateKey),
-        ...appointmentMetrics.timeSeries.map((b) => b.dateKey),
-      ]),
-    ].sort();
-
-    return keys.map((key) => map.get(key)!);
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v);
   })();
 
   return (
     <section id="funis" className={isPending ? "space-y-4 opacity-60" : "space-y-4"}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Funis no tempo</h2>
+          <h2 className="text-lg font-semibold">Desempenho do período</h2>
           <p className="text-sm text-muted-foreground">
-            Conversão cumulativa de leads e consultas · {periodLabel}
+            Visão gerencial · {periodLabel}. Operação de Cases na Jornada.
           </p>
         </div>
         <PeriodFilter mode="range" value={period} onChange={handlePeriodChange} className="lg:max-w-xl" />
@@ -159,30 +134,29 @@ export function CrmFunnelCharts({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Novos leads no período"
+          title="Novos leads"
           value={leadCohortSize}
-          subtitle={`${agendadosPct}% viraram agendamento · Leads que entraram no funil`}
+          subtitle={`${agendadosPct}% com agendamento`}
           icon={Users}
         />
         <StatCard
-          title="Consultas no período"
+          title="Consultas agendadas"
           value={appointmentMetrics.total}
           subtitle={`${appointmentMetrics.taxaConfirmacao}% confirmadas`}
           icon={Calendar}
         />
         <StatCard
-          title="Comparecimento"
-          value={`${appointmentMetrics.taxaComparecimento}%`}
-          subtitle={`${appointmentMetrics.snapshot.realizadas} realizadas`}
+          title="Lead → Consulta"
+          value={`${leadToConsultConversion}%`}
+          subtitle="Conversão no período"
           icon={TrendingUp}
           iconColor="success"
         />
         <StatCard
-          title="No-show"
-          value={`${appointmentMetrics.taxaNoShow}%`}
-          subtitle={`${appointmentMetrics.snapshot.faltas} faltas`}
+          title="Consulta → Realizada"
+          value={`${consultToRealizada}%`}
+          subtitle={`${appointmentMetrics.snapshot.realizadas} realizadas`}
           icon={Target}
-          iconColor="warning"
         />
       </div>
 
@@ -191,10 +165,10 @@ export function CrmFunnelCharts({
           title="Funil de captação"
           description={
             <span className="inline-flex items-center gap-1.5">
-              Leads que entraram no período selecionado
+              Leads que entraram no período
               <span
                 className="inline-flex text-muted-foreground"
-                title="Conta leads cuja entrada no funil (criação ou primeiro histórico) ocorreu neste intervalo — não o total de leads ativos."
+                title="Conta leads cuja entrada no funil ocorreu neste intervalo."
               >
                 <Info className="h-3.5 w-3.5" />
               </span>
@@ -210,10 +184,7 @@ export function CrmFunnelCharts({
           )}
         </ChartCard>
 
-        <ChartCard
-          title="Funil de comparecimento"
-          description={`Consultas agendadas no período`}
-        >
+        <ChartCard title="Funil de comparecimento" description="Agregado do período (não é posto operacional)">
           {appointmentMetrics.total === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               Nenhuma consulta no período.
@@ -229,82 +200,37 @@ export function CrmFunnelCharts({
       </div>
 
       <ChartCard
-        title="Evolução no tempo"
-        description="Consultas por data agendada (scheduled_at); leads por data de entrada no funil"
+        title="Tendência"
+        description="Novos leads, consultas agendadas e realizadas — contagens (sem taxa diária)"
       >
-        {combinedTimeSeries.length === 0 ? (
+        {trendSeries.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            Nenhum dado no período selecionado.
+            Nenhum dado no período.
           </p>
         ) : (
-          <div className="h-[360px] w-full">
+          <div className="h-[320px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={combinedTimeSeries}>
+              <ComposedChart data={trendSeries}>
                 <CartesianGrid {...chartGridProps} />
                 <XAxis dataKey="label" {...chartAxisProps} />
-                <YAxis yAxisId="left" {...chartAxisProps} />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  domain={[0, 100]}
-                  tickFormatter={(v) => `${v}%`}
-                  {...chartAxisProps}
-                />
+                <YAxis {...chartAxisProps} allowDecimals={false} />
                 <Tooltip {...chartTooltipStyle} />
                 <Legend />
                 <Bar
-                  yAxisId="left"
                   dataKey="novosLeads"
                   name="Novos leads"
                   fill={MONO_CHART_SCALE[0]}
                   {...chartBarProps}
                 />
                 <Bar
-                  yAxisId="left"
-                  dataKey="agendadosLeads"
-                  name="Leads agendados"
-                  fill={MONO_CHART_SCALE[1]}
-                  {...chartBarProps}
-                />
-                <Bar
-                  yAxisId="left"
                   dataKey="consultasAgendadas"
                   name="Consultas agendadas"
                   fill={MONO_CHART_SCALE[2]}
                   {...chartBarProps}
                 />
-                <Bar
-                  yAxisId="left"
-                  dataKey="consultasConfirmadas"
-                  name="Consultas confirmadas"
-                  fill={MONO_CHART_SCALE[3]}
-                  {...chartBarProps}
-                />
-                <Bar
-                  yAxisId="left"
+                <Line
                   dataKey="realizadas"
                   name="Realizadas"
-                  {...OUTCOME_BAR_STYLE.realizadas}
-                  {...chartBarProps}
-                />
-                <Bar
-                  yAxisId="left"
-                  dataKey="faltas"
-                  name="Faltas"
-                  {...OUTCOME_BAR_STYLE.faltas}
-                  {...chartBarProps}
-                />
-                <Bar
-                  yAxisId="left"
-                  dataKey="canceladas"
-                  name="Canceladas"
-                  {...OUTCOME_BAR_STYLE.canceladas}
-                  {...chartBarProps}
-                />
-                <Line
-                  yAxisId="right"
-                  dataKey="taxaComparecimento"
-                  name="Taxa comparecimento (%)"
                   stroke={MONO_CHART_TREND}
                   {...chartLineProps}
                 />

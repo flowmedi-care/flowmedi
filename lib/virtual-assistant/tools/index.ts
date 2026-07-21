@@ -699,8 +699,7 @@ export async function executeAssistantTool(
           evidence,
           payload: { conversation_id: conversationId, phone: phoneNumber },
           ensureCase: {
-            journey_type: "primeira_consulta",
-            phase: "captacao",
+            process_type_code: "primeira_consulta",
           },
         });
 
@@ -723,10 +722,10 @@ export async function executeAssistantTool(
             event_id: published.eventId,
             case_id: published.case?.id ?? null,
             phase: published.case?.phase ?? null,
-            applied_rules: published.appliedRuleIds,
+            transition_applied: published.transitionApplied ?? false,
             hint: published.rejected
-              ? "Evento bloqueado pela AI Policy ou Automation."
-              : "Fato registrado. A fase do Case foi atualizada pelo sistema se as regras permitirem.",
+              ? "Evento bloqueado ou sem transição aplicável."
+              : "Fato registrado. A fase do Case foi atualizada pelo Transition Engine se houver Transition.",
           }),
         };
       }

@@ -5,36 +5,33 @@ import { getCaseBoard } from "./case-actions";
 import type { BoardView } from "./case-types";
 
 type Props = {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; workflow?: string }>;
 };
 
-const VALID_VIEWS: BoardView[] = [
-  "pipeline",
-  "comparecimento",
-  "financeiro",
-  "ia",
-  "pendencias",
-];
+const VALID: BoardView[] = ["pendencias", "fluxo", "comparecimento", "ia"];
 
 export default async function JornadaBoardPage({ searchParams }: Props) {
   const params = await searchParams;
-  const view = (VALID_VIEWS.includes(params.view as BoardView)
+  const view = (VALID.includes(params.view as BoardView)
     ? params.view
-    : "pipeline") as BoardView;
+    : "pendencias") as BoardView;
 
-  const { data, error } = await getCaseBoard(view);
+  const { data, error } = await getCaseBoard(view, params.workflow ?? null);
   if (error === "Não autorizado.") redirect("/entrar");
 
   return (
     <PageShell
       header={{
-        breadcrumbs: [{ label: "CRM", href: "/dashboard/crm/pipeline" }, { label: "Jornada" }],
+        breadcrumbs: [
+          { label: "CRM", href: "/dashboard/crm/pipeline" },
+          { label: "Jornada" },
+        ],
         title: "Jornada",
         description:
-          "Lista de entrada dos Cases. Clique para abrir o Workspace — posto de trabalho do processo.",
+          "Ops de atendimento — Pendências, Fluxo por workflow, Comparecimento e Atendimento automático.",
       }}
     >
-      {error && <p className="text-sm text-destructive mb-4">{error}</p>}
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
       {data && <CaseBoardClient initial={data} initialView={view} />}
     </PageShell>
   );

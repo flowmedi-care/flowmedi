@@ -2,27 +2,25 @@
 
 import { createClient } from "@/lib/supabase/server";
 import {
-  CASE_PHASE_LABELS,
-  JOURNEY_TYPE_LABELS,
-  PHASE_DEFAULT_OBJECTIVE,
+  applyTransition,
   buildAiQueueProjection,
-  buildAttendanceProjection,
-  buildFinanceProjection,
+  buildAttendanceProjectionFromAppointments,
+  buildFluxoProjection,
   buildPendingQueueProjection,
-  buildPipelineProjection,
   buildTimelineProjection,
   buildWorkspaceContext,
-  contactIdFromLead,
+  countOpenTasks,
   getCaseById,
+  getPhasesForVersion,
   listCasesForClinic,
   listEventsForCase,
+  listPublishedWorkflows,
   listTasksForCase,
   publishDomainEvent,
+  type AttendanceCard,
   type BoardView,
   type CaseEnrichment,
-  type CasePhase,
-  type CaseTask,
-  type JourneyCase,
+  type CaseStatus,
 } from "@/lib/case-management";
 import type { BoardPayload, WorkspacePayload } from "./case-types";
 
@@ -51,12 +49,12 @@ async function requireClinic() {
 async function buildEnrichment(
   supabase: Awaited<ReturnType<typeof createClient>>,
   clinicId: string,
-  cases: JourneyCase[]
+  cases: Awaited<ReturnType<typeof listCasesForClinic>>
 ): Promise<Record<string, CaseEnrichment>> {
   const leadIds = cases.map((c) => c.lead_id).filter(Boolean) as string[];
   const patientIds = cases.map((c) => c.patient_id).filter(Boolean) as string[];
 
-  const [leadsRes, patientsRes, apptsRes] = await Promise.all([
+  const [leadsRes, patientsRes, quotesRes] = await Promise.all([
     leadIds.length
       ? supabase
           .from("non_registered_pipeline")
@@ -71,26 +69,34 @@ async function buildEnrichment(
           .eq("clinic_id", clinicId)
           .in("id", patientIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
-    patientIds.length
+    leadIds.length
       ? supabase
-          .from("appointments")
-          .select("id, patient_id, status, scheduled_at")
-          .eq("clinic_id", clinicId)
-          .in("patient_id", patientIds)
-          .in("status", ["agendada", "confirmada", "realizada", "falta", "cancelada"])
-          .order("scheduled_at", { ascending: false })
-          .limit(200)
-      : Promise.resolve({ data: [] as { id: string; patient_id: string; status: string; scheduled_at: string }[] }),
+          .from("quotes")
+          .select("id, pipeline_id, status, created_at")
+          .in("pipeline_id", leadIds)
+          .order("created_at", { ascending: false })
+          .limit(100)
+      : Promise.resolve({ data: [] as { pipeline_id: string; status: string }[] }),
   ]);
 
   const leadMap = new Map(
     (leadsRes.data ?? []).map((l) => [l.id, l.name || l.email || l.phone || "Lead"])
   );
   const patientMap = new Map((patientsRes.data ?? []).map((p) => [p.id, p.full_name]));
-  const apptByPatient = new Map<string, string>();
-  for (const a of apptsRes.data ?? []) {
-    if (!apptByPatient.has(a.patient_id)) apptByPatient.set(a.patient_id, a.status);
+  const quoteByLead = new Map<string, string>();
+  for (const q of quotesRes.data ?? []) {
+    if (q.pipeline_id && !quoteByLead.has(q.pipeline_id)) {
+      quoteByLead.set(q.pipeline_id, String(q.status));
+    }
   }
+
+  const quoteLabels: Record<string, string> = {
+    rascunho: "Orçamento rascunho",
+    enviado: "Orçamento enviado",
+    aceito: "Aceitou valor",
+    recusado: "Não aceitou",
+    expirado: "Orçamento expirado",
+  };
 
   const out: Record<string, CaseEnrichment> = {};
   for (const c of cases) {
@@ -98,44 +104,99 @@ async function buildEnrichment(
       (c.patient_id && patientMap.get(c.patient_id)) ||
       (c.lead_id && leadMap.get(c.lead_id)) ||
       c.contact_id;
+    const qStatus = c.lead_id ? quoteByLead.get(c.lead_id) : null;
+    const openTaskCount = await countOpenTasks(supabase, c.id);
     out[c.id] = {
       displayName: name,
-      appointmentStatus: c.patient_id ? apptByPatient.get(c.patient_id) ?? null : null,
-      financeStatus: c.phase === "financeiro" ? "aberto" : c.phase === "pos" || c.phase === "fechado" ? "pago" : "nenhum",
+      quoteBadge: qStatus ? quoteLabels[qStatus] ?? qStatus : null,
+      openTaskCount,
     };
   }
   return out;
 }
 
-export async function getCaseBoard(view: BoardView = "pipeline"): Promise<{
-  data: BoardPayload | null;
-  error: string | null;
-}> {
+export async function getCaseBoard(
+  view: BoardView = "pendencias",
+  workflowVersionId?: string | null
+): Promise<{ data: BoardPayload | null; error: string | null }> {
   const ctx = await requireClinic();
   if (ctx.error || !ctx.profile) return { data: null, error: ctx.error ?? "Erro" };
 
+  const workflows = await listPublishedWorkflows(ctx.supabase, ctx.profile.clinic_id);
+  const selectedVersionId =
+    workflowVersionId ||
+    workflows.find((w) => w.workflow.code.includes("primeira_consulta"))?.version_id ||
+    workflows[0]?.version_id ||
+    null;
+
+  const statuses: CaseStatus[] = ["active", "waiting", "completed", "cancelled"];
   const cases = await listCasesForClinic(ctx.supabase, ctx.profile.clinic_id, {
-    status: ["open", "waiting", "closed"],
+    status: statuses,
+    workflowVersionId: view === "fluxo" && selectedVersionId ? selectedVersionId : undefined,
   });
-  const openish = cases.filter((c) => c.status !== "closed" || c.phase === "perdido");
 
-  const allTasks: CaseTask[] = [];
-  for (const c of openish.slice(0, 100)) {
-    const tasks = await listTasksForCase(ctx.supabase, c.id);
-    allTasks.push(...tasks);
+  const enrichment = await buildEnrichment(ctx.supabase, ctx.profile.clinic_id, cases);
+  const phases = selectedVersionId
+    ? await getPhasesForVersion(ctx.supabase, selectedVersionId)
+    : [];
+
+  const fluxoCases =
+    view === "fluxo" && selectedVersionId
+      ? cases.filter((c) => c.workflow_version_id === selectedVersionId)
+      : cases;
+
+  // Comparecimento: appointment grain
+  const now = Date.now();
+  const { data: appts } = await ctx.supabase
+    .from("appointments")
+    .select("id, status, scheduled_at, patient_id, patients(full_name), doctors(full_name)")
+    .eq("clinic_id", ctx.profile.clinic_id)
+    .in("status", ["agendada", "confirmada", "realizada", "falta", "cancelada"])
+    .order("scheduled_at", { ascending: true })
+    .limit(300);
+
+  const attendanceCards: AttendanceCard[] = [];
+  for (const a of appts ?? []) {
+    const scheduled = new Date(a.scheduled_at).getTime();
+    const st = String(a.status);
+    const active = st === "agendada" || st === "confirmada";
+    if (active) {
+      if (scheduled < now - 7 * 86400000 || scheduled > now + 30 * 86400000) continue;
+    } else if (scheduled < now - 14 * 86400000) continue;
+
+    const patient = Array.isArray(a.patients) ? a.patients[0] : a.patients;
+    const doctor = Array.isArray(a.doctors) ? a.doctors[0] : a.doctors;
+    const patientId = a.patient_id ? String(a.patient_id) : null;
+    const linked = patientId
+      ? cases.find((c) => c.patient_id === patientId && (c.status === "active" || c.status === "waiting"))
+      : null;
+
+    attendanceCards.push({
+      appointmentId: String(a.id),
+      caseId: linked?.id ?? null,
+      displayName: (patient as { full_name?: string } | null)?.full_name ?? "Paciente",
+      status: st,
+      scheduledAt: String(a.scheduled_at),
+      doctorName: (doctor as { full_name?: string } | null)?.full_name ?? null,
+    });
   }
-
-  const enrichment = await buildEnrichment(ctx.supabase, ctx.profile.clinic_id, openish);
 
   return {
     error: null,
     data: {
       view,
-      pipeline: buildPipelineProjection(openish, enrichment, allTasks),
-      attendance: buildAttendanceProjection(openish, enrichment, allTasks),
-      finance: buildFinanceProjection(openish, enrichment, allTasks),
-      aiQueue: buildAiQueueProjection(openish, enrichment, allTasks),
-      pendingQueue: buildPendingQueueProjection(openish, enrichment, allTasks),
+      workflowVersionId: selectedVersionId,
+      workflows: workflows.map((w) => ({
+        workflow_id: w.workflow.id,
+        version_id: w.version_id,
+        name: w.workflow.name,
+        process_type_name: w.process_type_name,
+      })),
+      phases,
+      fluxo: buildFluxoProjection(fluxoCases, phases, enrichment),
+      comparecimento: buildAttendanceProjectionFromAppointments(attendanceCards),
+      aiQueue: buildAiQueueProjection(cases, enrichment),
+      pendingQueue: buildPendingQueueProjection(cases, enrichment),
     },
   };
 }
@@ -152,54 +213,99 @@ export async function getCaseWorkspace(caseId: string): Promise<{
     return { data: null, error: "Case não encontrado." };
   }
 
-  const [tasks, events, enrichment] = await Promise.all([
-    listTasksForCase(ctx.supabase, caseId),
-    listEventsForCase(ctx.supabase, caseId, 80),
-    buildEnrichment(ctx.supabase, ctx.profile.clinic_id, [journeyCase]),
-  ]);
+  let displayName = journeyCase.contact_id;
+  if (journeyCase.patient_id) {
+    const { data: p } = await ctx.supabase
+      .from("patients")
+      .select("full_name")
+      .eq("id", journeyCase.patient_id)
+      .maybeSingle();
+    if (p?.full_name) displayName = p.full_name;
+  } else if (journeyCase.lead_id) {
+    const { data: l } = await ctx.supabase
+      .from("non_registered_pipeline")
+      .select("name, email")
+      .eq("id", journeyCase.lead_id)
+      .maybeSingle();
+    displayName = l?.name || l?.email || displayName;
+  }
 
-  const workspaceCtx = buildWorkspaceContext(journeyCase);
+  let nextAppointmentLabel: string | null = null;
+  let quoteBadge: string | null = null;
+
+  if (journeyCase.lead_id) {
+    const { data: quote } = await ctx.supabase
+      .from("quotes")
+      .select("status")
+      .eq("pipeline_id", journeyCase.lead_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (quote?.status) {
+      const quoteLabels: Record<string, string> = {
+        rascunho: "Orçamento rascunho",
+        enviado: "Orçamento enviado",
+        aceito: "Aceitou valor",
+        recusado: "Não aceitou",
+        expirado: "Orçamento expirado",
+      };
+      quoteBadge = quoteLabels[String(quote.status)] ?? String(quote.status);
+    }
+  }
+
+  if (journeyCase.patient_id) {
+    const { data: appt } = await ctx.supabase
+      .from("appointments")
+      .select("scheduled_at, status")
+      .eq("patient_id", journeyCase.patient_id)
+      .in("status", ["agendada", "confirmada"])
+      .gte("scheduled_at", new Date().toISOString())
+      .order("scheduled_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (appt?.scheduled_at) {
+      nextAppointmentLabel = `Consulta ${new Date(appt.scheduled_at).toLocaleString("pt-BR")} (${appt.status})`;
+    }
+  }
+
+  const ws = await buildWorkspaceContext(ctx.supabase, caseId, {
+    displayName,
+    nextAppointmentLabel,
+    quoteBadge,
+  });
+  if (!ws) return { data: null, error: "Falha ao montar workspace." };
+
+  const events = await listEventsForCase(ctx.supabase, caseId, 80);
 
   return {
     error: null,
     data: {
-      case: journeyCase,
-      tasks,
-      timeline: buildTimelineProjection(events).events,
-      context: workspaceCtx,
-      displayName: enrichment[journeyCase.id]?.displayName ?? journeyCase.contact_id,
-      phaseLabel: CASE_PHASE_LABELS[journeyCase.phase],
-      journeyTypeLabel: JOURNEY_TYPE_LABELS[journeyCase.journey_type],
-      objective: PHASE_DEFAULT_OBJECTIVE[journeyCase.phase],
-      labels: { phases: CASE_PHASE_LABELS },
+      case: ws.case,
+      header: ws.header,
+      tasks: ws.tasks,
+      timeline: buildTimelineProjection(events).events as WorkspacePayload["timeline"],
+      primaryPanels: ws.primaryPanels,
+      priorityActions: ws.priorityActions,
     },
   };
 }
 
-/** DnD / override humano → Domain Event (não escreve phase direto). */
 export async function requestCasePhaseOverride(
   caseId: string,
-  targetPhase: CasePhase,
+  toPhaseId: string,
   reason?: string
 ): Promise<{ ok: boolean; error?: string }> {
   const ctx = await requireClinic();
   if (ctx.error || !ctx.profile) return { ok: false, error: ctx.error ?? "Erro" };
 
-  const journeyCase = await getCaseById(ctx.supabase, caseId);
-  if (!journeyCase || journeyCase.clinic_id !== ctx.profile.clinic_id) {
-    return { ok: false, error: "Case não encontrado." };
-  }
-
-  const result = await publishDomainEvent(ctx.supabase, {
-    clinicId: ctx.profile.clinic_id,
+  const result = await applyTransition(ctx.supabase, {
     caseId,
-    eventType: "Case.OverrideRequested",
     actor: `human:${ctx.profile.id}`,
-    payload: { target_phase: targetPhase, reason: reason ?? "board_dnd" },
-    evidence: reason ?? "override via board",
+    triggerType: "manual",
+    toPhaseId,
+    evidence: reason ?? "fluxo_dnd",
   });
-
-  if (result.rejected) return { ok: false, error: result.rejected };
+  if (!result.ok) return { ok: false, error: result.reason };
   return { ok: true };
 }
 
@@ -209,14 +315,16 @@ export async function completeCaseTaskAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const ctx = await requireClinic();
   if (ctx.error || !ctx.profile) return { ok: false, error: ctx.error ?? "Erro" };
-
-  const { dispatchCommand } = await import("@/lib/case-management/transition/engine");
-  const result = await dispatchCommand(
-    ctx.supabase,
-    { type: "CompleteTask", caseId, taskId },
-    `human:${ctx.profile.id}`
-  );
-  if (!result.ok) return { ok: false, error: result.reason };
+  const { completeTask } = await import("@/lib/case-management/repository");
+  const task = await completeTask(ctx.supabase, taskId);
+  if (!task) return { ok: false, error: "task_complete_failed" };
+  await publishDomainEvent(ctx.supabase, {
+    clinicId: ctx.profile.clinic_id,
+    caseId,
+    eventType: "Task.Completed",
+    actor: `human:${ctx.profile.id}`,
+    payload: { task_id: taskId },
+  });
   return { ok: true };
 }
 
@@ -229,11 +337,6 @@ export async function publishCaseOutcomeAction(input: {
   const ctx = await requireClinic();
   if (ctx.error || !ctx.profile) return { ok: false, error: ctx.error ?? "Erro" };
 
-  const journeyCase = await getCaseById(ctx.supabase, input.caseId);
-  if (!journeyCase || journeyCase.clinic_id !== ctx.profile.clinic_id) {
-    return { ok: false, error: "Case não encontrado." };
-  }
-
   const result = await publishDomainEvent(ctx.supabase, {
     clinicId: ctx.profile.clinic_id,
     caseId: input.caseId,
@@ -242,27 +345,55 @@ export async function publishCaseOutcomeAction(input: {
     payload: input.payload ?? {},
     evidence: input.evidence ?? null,
   });
-
   if (result.rejected) return { ok: false, error: result.rejected };
   return { ok: true };
 }
 
-export async function ensureCaseForLead(leadId: string): Promise<{
-  caseId: string | null;
-  error: string | null;
-}> {
+export async function changeAttendanceStatus(
+  appointmentId: string,
+  newStatus: "agendada" | "confirmada" | "realizada" | "falta" | "cancelada"
+): Promise<{ ok: boolean; error?: string }> {
   const ctx = await requireClinic();
-  if (ctx.error || !ctx.profile) return { caseId: null, error: ctx.error ?? "Erro" };
+  if (ctx.error || !ctx.profile) return { ok: false, error: ctx.error ?? "Erro" };
 
-  const contactId = contactIdFromLead(leadId);
-  const { getOpenCaseByContact, insertCase } = await import("@/lib/case-management");
-  let existing = await getOpenCaseByContact(ctx.supabase, ctx.profile.clinic_id, contactId);
-  if (!existing) {
-    existing = await insertCase(ctx.supabase, {
-      clinic_id: ctx.profile.clinic_id,
-      contact_id: contactId,
-      lead_id: leadId,
+  const { updateAppointment } = await import("@/app/dashboard/agenda/actions");
+  const result = await updateAppointment(appointmentId, { status: newStatus });
+  if (result.error) return { ok: false, error: result.error };
+
+  const eventMap = {
+    agendada: "Appointment.Created",
+    confirmada: "Appointment.Confirmed",
+    realizada: "Appointment.Completed",
+    falta: "Appointment.NoShow",
+    cancelada: "Appointment.Cancelled",
+  } as const;
+
+  const { data: appt } = await ctx.supabase
+    .from("appointments")
+    .select("patient_id")
+    .eq("id", appointmentId)
+    .maybeSingle();
+
+  if (appt?.patient_id) {
+    const { contactIdFromPatient, getOpenCaseByContact } = await import(
+      "@/lib/case-management"
+    );
+    const contactId = contactIdFromPatient(String(appt.patient_id));
+    const open = await getOpenCaseByContact(
+      ctx.supabase,
+      ctx.profile.clinic_id,
+      contactId
+    );
+    await publishDomainEvent(ctx.supabase, {
+      clinicId: ctx.profile.clinic_id,
+      caseId: open?.id ?? null,
+      contactId,
+      patientId: String(appt.patient_id),
+      eventType: eventMap[newStatus],
+      actor: `human:${ctx.profile.id}`,
+      payload: { appointment_id: appointmentId },
+      ensureCase: { process_type_code: "primeira_consulta" },
     });
   }
-  return { caseId: existing?.id ?? null, error: existing ? null : "Falha ao criar case" };
+  return { ok: true };
 }

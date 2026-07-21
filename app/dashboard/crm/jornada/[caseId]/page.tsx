@@ -13,7 +13,6 @@ type Props = {
 export default async function CaseWorkspacePage({ params }: Props) {
   const { caseId } = await params;
 
-  // Legacy contact keys lead-xxx / patient-xxx → board (cases use UUIDs)
   if (caseId.startsWith("lead-") || caseId.startsWith("patient-")) {
     redirect("/dashboard/crm/jornada");
   }
@@ -34,7 +33,7 @@ export default async function CaseWorkspacePage({ params }: Props) {
       >
         <p className="text-sm text-destructive">{error ?? "Case inválido."}</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/dashboard/crm/jornada">Voltar à Jornada</Link>
+          <Link href="/dashboard/crm/jornada">Voltar</Link>
         </Button>
       </PageShell>
     );
@@ -46,16 +45,16 @@ export default async function CaseWorkspacePage({ params }: Props) {
         breadcrumbs: [
           { label: "CRM", href: "/dashboard/crm/pipeline" },
           { label: "Jornada", href: "/dashboard/crm/jornada" },
-          { label: data.displayName },
+          { label: data.header.displayName },
         ],
         title: "Workspace",
-        description: "Posto de trabalho do Case — módulos como painéis do mesmo contexto.",
+        description: "Tudo para operar este Case.",
       }}
       toolbar={
         <Button variant="outline" size="sm" asChild>
-          <Link href="/dashboard/crm/jornada">
+          <Link href="/dashboard/crm/jornada?view=pendencias">
             <ArrowLeft className="mr-1.5 h-4 w-4" />
-            Lista
+            Pendências
           </Link>
         </Button>
       }

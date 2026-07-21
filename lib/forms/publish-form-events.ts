@@ -46,7 +46,7 @@ export async function publishFormCompletedEvent(
       template_id: input.templateId ?? null,
       appointment_id: input.appointmentId ?? null,
     },
-    ensureCase: contactId ? { journey_type: "primeira_consulta" } : undefined,
+    ensureCase: contactId ? { process_type_code: "primeira_consulta" } : undefined,
   });
 }
 

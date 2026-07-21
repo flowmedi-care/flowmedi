@@ -3,9 +3,11 @@ import { describe, it } from "node:test";
 import { runAutomation } from "../automation/engine";
 import { derivePhaseFromEventTypes, evaluateDomainPolicy } from "../policies/domain";
 import { TRANSITION_ALLOWED_COMMANDS } from "../commands";
-import { buildWorkspaceContext } from "../context/engine";
+import {
+  derivedObjectiveForPhase,
+  panelsForPhaseCode,
+} from "../context/engine";
 import { aiMayPublishEvent, resolveAIPolicy } from "../policies/ai";
-import type { JourneyCase } from "../types";
 
 describe("derivePhaseFromEventTypes", () => {
   it("rebuilds phase from atomic events", () => {
@@ -63,25 +65,9 @@ describe("transition guardrails", () => {
 
 describe("context engine", () => {
   it("shows finance panels in financeiro phase", () => {
-    const c: JourneyCase = {
-      id: "1",
-      clinic_id: "x",
-      contact_id: "lead:1",
-      lead_id: "1",
-      patient_id: null,
-      journey_type: "primeira_consulta",
-      phase: "financeiro",
-      owner: "system",
-      pending_decision: null,
-      status: "open",
-      opened_at: new Date().toISOString(),
-      closed_at: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    const ctx = buildWorkspaceContext(c);
-    assert.ok(ctx.primaryPanels.includes("financeiro"));
-    assert.equal(ctx.derivedObjective, "Receber pagamento");
+    const panels = panelsForPhaseCode("financeiro");
+    assert.ok(panels.includes("financeiro"));
+    assert.equal(derivedObjectiveForPhase("financeiro"), "Receber pagamento");
   });
 });
 

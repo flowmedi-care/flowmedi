@@ -1,42 +1,45 @@
 /**
- * Tipos compartilhados da Jornada — sem "use server".
- * Server actions ficam só em case-actions.ts (apenas funções async).
+ * Tipos da Jornada — sem "use server".
  */
 
 import type {
+  AttendanceCard,
   BoardView,
-  CasePhase,
   CaseTask,
   JourneyCase,
   JourneyEventRecord,
   PipelineCard,
-  WorkspaceContext,
+  WorkflowPhase,
 } from "@/lib/case-management";
-import type {
-  AttendanceProjection,
-  FinanceProjection,
-  PipelineProjection,
-  QueueProjection,
-} from "@/lib/case-management/projections";
-export type { BoardView, CasePhase, PipelineCard };
+import type { WorkspaceHeader } from "@/lib/case-management";
+
+export type { BoardView, PipelineCard, AttendanceCard };
 
 export type BoardPayload = {
   view: BoardView;
-  pipeline: PipelineProjection;
-  attendance: AttendanceProjection;
-  finance: FinanceProjection;
-  aiQueue: QueueProjection;
-  pendingQueue: QueueProjection;
+  workflowVersionId: string | null;
+  workflows: {
+    workflow_id: string;
+    version_id: string;
+    name: string;
+    process_type_name: string;
+  }[];
+  phases: WorkflowPhase[];
+  fluxo: {
+    columns: { phaseId: string; code: string; label: string; cards: PipelineCard[] }[];
+  };
+  comparecimento: {
+    columns: { status: string; label: string; cards: AttendanceCard[] }[];
+  };
+  aiQueue: { cards: PipelineCard[] };
+  pendingQueue: { cards: PipelineCard[] };
 };
 
 export type WorkspacePayload = {
   case: JourneyCase;
+  header: WorkspaceHeader;
   tasks: CaseTask[];
   timeline: JourneyEventRecord[];
-  context: WorkspaceContext;
-  displayName: string;
-  phaseLabel: string;
-  journeyTypeLabel: string;
-  objective: string;
-  labels: { phases: Record<CasePhase, string> };
+  primaryPanels: string[];
+  priorityActions: string[];
 };

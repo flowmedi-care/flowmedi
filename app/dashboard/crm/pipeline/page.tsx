@@ -1,9 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
+import { Button } from "@/components/ui/button";
 import { CrmFunnelCharts } from "../crm-funnel-charts";
-import { CrmPipelineBoardsClient } from "../crm-pipeline-boards-client";
 import {
-  getAppointmentPipeline,
   getLeadFunnelMetrics,
   getAppointmentFunnelMetrics,
 } from "../pipeline-actions";
@@ -29,8 +29,7 @@ export default async function CrmPipelinePage() {
 
   const defaultPeriod = getPresetFunnelPeriod("30d");
 
-  const [appointmentRes, leadMetricsRes, appointmentMetricsRes] = await Promise.all([
-    getAppointmentPipeline(),
+  const [leadMetricsRes, appointmentMetricsRes] = await Promise.all([
     getLeadFunnelMetrics(defaultPeriod),
     getAppointmentFunnelMetrics(defaultPeriod),
   ]);
@@ -74,14 +73,19 @@ export default async function CrmPipelinePage() {
   return (
     <PageShell
       header={{
-        breadcrumbs: [{ label: "Pipeline CRM" }],
-        title: "Pipeline CRM",
+        breadcrumbs: [{ label: "Pipeline (KPIs)" }],
+        title: "Pipeline (KPIs)",
         description:
-          "Comparecimento de consultas e funis no tempo. Captação em Contatos → Leads.",
+          "Como o negócio está performando — números agregados. Operação de Cases e comparecimento na Jornada.",
+        actions: (
+          <Button size="sm" asChild>
+            <Link href="/dashboard/crm/jornada?view=pendencias">Abrir Pendências</Link>
+          </Button>
+        ),
       }}
       elevated={false}
     >
-      <div className="space-y-10">
+      <div className="space-y-6">
         {(leadMetricsRes.error || appointmentMetricsRes.error) && (
           <p className="text-sm text-destructive">
             {leadMetricsRes.error || appointmentMetricsRes.error}
@@ -91,14 +95,6 @@ export default async function CrmPipelinePage() {
         <CrmFunnelCharts
           initialLeadMetrics={leadMetrics}
           initialAppointmentMetrics={appointmentMetrics}
-        />
-
-        {(appointmentRes.error) && (
-          <p className="text-sm text-destructive">{appointmentRes.error}</p>
-        )}
-
-        <CrmPipelineBoardsClient
-          appointmentItems={appointmentRes.error ? [] : (appointmentRes.data ?? [])}
         />
       </div>
     </PageShell>

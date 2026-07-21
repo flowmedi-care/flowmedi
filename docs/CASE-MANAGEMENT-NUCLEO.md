@@ -1,62 +1,60 @@
-# Case Management — Núcleo Flowmed (V5+)
+# Case Management — Ops de atendimento (arquitetura 10/10)
 
 Arquitetura congelada. Ganhos futuros vêm de **disciplina nos limites de domínio**, não de redesenho.
 
 ## Pipeline canônico
 
 ```text
-Modules / Humanos / IA
-  → Domain Events (+ Integration / Internal)
-  → Policies (Domain → Clinic → AI)
-  → Automation (priority / exclusive)
-  → Commands
-  → Transition Engine  (só Case + Tasks + pending_decision)
-  → Domain Events de audit / intenção (PaymentRequested, …)
-  → Module responsável
-  → Projections → Context Engine → Workspace / listas
+Domain Event (entrada)
+  → Transition Engine (resolve Transition + conditions + automation_policy)
+  → atualiza Case (phase_id, pending_decision, …)
+  → emite Domain Event (saída), ex. case.phase_changed
+  → notificações / analytics / IA / auditoria consomem o evento de saída
 ```
 
-## Invariantes (checklist de PR)
+Transition **não** acopla side-effects de módulo; side-effects reagem a eventos emitidos.
 
-1. Module A **não** importa/chama Module B para side-effect  
-2. Transition **não** referencia Finance / Agenda / WhatsApp / Prontuário  
-3. Novo efeito de negócio = Domain Event (+ Command se for Case)  
-4. Config de clínica em Clinic Policy, não `if` na Automation  
-5. UI lê Projection / Context Engine, não events crus  
-6. IA só `publishDomainEvent` — nunca MoveToStage / Commands de fase  
+## Case (magro)
 
-## Case Aggregate Root (mínimo)
+`contact_id`, `process_type_id`, `workflow_version_id`, `phase_id`, `owner_type`/`owner_id`,
+`pending_decision` (quem decide), `execution_context` (tool em voo — **não** misturar),
+`status`: `active | waiting | completed | cancelled`.
 
-Campos: `id`, `clinic_id`, `contact_id`, `journey_type`, `phase` (materializado), `owner`, `pending_decision`, `status`, `opened_at`, `closed_at`.
+Tasks são tabela separada; Case expõe `open_tasks_count` via query.
 
-- **Tasks** = o que fazer (N)  
-- **pending_decision** = quem decide agora (0..1)  
-- **phase** = read model; verdade histórica = `journey_events`  
+## WorkflowVersion
+
+`status`: `draft | published | deprecated` (≠ Case.status).  
+Phases + Transitions na version. `automation_policy.on_enter_phase`.
+
+## Telas (uma pergunta cada)
+
+| Tela | Pergunta |
+|------|----------|
+| KPIs (`/crm/pipeline`) | Como o negócio está indo? |
+| Pendências (Jornada home) | O que exige ação agora? |
+| Fluxo | Onde o Case está neste WorkflowVersion? |
+| Comparecimento | Quais consultas precisam de ação? |
+| Workspace | Tudo para operar este Case? |
+| Financeiro (módulo) | Quais obrigações existem? |
+
+Comandas → Módulo Financeiro → FinanceProjection → resumo no Workspace.
 
 ## Código
 
 | Área | Path |
 |------|------|
-| Tipos / exports | [`lib/case-management/`](../lib/case-management/) |
-| Bus | [`lib/case-management/bus.ts`](../lib/case-management/bus.ts) |
-| Policies | [`lib/case-management/policies/`](../lib/case-management/policies/) |
-| Automation | [`lib/case-management/automation/engine.ts`](../lib/case-management/automation/engine.ts) |
-| Transition | [`lib/case-management/transition/engine.ts`](../lib/case-management/transition/engine.ts) |
-| Projections | [`lib/case-management/projections/`](../lib/case-management/projections/) |
-| Context Engine | [`lib/case-management/context/engine.ts`](../lib/case-management/context/engine.ts) |
-| Migration | [`supabase/migration-case-management-core.sql`](../supabase/migration-case-management-core.sql) |
+| Package | [`lib/case-management/`](../lib/case-management/) |
+| Transition Engine | [`lib/case-management/transition/engine.ts`](../lib/case-management/transition/engine.ts) |
+| Context Adapter | [`lib/case-management/context/engine.ts`](../lib/case-management/context/engine.ts) |
+| FinanceProjection | [`lib/case-management/projections/finance.ts`](../lib/case-management/projections/finance.ts) |
+| Migration core | [`supabase/migration-case-management-core.sql`](../supabase/migration-case-management-core.sql) |
+| Migration versionada | [`supabase/migration-ops-workflow-versioned.sql`](../supabase/migration-ops-workflow-versioned.sql) |
 | Board / Workspace | `/dashboard/crm/jornada` |
-
-## Event Bus — 3 categorias
-
-- **Domain**: `Appointment.*`, `Lead.*`, `Payment.*`, `Form.*`, …  
-- **Integration**: webhooks, sync externo  
-- **Internal**: `Projection.Rebuilt`, `Automation.Applied`, `Command.Rejected`  
-
-## Workspace
-
-Posto de trabalho do Case. Listas (board Jornada, Leads, Agenda) são **entrada**. Painéis dinâmicos via Context Engine conforme `phase`.
 
 ## Migration
 
-Execute `supabase/migration-case-management-core.sql` no Supabase SQL Editor antes de usar o board em produção.
+Execute **ambos** no Supabase SQL Editor (nessa ordem):
+
+1. `migration-case-management-core.sql`
+2. `migration-ops-workflow-versioned.sql`

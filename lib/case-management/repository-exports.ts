@@ -5,6 +5,10 @@ export {
   listTasksForCase,
   listEventsForCase,
   insertCase,
+  countOpenTasks,
+  getPublishedWorkflowVersion,
+  listPublishedWorkflows,
+  getPhasesForVersion,
 } from "./repository";
 
 export {

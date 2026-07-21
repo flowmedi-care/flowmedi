@@ -10,50 +10,12 @@ import {
   completeCaseTaskAction,
   publishCaseOutcomeAction,
 } from "@/app/dashboard/crm/jornada/case-actions";
-import type { WorkspacePanel } from "@/lib/case-management";
 import { cn } from "@/lib/utils";
-
-const PANEL_LABELS: Record<WorkspacePanel, string> = {
-  chat: "Chat",
-  lead: "Lead",
-  tasks: "Tasks",
-  timeline: "Timeline",
-  agenda: "Agenda",
-  anamnese: "Anamnese",
-  prontuario: "Prontuário",
-  financeiro: "Financeiro",
-  formularios: "Formulários",
-  ia: "IA",
-};
-
-function PanelShell({
-  panel,
-  children,
-  featured,
-}: {
-  panel: WorkspacePanel;
-  children: React.ReactNode;
-  featured?: boolean;
-}) {
-  return (
-    <section
-      className={cn(
-        "rounded-xl border bg-card p-4",
-        featured && "border-primary/30 ring-1 ring-primary/10"
-      )}
-    >
-      <h2 className="mb-3 text-sm font-semibold">{PANEL_LABELS[panel]}</h2>
-      {children}
-    </section>
-  );
-}
 
 export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const { case: journeyCase, context, tasks, timeline } = data;
-
-  const panels = [...context.primaryPanels, ...context.secondaryPanels];
+  const { header, case: journeyCase, tasks, timeline, primaryPanels } = data;
 
   function refresh() {
     router.refresh();
@@ -66,55 +28,74 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
     });
   }
 
-  function publish(eventType: string, evidence?: string) {
+  function publish(eventType: string) {
     startTransition(async () => {
-      await publishCaseOutcomeAction({
-        caseId: journeyCase.id,
-        eventType,
-        evidence,
-      });
+      await publishCaseOutcomeAction({ caseId: journeyCase.id, eventType });
       refresh();
     });
   }
 
-  function renderPanel(panel: WorkspacePanel, featured: boolean) {
-    switch (panel) {
-      case "chat":
-        return (
-          <PanelShell key={panel} panel={panel} featured={featured}>
-            <p className="text-sm text-muted-foreground mb-3">
-              Conversas do contato neste Case.
+  const financeColor =
+    header.finance.status === "pago"
+      ? "text-emerald-700"
+      : header.finance.status === "parcial"
+        ? "text-amber-700"
+        : header.finance.status === "aberto"
+          ? "text-orange-700"
+          : "text-muted-foreground";
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              {header.processTypeName} · {header.workflowName}
             </p>
-            <Button size="sm" variant="outline" asChild>
-              <Link href="/dashboard/whatsapp">Abrir WhatsApp</Link>
-            </Button>
-          </PanelShell>
-        );
-      case "lead":
-        return (
-          <PanelShell key={panel} panel={panel} featured={featured}>
-            <dl className="space-y-1 text-sm">
-              <div className="flex justify-between gap-2">
-                <dt className="text-muted-foreground">Contato</dt>
-                <dd className="font-medium">{data.displayName}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt className="text-muted-foreground">Tipo</dt>
-                <dd>{data.journeyTypeLabel}</dd>
-              </div>
-              {journeyCase.lead_id && (
-                <div className="pt-2">
-                  <Button size="sm" variant="link" className="h-auto p-0" asChild>
-                    <Link href={`/dashboard/contatos/leads`}>Ver no hub de leads</Link>
-                  </Button>
-                </div>
-              )}
-            </dl>
-          </PanelShell>
-        );
-      case "tasks":
-        return (
-          <PanelShell key={panel} panel={panel} featured={featured}>
+            <h1 className="text-xl font-semibold">{header.displayName}</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Fase: {header.phaseName}
+              {header.nextAppointmentLabel ? ` · ${header.nextAppointmentLabel}` : ""}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge>{header.ownerLabel}</Badge>
+            {header.quoteBadge && <Badge variant="secondary">{header.quoteBadge}</Badge>}
+            {header.pendingDecision && (
+              <Badge variant="outline">
+                Decide: {header.pendingDecision.waiting_for}
+                {header.pendingDecision.label
+                  ? ` — ${header.pendingDecision.label}`
+                  : ` (${header.pendingDecision.type})`}
+              </Badge>
+            )}
+            {header.openTasksCount > 0 && (
+              <Badge variant="secondary">{header.openTasksCount} tasks</Badge>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-3 py-2">
+          <span className={cn("text-sm font-medium", financeColor)}>
+            Financeiro · {header.finance.label}
+          </span>
+          <Button size="sm" variant="outline" asChild>
+            <Link href={header.finance.href}>Abrir módulo</Link>
+          </Button>
+        </div>
+
+        {header.executionContext && (
+          <p className="text-xs text-muted-foreground">
+            Execução: {header.executionContext.operation}
+            {header.executionContext.tool ? ` / ${header.executionContext.tool}` : ""}
+          </p>
+        )}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {primaryPanels.includes("tasks") && (
+          <section className="rounded-xl border bg-card p-4">
+            <h2 className="mb-3 text-sm font-semibold">Tasks</h2>
             <ul className="space-y-2">
               {tasks.map((t) => (
                 <li key={t.id} className="flex items-start gap-2 text-sm">
@@ -122,10 +103,8 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
                     type="checkbox"
                     className="mt-0.5"
                     checked={t.status === "completed"}
-                    disabled={t.status === "completed" || pending}
-                    onChange={() => {
-                      if (t.status === "open") completeTask(t.id);
-                    }}
+                    disabled={t.status !== "open" || pending}
+                    onChange={() => t.status === "open" && completeTask(t.id)}
                   />
                   <span
                     className={cn(
@@ -137,38 +116,43 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
                 </li>
               ))}
               {tasks.length === 0 && (
-                <li className="text-sm text-muted-foreground">Nenhuma task aberta.</li>
+                <li className="text-sm text-muted-foreground">Nenhuma task.</li>
               )}
             </ul>
-          </PanelShell>
-        );
-      case "timeline":
-        return (
-          <PanelShell key={panel} panel={panel} featured={featured}>
+          </section>
+        )}
+
+        {primaryPanels.includes("timeline") && (
+          <section className="rounded-xl border bg-card p-4">
+            <h2 className="mb-3 text-sm font-semibold">Timeline</h2>
             <ul className="max-h-80 space-y-2 overflow-y-auto text-sm">
               {timeline.map((e) => (
-                <li key={e.id} className="border-b border-border/50 pb-2 last:border-0">
-                  <div className="flex items-center justify-between gap-2">
+                <li key={e.id} className="border-b border-border/50 pb-2">
+                  <div className="flex justify-between gap-2">
                     <span className="font-medium">{e.event_type}</span>
                     <span className="text-[10px] text-muted-foreground">
                       {new Date(e.created_at).toLocaleString("pt-BR")}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {e.actor}
-                    {e.evidence ? ` · ${e.evidence}` : ""}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{e.actor}</p>
                 </li>
               ))}
-              {timeline.length === 0 && (
-                <li className="text-muted-foreground">Sem eventos ainda.</li>
-              )}
             </ul>
-          </PanelShell>
-        );
-      case "agenda":
-        return (
-          <PanelShell key={panel} panel={panel} featured={featured}>
+          </section>
+        )}
+
+        {primaryPanels.includes("chat") && (
+          <section className="rounded-xl border bg-card p-4">
+            <h2 className="mb-3 text-sm font-semibold">Chat</h2>
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/dashboard/whatsapp">Abrir WhatsApp</Link>
+            </Button>
+          </section>
+        )}
+
+        {primaryPanels.includes("agenda") && (
+          <section className="rounded-xl border bg-card p-4">
+            <h2 className="mb-3 text-sm font-semibold">Agenda</h2>
             <Button size="sm" variant="outline" asChild>
               <Link href="/dashboard/agenda">Abrir Agenda</Link>
             </Button>
@@ -177,7 +161,7 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
                 size="sm"
                 variant="secondary"
                 disabled={pending}
-                onClick={() => publish("Appointment.Confirmed", "workspace")}
+                onClick={() => publish("Appointment.Confirmed")}
               >
                 Confirmar
               </Button>
@@ -185,136 +169,27 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
                 size="sm"
                 variant="secondary"
                 disabled={pending}
-                onClick={() => publish("Appointment.Completed", "workspace")}
+                onClick={() => publish("Appointment.Completed")}
               >
                 Realizada
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={pending}
-                onClick={() => publish("Appointment.NoShow", "workspace")}
-              >
-                Falta
-              </Button>
             </div>
-          </PanelShell>
-        );
-      case "anamnese":
-      case "formularios":
-        return (
-          <PanelShell key={panel} panel={panel} featured={featured}>
-            <Button size="sm" variant="outline" asChild>
-              <Link href="/dashboard/crm/captacao">Formulários</Link>
-            </Button>
-            <Button
-              size="sm"
-              className="ml-2"
-              variant="secondary"
-              disabled={pending}
-              onClick={() => publish("Form.Completed", "workspace")}
-            >
-              Marcar form respondido
-            </Button>
-          </PanelShell>
-        );
-      case "prontuario":
-        return (
-          <PanelShell key={panel} panel={panel} featured={featured}>
-            <Button size="sm" variant="outline" asChild>
-              <Link href="/dashboard/agenda">Atendimento / prontuário</Link>
-            </Button>
-          </PanelShell>
-        );
-      case "financeiro":
-        return (
-          <PanelShell key={panel} panel={panel} featured={featured}>
-            <Button size="sm" variant="outline" asChild>
-              <Link href="/dashboard/financeiro/receber">Contas a receber</Link>
-            </Button>
-            <div className="mt-3 flex gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={pending}
-                onClick={() => publish("Payment.Paid", "workspace")}
-              >
-                Pagamento confirmado
-              </Button>
-            </div>
-          </PanelShell>
-        );
-      case "ia":
-        return (
-          <PanelShell key={panel} panel={panel} featured={featured}>
-            <p className="text-xs text-muted-foreground mb-2">
-              Tools liberadas neste contexto:
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {context.aiAllowedTools.map((t) => (
-                <Badge key={t} variant="outline" className="text-[10px]">
-                  {t}
-                </Badge>
-              ))}
-            </div>
-            <Button
-              size="sm"
-              className="mt-3"
-              disabled={pending}
-              onClick={() => publish("Lead.Qualified", "workspace_ia_panel")}
-            >
-              Publicar Lead.Qualified
-            </Button>
-          </PanelShell>
-        );
-      default:
-        return null;
-    }
-  }
+          </section>
+        )}
 
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border bg-muted/20 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Paciente</p>
-            <h1 className="text-xl font-semibold">{data.displayName}</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {data.journeyTypeLabel} · Fase: {data.phaseLabel} · Objetivo: {data.objective}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge>{journeyCase.owner}</Badge>
-            {journeyCase.pending_decision && (
-              <Badge variant="outline">
-                Decide: {journeyCase.pending_decision.actor_role}
-                {journeyCase.pending_decision.label
-                  ? ` — ${journeyCase.pending_decision.label}`
-                  : ""}
-              </Badge>
-            )}
-          </div>
-        </div>
-        {context.priorityActions.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {context.priorityActions.map((a) => (
-              <Badge key={a} variant="secondary">
-                {a}
-              </Badge>
-            ))}
-          </div>
+        {primaryPanels.includes("lead") && (
+          <section className="rounded-xl border bg-card p-4">
+            <h2 className="mb-3 text-sm font-semibold">Lead</h2>
+            <Button
+              size="sm"
+              disabled={pending}
+              onClick={() => publish("Lead.Qualified")}
+            >
+              Qualificar (Lead.Qualified)
+            </Button>
+          </section>
         )}
       </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        {context.primaryPanels.map((p) => renderPanel(p, true))}
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {context.secondaryPanels.map((p) => renderPanel(p, false))}
-      </div>
-
-      {/* ensure all unique panels rendered once */}
-      <div className="hidden">{panels.length}</div>
     </div>
   );
 }

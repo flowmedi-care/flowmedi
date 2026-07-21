@@ -540,7 +540,7 @@ export async function changeAppointmentPipelineStatus(
         eventType: eventMap[newStatus],
         actor: profile?.id ? `human:${profile.id}` : "system",
         payload: { appointment_id: appointmentId, status: newStatus },
-        ensureCase: { journey_type: "primeira_consulta", phase: "consulta" },
+        ensureCase: { process_type_code: "primeira_consulta" },
       });
     }
   } catch {
