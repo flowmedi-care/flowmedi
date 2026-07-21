@@ -12,11 +12,11 @@ Formulários públicos e prontuário tratam dados sensíveis sob responsabilidad
 ## 2. Necessidade e proporcionalidade
 
 - Minimização: `minimizePatientForAiToolResult`
-- Aviso ao titular na 1ª resposta IA (`ai-privacy-notice.ts`)
+- Aviso IA/LGPD no WhatsApp governado por `PrivacyNoticePolicy` (default `disabled` — transparência via política pública + minimização; modo `first_message` disponível para enterprise)
 - Opt-out: comandos DESATIVE / ATIVAR
-- Handoff humano em reclamações e escalonamento
+- Handoff humano em reclamações e escalonamento (`HandoffPolicy`)
 - Consentimento/aviso Art. 11 em formulários públicos
-- MFA obrigatório para perfis com acesso clínico
+- MFA via `MfaPolicy` (default `optional` + banner; desafio TOTP se enrolled)
 
 ## 3. Riscos identificados
 
@@ -25,8 +25,8 @@ Formulários públicos e prontuário tratam dados sensíveis sob responsabilidad
 | Vazamento em prompt OpenAI | Alta | Minimização, política de ferramentas, sem fichas no prompt |
 | Resposta incorreta clínica | Média | Handoff, proibições em `prompt-negatives.ts` |
 | Transferência internacional OpenAI | Alta | DPA, transparência, `DPAS-SUBPROCESSADORES.md` |
-| Titular não informado | Média | Aviso automático WhatsApp + portal titular |
-| Acesso indevido painel | Alta | RLS, MFA, auditoria |
+| Titular não informado | Média | Política pública + minimização; PrivacyNoticePolicy pode reativar aviso WhatsApp |
+| Acesso indevido painel | Alta | RLS, MFA opcional (recomendado), auditoria |
 
 ## 4. Medidas de segurança
 

@@ -1,5 +1,7 @@
-export const HANDOFF_REPLY_BODY =
-  "Certo, vamos passar para alguém da nossa equipe continuar seu atendimento.";
+import { DEFAULT_HANDOFF_TRANSFER_COPY } from "@/lib/virtual-assistant/policies/conversation/handoff-policy";
+
+/** Patient-facing handoff copy — sourced from HandoffPolicy defaults. */
+export const HANDOFF_REPLY_BODY = DEFAULT_HANDOFF_TRANSFER_COPY;
 
 export type WhatsAppSenderType = "assistant" | "human" | "system" | "patient";
 

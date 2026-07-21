@@ -2,32 +2,15 @@ import { Shield, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { isMfaEnrolled, type MfaFactorsList } from "@/lib/compliance/mfa-helpers";
-import { requiresMfaForRole } from "@/lib/compliance/mfa-enforcement";
 import { MfaWizard } from "@/components/compliance/mfa-wizard";
 
+/** Voluntary MFA onboarding — always accessible; enrollment is optional by default policy. */
 export default async function OnboardingMfaPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/entrar");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, clinic_id")
-    .eq("id", user.id)
-    .single();
-
-  if (!requiresMfaForRole(profile?.role)) {
-    return (
-      <div className="max-w-lg mx-auto py-12 px-4 text-center text-sm text-muted-foreground">
-        MFA não é obrigatório para o seu perfil.{" "}
-        <a href="/dashboard" className="text-primary underline-offset-2 hover:underline">
-          Ir ao painel
-        </a>
-      </div>
-    );
-  }
 
   const { data: factors } = await supabase.auth.mfa.listFactors();
   if (isMfaEnrolled(factors as MfaFactorsList)) {
@@ -50,8 +33,8 @@ export default async function OnboardingMfaPage() {
         </div>
         <h1 className="text-xl font-semibold text-foreground">Proteja sua conta</h1>
         <p className="text-sm text-muted-foreground">
-          Administradores e profissionais precisam de autenticação em dois fatores para acessar
-          dados de saúde.
+          Recomendamos autenticação em dois fatores para proteger o acesso aos dados da clínica.
+          É opcional — você pode configurar agora ou depois em Privacidade.
         </p>
       </div>
       <MfaWizard mode="onboarding" />

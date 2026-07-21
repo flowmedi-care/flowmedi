@@ -91,9 +91,21 @@ export async function checkMfaEnrolled(supabase: SupabaseClient): Promise<boolea
 export async function needsMfaVerificationAtLogin(
   supabase: SupabaseClient
 ): Promise<boolean> {
+  const {
+    decideAuthentication,
+    getActiveMfaPolicy,
+  } = await import("@/lib/compliance/policies/mfa-policy");
   const enrolled = await checkMfaEnrolled(supabase);
   if (!enrolled) return false;
 
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  return aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2";
+  const decision = decideAuthentication(getActiveMfaPolicy(), {
+    role: null,
+    mfaEnrolled: enrolled,
+    aal: {
+      currentLevel: aal?.currentLevel,
+      nextLevel: aal?.nextLevel,
+    },
+  });
+  return decision.challengeMfa;
 }

@@ -157,27 +157,27 @@ export function buildChatbotFallbackReply(state: AiState): string {
   }
   if (isRescheduleHydrated(state)) {
     if (!state.booking?.offered_slots?.length && !state.booking?.date) {
-      return "Qual dia ou horário você gostaria de remarcar essa consulta?";
+      return "Qual dia ou horário você gostaria de remarcar?";
     }
-    return "Falta só confirmar o novo horário. Qual opção você prefere?";
+    return "Qual horário você prefere?";
   }
   if (state.conversation_flow?.active_workflow_id === "check_in") {
     if (state.focused_appointment_id) {
-      return "Posso confirmar o check-in dessa consulta?";
+      return "Confirmo o check-in dessa consulta?";
     }
-    return "Não há consultas elegíveis para check-in no momento. Quer agendar uma nova ou tentar de novo mais perto do horário?";
+    return "Não há consultas elegíveis para check-in agora. Quer agendar ou tentar mais perto do horário?";
   }
   if (state.booking?.status === "collecting" || state.booking?.status === "confirming") {
     if (!state.booking.procedure_id && !state.offered_procedures?.length) {
-      return "Para agendar, preciso saber qual procedimento ou tipo de consulta você quer.";
+      return "Qual procedimento ou tipo de consulta você quer?";
     }
     if (!state.booking.doctor_id && !state.offered_doctors?.length) {
-      return "Com qual profissional você prefere agendar?";
+      return "Com qual profissional você prefere?";
     }
     if (!state.booking.offered_slots?.length && !state.booking.date) {
-      return "Qual dia ou turno (manhã/tarde) funciona melhor para você?";
+      return "Qual dia ou turno funciona melhor — manhã ou tarde?";
     }
-    return "Falta só confirmar o horário escolhido. Pode repetir qual opção você prefere?";
+    return "Qual opção de horário você prefere?";
   }
-  return "Preciso de um detalhe a mais para continuar. O que você precisa: agendar, valores ou falar com a equipe?";
+  return "O que você precisa: agendar, saber valores ou falar com a equipe?";
 }

@@ -29,6 +29,11 @@ import { createChatCompletion, logTokenUsage, type ChatMessage } from "./llm";
 import { canExecuteMutation, filterToolsByNames, initConversationFlowState } from "@/lib/attendance-flow/engine";
 import { applyPlatformToolGate } from "@/lib/assistant-platform";
 import {
+  decideHandoff,
+  mergeHandoffPolicy,
+} from "@/lib/virtual-assistant/policies/conversation/handoff-policy";
+import { isInsideHandoffWindow } from "@/lib/virtual-assistant/handoff-hours";
+import {
   mergeClinicFlowConfig,
   syncConversationFlowTurn,
   type ClinicFlowConfig,
@@ -949,6 +954,24 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         handoff = true;
         trace.handoff = true;
         trace.handoffReason = String(args.reason ?? toolName);
+        const handoffData = outcome.result.data as
+          | { patientReply?: string }
+          | undefined;
+        if (handoffData?.patientReply?.trim()) {
+          finalReply = handoffData.patientReply.trim();
+        } else {
+          const d = decideHandoff(
+            mergeHandoffPolicy({
+              enabled: input.settings.human_handoff_enabled !== false,
+            }),
+            {
+              trigger: "tool_transfer",
+              insideHours: isInsideHandoffWindow(input.settings),
+              explicitHumanRequest: true,
+            }
+          );
+          if (d.action === "transfer") finalReply = d.patientReply;
+        }
       }
 
       absorbToolReply(outcome.result, `llm_tool:${toolName}`);
@@ -998,7 +1021,26 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         handoff = true;
         trace.handoff = true;
         trace.handoffReason = "consecutive_tool_failures";
-        finalReply = "Vou transferir você para nossa equipe para continuar o atendimento.";
+        const handoffData = escalation.result.data as
+          | { patientReply?: string }
+          | undefined;
+        if (handoffData?.patientReply?.trim()) {
+          finalReply = handoffData.patientReply.trim();
+        } else {
+          const d = decideHandoff(
+            mergeHandoffPolicy({
+              enabled: input.settings.human_handoff_enabled !== false,
+            }),
+            {
+              trigger: "consecutive_tool_failures",
+              insideHours: isInsideHandoffWindow(input.settings),
+            }
+          );
+          finalReply =
+            d.action === "transfer"
+              ? d.patientReply
+              : "Vou te passar para alguém da equipe. Em instantes alguém continua daqui.";
+        }
         break;
       }
     }
@@ -1007,9 +1049,30 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
 
   // ReplyPolicy: Structured → Domain → LLM → Fallback (authoritative tools beat LLM).
   let replyDecision: ReplyDecision;
-  if (handoff && finalReply) {
+  if (handoff) {
+    const handoffDecision = decideHandoff(
+      mergeHandoffPolicy({
+        enabled: input.settings.human_handoff_enabled !== false,
+      }),
+      {
+        trigger:
+          trace.handoffReason === "consecutive_tool_failures"
+            ? "consecutive_tool_failures"
+            : trace.handoffReason === "bot_loop"
+              ? "bot_loop"
+              : "tool_transfer",
+        insideHours: isInsideHandoffWindow(input.settings),
+        explicitHumanRequest: true,
+      }
+    );
+    const fixedReply =
+      (handoffDecision.action === "transfer"
+        ? handoffDecision.patientReply
+        : null) ||
+      finalReply?.trim() ||
+      "Vou te passar para alguém da equipe. Em instantes alguém continua daqui.";
     replyDecision = {
-      reply: finalReply,
+      reply: fixedReply,
       source: "domain",
       reason: "handoff",
       llmUsed: !skipLlm,

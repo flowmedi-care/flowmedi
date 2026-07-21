@@ -6,12 +6,27 @@
 2. Authentication → MFA → habilitar TOTP para o projeto
 3. Política de senha mínima 8+ caracteres no Dashboard (complementa validação no signup)
 
+## Política de produto (MfaPolicy)
+
+Fonte de verdade: `lib/compliance/policies/mfa-policy.ts`
+
+- Default: `mode: "optional"` — enrollment **não** é forçado
+- Quem **já cadastrou** TOTP continua sendo desafiado no login (`challengeMfa`)
+- Banner de incentivo quando não enrolled (`showReminderBanner`)
+- Modos futuros sem alterar middleware: `required_for_admins` | `required_for_all` | `custom`
+
+Consumers aplicam só `AuthenticationDecision` via `decideAuthentication` / `resolveAuthenticationDecision`:
+
+- `redirectToWizard`
+- `challengeMfa`
+- `showReminderBanner`
+
 ## Fluxo no FlowMed
 
-### Configuração única (wizard)
+### Configuração (wizard voluntário)
 
 - Rota: `/dashboard/onboarding/mfa`
-- **Quando:** admin após criar clínica; médico/admin sem MFA ao acessar o dashboard (middleware)
+- Acessível a qualquer perfil; não é mais bloqueio obrigatório no default
 - Passos: por quê → instalar app → QR + código → conclusão
 - Fatores TOTP incompletos (`unverified`) são removidos automaticamente antes de novo enrollment
 
@@ -23,22 +38,23 @@
 
 ### Gestão (opcional)
 
-- `/dashboard/configuracoes/seguranca` — reconfigurar ou ver status
-- Banner no dashboard se MFA ausente (link para wizard se obrigatório)
+- `/dashboard/configuracoes/seguranca` / Privacidade — reconfigurar ou ver status
+- Banner no dashboard se MFA ausente (recomendado, não obrigatório)
 
-## Papéis
+## Papéis (default optional)
 
-| Papel | MFA obrigatório |
-|-------|-----------------|
-| admin | Sim |
-| medico | Sim |
-| secretaria | Não (opcional) |
+| Papel | MFA |
+|-------|-----|
+| admin | Opcional (recomendado) |
+| medico | Opcional (recomendado) |
+| secretaria | Opcional (recomendado) |
 
 ## Arquivos principais
 
+- `lib/compliance/policies/mfa-policy.ts` — MfaPolicy + AuthenticationDecision
 - `lib/compliance/mfa-helpers.ts` — fatores verified vs unverified
 - `lib/compliance/mfa-service.ts` — enroll, unenroll, verify
-- `lib/compliance/mfa-middleware.ts` — bloqueio só sem enrollment
+- `lib/compliance/mfa-middleware.ts` — aplica `redirectToWizard`
 - `components/compliance/mfa-wizard.tsx` — wizard step-by-step
 - `components/auth/sign-in-form.tsx` — código TOTP pós-senha
 

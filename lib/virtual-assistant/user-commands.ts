@@ -6,6 +6,11 @@ import {
   handoffOutsideHoursMessage,
   isInsideHandoffWindow,
 } from "./handoff-hours";
+import {
+  decideHandoff,
+  mergeHandoffPolicy,
+  type HandoffDecision,
+} from "./policies/conversation/handoff-policy";
 import type { VirtualAssistantSettings } from "./types";
 
 export type UserAiCommand = "opt_in" | "opt_out" | "handoff";
@@ -19,6 +24,7 @@ const HANDOFF_PATTERNS = [
 ];
 
 const OPT_OUT_PATTERNS = [
+  /^desativ(e|ar)\s*!?\s*$/i,
   /desativ(e|ar)\b.*\b(respostas?\s+de\s+)?ia\b/i,
   /desativ(e|ar)\b.*\b(assistente|bot)\b/i,
   /\bparar\b.*\b(com\s+)?(a\s+)?ia\b/i,
@@ -64,6 +70,69 @@ export interface HandleUserCommandResult {
   allowAiSchedule?: boolean;
 }
 
+async function applyTransferDecision(opts: {
+  supabase: SupabaseClient;
+  clinicId: string;
+  conversationId: string;
+  phoneNumber: string;
+  messageId?: string;
+  decision: Extract<HandoffDecision, { action: "transfer" }>;
+  setOptOut?: boolean;
+}): Promise<void> {
+  const now = new Date().toISOString();
+  const { setOwner } = await import("@/lib/ops");
+  await setOwner({
+    supabase: opts.supabase,
+    clinicId: opts.clinicId,
+    conversationId: opts.conversationId,
+    owner: "human",
+    ownerUserId: null,
+    clearAssignee: true,
+    pauseAi: opts.decision.pauseAi,
+    reason: opts.decision.reason,
+  });
+
+  const patch: Record<string, unknown> = { ai_debounce_until: null };
+  if (opts.setOptOut) patch.ai_user_opt_out = true;
+  await opts.supabase
+    .from("whatsapp_conversations")
+    .update(patch)
+    .eq("id", opts.conversationId);
+
+  if (opts.decision.ownership === "assign_routing") {
+    await applyRoutingOnNewConversation(
+      opts.supabase,
+      opts.clinicId,
+      opts.conversationId
+    );
+  }
+
+  if (opts.messageId) {
+    await opts.supabase
+      .from("whatsapp_messages")
+      .update({ ai_processed_at: now })
+      .eq("id", opts.messageId);
+  }
+
+  if (opts.decision.kind === "opt_out") {
+    await sendAssistantReply(
+      opts.supabase,
+      opts.clinicId,
+      opts.conversationId,
+      opts.phoneNumber,
+      opts.decision.patientReply
+    );
+  } else {
+    await sendHandoffReply(
+      opts.supabase,
+      opts.clinicId,
+      opts.conversationId,
+      opts.phoneNumber,
+      opts.decision.patientReply
+    );
+  }
+}
+
 export async function handleInboundUserCommand(opts: {
   supabase: SupabaseClient;
   clinicId: string;
@@ -78,41 +147,29 @@ export async function handleInboundUserCommand(opts: {
   if (!command) return { handled: false };
 
   const now = new Date().toISOString();
+  const handoffPolicy = mergeHandoffPolicy({
+    enabled: opts.humanHandoffEnabled !== false,
+  });
 
   if (command === "opt_out") {
-    const { setOwner } = await import("@/lib/ops");
-    await setOwner({
+    const decision = decideHandoff(handoffPolicy, {
+      trigger: "user_opt_out",
+      insideHours: true,
+      explicitHumanRequest: true,
+    });
+    if (decision.action !== "transfer") {
+      return { handled: false };
+    }
+
+    await applyTransferDecision({
       supabase: opts.supabase,
       clinicId: opts.clinicId,
       conversationId: opts.conversationId,
-      owner: "human",
-      ownerUserId: null,
-      clearAssignee: true,
-      pauseAi: true,
-      reason: "user_opt_out",
+      phoneNumber: opts.phoneNumber,
+      messageId: opts.messageId,
+      decision,
+      setOptOut: true,
     });
-    await opts.supabase
-      .from("whatsapp_conversations")
-      .update({
-        ai_user_opt_out: true,
-        ai_debounce_until: null,
-      })
-      .eq("id", opts.conversationId);
-
-    if (opts.messageId) {
-      await opts.supabase
-        .from("whatsapp_messages")
-        .update({ ai_processed_at: now })
-        .eq("id", opts.messageId);
-    }
-
-    await sendAssistantReply(
-      opts.supabase,
-      opts.clinicId,
-      opts.conversationId,
-      opts.phoneNumber,
-      "Pronto! Desativei as respostas automáticas. Quando quiser voltar, envie ATIVAR."
-    );
 
     logAiEvent(opts.supabase, {
       clinicId: opts.clinicId,
@@ -168,17 +225,30 @@ export async function handleInboundUserCommand(opts: {
   }
 
   if (command === "handoff") {
-    if (opts.humanHandoffEnabled === false) {
-      return { handled: false };
-    }
+    const insideHours = opts.vaSettings
+      ? isInsideHandoffWindow(opts.vaSettings)
+      : true;
 
-    if (opts.vaSettings && !isInsideHandoffWindow(opts.vaSettings)) {
+    const decision = decideHandoff(handoffPolicy, {
+      trigger: "explicit_request",
+      insideHours,
+      explicitHumanRequest: true,
+    });
+
+    if (decision.action === "stay_with_ai") {
+      const reply =
+        decision.reason === "outside_handoff_hours" && opts.vaSettings
+          ? handoffOutsideHoursMessage(opts.vaSettings)
+          : decision.patientReply ??
+            (opts.vaSettings
+              ? handoffOutsideHoursMessage(opts.vaSettings)
+              : "Posso continuar te ajudando por aqui.");
       await sendAssistantReply(
         opts.supabase,
         opts.clinicId,
         opts.conversationId,
         opts.phoneNumber,
-        handoffOutsideHoursMessage(opts.vaSettings)
+        reply
       );
       if (opts.messageId) {
         await opts.supabase
@@ -189,39 +259,14 @@ export async function handleInboundUserCommand(opts: {
       return { handled: true, command, allowAiSchedule: true };
     }
 
-    const now = new Date().toISOString();
-
-    const { setOwner } = await import("@/lib/ops");
-    await setOwner({
+    await applyTransferDecision({
       supabase: opts.supabase,
       clinicId: opts.clinicId,
       conversationId: opts.conversationId,
-      owner: "human",
-      ownerUserId: null,
-      clearAssignee: true,
-      pauseAi: true,
-      reason: "user_command_handoff",
+      phoneNumber: opts.phoneNumber,
+      messageId: opts.messageId,
+      decision,
     });
-    await opts.supabase
-      .from("whatsapp_conversations")
-      .update({ ai_debounce_until: null })
-      .eq("id", opts.conversationId);
-
-    await applyRoutingOnNewConversation(opts.supabase, opts.clinicId, opts.conversationId);
-
-    if (opts.messageId) {
-      await opts.supabase
-        .from("whatsapp_messages")
-        .update({ ai_processed_at: now })
-        .eq("id", opts.messageId);
-    }
-
-    await sendHandoffReply(
-      opts.supabase,
-      opts.clinicId,
-      opts.conversationId,
-      opts.phoneNumber
-    );
 
     logAiEvent(opts.supabase, {
       clinicId: opts.clinicId,

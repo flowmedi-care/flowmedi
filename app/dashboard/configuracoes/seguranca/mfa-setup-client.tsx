@@ -91,8 +91,9 @@ export function MfaSetupClient({ initialEnrolled }: { initialEnrolled: boolean }
         ) : (
           <>
             <p>
-              Adicione uma camada extra de proteção ao painel. Use Google Authenticator, Authy ou
-              similar.
+              Recomendado: adicione uma camada extra de proteção ao painel com Google Authenticator,
+              Authy ou similar. O MFA é opcional — se ativar, o código será pedido a cada login por
+              senha.
             </p>
             {!qr ? (
               <Button type="button" onClick={handleStart} disabled={loading}>

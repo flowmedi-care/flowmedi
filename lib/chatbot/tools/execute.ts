@@ -1707,6 +1707,38 @@ export async function executeTool(
       }
 
       case "transfer_to_human": {
+        const {
+          decideHandoff,
+          mergeHandoffPolicy,
+        } = await import(
+          "@/lib/virtual-assistant/policies/conversation/handoff-policy"
+        );
+        const {
+          isInsideHandoffWindow,
+        } = await import("@/lib/virtual-assistant/handoff-hours");
+        const handoffPolicy = mergeHandoffPolicy({
+          enabled: ctx.settings.human_handoff_enabled !== false,
+        });
+        const decision = decideHandoff(handoffPolicy, {
+          trigger:
+            String(args.reason ?? "") === "consecutive_tool_failures"
+              ? "consecutive_tool_failures"
+              : String(args.reason ?? "") === "bot_loop"
+                ? "bot_loop"
+                : "tool_transfer",
+          insideHours: isInsideHandoffWindow(ctx.settings),
+          explicitHumanRequest: Boolean(args.explicit_human_request),
+        });
+
+        if (decision.action === "stay_with_ai") {
+          return {
+            result: unavailableResult(
+              decision.patientReply ??
+                "No momento não consigo transferir para a equipe. Posso ajudar por aqui."
+            ),
+          };
+        }
+
         const { setOwner } = await import("@/lib/ops");
         await setOwner({
           supabase,
@@ -1714,11 +1746,13 @@ export async function executeTool(
           conversationId,
           owner: "human",
           ownerUserId: null,
-          pauseAi: true,
+          pauseAi: decision.pauseAi,
           clearAssignee: true,
-          reason: String(args.reason ?? "transfer_to_human"),
+          reason: String(args.reason ?? decision.reason),
         });
-        await applyRoutingOnNewConversation(supabase, clinicId, conversationId);
+        if (decision.ownership === "assign_routing") {
+          await applyRoutingOnNewConversation(supabase, clinicId, conversationId);
+        }
         await logToolCall(
           supabase,
           clinicId,
@@ -1729,7 +1763,10 @@ export async function executeTool(
           true
         );
         return {
-          result: successResult({ transferred: true }),
+          result: successResult({
+            transferred: true,
+            patientReply: decision.patientReply,
+          }),
           handoff: true,
         };
       }

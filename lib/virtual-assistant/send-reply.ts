@@ -94,14 +94,15 @@ export async function sendHandoffReply(
   supabase: SupabaseClient,
   clinicId: string,
   conversationId: string,
-  phoneNumber: string
+  phoneNumber: string,
+  body?: string
 ): Promise<boolean> {
   return sendAssistantReply(
     supabase,
     clinicId,
     conversationId,
     phoneNumber,
-    HANDOFF_REPLY_BODY
+    body?.trim() || HANDOFF_REPLY_BODY
   );
 }
 

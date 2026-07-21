@@ -22,6 +22,7 @@ assert.equal(detectInboundIntent("quero agendar"), "booking");
 assert.equal(isMenuNumericReply("2"), true);
 
 assert.equal(parseUserAiCommand("DESATIVE as respostas de IA"), "opt_out");
+assert.equal(parseUserAiCommand("DESATIVE"), "opt_out");
 assert.equal(parseUserAiCommand("ATIVAR"), "opt_in");
 assert.equal(parseUserAiCommand("ativar respostas de ia"), "opt_in");
 assert.equal(parseUserAiCommand("quero falar com atendente"), "handoff");

@@ -1,15 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  isMfaExemptPath,
-  requiresMfaForRole,
-} from "@/lib/compliance/mfa-enforcement";
-import { checkMfaEnrolled } from "@/lib/compliance/mfa-service";
+import { isMfaExemptPath, resolveAuthenticationDecision } from "@/lib/compliance/mfa-enforcement";
 import { MFA_WIZARD_PATH } from "@/lib/compliance/mfa-helpers";
 
 /**
- * Redireciona admin/médico sem MFA verificado para o wizard.
- * Verificação por login (código TOTP) não é feita aqui.
+ * Applies AuthenticationDecision.redirectToWizard — does not interpret MfaMode.
  */
 export async function enforceMfaMiddleware(
   request: NextRequest,
@@ -30,10 +25,8 @@ export async function enforceMfaMiddleware(
     .eq("id", user.id)
     .single();
 
-  if (!requiresMfaForRole(profile?.role)) return null;
-
-  const enrolled = await checkMfaEnrolled(supabase);
-  if (enrolled) return null;
+  const decision = await resolveAuthenticationDecision(supabase, profile?.role);
+  if (!decision.redirectToWizard) return null;
 
   const url = request.nextUrl.clone();
   url.pathname = MFA_WIZARD_PATH;

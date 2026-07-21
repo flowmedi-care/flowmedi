@@ -1,4 +1,9 @@
 import type { VirtualAssistantSettings } from "@/lib/virtual-assistant/types";
+import {
+  decideConversationStyle,
+  mergeConversationStylePolicy,
+  toPromptInstructions,
+} from "@/lib/virtual-assistant/policies/conversation/conversation-style-policy";
 import type { NormalizedFacts } from "../extractors/types";
 import type { FaqItem } from "../tools/types";
 import type { AiState } from "../state/types";
@@ -50,9 +55,12 @@ export function formatContextForPrompt(
 }
 
 export function buildSystemPrompt(ctx: ClinicContext): string {
-  const emojiPolicy = ctx.useEmojis
-    ? "Pode usar emojis com moderação."
-    : "Não use emojis.";
+  const stylePolicy = mergeConversationStylePolicy({
+    tone: ctx.tone === "formal" ? "formal" : "informal",
+    useEmojis: ctx.useEmojis,
+  });
+  const styleDecision = decideConversationStyle(stylePolicy, { channel: "whatsapp" });
+  const styleInstructions = toPromptInstructions(styleDecision);
 
   const lines = [
     `Você é ${ctx.assistantName} da ${ctx.clinicName}, atendendo pacientes via WhatsApp.`,
@@ -62,6 +70,8 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
   if (ctx.opsBlock?.trim()) {
     lines.push(ctx.opsBlock.trim(), "");
   }
+
+  lines.push(styleInstructions, "");
 
   lines.push(
     "Regras:",
@@ -82,8 +92,7 @@ export function buildSystemPrompt(ctx: ClinicContext): string {
     "- Aceite CPF em qualquer formato; o sistema normaliza automaticamente. Nunca peça 'sem pontuação'.",
     "- Se o snapshot indicar CPF ou e-mail já cadastrados, não pergunte novamente.",
     '- Se paciente responder número ("1", "2"), use options da última tool ou offered_* para o id correto.',
-    '- "Marca qualquer um" → escolha a primeira opção disponível e continue; NÃO transfira para humano.',
-    `- Tom: ${ctx.tone}. ${emojiPolicy}`
+    '- "Marca qualquer um" → escolha a primeira opção disponível e continue; NÃO transfira para humano.'
   );
 
   if (ctx.knowledgePackageText?.trim()) {
