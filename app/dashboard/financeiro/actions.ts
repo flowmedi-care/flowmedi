@@ -21,6 +21,9 @@ import type {
   ExpenseCategory,
   ExpenseGroupKey,
   FinanceAlerts,
+  FinanceHomeIndicators,
+  FinanceQueueItem,
+  FinanceTodayBriefing,
   FinancialEntryRow,
   FinancialLens,
   OpenComandaRow,
@@ -788,6 +791,284 @@ export async function getFinanceAlerts(): Promise<{ error: string | null; alerts
   return {
     error: null,
     alerts: { comandasVencidas, aguardandoEmissaoComanda, contasVencerHojeAmanha, contasVencidas },
+  };
+}
+
+function greetingForHour(hour: number) {
+  if (hour < 12) return "Bom dia";
+  if (hour < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
+function firstNameFromFull(full: string | null | undefined) {
+  const part = (full ?? "").trim().split(/\s+/)[0];
+  return part || "olá";
+}
+
+/** Filas + briefing da Home operacional (caixa de entrada). */
+export async function getFinanceInboxData(): Promise<{
+  error: string | null;
+  cobrar: FinanceQueueItem[];
+  receber: FinanceQueueItem[];
+  recebido: FinanceQueueItem[];
+  briefing: FinanceTodayBriefing;
+  indicators: FinanceHomeIndicators;
+}> {
+  const emptyBriefing: FinanceTodayBriefing = {
+    userFirstName: "",
+    greeting: greetingForHour(new Date().getHours()),
+    cobrarCount: 0,
+    receberCount: 0,
+    entrouHoje: 0,
+    cobrancasDoneToday: 0,
+    cobrancasRemaining: 0,
+    recebidosDoneToday: 0,
+    recebidosTotal: 0,
+  };
+  const emptyIndicators: FinanceHomeIndicators = {
+    entrouHoje: 0,
+    aindaFaltaReceber: 0,
+    contasVencidas: 0,
+    contasAPagar: 0,
+  };
+
+  const ctx = await getFinanceProfile();
+  if (ctx.error || !ctx.profile || !ctx.user) {
+    return {
+      error: ctx.error,
+      cobrar: [],
+      receber: [],
+      recebido: [],
+      briefing: emptyBriefing,
+      indicators: emptyIndicators,
+    };
+  }
+
+  const { supabase, profile, user } = ctx;
+  const today = todayDateOnly();
+  const todayStart = `${today}T00:00:00.000Z`;
+  const todayEnd = `${today}T23:59:59.999Z`;
+
+  const [
+    { data: profileRow },
+    { data: awaitingEncounters },
+    openRes,
+    { data: paidToday },
+    { data: paymentsToday },
+    { data: issuedToday },
+    { data: pendingExpenses },
+  ] = await Promise.all([
+    supabase.from("profiles").select("full_name").eq("id", user.id).single(),
+    supabase
+      .from("encounters")
+      .select(
+        `
+        id, appointment_id, completed_at, created_at,
+        comandas ( id, status ),
+        appointment:appointments (
+          id, scheduled_at, valor, status,
+          patient:patients ( full_name ),
+          service:services ( nome )
+        )
+      `
+      )
+      .eq("clinic_id", profile.clinic_id)
+      .eq("status", "finalizado_aguardando_cobranca"),
+    listOpenComandasDetailed(),
+    supabase
+      .from("comandas")
+      .select(
+        `
+        id, total_amount, paid_amount, closed_at, updated_at, created_at,
+        patient:patients ( full_name ),
+        appointment:appointments ( id, scheduled_at )
+      `
+      )
+      .eq("clinic_id", profile.clinic_id)
+      .eq("status", "paga")
+      .gte("updated_at", todayStart)
+      .order("updated_at", { ascending: false })
+      .limit(40),
+    supabase
+      .from("patient_payments")
+      .select("amount, gross_amount, paid_at, plan_prepaid, refunded_at, payment_method")
+      .eq("clinic_id", profile.clinic_id)
+      .gte("paid_at", todayStart)
+      .lte("paid_at", todayEnd)
+      .is("refunded_at", null),
+    supabase
+      .from("comandas")
+      .select("id")
+      .eq("clinic_id", profile.clinic_id)
+      .neq("status", "cancelada")
+      .gte("issued_at", todayStart)
+      .lte("issued_at", todayEnd),
+    supabase
+      .from("financial_entries")
+      .select("amount, due_date")
+      .eq("clinic_id", profile.clinic_id)
+      .eq("entry_type", "despesa")
+      .eq("status", "pendente"),
+  ]);
+
+  const cobrar: FinanceQueueItem[] = [];
+  for (const e of awaitingEncounters ?? []) {
+    const cmds = Array.isArray(e.comandas) ? e.comandas : e.comandas ? [e.comandas] : [];
+    const hasActive = cmds.some((c: { status?: string }) => c.status && c.status !== "cancelada");
+    if (hasActive) continue;
+
+    const appt = Array.isArray(e.appointment) ? e.appointment[0] : e.appointment;
+    if (!appt || (appt as { status?: string }).status === "cancelada") continue;
+
+    const patient = Array.isArray((appt as { patient?: unknown }).patient)
+      ? (appt as { patient: { full_name?: string }[] }).patient[0]
+      : (appt as { patient?: { full_name?: string } }).patient;
+    const service = Array.isArray((appt as { service?: unknown }).service)
+      ? (appt as { service: { nome?: string }[] }).service[0]
+      : (appt as { service?: { nome?: string } }).service;
+
+    const ref =
+      (e.completed_at as string | null) ??
+      (appt as { scheduled_at?: string }).scheduled_at ??
+      (e.created_at as string);
+
+    cobrar.push({
+      id: `enc-${e.id}`,
+      column: "cobrar",
+      patient_name: patient?.full_name ?? "—",
+      service_name: service?.nome ?? null,
+      amount: Number((appt as { valor?: number }).valor ?? 0),
+      reference_at: String(ref),
+      days_open: daysOpenSince(String(ref)),
+      appointment_id: String((appt as { id: string }).id ?? e.appointment_id),
+      comanda_id: null,
+    });
+  }
+  cobrar.sort((a, b) => b.days_open - a.days_open || a.patient_name.localeCompare(b.patient_name));
+
+  const openComandas = openRes.data ?? [];
+  const serviceIds = openComandas.map((c) => c.id);
+  const serviceByComanda = new Map<string, string>();
+  if (serviceIds.length > 0) {
+    for (const c of openComandas) {
+      if (c.service_name) serviceByComanda.set(c.id, c.service_name);
+    }
+  }
+
+  const receber: FinanceQueueItem[] = openComandas
+    .map((c) => ({
+      id: `cmd-${c.id}`,
+      column: "receber" as const,
+      patient_name: c.patient_name,
+      service_name: serviceByComanda.get(c.id) ?? c.service_name,
+      amount: c.remainder,
+      remainder: c.remainder,
+      reference_at: c.scheduled_at ?? c.created_at,
+      days_open: c.days_open,
+      appointment_id: null as string | null,
+      comanda_id: c.id,
+    }))
+    .sort((a, b) => b.days_open - a.days_open);
+
+  // Enrich appointment_id for open comandas
+  if (receber.length > 0) {
+    const { data: cmdAppts } = await supabase
+      .from("comandas")
+      .select("id, appointment_id")
+      .in(
+        "id",
+        receber.map((r) => r.comanda_id!).filter(Boolean)
+      );
+    const apptMap = new Map((cmdAppts ?? []).map((r) => [r.id as string, r.appointment_id as string]));
+    for (const item of receber) {
+      if (item.comanda_id) item.appointment_id = apptMap.get(item.comanda_id) ?? null;
+    }
+  }
+
+  const paidIds = (paidToday ?? []).map((c) => c.id as string);
+  const paidServiceByComanda = new Map<string, string>();
+  if (paidIds.length > 0) {
+    const { data: items } = await supabase
+      .from("comanda_items")
+      .select("comanda_id, description, item_type")
+      .in("comanda_id", paidIds)
+      .eq("item_type", "service");
+    for (const item of items ?? []) {
+      if (!paidServiceByComanda.has(item.comanda_id as string)) {
+        paidServiceByComanda.set(item.comanda_id as string, item.description as string);
+      }
+    }
+  }
+
+  const recebido: FinanceQueueItem[] = (paidToday ?? [])
+    .filter((c: Record<string, unknown>) => {
+      const ref = String(c.closed_at ?? c.updated_at ?? "");
+      return ref.slice(0, 10) === today;
+    })
+    .slice(0, 20)
+    .map((c: Record<string, unknown>) => {
+    const patient = Array.isArray(c.patient) ? c.patient[0] : c.patient;
+    const appt = Array.isArray(c.appointment) ? c.appointment[0] : c.appointment;
+    const closed = String(c.closed_at ?? c.updated_at ?? c.created_at);
+    return {
+      id: `paid-${c.id}`,
+      column: "recebido" as const,
+      patient_name: (patient as { full_name?: string })?.full_name ?? "—",
+      service_name: paidServiceByComanda.get(String(c.id)) ?? null,
+      amount: Number(c.total_amount),
+      reference_at: closed,
+      days_open: 0,
+      appointment_id: appt ? String((appt as { id: string }).id) : null,
+      comanda_id: String(c.id),
+    };
+  });
+
+  const entrouHoje = (paymentsToday ?? []).reduce((s, p) => {
+    if (p.plan_prepaid || p.payment_method === "credito_interno") return s;
+    return s + Number(p.gross_amount ?? p.amount);
+  }, 0);
+
+  let aindaFaltaReceber = 0;
+  for (const c of openComandas) aindaFaltaReceber += c.remainder;
+
+  let contasAPagar = 0;
+  let contasVencidas = 0;
+  for (const e of pendingExpenses ?? []) {
+    const amt = Number(e.amount);
+    contasAPagar += amt;
+    const due = toDateOnly(e.due_date as string | null);
+    if (due && due < today) contasVencidas += amt;
+  }
+
+  const cobrancasDoneToday = (issuedToday ?? []).length;
+  const cobrancasRemaining = cobrar.length;
+  const recebidosDoneToday = recebido.length;
+  const recebidosTotal = recebidosDoneToday + receber.length;
+
+  const briefing: FinanceTodayBriefing = {
+    userFirstName: firstNameFromFull(profileRow?.full_name),
+    greeting: greetingForHour(new Date().getHours()),
+    cobrarCount: cobrar.length,
+    receberCount: receber.length,
+    entrouHoje,
+    cobrancasDoneToday,
+    cobrancasRemaining,
+    recebidosDoneToday,
+    recebidosTotal,
+  };
+
+  return {
+    error: null,
+    cobrar,
+    receber,
+    recebido,
+    briefing,
+    indicators: {
+      entrouHoje,
+      aindaFaltaReceber,
+      contasVencidas,
+      contasAPagar,
+    },
   };
 }
 

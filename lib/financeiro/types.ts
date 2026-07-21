@@ -188,7 +188,10 @@ export type ClinicFinancialSettings = {
 };
 
 export type FinanceChartData = {
+  /** Fluxo de caixa (entradas/saídas reais) por dia. */
   revenueVsExpenses: { date: string; label: string; revenue: number; expenses: number; profit: number }[];
+  /** Faturamento (competência) vs despesas por competência, por dia. */
+  faturamentoVsDespesas: { date: string; label: string; revenue: number; expenses: number; profit: number }[];
   cashAccumulated: { date: string; label: string; balance: number }[];
   expenseMix: { name: string; value: number }[];
   arAging: { bucket: string; amount: number }[];
@@ -211,4 +214,44 @@ export type CashFlowBucket = {
   outflow: number;
   net: number;
   cumulative: number;
+};
+
+/** Item da Minha fila (Home operacional). */
+export type FinanceQueueColumn = "cobrar" | "receber" | "recebido";
+
+export type FinanceQueueItem = {
+  id: string;
+  column: FinanceQueueColumn;
+  patient_name: string;
+  service_name: string | null;
+  amount: number;
+  reference_at: string;
+  days_open: number;
+  appointment_id: string | null;
+  comanda_id: string | null;
+  remainder?: number;
+};
+
+export type FinanceTodayBriefing = {
+  userFirstName: string;
+  greeting: string;
+  cobrarCount: number;
+  receberCount: number;
+  entrouHoje: number;
+  cobrancasDoneToday: number;
+  cobrancasRemaining: number;
+  recebidosDoneToday: number;
+  recebidosTotal: number;
+};
+
+export type FinanceHomeIndicators = {
+  entrouHoje: number;
+  aindaFaltaReceber: number;
+  contasVencidas: number;
+  contasAPagar: number;
+};
+
+export type RevenueOriginRow = {
+  name: string;
+  value: number;
 };

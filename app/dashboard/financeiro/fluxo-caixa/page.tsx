@@ -11,7 +11,7 @@ export default async function FinanceiroFluxoCaixaPage() {
       <div>
         <h1 className="text-2xl font-semibold">Fluxo de caixa</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Entradas e saídas com granularidade livre, gráficos e origem de cada movimentação.
+          Como o dinheiro entrou e saiu — visão diária, semanal ou mensal.
         </p>
       </div>
       <Suspense fallback={<PageShellSkeleton withTable={false} />}>

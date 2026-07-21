@@ -5,18 +5,23 @@ import {
   listOpenComandasDetailed,
   listPendingExpensesGrouped,
   listPendingManualReceitas,
-  listFinancialEntries,
   listSuppliersForFinance,
   getFinanceAlerts,
+  getFinanceInboxData,
 } from "./actions";
 import {
-  getDashboardMetricsExtended,
   getFinanceChartData,
   getCompetenceReport,
   getCashFlowUnified,
+  getRevenueOriginReport,
 } from "@/lib/financeiro/analytics";
 import { fetchUnifiedLedger } from "@/lib/financeiro/unified-ledger";
 import { getPresetFunnelPeriod } from "@/lib/analytics/time-buckets";
+import type {
+  FinanceChartData,
+  FinanceHomeIndicators,
+  FinanceTodayBriefing,
+} from "@/lib/financeiro/types";
 
 export async function loadFinanceiroAuth() {
   const supabase = await createClient();
@@ -40,64 +45,55 @@ export async function loadFinanceiroAuth() {
   };
 }
 
+const emptyChart: FinanceChartData = {
+  revenueVsExpenses: [],
+  faturamentoVsDespesas: [],
+  cashAccumulated: [],
+  expenseMix: [],
+  arAging: [],
+  projection: [],
+};
+
+const emptyBriefing: FinanceTodayBriefing = {
+  userFirstName: "",
+  greeting: "Olá",
+  cobrarCount: 0,
+  receberCount: 0,
+  entrouHoje: 0,
+  cobrancasDoneToday: 0,
+  cobrancasRemaining: 0,
+  recebidosDoneToday: 0,
+  recebidosTotal: 0,
+};
+
+const emptyIndicators: FinanceHomeIndicators = {
+  entrouHoje: 0,
+  aindaFaltaReceber: 0,
+  contasVencidas: 0,
+  contasAPagar: 0,
+};
+
 export async function loadFinanceiroOverview(searchParams: { year?: string; month?: string }) {
   const { canManage, userRole } = await loadFinanceiroAuth();
   const { year, month } = parseMonthYear(searchParams);
 
-  const [
-    { metrics, error: metricsError },
-    { data: chartData },
-    { data: openComandas },
-    { data: suppliers },
-    { alerts },
-  ] = await Promise.all([
-    getDashboardMetricsExtended(year, month),
+  const [inbox, { data: chartData }, { data: suppliers }] = await Promise.all([
+    getFinanceInboxData(),
     getFinanceChartData(year, month),
-    listOpenComandasDetailed(),
     listSuppliersForFinance(),
-    getFinanceAlerts(),
   ]);
-
-  const defaultMetrics = {
-    receitaFaturada: 0,
-    entradasCaixa: 0,
-    aReceber: 0,
-    saidasCaixa: 0,
-    aPagar: 0,
-    aPagarVencidas: 0,
-    aPagarVencendo7d: 0,
-    resultadoPeriodo: 0,
-    margemBruta: 0,
-    ticketMedio: 0,
-    taxaInadimplencia: 0,
-    burnRate: 0,
-    runway: 0,
-    momReceitaPct: 0,
-    projecao30d: 0,
-    comandasNoPeriodo: 0,
-    taxaNoShow: 0,
-  };
 
   return {
     year,
     month,
-    error: metricsError,
-    metrics: metrics ?? defaultMetrics,
-    chartData: chartData ?? {
-      revenueVsExpenses: [],
-      cashAccumulated: [],
-      expenseMix: [],
-      arAging: [],
-      projection: [],
-    },
-    openComandas: openComandas ?? [],
+    error: inbox.error,
+    briefing: inbox.briefing ?? emptyBriefing,
+    indicators: inbox.indicators ?? emptyIndicators,
+    chartData: chartData ?? emptyChart,
+    cobrar: inbox.cobrar ?? [],
+    receber: inbox.receber ?? [],
+    recebido: inbox.recebido ?? [],
     suppliers: suppliers ?? [],
-    alerts: alerts ?? {
-      comandasVencidas: 0,
-      aguardandoEmissaoComanda: 0,
-      contasVencerHojeAmanha: 0,
-      contasVencidas: 0,
-    },
     canManage,
     userRole,
   };
@@ -159,8 +155,11 @@ export async function loadFinanceiroExtrato(searchParams: { year?: string; month
 
 export async function loadFinanceiroCompetencia() {
   await loadFinanceiroAuth();
-  const { data } = await getCompetenceReport(12);
-  return { rows: data ?? [] };
+  const [{ data }, { data: origin }] = await Promise.all([
+    getCompetenceReport(12),
+    getRevenueOriginReport(3),
+  ]);
+  return { rows: data ?? [], origin: origin ?? [] };
 }
 
 export async function loadFinanceiroFluxoCaixa() {
@@ -177,12 +176,25 @@ export async function loadFinanceiroPageData() {
     error: data.error,
     entries: [],
     summary: {
-      recebido: data.metrics.entradasCaixa,
-      aReceber: data.metrics.aReceber,
-      pago: data.metrics.saidasCaixa,
-      aPagar: data.metrics.aPagar,
+      recebido: data.indicators.entrouHoje,
+      aReceber: data.indicators.aindaFaltaReceber,
+      pago: 0,
+      aPagar: data.indicators.contasAPagar,
     },
-    openComandas: data.openComandas,
+    openComandas: data.receber.map((r) => ({
+      id: r.comanda_id ?? r.id,
+      status: "aberta",
+      subtotal_amount: r.amount,
+      discount_amount: 0,
+      total_amount: r.amount,
+      paid_amount: 0,
+      remainder: r.remainder ?? r.amount,
+      created_at: r.reference_at,
+      patient_name: r.patient_name,
+      scheduled_at: r.reference_at,
+      service_name: r.service_name,
+      days_open: r.days_open,
+    })),
     canManage: data.canManage,
   };
 }

@@ -11,11 +11,11 @@ export default async function FinanceiroCompetenciaPage() {
       <div>
         <h1 className="text-2xl font-semibold">Competência</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          P&L por competência — receitas, despesas e lucro mensal.
+          Como faturamos — receitas, despesas, lucro e origem da receita.
         </p>
       </div>
       <Suspense fallback={<PageShellSkeleton withTable={false} />}>
-        <FinanceiroCompetenciaClient rows={data.rows} />
+        <FinanceiroCompetenciaClient rows={data.rows} origin={data.origin} />
       </Suspense>
     </div>
   );

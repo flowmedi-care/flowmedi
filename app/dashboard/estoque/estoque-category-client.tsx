@@ -15,6 +15,7 @@ import { DataTable } from "@/components/dashboard-ui/data-table";
 import { EmptyState } from "@/components/dashboard-ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { fmtCurrency } from "@/lib/financeiro/format";
+import { ProductImageUpload } from "./product-image-upload";
 
 type SupplierOption = { id: string; name: string };
 
@@ -152,10 +153,7 @@ export function EstoqueCategoryClient({
                 <Label>Estoque mínimo</Label>
                 <Input value={minQty} onChange={(e) => setMinQty(e.target.value)} />
               </div>
-              <div className="space-y-1 sm:col-span-2">
-                <Label>URL da foto</Label>
-                <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" />
-              </div>
+              <ProductImageUpload value={imageUrl} onChange={setImageUrl} disabled={loading} />
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={trackLot} onChange={(e) => setTrackLot(e.target.checked)} />
                 Controlar lote

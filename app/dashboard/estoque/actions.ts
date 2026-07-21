@@ -38,6 +38,44 @@ async function getClinicContext() {
   return { error: null, supabase, clinicId: profile.clinic_id, userId: user.id, role: profile.role };
 }
 
+export async function uploadProductImage(formData: FormData): Promise<{
+  error: string | null;
+  url?: string;
+}> {
+  const ctx = await getClinicContext();
+  if (ctx.error || !ctx.clinicId) return { error: ctx.error ?? "Erro" };
+  if (ctx.role !== "admin" && ctx.role !== "secretaria") {
+    return { error: "Sem permissão para enviar imagens." };
+  }
+
+  const file = formData.get("file") as File | null;
+  if (!file) return { error: "Nenhum arquivo selecionado." };
+  if (!file.type.startsWith("image/")) {
+    return { error: "Selecione um arquivo de imagem (JPG, PNG ou WebP)." };
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    return { error: "A imagem deve ter no máximo 5 MB." };
+  }
+
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
+  const path = `${ctx.clinicId}/${crypto.randomUUID()}.${safeExt}`;
+  const arrayBuffer = await file.arrayBuffer();
+
+  const { error } = await ctx.supabase.storage.from("product-images").upload(path, arrayBuffer, {
+    contentType: file.type,
+    upsert: false,
+  });
+
+  if (error) return { error: error.message };
+
+  const {
+    data: { publicUrl },
+  } = ctx.supabase.storage.from("product-images").getPublicUrl(path);
+
+  return { error: null, url: publicUrl };
+}
+
 function mapProducts(
   products: Record<string, unknown>[],
   balances: Record<string, { on_hand: number; committed: number }>

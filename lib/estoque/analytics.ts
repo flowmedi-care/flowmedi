@@ -169,6 +169,7 @@ export type StockCategoryRow = {
   display_order: number;
   icon: string | null;
   product_count: number;
+  low_stock_count: number;
 };
 
 export async function listStockCategories(): Promise<{
@@ -186,16 +187,34 @@ export async function listStockCategories(): Promise<{
 
   if (error) return { error: error.message, data: [] };
 
-  const { data: products } = await ctx.supabase
-    .from("products")
-    .select("category_id")
-    .eq("clinic_id", ctx.clinicId)
-    .eq("active", true);
+  const [{ data: products }, { data: balances }] = await Promise.all([
+    ctx.supabase
+      .from("products")
+      .select("id, category_id, min_quantity")
+      .eq("clinic_id", ctx.clinicId)
+      .eq("active", true),
+    ctx.supabase
+      .from("stock_balances")
+      .select("product_id, quantity_on_hand")
+      .eq("clinic_id", ctx.clinicId),
+  ]);
+
+  const balanceMap = new Map<string, number>();
+  for (const b of balances ?? []) {
+    balanceMap.set(b.product_id as string, Number(b.quantity_on_hand));
+  }
 
   const counts: Record<string, number> = {};
+  const lowCounts: Record<string, number> = {};
   for (const p of products ?? []) {
     const cid = p.category_id as string | null;
-    if (cid) counts[cid] = (counts[cid] ?? 0) + 1;
+    if (!cid) continue;
+    counts[cid] = (counts[cid] ?? 0) + 1;
+    const minQty = Number(p.min_quantity ?? 0);
+    const onHand = balanceMap.get(p.id as string) ?? 0;
+    if (minQty > 0 && onHand <= minQty) {
+      lowCounts[cid] = (lowCounts[cid] ?? 0) + 1;
+    }
   }
 
   return {
@@ -207,6 +226,7 @@ export async function listStockCategories(): Promise<{
       display_order: Number(c.display_order),
       icon: c.icon as string | null,
       product_count: counts[c.id as string] ?? 0,
+      low_stock_count: lowCounts[c.id as string] ?? 0,
     })),
   };
 }

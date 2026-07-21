@@ -16,20 +16,20 @@ export default async function FinanceiroPage({
       <div>
         <h1 className="text-2xl font-semibold">Financeiro</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Visão geral — receita faturada (competência), entradas no caixa e contas a receber/pagar.
+          Sua caixa de entrada — o que precisa ser feito agora.
         </p>
       </div>
       {data.error && <p className="text-sm text-destructive">{data.error}</p>}
       <Suspense fallback={<PageShellSkeleton withTable={false} />}>
         <FinanceiroOverviewClient
-          year={data.year}
-          month={data.month}
-          metrics={data.metrics}
+          briefing={data.briefing}
+          indicators={data.indicators}
           chartData={data.chartData}
-          openComandas={data.openComandas}
+          cobrar={data.cobrar}
+          receber={data.receber}
+          recebido={data.recebido}
           suppliers={data.suppliers}
           canManage={data.canManage}
-          userRole={data.userRole}
         />
       </Suspense>
     </div>

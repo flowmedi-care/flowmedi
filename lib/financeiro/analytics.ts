@@ -19,6 +19,7 @@ import type {
   FinanceChartData,
   CompetenceMonthRow,
   ClinicFinancialSettings,
+  RevenueOriginRow,
 } from "@/lib/financeiro/types";
 import type { FunnelPeriod } from "@/lib/analytics/time-buckets";
 import { bucketKeyFromDate, formatBucketLabel } from "@/lib/analytics/time-buckets";
@@ -417,10 +418,110 @@ export async function getFinanceChartData(
     projected: r.profit * (1 + (1 - taxaNoShow) * 0.1),
   }));
 
+  const [{ data: comandasFat }, { data: expensesComp }] = await Promise.all([
+    ctx.supabase
+      .from("comandas")
+      .select("total_amount, status, closed_at, created_at, issued_at")
+      .eq("clinic_id", ctx.clinicId)
+      .neq("status", "cancelada"),
+    ctx.supabase
+      .from("financial_entries")
+      .select("amount, competence_date, due_date")
+      .eq("clinic_id", ctx.clinicId)
+      .eq("entry_type", "despesa")
+      .neq("status", "cancelado"),
+  ]);
+
+  const fatByDay: Record<string, { revenue: number; expenses: number }> = {};
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const key = d.toISOString().slice(0, 10);
+    fatByDay[key] = { revenue: 0, expenses: 0 };
+  }
+
+  for (const c of comandasFat ?? []) {
+    if (!isComandaCompetenceEligible(c)) continue;
+    const ref = comandaCompetenceDate(c)?.slice(0, 10);
+    if (!ref || !fatByDay[ref]) continue;
+    fatByDay[ref].revenue += Number(c.total_amount);
+  }
+  for (const e of expensesComp ?? []) {
+    const ref = ((e.competence_date as string) ?? (e.due_date as string) ?? "").slice(0, 10);
+    if (!ref || !fatByDay[ref]) continue;
+    fatByDay[ref].expenses += Number(e.amount);
+  }
+
+  const faturamentoVsDespesas = Object.entries(fatByDay)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({
+      date,
+      label: new Date(date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
+      revenue: v.revenue,
+      expenses: v.expenses,
+      profit: v.revenue - v.expenses,
+    }));
+
   return {
     error: null,
-    data: { revenueVsExpenses, cashAccumulated, expenseMix, arAging, projection },
+    data: {
+      revenueVsExpenses,
+      faturamentoVsDespesas,
+      cashAccumulated,
+      expenseMix,
+      arAging,
+      projection,
+    },
   };
+}
+
+const ORIGIN_LABELS: Record<string, string> = {
+  service: "Serviços",
+  procedure: "Procedimentos",
+  product: "Produtos",
+  other: "Outros",
+};
+
+export async function getRevenueOriginReport(months = 3): Promise<{
+  error: string | null;
+  data: RevenueOriginRow[];
+}> {
+  const ctx = await getClinicFinanceContext();
+  if (ctx.error || !ctx.clinicId) return { error: ctx.error, data: [] };
+
+  const start = new Date();
+  start.setMonth(start.getMonth() - months);
+
+  const { data: comandas } = await ctx.supabase
+    .from("comandas")
+    .select("id, status, closed_at, created_at, issued_at")
+    .eq("clinic_id", ctx.clinicId)
+    .neq("status", "cancelada")
+    .gte("created_at", start.toISOString());
+
+  const eligibleIds: string[] = [];
+  for (const c of comandas ?? []) {
+    if (!isComandaCompetenceEligible(c)) continue;
+    eligibleIds.push(c.id as string);
+  }
+
+  if (eligibleIds.length === 0) return { error: null, data: [] };
+
+  const { data: items } = await ctx.supabase
+    .from("comanda_items")
+    .select("item_type, total_price")
+    .in("comanda_id", eligibleIds);
+
+  const byType: Record<string, number> = {};
+  for (const item of items ?? []) {
+    const key = (item.item_type as string) || "other";
+    byType[key] = (byType[key] ?? 0) + Number(item.total_price);
+  }
+
+  const data: RevenueOriginRow[] = Object.entries(byType)
+    .map(([key, value]) => ({ name: ORIGIN_LABELS[key] ?? key, value }))
+    .filter((r) => r.value > 0)
+    .sort((a, b) => b.value - a.value);
+
+  return { error: null, data };
 }
 
 export async function getCompetenceReport(months = 12): Promise<{

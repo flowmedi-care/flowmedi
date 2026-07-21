@@ -5,11 +5,11 @@ import {
   Area,
   AreaChart,
   Bar,
-  BarChart,
   CartesianGrid,
   ComposedChart,
   Legend,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -21,10 +21,11 @@ import { PageToolbar } from "@/components/dashboard-ui/toolbar/page-toolbar";
 import { ToolbarContextBadge } from "@/components/dashboard-ui/toolbar/toolbar-context-badge";
 import { ChartCard } from "@/components/dashboard-ui/chart-card";
 import { DataTable } from "@/components/dashboard-ui/data-table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtCurrency, downloadCsv } from "@/lib/financeiro/format";
 import { getCashFlowUnified } from "@/lib/financeiro/analytics";
 import type { CashFlowBucket, UnifiedLedgerRow } from "@/lib/financeiro/types";
-import type { FunnelPeriod } from "@/lib/analytics/time-buckets";
+import type { FunnelPeriod, TimeGranularity } from "@/lib/analytics/time-buckets";
 import {
   CHART_PALETTE,
   chartAxisProps,
@@ -46,9 +47,10 @@ export function FinanceiroFluxoCaixaClient({
   const [period, setPeriod] = useState(initialPeriod);
   const [buckets, setBuckets] = useState(initialBuckets);
   const [rows, setRows] = useState(initialRows);
+  const [chartMode, setChartMode] = useState<"fluxo" | "acumulado">("fluxo");
   const [isPending, startTransition] = useTransition();
 
-  const handlePeriodChange = (next: FunnelPeriod) => {
+  const reload = (next: FunnelPeriod) => {
     setPeriod(next);
     startTransition(async () => {
       const res = await getCashFlowUnified(next);
@@ -58,6 +60,19 @@ export function FinanceiroFluxoCaixaClient({
       }
     });
   };
+
+  const handlePeriodChange = (next: FunnelPeriod) => {
+    reload({ ...next, granularity: period.granularity });
+  };
+
+  const handleGranularity = (g: TimeGranularity) => {
+    reload({ ...period, granularity: g });
+  };
+
+  const chartData = buckets.map((b) => ({
+    ...b,
+    outflowNeg: -b.outflow,
+  }));
 
   function exportCsv() {
     downloadCsv(`fluxo-caixa-${period.start}-${period.end}.csv`, [
@@ -97,36 +112,82 @@ export function FinanceiroFluxoCaixaClient({
         </PageToolbar.Filters>
         <PageToolbar.Meta>
           <ToolbarContextBadge>
-            {isPending ? "Atualizando…" : "Entradas e saídas do caixa"}
+            {isPending ? "Atualizando…" : "Como o dinheiro entrou e saiu"}
           </ToolbarContextBadge>
         </PageToolbar.Meta>
       </PageToolbar>
 
-      <ChartCard title="Fluxo de caixa" description="Entradas, saídas e líquido por período">
-        <ResponsiveContainer width="100%" height={320}>
-          <ComposedChart data={buckets}>
-            <CartesianGrid {...chartGridProps} />
-            <XAxis dataKey="label" {...chartAxisProps} />
-            <YAxis {...chartAxisProps} />
-            <Tooltip {...chartTooltipStyle} formatter={(v: number) => fmtCurrency(v)} />
-            <Legend />
-            <Bar dataKey="inflow" name="Entradas" fill={CHART_PALETTE[0]} {...chartBarProps} />
-            <Bar dataKey="outflow" name="Saídas" fill={CHART_PALETTE[3]} {...chartBarProps} />
-            <Line dataKey="net" name="Líquido" stroke={CHART_PALETTE[2]} {...chartLineProps} />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      <ChartCard
+        title="Fluxo de caixa"
+        description="Entradas acima · saídas abaixo · líquido na linha"
+      >
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <Tabs
+            value={period.granularity}
+            onValueChange={(v) => handleGranularity(v as TimeGranularity)}
+          >
+            <TabsList>
+              <TabsTrigger value="day">Diário</TabsTrigger>
+              <TabsTrigger value="week">Semanal</TabsTrigger>
+              <TabsTrigger value="month">Mensal</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Tabs value={chartMode} onValueChange={(v) => setChartMode(v as "fluxo" | "acumulado")}>
+            <TabsList>
+              <TabsTrigger value="fluxo">Fluxo</TabsTrigger>
+              <TabsTrigger value="acumulado">Acumulado</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
 
-      <ChartCard title="Saldo acumulado" description="Evolução do caixa no intervalo">
-        <ResponsiveContainer width="100%" height={240}>
-          <AreaChart data={buckets}>
-            <CartesianGrid {...chartGridProps} />
-            <XAxis dataKey="label" {...chartAxisProps} />
-            <YAxis {...chartAxisProps} />
-            <Tooltip {...chartTooltipStyle} formatter={(v: number) => fmtCurrency(v)} />
-            <Area type="monotone" dataKey="cumulative" name="Acumulado" stroke={CHART_PALETTE[0]} fill={CHART_PALETTE[0]} fillOpacity={0.12} />
-          </AreaChart>
-        </ResponsiveContainer>
+        {chartMode === "fluxo" ? (
+          <ResponsiveContainer width="100%" height={320}>
+            <ComposedChart data={chartData} stackOffset="sign">
+              <CartesianGrid {...chartGridProps} />
+              <XAxis dataKey="label" {...chartAxisProps} />
+              <YAxis
+                {...chartAxisProps}
+                tickFormatter={(v) => fmtCurrency(Math.abs(v)).replace("R$", "").trim()}
+              />
+              <ReferenceLine y={0} stroke="hsl(var(--border))" />
+              <Tooltip
+                {...chartTooltipStyle}
+                formatter={(v: number, name: string) => [
+                  fmtCurrency(Math.abs(v)),
+                  name === "outflowNeg" ? "Saídas" : name,
+                ]}
+              />
+              <Legend
+                formatter={(value) =>
+                  value === "outflowNeg" ? "Saídas" : value === "inflow" ? "Entradas" : "Líquido"
+                }
+              />
+              <Bar dataKey="inflow" name="Entradas" fill={CHART_PALETTE[0]} {...chartBarProps} />
+              <Bar dataKey="outflowNeg" name="Saídas" fill={CHART_PALETTE[3]} {...chartBarProps} />
+              <Line dataKey="net" name="Líquido" stroke={CHART_PALETTE[2]} {...chartLineProps} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        ) : (
+          <ResponsiveContainer width="100%" height={320}>
+            <AreaChart data={buckets}>
+              <CartesianGrid {...chartGridProps} />
+              <XAxis dataKey="label" {...chartAxisProps} />
+              <YAxis
+                {...chartAxisProps}
+                tickFormatter={(v) => fmtCurrency(v).replace("R$", "").trim()}
+              />
+              <Tooltip {...chartTooltipStyle} formatter={(v: number) => fmtCurrency(v)} />
+              <Area
+                type="monotone"
+                dataKey="cumulative"
+                name="Acumulado"
+                stroke={CHART_PALETTE[0]}
+                fill={CHART_PALETTE[0]}
+                fillOpacity={0.12}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </ChartCard>
 
       <DataTable
@@ -154,7 +215,8 @@ export function FinanceiroFluxoCaixaClient({
             className: "text-right font-medium",
             cell: (r) => (
               <span className={r.type === "inflow" ? "text-emerald-600" : "text-red-600"}>
-                {r.type === "inflow" ? "+" : "−"}{fmtCurrency(r.amount)}
+                {r.type === "inflow" ? "+" : "−"}
+                {fmtCurrency(r.amount)}
               </span>
             ),
           },
