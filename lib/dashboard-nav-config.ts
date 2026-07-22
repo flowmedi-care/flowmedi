@@ -58,6 +58,16 @@ export const DASHBOARD_AGENDA_GROUP: NavGroupItem = {
   children: [
     { href: "/dashboard/agenda", label: "Calendário" },
     {
+      href: "/dashboard/hoje/agendamentos",
+      label: "Agendamentos",
+      roles: ["admin", "secretaria"],
+    },
+    {
+      href: "/dashboard/hoje/consultas",
+      label: "Consultas",
+      roles: ["admin", "secretaria"],
+    },
+    {
       href: "/dashboard/consulta",
       label: "Lista de consultas",
       roles: ["admin", "secretaria", "medico"],
@@ -88,6 +98,13 @@ export const DASHBOARD_COMUNICACAO_GROUP: NavGroupItem = {
 export const DASHBOARD_TOP_NAV: NavTopItem[] = [
   {
     type: "link",
+    href: "/dashboard/hoje",
+    label: "Hoje",
+    icon: "layout-dashboard",
+    roles: ["admin", "secretaria"],
+  },
+  {
+    type: "link",
     href: "/dashboard",
     label: "Visão Geral",
     icon: "layout-dashboard",
@@ -98,7 +115,14 @@ export const DASHBOARD_TOP_NAV: NavTopItem[] = [
     href: "/dashboard",
     label: "Início",
     icon: "layout-dashboard",
-    roles: ["secretaria", "medico"],
+    roles: ["medico"],
+  },
+  {
+    type: "link",
+    href: "/dashboard/pendencias",
+    label: "Pendências",
+    icon: "clipboard-list",
+    roles: ["admin", "secretaria"],
   },
   DASHBOARD_AGENDA_GROUP,
   {
@@ -119,10 +143,15 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     icon: "contact",
     prefix: "/dashboard/contatos",
     children: [
+      { href: "/dashboard/contatos/leads", label: "Contatos (entrada)", roles: ["admin", "secretaria"] },
       { href: "/dashboard/contatos/pacientes", label: "Pacientes" },
+      {
+        href: "/dashboard/hoje/pacientes",
+        label: "Jornadas (pós / tratamento / retorno)",
+        roles: ["admin", "secretaria"],
+      },
       { href: "/dashboard/contatos/profissionais", label: "Profissionais" },
       { href: "/dashboard/contatos/fornecedores", label: "Fornecedores", roles: ["admin", "secretaria"] },
-      { href: "/dashboard/contatos/leads", label: "Leads (entrada)", roles: ["admin", "secretaria"] },
       { href: "/dashboard/contatos/todos", label: "Todos contatos" },
       { href: "/dashboard/contatos/aniversariantes", label: "Aniversariantes" },
     ],
@@ -130,14 +159,16 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
   {
     type: "group",
     id: "crm",
-    label: "CRM",
+    label: "Indicadores",
     icon: "target",
     prefix: "/dashboard/crm",
     roles: ["admin", "secretaria"],
     children: [
-      { href: "/dashboard/crm/jornada", label: "Pendências e Fluxo" },
+      { href: "/dashboard/hoje", label: "Hoje" },
+      { href: "/dashboard/pendencias", label: "Pendências" },
       { href: "/dashboard/crm/pipeline", label: "Indicadores" },
       { href: "/dashboard/crm/captacao", label: "Formulários" },
+      { href: "/dashboard/crm/jornada", label: "Jornada (legado)", roles: ["admin"] },
     ],
   },
   {
@@ -293,6 +324,9 @@ function isAgendaGroupPath(pathname: string): boolean {
   if (pathname === "/dashboard/consulta" || pathname.startsWith("/dashboard/consulta/")) {
     return true;
   }
+  if (pathname.startsWith("/dashboard/hoje/agendamentos") || pathname.startsWith("/dashboard/hoje/consultas")) {
+    return true;
+  }
   if (pathname === "/dashboard/agenda" || pathname.startsWith("/dashboard/agenda/")) {
     if (pathname.startsWith("/dashboard/agenda/atendimento")) return false;
     return true;
@@ -344,6 +378,9 @@ export function getActiveNavGroupId(pathname: string): string | null {
   if (isComunicacaoGroupPath(pathname)) {
     return "comunicacao";
   }
+  if (pathname.startsWith("/dashboard/hoje/pacientes")) {
+    return "contatos";
+  }
   if (isAgendaGroupPath(pathname)) {
     return "agenda";
   }
@@ -388,6 +425,12 @@ export function filterGroupChildren(
 }
 
 export function isLinkActive(pathname: string, href: string): boolean {
+  if (href === "/dashboard/hoje") {
+    return pathname === "/dashboard/hoje";
+  }
+  if (href === "/dashboard/pendencias") {
+    return pathname === "/dashboard/pendencias" || pathname.startsWith("/dashboard/pendencias/");
+  }
   if (href === "/dashboard") return pathname === "/dashboard";
   if (href === "/dashboard/atendimento") {
     return (
@@ -397,6 +440,15 @@ export function isLinkActive(pathname: string, href: string): boolean {
   }
   if (href === "/dashboard/agenda") {
     return pathname === "/dashboard/agenda";
+  }
+  if (href === "/dashboard/hoje/agendamentos") {
+    return pathname.startsWith("/dashboard/hoje/agendamentos");
+  }
+  if (href === "/dashboard/hoje/consultas") {
+    return pathname.startsWith("/dashboard/hoje/consultas");
+  }
+  if (href === "/dashboard/hoje/pacientes") {
+    return pathname.startsWith("/dashboard/hoje/pacientes");
   }
   if (href === "/dashboard/consulta") {
     return (

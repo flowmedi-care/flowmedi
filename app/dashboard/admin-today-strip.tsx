@@ -56,7 +56,7 @@ export async function AdminTodayStrip({ clinicId }: { clinicId: string }) {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="soft" size="sm" asChild>
-              <Link href="/dashboard/crm/jornada?view=pendencias">
+              <Link href="/dashboard/pendencias">
                 <List className="h-4 w-4" />
                 Pendências
               </Link>

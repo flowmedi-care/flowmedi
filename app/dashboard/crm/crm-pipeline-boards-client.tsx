@@ -23,8 +23,8 @@ export function CrmPipelineBoardsClient(_props?: {
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link href="/dashboard/crm/jornada?view=pendencias">
-            Abrir Jornada
+          <Link href="/dashboard/pendencias">
+            Abrir Pendências
             <ArrowRight className="h-4 w-4 ml-2" />
           </Link>
         </Button>

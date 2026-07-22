@@ -23,6 +23,7 @@ export type ResolvedNextAction = {
 
 export function humanizeDecisionType(type: string): string {
   const map: Record<string, string> = {
+    confirm_slot: "Confirmar consulta",
     confirm_appointment: "Confirmar consulta",
     reschedule: "Remarcar consulta",
     advance_commercial: "Avançar comercial / agendar",

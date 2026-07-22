@@ -31,9 +31,21 @@ export default async function JornadaBoardPage({ searchParams }: Props) {
     if (caseId) redirect(`/dashboard/crm/jornada/${caseId}`);
   }
 
+  // v6: views antigas → novos modos
+  if (!params.view || params.view === "pendencias") {
+    redirect("/dashboard/pendencias");
+  }
+  if (params.view === "comparecimento") {
+    redirect("/dashboard/hoje/consultas");
+  }
+  if (params.view === "ia") {
+    redirect("/dashboard/pendencias?filter=ai");
+  }
+  // fluxo permanece legado para admin com seletor de workflow
+
   const view = (VALID.includes(params.view as BoardView)
     ? params.view
-    : "pendencias") as BoardView;
+    : "fluxo") as BoardView;
 
   const { data, error } = await getCaseBoard(view, params.workflow ?? null);
   if (error === "Não autorizado.") redirect("/entrar");
@@ -42,20 +54,15 @@ export default async function JornadaBoardPage({ searchParams }: Props) {
     <PageShell
       header={{
         breadcrumbs: [
-          { label: "CRM", href: "/dashboard/crm/jornada" },
-          { label: "Pendências e Fluxo" },
+          { label: "Hoje", href: "/dashboard/hoje" },
+          { label: "Jornada (legado)" },
         ],
-        title: "Pendências e Fluxo",
+        title: "Fluxo por tipo de jornada",
         description:
-          "Pendências (decisões humanas), Fluxo, Comparecimento e Atendimento automático.",
+          "Board legado por fases do workflow. Preferira Hoje, Pendências e os boards de Agenda.",
       }}
     >
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
-      {(params.phone || params.email) && !error && (
-        <p className="mb-4 text-sm text-muted-foreground">
-          Nenhum atendimento vinculado. Veja as pendências abaixo.
-        </p>
-      )}
       {data && <CaseBoardClient initial={data} initialView={view} />}
     </PageShell>
   );

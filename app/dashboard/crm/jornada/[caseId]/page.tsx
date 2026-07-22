@@ -23,17 +23,17 @@ export default async function CaseWorkspacePage({ params }: Props) {
     return (
       <PageShell
         header={{
-          breadcrumbs: [
-            { label: "CRM", href: "/dashboard/crm/pipeline" },
-            { label: "Jornada", href: "/dashboard/crm/jornada" },
-            { label: "Workspace" },
-          ],
-          title: "Case não encontrado",
-        }}
+        breadcrumbs: [
+          { label: "Hoje", href: "/dashboard/hoje" },
+          { label: "Pendências", href: "/dashboard/pendencias" },
+          { label: "Workspace" },
+        ],
+        title: "Case não encontrado",
+      }}
       >
         <p className="text-sm text-destructive">{error ?? "Case inválido."}</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/dashboard/crm/jornada">Voltar</Link>
+          <Link href="/dashboard/pendencias">Voltar</Link>
         </Button>
       </PageShell>
     );
@@ -43,8 +43,8 @@ export default async function CaseWorkspacePage({ params }: Props) {
     <PageShell
       header={{
         breadcrumbs: [
-          { label: "CRM", href: "/dashboard/crm/pipeline" },
-          { label: "Jornada", href: "/dashboard/crm/jornada" },
+          { label: "Hoje", href: "/dashboard/hoje" },
+          { label: "Pendências", href: "/dashboard/pendencias" },
           { label: data.header.displayName },
         ],
         title: "Workspace",
@@ -52,7 +52,7 @@ export default async function CaseWorkspacePage({ params }: Props) {
       }}
       toolbar={
         <Button variant="outline" size="sm" asChild>
-          <Link href="/dashboard/crm/jornada?view=pendencias">
+          <Link href="/dashboard/pendencias">
             <ArrowLeft className="mr-1.5 h-4 w-4" />
             Pendências
           </Link>

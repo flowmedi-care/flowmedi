@@ -77,7 +77,7 @@ export async function AgoraStrip({ clinicId }: { clinicId: string }) {
             </div>
           </div>
           <Button size="sm" asChild>
-            <Link href="/dashboard/crm/jornada?view=pendencias">
+            <Link href="/dashboard/pendencias">
               Ver pendências
               <ArrowRight className="h-4 w-4" />
             </Link>

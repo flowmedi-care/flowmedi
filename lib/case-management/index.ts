@@ -6,6 +6,17 @@
 export * from "./types";
 export * from "./events";
 export {
+  pendingToNextDecision,
+  nextDecisionToPending,
+  getCaseNextDecision,
+  humanizeNextDecisionAction,
+  actionGroupLabel,
+  waitingForToDecider,
+  ownerTypeToDecider,
+  isUrgentDue,
+} from "./next-decision";
+export type { NextDecision, DecisionDecider } from "./next-decision";
+export {
   publishDomainEvent,
   publishBusinessOutcome,
 } from "./bus";

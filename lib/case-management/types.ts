@@ -50,6 +50,12 @@ export type PendingDecision = {
   due_at?: string | null;
 };
 
+/** @see next-decision.ts — NextDecision é a face de produto de pending_decision */
+export type {
+  NextDecision,
+  DecisionDecider,
+} from "./next-decision";
+
 /** Execução técnica em voo — não misturar com pending_decision */
 export type ExecutionContext = {
   operation: string;
@@ -200,3 +206,13 @@ export {
   type ResolvedNextAction,
   type AppointmentNextInput,
 } from "./next-action";
+
+export {
+  pendingToNextDecision,
+  nextDecisionToPending,
+  getCaseNextDecision,
+  humanizeNextDecisionAction,
+  actionGroupLabel,
+  waitingForToDecider,
+  ownerTypeToDecider,
+} from "./next-decision";

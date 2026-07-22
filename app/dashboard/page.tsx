@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { SecretariaDashboard } from "./secretaria-dashboard";
+import { redirect } from "next/navigation";
 import { MedicoDashboard } from "./medico-dashboard";
 import AdminDashboard from "./admin-dashboard";
 
@@ -42,17 +42,14 @@ export default async function DashboardPage({
     );
   }
 
-  // Se for Secretário(a), usar dashboard específico
+  // Secretária: porta de entrada = Hoje (trabalho do dia)
   if (profile.role === "secretaria") {
-    return <SecretariaDashboard profile={profile} />;
+    redirect("/dashboard/hoje");
   }
 
-  // Se for médico, usar dashboard específico
   if (profile.role === "medico") {
     return <MedicoDashboard profile={profile} />;
   }
 
-  // Dashboard do admin: visão geral e métricas
   return <AdminDashboard searchParams={searchParams} />;
 }
-

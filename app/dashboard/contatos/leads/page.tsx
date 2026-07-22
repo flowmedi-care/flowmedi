@@ -34,7 +34,7 @@ export default async function LeadsPage() {
           "Lista operacional de contatos. O posto de trabalho do processo é o Workspace em Jornada.",
         actions: (
           <Button size="sm" asChild>
-            <Link href="/dashboard/crm/jornada">Abrir Jornada</Link>
+            <Link href="/dashboard/hoje">Abrir Hoje</Link>
           </Button>
         ),
       }}

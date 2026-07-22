@@ -79,7 +79,7 @@ export default async function CrmPipelinePage() {
           "Como o negócio está performando — números agregados. Operação de Cases e comparecimento na Jornada.",
         actions: (
           <Button size="sm" asChild>
-            <Link href="/dashboard/crm/jornada?view=pendencias">Abrir Pendências</Link>
+            <Link href="/dashboard/pendencias">Abrir Pendências</Link>
           </Button>
         ),
       }}

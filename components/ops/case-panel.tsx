@@ -49,7 +49,7 @@ function actionHref(kind: string, snapshot: OperationsSnapshot): string {
       ? `/dashboard/crm/jornada?phone=${encodeURIComponent(
           snapshot.phoneNumber.replace(/\D/g, "")
         )}`
-      : "/dashboard/crm/jornada";
+      : "/dashboard/pendencias";
 
   switch (kind) {
     case "schedule_appointment":
@@ -106,7 +106,7 @@ export function CasePanel({
       ? `/dashboard/crm/jornada?phone=${encodeURIComponent(
           snapshot.phoneNumber.replace(/\D/g, "")
         )}`
-      : "/dashboard/crm/jornada";
+      : "/dashboard/pendencias";
 
   return (
     <aside

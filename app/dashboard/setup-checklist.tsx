@@ -54,7 +54,7 @@ export async function SetupChecklist({ clinicId }: { clinicId: string }) {
     {
       id: "demo",
       label: "Ver uma pendência no Workspace (demo)",
-      href: "/dashboard/crm/jornada?view=pendencias",
+      href: "/dashboard/pendencias",
       done: (casesCount ?? 0) > 0,
     },
     {
@@ -126,7 +126,7 @@ export async function SetupChecklist({ clinicId }: { clinicId: string }) {
             <Link href="/dashboard/instrucoes/jornada-crm">Ver como funciona</Link>
           </Button>
           <Button size="sm" asChild>
-            <Link href="/dashboard/crm/jornada?view=pendencias">Ir para Pendências</Link>
+            <Link href="/dashboard/pendencias">Ir para Pendências</Link>
           </Button>
         </div>
       </CardContent>
