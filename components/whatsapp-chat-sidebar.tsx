@@ -750,9 +750,9 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                 setHandlerFilter("all");
               }}
               tabs={[
-                { id: "needs_decision", label: "Decidir", icon: Headphones },
-                { id: "ai", label: "IA", icon: Bot },
-                { id: "patient_waiting", label: "Aguarda" },
+                { id: "needs_decision", label: "Pendências", icon: Headphones },
+                { id: "ai", label: "Com a IA", icon: Bot },
+                { id: "patient_waiting", label: "Aguardando paciente" },
                 { id: "system", label: "Sistema" },
                 { id: "all", label: "Todos" },
               ]}

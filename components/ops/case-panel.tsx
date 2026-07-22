@@ -41,22 +41,45 @@ function ownerBadgeClass(owner: OperationsSnapshot["owner"]) {
   }
 }
 
-function actionHref(
-  kind: string,
-  snapshot: OperationsSnapshot
-): string {
+/** Princípio Zero: levar ao lugar certo — Workspace do Atendimento ou Agenda. */
+function actionHref(kind: string, snapshot: OperationsSnapshot): string {
+  const workspaceHref = snapshot.journeyCaseId
+    ? `/dashboard/crm/jornada/${snapshot.journeyCaseId}`
+    : snapshot.phoneNumber
+      ? `/dashboard/crm/jornada?phone=${encodeURIComponent(
+          snapshot.phoneNumber.replace(/\D/g, "")
+        )}`
+      : "/dashboard/crm/jornada";
+
   switch (kind) {
     case "schedule_appointment":
-    case "navigate":
     case "open_agenda":
       return "/dashboard/agenda";
     case "navigate_crm":
-      return "/dashboard/pipeline";
+    case "navigate":
+      return workspaceHref;
     case "contact":
       return `/dashboard/whatsapp?c=${encodeURIComponent(snapshot.conversationId)}`;
     default:
-      return snapshot.appointment ? "/dashboard/agenda" : "/dashboard/pipeline";
+      return snapshot.appointment ? "/dashboard/agenda" : workspaceHref;
   }
+}
+
+function humanizeOwnershipReason(reason?: string | null): string | null {
+  if (!reason || reason === "current") return null;
+  const map: Record<string, string> = {
+    claim: "Assumiu o atendimento",
+    reactivate_ai: "Devolveu à IA",
+    handoff: "Transferiu para humano",
+    handoff_timeout: "IA reassumiu (tempo sem resposta)",
+    bot_loop: "Transferiu por loop da IA",
+    tool_failures: "Transferiu após falhas da IA",
+    patient_waiting: "Aguardando resposta do paciente",
+    system_reminder_due: "Lembrete do sistema",
+    assign: "Atribuição manual",
+    human_reply: "Resposta humana",
+  };
+  return map[reason] ?? reason.replace(/_/g, " ");
 }
 
 export function CasePanel({
@@ -77,6 +100,13 @@ export function CasePanel({
   }, [snapshot.conversationId, snapshot.operatorNotes]);
 
   const history = snapshot.ownershipHistory.slice(-8).reverse();
+  const workspaceHref = snapshot.journeyCaseId
+    ? `/dashboard/crm/jornada/${snapshot.journeyCaseId}`
+    : snapshot.phoneNumber
+      ? `/dashboard/crm/jornada?phone=${encodeURIComponent(
+          snapshot.phoneNumber.replace(/\D/g, "")
+        )}`
+      : "/dashboard/crm/jornada";
 
   return (
     <aside
@@ -87,7 +117,7 @@ export function CasePanel({
     >
       <div className="px-4 py-3 border-b border-border space-y-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Caso
+          Atendimento
         </p>
         <div className="flex items-center gap-2">
           <Badge
@@ -112,12 +142,26 @@ export function CasePanel({
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
         <section className="space-y-2">
-          <h3 className="text-xs font-semibold text-muted-foreground">Próxima decisão</h3>
+          <h3 className="text-xs font-semibold text-muted-foreground">Próxima ação</h3>
           {snapshot.pendingDecision ? (
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
               <p className="text-sm font-medium">{snapshot.pendingDecision.label}</p>
               <p className="text-[11px] text-muted-foreground">
-                {snapshot.pendingDecision.type} · {snapshot.pendingDecision.source}
+                {[
+                  snapshot.pendingDecision.owner
+                    ? `Responsável: ${snapshot.pendingDecision.owner === "human" ? "equipe" : snapshot.pendingDecision.owner}`
+                    : null,
+                  snapshot.pendingDecision.dueAt
+                    ? `Até ${new Date(snapshot.pendingDecision.dueAt).toLocaleString("pt-BR", {
+                        day: "2-digit",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "Pendência do atendimento"}
               </p>
               {snapshot.pendingDecision.actions[0] && (
                 <Button size="sm" variant="secondary" className="h-7 text-xs w-full" asChild>
@@ -132,14 +176,25 @@ export function CasePanel({
                   </Link>
                 </Button>
               )}
+              <Button size="sm" variant="outline" className="h-7 text-xs w-full" asChild>
+                <Link href={workspaceHref}>
+                  Abrir Workspace
+                  <ArrowRight className="h-3 w-3 ml-1" />
+                </Link>
+              </Button>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Nenhuma decisão pendente.</p>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Nenhuma decisão pendente.</p>
+              <Button size="sm" variant="outline" className="h-7 text-xs w-full" asChild>
+                <Link href={workspaceHref}>Abrir Workspace</Link>
+              </Button>
+            </div>
           )}
         </section>
 
         <section className="space-y-1.5">
-          <h3 className="text-xs font-semibold text-muted-foreground">Estágio / Agenda</h3>
+          <h3 className="text-xs font-semibold text-muted-foreground">Agenda</h3>
           <p className="text-sm">{snapshot.stage || "—"}</p>
           {snapshot.patient && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -160,41 +215,40 @@ export function CasePanel({
             </p>
           )}
           <div className="flex flex-wrap gap-2 pt-1">
-            {snapshot.pipelineId && (
-              <Link
-                href="/dashboard/pipeline"
-                className="text-xs text-primary hover:underline"
-              >
-                Abrir Pipeline
-              </Link>
-            )}
-            {snapshot.phoneNumber && (
-              <Link
-                href={`/dashboard/crm/jornada?phone=${encodeURIComponent(
-                  snapshot.phoneNumber.replace(/\D/g, "")
-                )}`}
-                className="text-xs text-primary hover:underline"
-              >
-                Abrir Jornada
-              </Link>
-            )}
+            <Link
+              href="/dashboard/agenda"
+              className="text-xs text-primary hover:underline"
+            >
+              Abrir agenda
+            </Link>
+            <Link href={workspaceHref} className="text-xs text-primary hover:underline">
+              Abrir atendimento
+            </Link>
           </div>
         </section>
 
         <section className="space-y-2">
           <h3 className="text-xs font-semibold text-muted-foreground">Responsabilidade</h3>
           <ul className="space-y-1.5">
-            {history.map((h, i) => (
-              <li key={`${h.at}-${i}`} className="flex gap-2 text-xs">
-                <span className="text-muted-foreground tabular-nums shrink-0 w-12">
-                  {new Date(h.at).toLocaleTimeString("pt-BR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                <span className="font-medium">{h.ownerLabel}</span>
-              </li>
-            ))}
+            {history.map((h, i) => {
+              const reasonLabel = humanizeOwnershipReason(h.reason);
+              return (
+                <li key={`${h.at}-${i}`} className="flex gap-2 text-xs">
+                  <span className="text-muted-foreground tabular-nums shrink-0 w-12">
+                    {new Date(h.at).toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  <span>
+                    <span className="font-medium">{h.ownerLabel}</span>
+                    {reasonLabel ? (
+                      <span className="block text-muted-foreground">{reasonLabel}</span>
+                    ) : null}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </section>
 

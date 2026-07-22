@@ -17,13 +17,13 @@ import type {
 } from "@/app/dashboard/crm/jornada/case-types";
 
 const VIEWS: { id: BoardView; label: string; hint: string }[] = [
-  { id: "pendencias", label: "Pendências", hint: "O que exige ação agora?" },
-  { id: "fluxo", label: "Fluxo", hint: "Onde cada Case está no processo?" },
+  { id: "pendencias", label: "Pendências", hint: "O que exige decisão agora?" },
+  { id: "fluxo", label: "Fluxo", hint: "Onde cada atendimento está no processo?" },
   { id: "comparecimento", label: "Comparecimento", hint: "Consultas que precisam de ação" },
   {
     id: "ia",
     label: "Atendimento automático",
-    hint: "Casos sendo atendidos pela IA",
+    hint: "Atendimentos sob responsabilidade da IA",
   },
 ];
 
@@ -36,9 +36,14 @@ function CaseCard({ card }: { card: PipelineCard }) {
       <p className="text-sm font-medium truncate">{card.displayName}</p>
       <p className="text-xs text-muted-foreground mt-0.5">{card.phaseName}</p>
       <div className="mt-2 flex flex-wrap gap-1">
-        {card.case.pending_decision && (
+        {card.ownerLabel && (
+          <Badge variant="secondary" className="text-[10px]">
+            {card.ownerLabel}
+          </Badge>
+        )}
+        {card.nextActionLabel && (
           <Badge variant="outline" className="text-[10px]">
-            Decide: {card.case.pending_decision.waiting_for}
+            {card.nextActionLabel}
           </Badge>
         )}
         {card.quoteBadge && (
@@ -48,7 +53,7 @@ function CaseCard({ card }: { card: PipelineCard }) {
         )}
         {card.openTaskCount > 0 && (
           <Badge variant="secondary" className="text-[10px]">
-            {card.openTaskCount} task{card.openTaskCount > 1 ? "s" : ""}
+            {card.openTaskCount} pendência{card.openTaskCount > 1 ? "s" : ""}
           </Badge>
         )}
       </div>
@@ -178,7 +183,12 @@ export function CaseBoardClient({
             <CaseCard key={card.case.id} card={card} />
           ))}
           {initial.pendingQueue.cards.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nada pendente agora.</p>
+            <div className="col-span-full rounded-xl border border-dashed bg-muted/20 px-4 py-8 text-center">
+              <p className="text-sm font-medium">Nada exige decisão agora</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Quando houver pendências no atendimento, elas aparecem aqui.
+              </p>
+            </div>
           )}
         </div>
       )}

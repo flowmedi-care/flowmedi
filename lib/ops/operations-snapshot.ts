@@ -129,6 +129,7 @@ export function buildOperationsSnapshot(
     operatorNotes: row.operator_notes ?? null,
     brief: row.ops_brief ?? null,
     pipelineId: row.pipeline_id ?? null,
+    journeyCaseId: row.journey_case_id ? String(row.journey_case_id) : null,
     sla,
     ownershipHistory: history,
     canCompose,
@@ -150,7 +151,7 @@ export async function loadOperationsSnapshot(
   const { data: row } = await supabase
     .from("whatsapp_conversations")
     .select(
-      "id, clinic_id, phone_number, contact_name, status, patient_id, assigned_secretary_id, assigned_at, ai_enabled, ai_handoff_at, ai_user_opt_out, last_inbound_message_at, created_at, updated_at, pipeline_id, operator_notes, ops_brief, pending_decision, ops_owner_type, ops_owner_user_id, ownership_history, ai_state"
+      "id, clinic_id, phone_number, contact_name, status, patient_id, assigned_secretary_id, assigned_at, ai_enabled, ai_handoff_at, ai_user_opt_out, last_inbound_message_at, created_at, updated_at, pipeline_id, operator_notes, ops_brief, pending_decision, ops_owner_type, ops_owner_user_id, ownership_history, ai_state, journey_case_id"
     )
     .eq("id", conversationId)
     .maybeSingle();

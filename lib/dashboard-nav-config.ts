@@ -73,11 +73,11 @@ export const DASHBOARD_COMUNICACAO_GROUP: NavGroupItem = {
   prefix: "/dashboard/whatsapp",
   badgeKey: "whatsapp",
   children: [
-    { href: "/dashboard/whatsapp", label: "Operações" },
+    { href: "/dashboard/whatsapp", label: "Conversas" },
     { href: "/dashboard/mensagens", label: "Mensagens enviadas", roles: ["admin"] },
     {
       href: "/dashboard/mensagens/pendentes",
-      label: "Pendentes",
+      label: "Fila de envio",
       roles: ["admin", "secretaria"],
     },
     { href: "/dashboard/mensagens/templates", label: "Templates", roles: ["admin"] },
@@ -135,8 +135,8 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     prefix: "/dashboard/crm",
     roles: ["admin", "secretaria"],
     children: [
-      { href: "/dashboard/crm/jornada", label: "Jornada" },
-      { href: "/dashboard/crm/pipeline", label: "Pipeline (KPIs)" },
+      { href: "/dashboard/crm/jornada", label: "Pendências e Fluxo" },
+      { href: "/dashboard/crm/pipeline", label: "Indicadores" },
       { href: "/dashboard/crm/captacao", label: "Formulários" },
     ],
   },
@@ -221,7 +221,7 @@ export const DASHBOARD_INSTRUCOES_GROUP: NavGroupItem = {
   prefix: "/dashboard/instrucoes",
   children: [
     { href: "/dashboard/instrucoes", label: "Visão geral" },
-    { href: "/dashboard/instrucoes/jornada-crm", label: "Jornada do lead" },
+    { href: "/dashboard/instrucoes/jornada-crm", label: "Atendimento e Jornada" },
   ],
 };
 

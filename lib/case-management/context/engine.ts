@@ -16,8 +16,15 @@ import type {
   PendingDecision,
   WorkflowPhase,
 } from "../types";
-import { ownerLabel } from "../types";
+import { ownerLabel, resolveNextAction } from "../types";
 import { buildFinanceSummary, type FinanceSummary } from "../projections/finance";
+
+export type NextAction = {
+  label: string;
+  waitingFor: string | null;
+  dueAt: string | null;
+  source: "pending_decision" | "task";
+};
 
 export type WorkspaceHeader = {
   displayName: string;
@@ -27,11 +34,14 @@ export type WorkspaceHeader = {
   phaseCode: string;
   ownerLabel: string;
   pendingDecision: PendingDecision | null;
+  nextAction: NextAction | null;
   executionContext: ExecutionContext;
   openTasksCount: number;
   nextAppointmentLabel: string | null;
   quoteBadge: string | null;
   finance: FinanceSummary;
+  conversationId: string | null;
+  conversationHref: string | null;
 };
 
 export type WorkspaceContextPayload = {
@@ -50,6 +60,8 @@ export async function buildWorkspaceContext(
     displayName?: string;
     nextAppointmentLabel?: string | null;
     quoteBadge?: string | null;
+    ownerHumanName?: string | null;
+    conversationId?: string | null;
   }
 ): Promise<WorkspaceContextPayload | null> {
   const journeyCase = await getCaseById(db, caseId);
@@ -89,6 +101,8 @@ export async function buildWorkspaceContext(
   }
 
   const phaseCode = phase?.code ?? journeyCase.phase ?? "captacao";
+  const nextAction = resolveNextAction(journeyCase, tasks);
+  const conversationId = enrichment?.conversationId ?? null;
 
   return {
     case: journeyCase,
@@ -98,41 +112,47 @@ export async function buildWorkspaceContext(
       workflowName,
       phaseName: phase?.name ?? phaseCode,
       phaseCode,
-      ownerLabel: ownerLabel(journeyCase),
+      ownerLabel: ownerLabel(journeyCase, enrichment?.ownerHumanName),
       pendingDecision: journeyCase.pending_decision,
+      nextAction,
       executionContext: journeyCase.execution_context,
       openTasksCount,
       nextAppointmentLabel: enrichment?.nextAppointmentLabel ?? null,
       quoteBadge: enrichment?.quoteBadge ?? null,
       finance,
+      conversationId,
+      conversationHref: conversationId
+        ? `/dashboard/whatsapp?c=${encodeURIComponent(conversationId)}`
+        : "/dashboard/whatsapp",
     },
     tasks,
     phases,
     primaryPanels: panelsForPhaseCode(phaseCode),
-    priorityActions: journeyCase.pending_decision
-      ? [journeyCase.pending_decision.label || journeyCase.pending_decision.type]
-      : [],
+    priorityActions: nextAction ? [nextAction.label] : [],
   };
 }
 
-/** Pure — usado também em testes sem DB. */
+/**
+ * Painéis renderizados no Workspace.
+ * Só declara o que a UI implementa (Lei 6 / anti-pattern — não prometer fantasma).
+ */
 export function panelsForPhaseCode(phaseCode: string): string[] {
   const panelsByPhase: Record<string, string[]> = {
-    captacao: ["chat", "lead", "tasks", "timeline"],
-    comercial: ["chat", "lead", "tasks", "timeline", "financeiro"],
-    consulta: ["agenda", "anamnese", "tasks", "timeline"],
-    financeiro: ["financeiro", "tasks", "timeline"],
-    pos: ["chat", "tasks", "timeline", "financeiro"],
-    retorno_marcado: ["agenda", "chat", "tasks"],
-    tratamento: ["agenda", "tasks", "financeiro", "timeline"],
-    sessoes: ["agenda", "tasks", "timeline"],
-    alta: ["timeline", "tasks"],
-    tentativas: ["chat", "tasks", "timeline"],
-    contato: ["chat", "tasks"],
-    retornou: ["agenda", "chat"],
+    captacao: ["next_action", "chat", "lead", "tasks", "timeline"],
+    comercial: ["next_action", "chat", "lead", "tasks", "timeline", "financeiro"],
+    consulta: ["next_action", "agenda", "chat", "tasks", "timeline"],
+    financeiro: ["next_action", "financeiro", "tasks", "timeline"],
+    pos: ["next_action", "chat", "tasks", "timeline", "financeiro"],
+    retorno_marcado: ["next_action", "agenda", "chat", "tasks"],
+    tratamento: ["next_action", "agenda", "tasks", "financeiro", "timeline"],
+    sessoes: ["next_action", "agenda", "tasks", "timeline"],
+    alta: ["next_action", "timeline", "tasks"],
+    tentativas: ["next_action", "chat", "tasks", "timeline"],
+    contato: ["next_action", "chat", "tasks"],
+    retornou: ["next_action", "agenda", "chat"],
     perdido: ["timeline", "lead"],
   };
-  return panelsByPhase[phaseCode] ?? ["chat", "tasks", "timeline"];
+  return panelsByPhase[phaseCode] ?? ["next_action", "chat", "tasks", "timeline"];
 }
 
 export function derivedObjectiveForPhase(phaseCode: string): string {

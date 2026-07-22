@@ -5,6 +5,8 @@ import { getVisaoGeralData, getVisaoGeralWeekData, type Period } from "./visao-g
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { getOrSetMemoryCache } from "@/lib/server-memory-cache";
 import { AdminTodayStrip } from "./admin-today-strip";
+import { AgoraStrip } from "./agora-strip";
+import { SetupChecklist } from "./setup-checklist";
 import { FinanceAlertsPanelServer } from "./financeiro/finance-alerts-panel-server";
 import { VisaoGeralClient } from "./visao-geral/visao-geral-client";
 import { getStartOfWeek, toYMD } from "./agenda/agenda-date-utils";
@@ -55,7 +57,9 @@ export default async function AdminDashboard({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold sm:text-2xl">Visão Geral</h1>
-          <p className="text-sm text-muted-foreground">Indicadores e operação da clínica</p>
+          <p className="text-sm text-muted-foreground">
+            Agora prioriza decisões — o Workspace executa
+          </p>
         </div>
         {planData && planData.limits.audit_log_enabled && (
           <Link
@@ -67,6 +71,8 @@ export default async function AdminDashboard({
         )}
       </div>
 
+      <SetupChecklist clinicId={clinicId} />
+      <AgoraStrip clinicId={clinicId} />
       <AdminTodayStrip clinicId={clinicId} />
 
       <FinanceAlertsPanelServer />

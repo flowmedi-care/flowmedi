@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SecretariaDashboardClient } from "./secretaria-dashboard-client";
 import { FinanceAlertsPanelServer } from "./financeiro/finance-alerts-panel-server";
+import { AgoraStrip } from "./agora-strip";
 import { getDashboardPreferences } from "./preferences/actions";
 import { getPipeline, syncNonRegisteredToPipeline } from "./pipeline/actions";
 
@@ -290,6 +291,7 @@ export async function SecretariaDashboard({ profile }: { profile: any }) {
 
   return (
     <div className="space-y-6">
+      <AgoraStrip clinicId={clinicId} />
       <FinanceAlertsPanelServer />
       <SecretariaDashboardClient
       complianceAppointments={complianceAppointments}

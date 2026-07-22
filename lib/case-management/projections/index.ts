@@ -9,6 +9,8 @@ export type PipelineCard = {
   phaseCode: string;
   openTaskCount: number;
   quoteBadge?: string | null;
+  ownerLabel?: string | null;
+  nextActionLabel?: string | null;
 };
 
 export type CaseEnrichment = {
@@ -17,6 +19,8 @@ export type CaseEnrichment = {
   appointmentId?: string | null;
   quoteBadge?: string | null;
   openTaskCount?: number;
+  ownerLabel?: string | null;
+  nextActionLabel?: string | null;
 };
 
 export type AttendanceCard = {
@@ -62,6 +66,12 @@ function toCard(
     phaseCode: phase?.code ?? c.phase ?? "",
     openTaskCount: enrichment?.openTaskCount ?? 0,
     quoteBadge: enrichment?.quoteBadge ?? null,
+    ownerLabel: enrichment?.ownerLabel ?? null,
+    nextActionLabel:
+      enrichment?.nextActionLabel ??
+      c.pending_decision?.label ??
+      c.pending_decision?.type ??
+      null,
   };
 }
 

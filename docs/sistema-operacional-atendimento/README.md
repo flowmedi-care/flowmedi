@@ -1,10 +1,13 @@
 # Sistema Operacional de Atendimento — Auditoria Operacional
 
-**Produto:** a clínica opera todo o atendimento em um único lugar, independente de quem respondeu (IA ou humano).
+> **Referência atual:** [`CONSTITUICAO-FLOWMEDI.md`](../CONSTITUICAO-FLOWMEDI.md) · [`ARQUITETURA-OPERACIONAL.md`](../ARQUITETURA-OPERACIONAL.md) · [`ROADMAP-OPERACIONAL.md`](../ROADMAP-OPERACIONAL.md)  
+> Os documentos desta pasta são a **auditoria histórica** que originou a Constituição.
+
+**Produto:** reduzir a carga cognitiva da clínica organizando decisões (Atendimento + Pendências + Workspace).
 
 **Não é:** “tem uma IA que conversa no WhatsApp”.
 
-WhatsApp, CRM e agenda são **interfaces**. IA e humano são **atores**. Tudo deve manipular a mesma entidade: o **Atendimento (Case)**.
+WhatsApp (Conversa), CRM e agenda são **interfaces**. IA e humano são **atores**. Tudo deve manipular a mesma entidade: o **Atendimento**.
 
 ---
 

@@ -71,6 +71,8 @@ export type OperationsSnapshot = {
   operatorNotes: string | null;
   brief: string | null;
   pipelineId: string | null;
+  /** Atendimento (Case) vinculado — Princípio Zero / Leis 3 e 6 */
+  journeyCaseId: string | null;
   sla: OperationsSla;
   ownershipHistory: OwnershipHistoryEntry[];
   /** Pode o usuário atual digitar no composer? */

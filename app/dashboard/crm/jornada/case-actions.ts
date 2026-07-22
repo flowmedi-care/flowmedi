@@ -16,7 +16,9 @@ import {
   listEventsForCase,
   listPublishedWorkflows,
   listTasksForCase,
+  ownerLabel,
   publishDomainEvent,
+  resolveNextAction,
   type AttendanceCard,
   type BoardView,
   type CaseEnrichment,
@@ -98,6 +100,24 @@ async function buildEnrichment(
     expirado: "Orçamento expirado",
   };
 
+  const humanOwnerIds = [
+    ...new Set(
+      cases
+        .filter((c) => c.owner_type === "human" && c.owner_id)
+        .map((c) => c.owner_id as string)
+    ),
+  ];
+  const ownerNameMap = new Map<string, string>();
+  if (humanOwnerIds.length) {
+    const { data: owners } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", humanOwnerIds);
+    for (const o of owners ?? []) {
+      if (o.full_name) ownerNameMap.set(o.id, o.full_name);
+    }
+  }
+
   const out: Record<string, CaseEnrichment> = {};
   for (const c of cases) {
     const name =
@@ -106,10 +126,17 @@ async function buildEnrichment(
       c.contact_id;
     const qStatus = c.lead_id ? quoteByLead.get(c.lead_id) : null;
     const openTaskCount = await countOpenTasks(supabase, c.id);
+    const humanName =
+      c.owner_type === "human" && c.owner_id
+        ? ownerNameMap.get(c.owner_id) ?? null
+        : null;
+    const next = resolveNextAction(c);
     out[c.id] = {
       displayName: name,
       quoteBadge: qStatus ? quoteLabels[qStatus] ?? qStatus : null,
       openTaskCount,
+      ownerLabel: ownerLabel(c, humanName),
+      nextActionLabel: next?.label ?? null,
     };
   }
   return out;
@@ -268,10 +295,29 @@ export async function getCaseWorkspace(caseId: string): Promise<{
     }
   }
 
+  let ownerHumanName: string | null = null;
+  if (journeyCase.owner_type === "human" && journeyCase.owner_id) {
+    const { data: ownerProfile } = await ctx.supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", journeyCase.owner_id)
+      .maybeSingle();
+    ownerHumanName = ownerProfile?.full_name ?? null;
+  }
+
+  const { data: linkedConv } = await ctx.supabase
+    .from("whatsapp_conversations")
+    .select("id")
+    .eq("clinic_id", ctx.profile.clinic_id)
+    .eq("journey_case_id", caseId)
+    .maybeSingle();
+
   const ws = await buildWorkspaceContext(ctx.supabase, caseId, {
     displayName,
     nextAppointmentLabel,
     quoteBadge,
+    ownerHumanName,
+    conversationId: linkedConv?.id ? String(linkedConv.id) : null,
   });
   if (!ws) return { data: null, error: "Falha ao montar workspace." };
 
@@ -287,6 +333,34 @@ export async function getCaseWorkspace(caseId: string): Promise<{
       primaryPanels: ws.primaryPanels,
       priorityActions: ws.priorityActions,
     },
+  };
+}
+
+/** Resolve Atendimento por telefone (Princípio Zero: CasePanel → Workspace). */
+export async function findCaseIdByPhone(
+  phoneDigits: string
+): Promise<{ caseId: string | null; error: string | null }> {
+  const ctx = await requireClinic();
+  if (ctx.error || !ctx.profile) return { caseId: null, error: ctx.error ?? "Erro" };
+
+  const digits = phoneDigits.replace(/\D/g, "");
+  if (!digits) return { caseId: null, error: null };
+
+  const { data: conv } = await ctx.supabase
+    .from("whatsapp_conversations")
+    .select("journey_case_id, phone_number")
+    .eq("clinic_id", ctx.profile.clinic_id)
+    .not("journey_case_id", "is", null)
+    .limit(200);
+
+  const match = (conv ?? []).find((c) => {
+    const p = String(c.phone_number ?? "").replace(/\D/g, "");
+    return p.endsWith(digits) || digits.endsWith(p);
+  });
+
+  return {
+    caseId: match?.journey_case_id ? String(match.journey_case_id) : null,
+    error: null,
   };
 }
 

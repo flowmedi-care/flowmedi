@@ -19,7 +19,7 @@ export default async function OnboardingMfaPage() {
         <CheckCircle2 className="h-12 w-12 text-primary mx-auto" />
         <p className="text-foreground font-medium">MFA já está configurado.</p>
         <a href="/dashboard" className="text-primary text-sm underline-offset-2 hover:underline">
-          Continuar para o painel
+          Continuar — ver primeiros passos e pendências
         </a>
       </div>
     );

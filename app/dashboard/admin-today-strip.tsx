@@ -56,9 +56,15 @@ export async function AdminTodayStrip({ clinicId }: { clinicId: string }) {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="soft" size="sm" asChild>
+              <Link href="/dashboard/crm/jornada?view=pendencias">
+                <List className="h-4 w-4" />
+                Pendências
+              </Link>
+            </Button>
+            <Button variant="soft" size="sm" asChild>
               <Link href="/dashboard/atendimento">
                 <CalendarClock className="h-4 w-4" />
-                Fila operacional
+                Fila do dia
               </Link>
             </Button>
             <Button variant="soft" size="sm" asChild>
@@ -70,7 +76,7 @@ export async function AdminTodayStrip({ clinicId }: { clinicId: string }) {
             <Button variant="outline" size="sm" asChild>
               <Link href="/dashboard/consulta?preset=operacional">
                 <List className="h-4 w-4" />
-                Lista operacional
+                Lista de consultas
               </Link>
             </Button>
           </div>

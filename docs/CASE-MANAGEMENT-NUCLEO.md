@@ -1,5 +1,10 @@
 # Case Management — Ops de atendimento (esqueleto + física)
 
+> **Documentação canônica:**  
+> Princípios → [`CONSTITUICAO-FLOWMEDI.md`](./CONSTITUICAO-FLOWMEDI.md)  
+> Arquitetura → [`ARQUITETURA-OPERACIONAL.md`](./ARQUITETURA-OPERACIONAL.md)  
+> Roadmap → [`ROADMAP-OPERACIONAL.md`](./ROADMAP-OPERACIONAL.md)
+
 ## Pipeline canônico
 
 ```text

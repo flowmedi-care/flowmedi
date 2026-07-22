@@ -12,10 +12,25 @@ import {
 } from "@/app/dashboard/crm/jornada/case-actions";
 import { cn } from "@/lib/utils";
 
+function formatDue(dueAt: string | null): string | null {
+  if (!dueAt) return null;
+  try {
+    return new Date(dueAt).toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return dueAt;
+  }
+}
+
 export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const { header, case: journeyCase, tasks, timeline, primaryPanels } = data;
+  const nextAction = header.nextAction;
 
   function refresh() {
     router.refresh();
@@ -50,7 +65,7 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              {header.processTypeName} · {header.workflowName}
+              Atendimento · {header.processTypeName} · {header.workflowName}
             </p>
             <h1 className="text-xl font-semibold">{header.displayName}</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -59,28 +74,37 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Badge>{header.ownerLabel}</Badge>
+            <Badge title="Responsável atual">{header.ownerLabel}</Badge>
             {header.quoteBadge && <Badge variant="secondary">{header.quoteBadge}</Badge>}
-            {header.pendingDecision && (
-              <Badge variant="outline">
-                Decide: {header.pendingDecision.waiting_for}
-                {header.pendingDecision.label
-                  ? ` — ${header.pendingDecision.label}`
-                  : ` (${header.pendingDecision.type})`}
-              </Badge>
-            )}
             {header.openTasksCount > 0 && (
               <Badge variant="secondary">{header.openTasksCount} tasks</Badge>
             )}
           </div>
         </div>
 
+        {nextAction && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 space-y-1">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Próxima ação
+            </p>
+            <p className="text-sm font-medium">{nextAction.label}</p>
+            <p className="text-xs text-muted-foreground">
+              {[
+                nextAction.waitingFor ? `Aguarda: ${nextAction.waitingFor}` : null,
+                formatDue(nextAction.dueAt) ? `Até ${formatDue(nextAction.dueAt)}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Decisão do atendimento"}
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-3 py-2">
           <span className={cn("text-sm font-medium", financeColor)}>
             Financeiro · {header.finance.label}
           </span>
           <Button size="sm" variant="outline" asChild>
-            <Link href={header.finance.href}>Abrir módulo</Link>
+            <Link href={header.finance.href}>Abrir financeiro</Link>
           </Button>
         </div>
 
@@ -93,9 +117,26 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
+        {primaryPanels.includes("next_action") && nextAction && (
+          <section className="rounded-xl border bg-card p-4 lg:col-span-2">
+            <h2 className="mb-2 text-sm font-semibold">Executar próxima ação</h2>
+            <p className="text-sm mb-3">{nextAction.label}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" asChild>
+                <Link href={header.conversationHref ?? "/dashboard/whatsapp"}>
+                  Abrir conversa
+                </Link>
+              </Button>
+              <Button size="sm" variant="outline" asChild>
+                <Link href="/dashboard/agenda">Abrir agenda</Link>
+              </Button>
+            </div>
+          </section>
+        )}
+
         {primaryPanels.includes("tasks") && (
           <section className="rounded-xl border bg-card p-4">
-            <h2 className="mb-3 text-sm font-semibold">Tasks</h2>
+            <h2 className="mb-3 text-sm font-semibold">Pendências do atendimento</h2>
             <ul className="space-y-2">
               {tasks.map((t) => (
                 <li key={t.id} className="flex items-start gap-2 text-sm">
@@ -112,11 +153,16 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
                     )}
                   >
                     {t.title}
+                    {t.due_at ? (
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        · {formatDue(t.due_at)}
+                      </span>
+                    ) : null}
                   </span>
                 </li>
               ))}
               {tasks.length === 0 && (
-                <li className="text-sm text-muted-foreground">Nenhuma task.</li>
+                <li className="text-sm text-muted-foreground">Nenhuma pendência.</li>
               )}
             </ul>
           </section>
@@ -143,9 +189,14 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
 
         {primaryPanels.includes("chat") && (
           <section className="rounded-xl border bg-card p-4">
-            <h2 className="mb-3 text-sm font-semibold">Chat</h2>
+            <h2 className="mb-3 text-sm font-semibold">Conversa</h2>
+            <p className="text-xs text-muted-foreground mb-3">
+              Contexto humano do atendimento — a decisão permanece neste Workspace.
+            </p>
             <Button size="sm" variant="outline" asChild>
-              <Link href="/dashboard/whatsapp">Abrir WhatsApp</Link>
+              <Link href={header.conversationHref ?? "/dashboard/whatsapp"}>
+                Abrir conversa
+              </Link>
             </Button>
           </section>
         )}
@@ -153,8 +204,15 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
         {primaryPanels.includes("agenda") && (
           <section className="rounded-xl border bg-card p-4">
             <h2 className="mb-3 text-sm font-semibold">Agenda</h2>
+            {header.nextAppointmentLabel ? (
+              <p className="text-sm mb-3">{header.nextAppointmentLabel}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground mb-3">
+                Nenhuma consulta futura vinculada.
+              </p>
+            )}
             <Button size="sm" variant="outline" asChild>
-              <Link href="/dashboard/agenda">Abrir Agenda</Link>
+              <Link href="/dashboard/agenda">Abrir agenda</Link>
             </Button>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
@@ -177,15 +235,27 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
           </section>
         )}
 
+        {primaryPanels.includes("financeiro") && (
+          <section className="rounded-xl border bg-card p-4">
+            <h2 className="mb-3 text-sm font-semibold">Financeiro</h2>
+            <p className={cn("text-sm font-medium mb-3", financeColor)}>
+              {header.finance.label}
+            </p>
+            <Button size="sm" variant="outline" asChild>
+              <Link href={header.finance.href}>Abrir contas a receber</Link>
+            </Button>
+          </section>
+        )}
+
         {primaryPanels.includes("lead") && (
           <section className="rounded-xl border bg-card p-4">
-            <h2 className="mb-3 text-sm font-semibold">Lead</h2>
+            <h2 className="mb-3 text-sm font-semibold">Comercial</h2>
             <Button
               size="sm"
               disabled={pending}
               onClick={() => publish("Lead.Qualified")}
             >
-              Qualificar (Lead.Qualified)
+              Qualificar contato
             </Button>
           </section>
         )}
