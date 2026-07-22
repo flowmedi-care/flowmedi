@@ -3,13 +3,14 @@
  * Junta Cases + next_decision + appointments + leads para o Dashboard Hoje.
  */
 
-import type { DecisionDecider, NextDecision } from "@/lib/case-management/next-decision";
+import type { DecisionActor, NextDecision } from "@/lib/case-management/next-decision";
+import type { CaseProductContext } from "@/lib/case-management/case-product";
 
-/** Fatias de panorama (linguagem da secretária) */
+/** Lentes de operação (v7) */
 export type OpsPanoramaSlice =
-  | "contatos"
-  | "agendamentos"
-  | "consultas"
+  | "pessoas"
+  | "agenda"
+  | "atendimentos"
   | "pacientes";
 
 export type JourneyTypeCode =
@@ -23,15 +24,16 @@ export type JourneyTypeCode =
 
 /** Stage dentro do board pequeno (não mega-funil único) */
 export type OpsBoardStage =
-  // Contatos (leads / início)
+  // Pessoas (relacionamentos / início)
   | "contato_novo"
   | "qualificacao"
   | "qualificado"
+  | "cliente"
   | "perdido"
-  // Agendamentos
+  // Agenda
   | "agendar"
   | "reagendar"
-  // Consultas
+  // Atendimentos
   | "confirmar"
   | "hoje"
   | "em_atendimento"
@@ -48,16 +50,23 @@ export type CaseProjectionItem = {
   displayName: string;
   patientId: string | null;
   leadId: string | null;
+  /** journey code (produto) */
+  journey: string;
   journeyType: JourneyTypeCode;
+  /** stage code (produto) — prefer boardStage when set */
+  stage: string;
   phaseCode: string | null;
   boardStage: OpsBoardStage | null;
   panoramaSlice: OpsPanoramaSlice | null;
+  context: CaseProductContext;
   nextDecision: NextDecision | null;
-  decider: DecisionDecider;
+  /** @deprecated use nextDecision.actor */
+  decider: DecisionActor;
   ownerType: string;
   appointmentId: string | null;
   appointmentStatus: string | null;
   scheduledAt: string | null;
+  conversationId: string | null;
   href: string;
 };
 
@@ -78,9 +87,15 @@ export type WorkToday = {
 };
 
 export type PanoramaCounts = {
-  contatos: { novo: number; qualificacao: number; qualificado: number; perdido: number };
-  agendamentos: { agendar: number; reagendar: number };
-  consultas: {
+  pessoas: {
+    novo: number;
+    qualificacao: number;
+    qualificado: number;
+    cliente: number;
+    perdido: number;
+  };
+  agenda: { agendar: number; reagendar: number };
+  atendimentos: {
     confirmar: number;
     hoje: number;
     em_atendimento: number;
@@ -94,14 +109,19 @@ export type OperationalProjection = {
   workToday: WorkToday;
   panorama: PanoramaCounts;
   items: CaseProjectionItem[];
-  /** Pendências pessoa-first */
+  /** Atenção: precisa da sua decisão (actor human / urgente) */
+  atencao: CaseProjectionItem[];
+  /** Caixa de entrada: eventos novos / aguardando outro ator */
+  caixaEntrada: CaseProjectionItem[];
+  /** @deprecated use atencao — alias de todas as pendências com nextDecision */
   pendencias: CaseProjectionItem[];
 };
 
 export const BOARD_STAGE_LABELS: Record<OpsBoardStage, string> = {
   contato_novo: "Novo",
-  qualificacao: "Qualificação",
-  qualificado: "Qualificado",
+  qualificacao: "Em conversa",
+  qualificado: "Oportunidade",
+  cliente: "Cliente",
   perdido: "Perdido",
   agendar: "Agendar",
   reagendar: "Reagendar",
@@ -117,8 +137,8 @@ export const BOARD_STAGE_LABELS: Record<OpsBoardStage, string> = {
 };
 
 export const PANORAMA_SLICE_LABELS: Record<OpsPanoramaSlice, string> = {
-  contatos: "Contatos",
-  agendamentos: "Agendamentos",
-  consultas: "Consultas",
+  pessoas: "Pessoas",
+  agenda: "Agenda",
+  atendimentos: "Atendimentos",
   pacientes: "Pacientes",
 };

@@ -1,6 +1,6 @@
 /**
  * Contrato de deep link do Hoje — estado navegável, não só UI.
- * /dashboard/hoje?area=consultas&stage=confirmar&case=uuid
+ * /dashboard/hoje?area=atendimentos&stage=confirmar&case=uuid
  */
 
 import type { OpsBoardStage, OpsPanoramaSlice } from "./types";
@@ -11,13 +11,29 @@ export type HojeActionContext = {
   area?: HojeArea | null;
   stage?: OpsBoardStage | string | null;
   caseId?: string | null;
-  focus?: "pendencias" | null;
+  focus?: "pendencias" | "inbox" | "atencao" | null;
 };
 
-const AREAS: HojeArea[] = ["contatos", "agendamentos", "consultas", "pacientes"];
+const AREAS: HojeArea[] = ["pessoas", "agenda", "atendimentos", "pacientes"];
+
+/** Aliases v6 → v7 (deep links antigos) */
+const AREA_ALIASES: Record<string, HojeArea> = {
+  contatos: "pessoas",
+  agendamentos: "agenda",
+  consultas: "atendimentos",
+  pessoas: "pessoas",
+  agenda: "agenda",
+  atendimentos: "atendimentos",
+  pacientes: "pacientes",
+};
 
 export function isHojeArea(v: string | null | undefined): v is HojeArea {
   return !!v && (AREAS as string[]).includes(v);
+}
+
+export function normalizeHojeArea(v: string | null | undefined): HojeArea | null {
+  if (!v) return null;
+  return AREA_ALIASES[v] ?? (isHojeArea(v) ? v : null);
 }
 
 export function buildHojeHref(ctx: HojeActionContext = {}): string {
@@ -37,11 +53,15 @@ export function parseHojeSearchParams(sp: {
   caseId?: string;
   focus?: string;
 }): HojeActionContext {
+  const focus =
+    sp.focus === "pendencias" || sp.focus === "inbox" || sp.focus === "atencao"
+      ? sp.focus
+      : null;
   return {
-    area: isHojeArea(sp.area) ? sp.area : null,
+    area: normalizeHojeArea(sp.area),
     stage: sp.stage ?? null,
     caseId: sp.case ?? sp.caseId ?? null,
-    focus: sp.focus === "pendencias" ? "pendencias" : null,
+    focus,
   };
 }
 
@@ -51,30 +71,33 @@ export function actionToHojeContext(
   caseId?: string | null
 ): HojeActionContext {
   const map: Record<string, { area: HojeArea; stage: OpsBoardStage }> = {
-    confirm_slot: { area: "consultas", stage: "confirmar" },
-    confirm_appointment: { area: "consultas", stage: "confirmar" },
-    reschedule: { area: "agendamentos", stage: "reagendar" },
-    advance_commercial: { area: "agendamentos", stage: "agendar" },
-    qualify_lead: { area: "contatos", stage: "qualificacao" },
-    call_again: { area: "contatos", stage: "qualificacao" },
+    confirm_slot: { area: "atendimentos", stage: "confirmar" },
+    confirm_appointment: { area: "atendimentos", stage: "confirmar" },
+    reschedule: { area: "agenda", stage: "reagendar" },
+    advance_commercial: { area: "agenda", stage: "agendar" },
+    qualify_lead: { area: "pessoas", stage: "qualificacao" },
+    call_again: { area: "pessoas", stage: "qualificacao" },
     post_consult: { area: "pacientes", stage: "pos_consulta" },
-    send_reminder: { area: "consultas", stage: "confirmar" },
-    handoff: { area: "contatos", stage: "qualificacao" },
+    send_reminder: { area: "atendimentos", stage: "confirmar" },
+    handoff: { area: "pessoas", stage: "qualificacao" },
   };
-  const hit = map[action] ?? { area: "consultas" as HojeArea, stage: "confirmar" as OpsBoardStage };
+  const hit = map[action] ?? {
+    area: "atendimentos" as HojeArea,
+    stage: "confirmar" as OpsBoardStage,
+  };
   return { ...hit, caseId: caseId ?? null };
 }
 
 export const AREA_COLUMNS: Record<HojeArea, OpsBoardStage[]> = {
-  contatos: ["contato_novo", "qualificacao", "qualificado", "perdido"],
-  agendamentos: ["agendar", "reagendar"],
-  consultas: ["confirmar", "hoje", "em_atendimento", "realizada", "falta"],
+  pessoas: ["contato_novo", "qualificacao", "qualificado", "cliente", "perdido"],
+  agenda: ["agendar", "reagendar"],
+  atendimentos: ["confirmar", "hoje", "em_atendimento", "realizada", "falta"],
   pacientes: ["pos_consulta", "tratamento", "retorno", "reativacao"],
 };
 
 export const AREA_HINTS: Record<HojeArea, string> = {
-  contatos: "Pessoas sem jornada definida",
-  agendamentos: "Marcar e remarcar",
-  consultas: "Confirmar e acompanhar o dia",
+  pessoas: "Novo · Em conversa · Oportunidade · Cliente · Perdido",
+  agenda: "Marcar e remarcar",
+  atendimentos: "Confirmar e acompanhar o dia",
   pacientes: "Pós, tratamentos, retornos e reativações",
 };

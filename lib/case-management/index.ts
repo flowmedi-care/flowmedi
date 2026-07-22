@@ -21,6 +21,12 @@ export {
 } from "./next-decision";
 export type { NextDecision, DecisionDecider, DecisionActor } from "./next-decision";
 export {
+  toCaseProductView,
+  caseOwnerLabel,
+  caseConductorVsDecider,
+} from "./case-product";
+export type { CaseProductView, CaseProductContext } from "./case-product";
+export {
   publishDomainEvent,
   publishBusinessOutcome,
 } from "./bus";

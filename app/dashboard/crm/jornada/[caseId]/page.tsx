@@ -4,7 +4,7 @@ import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { CaseWorkspaceClient } from "@/components/crm/case-workspace-client";
 import { getCaseWorkspace } from "../case-actions";
-import { buildHojeHref } from "@/lib/operational-journey";
+import { buildHojeHref, normalizeHojeArea } from "@/lib/operational-journey";
 import { ArrowLeft } from "lucide-react";
 
 type Props = {
@@ -21,7 +21,7 @@ export default async function CaseWorkspacePage({ params, searchParams }: Props)
   }
 
   const backHref = buildHojeHref({
-    area: sp.area as "contatos" | "agendamentos" | "consultas" | "pacientes" | undefined,
+    area: normalizeHojeArea(sp.area) ?? undefined,
     caseId: sp.from === "hoje" ? caseId : null,
   });
 
@@ -54,7 +54,7 @@ export default async function CaseWorkspacePage({ params, searchParams }: Props)
           { label: data.header.displayName },
         ],
         title: data.header.displayName,
-        description: "Quem precisa decidir agora?",
+        description: "Quem conduz · quem decide · por quê",
       }}
       toolbar={
         <Button variant="outline" size="sm" asChild>

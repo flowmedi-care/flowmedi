@@ -59,9 +59,9 @@ function phaseToBoardStage(
   nextAction: string | null,
   now: Date
 ): { stage: OpsBoardStage | null; slice: OpsPanoramaSlice | null } {
-  // Appointment-driven (Consultas)
+  // Appointment-driven (Atendimentos)
   if (apptStatus === "falta") {
-    return { stage: "falta", slice: "consultas" };
+    return { stage: "falta", slice: "atendimentos" };
   }
   if (apptStatus === "realizada") {
     if (journeyType === "tratamento") return { stage: "tratamento", slice: "pacientes" };
@@ -70,13 +70,13 @@ function phaseToBoardStage(
     return { stage: "pos_consulta", slice: "pacientes" };
   }
   if (apptStatus === "em_atendimento" || apptStatus === "em atendimento") {
-    return { stage: "em_atendimento", slice: "consultas" };
+    return { stage: "em_atendimento", slice: "atendimentos" };
   }
   if (apptStatus === "confirmada" || apptStatus === "agendada") {
     if (scheduledAt) {
       const s = new Date(scheduledAt);
       if (s >= startOfDay(now) && s <= endOfDay(now)) {
-        return { stage: "hoje", slice: "consultas" };
+        return { stage: "hoje", slice: "atendimentos" };
       }
     }
     if (
@@ -84,9 +84,9 @@ function phaseToBoardStage(
       nextAction === "confirm_slot" ||
       nextAction === "confirm_appointment"
     ) {
-      return { stage: "confirmar", slice: "consultas" };
+      return { stage: "confirmar", slice: "atendimentos" };
     }
-    return { stage: "hoje", slice: "consultas" };
+    return { stage: "hoje", slice: "atendimentos" };
   }
 
   // Jornadas tipadas (Pacientes) — antes de fases comerciais genéricas
@@ -101,25 +101,31 @@ function phaseToBoardStage(
   }
 
   if (nextAction === "reschedule") {
-    return { stage: "reagendar", slice: "agendamentos" };
+    return { stage: "reagendar", slice: "agenda" };
   }
   if (
     nextAction === "advance_commercial" ||
     phaseCode === "comercial" ||
     phaseCode === "agendamento"
   ) {
-    return { stage: "agendar", slice: "agendamentos" };
+    return { stage: "agendar", slice: "agenda" };
   }
 
-  if (phaseCode === "perdido") return { stage: "perdido", slice: "contatos" };
+  if (phaseCode === "perdido") return { stage: "perdido", slice: "pessoas" };
+  if (phaseCode === "alta" || phaseCode === "fechado" || phaseCode === "cliente") {
+    return { stage: "cliente", slice: "pessoas" };
+  }
   if (phaseCode === "pos") return { stage: "pos_consulta", slice: "pacientes" };
-  if (phaseCode === "consulta") return { stage: "confirmar", slice: "consultas" };
+  if (phaseCode === "consulta") return { stage: "confirmar", slice: "atendimentos" };
   if (phaseCode === "captacao" || phaseCode === "cadastro") {
-    return { stage: "contato_novo", slice: "contatos" };
+    return { stage: "contato_novo", slice: "pessoas" };
+  }
+  if (phaseCode === "qualificado" || phaseCode === "orcamento") {
+    return { stage: "qualificado", slice: "pessoas" };
   }
 
   if (journeyType === "primeira_consulta" || journeyType === "unknown") {
-    return { stage: "qualificacao", slice: "contatos" };
+    return { stage: "qualificacao", slice: "pessoas" };
   }
 
   return { stage: null, slice: null };
@@ -127,9 +133,9 @@ function phaseToBoardStage(
 
 function emptyPanorama(): PanoramaCounts {
   return {
-    contatos: { novo: 0, qualificacao: 0, qualificado: 0, perdido: 0 },
-    agendamentos: { agendar: 0, reagendar: 0 },
-    consultas: { confirmar: 0, hoje: 0, em_atendimento: 0, realizada: 0, falta: 0 },
+    pessoas: { novo: 0, qualificacao: 0, qualificado: 0, cliente: 0, perdido: 0 },
+    agenda: { agendar: 0, reagendar: 0 },
+    atendimentos: { confirmar: 0, hoje: 0, em_atendimento: 0, realizada: 0, falta: 0 },
     pacientes: { pos_consulta: 0, tratamento: 0, retorno: 0, reativacao: 0 },
   };
 }
@@ -138,37 +144,40 @@ function bumpPanorama(p: PanoramaCounts, stage: OpsBoardStage | null) {
   if (!stage) return;
   switch (stage) {
     case "contato_novo":
-      p.contatos.novo += 1;
+      p.pessoas.novo += 1;
       break;
     case "qualificacao":
-      p.contatos.qualificacao += 1;
+      p.pessoas.qualificacao += 1;
       break;
     case "qualificado":
-      p.contatos.qualificado += 1;
+      p.pessoas.qualificado += 1;
+      break;
+    case "cliente":
+      p.pessoas.cliente += 1;
       break;
     case "perdido":
-      p.contatos.perdido += 1;
+      p.pessoas.perdido += 1;
       break;
     case "agendar":
-      p.agendamentos.agendar += 1;
+      p.agenda.agendar += 1;
       break;
     case "reagendar":
-      p.agendamentos.reagendar += 1;
+      p.agenda.reagendar += 1;
       break;
     case "confirmar":
-      p.consultas.confirmar += 1;
+      p.atendimentos.confirmar += 1;
       break;
     case "hoje":
-      p.consultas.hoje += 1;
+      p.atendimentos.hoje += 1;
       break;
     case "em_atendimento":
-      p.consultas.em_atendimento += 1;
+      p.atendimentos.em_atendimento += 1;
       break;
     case "realizada":
-      p.consultas.realizada += 1;
+      p.atendimentos.realizada += 1;
       break;
     case "falta":
-      p.consultas.falta += 1;
+      p.atendimentos.falta += 1;
       break;
     case "pos_consulta":
       p.pacientes.pos_consulta += 1;
@@ -267,22 +276,32 @@ export function buildOperationalProjection(input: {
     }
 
     const actor: DecisionActor = next?.actor ?? ownerTypeToActor(c.owner_type);
+    const stageCode = stage ?? phaseCode ?? "unknown";
+    const journeyCode = journeyType === "unknown" ? processCode || "unknown" : journeyType;
 
     const item: CaseProjectionItem = {
       caseId: c.id,
       displayName,
       patientId: c.patient_id,
       leadId: c.lead_id,
+      journey: String(journeyCode).toLowerCase(),
       journeyType,
+      stage: String(stageCode).toLowerCase(),
       phaseCode,
       boardStage: stage,
       panoramaSlice: slice,
+      context: {
+        patientId: c.patient_id,
+        appointmentId: appt?.id ?? null,
+        conversationId: null,
+      },
       nextDecision: next,
       decider: actor,
       ownerType: c.owner_type,
       appointmentId: appt?.id ?? null,
       appointmentStatus: appt?.status ?? null,
       scheduledAt: appt?.scheduled_at ?? null,
+      conversationId: null,
       href: `/dashboard/crm/jornada/${c.id}`,
     };
     items.push(item);
@@ -315,7 +334,7 @@ export function buildOperationalProjection(input: {
     }
   }
 
-  // Also count appointments without open cases for consultas hoje / falta etc.
+  // Also count appointments without open cases for atendimentos hoje / falta etc.
   for (const a of input.appointments) {
     const t = new Date(a.scheduled_at).getTime();
     const linked = a.patient_id
@@ -324,15 +343,15 @@ export function buildOperationalProjection(input: {
     if (linked) continue;
     if (a.status === "agendada" || a.status === "confirmada") {
       if (t >= dayStart && t <= dayEnd) {
-        panorama.consultas.hoje += 1;
+        panorama.atendimentos.hoje += 1;
         consultationsTodayCount += 1;
       } else if (a.status === "agendada") {
-        panorama.consultas.confirmar += 1;
+        panorama.atendimentos.confirmar += 1;
       }
     } else if (a.status === "falta") {
-      panorama.consultas.falta += 1;
+      panorama.atendimentos.falta += 1;
     } else if (a.status === "realizada") {
-      panorama.consultas.realizada += 1;
+      panorama.atendimentos.realizada += 1;
     }
   }
 
@@ -355,7 +374,26 @@ export function buildOperationalProjection(input: {
       return a.displayName.localeCompare(b.displayName, "pt-BR");
     });
 
-  return { workToday, panorama, items, pendencias };
+  // Atenção = sistema priorizou (sua decisão: actor human ou urgente)
+  const atencao = pendencias.filter(
+    (i) => i.nextDecision?.actor === "human" || i.nextDecision?.urgent
+  );
+
+  // Caixa de entrada = aguardando outro ator / eventos ainda não "faça agora"
+  const atencaoIds = new Set(atencao.map((i) => i.caseId));
+  const caixaEntrada = pendencias
+    .filter((i) => !atencaoIds.has(i.caseId))
+    .concat(
+      items.filter(
+        (i) =>
+          i.nextDecision == null &&
+          (i.panoramaSlice === "pessoas" || i.boardStage === "contato_novo")
+      )
+    )
+    .filter((i, idx, arr) => arr.findIndex((x) => x.caseId === i.caseId) === idx)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR"));
+
+  return { workToday, panorama, items, atencao, caixaEntrada, pendencias };
 }
 
 export async function loadOperationalProjection(
@@ -464,12 +502,12 @@ export async function loadOperationalProjection(
     processTypeIds.length
       ? db.from("process_types").select("id, code").in("id", processTypeIds)
       : Promise.resolve({ data: [] as { id: string; code: string }[] }),
-    // Lead lifecycle for Contatos panorama (sem Case ainda)
+    // Lead lifecycle for Pessoas panorama (sem Case ainda)
     db
       .from("non_registered_pipeline")
       .select("id, lifecycle_stage, name")
       .eq("clinic_id", clinicId)
-      .in("lifecycle_stage", ["lead_novo", "em_qualificacao", "qualificado", "perdido"])
+      .in("lifecycle_stage", ["lead_novo", "em_qualificacao", "qualificado", "cliente", "perdido"])
       .limit(300),
   ]);
 
@@ -497,15 +535,16 @@ export async function loadOperationalProjection(
     now,
   });
 
-  // Merge lead-only contatos into panorama (leads sem case aberto)
+  // Merge lead-only pessoas into panorama (leads sem case aberto)
   const caseLeadIds = new Set(cases.map((c) => c.lead_id).filter(Boolean));
   for (const lead of pipelineRes.data ?? []) {
     if (caseLeadIds.has(String(lead.id))) continue;
     const stage = String(lead.lifecycle_stage);
-    if (stage === "lead_novo") projection.panorama.contatos.novo += 1;
-    else if (stage === "em_qualificacao") projection.panorama.contatos.qualificacao += 1;
-    else if (stage === "qualificado") projection.panorama.contatos.qualificado += 1;
-    else if (stage === "perdido") projection.panorama.contatos.perdido += 1;
+    if (stage === "lead_novo") projection.panorama.pessoas.novo += 1;
+    else if (stage === "em_qualificacao") projection.panorama.pessoas.qualificacao += 1;
+    else if (stage === "qualificado") projection.panorama.pessoas.qualificado += 1;
+    else if (stage === "cliente") projection.panorama.pessoas.cliente += 1;
+    else if (stage === "perdido") projection.panorama.pessoas.perdido += 1;
   }
 
   return projection;

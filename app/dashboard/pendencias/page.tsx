@@ -6,5 +6,5 @@ type Props = {
 
 export default async function PendenciasRedirect({ searchParams }: Props) {
   await searchParams;
-  redirect("/dashboard/hoje?focus=pendencias");
+  redirect("/dashboard/hoje?focus=atencao");
 }

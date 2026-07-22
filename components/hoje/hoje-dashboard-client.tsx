@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -8,7 +7,6 @@ import type {
   CaseProjectionItem,
   OperationalProjection,
   OpsBoardStage,
-  OpsPanoramaSlice,
   PanoramaCounts,
 } from "@/lib/operational-journey";
 import {
@@ -47,13 +45,13 @@ function formatWhen(iso: string | null | undefined): string | null {
 }
 
 function areaTotal(area: HojeArea, p: PanoramaCounts): number {
-  if (area === "contatos") {
-    const c = p.contatos;
-    return c.novo + c.qualificacao + c.qualificado + c.perdido;
+  if (area === "pessoas") {
+    const c = p.pessoas;
+    return c.novo + c.qualificacao + c.qualificado + c.cliente + c.perdido;
   }
-  if (area === "agendamentos") return p.agendamentos.agendar + p.agendamentos.reagendar;
-  if (area === "consultas") {
-    const c = p.consultas;
+  if (area === "agenda") return p.agenda.agendar + p.agenda.reagendar;
+  if (area === "atendimentos") {
+    const c = p.atendimentos;
     return c.confirmar + c.hoje + c.em_atendimento + c.realizada + c.falta;
   }
   const x = p.pacientes;
@@ -61,24 +59,25 @@ function areaTotal(area: HojeArea, p: PanoramaCounts): number {
 }
 
 function areaRows(area: HojeArea, p: PanoramaCounts): { label: string; count: number }[] {
-  if (area === "contatos") {
+  if (area === "pessoas") {
     return [
-      { label: "Novo", count: p.contatos.novo },
-      { label: "Qualificação", count: p.contatos.qualificacao },
-      { label: "Qualificado", count: p.contatos.qualificado },
+      { label: "Novo", count: p.pessoas.novo },
+      { label: "Em conversa", count: p.pessoas.qualificacao },
+      { label: "Oportunidade", count: p.pessoas.qualificado },
+      { label: "Cliente", count: p.pessoas.cliente },
     ];
   }
-  if (area === "agendamentos") {
+  if (area === "agenda") {
     return [
-      { label: "Agendar", count: p.agendamentos.agendar },
-      { label: "Reagendar", count: p.agendamentos.reagendar },
+      { label: "Agendar", count: p.agenda.agendar },
+      { label: "Reagendar", count: p.agenda.reagendar },
     ];
   }
-  if (area === "consultas") {
+  if (area === "atendimentos") {
     return [
-      { label: "Confirmar", count: p.consultas.confirmar },
-      { label: "Hoje", count: p.consultas.hoje },
-      { label: "Realizada", count: p.consultas.realizada },
+      { label: "Confirmar", count: p.atendimentos.confirmar },
+      { label: "Hoje", count: p.atendimentos.hoje },
+      { label: "Realizada", count: p.atendimentos.realizada },
     ];
   }
   return [
@@ -96,6 +95,8 @@ function caseHref(item: CaseProjectionItem, area: HojeArea | null): string {
   return `${base}?${q.toString()}`;
 }
 
+const HOJE_AREAS: HojeArea[] = ["pessoas", "agenda", "atendimentos", "pacientes"];
+
 export function HojeDashboardClient({
   projection,
   firstName,
@@ -106,7 +107,7 @@ export function HojeDashboardClient({
   initialContext?: HojeActionContext;
 }) {
   const router = useRouter();
-  const { workToday, panorama, pendencias, items } = projection;
+  const { workToday, panorama, atencao, caixaEntrada, items } = projection;
   const name = firstName?.trim().split(/\s+/)[0];
 
   const [activeArea, setActiveArea] = useState<HojeArea | null>(
@@ -115,9 +116,12 @@ export function HojeDashboardClient({
   const [focusStage, setFocusStage] = useState<string | null>(
     initialContext?.stage ?? null
   );
-  const [showAllActions, setShowAllActions] = useState(false);
+  const [showAllAtencao, setShowAllAtencao] = useState(false);
+  const [showAllInbox, setShowAllInbox] = useState(false);
   const operacaoRef = useRef<HTMLElement | null>(null);
-  const pendenciasRef = useRef<HTMLElement | null>(null);
+  const atencaoRef = useRef<HTMLElement | null>(null);
+  const inboxRef = useRef<HTMLElement | null>(null);
+  const acoesRef = useRef<HTMLElement | null>(null);
 
   const syncUrl = useCallback(
     (ctx: HojeActionContext) => {
@@ -129,134 +133,85 @@ export function HojeDashboardClient({
   useEffect(() => {
     if (initialContext?.area) setActiveArea(initialContext.area);
     if (initialContext?.stage) setFocusStage(initialContext.stage);
-    if (initialContext?.focus === "pendencias") {
-      pendenciasRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (initialContext?.focus === "atencao" || initialContext?.focus === "pendencias") {
+      atencaoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    if (initialContext?.focus === "inbox") {
+      inboxRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
     if (initialContext?.caseId) {
-      // highlight handled by board; scroll to operação
       operacaoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [initialContext?.area, initialContext?.stage, initialContext?.focus, initialContext?.caseId]);
 
-  function openContext(ctx: HojeActionContext, scrollTo: "operacao" | "pendencias" = "operacao") {
+  function openContext(
+    ctx: HojeActionContext,
+    scrollTo: "operacao" | "atencao" | "inbox" | "acoes" = "operacao"
+  ) {
     if (ctx.area) setActiveArea(ctx.area);
     if (ctx.stage) setFocusStage(ctx.stage ?? null);
+    const focus =
+      scrollTo === "atencao"
+        ? ("atencao" as const)
+        : scrollTo === "inbox"
+          ? ("inbox" as const)
+          : scrollTo === "acoes"
+            ? ("pendencias" as const)
+            : null;
     syncUrl({
       area: ctx.area ?? activeArea,
       stage: ctx.stage ?? focusStage,
       caseId: ctx.caseId,
-      focus: scrollTo === "pendencias" ? "pendencias" : null,
+      focus: ctx.focus ?? focus,
     });
     requestAnimationFrame(() => {
-      if (scrollTo === "pendencias") {
-        pendenciasRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (scrollTo === "atencao") {
+        atencaoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (scrollTo === "inbox") {
+        inboxRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (scrollTo === "acoes") {
+        acoesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       } else {
         operacaoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     });
   }
 
-  const nextItem = pendencias[0] ?? null;
-  const quickActions = pendencias.slice(0, 5);
-  const extraCount = Math.max(0, pendencias.length - 5);
-  const shownActions = showAllActions ? pendencias : quickActions;
-
-  const primaryCta = nextItem
-    ? actionToHojeContext(nextItem.nextDecision?.action ?? "confirm_slot", nextItem.caseId)
-    : null;
+  const shownAtencao = showAllAtencao ? atencao : atencao.slice(0, 5);
+  const shownInbox = showAllInbox ? caixaEntrada : caixaEntrada.slice(0, 5);
+  const quickActions = workToday.byAction.slice(0, 5);
 
   return (
     <div className="space-y-8">
-      {/* 1. Atenção */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight text-foreground">
-            {greeting()}
-            {name ? `, ${name}` : ""}
-          </h2>
-        </div>
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">
+          {greeting()}
+          {name ? `, ${name}` : ""}
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Fila inteligente de decisões — o que precisa da sua atenção agora
+        </p>
+      </div>
 
-        {nextItem ? (
-          <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
-            <p className="text-sm text-muted-foreground">Hoje você tem:</p>
-            <p className="text-base font-medium text-foreground">
-              <span className="text-red-600 mr-1.5" aria-hidden>
-                ●
-              </span>
-              {nextItem.nextDecision?.label ?? "Ação pendente"} de{" "}
-              <span className="font-semibold">{nextItem.displayName}</span>
-              {(nextItem.nextDecision?.reason ||
-                formatWhen(nextItem.nextDecision?.dueAt ?? nextItem.scheduledAt)) && (
-                <span className="text-muted-foreground font-normal">
-                  {" "}
-                  ·{" "}
-                  {nextItem.nextDecision?.reason ??
-                    formatWhen(nextItem.nextDecision?.dueAt ?? nextItem.scheduledAt)}
-                </span>
-              )}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                onClick={() => {
-                  if (primaryCta) openContext(primaryCta);
-                  else router.push(caseHref(nextItem, activeArea));
-                }}
-              >
-                {nextItem.nextDecision?.label
-                  ? `${nextItem.nextDecision.label.split(" ")[0]} agora`
-                  : "Abrir agora"}
-              </Button>
-              {workToday.byAction.slice(0, 3).map((g) => {
-                const ctx = actionToHojeContext(g.action);
-                return (
-                  <Button
-                    key={g.action}
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openContext(ctx)}
-                  >
-                    {g.label}
-                    <Badge variant="secondary" className="ml-2">
-                      {g.count}
-                    </Badge>
-                  </Button>
-                );
-              })}
-            </div>
-            {pendencias.length > 1 && (
-              <button
-                type="button"
-                className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                onClick={() => {
-                  setShowAllActions(true);
-                  openContext({ focus: "pendencias" }, "pendencias");
-                }}
-              >
-                +{pendencias.length - 1} ações recomendadas
-              </button>
-            )}
-          </div>
-        ) : (
+      {/* 1. Atenção — sistema priorizou */}
+      <section ref={atencaoRef} id="atencao" className="space-y-3 scroll-mt-4">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+            Atenção
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Coisas que precisam da sua decisão
+          </p>
+        </div>
+        {shownAtencao.length === 0 ? (
           <div className="rounded-xl border border-border bg-muted/20 p-4">
             <p className="text-sm text-muted-foreground">
-              Ninguém esperando decisão agora. Bom sinal.
+              Ninguém esperando decisão sua agora. Bom sinal.
             </p>
           </div>
-        )}
-      </section>
-
-      {/* 2. Ações rápidas */}
-      <section ref={pendenciasRef} id="pendencias" className="space-y-3 scroll-mt-4">
-        <div className="flex items-baseline justify-between gap-2">
-          <h3 className="text-sm font-semibold text-foreground">Pendências</h3>
-          <span className="text-xs text-muted-foreground">até 5 · empurrão inicial</span>
-        </div>
-        {shownActions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma pendência aberta.</p>
         ) : (
           <ul className="divide-y divide-border rounded-lg border border-border">
-            {shownActions.map((p) => (
+            {shownAtencao.map((p) => (
               <li key={p.caseId}>
                 <button
                   type="button"
@@ -270,14 +225,14 @@ export function HojeDashboardClient({
                   }}
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{p.displayName}</p>
+                    <p className="text-sm font-medium truncate">
+                      {p.nextDecision?.label ?? "Decidir"}
+                      {p.displayName ? ` · ${p.displayName}` : ""}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {p.nextDecision?.label}
                       {p.nextDecision?.reason
-                        ? ` · ${p.nextDecision.reason}`
-                        : formatWhen(p.scheduledAt)
-                          ? ` · ${formatWhen(p.scheduledAt)}`
-                          : ""}
+                        ? p.nextDecision.reason
+                        : formatWhen(p.scheduledAt) ?? p.stage}
                     </p>
                   </div>
                   {p.nextDecision?.urgent && (
@@ -290,53 +245,142 @@ export function HojeDashboardClient({
             ))}
           </ul>
         )}
-        {!showAllActions && extraCount > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => setShowAllActions(true)}>
-            Ver mais {extraCount}
+        {!showAllAtencao && atencao.length > 5 && (
+          <Button variant="ghost" size="sm" onClick={() => setShowAllAtencao(true)}>
+            Ver mais {atencao.length - 5}
           </Button>
         )}
       </section>
 
-      {/* 3. Operação */}
+      {/* 2. Caixa de entrada — eventos novos */}
+      <section ref={inboxRef} id="inbox" className="space-y-3 scroll-mt-4">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+            Caixa de entrada
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Eventos novos que chegaram
+          </p>
+        </div>
+        {shownInbox.length === 0 ? (
+          <p className="text-sm text-muted-foreground px-1">Nada novo por aqui.</p>
+        ) : (
+          <ul className="divide-y divide-border rounded-lg border border-border border-dashed">
+            {shownInbox.map((p) => (
+              <li key={`inbox-${p.caseId}`}>
+                <button
+                  type="button"
+                  className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40"
+                  onClick={() => {
+                    if (p.nextDecision) {
+                      openContext(
+                        actionToHojeContext(p.nextDecision.action, p.caseId)
+                      );
+                    } else {
+                      openContext({ area: p.panoramaSlice, caseId: p.caseId });
+                    }
+                  }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{p.displayName}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {p.nextDecision
+                        ? `${p.nextDecision.label} · aguardando ${
+                            p.nextDecision.actor === "patient"
+                              ? "paciente"
+                              : p.nextDecision.actor === "ai"
+                                ? "IA"
+                                : "sistema"
+                          }`
+                        : `Novo · ${p.stage}`}
+                    </p>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {!showAllInbox && caixaEntrada.length > 5 && (
+          <Button variant="ghost" size="sm" onClick={() => setShowAllInbox(true)}>
+            Ver mais {caixaEntrada.length - 5}
+          </Button>
+        )}
+      </section>
+
+      {/* 3. Ações — atalhos executáveis */}
+      <section ref={acoesRef} id="acoes" className="space-y-3 scroll-mt-4">
+        <div className="flex items-baseline justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+              Ações
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Até 5 atalhos executáveis</p>
+          </div>
+        </div>
+        {quickActions.length === 0 ? (
+          <p className="text-sm text-muted-foreground px-1">Nenhum atalho no momento.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {quickActions.map((g) => {
+              const ctx = actionToHojeContext(g.action);
+              return (
+                <Button
+                  key={g.action}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openContext(ctx)}
+                >
+                  {g.label}
+                  <Badge variant="secondary" className="ml-2">
+                    {g.count}
+                  </Badge>
+                </Button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* 4. Operação — lentes */}
       <section ref={operacaoRef} id="operacao" className="space-y-3 scroll-mt-4">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Operação</h3>
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+            Operação
+          </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Lentes sobre o que precisa de decisão — escolha onde trabalhar
+            Lentes — escolha onde trabalhar agora
           </p>
         </div>
         <div className="space-y-2">
-          {(["contatos", "agendamentos", "consultas", "pacientes"] as HojeArea[]).map(
-            (area) => (
-              <OperationModuleCard
-                key={area}
-                area={area}
-                total={areaTotal(area, panorama)}
-                rows={areaRows(area, panorama)}
-                hint={AREA_HINTS[area]}
-                expanded={activeArea === area}
-                focusStage={activeArea === area ? focusStage : null}
-                items={items.filter(
-                  (i) =>
-                    i.panoramaSlice === area ||
-                    AREA_COLUMNS[area].includes(i.boardStage as OpsBoardStage)
-                )}
-                highlightCaseId={initialContext?.caseId ?? null}
-                onToggle={() => {
-                  if (activeArea === area) {
-                    setActiveArea(null);
-                    setFocusStage(null);
-                    syncUrl({});
-                  } else {
-                    openContext({ area, stage: focusStage });
-                  }
-                }}
-                onOpenCase={(item) => {
-                  router.push(caseHref(item, area));
-                }}
-              />
-            )
-          )}
+          {HOJE_AREAS.map((area) => (
+            <OperationModuleCard
+              key={area}
+              area={area}
+              total={areaTotal(area, panorama)}
+              rows={areaRows(area, panorama)}
+              hint={AREA_HINTS[area]}
+              expanded={activeArea === area}
+              focusStage={activeArea === area ? focusStage : null}
+              items={items.filter(
+                (i) =>
+                  i.panoramaSlice === area ||
+                  AREA_COLUMNS[area].includes(i.boardStage as OpsBoardStage)
+              )}
+              highlightCaseId={initialContext?.caseId ?? null}
+              onToggle={() => {
+                if (activeArea === area) {
+                  setActiveArea(null);
+                  setFocusStage(null);
+                  syncUrl({});
+                } else {
+                  openContext({ area, stage: focusStage });
+                }
+              }}
+              onOpenCase={(item) => {
+                router.push(caseHref(item, area));
+              }}
+            />
+          ))}
         </div>
       </section>
     </div>

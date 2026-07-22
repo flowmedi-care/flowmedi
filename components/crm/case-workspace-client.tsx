@@ -17,6 +17,7 @@ import {
   pendingToNextDecision,
   waitingForToActor,
 } from "@/lib/case-management/next-decision";
+import { caseOwnerLabel } from "@/lib/case-management/case-product";
 import { cn } from "@/lib/utils";
 
 function formatDue(dueAt: string | null): string | null {
@@ -46,6 +47,13 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
     formatWhyNow(nextAction?.dueAt ?? null) ||
     (header.nextAppointmentLabel ? `consulta: ${header.nextAppointmentLabel}` : null);
   const actor = nextDecision?.actor ?? waitingForToActor(nextAction?.waitingFor);
+  const journey =
+    header.processTypeName ||
+    journeyCase.journey_type ||
+    "Jornada";
+  const stage = header.phaseName || header.phaseCode || "—";
+  const conductorLabel =
+    header.ownerLabel || caseOwnerLabel(journeyCase.owner_type);
 
   function refresh() {
     router.refresh();
@@ -89,18 +97,16 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              Atendimento · {header.processTypeName} · {header.workflowName}
+              Case · {journey} · {stage}
             </p>
             <h1 className="text-xl font-semibold">{header.displayName}</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Fase: {header.phaseName}
+              Estado: {stage}
               {header.nextAppointmentLabel ? ` · ${header.nextAppointmentLabel}` : ""}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Badge title="Responsável pelo caso">
-              Responsável: {header.ownerLabel}
-            </Badge>
+            <Badge title="Quem conduz o caso">Conduz: {conductorLabel}</Badge>
             {header.quoteBadge && <Badge variant="secondary">{header.quoteBadge}</Badge>}
             {header.openTasksCount > 0 && (
               <Badge variant="secondary">{header.openTasksCount} tasks</Badge>
@@ -111,19 +117,19 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
         {(nextAction || nextDecision) && (
           <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-3 space-y-2">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Quem precisa decidir agora?
+              Próxima decisão
             </p>
             <p className="text-sm font-medium">
               {nextDecision?.label ?? nextAction?.label}
             </p>
             <dl className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
               <div>
-                <dt className="inline text-muted-foreground">Quem precisa decidir: </dt>
-                <dd className="inline font-medium text-foreground">{actorLabel(actor)}</dd>
+                <dt className="inline text-muted-foreground">Quem conduz: </dt>
+                <dd className="inline font-medium text-foreground">{conductorLabel}</dd>
               </div>
               <div>
-                <dt className="inline text-muted-foreground">Responsável pelo caso: </dt>
-                <dd className="inline font-medium text-foreground">{header.ownerLabel}</dd>
+                <dt className="inline text-muted-foreground">Quem decide: </dt>
+                <dd className="inline font-medium text-foreground">{actorLabel(actor)}</dd>
               </div>
               {whyNow && (
                 <div className="sm:col-span-2">
@@ -134,6 +140,47 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
             </dl>
           </div>
         )}
+
+        <div className="rounded-lg border bg-card px-3 py-2 space-y-1">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Contexto
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {journeyCase.patient_id && (
+              <span>
+                Paciente:{" "}
+                <Link
+                  href={`/dashboard/contatos/pacientes/${journeyCase.patient_id}`}
+                  className="font-medium text-foreground hover:underline"
+                >
+                  abrir ficha
+                </Link>
+              </span>
+            )}
+            {header.nextAppointmentId && (
+              <span>
+                Consulta:{" "}
+                <span className="font-medium text-foreground">
+                  {header.nextAppointmentLabel ?? header.nextAppointmentId}
+                </span>
+              </span>
+            )}
+            {header.conversationId && (
+              <span>
+                Conversa:{" "}
+                <Link
+                  href={header.conversationHref ?? "/dashboard/whatsapp"}
+                  className="font-medium text-foreground hover:underline"
+                >
+                  abrir WhatsApp
+                </Link>
+              </span>
+            )}
+            {!journeyCase.patient_id && !header.nextAppointmentId && !header.conversationId && (
+              <span>Sem vínculos ainda</span>
+            )}
+          </div>
+        </div>
 
         <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-3 py-2">
           <span className={cn("text-sm font-medium", financeColor)}>

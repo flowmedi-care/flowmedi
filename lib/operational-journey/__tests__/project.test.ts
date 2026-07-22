@@ -84,6 +84,9 @@ describe("buildOperationalProjection", () => {
     assert.equal(projection.workToday.byAction[0]?.action, "confirm_slot");
     assert.equal(projection.workToday.byAction[0]?.count, 2);
     assert.ok(projection.pendencias.every((p) => p.nextDecision != null));
+    assert.ok(projection.atencao.every((p) => p.nextDecision != null));
     assert.equal(projection.panorama.pacientes.tratamento, 1);
+    assert.ok(projection.items.every((i) => i.journey && i.stage && i.context));
+    assert.equal(projection.items.find((i) => i.caseId === "case-a")?.panoramaSlice, "atendimentos");
   });
 });

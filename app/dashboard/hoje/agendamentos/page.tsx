@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function AgendamentosRedirect() {
-  redirect("/dashboard/hoje?area=agendamentos");
+export default function AgendaRedirect() {
+  redirect("/dashboard/hoje?area=agenda");
 }

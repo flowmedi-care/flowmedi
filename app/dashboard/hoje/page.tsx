@@ -41,7 +41,7 @@ export default async function HojePage({ searchParams }: Props) {
       header={{
         breadcrumbs: [{ label: "Hoje" }],
         title: "Hoje",
-        description: "O que precisa de decisão agora — e onde trabalhar.",
+        description: "Fila inteligente de decisões com lentes operacionais.",
       }}
     >
       {error && !data && (

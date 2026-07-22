@@ -58,13 +58,13 @@ export const DASHBOARD_AGENDA_GROUP: NavGroupItem = {
   children: [
     { href: "/dashboard/agenda", label: "Calendário" },
     {
-      href: "/dashboard/hoje?area=agendamentos",
-      label: "Agendamentos",
+      href: "/dashboard/hoje?area=agenda",
+      label: "Agenda",
       roles: ["admin", "secretaria"],
     },
     {
-      href: "/dashboard/hoje?area=consultas",
-      label: "Consultas",
+      href: "/dashboard/hoje?area=atendimentos",
+      label: "Atendimentos",
       roles: ["admin", "secretaria"],
     },
     {
@@ -119,8 +119,8 @@ export const DASHBOARD_TOP_NAV: NavTopItem[] = [
   },
   {
     type: "link",
-    href: "/dashboard/hoje?focus=pendencias",
-    label: "Pendências",
+    href: "/dashboard/hoje?focus=atencao",
+    label: "Atenção",
     icon: "clipboard-list",
     roles: ["admin", "secretaria"],
   },
@@ -165,7 +165,8 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     roles: ["admin", "secretaria"],
     children: [
       { href: "/dashboard/hoje", label: "Hoje" },
-      { href: "/dashboard/hoje?focus=pendencias", label: "Pendências" },
+      { href: "/dashboard/hoje?focus=atencao", label: "Atenção" },
+      { href: "/dashboard/hoje?focus=inbox", label: "Caixa de entrada" },
       { href: "/dashboard/crm/pipeline", label: "Indicadores" },
       { href: "/dashboard/crm/captacao", label: "Formulários" },
       { href: "/dashboard/crm/jornada", label: "Jornada (legado)", roles: ["admin"] },

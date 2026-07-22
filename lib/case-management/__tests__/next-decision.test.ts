@@ -7,10 +7,12 @@ import {
   actionGroupLabel,
   formatWhyNow,
 } from "../next-decision";
+import { toCaseProductView } from "../case-product";
 import {
   buildHojeHref,
   parseHojeSearchParams,
   actionToHojeContext,
+  normalizeHojeArea,
 } from "@/lib/operational-journey/hoje-href";
 
 describe("NextDecision adapters", () => {
@@ -55,27 +57,60 @@ describe("NextDecision adapters", () => {
   });
 });
 
-describe("Hoje deep link contract", () => {
+describe("CaseProductView", () => {
+  it("builds journey + stage + context + nextDecision", () => {
+    const view = toCaseProductView({
+      id: "c1",
+      ownerType: "ai",
+      journey: "appointment",
+      stage: "awaiting_confirmation",
+      patientId: "p1",
+      appointmentId: "a1",
+      conversationId: "conv1",
+      pendingDecision: {
+        type: "confirm_slot",
+        waiting_for: "patient",
+        label: "Escolher horário",
+      },
+    });
+    assert.equal(view.owner, "ai");
+    assert.equal(view.journey, "appointment");
+    assert.equal(view.stage, "awaiting_confirmation");
+    assert.equal(view.context.patientId, "p1");
+    assert.equal(view.context.appointmentId, "a1");
+    assert.equal(view.context.conversationId, "conv1");
+    assert.equal(view.nextDecision?.actor, "patient");
+  });
+});
+
+describe("Hoje deep link contract v7", () => {
   it("buildHojeHref and parse round-trip", () => {
     const href = buildHojeHref({
-      area: "consultas",
+      area: "atendimentos",
       stage: "confirmar",
       caseId: "abc",
     });
-    assert.equal(href, "/dashboard/hoje?area=consultas&stage=confirmar&case=abc");
+    assert.equal(href, "/dashboard/hoje?area=atendimentos&stage=confirmar&case=abc");
     const parsed = parseHojeSearchParams({
-      area: "consultas",
+      area: "atendimentos",
       stage: "confirmar",
       case: "abc",
     });
-    assert.equal(parsed.area, "consultas");
+    assert.equal(parsed.area, "atendimentos");
     assert.equal(parsed.stage, "confirmar");
     assert.equal(parsed.caseId, "abc");
   });
 
-  it("actionToHojeContext maps confirm to consultas", () => {
+  it("aliases v6 areas to v7", () => {
+    assert.equal(normalizeHojeArea("contatos"), "pessoas");
+    assert.equal(normalizeHojeArea("agendamentos"), "agenda");
+    assert.equal(normalizeHojeArea("consultas"), "atendimentos");
+    assert.equal(parseHojeSearchParams({ area: "consultas" }).area, "atendimentos");
+  });
+
+  it("actionToHojeContext maps confirm to atendimentos", () => {
     const ctx = actionToHojeContext("confirm_slot", "c1");
-    assert.equal(ctx.area, "consultas");
+    assert.equal(ctx.area, "atendimentos");
     assert.equal(ctx.stage, "confirmar");
     assert.equal(ctx.caseId, "c1");
   });

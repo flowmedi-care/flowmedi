@@ -21,6 +21,7 @@ export {
   parseHojeSearchParams,
   actionToHojeContext,
   isHojeArea,
+  normalizeHojeArea,
   AREA_COLUMNS,
   AREA_HINTS,
   type HojeActionContext,

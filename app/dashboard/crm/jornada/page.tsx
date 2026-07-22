@@ -36,7 +36,7 @@ export default async function JornadaBoardPage({ searchParams }: Props) {
     redirect("/dashboard/hoje?focus=pendencias");
   }
   if (params.view === "comparecimento") {
-    redirect("/dashboard/hoje?area=consultas");
+    redirect("/dashboard/hoje?area=atendimentos");
   }
   if (params.view === "ia") {
     redirect("/dashboard/hoje?focus=pendencias");
