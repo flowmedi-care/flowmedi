@@ -16,15 +16,11 @@ import type {
   PendingDecision,
   WorkflowPhase,
 } from "../types";
-import { ownerLabel, resolveNextAction } from "../types";
+import { ownerLabel } from "../types";
+import { resolveNextAction, type ResolvedNextAction } from "../next-action";
 import { buildFinanceSummary, type FinanceSummary } from "../projections/finance";
 
-export type NextAction = {
-  label: string;
-  waitingFor: string | null;
-  dueAt: string | null;
-  source: "pending_decision" | "task";
-};
+export type NextAction = ResolvedNextAction;
 
 export type WorkspaceHeader = {
   displayName: string;
@@ -38,6 +34,7 @@ export type WorkspaceHeader = {
   executionContext: ExecutionContext;
   openTasksCount: number;
   nextAppointmentLabel: string | null;
+  nextAppointmentId: string | null;
   quoteBadge: string | null;
   finance: FinanceSummary;
   conversationId: string | null;
@@ -59,6 +56,9 @@ export async function buildWorkspaceContext(
   enrichment?: {
     displayName?: string;
     nextAppointmentLabel?: string | null;
+    nextAppointmentId?: string | null;
+    nextAppointmentStatus?: string | null;
+    nextAppointmentAt?: string | null;
     quoteBadge?: string | null;
     ownerHumanName?: string | null;
     conversationId?: string | null;
@@ -101,7 +101,15 @@ export async function buildWorkspaceContext(
   }
 
   const phaseCode = phase?.code ?? journeyCase.phase ?? "captacao";
-  const nextAction = resolveNextAction(journeyCase, tasks);
+  const appointmentInput =
+    enrichment?.nextAppointmentId && enrichment.nextAppointmentAt
+      ? {
+          id: enrichment.nextAppointmentId,
+          scheduledAt: enrichment.nextAppointmentAt,
+          status: enrichment.nextAppointmentStatus ?? "agendada",
+        }
+      : null;
+  const nextAction = resolveNextAction(journeyCase, tasks, appointmentInput);
   const conversationId = enrichment?.conversationId ?? null;
 
   return {
@@ -118,6 +126,7 @@ export async function buildWorkspaceContext(
       executionContext: journeyCase.execution_context,
       openTasksCount,
       nextAppointmentLabel: enrichment?.nextAppointmentLabel ?? null,
+      nextAppointmentId: enrichment?.nextAppointmentId ?? null,
       quoteBadge: enrichment?.quoteBadge ?? null,
       finance,
       conversationId,

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Circle, Rocket } from "lucide-react";
+import { DemoAtendimentoButton } from "@/app/dashboard/demo-atendimento-button";
 
 type Step = {
   id: string;
@@ -11,10 +12,6 @@ type Step = {
   done: boolean;
 };
 
-/**
- * Checklist pós-onboarding + caminho Time-to-First-Success.
- * Objetivo: clínica vê valor em ~15 min (evento → pendência → workspace).
- */
 export async function SetupChecklist({ clinicId }: { clinicId: string }) {
   const supabase = await createClient();
 
@@ -55,6 +52,12 @@ export async function SetupChecklist({ clinicId }: { clinicId: string }) {
 
   const steps: Step[] = [
     {
+      id: "demo",
+      label: "Ver uma pendência no Workspace (demo)",
+      href: "/dashboard/crm/jornada?view=pendencias",
+      done: (casesCount ?? 0) > 0,
+    },
+    {
       id: "equipe",
       label: "Convidar equipe",
       href: "/dashboard/equipe",
@@ -62,7 +65,7 @@ export async function SetupChecklist({ clinicId }: { clinicId: string }) {
     },
     {
       id: "whatsapp",
-      label: "Conectar WhatsApp",
+      label: "Conectar WhatsApp (recomendado)",
       href: "/dashboard/configuracoes/integracoes",
       done: waConnected,
     },
@@ -77,12 +80,6 @@ export async function SetupChecklist({ clinicId }: { clinicId: string }) {
       label: "Cadastrar serviços",
       href: "/dashboard/servicos-valores/servicos",
       done: (servicesCount ?? 0) > 0,
-    },
-    {
-      id: "jornada",
-      label: "Abrir primeiro atendimento (Jornada)",
-      href: "/dashboard/crm/jornada?view=pendencias",
-      done: (casesCount ?? 0) > 0,
     },
   ];
 
@@ -99,8 +96,8 @@ export async function SetupChecklist({ clinicId }: { clinicId: string }) {
           <div>
             <p className="text-sm font-semibold">Primeiros passos</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Complete o setup e veja uma pendência no Workspace — valor em minutos, não
-              em dias.
+              Em minutos: crie um atendimento demo, veja a pendência e abra o Workspace — sem
+              depender do WhatsApp Meta.
             </p>
           </div>
         </div>
@@ -124,6 +121,7 @@ export async function SetupChecklist({ clinicId }: { clinicId: string }) {
           ))}
         </ul>
         <div className="flex flex-wrap gap-2">
+          <DemoAtendimentoButton />
           <Button size="sm" variant="outline" asChild>
             <Link href="/dashboard/instrucoes/jornada-crm">Ver como funciona</Link>
           </Button>

@@ -137,6 +137,57 @@ describe("buildOperationsSnapshot", () => {
     assert.equal(snap.pendingDecision?.label, "Confirmar consulta");
     assert.equal(snap.pendingDecision?.priority, "high");
   });
+
+  it("uses Case as authority when journeyCase provided", () => {
+    const snap = buildOperationsSnapshot(
+      baseRow({
+        ops_owner_type: "ai",
+        pending_decision: {
+          type: "stale",
+          label: "Stale from conversation",
+          owner: "ai",
+          priority: "normal",
+          dueAt: null,
+          source: "conversation",
+          status: "pending",
+          actions: [],
+        },
+      }),
+      {
+        journeyCase: {
+          id: "case1",
+          clinic_id: "clinic1",
+          contact_id: "lead:1",
+          lead_id: "1",
+          patient_id: null,
+          process_type_id: null,
+          workflow_version_id: null,
+          phase_id: null,
+          owner_type: "human",
+          owner_id: "u1",
+          owner: "human:u1",
+          pending_decision: {
+            type: "confirm_appointment",
+            waiting_for: "secretaria",
+            label: "Confirmar do Case",
+            due_at: null,
+          },
+          execution_context: null,
+          status: "active",
+          opened_at: new Date().toISOString(),
+          closed_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as any,
+        caseOwnerHumanName: "Ana",
+        viewerUserId: "u1",
+      }
+    );
+    assert.equal(snap.owner, "human");
+    assert.equal(snap.ownerLabel, "Ana");
+    assert.equal(snap.pendingDecision?.label, "Confirmar do Case");
+    assert.equal(snap.caseLoadWarning, null);
+  });
 });
 
 describe("computeSla", () => {

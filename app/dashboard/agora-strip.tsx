@@ -3,12 +3,22 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, ClipboardList } from "lucide-react";
+import { pendingRequiresHumanDecision } from "@/lib/case-management/next-action";
+import type { PendingDecision } from "@/lib/case-management/types";
 
 /**
- * Home “Agora” — só prioriza (Lei 7). Clicar leva ao Workspace/Pendências.
+ * Agora = view (não módulo, sem estado próprio).
+ * Deriva dos Cases cuja próxima ação exige decisão humana.
  */
 export async function AgoraStrip({ clinicId }: { clinicId: string }) {
   const supabase = await createClient();
+
+  const { count } = await supabase
+    .from("journey_cases")
+    .select("id", { count: "exact", head: true })
+    .eq("clinic_id", clinicId)
+    .in("status", ["active", "waiting"])
+    .not("pending_decision", "is", null);
 
   const { data: cases } = await supabase
     .from("journey_cases")
@@ -16,10 +26,15 @@ export async function AgoraStrip({ clinicId }: { clinicId: string }) {
     .eq("clinic_id", clinicId)
     .in("status", ["active", "waiting"])
     .not("pending_decision", "is", null)
-    .limit(6);
+    .order("updated_at", { ascending: false })
+    .limit(5);
 
-  const pending = cases ?? [];
-  const count = pending.length;
+  const humanPending = (cases ?? []).filter((c) =>
+    pendingRequiresHumanDecision(c.pending_decision as PendingDecision | null)
+  );
+
+  // Count approximate: prefer exact count when all pending are human; else filter sample
+  const totalCount = count ?? humanPending.length;
 
   return (
     <Card variant="flat" className="border-primary/30 bg-primary/[0.04]">
@@ -31,16 +46,19 @@ export async function AgoraStrip({ clinicId }: { clinicId: string }) {
             </div>
             <div>
               <p className="text-sm font-semibold">Agora</p>
-              <p className="text-2xl font-bold tabular-nums">{count}</p>
+              <p className="text-2xl font-bold tabular-nums">{totalCount}</p>
               <p className="text-xs text-muted-foreground">
-                {count === 1
-                  ? "pendência exige decisão"
-                  : "pendências exigem decisão"}
+                {totalCount === 1
+                  ? "atendimento com próxima ação humana"
+                  : "atendimentos com próxima ação humana"}
               </p>
-              {count > 0 && (
+              {humanPending.length > 0 && (
                 <ul className="mt-2 space-y-1">
-                  {pending.slice(0, 3).map((c) => {
-                    const pd = c.pending_decision as { label?: string; type?: string } | null;
+                  {humanPending.slice(0, 3).map((c) => {
+                    const pd = c.pending_decision as {
+                      label?: string;
+                      type?: string;
+                    } | null;
                     const label = pd?.label || pd?.type || "Decisão pendente";
                     return (
                       <li key={c.id}>

@@ -115,8 +115,8 @@ export function JourneyListClient({ journeys }: JourneyListClientProps) {
                         className="text-xs text-primary hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        Abrir em Operações
-                      </Link>
+                      Abrir conversa
+                    </Link>
                     )}
                   </div>
                 </div>

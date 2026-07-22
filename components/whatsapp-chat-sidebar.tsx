@@ -784,7 +784,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              Ticket Aberto
+              Em aberto
             </button>
             <button
               type="button"
@@ -796,7 +796,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              Ticket Fechado
+              Encerrada
             </button>
             <button
               type="button"
@@ -808,7 +808,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              Concluídos
+              Concluídas
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">

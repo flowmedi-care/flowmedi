@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PipelineClient } from "./pipeline/pipeline-client";
 import { PreferencesClient } from "./preferences/preferences-client";
 import type { PipelineItem } from "./pipeline/actions";
 import type { DashboardPreferences } from "./preferences/actions";
@@ -366,8 +365,17 @@ export function SecretariaDashboardClient({
 
       {/* Pipeline de Não Cadastrados */}
       {preferences.show_pipeline && (
-        <div>
-          <PipelineClient initialItems={pipelineItems} embedded />
+        <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-3 text-sm space-y-2">
+          <p className="font-medium">Leads e entrada comercial</p>
+          <p className="text-xs text-muted-foreground">
+            A decisão do dia fica em Agora → Workspace. O kanban de leads permanece em Contatos.
+          </p>
+          <a
+            href="/dashboard/contatos/leads"
+            className="inline-block text-xs text-primary hover:underline"
+          >
+            Abrir leads
+          </a>
         </div>
       )}
 

@@ -1,11 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   ConversationOpsRow,
+  OperationsOwner,
   OperationsSnapshot,
   OwnershipHistoryEntry,
   PendingDecision,
 } from "./types";
 import { computeSla, ownerLabel, resolveOperationsOwner } from "./resolve-owner";
+import { getCaseById } from "@/lib/case-management/repository";
+import type { JourneyCase } from "@/lib/case-management/types";
+import { ownerLabel as caseOwnerLabel } from "@/lib/case-management/types";
 
 function parsePendingDecision(raw: unknown): PendingDecision | null {
   if (!raw || typeof raw !== "object") return null;
@@ -41,45 +45,107 @@ function parseOwnershipHistory(raw: unknown): OwnershipHistoryEntry[] {
     });
 }
 
+function casePendingToOps(
+  pd: JourneyCase["pending_decision"]
+): PendingDecision | null {
+  if (!pd) return null;
+  const waiting = (pd.waiting_for || "").toLowerCase();
+  let owner: OperationsOwner = "human";
+  if (waiting === "patient") owner = "patient_waiting";
+  else if (waiting === "ai") owner = "ai";
+  else if (waiting === "system") owner = "system";
+
+  return {
+    type: pd.type,
+    label: pd.label?.trim() || pd.type,
+    owner,
+    priority: "normal",
+    dueAt: pd.due_at ?? null,
+    source: "journey",
+    status: "pending",
+    actions: [],
+  };
+}
+
+function caseToOpsOwner(journeyCase: JourneyCase): {
+  owner: OperationsOwner;
+  ownerUserId: string | null;
+} {
+  if (journeyCase.owner_type === "ai") return { owner: "ai", ownerUserId: null };
+  if (journeyCase.owner_type === "patient") {
+    return { owner: "patient_waiting", ownerUserId: null };
+  }
+  if (journeyCase.owner_type === "system") return { owner: "system", ownerUserId: null };
+  return { owner: "human", ownerUserId: journeyCase.owner_id };
+}
+
 export type SnapshotDeps = {
   assistantName?: string | null;
   assignedSecretaryName?: string | null;
+  /** Nome do owner humano do Case (autoridade) */
+  caseOwnerHumanName?: string | null;
   patientName?: string | null;
   appointment?: { id: string; scheduledAt: string; status: string } | null;
   stage?: string | null;
-  /** Journey-derived pending decision when DB field empty */
   journeyPendingDecision?: PendingDecision | null;
-  /** Current viewer (for canCompose) */
+  /** Case authority when linked — Fonte Única */
+  journeyCase?: JourneyCase | null;
+  caseLoadWarning?: string | null;
   viewerUserId?: string | null;
   viewerIsAdmin?: boolean;
   now?: Date;
 };
 
 /**
- * Constrói a projeção operacional read-only a partir da row + deps.
- * Única função que calcula owner/pendingDecision/SLA para UI, API e prompt.
+ * Projeção operacional read-only.
+ * Com journey_case_id + Case OK → Case é autoridade (Lei Fonte Única).
  */
 export function buildOperationsSnapshot(
   row: ConversationOpsRow,
   deps: SnapshotDeps = {}
 ): OperationsSnapshot {
-  const { owner, ownerUserId } = resolveOperationsOwner(row);
-  const humanName =
-    owner === "human"
-      ? deps.assignedSecretaryName
-      : null;
-  const label =
-    owner === "ai"
-      ? deps.assistantName?.trim() || "IA"
-      : ownerLabel(owner, humanName);
+  const caseLoadWarning = deps.caseLoadWarning ?? null;
+  const journeyCase = deps.journeyCase ?? null;
 
-  const pendingDecision =
-    parsePendingDecision(row.pending_decision) ?? deps.journeyPendingDecision ?? null;
+  let owner: OperationsOwner;
+  let ownerUserId: string | null;
+  let label: string;
+  let pendingDecision: PendingDecision | null;
+
+  if (journeyCase) {
+    const mapped = caseToOpsOwner(journeyCase);
+    owner = mapped.owner;
+    ownerUserId = mapped.ownerUserId;
+    label =
+      owner === "ai"
+        ? deps.assistantName?.trim() || "IA"
+        : owner === "human"
+          ? caseOwnerLabel(journeyCase, deps.caseOwnerHumanName) ||
+            ownerLabel(owner, deps.caseOwnerHumanName)
+          : ownerLabel(owner, null);
+    pendingDecision = casePendingToOps(journeyCase.pending_decision);
+  } else {
+    const resolved = resolveOperationsOwner(row);
+    owner = resolved.owner;
+    ownerUserId = resolved.ownerUserId;
+    const humanName = owner === "human" ? deps.assignedSecretaryName : null;
+    label =
+      owner === "ai"
+        ? deps.assistantName?.trim() || "IA"
+        : ownerLabel(owner, humanName);
+    pendingDecision =
+      parsePendingDecision(row.pending_decision) ?? deps.journeyPendingDecision ?? null;
+  }
 
   const history = parseOwnershipHistory(row.ownership_history);
   if (history.length === 0) {
     history.push({
-      at: row.ai_handoff_at || row.assigned_at || row.updated_at || row.created_at || new Date().toISOString(),
+      at:
+        row.ai_handoff_at ||
+        row.assigned_at ||
+        row.updated_at ||
+        row.created_at ||
+        new Date().toISOString(),
       owner,
       ownerUserId,
       ownerLabel: label,
@@ -98,17 +164,20 @@ export function buildOperationsSnapshot(
   const isAdmin = Boolean(deps.viewerIsAdmin);
   let canCompose = false;
   if (owner === "human") {
-    // Pool (sem assignee): precisa Assumir (claim) antes de digitar
     canCompose =
       Boolean(viewerId) &&
       Boolean(ownerUserId) &&
       (viewerId === ownerUserId || isAdmin);
   }
 
-  const patient =
-    row.patient_id
-      ? { id: row.patient_id, name: deps.patientName?.trim() || "Paciente" }
-      : null;
+  const patient = row.patient_id
+    ? { id: row.patient_id, name: deps.patientName?.trim() || "Paciente" }
+    : null;
+
+  const aiEnabled =
+    owner === "ai" &&
+    row.ai_enabled !== false &&
+    !row.ai_user_opt_out;
 
   return {
     conversationId: row.id,
@@ -123,13 +192,16 @@ export function buildOperationsSnapshot(
     stage: deps.stage ?? null,
     patient,
     appointment: deps.appointment ?? null,
-    aiEnabled: row.ai_enabled !== false && !row.ai_handoff_at && !row.ai_user_opt_out,
+    aiEnabled,
     aiHandoffAt: row.ai_handoff_at ?? null,
     aiUserOptOut: Boolean(row.ai_user_opt_out),
     operatorNotes: row.operator_notes ?? null,
     brief: row.ops_brief ?? null,
     pipelineId: row.pipeline_id ?? null,
-    journeyCaseId: row.journey_case_id ? String(row.journey_case_id) : null,
+    journeyCaseId: row.journey_case_id
+      ? String(row.journey_case_id)
+      : journeyCase?.id ?? null,
+    caseLoadWarning,
     sla,
     ownershipHistory: history,
     canCompose,
@@ -137,9 +209,6 @@ export function buildOperationsSnapshot(
   };
 }
 
-/**
- * Carrega row + deps e monta snapshot. Usado por API e prompt.
- */
 export async function loadOperationsSnapshot(
   supabase: SupabaseClient,
   conversationId: string,
@@ -159,6 +228,34 @@ export async function loadOperationsSnapshot(
   if (!row) return null;
 
   const conv = row as ConversationOpsRow;
+
+  let journeyCase: JourneyCase | null = null;
+  let caseLoadWarning: string | null = null;
+  let caseOwnerHumanName: string | null = null;
+
+  if (conv.journey_case_id) {
+    try {
+      journeyCase = await getCaseById(supabase, String(conv.journey_case_id));
+      if (!journeyCase) {
+        caseLoadWarning = "CaseUnavailable";
+        console.warn("[ops.snapshot] CaseUnavailable", {
+          conversationId,
+          journey_case_id: conv.journey_case_id,
+        });
+      } else if (journeyCase.owner_type === "human" && journeyCase.owner_id) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", journeyCase.owner_id)
+          .maybeSingle();
+        caseOwnerHumanName = prof?.full_name ?? null;
+      }
+    } catch (e) {
+      caseLoadWarning = "CaseUnavailable";
+      console.warn("[ops.snapshot] CaseUnavailable exception", e);
+      journeyCase = null;
+    }
+  }
 
   let assignedSecretaryName: string | null = null;
   if (conv.assigned_secretary_id || conv.ops_owner_user_id) {
@@ -225,17 +322,18 @@ export async function loadOperationsSnapshot(
       stage = (lead.lifecycle_stage as string) || (lead.stage as string) || null;
       leadNextAction = (lead.next_action as string | null) ?? null;
       if (!conv.pipeline_id && lead.id) {
-        // expose via snapshot only; persist happens in event bridge
         conv.pipeline_id = lead.id;
       }
     }
   }
 
-  const journeyStep = (conv.ai_state as { journey_step_code?: string } | null)?.journey_step_code;
+  const journeyStep = (conv.ai_state as { journey_step_code?: string } | null)
+    ?.journey_step_code;
   if (!stage && journeyStep) stage = journeyStep;
 
+  // CRM next_action só como fallback se Case ausente (sem autoridade Case)
   const journeyPendingDecision: PendingDecision | null =
-    !conv.pending_decision && leadNextAction
+    !journeyCase && !conv.pending_decision && leadNextAction
       ? {
           type: "crm_next_action",
           label: leadNextAction,
@@ -244,7 +342,7 @@ export async function loadOperationsSnapshot(
           dueAt: null,
           source: "crm",
           status: "pending",
-          actions: [{ id: "open_crm", label: "Abrir CRM", kind: "navigate_crm" }],
+          actions: [{ id: "open_crm", label: "Abrir atendimento", kind: "navigate_crm" }],
         }
       : null;
 
@@ -257,21 +355,26 @@ export async function loadOperationsSnapshot(
   return buildOperationsSnapshot(conv, {
     assistantName: va?.assistant_name,
     assignedSecretaryName,
+    caseOwnerHumanName,
     patientName,
     appointment,
     stage,
     journeyPendingDecision,
+    journeyCase,
+    caseLoadWarning,
     viewerUserId: opts.viewerUserId,
     viewerIsAdmin: opts.viewerIsAdmin,
   });
 }
 
-/** Formata bloco para o prompt da IA — único caminho. */
 export function formatOperationsSnapshotForPrompt(snapshot: OperationsSnapshot): string {
   const lines = [
-    "Contexto operacional (fonte da verdade — respeite o responsável):",
+    "Contexto operacional (respeite o responsável do Atendimento):",
     `- Responsável atual: ${snapshot.ownerLabel} (${snapshot.owner})`,
   ];
+  if (snapshot.caseLoadWarning) {
+    lines.push(`- AVISO: ${snapshot.caseLoadWarning} — usando projeção de emergência`);
+  }
   if (snapshot.pendingDecision) {
     lines.push(
       `- Próxima decisão: ${snapshot.pendingDecision.label} [${snapshot.pendingDecision.type}]`

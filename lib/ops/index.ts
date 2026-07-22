@@ -36,6 +36,10 @@ export {
 export {
   syncCaseOwnerFromConversation,
   syncCasePendingFromConversation,
+  projectConversationFromCase,
+  refreshConversationProjection,
+  applyOwnerViaCase,
+  applyPendingViaCase,
 } from "./case-synchronizer";
 
 export { emitOpsEvent, invalidateAiJourneyState, processDueSystemReminders } from "./event-bridge";

@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { WorkspacePayload } from "@/app/dashboard/crm/jornada/case-types";
 import {
+  clearCasePendingDecision,
   completeCaseTaskAction,
-  publishCaseOutcomeAction,
+  workspaceAttendanceAction,
 } from "@/app/dashboard/crm/jornada/case-actions";
 import { cn } from "@/lib/utils";
 
@@ -43,9 +44,18 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
     });
   }
 
-  function publish(eventType: string) {
+  function markPendingDone() {
     startTransition(async () => {
-      await publishCaseOutcomeAction({ caseId: journeyCase.id, eventType });
+      await clearCasePendingDecision(journeyCase.id);
+      refresh();
+    });
+  }
+
+  function attendance(status: "confirmada" | "realizada") {
+    const apptId = header.nextAppointmentId;
+    if (!apptId) return;
+    startTransition(async () => {
+      await workspaceAttendanceAction(journeyCase.id, apptId, status);
       refresh();
     });
   }
@@ -107,13 +117,6 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
             <Link href={header.finance.href}>Abrir financeiro</Link>
           </Button>
         </div>
-
-        {header.executionContext && (
-          <p className="text-xs text-muted-foreground">
-            Execução: {header.executionContext.operation}
-            {header.executionContext.tool ? ` / ${header.executionContext.tool}` : ""}
-          </p>
-        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -122,13 +125,40 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
             <h2 className="mb-2 text-sm font-semibold">Executar próxima ação</h2>
             <p className="text-sm mb-3">{nextAction.label}</p>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" asChild>
+              {header.nextAppointmentId && (
+                <>
+                  <Button
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => attendance("confirmada")}
+                  >
+                    Confirmar consulta
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={pending}
+                    onClick={() => attendance("realizada")}
+                  >
+                    Marcar realizada
+                  </Button>
+                </>
+              )}
+              <Button size="sm" variant="outline" asChild>
                 <Link href={header.conversationHref ?? "/dashboard/whatsapp"}>
                   Abrir conversa
                 </Link>
               </Button>
               <Button size="sm" variant="outline" asChild>
                 <Link href="/dashboard/agenda">Abrir agenda</Link>
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={pending}
+                onClick={markPendingDone}
+              >
+                Marcar pendência como feita
               </Button>
             </div>
           </section>
@@ -191,7 +221,7 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
           <section className="rounded-xl border bg-card p-4">
             <h2 className="mb-3 text-sm font-semibold">Conversa</h2>
             <p className="text-xs text-muted-foreground mb-3">
-              Contexto humano do atendimento — a decisão permanece neste Workspace.
+              Atalho de contexto — a decisão permanece neste Workspace.
             </p>
             <Button size="sm" variant="outline" asChild>
               <Link href={header.conversationHref ?? "/dashboard/whatsapp"}>
@@ -214,24 +244,26 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
             <Button size="sm" variant="outline" asChild>
               <Link href="/dashboard/agenda">Abrir agenda</Link>
             </Button>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={pending}
-                onClick={() => publish("Appointment.Confirmed")}
-              >
-                Confirmar
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={pending}
-                onClick={() => publish("Appointment.Completed")}
-              >
-                Realizada
-              </Button>
-            </div>
+            {header.nextAppointmentId && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => attendance("confirmada")}
+                >
+                  Confirmar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => attendance("realizada")}
+                >
+                  Realizada
+                </Button>
+              </div>
+            )}
           </section>
         )}
 
@@ -250,12 +282,11 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
         {primaryPanels.includes("lead") && (
           <section className="rounded-xl border bg-card p-4">
             <h2 className="mb-3 text-sm font-semibold">Comercial</h2>
-            <Button
-              size="sm"
-              disabled={pending}
-              onClick={() => publish("Lead.Qualified")}
-            >
-              Qualificar contato
+            <p className="text-xs text-muted-foreground mb-2">
+              Qualificação via módulo de domínio (próximas iterações).
+            </p>
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/dashboard/contatos/leads">Abrir leads</Link>
             </Button>
           </section>
         )}

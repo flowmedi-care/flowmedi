@@ -35,6 +35,25 @@ Alinhamento constitucional: Leis 3–5.
 
 ---
 
+## Lei da Fonte Única (implementação)
+
+**Lei:** Case é a única autoridade para owner e pending. Conversation é apenas projeção.
+
+**Implementação atual:**
+
+```text
+UI → applyCaseCommands → Case → projectConversationFromCase → Conversation
+```
+
+- Helper: `lib/ops/case-synchronizer.ts` → `projectConversationFromCase` / `refreshConversationProjection`
+- Mutators: `applyOwnerViaCase` / `applyPendingViaCase` (não escrevem Conversation como fonte)
+- Snapshot: Case-first; se `journey_case_id` e Case falha → WARNING `CaseUnavailable` + fallback + telemetria
+- Conversation **nunca sobrescreve** Case
+
+**Projection:** qualquer materialização do Case em read models (Conversation, Inbox Snapshot, Workspace Snapshot, Agora view).
+
+---
+
 ## Entidades
 
 | Conceito (Constituição) | Implementação atual | Notas |

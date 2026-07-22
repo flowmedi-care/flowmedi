@@ -73,11 +73,14 @@ export type OperationsSnapshot = {
   pipelineId: string | null;
   /** Atendimento (Case) vinculado — Princípio Zero / Leis 3 e 6 */
   journeyCaseId: string | null;
+  /**
+   * Fail-soft: CaseUnavailable — authority fell back to Conversation.
+   * Banner discreto + telemetria.
+   */
+  caseLoadWarning: string | null;
   sla: OperationsSla;
   ownershipHistory: OwnershipHistoryEntry[];
-  /** Pode o usuário atual digitar no composer? */
   canCompose: boolean;
-  /** Label do condutor atual para banner do composer */
   conductorLabel: string;
 };
 

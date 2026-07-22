@@ -7,81 +7,70 @@ Como implementar → [`ARQUITETURA-OPERACIONAL.md`](./ARQUITETURA-OPERACIONAL.md
 
 ---
 
-## Diagnóstico (semana atual)
+## Diagnóstico
 
-- **Mid-migration:** UX ainda usa conversa como cérebro; backend já caminha para Atendimento.
-- **Produto construído:** ~7–8/10 · **Produto operável:** ~5–5.5/10 (subindo com esta sprint).
-- Próximo salto: fazer o existente obedecer à Constituição — **não** adicionar módulo.
-
----
-
-## Fase 0 — Documentos
-
-- [x] `CONSTITUICAO-FLOWMEDI.md`
-- [x] `ARQUITETURA-OPERACIONAL.md`
-- [x] `ROADMAP-OPERACIONAL.md` (este arquivo)
+- Mid-migration: Conversa era cérebro; sprint de coerência torna Case autoridade.
+- Produto construído ~7.5 · operável sobe quando Constituição cumprida.
 
 ---
 
-## Fase 1 (P0) — Verdade operacional
+## Sprint anterior (infraestrutura / scaffolding)
 
-Leis 1–3.
+- [x] Estrutura / docs Constituição · Arquitetura · Roadmap
+- [x] Workspace shell
+- [x] Case board
+- [x] Inbox ops + CasePanel links
 
-- [x] Um Responsável Atual com nome na UI (`ownerLabel` + enrichment)
-- [x] Próxima ação destacada (`resolveNextAction` + Workspace/board)
-- [x] Motivo de ownership visível no CasePanel
-- [x] Decisão apresentada como do Atendimento nas superfícies ops
-
----
-
-## Fase 2 (P0) — Workspace + Princípio Zero
-
-Leis 6, Zero.
-
-- [x] Workspace executável: próxima ação, conversa deep-link, agenda, financeiro
-- [x] Painéis só declarados se renderizados
-- [x] CasePanel → Workspace / Agenda (sem `/dashboard/pipeline` 404)
-- [x] Jornada `?phone=` / `?caseId=` → Workspace
-- [x] Redirect `/dashboard/pipeline` → Pendências
+**Não confundir com Constituição cumprida.**
 
 ---
 
-## Fase 3 (P1) — Home, onboarding, IA, vocabulário
+## Nova sprint (coerência) — RFC P0
 
-- [x] Home “Agora” (admin + secretária) prioriza pendências
-- [x] Checklist pós-onboarding + links TTFS
-- [x] Motivo de handoff/reativação em linguagem humana (CasePanel)
-- [x] Vocabulary Lock parcial na nav/topbar (Conversas, Pendências, Fila de envio)
+### Fase A — Fonte Única
+- [x] Case autoridade para owner/pending quando vinculado
+- [x] `projectConversationFromCase` (Conversation = projeção)
+- [x] Mutators → `applyCaseCommands` → projection
+- [x] Snapshot Case-first + fail-soft `CaseUnavailable`
+- [x] `resolveNextAction` pura (Case + Tasks + Appointment)
+
+### Fase B — Workspace domínio
+- [x] Confirmar/realizada via `changeAttendanceStatus` (Agenda)
+- [x] `clearCasePendingDecision` + projection
+- [x] UI não publica eventos diretamente
+
+### Fase C — Agora view + Zero
+- [x] Agora = view de Cases com próxima ação humana (count exact)
+- [x] Home secretária sem kanban competindo
+- [x] Vocabulary Conversas / Em aberto
+
+### Fase D — Vocab / TTFS / docs
+- [x] Demo atendimento sem Meta
+- [x] `findCaseIdByEmail`
+- [x] ROADMAP + ARQUITETURA atualizados
+
+### Constituição cumprida (aceite)
+
+- [ ] Mesmo owner/pending em CasePanel, Inbox, Workspace
+- [ ] Confirmar Workspace altera appointment de verdade
+- [ ] Agora contagem correta
+- [ ] Patch direto em Conversation **não** altera Case (#8)
+- [ ] Snapshot funciona se projection falha + WARNING (#9)
+- [ ] Demo &lt;15 min sem Meta
+
+Marque “Constituição cumprida” só após validação manual do aceite acima.
 
 ---
 
-## Fase 4 (P2) — Estados
+## Congelado
 
-- [x] `app/dashboard/error.tsx`
-- [x] Empty state de Pendências no board
-
----
-
-## Congelado até estabilizar mid-migration
-
-- Novos módulos / dashboards sem decisão
-- Editor visual de workflow
-- Segundo kanban / matar WhatsApp
-- Role “operador” novo
+Novos módulos · editor workflow · matar WhatsApp · role operador · tabela Agora
 
 ---
 
-## Próxima semana (sugerido)
-
-- [ ] Enriquecer sync Case←→Conversa até pending_decision único na prática
-- [ ] Demo operacional sem Meta (simular evento → pendência)
-- [ ] Renomear filas WhatsApp Decidir/IA para vocabulário oficial
-- [ ] Instruções Agenda + WhatsApp (tirar coming_soon)
-
----
-
-## Changelog do roadmap
+## Changelog
 
 | Data | Nota |
 |------|------|
-| 2026-07-21 | Criação + Fases 0–4 implementadas no código |
+| 2026-07-21 | Scaffolding Fases 0–4 |
+| 2026-07-22 | RFC P0 coerência: Fonte Única + Projection + Workspace domínio |

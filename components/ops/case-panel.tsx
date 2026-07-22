@@ -119,6 +119,11 @@ export function CasePanel({
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Atendimento
         </p>
+        {snapshot.caseLoadWarning && (
+          <p className="text-[11px] rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-800 dark:text-amber-200">
+            Atendimento temporariamente indisponível — usando projeção de emergência.
+          </p>
+        )}
         <div className="flex items-center gap-2">
           <Badge
             variant="outline"

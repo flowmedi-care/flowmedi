@@ -229,7 +229,7 @@ function PriorityList({ items }: { items: PipelineItem[] }) {
                       )}`}
                       className="text-xs text-primary hover:underline"
                     >
-                      Abrir em Operações
+                      Abrir conversa
                     </Link>
                   )}
                 </div>

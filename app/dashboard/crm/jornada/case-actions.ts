@@ -258,6 +258,9 @@ export async function getCaseWorkspace(caseId: string): Promise<{
   }
 
   let nextAppointmentLabel: string | null = null;
+  let nextAppointmentId: string | null = null;
+  let nextAppointmentStatus: string | null = null;
+  let nextAppointmentAt: string | null = null;
   let quoteBadge: string | null = null;
 
   if (journeyCase.lead_id) {
@@ -283,7 +286,7 @@ export async function getCaseWorkspace(caseId: string): Promise<{
   if (journeyCase.patient_id) {
     const { data: appt } = await ctx.supabase
       .from("appointments")
-      .select("scheduled_at, status")
+      .select("id, scheduled_at, status")
       .eq("patient_id", journeyCase.patient_id)
       .in("status", ["agendada", "confirmada"])
       .gte("scheduled_at", new Date().toISOString())
@@ -291,6 +294,9 @@ export async function getCaseWorkspace(caseId: string): Promise<{
       .limit(1)
       .maybeSingle();
     if (appt?.scheduled_at) {
+      nextAppointmentId = String(appt.id);
+      nextAppointmentStatus = String(appt.status);
+      nextAppointmentAt = String(appt.scheduled_at);
       nextAppointmentLabel = `Consulta ${new Date(appt.scheduled_at).toLocaleString("pt-BR")} (${appt.status})`;
     }
   }
@@ -315,6 +321,9 @@ export async function getCaseWorkspace(caseId: string): Promise<{
   const ws = await buildWorkspaceContext(ctx.supabase, caseId, {
     displayName,
     nextAppointmentLabel,
+    nextAppointmentId,
+    nextAppointmentStatus,
+    nextAppointmentAt,
     quoteBadge,
     ownerHumanName,
     conversationId: linkedConv?.id ? String(linkedConv.id) : null,
@@ -362,6 +371,57 @@ export async function findCaseIdByPhone(
     caseId: match?.journey_case_id ? String(match.journey_case_id) : null,
     error: null,
   };
+}
+
+/** Resolve Atendimento por email (lead ou patient). */
+export async function findCaseIdByEmail(
+  email: string
+): Promise<{ caseId: string | null; error: string | null }> {
+  const ctx = await requireClinic();
+  if (ctx.error || !ctx.profile) return { caseId: null, error: ctx.error ?? "Erro" };
+
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return { caseId: null, error: null };
+
+  const { data: lead } = await ctx.supabase
+    .from("non_registered_pipeline")
+    .select("id")
+    .eq("clinic_id", ctx.profile.clinic_id)
+    .ilike("email", normalized)
+    .limit(1)
+    .maybeSingle();
+
+  if (lead?.id) {
+    const { data: c } = await ctx.supabase
+      .from("journey_cases")
+      .select("id")
+      .eq("clinic_id", ctx.profile.clinic_id)
+      .eq("lead_id", lead.id)
+      .in("status", ["active", "waiting"])
+      .maybeSingle();
+    if (c?.id) return { caseId: String(c.id), error: null };
+  }
+
+  const { data: patient } = await ctx.supabase
+    .from("patients")
+    .select("id")
+    .eq("clinic_id", ctx.profile.clinic_id)
+    .ilike("email", normalized)
+    .limit(1)
+    .maybeSingle();
+
+  if (patient?.id) {
+    const { data: c } = await ctx.supabase
+      .from("journey_cases")
+      .select("id")
+      .eq("clinic_id", ctx.profile.clinic_id)
+      .eq("patient_id", patient.id)
+      .in("status", ["active", "waiting"])
+      .maybeSingle();
+    if (c?.id) return { caseId: String(c.id), error: null };
+  }
+
+  return { caseId: null, error: null };
 }
 
 export async function requestCasePhaseOverride(
@@ -482,5 +542,56 @@ export async function changeAttendanceStatus(
       ensureCase: { process_type_code: "primeira_consulta" },
     });
   }
+  return { ok: true };
+}
+
+/** Clear pending on Case + project Conversation (Lei Fonte Única). */
+export async function clearCasePendingDecision(
+  caseId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await requireClinic();
+  if (ctx.error || !ctx.profile) return { ok: false, error: ctx.error ?? "Erro" };
+
+  const { applyCaseCommands } = await import("@/lib/case-management");
+  const { projectConversationFromCase } = await import("@/lib/ops/case-synchronizer");
+
+  const applied = await applyCaseCommands(
+    ctx.supabase,
+    [{ type: "ClearPendingDecision", caseId }],
+    {
+      clinicId: ctx.profile.clinic_id,
+      sourceEventId: null,
+      actor: `human:${ctx.profile.id}`,
+      skipSetPhase: true,
+    }
+  );
+  if (applied.rejected.length > 0 && applied.applied.length === 0) {
+    return { ok: false, error: "Não foi possível limpar a pendência" };
+  }
+
+  const proj = await projectConversationFromCase({
+    supabase: ctx.supabase,
+    clinicId: ctx.profile.clinic_id,
+    caseId,
+    reason: "clear_pending",
+  });
+  if (!proj.ok) {
+    console.warn("[clearCasePendingDecision] projection warning", proj.error);
+  }
+  return { ok: true };
+}
+
+/**
+ * Workspace: confirma/realiza via módulo Agenda (nunca publica evento direto).
+ * Em seguida limpa pending do Case + projection.
+ */
+export async function workspaceAttendanceAction(
+  caseId: string,
+  appointmentId: string,
+  newStatus: "confirmada" | "realizada"
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await changeAttendanceStatus(appointmentId, newStatus);
+  if (!res.ok) return res;
+  await clearCasePendingDecision(caseId);
   return { ok: true };
 }

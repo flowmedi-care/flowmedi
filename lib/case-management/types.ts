@@ -192,51 +192,11 @@ export function ownerLabel(
   return "Sistema";
 }
 
-/** Próxima ação destacada (Lei 2): pending_decision do Case, senão task aberta mais urgente. */
-export function resolveNextAction(
-  c: Pick<JourneyCase, "pending_decision">,
-  openTasks: Pick<CaseTask, "title" | "due_at" | "status" | "assignee_role">[] = []
-): {
-  label: string;
-  waitingFor: string | null;
-  dueAt: string | null;
-  source: "pending_decision" | "task";
-} | null {
-  const pd = c.pending_decision;
-  if (pd) {
-    return {
-      label: pd.label?.trim() || humanizeDecisionType(pd.type),
-      waitingFor: pd.waiting_for,
-      dueAt: pd.due_at ?? null,
-      source: "pending_decision",
-    };
-  }
-  const open = openTasks
-    .filter((t) => t.status === "open")
-    .sort((a, b) => {
-      if (a.due_at && b.due_at) return a.due_at.localeCompare(b.due_at);
-      if (a.due_at) return -1;
-      if (b.due_at) return 1;
-      return 0;
-    });
-  const first = open[0];
-  if (!first) return null;
-  return {
-    label: first.title,
-    waitingFor: first.assignee_role,
-    dueAt: first.due_at,
-    source: "task",
-  };
-}
-
-export function humanizeDecisionType(type: string): string {
-  const map: Record<string, string> = {
-    confirm_appointment: "Confirmar consulta",
-    reschedule: "Remarcar consulta",
-    advance_commercial: "Avançar comercial / agendar",
-    qualify_lead: "Qualificar contato",
-    collect_payment: "Cobrar / receber",
-    handoff: "Assumir atendimento",
-  };
-  return map[type] ?? type.replace(/_/g, " ");
-}
+export {
+  resolveNextAction,
+  humanizeDecisionType,
+  pendingRequiresHumanDecision,
+  caseRequiresHumanNextAction,
+  type ResolvedNextAction,
+  type AppointmentNextInput,
+} from "./next-action";
