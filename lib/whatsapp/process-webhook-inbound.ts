@@ -174,17 +174,22 @@ export async function processWhatsAppWebhookInbound(rawBody: string): Promise<vo
           let isNewConversation = false;
           if (conversationRes.data?.id) {
             conversationId = conversationRes.data.id;
+            const prevStatus = String(conversationRes.data.status || "").toLowerCase();
             const updateData: Record<string, unknown> = {
               last_inbound_message_at: now,
-              status: "open",
             };
+            // completed não reabre sozinho (aba Concluídas exclusiva)
+            if (prevStatus !== "completed") {
+              updateData.status = "open";
+            }
             if (contactName) {
               updateData.contact_name = contactName;
             }
             const updateResult = await supabase
               .from("whatsapp_conversations")
               .update(updateData)
-              .eq("id", conversationId);
+              .eq("id", conversationId)
+              .eq("clinic_id", clinicId);
             if (updateResult.error) {
               console.error("[WhatsApp Webhook] Erro ao atualizar conversa:", updateResult.error);
             }

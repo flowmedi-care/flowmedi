@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MessageSquare, Plus, Send, Info, Trash2, Check, User, ArrowLeft, Bot, Headphones, PanelRight } from "lucide-react";
+import { MessageSquare, Plus, Send, Info, Trash2, Check, User, ArrowLeft, PanelRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppContactSidebar, type Patient } from "./whatsapp-contact-sidebar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
+import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
   WHATSAPP_HANDLER_FILTER_STORAGE_KEY,
@@ -27,6 +27,14 @@ import type { OperationsSnapshot } from "@/lib/ops";
 import { toast } from "@/components/ui/toast";
 
 type OpsQueueFilter = "needs_decision" | "ai" | "patient_waiting" | "system" | "all";
+
+type ConversationSort = "recent" | "oldest" | "pending_last";
+
+const WHATSAPP_CONVERSATION_SORT_KEY = "whatsapp-conversation-sort";
+
+function isValidConversationSort(v: string | null): v is ConversationSort {
+  return v === "recent" || v === "oldest" || v === "pending_last";
+}
 
 /** Máquina de estados do painel de mensagens — skeleton só em Opening. */
 type ChatState = "idle" | "opening" | "ready" | "syncing" | "sending";
@@ -261,7 +269,12 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     const stored = localStorage.getItem(WHATSAPP_HANDLER_FILTER_STORAGE_KEY);
     return isValidHandlerFilter(stored) ? stored : "all";
   });
-  const [opsQueue, setOpsQueue] = useState<OpsQueueFilter>("needs_decision");
+  const [opsQueue, setOpsQueue] = useState<OpsQueueFilter>("all");
+  const [conversationSort, setConversationSort] = useState<ConversationSort>(() => {
+    if (typeof window === "undefined") return "recent";
+    const stored = localStorage.getItem(WHATSAPP_CONVERSATION_SORT_KEY);
+    return isValidConversationSort(stored) ? stored : "recent";
+  });
   const [claiming, setClaiming] = useState(false);
   const [reactivating, setReactivating] = useState(false);
   const [casePanelOpen, setCasePanelOpen] = useState(false);
@@ -676,6 +689,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     localStorage.setItem(WHATSAPP_HANDLER_FILTER_STORAGE_KEY, handlerFilter);
   }, [handlerFilter]);
 
+  useEffect(() => {
+    localStorage.setItem(WHATSAPP_CONVERSATION_SORT_KEY, conversationSort);
+  }, [conversationSort]);
+
   // Deep-link: /dashboard/whatsapp?c=<conversationId>|&phone=
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -931,9 +948,41 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     return false;
   };
 
-  const visibleConversations = conversations.filter((c) =>
-    matchesOpsQueue(c, opsQueue)
-  );
+  const isPendingConversation = useCallback((c: Conversation): boolean => {
+    const owner =
+      c.ops?.owner ?? (c.handler === "ai" && !c.ai_user_opt_out ? "ai" : "human");
+    if (owner === "human") return true;
+    if (c.ops?.sla.breached) return true;
+    if (c.ops?.pendingDecision?.owner === "human") return true;
+    return false;
+  }, []);
+
+  const activityMs = (c: Conversation): number => {
+    const inbound = c.last_inbound_message_at
+      ? new Date(c.last_inbound_message_at).getTime()
+      : 0;
+    const created = c.created_at ? new Date(c.created_at).getTime() : 0;
+    const a = Number.isFinite(inbound) ? inbound : 0;
+    const b = Number.isFinite(created) ? created : 0;
+    return Math.max(a, b);
+  };
+
+  const visibleConversations = useMemo(() => {
+    const filtered = conversations.filter((c) => matchesOpsQueue(c, opsQueue));
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      if (conversationSort === "pending_last") {
+        const ap = isPendingConversation(a) ? 1 : 0;
+        const bp = isPendingConversation(b) ? 1 : 0;
+        if (ap !== bp) return ap - bp; // pendentes por último
+      }
+      const da = activityMs(a);
+      const db = activityMs(b);
+      if (conversationSort === "oldest") return da - db;
+      return db - da; // recent (e pending_last usa recentes entre não-pendentes)
+    });
+    return sorted;
+  }, [conversations, opsQueue, conversationSort, isPendingConversation]);
 
   const selectedOps = selectedConversation?.ops ?? null;
 
@@ -1033,23 +1082,39 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                 <Plus className="h-5 w-5" />
               </Button>
             </div>
-            <SegmentedTabs
-              variant="pill"
-              className="gap-1 flex-wrap"
-              value={opsQueue}
-              onChange={(id) => {
-                setOpsQueue(id as OpsQueueFilter);
-                // API: busca ampla; facet é client-side via OperationsSnapshot
-                setHandlerFilter("all");
-              }}
-              tabs={[
-                { id: "needs_decision", label: "Pendências", icon: Headphones },
-                { id: "ai", label: "Com a IA", icon: Bot },
-                { id: "patient_waiting", label: "Aguardando paciente" },
-                { id: "system", label: "Sistema" },
-                { id: "all", label: "Todos" },
-              ]}
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-[10px] text-muted-foreground">Fila</span>
+                <Select
+                  value={opsQueue}
+                  onChange={(e) => {
+                    setOpsQueue(e.target.value as OpsQueueFilter);
+                    setHandlerFilter("all");
+                  }}
+                  className="h-8 text-xs px-2"
+                >
+                  <option value="all">Todos</option>
+                  <option value="needs_decision">Pendências</option>
+                  <option value="ai">Com a IA</option>
+                  <option value="patient_waiting">Aguardando paciente</option>
+                  <option value="system">Sistema</option>
+                </Select>
+              </label>
+              <label className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-[10px] text-muted-foreground">Ordenar</span>
+                <Select
+                  value={conversationSort}
+                  onChange={(e) =>
+                    setConversationSort(e.target.value as ConversationSort)
+                  }
+                  className="h-8 text-xs px-2"
+                >
+                  <option value="recent">Mais recentes</option>
+                  <option value="oldest">Mais antigas</option>
+                  <option value="pending_last">Pendentes por último</option>
+                </Select>
+              </label>
+            </div>
           </div>
           {usageLimit && usageLimit.limit !== null && (
             <div
@@ -1118,7 +1183,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
               <p className="p-4 text-muted-foreground text-sm">
                 {conversations.length === 0
                   ? "Nenhuma conversa ainda. Use o botão acima para iniciar."
-                  : "Nenhum atendimento nesta fila."}
+                  : "Nenhum atendimento nesta fila — troque o filtro acima."}
               </p>
             ) : (
               <ul className="divide-y divide-border">

@@ -6,6 +6,7 @@ import {
   type HandlerFilter,
 } from "@/lib/whatsapp-ai-state";
 import { buildOperationsSnapshot, type ConversationOpsRow } from "@/lib/ops";
+import { getEffectiveTicketStatus } from "@/lib/whatsapp-ticket-status";
 
 type SecretaryRef = { id: string; full_name: string | null } | null;
 
@@ -36,7 +37,7 @@ function normalizeSecretary(
 /**
  * GET /api/whatsapp/conversations?status=open|closed|completed&handler=all|ai|human
  * Lista conversas WhatsApp **somente da clínica do membro autenticado** (`clinic_id`).
- * Nunca lista por phone_number global sem clinic_id.
+ * Abas mutuamente exclusivas via status efetivo (janela 24h / concluídas).
  * Admin: vê todas da clínica. Secretária: vê apenas as atribuídas a ela ou em pool (eligible).
  */
 export async function GET(request: Request) {
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
     const handler: HandlerFilter =
       handlerParam === "ai" || handlerParam === "human" ? handlerParam : "all";
 
-    // Garantir consistência da janela de 24h: toda conversa aberta expirada vira "closed".
+    // Garantir consistência da janela de 24h: open expirada vira closed (nunca mexe em completed).
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     await supabase
       .from("whatsapp_conversations")
@@ -58,6 +59,15 @@ export async function GET(request: Request) {
       .eq("status", "open")
       .not("last_inbound_message_at", "is", null)
       .lt("last_inbound_message_at", twentyFourHoursAgo);
+
+    // Reabre janela se DB ficou closed mas inbound recente (sem tocar completed).
+    await supabase
+      .from("whatsapp_conversations")
+      .update({ status: "open" })
+      .eq("clinic_id", clinicId)
+      .eq("status", "closed")
+      .not("last_inbound_message_at", "is", null)
+      .gte("last_inbound_message_at", twentyFourHoursAgo);
 
     const { data: vaSettings } = await supabase
       .from("clinic_virtual_assistant_settings")
@@ -80,8 +90,11 @@ export async function GET(request: Request) {
         )
         .eq("clinic_id", clinicId);
 
-      if (status && ["open", "closed", "completed"].includes(status)) {
-        query = query.eq("status", status);
+      // Completed é exclusivo; open/closed buscam ambos e filtram por status efetivo.
+      if (status === "completed") {
+        query = query.eq("status", "completed");
+      } else if (status === "open" || status === "closed") {
+        query = query.neq("status", "completed");
       }
 
       if (handler === "ai") {
@@ -95,7 +108,10 @@ export async function GET(request: Request) {
         );
       }
 
-      return query.order("created_at", { ascending: false });
+      return query.order("last_inbound_message_at", {
+        ascending: false,
+        nullsFirst: false,
+      });
     }
 
     let { data: rawConversations, error } = await runQuery(selectWithOps);
@@ -111,6 +127,20 @@ export async function GET(request: Request) {
     }
 
     const rows: ConversationRow[] = (rawConversations ?? []) as unknown[] as ConversationRow[];
+    const now = Date.now();
+
+    // Abas exclusivas: filtrar pelo status efetivo (janela Meta / concluídas).
+    const statusFiltered =
+      status && ["open", "closed", "completed"].includes(status)
+        ? rows.filter((c) => {
+            const effective = getEffectiveTicketStatus(
+              c.status,
+              c.last_inbound_message_at,
+              now
+            );
+            return effective === status;
+          })
+        : rows;
 
     const roleNorm = String(role ?? "").toLowerCase().trim();
     const isAdmin = roleNorm === "admin";
@@ -118,7 +148,7 @@ export async function GET(request: Request) {
     const eligibleDetailsByConv = new Map<string, Array<{ id: string; full_name: string | null }>>();
 
     // Admin: vê todas. Secretária/outros: só vê atribuídas a ela ou em pool elegível
-    let conversations = rows;
+    let conversations = statusFiltered;
     if (!isAdmin) {
       const { data: routingSettings } = await supabase
         .from("clinic_whatsapp_routing_settings")
@@ -133,7 +163,7 @@ export async function GET(request: Request) {
       const { data: allEligible } = await supabase
         .from("conversation_eligible_secretaries")
         .select("conversation_id, secretary_id, profiles!secretary_id(id, full_name)")
-        .in("conversation_id", rows.map((r) => r.id));
+        .in("conversation_id", statusFiltered.map((r) => r.id));
       const eligibleByConv = new Map<string, Set<string>>();
       for (const e of allEligible ?? []) {
         const cid = String(e.conversation_id);
@@ -147,7 +177,7 @@ export async function GET(request: Request) {
       }
 
       const uid = String(userId ?? "");
-      conversations = rows.filter((c) => {
+      conversations = statusFiltered.filter((c) => {
         const aid = c.assigned_secretary_id ? String(c.assigned_secretary_id) : null;
         if (aid && aid === uid) return true; // atribuída a mim
         if (aid) return false; // atribuída a outra pessoa
@@ -163,7 +193,7 @@ export async function GET(request: Request) {
       const { data: allEligible } = await supabase
         .from("conversation_eligible_secretaries")
         .select("conversation_id, secretary_id, profiles!secretary_id(id, full_name)")
-        .in("conversation_id", rows.map((r) => r.id));
+        .in("conversation_id", statusFiltered.map((r) => r.id));
       for (const e of allEligible ?? []) {
         const cid = String(e.conversation_id);
         const sid = String(e.secretary_id);
@@ -194,11 +224,17 @@ export async function GET(request: Request) {
         viewerIsAdmin: isAdminRole,
       });
 
+      const effectiveStatus = getEffectiveTicketStatus(
+        c.status,
+        c.last_inbound_message_at,
+        now
+      );
+
       return {
         id: c.id,
         phone_number: c.phone_number,
         contact_name: c.contact_name,
-        status: c.status,
+        status: effectiveStatus,
         last_inbound_message_at: c.last_inbound_message_at,
         created_at: c.created_at,
         assigned_secretary_id: c.assigned_secretary_id,
