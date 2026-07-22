@@ -4,7 +4,7 @@ import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMe
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MessageSquare, Plus, Send, Info, Trash2, Check, User, ArrowLeft, PanelRight } from "lucide-react";
+import { MessageSquare, Plus, Send, Info, Trash2, Check, User, ArrowLeft, PanelRight, Bot, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppContactSidebar, type Patient } from "./whatsapp-contact-sidebar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
