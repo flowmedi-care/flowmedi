@@ -129,12 +129,12 @@
   .surface-muted {
     @apply rounded-xl border border-border/40 bg-muted/50;
   }
-  /* Fundo estilo WhatsApp Web: bege + doodle oficial */
+  /* Fundo estilo WhatsApp Web: bege + doodle oficial (tile 272×388, sem distorção) */
   .whatsapp-chat-wallpaper {
     background-color: #efeae2;
     background-image: url("/whatsapp-chat-doodle.png");
     background-repeat: repeat;
-    background-size: 460px 460px;
+    background-size: 272px 388px;
   }
   .dark .whatsapp-chat-wallpaper {
     background-color: #0b141a;

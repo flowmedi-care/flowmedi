@@ -117,7 +117,7 @@ export function CasePanel({
     >
       <div className="px-4 py-3 border-b border-border space-y-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Atendimento
+          Workspace
         </p>
         {snapshot.caseLoadWarning && (
           <p className="text-[11px] rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-800 dark:text-amber-200">

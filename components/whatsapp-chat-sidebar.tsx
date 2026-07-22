@@ -1332,7 +1332,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                     size="icon"
                     className="shrink-0 h-9 w-9"
                     onClick={() => setCasePanelOpen(true)}
-                    title="Atendimento"
+                    title="Workspace"
                   >
                     <Briefcase className="h-5 w-5" />
                   </Button>
@@ -1594,7 +1594,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
-              <h2 className="text-lg font-semibold">Atendimento</h2>
+              <h2 className="text-lg font-semibold">Workspace</h2>
               <Button
                 variant="ghost"
                 size="sm"
