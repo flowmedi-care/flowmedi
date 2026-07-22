@@ -1,60 +1,41 @@
-# Case Management — Ops de atendimento (arquitetura 10/10)
-
-Arquitetura congelada. Ganhos futuros vêm de **disciplina nos limites de domínio**, não de redesenho.
+# Case Management — Ops de atendimento (esqueleto + física)
 
 ## Pipeline canônico
 
 ```text
-Domain Event (entrada)
-  → Transition Engine (resolve Transition + conditions + automation_policy)
-  → atualiza Case (phase_id, pending_decision, …)
-  → emite Domain Event (saída), ex. case.phase_changed
-  → notificações / analytics / IA / auditoria consomem o evento de saída
+Domain Events
+      |
+ +----+----+
+ |         |
+ v         v
+Transition  Policy → Decision
+ |         |
+ +----> applyCaseCommands  (única porta)
+              |
+              v
+           Case Aggregate
+              |
+    Pendências / Workspace / IA
 ```
 
-Transition **não** acopla side-effects de módulo; side-effects reagem a eventos emitidos.
+**Invariantes**
 
-## Case (magro)
+1. Ninguém escreve Case sem `applyCaseCommands`
+2. IA só emite **Intents** (`Booking.Requested`, …) — nunca Domain Facts de módulo (`Appointment.Created`, `Payment.Paid`)
+3. Todo evento é rastreável (timeline `journey_events` category `internal`)
 
-`contact_id`, `process_type_id`, `workflow_version_id`, `phase_id`, `owner_type`/`owner_id`,
-`pending_decision` (quem decide), `execution_context` (tool em voo — **não** misturar),
-`status`: `active | waiting | completed | cancelled`.
-
-Tasks são tabela separada; Case expõe `open_tasks_count` via query.
-
-## WorkflowVersion
-
-`status`: `draft | published | deprecated` (≠ Case.status).  
-Phases + Transitions na version. `automation_policy.on_enter_phase`.
-
-## Telas (uma pergunta cada)
-
-| Tela | Pergunta |
-|------|----------|
-| KPIs (`/crm/pipeline`) | Como o negócio está indo? |
-| Pendências (Jornada home) | O que exige ação agora? |
-| Fluxo | Onde o Case está neste WorkflowVersion? |
-| Comparecimento | Quais consultas precisam de ação? |
-| Workspace | Tudo para operar este Case? |
-| Financeiro (módulo) | Quais obrigações existem? |
-
-Comandas → Módulo Financeiro → FinanceProjection → resumo no Workspace.
-
-## Código
-
-| Área | Path |
-|------|------|
-| Package | [`lib/case-management/`](../lib/case-management/) |
-| Transition Engine | [`lib/case-management/transition/engine.ts`](../lib/case-management/transition/engine.ts) |
-| Context Adapter | [`lib/case-management/context/engine.ts`](../lib/case-management/context/engine.ts) |
-| FinanceProjection | [`lib/case-management/projections/finance.ts`](../lib/case-management/projections/finance.ts) |
-| Migration core | [`supabase/migration-case-management-core.sql`](../supabase/migration-case-management-core.sql) |
-| Migration versionada | [`supabase/migration-ops-workflow-versioned.sql`](../supabase/migration-ops-workflow-versioned.sql) |
-| Board / Workspace | `/dashboard/crm/jornada` |
-
-## Migration
-
-Execute **ambos** no Supabase SQL Editor (nessa ordem):
+## Migrations
 
 1. `migration-case-management-core.sql`
 2. `migration-ops-workflow-versioned.sql`
+3. `migration-conversation-journey-case.sql` (`whatsapp_conversations.journey_case_id`)
+
+## Código
+
+| Peça | Path |
+|------|------|
+| Bus | `lib/case-management/bus.ts` |
+| Commands | `lib/case-management/apply-commands.ts` |
+| Resolver | `lib/case-management/resolve-case.ts` |
+| Synchronizer | `lib/ops/case-synchronizer.ts` |
+| Observability | `lib/case-management/observability.ts` |

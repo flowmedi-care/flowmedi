@@ -315,9 +315,22 @@ export async function completeCaseTaskAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const ctx = await requireClinic();
   if (ctx.error || !ctx.profile) return { ok: false, error: ctx.error ?? "Erro" };
-  const { completeTask } = await import("@/lib/case-management/repository");
-  const task = await completeTask(ctx.supabase, taskId);
-  if (!task) return { ok: false, error: "task_complete_failed" };
+  const { applyCaseCommands, publishDomainEvent } = await import(
+    "@/lib/case-management"
+  );
+  const result = await applyCaseCommands(
+    ctx.supabase,
+    [{ type: "CompleteTask", caseId, taskId }],
+    {
+      clinicId: ctx.profile.clinic_id,
+      sourceEventId: null,
+      actor: `human:${ctx.profile.id}`,
+      skipSetPhase: true,
+    }
+  );
+  if (result.rejected.length > 0 && result.applied.length === 0) {
+    return { ok: false, error: "task_complete_failed" };
+  }
   await publishDomainEvent(ctx.supabase, {
     clinicId: ctx.profile.clinic_id,
     caseId,

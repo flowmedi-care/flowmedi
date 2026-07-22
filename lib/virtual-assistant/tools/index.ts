@@ -723,9 +723,12 @@ export async function executeAssistantTool(
             case_id: published.case?.id ?? null,
             phase: published.case?.phase ?? null,
             transition_applied: published.transitionApplied ?? false,
+            commands_applied: published.commandsApplied ?? [],
             hint: published.rejected
-              ? "Evento bloqueado ou sem transição aplicável."
-              : "Fato registrado. A fase do Case foi atualizada pelo Transition Engine se houver Transition.",
+              ? published.rejected === "ai_intent_only_domain_facts_blocked"
+                ? "IA só emite Intents (ex. Booking.Requested). Fatos como Appointment.Created vêm do módulo Agenda."
+                : "Intent bloqueado pela policy ou falha de persistência."
+              : "Intent registrado. Transition + Policy→Decision→Commands atualizaram o Case se aplicável.",
           }),
         };
       }

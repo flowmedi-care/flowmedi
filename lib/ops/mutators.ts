@@ -18,7 +18,7 @@ type BaseInput = {
 };
 
 const CONV_SELECT =
-  "id, clinic_id, phone_number, contact_name, status, patient_id, assigned_secretary_id, assigned_at, ai_enabled, ai_handoff_at, ai_user_opt_out, last_inbound_message_at, created_at, updated_at, pipeline_id, operator_notes, ops_brief, pending_decision, ops_owner_type, ops_owner_user_id, ownership_history, ai_state";
+  "id, clinic_id, phone_number, contact_name, status, patient_id, assigned_secretary_id, assigned_at, ai_enabled, ai_handoff_at, ai_user_opt_out, last_inbound_message_at, created_at, updated_at, pipeline_id, operator_notes, ops_brief, pending_decision, ops_owner_type, ops_owner_user_id, ownership_history, ai_state, journey_case_id";
 
 async function loadRow(
   supabase: SupabaseClient,
@@ -135,6 +135,21 @@ export async function setOwner(
       actorUserId: input.actorUserId ?? null,
     },
   });
+
+  // Conversation → Case Synchronizer (responsibility, not schema merge)
+  try {
+    const { syncCaseOwnerFromConversation } = await import("./case-synchronizer");
+    await syncCaseOwnerFromConversation({
+      supabase: input.supabase,
+      clinicId: input.clinicId,
+      conversationId: input.conversationId,
+      owner: input.owner,
+      ownerUserId,
+      actor: input.actorUserId ? `human:${input.actorUserId}` : "ops:synchronizer",
+    });
+  } catch {
+    /* Case sync best-effort */
+  }
 
   return { ok: true, data: { owner: input.owner, ownerUserId } };
 }
@@ -268,6 +283,20 @@ export async function claimConversation(
     detail: { claimantUserId: input.claimantUserId, reason: input.reason || "claim" },
   });
 
+  try {
+    const { syncCaseOwnerFromConversation } = await import("./case-synchronizer");
+    await syncCaseOwnerFromConversation({
+      supabase: input.supabase,
+      clinicId: input.clinicId,
+      conversationId: input.conversationId,
+      owner: "human",
+      ownerUserId: input.claimantUserId,
+      actor: `human:${input.claimantUserId}`,
+    });
+  } catch {
+    /* best-effort */
+  }
+
   return { ok: true, data: { ownerUserId: input.claimantUserId } };
 }
 
@@ -280,6 +309,20 @@ export async function setPendingDecision(
     .eq("id", input.conversationId)
     .eq("clinic_id", input.clinicId);
   if (error) return { ok: false, error: error.message };
+
+  try {
+    const { syncCasePendingFromConversation } = await import("./case-synchronizer");
+    await syncCasePendingFromConversation({
+      supabase: input.supabase,
+      clinicId: input.clinicId,
+      conversationId: input.conversationId,
+      decision: input.decision,
+      actor: input.actorUserId ? `human:${input.actorUserId}` : "ops:synchronizer",
+    });
+  } catch {
+    /* Case sync best-effort */
+  }
+
   return { ok: true, data: undefined };
 }
 

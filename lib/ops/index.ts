@@ -33,4 +33,9 @@ export {
   assignToHuman,
 } from "./mutators";
 
+export {
+  syncCaseOwnerFromConversation,
+  syncCasePendingFromConversation,
+} from "./case-synchronizer";
+
 export { emitOpsEvent, invalidateAiJourneyState, processDueSystemReminders } from "./event-bridge";

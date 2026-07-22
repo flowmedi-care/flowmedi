@@ -225,7 +225,7 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     function: {
       name: "publish_domain_event",
       description:
-        "Publica um fato de negócio atômico no Case Management (ex.: Lead.Qualified). NUNCA move estágio diretamente — o sistema decide a fase via Automation. Só use quando o fato for claro na conversa.",
+        "Publica um AI Intent (pedido/fato conversacional), NUNCA um fato de módulo. Use Booking.Requested (não Appointment.Created), Handoff.Taken, Lead.Qualified. Agenda/Financeiro emitem Appointment.* / Payment.* após sucesso real.",
       parameters: {
         type: "object",
         properties: {
@@ -233,12 +233,13 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
             type: "string",
             enum: [
               "Lead.Qualified",
-              "Lead.Disqualified",
               "Conversation.Started",
               "Message.Received",
               "Handoff.Taken",
+              "Booking.Requested",
+              "PaymentRequested",
             ],
-            description: "Outcome atômico permitido pela AI Policy",
+            description: "Intent permitido para a IA (não Domain Fact de Agenda/Financeiro)",
           },
           evidence: {
             type: "string",

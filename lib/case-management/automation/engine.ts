@@ -1,6 +1,7 @@
 import type { CaseCommand } from "../commands";
 import type { CasePhase } from "../types";
 import type { DomainPolicyResult } from "../policies";
+import type { ClinicPolicyConfig } from "../policies/clinic";
 
 export type AutomationRule = {
   id: string;
@@ -16,10 +17,15 @@ export type AutomationContext = {
   caseId: string;
   currentPhase: CasePhase | null;
   policy: DomainPolicyResult;
+  clinic: ClinicPolicyConfig;
   payload: Record<string, unknown>;
   eventId: string;
 };
 
+/**
+ * Decision layer — interpreta Domain Event → Case Commands.
+ * NÃO é dono de fase (Transition Engine é); SetPhase aqui é legado/fallback.
+ */
 const DEFAULT_RULES: AutomationRule[] = [
   {
     id: "override-phase",
@@ -30,35 +36,6 @@ const DEFAULT_RULES: AutomationRule[] = [
       const phase = ctx.payload.target_phase as CasePhase | undefined;
       if (!phase || !ctx.caseId) return [];
       return [{ type: "SetPhase", caseId: ctx.caseId, phase, reason: "override" }];
-    },
-  },
-  {
-    id: "phase-from-policy",
-    on: [
-      "Lead.Qualified",
-      "Lead.Disqualified",
-      "Lead.Converted",
-      "Appointment.Created",
-      "Appointment.Confirmed",
-      "Appointment.Completed",
-      "Appointment.NoShow",
-      "Appointment.Cancelled",
-      "Payment.Paid",
-      "Payment.PartiallyPaid",
-      "Payment.Created",
-    ],
-    priority: 50,
-    then: (ctx) => {
-      if (!ctx.policy.suggestedPhase || !ctx.caseId) return [];
-      if (ctx.policy.suggestedPhase === ctx.currentPhase) return [];
-      return [
-        {
-          type: "SetPhase",
-          caseId: ctx.caseId,
-          phase: ctx.policy.suggestedPhase,
-          reason: ctx.eventType,
-        },
-      ];
     },
   },
   {
@@ -95,6 +72,7 @@ const DEFAULT_RULES: AutomationRule[] = [
     id: "pending-patient-confirm",
     on: "Appointment.Created",
     priority: 30,
+    when: (ctx) => ctx.clinic.requireAppointmentConfirmation,
     then: (ctx) => [
       {
         type: "SetPendingDecision",
@@ -118,8 +96,36 @@ const DEFAULT_RULES: AutomationRule[] = [
     on: "Lead.Disqualified",
     priority: 60,
     then: (ctx) => [
-      { type: "SetPhase", caseId: ctx.caseId, phase: "perdido" },
       { type: "CloseCase", caseId: ctx.caseId, reason: "disqualified" },
+    ],
+  },
+  {
+    id: "owner-on-handoff",
+    on: "Handoff.Taken",
+    priority: 70,
+    then: (ctx) => {
+      const humanId =
+        typeof ctx.payload.human_user_id === "string"
+          ? ctx.payload.human_user_id
+          : null;
+      return [
+        {
+          type: "AssignOwner",
+          caseId: ctx.caseId,
+          owner: humanId ? `human:${humanId}` : "human",
+        },
+      ];
+    },
+  },
+  {
+    id: "owner-ai-on-conversation",
+    on: ["Conversation.Started", "Booking.Requested"],
+    priority: 20,
+    when: (ctx) =>
+      typeof ctx.payload.actor === "string" &&
+      String(ctx.payload.actor).startsWith("ai"),
+    then: (ctx) => [
+      { type: "AssignOwner", caseId: ctx.caseId, owner: "ai" },
     ],
   },
 ];

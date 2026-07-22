@@ -132,11 +132,11 @@ export const ASSISTANT_TOOL_CATALOG: AssistantToolCatalogEntry[] = [
   },
   {
     name: "publish_domain_event",
-    label: "Publicar fato de negócio",
+    label: "Publicar intent de negócio",
     category: "crm",
     description:
-      "Publica Domain Event atômico (Lead.Qualified etc.). Não move estágio — Automation decide.",
-    whenToUse: "Quando o lead foi claramente qualificado ou outro fato permitido ocorreu.",
+      "Publica AI Intent (Booking.Requested, Lead.Qualified…). Nunca Appointment.Created — isso é fato da Agenda.",
+    whenToUse: "Quando o lead foi claramente qualificado ou outro intent permitido ocorreu.",
   },
   {
     name: "resolve_quote_offer",

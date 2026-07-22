@@ -1,7 +1,7 @@
-import { AI_ALLOWED_DOMAIN_EVENTS, type DomainEventType } from "../events";
+import { AI_INTENT_EVENTS, isDomainFactBlockedForAi, type DomainEventType } from "../events";
 
 /**
- * AI Policies — limites do agente.
+ * AI Policies — IA emite Intents, nunca Domain Facts de módulo.
  */
 
 export type AIPolicyConfig = {
@@ -9,7 +9,7 @@ export type AIPolicyConfig = {
   canDisqualify: boolean;
   canReschedule: boolean;
   canRequestPayment: boolean;
-  allowedDomainEvents: DomainEventType[];
+  allowedIntentEvents: string[];
 };
 
 export const DEFAULT_AI_POLICY: AIPolicyConfig = {
@@ -17,7 +17,7 @@ export const DEFAULT_AI_POLICY: AIPolicyConfig = {
   canDisqualify: false,
   canReschedule: false,
   canRequestPayment: false,
-  allowedDomainEvents: [...AI_ALLOWED_DOMAIN_EVENTS],
+  allowedIntentEvents: [...AI_INTENT_EVENTS],
 };
 
 export function resolveAIPolicy(
@@ -26,20 +26,33 @@ export function resolveAIPolicy(
   return {
     ...DEFAULT_AI_POLICY,
     ...overrides,
-    allowedDomainEvents:
-      overrides?.allowedDomainEvents ?? DEFAULT_AI_POLICY.allowedDomainEvents,
+    allowedIntentEvents:
+      overrides?.allowedIntentEvents ?? DEFAULT_AI_POLICY.allowedIntentEvents,
   };
 }
 
+/**
+ * Gate: só intents; facts de Agenda/Financeiro bloqueados.
+ * Lead.Disqualified exige canDisqualify explícito.
+ */
 export function aiMayPublishEvent(
   policy: AIPolicyConfig,
   eventType: string
 ): boolean {
-  if (!policy.allowedDomainEvents.includes(eventType as DomainEventType)) {
+  if (isDomainFactBlockedForAi(eventType)) return false;
+
+  if (!policy.allowedIntentEvents.includes(eventType)) {
     return false;
   }
+
   if (eventType === "Lead.Qualified" && !policy.canQualify) return false;
   if (eventType === "Lead.Disqualified" && !policy.canDisqualify) return false;
   if (eventType === "PaymentRequested" && !policy.canRequestPayment) return false;
+
   return true;
 }
+
+/** @deprecated compat — use allowedIntentEvents */
+export type AIPolicyConfigLegacy = AIPolicyConfig & {
+  allowedDomainEvents?: DomainEventType[];
+};

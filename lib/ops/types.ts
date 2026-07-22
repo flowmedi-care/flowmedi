@@ -102,6 +102,7 @@ export type ConversationOpsRow = {
   ops_owner_user_id?: string | null;
   ownership_history?: OwnershipHistoryEntry[] | null;
   ai_state?: Record<string, unknown> | null;
+  journey_case_id?: string | null;
 };
 
 export type MutatorResult<T = void> =
