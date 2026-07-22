@@ -31,15 +31,15 @@ export default async function JornadaBoardPage({ searchParams }: Props) {
     if (caseId) redirect(`/dashboard/crm/jornada/${caseId}`);
   }
 
-  // v6: views antigas → novos modos
+  // v6: views antigas → contrato Hoje
   if (!params.view || params.view === "pendencias") {
-    redirect("/dashboard/pendencias");
+    redirect("/dashboard/hoje?focus=pendencias");
   }
   if (params.view === "comparecimento") {
-    redirect("/dashboard/hoje/consultas");
+    redirect("/dashboard/hoje?area=consultas");
   }
   if (params.view === "ia") {
-    redirect("/dashboard/pendencias?filter=ai");
+    redirect("/dashboard/hoje?focus=pendencias");
   }
   // fluxo permanece legado para admin com seletor de workflow
 

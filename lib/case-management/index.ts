@@ -12,10 +12,14 @@ export {
   humanizeNextDecisionAction,
   actionGroupLabel,
   waitingForToDecider,
+  waitingForToActor,
   ownerTypeToDecider,
+  ownerTypeToActor,
+  actorLabel,
+  formatWhyNow,
   isUrgentDue,
 } from "./next-decision";
-export type { NextDecision, DecisionDecider } from "./next-decision";
+export type { NextDecision, DecisionDecider, DecisionActor } from "./next-decision";
 export {
   publishDomainEvent,
   publishBusinessOutcome,

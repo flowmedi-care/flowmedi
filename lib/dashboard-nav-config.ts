@@ -58,12 +58,12 @@ export const DASHBOARD_AGENDA_GROUP: NavGroupItem = {
   children: [
     { href: "/dashboard/agenda", label: "Calendário" },
     {
-      href: "/dashboard/hoje/agendamentos",
+      href: "/dashboard/hoje?area=agendamentos",
       label: "Agendamentos",
       roles: ["admin", "secretaria"],
     },
     {
-      href: "/dashboard/hoje/consultas",
+      href: "/dashboard/hoje?area=consultas",
       label: "Consultas",
       roles: ["admin", "secretaria"],
     },
@@ -119,7 +119,7 @@ export const DASHBOARD_TOP_NAV: NavTopItem[] = [
   },
   {
     type: "link",
-    href: "/dashboard/pendencias",
+    href: "/dashboard/hoje?focus=pendencias",
     label: "Pendências",
     icon: "clipboard-list",
     roles: ["admin", "secretaria"],
@@ -146,7 +146,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
       { href: "/dashboard/contatos/leads", label: "Contatos (entrada)", roles: ["admin", "secretaria"] },
       { href: "/dashboard/contatos/pacientes", label: "Pacientes" },
       {
-        href: "/dashboard/hoje/pacientes",
+        href: "/dashboard/hoje?area=pacientes",
         label: "Jornadas (pós / tratamento / retorno)",
         roles: ["admin", "secretaria"],
       },
@@ -165,7 +165,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     roles: ["admin", "secretaria"],
     children: [
       { href: "/dashboard/hoje", label: "Hoje" },
-      { href: "/dashboard/pendencias", label: "Pendências" },
+      { href: "/dashboard/hoje?focus=pendencias", label: "Pendências" },
       { href: "/dashboard/crm/pipeline", label: "Indicadores" },
       { href: "/dashboard/crm/captacao", label: "Formulários" },
       { href: "/dashboard/crm/jornada", label: "Jornada (legado)", roles: ["admin"] },
@@ -327,6 +327,7 @@ function isAgendaGroupPath(pathname: string): boolean {
   if (pathname.startsWith("/dashboard/hoje/agendamentos") || pathname.startsWith("/dashboard/hoje/consultas")) {
     return true;
   }
+  // deep links live on /dashboard/hoje?area= — not agenda group path by pathname alone
   if (pathname === "/dashboard/agenda" || pathname.startsWith("/dashboard/agenda/")) {
     if (pathname.startsWith("/dashboard/agenda/atendimento")) return false;
     return true;
@@ -425,11 +426,11 @@ export function filterGroupChildren(
 }
 
 export function isLinkActive(pathname: string, href: string): boolean {
-  if (href === "/dashboard/hoje") {
+  if (href === "/dashboard/hoje" || href.startsWith("/dashboard/hoje?")) {
     return pathname === "/dashboard/hoje";
   }
   if (href === "/dashboard/pendencias") {
-    return pathname === "/dashboard/pendencias" || pathname.startsWith("/dashboard/pendencias/");
+    return pathname === "/dashboard/hoje" || pathname === "/dashboard/pendencias";
   }
   if (href === "/dashboard") return pathname === "/dashboard";
   if (href === "/dashboard/atendimento") {
@@ -440,15 +441,6 @@ export function isLinkActive(pathname: string, href: string): boolean {
   }
   if (href === "/dashboard/agenda") {
     return pathname === "/dashboard/agenda";
-  }
-  if (href === "/dashboard/hoje/agendamentos") {
-    return pathname.startsWith("/dashboard/hoje/agendamentos");
-  }
-  if (href === "/dashboard/hoje/consultas") {
-    return pathname.startsWith("/dashboard/hoje/consultas");
-  }
-  if (href === "/dashboard/hoje/pacientes") {
-    return pathname.startsWith("/dashboard/hoje/pacientes");
   }
   if (href === "/dashboard/consulta") {
     return (

@@ -16,3 +16,13 @@ export {
   buildOperationalProjection,
   loadOperationalProjection,
 } from "./project";
+export {
+  buildHojeHref,
+  parseHojeSearchParams,
+  actionToHojeContext,
+  isHojeArea,
+  AREA_COLUMNS,
+  AREA_HINTS,
+  type HojeActionContext,
+  type HojeArea,
+} from "./hoje-href";

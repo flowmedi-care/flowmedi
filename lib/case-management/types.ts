@@ -54,6 +54,7 @@ export type PendingDecision = {
 export type {
   NextDecision,
   DecisionDecider,
+  DecisionActor,
 } from "./next-decision";
 
 /** Execução técnica em voo — não misturar com pending_decision */
@@ -214,5 +215,9 @@ export {
   humanizeNextDecisionAction,
   actionGroupLabel,
   waitingForToDecider,
+  waitingForToActor,
   ownerTypeToDecider,
+  ownerTypeToActor,
+  actorLabel,
+  formatWhyNow,
 } from "./next-decision";

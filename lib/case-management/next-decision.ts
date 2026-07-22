@@ -1,18 +1,29 @@
 /**
  * NextDecision — próximo trabalho do Case (propriedade dinâmica, não entidade).
- * Persistência atual: journey_cases.pending_decision (JSONB) via adapter.
+ * Persistência: journey_cases.pending_decision (JSONB) via adapter.
+ *
+ * owner (Case) = quem conduz | actor (nextDecision) = quem precisa decidir agora
  */
 
 import type { OwnerType, PendingDecision } from "./types";
 
-export type DecisionDecider = "ai" | "patient" | "human" | "system";
+/** Quem precisa decidir / agir agora (≠ owner do Case) */
+export type DecisionActor = "ai" | "patient" | "human" | "system";
+
+/** @deprecated use DecisionActor */
+export type DecisionDecider = DecisionActor;
 
 export type NextDecision = {
   action: string;
   label: string;
-  decider: DecisionDecider;
+  /** Quem precisa decidir agora */
+  actor: DecisionActor;
+  /** @deprecated use actor */
+  decider: DecisionActor;
   dueAt: string | null;
   urgent: boolean;
+  /** "Por que agora?" — texto curto */
+  reason: string | null;
 };
 
 const HUMAN_WAITING = new Set(["secretaria", "human", "medico", "admin"]);
@@ -30,11 +41,22 @@ const ACTION_LABELS: Record<string, string> = {
   post_consult: "Pós-consulta",
 };
 
+const ACTOR_LABELS: Record<DecisionActor, string> = {
+  ai: "IA",
+  patient: "Paciente",
+  human: "Recepção",
+  system: "Sistema",
+};
+
 export function humanizeNextDecisionAction(action: string): string {
   return ACTION_LABELS[action] ?? action.replace(/_/g, " ");
 }
 
-export function waitingForToDecider(waitingFor: string | null | undefined): DecisionDecider {
+export function actorLabel(actor: DecisionActor): string {
+  return ACTOR_LABELS[actor];
+}
+
+export function waitingForToActor(waitingFor: string | null | undefined): DecisionActor {
   const w = (waitingFor || "").toLowerCase();
   if (!w) return "human";
   if (w === "patient" || w === "patient_waiting") return "patient";
@@ -44,12 +66,18 @@ export function waitingForToDecider(waitingFor: string | null | undefined): Deci
   return "human";
 }
 
-export function ownerTypeToDecider(ownerType: OwnerType | string | null | undefined): DecisionDecider {
+/** @deprecated use waitingForToActor */
+export const waitingForToDecider = waitingForToActor;
+
+export function ownerTypeToActor(ownerType: OwnerType | string | null | undefined): DecisionActor {
   if (ownerType === "ai") return "ai";
   if (ownerType === "patient") return "patient";
   if (ownerType === "human") return "human";
   return "system";
 }
+
+/** @deprecated use ownerTypeToActor */
+export const ownerTypeToDecider = ownerTypeToActor;
 
 export function isUrgentDue(dueAt: string | null | undefined, now = Date.now()): boolean {
   if (!dueAt) return false;
@@ -58,29 +86,58 @@ export function isUrgentDue(dueAt: string | null | undefined, now = Date.now()):
   return t <= now + 24 * 60 * 60 * 1000;
 }
 
-/** pending_decision (DB) → NextDecision (domínio de produto) */
+export function formatWhyNow(
+  dueAt: string | null | undefined,
+  scheduledAt?: string | null
+): string | null {
+  const ref = dueAt || scheduledAt;
+  if (!ref) return null;
+  try {
+    const d = new Date(ref);
+    if (Number.isNaN(d.getTime())) return null;
+    const now = new Date();
+    const startToday = new Date(now);
+    startToday.setHours(0, 0, 0, 0);
+    const startTomorrow = new Date(startToday);
+    startTomorrow.setDate(startTomorrow.getDate() + 1);
+    const startDayAfter = new Date(startTomorrow);
+    startDayAfter.setDate(startDayAfter.getDate() + 1);
+    const time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    if (d >= startToday && d < startTomorrow) return `hoje às ${time}`;
+    if (d >= startTomorrow && d < startDayAfter) return `amanhã às ${time}`;
+    const date = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+    return `${date} às ${time}`;
+  } catch {
+    return null;
+  }
+}
+
+/** pending_decision (DB) → NextDecision */
 export function pendingToNextDecision(
-  pending: PendingDecision | null | undefined
+  pending: PendingDecision | null | undefined,
+  opts?: { scheduledAt?: string | null }
 ): NextDecision | null {
   if (!pending) return null;
   const action = pending.type || "pending";
+  const dueAt = pending.due_at ?? null;
+  const actor = waitingForToActor(pending.waiting_for);
+  const reason = formatWhyNow(dueAt, opts?.scheduledAt ?? null);
   return {
     action,
     label: pending.label?.trim() || humanizeNextDecisionAction(action),
-    decider: waitingForToDecider(pending.waiting_for),
-    dueAt: pending.due_at ?? null,
-    urgent: isUrgentDue(pending.due_at),
+    actor,
+    decider: actor,
+    dueAt,
+    urgent: isUrgentDue(dueAt),
+    reason,
   };
 }
 
-/** NextDecision → pending_decision (persistência) */
+/** NextDecision → pending_decision */
 export function nextDecisionToPending(next: NextDecision): PendingDecision {
+  const actor = next.actor ?? next.decider;
   const waiting_for =
-    next.decider === "human"
-      ? "secretaria"
-      : next.decider === "patient"
-        ? "patient"
-        : next.decider;
+    actor === "human" ? "secretaria" : actor === "patient" ? "patient" : actor;
   return {
     type: next.action,
     waiting_for,
@@ -89,13 +146,13 @@ export function nextDecisionToPending(next: NextDecision): PendingDecision {
   };
 }
 
-export function getCaseNextDecision(input: {
-  pending_decision?: PendingDecision | null;
-}): NextDecision | null {
-  return pendingToNextDecision(input.pending_decision);
+export function getCaseNextDecision(
+  input: { pending_decision?: PendingDecision | null },
+  opts?: { scheduledAt?: string | null }
+): NextDecision | null {
+  return pendingToNextDecision(input.pending_decision, opts);
 }
 
-/** Agrupamento de UI: ação → rótulo curto de CTA */
 export function actionGroupLabel(action: string): string {
   const map: Record<string, string> = {
     confirm_slot: "Confirmar consultas",

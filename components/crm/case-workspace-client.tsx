@@ -11,6 +11,12 @@ import {
   completeCaseTaskAction,
   workspaceAttendanceAction,
 } from "@/app/dashboard/crm/jornada/case-actions";
+import {
+  actorLabel,
+  formatWhyNow,
+  pendingToNextDecision,
+  waitingForToActor,
+} from "@/lib/case-management/next-decision";
 import { cn } from "@/lib/utils";
 
 function formatDue(dueAt: string | null): string | null {
@@ -32,6 +38,14 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
   const [pending, startTransition] = useTransition();
   const { header, case: journeyCase, tasks, timeline, primaryPanels } = data;
   const nextAction = header.nextAction;
+  const nextDecision = pendingToNextDecision(header.pendingDecision, {
+    scheduledAt: null,
+  });
+  const whyNow =
+    nextDecision?.reason ||
+    formatWhyNow(nextAction?.dueAt ?? null) ||
+    (header.nextAppointmentLabel ? `consulta: ${header.nextAppointmentLabel}` : null);
+  const actor = nextDecision?.actor ?? waitingForToActor(nextAction?.waitingFor);
 
   function refresh() {
     router.refresh();
@@ -84,7 +98,9 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Badge title="Responsável atual">{header.ownerLabel}</Badge>
+            <Badge title="Responsável pelo caso">
+              Responsável: {header.ownerLabel}
+            </Badge>
             {header.quoteBadge && <Badge variant="secondary">{header.quoteBadge}</Badge>}
             {header.openTasksCount > 0 && (
               <Badge variant="secondary">{header.openTasksCount} tasks</Badge>
@@ -92,20 +108,30 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
           </div>
         </div>
 
-        {nextAction && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 space-y-1">
+        {(nextAction || nextDecision) && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-3 space-y-2">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Próxima ação
+              Quem precisa decidir agora?
             </p>
-            <p className="text-sm font-medium">{nextAction.label}</p>
-            <p className="text-xs text-muted-foreground">
-              {[
-                nextAction.waitingFor ? `Aguarda: ${nextAction.waitingFor}` : null,
-                formatDue(nextAction.dueAt) ? `Até ${formatDue(nextAction.dueAt)}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "Decisão do atendimento"}
+            <p className="text-sm font-medium">
+              {nextDecision?.label ?? nextAction?.label}
             </p>
+            <dl className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+              <div>
+                <dt className="inline text-muted-foreground">Quem precisa decidir: </dt>
+                <dd className="inline font-medium text-foreground">{actorLabel(actor)}</dd>
+              </div>
+              <div>
+                <dt className="inline text-muted-foreground">Responsável pelo caso: </dt>
+                <dd className="inline font-medium text-foreground">{header.ownerLabel}</dd>
+              </div>
+              {whyNow && (
+                <div className="sm:col-span-2">
+                  <dt className="inline text-muted-foreground">Por que agora: </dt>
+                  <dd className="inline font-medium text-foreground">{whyNow}</dd>
+                </div>
+              )}
+            </dl>
           </div>
         )}
 

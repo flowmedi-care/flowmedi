@@ -4,18 +4,26 @@ import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { CaseWorkspaceClient } from "@/components/crm/case-workspace-client";
 import { getCaseWorkspace } from "../case-actions";
+import { buildHojeHref } from "@/lib/operational-journey";
 import { ArrowLeft } from "lucide-react";
 
 type Props = {
   params: Promise<{ caseId: string }>;
+  searchParams: Promise<{ from?: string; area?: string }>;
 };
 
-export default async function CaseWorkspacePage({ params }: Props) {
+export default async function CaseWorkspacePage({ params, searchParams }: Props) {
   const { caseId } = await params;
+  const sp = await searchParams;
 
   if (caseId.startsWith("lead-") || caseId.startsWith("patient-")) {
-    redirect("/dashboard/crm/jornada");
+    redirect("/dashboard/hoje");
   }
+
+  const backHref = buildHojeHref({
+    area: sp.area as "contatos" | "agendamentos" | "consultas" | "pacientes" | undefined,
+    caseId: sp.from === "hoje" ? caseId : null,
+  });
 
   const { data, error } = await getCaseWorkspace(caseId);
   if (error === "Não autorizado.") redirect("/entrar");
@@ -23,17 +31,16 @@ export default async function CaseWorkspacePage({ params }: Props) {
     return (
       <PageShell
         header={{
-        breadcrumbs: [
-          { label: "Hoje", href: "/dashboard/hoje" },
-          { label: "Pendências", href: "/dashboard/pendencias" },
-          { label: "Workspace" },
-        ],
-        title: "Case não encontrado",
-      }}
+          breadcrumbs: [
+            { label: "Hoje", href: "/dashboard/hoje" },
+            { label: "Workspace" },
+          ],
+          title: "Case não encontrado",
+        }}
       >
         <p className="text-sm text-destructive">{error ?? "Case inválido."}</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/dashboard/pendencias">Voltar</Link>
+          <Link href={backHref}>Voltar</Link>
         </Button>
       </PageShell>
     );
@@ -44,17 +51,16 @@ export default async function CaseWorkspacePage({ params }: Props) {
       header={{
         breadcrumbs: [
           { label: "Hoje", href: "/dashboard/hoje" },
-          { label: "Pendências", href: "/dashboard/pendencias" },
           { label: data.header.displayName },
         ],
-        title: "Workspace",
-        description: "Tudo para operar este Case.",
+        title: data.header.displayName,
+        description: "Quem precisa decidir agora?",
       }}
       toolbar={
         <Button variant="outline" size="sm" asChild>
-          <Link href="/dashboard/pendencias">
+          <Link href={backHref}>
             <ArrowLeft className="mr-1.5 h-4 w-4" />
-            Pendências
+            Voltar ao Hoje
           </Link>
         </Button>
       }

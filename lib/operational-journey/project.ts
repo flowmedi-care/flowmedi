@@ -8,8 +8,8 @@ import type { JourneyCase } from "@/lib/case-management/types";
 import {
   actionGroupLabel,
   getCaseNextDecision,
-  ownerTypeToDecider,
-  type DecisionDecider,
+  ownerTypeToActor,
+  type DecisionActor,
 } from "@/lib/case-management/next-decision";
 import type {
   CaseProjectionItem,
@@ -240,7 +240,8 @@ export function buildOperationalProjection(input: {
   for (const c of input.cases) {
     if (c.status !== "active" && c.status !== "waiting") continue;
 
-    const next = getCaseNextDecision(c);
+    const appt = c.patient_id ? apptByPatient.get(c.patient_id) ?? null : null;
+    const next = getCaseNextDecision(c, { scheduledAt: appt?.scheduled_at ?? null });
     const processCode =
       (c.process_type_id && input.names.processCodeById[c.process_type_id]) ||
       c.journey_type ||
@@ -249,7 +250,6 @@ export function buildOperationalProjection(input: {
     const phaseCode =
       (c.phase_id && input.names.phaseCodeById[c.phase_id]) || c.phase || null;
 
-    const appt = c.patient_id ? apptByPatient.get(c.patient_id) ?? null : null;
     const { stage, slice } = phaseToBoardStage(
       journeyType,
       phaseCode,
@@ -266,7 +266,7 @@ export function buildOperationalProjection(input: {
       displayName = input.names.byLeadId[c.lead_id];
     }
 
-    const decider: DecisionDecider = next?.decider ?? ownerTypeToDecider(c.owner_type);
+    const actor: DecisionActor = next?.actor ?? ownerTypeToActor(c.owner_type);
 
     const item: CaseProjectionItem = {
       caseId: c.id,
@@ -278,7 +278,7 @@ export function buildOperationalProjection(input: {
       boardStage: stage,
       panoramaSlice: slice,
       nextDecision: next,
-      decider,
+      decider: actor,
       ownerType: c.owner_type,
       appointmentId: appt?.id ?? null,
       appointmentStatus: appt?.status ?? null,
@@ -288,7 +288,7 @@ export function buildOperationalProjection(input: {
     items.push(item);
     bumpPanorama(panorama, stage);
 
-    if (c.owner_type === "ai" || decider === "ai") aiCount += 1;
+    if (c.owner_type === "ai" || actor === "ai") aiCount += 1;
 
     if (appt?.scheduled_at) {
       const t = new Date(appt.scheduled_at).getTime();

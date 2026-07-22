@@ -25,7 +25,7 @@ export default function DashboardError({
       <div className="flex flex-wrap justify-center gap-2">
         <Button onClick={reset}>Tentar novamente</Button>
         <Button variant="outline" asChild>
-          <Link href="/dashboard/pendencias">Ver pendências</Link>
+          <Link href="/dashboard/hoje?focus=pendencias">Ver pendências</Link>
         </Button>
         <Button variant="ghost" asChild>
           <Link href="/dashboard">Início</Link>
