@@ -4,7 +4,7 @@ import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMe
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MessageSquare, Plus, Send, Info, Trash2, Check, User, ArrowLeft, PanelRight, Bot, Headphones } from "lucide-react";
+import { MessageSquare, Plus, Send, Info, Trash2, Check, User, ArrowLeft, Briefcase, Bot, Headphones, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppContactSidebar, type Patient } from "./whatsapp-contact-sidebar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -1330,11 +1330,11 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="shrink-0 h-9 w-9 lg:hidden"
+                    className="shrink-0 h-9 w-9"
                     onClick={() => setCasePanelOpen(true)}
-                    title="Painel do caso"
+                    title="Atendimento"
                   >
-                    <PanelRight className="h-5 w-5" />
+                    <Briefcase className="h-5 w-5" />
                   </Button>
                 )}
                 <Button
@@ -1580,28 +1580,30 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
           )}
         </div>
 
-        {selectedOps && showChatPane && (
-          <div className="hidden lg:flex h-full min-h-0 shrink-0">
-            <CasePanel
-              snapshot={selectedOps}
-              onClaim={handleClaim}
-              onReactivateAi={handleReactivateAi}
-              onSaveNotes={handleSaveNotes}
-              claiming={claiming}
-              reactivating={reactivating}
-            />
-          </div>
-        )}
       </div>
 
-      {selectedOps && (
-        <Dialog open={casePanelOpen} onOpenChange={setCasePanelOpen}>
-          <DialogContent
-            title="Caso"
-            onClose={() => setCasePanelOpen(false)}
-            className="max-w-md p-0 sm:max-w-md"
+      {selectedOps && casePanelOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setCasePanelOpen(false)}
+            aria-hidden
+          />
+          <div
+            className="relative z-10 ml-auto w-full max-w-md bg-background border-l border-border shadow-xl flex flex-col h-full"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="-m-6 h-[80vh]">
+            <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
+              <h2 className="text-lg font-semibold">Atendimento</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCasePanelOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
               <CasePanel
                 snapshot={selectedOps}
                 onClaim={handleClaim}
@@ -1612,8 +1614,8 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                 className="max-w-none min-w-0 border-0 h-full"
               />
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </div>
       )}
 
       {selectedConversation && (
