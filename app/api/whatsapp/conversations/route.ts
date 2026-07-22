@@ -35,8 +35,9 @@ function normalizeSecretary(
 
 /**
  * GET /api/whatsapp/conversations?status=open|closed|completed&handler=all|ai|human
- * Lista conversas WhatsApp da clínica.
- * Admin: vê todas. Secretária: vê apenas as atribuídas a ela ou em pool (eligible).
+ * Lista conversas WhatsApp **somente da clínica do membro autenticado** (`clinic_id`).
+ * Nunca lista por phone_number global sem clinic_id.
+ * Admin: vê todas da clínica. Secretária: vê apenas as atribuídas a ela ou em pool (eligible).
  */
 export async function GET(request: Request) {
   try {

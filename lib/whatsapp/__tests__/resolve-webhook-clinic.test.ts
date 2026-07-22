@@ -28,12 +28,14 @@ describe("resolveWhatsappWebhookClinic", () => {
       "12345"
     );
 
-    assert.equal(result?.clinicId, "clinic-1");
-    assert.equal(result?.integrationType, "whatsapp_simple");
-    assert.equal(result?.accessToken, "token-simple");
+    assert.equal(result.status, "resolved");
+    if (result.status !== "resolved") return;
+    assert.equal(result.clinic.clinicId, "clinic-1");
+    assert.equal(result.clinic.integrationType, "whatsapp_simple");
+    assert.equal(result.clinic.accessToken, "token-simple");
   });
 
-  it("falls back to single connected integration without phone id", async () => {
+  it("discards when phone_number_id is missing even with a single connected clinic", async () => {
     const result = await resolveWhatsappWebhookClinic(
       mockSupabase([
         {
@@ -46,11 +48,13 @@ describe("resolveWhatsappWebhookClinic", () => {
       null
     );
 
-    assert.equal(result?.clinicId, "clinic-2");
-    assert.equal(result?.integrationType, "whatsapp_meta");
+    assert.deepEqual(result, {
+      status: "discarded",
+      reason: "missing_phone_number_id",
+    });
   });
 
-  it("returns null when multiple integrations and phone id does not match", async () => {
+  it("discards when phone_number_id does not match any connected clinic", async () => {
     const result = await resolveWhatsappWebhookClinic(
       mockSupabase([
         {
@@ -69,6 +73,44 @@ describe("resolveWhatsappWebhookClinic", () => {
       "333"
     );
 
-    assert.equal(result, null);
+    assert.deepEqual(result, { status: "discarded", reason: "no_owner" });
+  });
+
+  it("discards when the same phone_number_id is connected to multiple clinics", async () => {
+    const result = await resolveWhatsappWebhookClinic(
+      mockSupabase([
+        {
+          clinic_id: "clinic-a",
+          integration_type: "whatsapp_simple",
+          metadata: { phone_number_id: "shared" },
+          credentials: { access_token: "a" },
+        },
+        {
+          clinic_id: "clinic-b",
+          integration_type: "whatsapp_meta",
+          metadata: { phone_number_id: "shared" },
+          credentials: { access_token: "b" },
+        },
+      ]) as never,
+      "shared"
+    );
+
+    assert.deepEqual(result, { status: "discarded", reason: "ambiguous_owner" });
+  });
+
+  it("discards unmatched webhook when only one clinic is connected (no fallback)", async () => {
+    const result = await resolveWhatsappWebhookClinic(
+      mockSupabase([
+        {
+          clinic_id: "clinic-only",
+          integration_type: "whatsapp_meta",
+          metadata: { phone_number_id: "mine" },
+          credentials: { access_token: "token" },
+        },
+      ]) as never,
+      "someone-else"
+    );
+
+    assert.deepEqual(result, { status: "discarded", reason: "no_owner" });
   });
 });

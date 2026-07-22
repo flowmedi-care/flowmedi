@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -19,6 +19,7 @@ import {
   type ConversationHandler,
 } from "@/lib/whatsapp-ai-state";
 import { extractFirstName } from "@/lib/whatsapp-sender-display";
+import { encodeMessageCursor } from "@/lib/whatsapp/message-cursor";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TableRowsSkeleton } from "@/components/dashboard-ui/loading/table-page-skeleton";
 import { CasePanel } from "@/components/ops/case-panel";
@@ -26,6 +27,14 @@ import type { OperationsSnapshot } from "@/lib/ops";
 import { toast } from "@/components/ui/toast";
 
 type OpsQueueFilter = "needs_decision" | "ai" | "patient_waiting" | "system" | "all";
+
+/** Máquina de estados do painel de mensagens — skeleton só em Opening. */
+type ChatState = "idle" | "opening" | "ready" | "syncing" | "sending";
+
+type ScrollIntent = "initial" | "prepend" | "append";
+
+const NEAR_BOTTOM_PX = 80;
+const MESSAGES_PAGE_LIMIT = 50;
 
 type Conversation = {
   id: string;
@@ -58,6 +67,76 @@ type Message = {
   sender_user_id?: string | null;
   ai_processed_at?: string | null;
 };
+
+type MessagesPageResponse = {
+  messages: Message[];
+  hasMoreOlder: boolean;
+  oldestCursor: string | null;
+  newestCursor: string | null;
+};
+
+function mergeUniqueById(existing: Message[], incoming: Message[]): Message[] {
+  if (incoming.length === 0) return existing;
+  const byId = new Map<string, Message>();
+  for (const m of existing) byId.set(m.id, m);
+  for (const m of incoming) byId.set(m.id, m);
+  return Array.from(byId.values()).sort((a, b) => {
+    const ta = new Date(a.sent_at).getTime();
+    const tb = new Date(b.sent_at).getTime();
+    if (ta !== tb) return ta - tb;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+/** Após sync com msgs reais, remove bolhas otimistas temp-*. */
+function mergeDroppingTemps(existing: Message[], incoming: Message[]): Message[] {
+  if (incoming.length === 0) return existing;
+  const withoutTemps = existing.filter((m) => !m.id.startsWith("temp-"));
+  return mergeUniqueById(withoutTemps, incoming);
+}
+
+function isNearBottom(el: HTMLElement): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+}
+
+function mapRealtimePayloadToMessage(row: Record<string, unknown>): Message | null {
+  const id = typeof row.id === "string" ? row.id : null;
+  const sentAt = typeof row.sent_at === "string" ? row.sent_at : null;
+  const direction = row.direction === "inbound" || row.direction === "outbound" ? row.direction : null;
+  if (!id || !sentAt || !direction) return null;
+  return {
+    id,
+    direction,
+    body: typeof row.content === "string" ? row.content : row.content == null ? null : String(row.content),
+    media_url: typeof row.media_url === "string" ? row.media_url : null,
+    message_type: typeof row.message_type === "string" ? row.message_type : "text",
+    sent_at: sentAt,
+    sender_type: typeof row.sender_type === "string" ? row.sender_type : null,
+    sender_name: typeof row.sender_name === "string" ? row.sender_name : null,
+    sender_user_id: typeof row.sender_user_id === "string" ? row.sender_user_id : null,
+    ai_processed_at: typeof row.ai_processed_at === "string" ? row.ai_processed_at : null,
+  };
+}
+
+function formatLastPatientLabel(iso: string | null): string | null {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "Última do paciente: agora";
+    if (diffMin < 60) return `Última do paciente: há ${diffMin} min`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `Última do paciente: há ${diffH}h`;
+    const diffD = Math.floor(diffH / 24);
+    if (diffD === 1) return "Última do paciente: ontem";
+    if (diffD < 7) return `Última do paciente: há ${diffD} dias`;
+    return `Última do paciente: ${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}`;
+  } catch {
+    return null;
+  }
+}
 
 type WhatsAppUsageLimit = {
   limit: number | null;
@@ -156,8 +235,12 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [oldestCursor, setOldestCursor] = useState<string | null>(null);
+  const [newestCursor, setNewestCursor] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [chatState, setChatState] = useState<ChatState>("idle");
   const [loading, setLoading] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newContactQuery, setNewContactQuery] = useState("");
   const [newContactResults, setNewContactResults] = useState<ContactOption[]>([]);
@@ -188,10 +271,60 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const supabaseRef = useRef(createSupabaseBrowserClient());
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const shouldScrollToBottomRef = useRef(false);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const scrollIntentRef = useRef<ScrollIntent | null>(null);
+  const prependAnchorRef = useRef<{ prevHeight: number; prevTop: number } | null>(null);
+  const nearBottomRef = useRef(true);
+  const loadingOlderRef = useRef(false);
+  const selectedIdRef = useRef<string | null>(null);
+  const chatStateRef = useRef<ChatState>("idle");
+  const oldestCursorRef = useRef<string | null>(null);
+  const newestCursorRef = useRef<string | null>(null);
+  const hasMoreOlderRef = useRef(false);
+  const fetchNewMessagesRef = useRef<() => Promise<void>>(async () => {});
   const patientCacheRef = useRef<Record<string, Patient | null>>({});
   const loadConversationsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  selectedIdRef.current = selectedId;
+
+  const setChatStateSync = useCallback((next: ChatState | ((prev: ChatState) => ChatState)) => {
+    setChatState((prev) => {
+      const resolved = typeof next === "function" ? next(prev) : next;
+      chatStateRef.current = resolved;
+      return resolved;
+    });
+  }, []);
+
+  useEffect(() => {
+    oldestCursorRef.current = oldestCursor;
+  }, [oldestCursor]);
+  useEffect(() => {
+    newestCursorRef.current = newestCursor;
+  }, [newestCursor]);
+  useEffect(() => {
+    hasMoreOlderRef.current = hasMoreOlder;
+  }, [hasMoreOlder]);
+
+  /** Única fonte da verdade do scroll — ninguém mais mexe em scrollTop/scrollIntoView. */
+  useLayoutEffect(() => {
+    const el = messagesScrollRef.current;
+    const intent = scrollIntentRef.current;
+    if (!el || !intent) return;
+    scrollIntentRef.current = null;
+
+    if (intent === "initial" || intent === "append") {
+      el.scrollTop = el.scrollHeight;
+      nearBottomRef.current = true;
+      return;
+    }
+
+    if (intent === "prepend" && prependAnchorRef.current) {
+      const { prevHeight, prevTop } = prependAnchorRef.current;
+      el.scrollTop = el.scrollHeight - prevHeight + prevTop;
+      prependAnchorRef.current = null;
+      nearBottomRef.current = isNearBottom(el);
+    }
+  }, [messages]);
 
   const fetchPatientByPhone = useCallback(async (phone: string): Promise<Patient | null> => {
     try {
@@ -364,21 +497,170 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationStatusFilter]);
 
-  const loadMessages = useCallback((showLoading = false, scrollToBottom = false) => {
-    if (!selectedId) return;
-    if (showLoading) setLoadingMessages(true);
-    fetch(`/api/whatsapp/messages?conversationId=${encodeURIComponent(selectedId)}`)
-      .then((res) => {
-        if (!res.ok) return [];
-        return res.json();
-      })
-      .then((data) => {
-        if (scrollToBottom) shouldScrollToBottomRef.current = true;
-        setMessages(data);
-      })
-      .catch(() => setMessages([]))
-      .finally(() => setLoadingMessages(false));
-  }, [selectedId]);
+  const resetMessageState = useCallback(() => {
+    setMessages([]);
+    setHasMoreOlder(false);
+    setOldestCursor(null);
+    setNewestCursor(null);
+    oldestCursorRef.current = null;
+    newestCursorRef.current = null;
+    hasMoreOlderRef.current = false;
+    nearBottomRef.current = true;
+    scrollIntentRef.current = null;
+    prependAnchorRef.current = null;
+  }, []);
+
+  const fetchInitialMessages = useCallback(async () => {
+    const cid = selectedIdRef.current;
+    if (!cid) return;
+    setChatStateSync("opening");
+    const url = `/api/whatsapp/messages?conversationId=${encodeURIComponent(cid)}&limit=${MESSAGES_PAGE_LIMIT}`;
+    try {
+      const res = await fetch(url);
+      if (selectedIdRef.current !== cid) return;
+      if (!res.ok) {
+        resetMessageState();
+        setChatStateSync("ready");
+        return;
+      }
+      const data = (await res.json()) as MessagesPageResponse;
+      if (selectedIdRef.current !== cid) return;
+      if (!data || !Array.isArray(data.messages)) {
+        resetMessageState();
+        setChatStateSync("ready");
+        return;
+      }
+      scrollIntentRef.current = "initial";
+      setMessages(data.messages);
+      setHasMoreOlder(Boolean(data.hasMoreOlder));
+      setOldestCursor(data.oldestCursor);
+      setNewestCursor(data.newestCursor);
+      setChatStateSync("ready");
+    } catch {
+      if (selectedIdRef.current !== cid) return;
+      resetMessageState();
+      setChatStateSync("ready");
+    }
+  }, [resetMessageState, setChatStateSync]);
+
+  const fetchOlderMessages = useCallback(async () => {
+    const cid = selectedIdRef.current;
+    if (!cid) return;
+    if (loadingOlderRef.current) return;
+    if (!hasMoreOlderRef.current || !oldestCursorRef.current) return;
+
+    const scrollEl = messagesScrollRef.current;
+    if (scrollEl) {
+      prependAnchorRef.current = {
+        prevHeight: scrollEl.scrollHeight,
+        prevTop: scrollEl.scrollTop,
+      };
+    }
+
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    try {
+      const url =
+        `/api/whatsapp/messages?conversationId=${encodeURIComponent(cid)}` +
+        `&limit=${MESSAGES_PAGE_LIMIT}&before=${encodeURIComponent(oldestCursorRef.current)}`;
+      const res = await fetch(url);
+      if (selectedIdRef.current !== cid) return;
+      if (!res.ok) return;
+      const data = (await res.json()) as MessagesPageResponse;
+      if (selectedIdRef.current !== cid) return;
+      if (!Array.isArray(data.messages) || data.messages.length === 0) {
+        setHasMoreOlder(false);
+        prependAnchorRef.current = null;
+        return;
+      }
+      scrollIntentRef.current = "prepend";
+      setMessages((prev) => mergeUniqueById(data.messages, prev));
+      setHasMoreOlder(Boolean(data.hasMoreOlder));
+      if (data.oldestCursor) setOldestCursor(data.oldestCursor);
+    } catch {
+      prependAnchorRef.current = null;
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    }
+  }, []);
+
+  const fetchNewMessages = useCallback(async () => {
+    const cid = selectedIdRef.current;
+    if (!cid) return;
+    if (chatStateRef.current === "opening" || chatStateRef.current === "idle") return;
+    const after = newestCursorRef.current;
+    // Sem cursor da conversa atual → no-op (nunca fallback para latest-50)
+    if (!after) return;
+
+    setChatStateSync((s) => (s === "ready" || s === "syncing" ? "syncing" : s));
+    try {
+      const url =
+        `/api/whatsapp/messages?conversationId=${encodeURIComponent(cid)}` +
+        `&limit=${MESSAGES_PAGE_LIMIT}&after=${encodeURIComponent(after)}`;
+      const res = await fetch(url);
+      if (selectedIdRef.current !== cid) return;
+      if (!res.ok) return;
+      const data = (await res.json()) as MessagesPageResponse;
+      if (selectedIdRef.current !== cid) return;
+      if (!Array.isArray(data.messages) || data.messages.length === 0) {
+        setChatStateSync((s) => (s === "syncing" ? "ready" : s));
+        return;
+      }
+      const stick = nearBottomRef.current;
+      if (stick) scrollIntentRef.current = "append";
+      setMessages((prev) => mergeDroppingTemps(prev, data.messages));
+      if (data.newestCursor) setNewestCursor(data.newestCursor);
+      setChatStateSync((s) => (s === "syncing" || s === "sending" ? "ready" : s));
+    } catch {
+      setChatStateSync((s) => (s === "syncing" ? "ready" : s));
+    }
+  }, [setChatStateSync]);
+
+  /** Primeiro outbound sem cursor: merge latest page sem skeleton/replace. */
+  const bootstrapAfterFirstSend = useCallback(async () => {
+    const cid = selectedIdRef.current;
+    if (!cid) return;
+    try {
+      const url = `/api/whatsapp/messages?conversationId=${encodeURIComponent(cid)}&limit=${MESSAGES_PAGE_LIMIT}`;
+      const res = await fetch(url);
+      if (selectedIdRef.current !== cid || !res.ok) return;
+      const data = (await res.json()) as MessagesPageResponse;
+      if (selectedIdRef.current !== cid || !Array.isArray(data.messages)) return;
+      scrollIntentRef.current = "append";
+      setMessages((prev) => mergeDroppingTemps(prev, data.messages));
+      setHasMoreOlder(Boolean(data.hasMoreOlder));
+      if (data.oldestCursor) setOldestCursor(data.oldestCursor);
+      if (data.newestCursor) setNewestCursor(data.newestCursor);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  fetchNewMessagesRef.current = fetchNewMessages;
+
+  const applyRealtimeMessage = useCallback((row: Record<string, unknown>) => {
+    if (chatStateRef.current === "opening" || chatStateRef.current === "idle") return;
+    const msg = mapRealtimePayloadToMessage(row);
+    if (!msg) {
+      void fetchNewMessagesRef.current();
+      return;
+    }
+    const stick = nearBottomRef.current;
+    if (stick) scrollIntentRef.current = "append";
+    setMessages((prev) => mergeDroppingTemps(prev, [msg]));
+    setNewestCursor(encodeMessageCursor(msg.sent_at, msg.id));
+    setChatStateSync((s) => (s === "syncing" || s === "sending" ? "ready" : s));
+  }, [setChatStateSync]);
+
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    nearBottomRef.current = isNearBottom(el);
+    if (el.scrollTop < NEAR_BOTTOM_PX) {
+      void fetchOlderMessages();
+    }
+  }, [fetchOlderMessages]);
 
   useEffect(() => {
     const syncMobile = () => {
@@ -434,11 +716,15 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "whatsapp_messages" },
         (payload) => {
-          const conversationId = String(
-            (payload.new as { conversation_id?: string } | null)?.conversation_id ?? ""
-          );
-          if (selectedId && conversationId === selectedId) {
-            loadMessages(false, false);
+          const row = (payload.new ?? {}) as Record<string, unknown>;
+          const conversationId = String(row.conversation_id ?? "");
+          if (selectedIdRef.current && conversationId === selectedIdRef.current) {
+            // XOR: payload completo → merge; senão after=
+            if (mapRealtimePayloadToMessage(row)) {
+              applyRealtimeMessage(row);
+            } else {
+              void fetchNewMessagesRef.current();
+            }
           }
           scheduleLoadConversations(false);
           loadUnreadCounts();
@@ -459,7 +745,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
       setRealtimeConnected(false);
       supabase.removeChannel(channel);
     };
-  }, [selectedId, scheduleLoadConversations, loadUnreadCounts, loadMessages]);
+  }, [scheduleLoadConversations, loadUnreadCounts, applyRealtimeMessage]);
 
   // Fallback de polling curto quando socket estiver indisponível
   useEffect(() => {
@@ -467,10 +753,10 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
     const interval = setInterval(() => {
       scheduleLoadConversations(false);
       loadUnreadCounts();
-      if (selectedId) loadMessages(false, false);
+      void fetchNewMessagesRef.current();
     }, 4000);
     return () => clearInterval(interval);
-  }, [realtimeConnected, selectedId, scheduleLoadConversations, loadUnreadCounts, loadMessages]);
+  }, [realtimeConnected, scheduleLoadConversations, loadUnreadCounts]);
 
   useEffect(() => {
     fetch("/api/whatsapp/secretaries")
@@ -481,41 +767,39 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
 
   useEffect(() => {
     if (!selectedId) {
-      setMessages([]);
+      setChatStateSync("idle");
+      resetMessageState();
       setReplyText("");
       return;
     }
-    // Marcar conversa como visualizada ao abrir
+
+    // Reset imediato antes do fetch — corta race de cursors A→B
+    setChatStateSync("opening");
+    resetMessageState();
+    setReplyText("");
+
     fetch("/api/whatsapp/mark-viewed", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ conversationId: selectedId }),
     }).then(() => {
-      // Remover badge imediatamente da conversa atual
       setUnreadCounts((prev) => {
         const updated = { ...prev };
         delete updated[selectedId];
-        // Atualizar total também
         const newTotal = Object.values(updated).reduce((sum, count) => sum + count, 0);
         window.dispatchEvent(new CustomEvent("whatsapp-unread-update", { detail: newTotal }));
         return updated;
       });
-      loadUnreadCounts(); // Atualizar contadores após marcar como visualizada
+      loadUnreadCounts();
     });
-    loadMessages(true, true); // loading + scroll no primeiro carregamento
-    const interval = setInterval(() => {
-      loadMessages(false, false);
-      loadUnreadCounts(); // Atualizar contadores periodicamente
-    }, 10000); // polling a cada 10 segundos (reduzido de 5s para evitar refresh constante)
-    return () => clearInterval(interval);
-  }, [selectedId, loadUnreadCounts, loadMessages]);
 
-  useEffect(() => {
-    if (shouldScrollToBottomRef.current) {
-      shouldScrollToBottomRef.current = false;
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages]);
+    void fetchInitialMessages();
+    const interval = setInterval(() => {
+      void fetchNewMessagesRef.current();
+      loadUnreadCounts();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [selectedId, loadUnreadCounts, fetchInitialMessages, resetMessageState, setChatStateSync]);
 
   const selectedConversation = conversations.find((c) => c.id === selectedId);
   const showListPane = !fullWidth || !isMobile || !selectedId;
@@ -579,12 +863,14 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
 
   const handleSendInChat = async () => {
     if (!selectedConversation || !replyText.trim()) return;
-    
+
     const text = replyText.trim();
     setReplyText("");
     setSendingReply(true);
+    setChatStateSync("sending");
     const tempId = `temp-${Date.now()}`;
-    shouldScrollToBottomRef.current = true; // rolar ao enviar
+    scrollIntentRef.current = "append";
+    nearBottomRef.current = true;
     setMessages((prev) => [
       ...prev,
       {
@@ -603,22 +889,29 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
         body: JSON.stringify({ to: selectedConversation.phone_number, text }),
       });
       if (res.ok) {
-        loadMessages();
+        // Mantém temp até o merge trazer a msg real (não remove antes)
+        nearBottomRef.current = true;
+        scrollIntentRef.current = "append";
+        if (newestCursorRef.current) {
+          await fetchNewMessagesRef.current();
+        } else {
+          await bootstrapAfterFirstSend();
+        }
+        setChatStateSync("ready");
         loadUnreadCounts();
         loadUsageLimit();
-        // Não recarregar conversas aqui para evitar refresh constante
-        // O status será atualizado quando necessário
       } else {
         const data = await res.json();
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setChatStateSync("ready");
         if (data.status && data.status !== "open") {
           alert(data.error || "Não é possível enviar mensagem de texto livre nesta conversa.");
-          // Recarregar apenas se houver erro de status
-          await loadConversations(false); // Não mostrar loading ao tratar erro
+          await loadConversations(false);
         }
       }
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setChatStateSync("ready");
     } finally {
       setSendingReply(false);
     }
@@ -772,37 +1065,41 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                 : `Limite mensal pós-24h: ${usageLimit.used}/${usageLimit.limit} (${usageLimit.remaining} restante${usageLimit.remaining === 1 ? "" : "s"}).`}
             </div>
           )}
-          {/* Abas de filtro */}
-          <div className="flex gap-0 border-b border-border px-2">
+          {/* Abas: janela Meta 24h vs ticket concluído */}
+          <div className="flex flex-col border-b border-border">
+            <p className="px-3 pt-2 text-[10px] text-muted-foreground leading-snug">
+              Janela de 24h da Meta: aberta pelo paciente; resposta da clínica não reinicia.
+            </p>
+            <div className="flex gap-0 px-2">
             <button
               type="button"
               onClick={() => setConversationStatusFilter("open")}
               className={cn(
-                "flex-1 px-3 py-2 text-xs font-medium border-b-2 transition-colors",
+                "flex-1 px-2 py-2 text-[11px] font-medium border-b-2 transition-colors",
                 conversationStatusFilter === "open"
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              Em aberto
+              Na janela (24h)
             </button>
             <button
               type="button"
               onClick={() => setConversationStatusFilter("closed")}
               className={cn(
-                "flex-1 px-3 py-2 text-xs font-medium border-b-2 transition-colors",
+                "flex-1 px-2 py-2 text-[11px] font-medium border-b-2 transition-colors",
                 conversationStatusFilter === "closed"
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              Encerrada
+              Fora da janela (24h)
             </button>
             <button
               type="button"
               onClick={() => setConversationStatusFilter("completed")}
               className={cn(
-                "flex-1 px-3 py-2 text-xs font-medium border-b-2 transition-colors",
+                "flex-1 px-2 py-2 text-[11px] font-medium border-b-2 transition-colors",
                 conversationStatusFilter === "completed"
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -810,6 +1107,7 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
             >
               Concluídas
             </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
@@ -877,6 +1175,14 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                             {formatPhone(c.phone_number)}
                           </span>
                         )}
+                        {(() => {
+                          const lastPatient = formatLastPatientLabel(c.last_inbound_message_at);
+                          return lastPatient ? (
+                            <span className="block text-[10px] text-muted-foreground/80 truncate mt-0.5">
+                              {lastPatient}
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                     </button>
                   </li>
@@ -998,8 +1304,12 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   <Trash2 className="h-5 w-5" />
                 </Button>
               </div>
-              <div className="flex-1 overflow-y-auto p-3 sm:p-4 whatsapp-chat-wallpaper min-h-0">
-                {loadingMessages ? (
+              <div
+                ref={messagesScrollRef}
+                onScroll={handleMessagesScroll}
+                className="flex-1 overflow-y-auto p-3 sm:p-4 whatsapp-chat-wallpaper min-h-0"
+              >
+                {chatState === "opening" ? (
                   <div className="space-y-4 py-2">
                     {Array.from({ length: 5 }).map((_, i) => (
                       <div
@@ -1023,6 +1333,15 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                   </div>
                 ) : (
                   <div className="space-y-1">
+                    {(loadingOlder || hasMoreOlder) && (
+                      <div className="flex justify-center py-2">
+                        {loadingOlder ? (
+                          <span className="text-xs text-muted-foreground">Carregando…</span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground/70">Role para cima para ver mais</span>
+                        )}
+                      </div>
+                    )}
                     {(() => {
                       // Agrupar mensagens por data
                       const groupedMessages: Array<{ dateKey: string; dateLabel: string; messages: Message[] }> = [];
@@ -1117,14 +1436,13 @@ export function WhatsAppChatSidebar({ fullWidth }: WhatsAppChatSidebarProps) {
                     })()}
                   </div>
                 )}
-                <div ref={messagesEndRef} />
               </div>
               <div className="p-3 border-t border-border flex flex-col gap-2 bg-card">
                 {selectedConversation && selectedConversation.status !== "open" && (
                   <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 px-3 py-2 rounded-md">
-                    {selectedConversation.status === "closed" 
-                      ? "Esta conversa está fechada. A mensagem será enviada via template aprovado."
-                      : "Esta conversa está concluída. A mensagem será enviada via template aprovado."}
+                    {selectedConversation.status === "closed"
+                      ? "Fora da janela (24h) — envie template aprovado. A janela só reabre com mensagem do paciente."
+                      : "Conversa concluída. A mensagem será enviada via template aprovado."}
                   </div>
                 )}
                 {selectedOps && !selectedOps.canCompose && (

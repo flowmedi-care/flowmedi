@@ -67,19 +67,19 @@ export async function processWhatsAppWebhookInbound(rawBody: string): Promise<vo
 
         let clinicId: string | null = null;
         let accessToken: string | null = null;
-        const resolvedClinic = await resolveWhatsappWebhookClinic(supabase, phoneNumberId);
-        if (resolvedClinic) {
-          clinicId = resolvedClinic.clinicId;
-          accessToken = resolvedClinic.accessToken;
-        }
-        if (!clinicId) {
-          console.warn(
-            "[WhatsApp Webhook] Nenhuma clínica encontrada para phone_number_id:",
-            phoneNumberId,
-            "(tipos verificados: whatsapp_meta, whatsapp_simple)"
-          );
+        let integrationType: string | null = null;
+        const resolution = await resolveWhatsappWebhookClinic(supabase, phoneNumberId);
+        if (resolution.status === "discarded") {
+          // discard ≠ error: isolamento esperado (sem owner / ambíguo / sem phone_number_id)
+          console.warn("[WhatsApp Webhook] Evento descartado (isolamento)", {
+            reason: resolution.reason,
+            phone_number_id: phoneNumberId ?? null,
+          });
           continue;
         }
+        clinicId = resolution.clinic.clinicId;
+        accessToken = resolution.clinic.accessToken;
+        integrationType = resolution.clinic.integrationType;
 
         const contacts =
           (value.contacts as Array<{
@@ -290,7 +290,7 @@ export async function processWhatsAppWebhookInbound(rawBody: string): Promise<vo
               from,
               msgType,
               bodyPreview: (bodyText ?? "").slice(0, 80),
-              integrationType: resolvedClinic?.integrationType ?? null,
+              integrationType: integrationType,
             },
           });
 

@@ -1015,9 +1015,11 @@ export const API_AUDIT_REGISTRY: ApiEndpointDefinition[] = [
     authMechanism: "helper-clinic-member",
     auditRisk: "baixo",
     probeStrategy: "auth-only",
-    queryParams: { conversationId: "{conversationId}" },
+    queryParams: { conversationId: "{conversationId}", limit: "50" },
     expectedAnonymousStatus: [401, 400, 500],
     sideEffects: "read",
+    notes:
+      "Resposta paginada: { messages, hasMoreOlder, oldestCursor, newestCursor }. before XOR after.",
   }),
   e({
     id: "whatsapp-unread-count-get",

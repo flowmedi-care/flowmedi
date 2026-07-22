@@ -9,6 +9,16 @@ export type ResolvedWhatsappWebhookClinic = {
   phoneNumberId: string | null;
 };
 
+/** Discard esperado (isolamento LGPD) — não é erro de processamento. */
+export type WhatsappWebhookDiscardReason =
+  | "missing_phone_number_id"
+  | "no_owner"
+  | "ambiguous_owner";
+
+export type WhatsappWebhookClinicResolution =
+  | { status: "resolved"; clinic: ResolvedWhatsappWebhookClinic }
+  | { status: "discarded"; reason: WhatsappWebhookDiscardReason };
+
 type IntegrationRow = {
   clinic_id: string;
   integration_type: string;
@@ -26,10 +36,19 @@ function accessTokenFromCredentials(credentials: Record<string, unknown> | null)
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+/**
+ * Resolve a clínica dona do webhook pelo phone_number_id.
+ * Sem match explícito e único → discarded (nunca fallback para outra clínica).
+ */
 export async function resolveWhatsappWebhookClinic(
   supabase: SupabaseClient,
   phoneNumberId: string | null | undefined
-): Promise<ResolvedWhatsappWebhookClinic | null> {
+): Promise<WhatsappWebhookClinicResolution> {
+  const normalizedPhoneId = phoneNumberId?.trim() || null;
+  if (!normalizedPhoneId) {
+    return { status: "discarded", reason: "missing_phone_number_id" };
+  }
+
   const { data: integrations } = await supabase
     .from("clinic_integrations")
     .select("clinic_id, integration_type, metadata, credentials")
@@ -37,33 +56,26 @@ export async function resolveWhatsappWebhookClinic(
     .eq("status", "connected");
 
   const rows = (integrations ?? []) as IntegrationRow[];
-  if (rows.length === 0) return null;
+  const matches = rows.filter(
+    (row) => phoneNumberIdFromMetadata(row.metadata) === normalizedPhoneId
+  );
 
-  const normalizedPhoneId = phoneNumberId?.trim() || null;
-
-  if (normalizedPhoneId) {
-    const byPhone = rows.find(
-      (row) => phoneNumberIdFromMetadata(row.metadata) === normalizedPhoneId
-    );
-    if (byPhone) {
-      return {
-        clinicId: byPhone.clinic_id,
-        integrationType: byPhone.integration_type as WhatsappIntegrationType,
-        accessToken: accessTokenFromCredentials(byPhone.credentials),
-        phoneNumberId: normalizedPhoneId,
-      };
-    }
+  if (matches.length === 0) {
+    return { status: "discarded", reason: "no_owner" };
   }
 
-  if (rows.length === 1) {
-    const only = rows[0];
-    return {
-      clinicId: only.clinic_id,
-      integrationType: only.integration_type as WhatsappIntegrationType,
-      accessToken: accessTokenFromCredentials(only.credentials),
-      phoneNumberId: phoneNumberIdFromMetadata(only.metadata),
-    };
+  if (matches.length > 1) {
+    return { status: "discarded", reason: "ambiguous_owner" };
   }
 
-  return null;
+  const byPhone = matches[0];
+  return {
+    status: "resolved",
+    clinic: {
+      clinicId: byPhone.clinic_id,
+      integrationType: byPhone.integration_type as WhatsappIntegrationType,
+      accessToken: accessTokenFromCredentials(byPhone.credentials),
+      phoneNumberId: normalizedPhoneId,
+    },
+  };
 }

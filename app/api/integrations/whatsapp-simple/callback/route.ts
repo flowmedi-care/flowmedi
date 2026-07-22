@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
+import {
+  assertWhatsappPhoneNumberIdAvailable,
+  isUniquePhoneConstraintError,
+} from "@/lib/whatsapp/assert-phone-number-available";
 
 /**
  * Callback do OAuth do Meta/WhatsApp Simple
@@ -249,6 +253,19 @@ export async function GET(request: NextRequest) {
 
     const integrationStatus = accessToken ? "connected" : "pending";
 
+    if (phoneNumberId && integrationStatus === "connected") {
+      const phoneConflict = await assertWhatsappPhoneNumberIdAvailable(
+        supabase,
+        phoneNumberId,
+        stateData.clinicId
+      );
+      if (phoneConflict) {
+        return NextResponse.redirect(
+          new URL(`/dashboard/configuracoes/integracoes?error=phone_in_use`, request.url)
+        );
+      }
+    }
+
     const { error: upsertError } = await supabase
       .from("clinic_integrations")
       .upsert(
@@ -268,8 +285,11 @@ export async function GET(request: NextRequest) {
 
     if (upsertError) {
       console.error("[WhatsApp OAuth] ❌ Erro ao salvar no banco:", upsertError);
+      const errCode = isUniquePhoneConstraintError(upsertError.message)
+        ? "phone_in_use"
+        : "save_failed";
       return NextResponse.redirect(
-        new URL(`/dashboard/configuracoes/integracoes?error=save_failed`, request.url)
+        new URL(`/dashboard/configuracoes/integracoes?error=${errCode}`, request.url)
       );
     }
 

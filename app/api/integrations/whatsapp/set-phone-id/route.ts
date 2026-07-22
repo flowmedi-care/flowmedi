@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireClinicAdminApi, ApiAuthError, toApiErrorResponse } from "@/lib/auth-helpers";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
+import {
+  assertWhatsappPhoneNumberIdAvailable,
+  isUniquePhoneConstraintError,
+} from "@/lib/whatsapp/assert-phone-number-available";
 
 /**
  * Atualiza o Phone Number ID manualmente (quando a descoberta automática falha)
@@ -29,7 +33,15 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
 
-    // Buscar integração atual para preservar o resto do metadata
+    const phoneConflict = await assertWhatsappPhoneNumberIdAvailable(
+      supabase,
+      phoneNumberId,
+      admin.clinicId
+    );
+    if (phoneConflict) {
+      return NextResponse.json({ error: phoneConflict }, { status: 409 });
+    }
+
     const { data: integration, error: fetchError } = await supabase
       .from("clinic_integrations")
       .select("metadata")
@@ -61,6 +73,12 @@ export async function POST(request: NextRequest) {
       .eq("integration_type", "whatsapp_meta");
 
     if (updateError) {
+      if (isUniquePhoneConstraintError(updateError.message)) {
+        return NextResponse.json(
+          { error: "Este número WhatsApp já está conectado em outra clínica." },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: updateError.message },
         { status: 400 }

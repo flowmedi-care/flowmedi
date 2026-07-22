@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { assertWhatsAppFeatureAccessForCurrentClinic } from "@/lib/integration-plan-access";
+import {
+  assertWhatsappPhoneNumberIdAvailable,
+  isUniquePhoneConstraintError,
+} from "@/lib/whatsapp/assert-phone-number-available";
 
 /**
  * Callback do OAuth do Meta/WhatsApp
@@ -417,6 +421,22 @@ export async function GET(request: NextRequest) {
     // O phoneNumberId pode ser encontrado depois ou configurado manualmente
     const integrationStatus = accessToken ? "connected" : "pending";
 
+    if (phoneNumberId && integrationStatus === "connected") {
+      const phoneConflict = await assertWhatsappPhoneNumberIdAvailable(
+        supabase,
+        phoneNumberId,
+        stateData.clinicId
+      );
+      if (phoneConflict) {
+        return NextResponse.redirect(
+          new URL(
+            `/dashboard/configuracoes/integracoes?error=phone_in_use`,
+            request.url
+          )
+        );
+      }
+    }
+
     const { error: upsertError } = await supabase
       .from("clinic_integrations")
       .upsert(
@@ -441,8 +461,11 @@ export async function GET(request: NextRequest) {
 
     if (upsertError) {
       console.error("❌ [WhatsApp Callback] Erro ao salvar integração:", upsertError);
+      const errCode = isUniquePhoneConstraintError(upsertError.message)
+        ? "phone_in_use"
+        : "save_failed";
       return NextResponse.redirect(
-        new URL(`/dashboard/configuracoes/integracoes?error=save_failed&debug=${encodeURIComponent(JSON.stringify({ error: upsertError.message }))}`, request.url)
+        new URL(`/dashboard/configuracoes/integracoes?error=${errCode}&debug=${encodeURIComponent(JSON.stringify({ error: upsertError.message }))}`, request.url)
       );
     }
 
