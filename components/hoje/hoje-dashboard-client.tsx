@@ -112,16 +112,16 @@ function SectionLabel({
   return (
     <div className="flex items-end justify-between gap-3">
       <div className="flex items-start gap-2.5">
-        <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+        <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/15">
+          <Icon className="h-4 w-4" strokeWidth={2.25} />
         </span>
         <div>
-          <h3 className="text-[13px] font-semibold tracking-tight text-foreground">{title}</h3>
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
           <p className="text-[12px] text-muted-foreground leading-snug">{hint}</p>
         </div>
       </div>
       {typeof count === "number" && count > 0 && (
-        <span className="tabular-nums text-[11px] font-medium text-muted-foreground">
+        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary/15 px-2 text-[12px] font-semibold tabular-nums text-primary ring-1 ring-primary/20">
           {count}
         </span>
       )}
@@ -376,9 +376,9 @@ export function HojeDashboardClient({
 
           {!showAllAtencao && atencao.length > 5 && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="text-muted-foreground"
+              className="border-border bg-card text-foreground hover:bg-muted/50"
               onClick={() => setShowAllAtencao(true)}
             >
               Ver mais {atencao.length - 5}
@@ -402,15 +402,19 @@ export function HojeDashboardClient({
           />
 
           {shownInbox.length === 0 ? (
-            <p className="px-1 text-[13px] text-muted-foreground">Nada novo por aqui.</p>
+            <EmptyCalm
+              icon={Inbox}
+              title="Nada novo"
+              subtitle="Quando chegarem eventos, eles aparecem aqui."
+            />
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-dashed border-border/80 bg-muted/20">
-              <ul className="divide-y divide-border/50">
+            <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+              <ul className="divide-y divide-border">
                 {shownInbox.map((p) => (
                   <li key={`inbox-${p.caseId}`}>
                     <button
                       type="button"
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-background/70"
+                      className="group flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/40"
                       onClick={() => {
                         if (p.nextDecision) {
                           openContext(
@@ -421,9 +425,11 @@ export function HojeDashboardClient({
                         }
                       }}
                     >
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/50" />
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-primary ring-2 ring-primary/20" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{p.displayName}</p>
+                        <p className="text-sm font-semibold tracking-tight truncate text-foreground">
+                          {p.displayName}
+                        </p>
                         <p className="text-[12px] text-muted-foreground mt-0.5 truncate">
                           {p.nextDecision
                             ? `${p.nextDecision.label} · aguardando ${
@@ -436,7 +442,9 @@ export function HojeDashboardClient({
                             : `Novo · ${p.stage}`}
                         </p>
                       </div>
-                      <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-muted-foreground/60" />
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -446,9 +454,9 @@ export function HojeDashboardClient({
 
           {!showAllInbox && caixaEntrada.length > 5 && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="text-muted-foreground"
+              className="border-border bg-card text-foreground hover:bg-muted/50"
               onClick={() => setShowAllInbox(true)}
             >
               Ver mais {caixaEntrada.length - 5}
@@ -471,7 +479,11 @@ export function HojeDashboardClient({
           />
 
           {quickActions.length === 0 ? (
-            <p className="px-1 text-[13px] text-muted-foreground">Nenhum atalho no momento.</p>
+            <EmptyCalm
+              icon={Zap}
+              title="Nenhum atalho no momento"
+              subtitle="Quando houver ações rápidas, elas aparecem aqui."
+            />
           ) : (
             <div className="flex flex-wrap gap-2">
               {quickActions.map((g) => {
@@ -482,14 +494,14 @@ export function HojeDashboardClient({
                     type="button"
                     onClick={() => openContext(ctx)}
                     className={cn(
-                      "inline-flex items-center gap-2 rounded-full border border-border/70 bg-card px-3.5 py-2",
+                      "inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2",
                       "text-[13px] font-medium tracking-tight shadow-sm",
-                      "transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md hover:shadow-primary/5",
+                      "transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md hover:shadow-primary/10",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     )}
                   >
                     {g.label}
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold tabular-nums text-primary">
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold tabular-nums text-primary">
                       {g.count}
                     </span>
                   </button>
@@ -573,16 +585,16 @@ function EmptyCalm({
   subtitle: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-card/60 px-5 py-8 text-center shadow-sm">
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-card px-5 py-8 text-center shadow-sm">
       <div
         aria-hidden
-        className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.06),transparent_65%)]"
+        className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.08),transparent_65%)]"
       />
       <div className="relative space-y-2">
-        <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-success-muted text-success-muted-foreground">
+        <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 text-primary ring-1 ring-primary/20">
           <Icon className="h-5 w-5" />
         </span>
-        <p className="text-sm font-medium tracking-tight">{title}</p>
+        <p className="text-sm font-semibold tracking-tight text-foreground">{title}</p>
         <p className="text-[12px] text-muted-foreground">{subtitle}</p>
       </div>
     </div>
