@@ -6,6 +6,7 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
+  ReferenceArea,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -23,8 +24,12 @@ import {
   chartBarProps,
   chartGridProps,
   chartTooltipStyle,
-  CHART_PALETTE,
+  MONO_CHART_SCALE,
 } from "@/components/dashboard-ui/chart-theme";
+
+/** Faixas de fundo alternadas por mês */
+const MONTH_BAND_EVEN = "hsl(var(--primary))";
+const MONTH_BAND_ODD = "hsl(var(--muted))";
 
 export function FinanceiroCompetenciaClient({
   rows,
@@ -72,7 +77,7 @@ export function FinanceiroCompetenciaClient({
 
       <ChartCard title="Receita, despesas e lucro" description="Como faturamos mês a mês">
         <ResponsiveContainer width="100%" height={320}>
-          <BarChart data={rows}>
+          <BarChart data={rows} barCategoryGap="18%">
             <CartesianGrid {...chartGridProps} />
             <XAxis dataKey="label" {...chartAxisProps} />
             <YAxis
@@ -81,9 +86,19 @@ export function FinanceiroCompetenciaClient({
             />
             <Tooltip {...chartTooltipStyle} formatter={(v: number) => fmtCurrency(v)} />
             <Legend />
-            <Bar dataKey="revenue" name="Receita" fill={CHART_PALETTE[0]} {...chartBarProps} />
-            <Bar dataKey="expenses" name="Despesas" fill={CHART_PALETTE[3]} {...chartBarProps} />
-            <Bar dataKey="profit" name="Lucro" fill={CHART_PALETTE[2]} {...chartBarProps} />
+            {rows.map((row, i) => (
+              <ReferenceArea
+                key={row.month}
+                x1={row.label}
+                x2={row.label}
+                fill={i % 2 === 0 ? MONTH_BAND_EVEN : MONTH_BAND_ODD}
+                fillOpacity={i % 2 === 0 ? 0.07 : 0.55}
+                strokeOpacity={0}
+              />
+            ))}
+            <Bar dataKey="revenue" name="Receita" fill={MONO_CHART_SCALE[0]} {...chartBarProps} />
+            <Bar dataKey="expenses" name="Despesas" fill={MONO_CHART_SCALE[3]} {...chartBarProps} />
+            <Bar dataKey="profit" name="Lucro" fill={MONO_CHART_SCALE[1]} {...chartBarProps} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -100,7 +115,7 @@ export function FinanceiroCompetenciaClient({
               />
               <YAxis type="category" dataKey="name" width={110} {...chartAxisProps} />
               <Tooltip {...chartTooltipStyle} formatter={(v: number) => fmtCurrency(v)} />
-              <Bar dataKey="value" name="Valor" fill={CHART_PALETTE[0]} radius={[0, 4, 4, 0]} />
+              <Bar dataKey="value" name="Valor" fill={MONO_CHART_SCALE[0]} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
