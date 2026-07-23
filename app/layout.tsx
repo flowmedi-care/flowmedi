@@ -9,9 +9,9 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "FlowMed — Agenda e formulários para sua clínica",
+  title: "FlowMed - Gestão Clínica",
   description:
-    "Centralize agenda, formulários clínicos e comunicação com o paciente. Autenticação, papéis e recursos de privacidade.",
+    "A plataforma completa para clínicas e consultórios. Gerencie pacientes, agenda, prontuário, CRM, WhatsApp, financeiro e automações em um único lugar para aumentar sua produtividade e oferecer uma melhor experiência ao paciente.",
   manifest: "/brand/site.webmanifest",
   icons: {
     icon: [
