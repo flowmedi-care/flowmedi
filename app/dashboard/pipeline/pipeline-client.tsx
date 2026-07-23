@@ -34,7 +34,11 @@ import {
   type PipelineItem,
 } from "./actions";
 import type { LifecycleStage } from "@/lib/leads/lifecycle";
-import { getEffectiveLifecycleStage, LIFECYCLE_STAGES } from "@/lib/leads/lifecycle";
+import {
+  getEffectiveLifecycleStage,
+  LIFECYCLE_STAGES,
+  lifecycleToLegacyStage,
+} from "@/lib/leads/lifecycle";
 import {
   computePipelineItemScore,
   TEMPERATURE_LABELS,
@@ -143,7 +147,14 @@ export function PipelineClient({
 
     setItems((prev) =>
       prev.map((i) =>
-        i.id === itemId ? { ...i, lifecycle_stage: newLifecycle } : i
+        i.id === itemId
+          ? {
+              ...i,
+              lifecycle_stage: newLifecycle,
+              stage: lifecycleToLegacyStage(newLifecycle),
+              ...(newLifecycle !== "perdido" ? { loss_reason: null } : {}),
+            }
+          : i
       )
     );
 

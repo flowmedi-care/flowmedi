@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   ArrowUpRight,
   CalendarDays,
@@ -33,6 +33,7 @@ import {
 } from "@/lib/operational-journey";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
 import { cn } from "@/lib/utils";
 
 function greeting(): string {
@@ -68,35 +69,6 @@ function areaTotal(area: HojeArea, p: PanoramaCounts): number {
   }
   const x = p.pacientes;
   return x.pos_consulta + x.tratamento + x.retorno + x.reativacao;
-}
-
-function areaRows(area: HojeArea, p: PanoramaCounts): { label: string; count: number }[] {
-  if (area === "pessoas") {
-    return [
-      { label: "Novo", count: p.pessoas.novo },
-      { label: "Em conversa", count: p.pessoas.qualificacao },
-      { label: "Oportunidade", count: p.pessoas.qualificado },
-      { label: "Cliente", count: p.pessoas.cliente },
-    ];
-  }
-  if (area === "agenda") {
-    return [
-      { label: "Agendar", count: p.agenda.agendar },
-      { label: "Reagendar", count: p.agenda.reagendar },
-    ];
-  }
-  if (area === "atendimentos") {
-    return [
-      { label: "Confirmar", count: p.atendimentos.confirmar },
-      { label: "Hoje", count: p.atendimentos.hoje },
-      { label: "Realizada", count: p.atendimentos.realizada },
-    ];
-  }
-  return [
-    { label: "Pós-consulta", count: p.pacientes.pos_consulta },
-    { label: "Tratamentos", count: p.pacientes.tratamento },
-    { label: "Retornos", count: p.pacientes.retorno },
-  ];
 }
 
 function caseHref(item: CaseProjectionItem, area: HojeArea | null): string {
@@ -167,8 +139,8 @@ export function HojeDashboardClient({
   const { workToday, panorama, atencao, caixaEntrada, items } = projection;
   const name = firstName?.trim().split(/\s+/)[0];
 
-  const [activeArea, setActiveArea] = useState<HojeArea | null>(
-    initialContext?.area ?? null
+  const [activeArea, setActiveArea] = useState<HojeArea>(
+    initialContext?.area ?? "pessoas"
   );
   const [focusStage, setFocusStage] = useState<string | null>(
     initialContext?.stage ?? null
@@ -196,7 +168,7 @@ export function HojeDashboardClient({
     if (initialContext?.focus === "inbox") {
       inboxRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-    if (initialContext?.caseId) {
+    if (initialContext?.caseId || initialContext?.area) {
       operacaoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [initialContext?.area, initialContext?.stage, initialContext?.focus, initialContext?.caseId]);
@@ -206,7 +178,7 @@ export function HojeDashboardClient({
     scrollTo: "operacao" | "atencao" | "inbox" | "acoes" = "operacao"
   ) {
     if (ctx.area) setActiveArea(ctx.area);
-    if (ctx.stage) setFocusStage(ctx.stage ?? null);
+    if (ctx.stage !== undefined) setFocusStage(ctx.stage ?? null);
     const focus =
       scrollTo === "atencao"
         ? ("atencao" as const)
@@ -238,6 +210,23 @@ export function HojeDashboardClient({
   const shownInbox = showAllInbox ? caixaEntrada : caixaEntrada.slice(0, 5);
   const quickActions = workToday.byAction.slice(0, 5);
   const primary = atencao[0] ?? null;
+
+  const areaTabs = HOJE_AREAS.map((area) => ({
+    id: area,
+    label: PANORAMA_SLICE_LABELS[area],
+    count: areaTotal(area, panorama),
+    icon: AREA_ICONS[area],
+  }));
+
+  const boardItems = useMemo(
+    () =>
+      items.filter(
+        (i) =>
+          i.panoramaSlice === activeArea ||
+          AREA_COLUMNS[activeArea].includes(i.boardStage as OpsBoardStage)
+      ),
+    [items, activeArea]
+  );
 
   return (
     <div className="relative">
@@ -502,7 +491,7 @@ export function HojeDashboardClient({
           )}
         </motion.section>
 
-        {/* 4. Operação */}
+        {/* 4. Operação — um kanban, abas por lente */}
         <motion.section
           ref={operacaoRef}
           id="operacao"
@@ -513,39 +502,45 @@ export function HojeDashboardClient({
           <SectionLabel
             icon={Stethoscope}
             title="Operação"
-            hint="Lentes — escolha onde trabalhar"
+            hint="Um board · troque a lente pelas abas"
           />
 
-          <div className="space-y-2.5">
-            {HOJE_AREAS.map((area) => (
-              <OperationModuleCard
-                key={area}
-                area={area}
-                total={areaTotal(area, panorama)}
-                rows={areaRows(area, panorama)}
-                hint={AREA_HINTS[area]}
-                expanded={activeArea === area}
-                focusStage={activeArea === area ? focusStage : null}
-                items={items.filter(
-                  (i) =>
-                    i.panoramaSlice === area ||
-                    AREA_COLUMNS[area].includes(i.boardStage as OpsBoardStage)
-                )}
-                highlightCaseId={initialContext?.caseId ?? null}
-                onToggle={() => {
-                  if (activeArea === area) {
-                    setActiveArea(null);
-                    setFocusStage(null);
-                    syncUrl({});
-                  } else {
-                    openContext({ area, stage: focusStage });
-                  }
+          <div className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+            <div className="border-b border-border/60 bg-muted/20 px-2 pt-2 sm:px-3">
+              <SegmentedTabs
+                tabs={areaTabs}
+                value={activeArea}
+                onChange={(id) => {
+                  const area = id as HojeArea;
+                  setActiveArea(area);
+                  setFocusStage(null);
+                  syncUrl({ area });
                 }}
+                variant="pill"
+                className="pb-2"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2 border-b border-border/40 px-4 py-2.5">
+              <p className="text-[12px] text-muted-foreground truncate">
+                {AREA_HINTS[activeArea]}
+              </p>
+              <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
+                {areaTotal(activeArea, panorama)} itens
+              </span>
+            </div>
+
+            <div className="bg-muted/10 p-3">
+              <OpsBoardInline
+                columns={AREA_COLUMNS[activeArea]}
+                items={boardItems}
+                focusStage={focusStage}
+                highlightCaseId={initialContext?.caseId ?? null}
                 onOpenCase={(item) => {
-                  router.push(caseHref(item, area));
+                  router.push(caseHref(item, activeArea));
                 }}
               />
-            ))}
+            </div>
           </div>
         </motion.section>
       </div>
@@ -575,112 +570,6 @@ function EmptyCalm({
         <p className="text-sm font-medium tracking-tight">{title}</p>
         <p className="text-[12px] text-muted-foreground">{subtitle}</p>
       </div>
-    </div>
-  );
-}
-
-function OperationModuleCard({
-  area,
-  total,
-  rows,
-  hint,
-  expanded,
-  focusStage,
-  items,
-  highlightCaseId,
-  onToggle,
-  onOpenCase,
-}: {
-  area: HojeArea;
-  total: number;
-  rows: { label: string; count: number }[];
-  hint: string;
-  expanded: boolean;
-  focusStage: string | null;
-  items: CaseProjectionItem[];
-  highlightCaseId: string | null;
-  onToggle: () => void;
-  onOpenCase: (item: CaseProjectionItem) => void;
-}) {
-  const columns = AREA_COLUMNS[area];
-  const Icon = AREA_ICONS[area];
-  const liveRows = rows.filter((r) => r.count > 0).slice(0, 2);
-
-  return (
-    <div
-      className={cn(
-        "overflow-hidden rounded-2xl transition-all duration-300",
-        expanded
-          ? "border border-primary/25 bg-card shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_16px_40px_-20px_hsl(var(--foreground)/0.25)]"
-          : "border border-border/60 bg-card/90 shadow-sm hover:border-border hover:shadow-md"
-      )}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        className={cn(
-          "flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors",
-          expanded ? "bg-primary/[0.04]" : "hover:bg-muted/30"
-        )}
-      >
-        <span
-          className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors",
-            expanded
-              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
-              : "bg-muted text-foreground/70"
-          )}
-        >
-          <Icon className="h-4 w-4" strokeWidth={2} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold tracking-tight">
-              {PANORAMA_SLICE_LABELS[area]}
-            </span>
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
-              {total}
-            </span>
-          </div>
-          <p className="mt-0.5 truncate text-[12px] text-muted-foreground">
-            {expanded
-              ? hint
-              : liveRows.length > 0
-                ? liveRows.map((r) => `${r.label} ${r.count}`).join(" · ")
-                : hint}
-          </p>
-        </div>
-        <motion.span
-          animate={{ rotate: expanded ? 180 : 0 }}
-          transition={{ duration: 0.25, ease: easeOut }}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/50 text-muted-foreground"
-        >
-          <ChevronDown className="h-4 w-4" />
-        </motion.span>
-      </button>
-
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            key="board"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.32, ease: easeOut }}
-            className="overflow-hidden"
-          >
-            <div className="border-t border-border/60 bg-muted/15 p-3">
-              <OpsBoardInline
-                columns={columns}
-                items={items}
-                focusStage={focusStage}
-                highlightCaseId={highlightCaseId}
-                onOpenCase={onOpenCase}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -134,6 +134,9 @@ export function isLifecycleStage(value: string): value is LifecycleStage {
 }
 
 export function getEffectiveLifecycleStage(item: PipelineItem): LifecycleStage {
+  // Confia no lifecycle_stage gravado. Não usar stage legado "agendado"
+  // como proxy de consulta — senão em_qualificacao/qualificado voltam
+  // para oportunidade e o kanban parece não aceitar a mudança.
   return resolveLifecycleStage({
     lifecycle_stage: item.lifecycle_stage,
     stage: item.stage,
@@ -141,8 +144,8 @@ export function getEffectiveLifecycleStage(item: PipelineItem): LifecycleStage {
     last_contact_at: item.last_contact_at,
     qualification_type: item.qualification_type,
     history: item.history,
-    hasScheduledAppointment: item.stage === "agendado",
-    hasCompletedAppointment: item.lifecycle_stage === "cliente",
+    hasScheduledAppointment: false,
+    hasCompletedAppointment: false,
     hasActiveQuote: false,
   });
 }
