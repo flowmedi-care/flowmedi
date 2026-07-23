@@ -31,7 +31,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/dashboard/hoje?area=contatos": "Pessoas",
   "/dashboard/crm/jornada": "Jornadas",
   "/dashboard/crm/jornada?view=fluxo": "Jornadas",
-  "/dashboard/crm/jornada": "Jornada (legado)",
   "/dashboard/pipeline": "Pendências",
   "/dashboard/contatos": "Contatos",
   "/dashboard/pacientes": "Pacientes",
