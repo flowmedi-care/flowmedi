@@ -439,6 +439,19 @@ function revalidateCrm() {
   for (const p of CRM_REVALIDATE_PATHS) revalidatePath(p);
 }
 
+function formatSupabaseError(err: {
+  message?: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+}): string {
+  const parts = [err.message || "Erro desconhecido ao salvar"].filter(Boolean);
+  if (err.code) parts.push(`código: ${err.code}`);
+  if (err.details) parts.push(err.details);
+  if (err.hint) parts.push(err.hint);
+  return parts.join(" — ");
+}
+
 export async function changeLifecycleStage(
   pipelineId: string,
   newLifecycle: LifecycleStage,
@@ -448,87 +461,102 @@ export async function changeLifecycleStage(
     qualificationType?: QualificationType | null;
   }
 ) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Não autorizado." };
-
-  const { data: currentItem } = await supabase
-    .from("non_registered_pipeline")
-    .select("stage, lifecycle_stage, clinic_id")
-    .eq("id", pipelineId)
-    .single();
-
-  if (!currentItem) return { error: "Item não encontrado." };
-
-  const oldLifecycle =
-    (currentItem.lifecycle_stage as LifecycleStage | null) ??
-    legacyStageToLifecycle(String(currentItem.stage));
-  const legacyStage = lifecycleToLegacyStage(newLifecycle);
-
-  const updateData: Record<string, unknown> = {
-    stage: legacyStage,
-    lifecycle_stage: newLifecycle,
-  };
-
-  if (newLifecycle === "em_qualificacao" || newLifecycle === "oportunidade") {
-    updateData.last_contact_at = new Date().toISOString();
-  }
-
-  if (newLifecycle === "perdido" && options?.lossReason) {
-    updateData.loss_reason = options.lossReason;
-    updateData.lead_score = 0;
-  }
-
-  if (newLifecycle === "qualificado" && options?.qualificationType) {
-    updateData.qualification_type = options.qualificationType;
-  }
-
-  if (newLifecycle !== "perdido") {
-    updateData.loss_reason = null;
-  }
-
-  if (options?.notes) {
-    updateData.notes = options.notes;
-  }
-
-  const { error: updateError } = await supabase
-    .from("non_registered_pipeline")
-    .update(updateData)
-    .eq("id", pipelineId);
-
-  if (updateError) return { error: updateError.message };
-
-  await supabase.from("non_registered_history").insert({
-    pipeline_id: pipelineId,
-    action_by: user.id,
-    action_type: "stage_change",
-    old_stage: currentItem.stage,
-    new_stage: legacyStage,
-    notes: options?.notes ?? `Funil: ${oldLifecycle} → ${newLifecycle}`,
-  });
-
-  // Event Bridge: invalida journey da IA nas conversas vinculadas a este lead
   try {
-    const { data: linked } = await supabase
-      .from("whatsapp_conversations")
-      .select("id")
-      .eq("clinic_id", currentItem.clinic_id)
-      .eq("pipeline_id", pipelineId);
-    const { emitOpsEvent } = await import("@/lib/ops/event-bridge");
-    for (const conv of linked ?? []) {
-      await emitOpsEvent("pipeline_stage_changed", {
-        supabase,
-        clinicId: String(currentItem.clinic_id),
-        conversationId: conv.id,
-        lifecycleStage: newLifecycle,
-      });
-    }
-  } catch {
-    /* colunas ops podem não existir ainda */
-  }
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Não autorizado." };
 
-  revalidateCrm();
-  return { error: null };
+    const { data: currentItem } = await supabase
+      .from("non_registered_pipeline")
+      .select("stage, lifecycle_stage, clinic_id")
+      .eq("id", pipelineId)
+      .single();
+
+    if (!currentItem) return { error: "Item não encontrado." };
+
+    const oldLifecycle =
+      (currentItem.lifecycle_stage as LifecycleStage | null) ??
+      legacyStageToLifecycle(String(currentItem.stage));
+    const legacyStage = lifecycleToLegacyStage(newLifecycle);
+
+    const updateData: Record<string, unknown> = {
+      stage: legacyStage,
+      lifecycle_stage: newLifecycle,
+    };
+
+    if (newLifecycle === "em_qualificacao" || newLifecycle === "oportunidade") {
+      updateData.last_contact_at = new Date().toISOString();
+    }
+
+    if (newLifecycle === "perdido" && options?.lossReason) {
+      updateData.loss_reason = options.lossReason;
+      updateData.lead_score = 0;
+    }
+
+    if (newLifecycle === "qualificado" && options?.qualificationType) {
+      updateData.qualification_type = options.qualificationType;
+    }
+
+    if (newLifecycle !== "perdido") {
+      updateData.loss_reason = null;
+    }
+
+    if (options?.notes) {
+      updateData.notes = options.notes;
+    }
+
+    const { data: updatedRow, error: updateError } = await supabase
+      .from("non_registered_pipeline")
+      .update(updateData)
+      .eq("id", pipelineId)
+      .select("id, lifecycle_stage, stage")
+      .maybeSingle();
+
+    if (updateError) return { error: formatSupabaseError(updateError) };
+
+    if (!updatedRow) {
+      return {
+        error:
+          "Não foi possível salvar a etapa (nenhuma linha atualizada). Verifique permissão/RLS.",
+      };
+    }
+
+    await supabase.from("non_registered_history").insert({
+      pipeline_id: pipelineId,
+      action_by: user.id,
+      action_type: "stage_change",
+      old_stage: currentItem.stage,
+      new_stage: legacyStage,
+      notes: options?.notes ?? `Funil: ${oldLifecycle} → ${newLifecycle}`,
+    });
+
+    // Event Bridge: invalida journey da IA nas conversas vinculadas a este lead
+    try {
+      const { data: linked } = await supabase
+        .from("whatsapp_conversations")
+        .select("id")
+        .eq("clinic_id", currentItem.clinic_id)
+        .eq("pipeline_id", pipelineId);
+      const { emitOpsEvent } = await import("@/lib/ops/event-bridge");
+      for (const conv of linked ?? []) {
+        await emitOpsEvent("pipeline_stage_changed", {
+          supabase,
+          clinicId: String(currentItem.clinic_id),
+          conversationId: conv.id,
+          lifecycleStage: newLifecycle,
+        });
+      }
+    } catch {
+      /* colunas ops podem não existir ainda */
+    }
+
+    revalidateCrm();
+    return { error: null };
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Falha inesperada ao alterar etapa.";
+    return { error: message };
+  }
 }
 
 export async function registerPipelineContact(pipelineId: string, notes?: string) {

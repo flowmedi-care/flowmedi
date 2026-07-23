@@ -107,3 +107,5 @@ ROLLBACK;
 
 -- 5) Se o CHECK de lifecycle estiver errado/ausente, aplique o fix canônico:
 --    supabase/fix-lifecycle-stage-check.sql
+--    (dropa dinamicamente TODOS os CHECKs que mencionam lifecycle_stage,
+--     não só o nome non_registered_pipeline_lifecycle_stage_check)

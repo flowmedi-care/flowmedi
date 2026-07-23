@@ -4,11 +4,12 @@
 -- Contexto: migration-crm-lifecycle.sql usa
 --   ADD COLUMN IF NOT EXISTS ... CHECK (...)
 -- Isso NÃO atualiza um CHECK antigo/incompleto se a coluna já existia.
--- Resultado: DnD para em_qualificacao / cliente / perdido falha com
--- "violate constraint", e o Kanban reverte o card.
+-- O CHECK residual pode ter NOME DIFERENTE de
+-- non_registered_pipeline_lifecycle_stage_check — por isso dropamos
+-- dinamicamente qualquer CHECK cuja definição mencione lifecycle_stage.
 
 -- =============================================================================
--- 1) Inspecionar constraints atuais (opcional — rode antes do fix)
+-- 1) Inspecionar constraints atuais (rode antes do fix)
 -- =============================================================================
 SELECT
   con.conname AS constraint_name,
@@ -22,10 +23,28 @@ WHERE nsp.nspname = 'public'
 ORDER BY con.conname;
 
 -- =============================================================================
--- 2) Recriar CHECK de lifecycle_stage (6 valores do funil + NULL)
+-- 2) Dropar TODOS os CHECKs que mencionam lifecycle_stage (qualquer nome)
 -- =============================================================================
-ALTER TABLE public.non_registered_pipeline
-  DROP CONSTRAINT IF EXISTS non_registered_pipeline_lifecycle_stage_check;
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT con.conname
+    FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+    WHERE nsp.nspname = 'public'
+      AND rel.relname = 'non_registered_pipeline'
+      AND con.contype = 'c'
+      AND pg_get_constraintdef(con.oid) ILIKE '%lifecycle_stage%'
+  LOOP
+    EXECUTE format(
+      'ALTER TABLE public.non_registered_pipeline DROP CONSTRAINT IF EXISTS %I',
+      r.conname
+    );
+  END LOOP;
+END $$;
 
 ALTER TABLE public.non_registered_pipeline
   ADD CONSTRAINT non_registered_pipeline_lifecycle_stage_check
@@ -44,6 +63,33 @@ ALTER TABLE public.non_registered_pipeline
 -- =============================================================================
 -- 3) Garantir CHECK do stage legado (necessário para o mapeamento do DnD)
 -- =============================================================================
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT con.conname
+    FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+    WHERE nsp.nspname = 'public'
+      AND rel.relname = 'non_registered_pipeline'
+      AND con.contype = 'c'
+      AND pg_get_constraintdef(con.oid) ILIKE '%stage%'
+      AND pg_get_constraintdef(con.oid) NOT ILIKE '%lifecycle_stage%'
+      AND (
+        pg_get_constraintdef(con.oid) ILIKE '%novo_contato%'
+        OR pg_get_constraintdef(con.oid) ILIKE '%aguardando_retorno%'
+        OR con.conname ILIKE '%stage%check%'
+      )
+  LOOP
+    EXECUTE format(
+      'ALTER TABLE public.non_registered_pipeline DROP CONSTRAINT IF EXISTS %I',
+      r.conname
+    );
+  END LOOP;
+END $$;
+
 ALTER TABLE public.non_registered_pipeline
   DROP CONSTRAINT IF EXISTS non_registered_pipeline_stage_check;
 
@@ -73,7 +119,7 @@ WHERE lifecycle_stage IS NOT NULL
   );
 
 -- =============================================================================
--- 5) Verificar após o fix
+-- 5) Verificar após o fix (deve haver 1 CHECK de lifecycle com os 6 valores)
 -- =============================================================================
 SELECT
   con.conname AS constraint_name,
@@ -84,10 +130,6 @@ JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
 WHERE nsp.nspname = 'public'
   AND rel.relname = 'non_registered_pipeline'
   AND con.contype = 'c'
-  AND con.conname IN (
-    'non_registered_pipeline_lifecycle_stage_check',
-    'non_registered_pipeline_stage_check'
-  )
 ORDER BY con.conname;
 
 SELECT lifecycle_stage, stage, count(*) AS n

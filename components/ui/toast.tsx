@@ -23,12 +23,13 @@ export function toast(message: string, type: ToastType = "info") {
   const id = Math.random().toString(36).substring(7);
   toasts.push({ id, message, type });
   notify();
-  
-  // Auto remove after 5 seconds
+
+  // Erros ficam mais tempo para dar tempo de ler constraint/RLS/etc.
+  const ttlMs = type === "error" ? 10000 : 5000;
   setTimeout(() => {
     toasts = toasts.filter((t) => t.id !== id);
     notify();
-  }, 5000);
+  }, ttlMs);
 }
 
 export function useToast() {
@@ -98,7 +99,7 @@ function ToastItem({ toast }: { toast: Toast }) {
     >
       <Icon className="h-5 w-5 flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium">{toast.message}</p>
+        <p className="text-sm font-medium break-words whitespace-pre-wrap">{toast.message}</p>
       </div>
       <button
         onClick={handleClose}

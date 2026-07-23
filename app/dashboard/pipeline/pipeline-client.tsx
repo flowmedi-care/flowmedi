@@ -88,6 +88,25 @@ export function PipelineClient({
 
   const getItemLifecycle = (item: PipelineItem) => getEffectiveLifecycleStage(item);
 
+  const revertLifecycle = (
+    itemId: string,
+    previousLifecycle: LifecycleStage,
+    previousLossReason: string | null = null
+  ) => {
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === itemId
+          ? {
+              ...i,
+              lifecycle_stage: previousLifecycle,
+              stage: lifecycleToLegacyStage(previousLifecycle),
+              loss_reason: previousLossReason,
+            }
+          : i
+      )
+    );
+  };
+
   const moveToLifecycle = async (itemId: string, newLifecycle: LifecycleStage) => {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
@@ -100,6 +119,8 @@ export function PipelineClient({
       setShowLossDialog(true);
       return;
     }
+
+    const previousLossReason = item.loss_reason ?? null;
 
     setItems((prev) =>
       prev.map((i) =>
@@ -114,23 +135,19 @@ export function PipelineClient({
       )
     );
 
-    const result = await changeLifecycleStage(itemId, newLifecycle);
-    if (result.error) {
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === itemId
-            ? {
-                ...i,
-                lifecycle_stage: currentLifecycle,
-                stage: lifecycleToLegacyStage(currentLifecycle),
-              }
-            : i
-        )
-      );
-      toast(`Erro ao mover: ${result.error}`, "error");
-    } else {
+    try {
+      const result = await changeLifecycleStage(itemId, newLifecycle);
+      if (result.error) {
+        revertLifecycle(itemId, currentLifecycle, previousLossReason);
+        toast(`Erro ao mover: ${result.error}`, "error");
+        return;
+      }
       toast("Etapa atualizada com sucesso", "success");
       router.refresh();
+    } catch (err) {
+      revertLifecycle(itemId, currentLifecycle, previousLossReason);
+      const msg = err instanceof Error ? err.message : "Falha inesperada ao mover o card.";
+      toast(`Erro ao mover: ${msg}`, "error");
     }
   };
 
@@ -151,24 +168,19 @@ export function PipelineClient({
       )
     );
 
-    const result = await markPipelineAsLost(itemId, lossReason);
-    if (result.error) {
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === itemId
-            ? {
-                ...i,
-                lifecycle_stage: previousLifecycle,
-                stage: lifecycleToLegacyStage(previousLifecycle),
-                loss_reason: null,
-              }
-            : i
-        )
-      );
-      toast(`Erro: ${result.error}`, "error");
-    } else {
-      toast("Lead marcado como perdido", "success");
-      router.refresh();
+    try {
+      const result = await markPipelineAsLost(itemId, lossReason);
+      if (result.error) {
+        revertLifecycle(itemId, previousLifecycle, null);
+        toast(`Erro ao mover: ${result.error}`, "error");
+      } else {
+        toast("Lead marcado como perdido", "success");
+        router.refresh();
+      }
+    } catch (err) {
+      revertLifecycle(itemId, previousLifecycle, null);
+      const msg = err instanceof Error ? err.message : "Falha inesperada ao marcar como perdido.";
+      toast(`Erro ao mover: ${msg}`, "error");
     }
     setShowLossDialog(false);
     setLossReason("");
@@ -187,12 +199,17 @@ export function PipelineClient({
       setShowLossDialog(true);
       return;
     }
-    const result = await changeLifecycleStage(itemId, newLifecycle);
-    if (result.error) {
-      toast(`Erro: ${result.error}`, "error");
-    } else {
+    try {
+      const result = await changeLifecycleStage(itemId, newLifecycle);
+      if (result.error) {
+        toast(`Erro ao mover: ${result.error}`, "error");
+        return;
+      }
       toast("Etapa atualizada com sucesso", "success");
       router.refresh();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Falha inesperada ao alterar etapa.";
+      toast(`Erro ao mover: ${msg}`, "error");
     }
   };
 
