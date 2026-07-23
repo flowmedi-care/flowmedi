@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { HojeDashboardClient } from "@/components/hoje/hoje-dashboard-client";
 import { parseHojeSearchParams } from "@/lib/operational-journey";
+import { getLeadsHubData } from "@/app/dashboard/contatos/leads/actions";
 import { getOperationalDashboard } from "./actions";
 
 type Props = {
@@ -30,10 +31,14 @@ export default async function HojePage({ searchParams }: Props) {
 
   if (profile?.role === "medico") redirect("/dashboard");
 
-  const { data, error } = await getOperationalDashboard();
+  const [{ data, error }, leads] = await Promise.all([
+    getOperationalDashboard(),
+    getLeadsHubData(),
+  ]);
   if (error === "Não autorizado.") redirect("/entrar");
 
   const initialContext = parseHojeSearchParams(params);
+  const contatosPipeline = leads.data?.pipeline ?? [];
 
   return (
     <div className="min-w-0 px-4 pb-10 pt-2 sm:px-6 sm:pb-12 sm:pt-4">
@@ -45,6 +50,7 @@ export default async function HojePage({ searchParams }: Props) {
           projection={data}
           firstName={profile?.full_name}
           initialContext={initialContext}
+          contatosPipeline={contatosPipeline}
         />
       )}
     </div>

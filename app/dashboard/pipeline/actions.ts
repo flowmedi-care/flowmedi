@@ -432,6 +432,7 @@ const CRM_REVALIDATE_PATHS = [
   "/dashboard/contatos/leads",
   "/dashboard/crm/pipeline",
   "/dashboard/crm/jornada",
+  "/dashboard/hoje",
 ];
 
 function revalidateCrm() {

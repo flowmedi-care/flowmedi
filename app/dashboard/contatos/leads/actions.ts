@@ -15,6 +15,7 @@ const LEADS_PATHS = [
   "/dashboard/contatos/leads",
   "/dashboard/crm/pipeline",
   "/dashboard/contatos/todos",
+  "/dashboard/hoje",
 ];
 
 function revalidateLeads() {

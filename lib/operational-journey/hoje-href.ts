@@ -96,7 +96,7 @@ export const AREA_COLUMNS: Record<HojeArea, OpsBoardStage[]> = {
 };
 
 export const AREA_HINTS: Record<HojeArea, string> = {
-  pessoas: "Novo · Em conversa · Oportunidade · Cliente · Perdido",
+  pessoas: "Funil comercial de Contatos · Lead novo → Cliente",
   agenda: "Marcar e remarcar",
   atendimentos: "Confirmar e acompanhar o dia",
   pacientes: "Pós, tratamentos, retornos e reativações",

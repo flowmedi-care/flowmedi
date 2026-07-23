@@ -1,29 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-  useSensor,
-  useSensors,
-  PointerSensor,
-  closestCenter,
-  useDroppable,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import {
   changeLifecycleStage,
   addPipelineNote,
@@ -60,10 +43,8 @@ import { formatPhoneBr } from "@/lib/format-phone";
 import { toast } from "@/components/ui/toast";
 import { FilterBar } from "@/components/dashboard-ui/layout/filter-bar";
 import { ViewModeToggle } from "@/components/dashboard-ui/layout/view-mode-toggle";
-import { KanbanBoard } from "@/components/dashboard-ui/kanban/kanban-board";
-import { KanbanColumnShell } from "@/components/dashboard-ui/kanban/kanban-column";
+import { KanbanShell } from "@/components/kanban";
 import { KanbanCardShell } from "@/components/dashboard-ui/kanban/kanban-card";
-import { KanbanEmptyColumn } from "@/components/dashboard-ui/kanban/kanban-empty-column";
 import {
   LIFECYCLE_STAGE_ACCENT,
   LIFECYCLE_STAGE_BADGE_VARIANT,
@@ -89,6 +70,10 @@ export function PipelineClient({
   const [internalViewMode, setInternalViewMode] = useState<ViewMode>("kanban");
   const viewMode = controlledViewMode ?? internalViewMode;
   const setViewMode = onViewModeChange ?? setInternalViewMode;
+
+  useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
   const [selectedItem, setSelectedItem] = useState<PipelineItem | null>(null);
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -99,40 +84,11 @@ export function PipelineClient({
     lifecycle: LifecycleStage;
     previousLifecycle: LifecycleStage;
   } | null>(null);
-  const [activeId, setActiveId] = useState<string | null>(null);
   const router = useRouter();
 
   const getItemLifecycle = (item: PipelineItem) => getEffectiveLifecycleStage(item);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    })
-  );
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
-  };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-    if (!over || active.id === over.id) return;
-
-    const itemId = active.id as string;
-    const overId = String(over.id);
-
-    let newLifecycle: LifecycleStage | null = null;
-    if ((LIFECYCLE_STAGES as string[]).includes(overId)) {
-      newLifecycle = overId as LifecycleStage;
-    } else {
-      const overItem = items.find((i) => i.id === overId);
-      if (overItem) {
-        newLifecycle = getItemLifecycle(overItem);
-      }
-    }
-    if (!newLifecycle) return;
-
+  const moveToLifecycle = async (itemId: string, newLifecycle: LifecycleStage) => {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
 
@@ -185,7 +141,12 @@ export function PipelineClient({
     setItems((prev) =>
       prev.map((i) =>
         i.id === itemId
-          ? { ...i, lifecycle_stage: "perdido", loss_reason: lossReason }
+          ? {
+              ...i,
+              lifecycle_stage: "perdido",
+              stage: lifecycleToLegacyStage("perdido"),
+              loss_reason: lossReason,
+            }
           : i
       )
     );
@@ -194,7 +155,14 @@ export function PipelineClient({
     if (result.error) {
       setItems((prev) =>
         prev.map((i) =>
-          i.id === itemId ? { ...i, lifecycle_stage: previousLifecycle } : i
+          i.id === itemId
+            ? {
+                ...i,
+                lifecycle_stage: previousLifecycle,
+                stage: lifecycleToLegacyStage(previousLifecycle),
+                loss_reason: null,
+              }
+            : i
         )
       );
       toast(`Erro: ${result.error}`, "error");
@@ -418,135 +386,45 @@ export function PipelineClient({
     <div className="space-y-4">
       {!embedded && toolbar}
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <KanbanBoard>
-          {lifecycleStages.map((lifecycle) => (
-            <PipelineKanbanColumn
-              key={lifecycle}
-              lifecycle={lifecycle}
-              items={itemsByLifecycle[lifecycle]}
-              onSelectItem={(item) => {
-                setSelectedItem(item);
-                setShowNoteDialog(true);
-              }}
-              onRegister={handleRegisterPatient}
-              onSchedule={handleScheduleAppointment}
-              onRegisterContact={handleRegisterContact}
-              onQualify={handleQualify}
-            />
-          ))}
-        </KanbanBoard>
-
-        <DragOverlay>
-          {activeId ? (
-            <PipelineCardContent
-              item={items.find((i) => i.id === activeId)!}
-              isDragging
-              onRegister={handleRegisterPatient}
-              onSchedule={handleScheduleAppointment}
-              onRegisterContact={handleRegisterContact}
-              onQualify={handleQualify}
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      <KanbanShell
+        columns={lifecycleStages.map((lifecycle) => ({
+          id: lifecycle,
+          title: LIFECYCLE_STAGE_LABELS[lifecycle],
+          accentClassName: LIFECYCLE_STAGE_ACCENT[lifecycle],
+        }))}
+        columnIds={[...lifecycleStages]}
+        itemsByColumn={itemsByLifecycle}
+        onMove={(itemId, toColumnId) =>
+          moveToLifecycle(itemId, toColumnId as LifecycleStage)
+        }
+        renderCard={(item, { isDragging }) => (
+          <PipelineCardContent
+            item={item}
+            isDragging={isDragging}
+            onSelect={() => {
+              setSelectedItem(item);
+              setShowNoteDialog(true);
+            }}
+            onRegister={handleRegisterPatient}
+            onSchedule={handleScheduleAppointment}
+            onRegisterContact={handleRegisterContact}
+            onQualify={handleQualify}
+          />
+        )}
+        renderOverlay={(item) => (
+          <PipelineCardContent
+            item={item}
+            isDragging
+            onRegister={handleRegisterPatient}
+            onSchedule={handleScheduleAppointment}
+            onRegisterContact={handleRegisterContact}
+            onQualify={handleQualify}
+          />
+        )}
+      />
 
       {noteDialog}
       {lossDialog}
-    </div>
-  );
-}
-
-function PipelineKanbanColumn({
-  lifecycle,
-  items,
-  onSelectItem,
-  onRegister,
-  onSchedule,
-  onRegisterContact,
-  onQualify,
-}: {
-  lifecycle: LifecycleStage;
-  items: PipelineItem[];
-  onSelectItem: (item: PipelineItem) => void;
-  onRegister?: (item: PipelineItem) => void;
-  onSchedule?: (item: PipelineItem) => void;
-  onRegisterContact?: (item: PipelineItem) => void;
-  onQualify?: (item: PipelineItem) => void;
-}) {
-  const { setNodeRef } = useDroppable({ id: lifecycle });
-  const itemIds = items.map((item) => item.id);
-
-  return (
-    <KanbanColumnShell
-      title={LIFECYCLE_STAGE_LABELS[lifecycle]}
-      count={items.length}
-      accentClassName={LIFECYCLE_STAGE_ACCENT[lifecycle]}
-      bodyRef={setNodeRef}
-    >
-      <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-        {items.length === 0 ? (
-          <KanbanEmptyColumn />
-        ) : (
-          items.map((item) => (
-            <SortablePipelineCard
-              key={item.id}
-              item={item}
-              onSelect={() => onSelectItem(item)}
-              onRegister={onRegister}
-              onSchedule={onSchedule}
-              onRegisterContact={onRegisterContact}
-              onQualify={onQualify}
-            />
-          ))
-        )}
-      </SortableContext>
-    </KanbanColumnShell>
-  );
-}
-
-function SortablePipelineCard({
-  item,
-  onSelect,
-  onRegister,
-  onSchedule,
-  onRegisterContact,
-  onQualify,
-}: {
-  item: PipelineItem;
-  onSelect: () => void;
-  onRegister?: (item: PipelineItem) => void;
-  onSchedule?: (item: PipelineItem) => void;
-  onRegisterContact?: (item: PipelineItem) => void;
-  onQualify?: (item: PipelineItem) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: item.id });
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
-      {...attributes}
-      {...listeners}
-    >
-      <PipelineCardContent
-        item={item}
-        isDragging={isDragging}
-        onSelect={onSelect}
-        onRegister={onRegister}
-        onSchedule={onSchedule}
-        onRegisterContact={onRegisterContact}
-        onQualify={onQualify}
-      />
     </div>
   );
 }

@@ -24,7 +24,6 @@ import type {
 import {
   AREA_COLUMNS,
   AREA_HINTS,
-  BOARD_STAGE_LABELS,
   PANORAMA_SLICE_LABELS,
   actionToHojeContext,
   buildHojeHref,
@@ -34,6 +33,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SegmentedTabs } from "@/components/dashboard-ui/layout/segmented-tabs";
+import { PipelineClient } from "@/app/dashboard/pipeline/pipeline-client";
+import type { PipelineItem } from "@/app/dashboard/pipeline/actions";
+import { HojeCasesKanban } from "@/components/hoje/hoje-cases-kanban";
 import { cn } from "@/lib/utils";
 
 function greeting(): string {
@@ -57,11 +59,12 @@ function formatWhen(iso: string | null | undefined): string | null {
   }
 }
 
-function areaTotal(area: HojeArea, p: PanoramaCounts): number {
-  if (area === "pessoas") {
-    const c = p.pessoas;
-    return c.novo + c.qualificacao + c.qualificado + c.cliente + c.perdido;
-  }
+function areaTotal(
+  area: HojeArea,
+  p: PanoramaCounts,
+  contatosCount: number
+): number {
+  if (area === "pessoas") return contatosCount;
   if (area === "agenda") return p.agenda.agendar + p.agenda.reagendar;
   if (area === "atendimentos") {
     const c = p.atendimentos;
@@ -130,10 +133,13 @@ export function HojeDashboardClient({
   projection,
   firstName,
   initialContext,
+  contatosPipeline,
 }: {
   projection: OperationalProjection;
   firstName?: string | null;
   initialContext?: HojeActionContext;
+  /** Domínio Contatos — fonte canônica da aba Pessoas */
+  contatosPipeline: PipelineItem[];
 }) {
   const router = useRouter();
   const { workToday, panorama, atencao, caixaEntrada, items } = projection;
@@ -210,11 +216,12 @@ export function HojeDashboardClient({
   const shownInbox = showAllInbox ? caixaEntrada : caixaEntrada.slice(0, 5);
   const quickActions = workToday.byAction.slice(0, 5);
   const primary = atencao[0] ?? null;
+  const contatosCount = contatosPipeline.length;
 
   const areaTabs = HOJE_AREAS.map((area) => ({
     id: area,
     label: PANORAMA_SLICE_LABELS[area],
-    count: areaTotal(area, panorama),
+    count: areaTotal(area, panorama, contatosCount),
     icon: AREA_ICONS[area],
   }));
 
@@ -223,7 +230,8 @@ export function HojeDashboardClient({
       items.filter(
         (i) =>
           i.panoramaSlice === activeArea ||
-          AREA_COLUMNS[activeArea].includes(i.boardStage as OpsBoardStage)
+          (activeArea !== "pessoas" &&
+            AREA_COLUMNS[activeArea].includes(i.boardStage as OpsBoardStage))
       ),
     [items, activeArea]
   );
@@ -526,20 +534,27 @@ export function HojeDashboardClient({
                 {AREA_HINTS[activeArea]}
               </p>
               <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
-                {areaTotal(activeArea, panorama)} itens
+                {areaTotal(activeArea, panorama, contatosCount)} itens
               </span>
             </div>
 
             <div className="bg-muted/10 p-3">
-              <OpsBoardInline
-                columns={AREA_COLUMNS[activeArea]}
-                items={boardItems}
-                focusStage={focusStage}
-                highlightCaseId={initialContext?.caseId ?? null}
-                onOpenCase={(item) => {
-                  router.push(caseHref(item, activeArea));
-                }}
-              />
+              {activeArea === "pessoas" ? (
+                <PipelineClient
+                  initialItems={contatosPipeline}
+                  embedded
+                  viewMode="kanban"
+                />
+              ) : (
+                <HojeCasesKanban
+                  area={activeArea}
+                  items={boardItems}
+                  highlightCaseId={initialContext?.caseId ?? null}
+                  onOpenCase={(item) => {
+                    router.push(caseHref(item, activeArea));
+                  }}
+                />
+              )}
             </div>
           </div>
         </motion.section>
@@ -570,87 +585,6 @@ function EmptyCalm({
         <p className="text-sm font-medium tracking-tight">{title}</p>
         <p className="text-[12px] text-muted-foreground">{subtitle}</p>
       </div>
-    </div>
-  );
-}
-
-function OpsBoardInline({
-  columns,
-  items,
-  focusStage,
-  highlightCaseId,
-  onOpenCase,
-}: {
-  columns: OpsBoardStage[];
-  items: CaseProjectionItem[];
-  focusStage: string | null;
-  highlightCaseId: string | null;
-  onOpenCase: (item: CaseProjectionItem) => void;
-}) {
-  const ordered = useMemo(() => {
-    if (!focusStage) return columns;
-    const rest = columns.filter((c) => c !== focusStage);
-    if (columns.includes(focusStage as OpsBoardStage)) {
-      return [focusStage as OpsBoardStage, ...rest];
-    }
-    return columns;
-  }, [columns, focusStage]);
-
-  return (
-    <div className="flex gap-3 overflow-x-auto pb-1">
-      {ordered.map((stage) => {
-        const cards = items.filter((i) => i.boardStage === stage);
-        const focused = focusStage === stage;
-        return (
-          <div
-            key={stage}
-            className={cn(
-              "w-[15.5rem] shrink-0 rounded-xl border p-2.5 transition-colors",
-              focused
-                ? "border-primary/30 bg-primary/[0.06]"
-                : "border-border/50 bg-background/80"
-            )}
-          >
-            <div className="mb-2.5 flex items-center justify-between px-1">
-              <span className="text-[12px] font-semibold tracking-tight">
-                {BOARD_STAGE_LABELS[stage]}
-              </span>
-              <span className="text-[11px] tabular-nums text-muted-foreground">
-                {cards.length}
-              </span>
-            </div>
-            <div className="space-y-1.5 max-h-[48vh] overflow-y-auto">
-              {cards.length === 0 && (
-                <p className="px-2 py-4 text-center text-[11px] text-muted-foreground/80">
-                  Vazio
-                </p>
-              )}
-              {cards.map((c) => (
-                <button
-                  key={c.caseId}
-                  type="button"
-                  onClick={() => onOpenCase(c)}
-                  className={cn(
-                    "block w-full rounded-lg border bg-card p-2.5 text-left transition-all",
-                    "hover:border-primary/25 hover:shadow-sm",
-                    highlightCaseId === c.caseId
-                      ? "border-primary ring-2 ring-primary/20"
-                      : "border-border/40"
-                  )}
-                >
-                  <p className="text-[13px] font-medium truncate">{c.displayName}</p>
-                  {c.nextDecision && (
-                    <p className="mt-1 text-[11px] leading-snug text-muted-foreground line-clamp-2">
-                      {c.nextDecision.label}
-                      {c.nextDecision.reason ? ` · ${c.nextDecision.reason}` : ""}
-                    </p>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
