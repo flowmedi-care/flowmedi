@@ -117,13 +117,6 @@ export const DASHBOARD_TOP_NAV: NavTopItem[] = [
     icon: "layout-dashboard",
     roles: ["medico"],
   },
-  {
-    type: "link",
-    href: "/dashboard/hoje?focus=atencao",
-    label: "Atenção",
-    icon: "clipboard-list",
-    roles: ["admin", "secretaria"],
-  },
   DASHBOARD_AGENDA_GROUP,
   {
     type: "link",
@@ -146,7 +139,7 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
       { href: "/dashboard/contatos/leads", label: "Contatos (entrada)", roles: ["admin", "secretaria"] },
       { href: "/dashboard/contatos/pacientes", label: "Pacientes" },
       {
-        href: "/dashboard/hoje?area=pacientes",
+        href: "/dashboard/crm/jornada?view=fluxo",
         label: "Jornadas (pós / tratamento / retorno)",
         roles: ["admin", "secretaria"],
       },
@@ -164,9 +157,6 @@ export const DASHBOARD_MIDDLE_NAV_GROUPS: NavGroupItem[] = [
     prefix: "/dashboard/crm",
     roles: ["admin", "secretaria"],
     children: [
-      { href: "/dashboard/hoje", label: "Hoje" },
-      { href: "/dashboard/hoje?focus=atencao", label: "Atenção" },
-      { href: "/dashboard/hoje?focus=inbox", label: "Caixa de entrada" },
       { href: "/dashboard/crm/pipeline", label: "Indicadores" },
       { href: "/dashboard/crm/captacao", label: "Formulários" },
       { href: "/dashboard/crm/jornada", label: "Jornada (legado)", roles: ["admin"] },
@@ -426,10 +416,49 @@ export function filterGroupChildren(
   return group.children.filter((c) => !c.roles || c.roles.includes(role));
 }
 
-export function isLinkActive(pathname: string, href: string): boolean {
-  if (href === "/dashboard/hoje" || href.startsWith("/dashboard/hoje?")) {
-    return pathname === "/dashboard/hoje";
+export function isLinkActive(
+  pathname: string,
+  href: string,
+  search: string = ""
+): boolean {
+  const qIndex = href.indexOf("?");
+  const hrefPath = qIndex >= 0 ? href.slice(0, qIndex) : href;
+  const hrefQuery = qIndex >= 0 ? href.slice(qIndex + 1) : "";
+
+  if (hrefPath === "/dashboard/hoje") {
+    if (pathname !== "/dashboard/hoje") return false;
+    if (!hrefQuery) {
+      // Top-level Hoje: active whenever we're on the Hoje page
+      return true;
+    }
+    const current = new URLSearchParams(
+      search.startsWith("?") ? search.slice(1) : search
+    );
+    const wanted = new URLSearchParams(hrefQuery);
+    for (const [key, value] of wanted.entries()) {
+      if (current.get(key) !== value) return false;
+    }
+    return true;
   }
+
+  if (hrefPath === "/dashboard/crm/jornada") {
+    if (pathname !== "/dashboard/crm/jornada" && !pathname.startsWith("/dashboard/crm/jornada/")) {
+      return false;
+    }
+    if (!hrefQuery) {
+      return pathname === "/dashboard/crm/jornada" || pathname.startsWith("/dashboard/crm/jornada/");
+    }
+    if (pathname !== "/dashboard/crm/jornada") return false;
+    const current = new URLSearchParams(
+      search.startsWith("?") ? search.slice(1) : search
+    );
+    const wanted = new URLSearchParams(hrefQuery);
+    for (const [key, value] of wanted.entries()) {
+      if (current.get(key) !== value) return false;
+    }
+    return true;
+  }
+
   if (href === "/dashboard/pendencias") {
     return pathname === "/dashboard/hoje" || pathname === "/dashboard/pendencias";
   }

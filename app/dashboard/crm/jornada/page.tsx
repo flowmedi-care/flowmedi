@@ -31,18 +31,6 @@ export default async function JornadaBoardPage({ searchParams }: Props) {
     if (caseId) redirect(`/dashboard/crm/jornada/${caseId}`);
   }
 
-  // v6: views antigas → contrato Hoje
-  if (!params.view || params.view === "pendencias") {
-    redirect("/dashboard/hoje?focus=pendencias");
-  }
-  if (params.view === "comparecimento") {
-    redirect("/dashboard/hoje?area=atendimentos");
-  }
-  if (params.view === "ia") {
-    redirect("/dashboard/hoje?focus=pendencias");
-  }
-  // fluxo permanece legado para admin com seletor de workflow
-
   const view = (VALID.includes(params.view as BoardView)
     ? params.view
     : "fluxo") as BoardView;
@@ -54,12 +42,12 @@ export default async function JornadaBoardPage({ searchParams }: Props) {
     <PageShell
       header={{
         breadcrumbs: [
-          { label: "Hoje", href: "/dashboard/hoje" },
-          { label: "Jornada (legado)" },
+          { label: "Contatos", href: "/dashboard/contatos/leads" },
+          { label: "Jornadas" },
         ],
-        title: "Fluxo por tipo de jornada",
+        title: "Jornadas",
         description:
-          "Board legado por fases do workflow. Preferira Hoje, Pendências e os boards de Agenda.",
+          "Pós-consulta, tratamentos, retornos e fluxo por tipo de jornada.",
       }}
     >
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}

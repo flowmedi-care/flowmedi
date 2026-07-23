@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { type User } from "@supabase/supabase-js";
 import { LogOut, Menu } from "lucide-react";
@@ -128,6 +128,8 @@ export function DashboardNavRail({
   onRailExpandedChange: (expanded: boolean) => void;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams?.toString() ?? "";
   const router = useRouter();
   const { displayPathname, startNavigation } = useDashboardNavigation();
   const [mobileExpandedGroupId, setMobileExpandedGroupId] = useState<string | null>(null);
@@ -170,8 +172,12 @@ export function DashboardNavRail({
       return;
     }
 
-    router.push(children[0].href);
-    startNavigation(children[0].href);
+    const preferred =
+      children.find((c) => c.href === group.prefix || c.href.startsWith(`${group.prefix}?`) || c.href.startsWith(`${group.prefix}/`)) ??
+      children[0];
+
+    router.push(preferred.href);
+    startNavigation(preferred.href);
     onMobileOpenChange(false);
   }
 
@@ -184,7 +190,7 @@ export function DashboardNavRail({
     return (
       <div className="flex flex-col gap-0.5 pl-3 pb-1 md:hidden">
         {children.map((child) => {
-          const active = isLinkActive(displayPathname, child.href);
+          const active = isLinkActive(displayPathname, child.href, search);
           const pending = displayPathname === child.href && pathname !== child.href;
           return (
             <Link
@@ -225,7 +231,7 @@ export function DashboardNavRail({
   const middleGroups = filterNavByRole(DASHBOARD_MIDDLE_NAV_GROUPS, role);
 
   function renderLink(item: NavLinkItem) {
-    const active = isLinkActive(displayPathname, item.href);
+    const active = isLinkActive(displayPathname, item.href, search);
     const pending = displayPathname === item.href && pathname !== item.href;
 
     return (

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -22,6 +23,8 @@ export function DashboardNavSub({
   onToggle: () => void;
 }) {
   const { displayPathname, pathname, startNavigation } = useDashboardNavigation();
+  const searchParams = useSearchParams();
+  const search = searchParams?.toString() ?? "";
   const children = filterGroupChildren(group, role);
 
   if (!open) {
@@ -49,7 +52,7 @@ export function DashboardNavSub({
       </div>
       <nav className="flex-1 min-h-0 px-2 py-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {children.map((child) => {
-          const active = isLinkActive(displayPathname, child.href);
+          const active = isLinkActive(displayPathname, child.href, search);
           const pending = displayPathname === child.href && pathname !== child.href;
           return (
             <Link

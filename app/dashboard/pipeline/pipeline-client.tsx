@@ -116,7 +116,19 @@ export function PipelineClient({
     if (!over || active.id === over.id) return;
 
     const itemId = active.id as string;
-    const newLifecycle = over.id as LifecycleStage;
+    const overId = String(over.id);
+
+    let newLifecycle: LifecycleStage | null = null;
+    if ((LIFECYCLE_STAGES as string[]).includes(overId)) {
+      newLifecycle = overId as LifecycleStage;
+    } else {
+      const overItem = items.find((i) => i.id === overId);
+      if (overItem) {
+        newLifecycle = getItemLifecycle(overItem);
+      }
+    }
+    if (!newLifecycle) return;
+
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
 
