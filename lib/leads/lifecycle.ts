@@ -72,7 +72,13 @@ export function legacyStageToLifecycle(
 }
 
 /** Sincroniza estágio legado a partir do lifecycle (compatibilidade) */
-export function lifecycleToLegacyStage(lifecycle: LifecycleStage): string {
+export type LegacyPipelineStage =
+  | "novo_contato"
+  | "aguardando_retorno"
+  | "cadastrado"
+  | "agendado";
+
+export function lifecycleToLegacyStage(lifecycle: LifecycleStage): LegacyPipelineStage {
   switch (lifecycle) {
     case "lead_novo":
       return "novo_contato";

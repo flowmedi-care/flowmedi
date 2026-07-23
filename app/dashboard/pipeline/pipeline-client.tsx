@@ -152,7 +152,7 @@ export function PipelineClient({
               ...i,
               lifecycle_stage: newLifecycle,
               stage: lifecycleToLegacyStage(newLifecycle),
-              ...(newLifecycle !== "perdido" ? { loss_reason: null } : {}),
+              loss_reason: null,
             }
           : i
       )
@@ -162,7 +162,13 @@ export function PipelineClient({
     if (result.error) {
       setItems((prev) =>
         prev.map((i) =>
-          i.id === itemId ? { ...i, lifecycle_stage: currentLifecycle } : i
+          i.id === itemId
+            ? {
+                ...i,
+                lifecycle_stage: currentLifecycle,
+                stage: lifecycleToLegacyStage(currentLifecycle),
+              }
+            : i
         )
       );
       toast(`Erro ao mover: ${result.error}`, "error");
