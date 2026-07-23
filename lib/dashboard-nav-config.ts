@@ -1,5 +1,6 @@
 export type NavIconName =
   | "layout-dashboard"
+  | "list-todo"
   | "calendar"
   | "calendar-days"
   | "clipboard-list"
@@ -100,7 +101,7 @@ export const DASHBOARD_TOP_NAV: NavTopItem[] = [
     type: "link",
     href: "/dashboard/hoje",
     label: "Hoje",
-    icon: "layout-dashboard",
+    icon: "list-todo",
     roles: ["admin", "secretaria"],
   },
   {

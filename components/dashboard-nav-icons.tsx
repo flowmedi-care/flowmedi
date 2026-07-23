@@ -2,6 +2,7 @@
 
 import {
   LayoutDashboard,
+  ListTodo,
   Calendar,
   CalendarDays,
   ClipboardList,
@@ -34,6 +35,7 @@ import type { NavIconName } from "@/lib/dashboard-nav-config";
 
 const ICON_MAP: Record<NavIconName, LucideIcon> = {
   "layout-dashboard": LayoutDashboard,
+  "list-todo": ListTodo,
   calendar: Calendar,
   "calendar-days": CalendarDays,
   "clipboard-list": ClipboardList,
