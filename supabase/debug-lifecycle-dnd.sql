@@ -23,6 +23,34 @@ FROM public.non_registered_pipeline
 GROUP BY 1, 2
 ORDER BY 1 NULLS FIRST, 2;
 
+-- 2b) Pares dessincronizados (lifecycle vs stage legado esperado)
+SELECT id, name, email, lifecycle_stage, stage
+FROM public.non_registered_pipeline
+WHERE
+  (lifecycle_stage = 'lead_novo' AND stage IS DISTINCT FROM 'novo_contato')
+  OR (lifecycle_stage IN ('em_qualificacao', 'perdido') AND stage IS DISTINCT FROM 'aguardando_retorno')
+  OR (lifecycle_stage = 'qualificado' AND stage IS DISTINCT FROM 'cadastrado')
+  OR (lifecycle_stage IN ('oportunidade', 'cliente') AND stage IS DISTINCT FROM 'agendado');
+
+-- Opcional: corrigir dessync (rode só se 2b retornar linhas)
+-- UPDATE public.non_registered_pipeline
+-- SET stage = CASE lifecycle_stage
+--   WHEN 'lead_novo' THEN 'novo_contato'
+--   WHEN 'em_qualificacao' THEN 'aguardando_retorno'
+--   WHEN 'perdido' THEN 'aguardando_retorno'
+--   WHEN 'qualificado' THEN 'cadastrado'
+--   WHEN 'oportunidade' THEN 'agendado'
+--   WHEN 'cliente' THEN 'agendado'
+--   ELSE stage
+-- END
+-- WHERE lifecycle_stage IS NOT NULL
+--   AND (
+--     (lifecycle_stage = 'lead_novo' AND stage IS DISTINCT FROM 'novo_contato')
+--     OR (lifecycle_stage IN ('em_qualificacao', 'perdido') AND stage IS DISTINCT FROM 'aguardando_retorno')
+--     OR (lifecycle_stage = 'qualificado' AND stage IS DISTINCT FROM 'cadastrado')
+--     OR (lifecycle_stage IN ('oportunidade', 'cliente') AND stage IS DISTINCT FROM 'agendado')
+--   );
+
 -- 3) Valores inválidos (fora do CHECK esperado)
 SELECT id, name, email, lifecycle_stage, stage, loss_reason, updated_at
 FROM public.non_registered_pipeline
@@ -77,27 +105,5 @@ BEGIN;
 
 ROLLBACK;
 
--- 5) Se o CHECK de lifecycle estiver errado/ausente, corrija (opcional):
--- ALTER TABLE public.non_registered_pipeline
---   DROP CONSTRAINT IF EXISTS non_registered_pipeline_lifecycle_stage_check;
---
--- ALTER TABLE public.non_registered_pipeline
---   ADD CONSTRAINT non_registered_pipeline_lifecycle_stage_check
---   CHECK (
---     lifecycle_stage IS NULL
---     OR lifecycle_stage IN (
---       'lead_novo',
---       'em_qualificacao',
---       'qualificado',
---       'oportunidade',
---       'cliente',
---       'perdido'
---     )
---   );
---
--- ALTER TABLE public.non_registered_pipeline
---   DROP CONSTRAINT IF EXISTS non_registered_pipeline_stage_check;
---
--- ALTER TABLE public.non_registered_pipeline
---   ADD CONSTRAINT non_registered_pipeline_stage_check
---   CHECK (stage IN ('novo_contato', 'aguardando_retorno', 'cadastrado', 'agendado'));
+-- 5) Se o CHECK de lifecycle estiver errado/ausente, aplique o fix canônico:
+--    supabase/fix-lifecycle-stage-check.sql

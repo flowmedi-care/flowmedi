@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { upsertWhatsappPipelineLead } from "@/lib/leads/upsert-whatsapp-lead";
+import { lifecycleToLegacyStage } from "@/lib/leads/lifecycle";
 import { setPendingDecision } from "./mutators";
 import type { PendingDecision } from "./types";
 
@@ -88,6 +89,7 @@ export async function emitOpsEvent(
           .from("non_registered_pipeline")
           .update({
             lifecycle_stage: "oportunidade",
+            stage: lifecycleToLegacyStage("oportunidade"),
             updated_at: new Date().toISOString(),
           })
           .eq("clinic_id", input.clinicId)

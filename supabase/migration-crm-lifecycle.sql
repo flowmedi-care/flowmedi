@@ -1,5 +1,9 @@
 -- Migration: CRM lifecycle stages, scoring e metadados de funil
 -- Execute no SQL Editor do Supabase
+--
+-- Nota: ADD COLUMN IF NOT EXISTS ... CHECK (...) não atualiza um CHECK
+-- já existente. Se o DnD rejeitar em_qualificacao/cliente/perdido, rode:
+--   supabase/fix-lifecycle-stage-check.sql
 
 ALTER TABLE public.non_registered_pipeline
   ADD COLUMN IF NOT EXISTS lifecycle_stage text
