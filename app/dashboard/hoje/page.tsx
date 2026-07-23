@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { PageShell } from "@/components/dashboard-ui/layout/page-shell";
 import { HojeDashboardClient } from "@/components/hoje/hoje-dashboard-client";
 import { parseHojeSearchParams } from "@/lib/operational-journey";
 import { getOperationalDashboard } from "./actions";
@@ -37,25 +36,17 @@ export default async function HojePage({ searchParams }: Props) {
   const initialContext = parseHojeSearchParams(params);
 
   return (
-    <PageShell
-      header={{
-        breadcrumbs: [{ label: "Hoje" }],
-        title: "Hoje",
-        description: "Fila inteligente de decisões com lentes operacionais.",
-      }}
-    >
+    <div className="min-w-0 px-4 pb-10 pt-2 sm:px-6 sm:pb-12 sm:pt-4">
       {error && !data && (
-        <p className="text-sm text-destructive p-4">{error}</p>
+        <p className="text-sm text-destructive py-6">{error}</p>
       )}
       {data && (
-        <div className="p-4 sm:p-6">
-          <HojeDashboardClient
-            projection={data}
-            firstName={profile?.full_name}
-            initialContext={initialContext}
-          />
-        </div>
+        <HojeDashboardClient
+          projection={data}
+          firstName={profile?.full_name}
+          initialContext={initialContext}
+        />
       )}
-    </PageShell>
+    </div>
   );
 }
