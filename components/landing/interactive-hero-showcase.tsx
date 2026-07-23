@@ -195,7 +195,7 @@ function FloatingScreen({
           <img
             src={screen.image}
             alt={screen.title}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover object-top"
             loading="lazy"
             draggable={false}
           />
@@ -464,7 +464,7 @@ export function InteractiveHeroShowcase() {
                 <img
                   src={activeScreen.image}
                   alt={activeScreen.title}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover object-top"
                   loading="lazy"
                 />
               </div>

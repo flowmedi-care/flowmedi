@@ -287,10 +287,10 @@ export const PRICING_FAQ = [
 ] as const;
 
 export const HERO_SCREEN_IMAGES = {
-  dashboard: "/landing/screen-dashboard.svg",
-  crm: "/landing/screen-crm.svg",
-  chat: "/landing/screen-chat.svg",
-  reports: "/landing/screen-reports.svg",
+  dashboard: "/landing/screen-dashboard.png",
+  crm: "/landing/screen-crm.png",
+  chat: "/landing/screen-chat.png",
+  reports: "/landing/screen-reports.png",
 } as const;
 
 export const CONTACT_EMAIL = "privacidade@flowmed.app";
