@@ -5,15 +5,17 @@
  * Adaptadores de domínio (Contatos / Cases) ficam fora deste módulo.
  */
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
   PointerSensor,
   closestCorners,
+  pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -69,6 +71,29 @@ export function KanbanShell<T extends KanbanShellItem>({
   const activeItem = activeId ? allItems.find((i) => i.id === activeId) : null;
   const columnIdSet = useMemo(() => new Set(columnIds), [columnIds]);
 
+  /**
+   * Prioriza droppables de coluna (inclui colunas vazias).
+   * closestCorners sozinho tende a ignorar colunas sem cards.
+   */
+  const collisionDetection: CollisionDetection = useCallback(
+    (args) => {
+      const pointerHits = pointerWithin(args);
+      const overColumn = pointerHits.find((c) => columnIdSet.has(String(c.id)));
+      if (overColumn) {
+        return [overColumn];
+      }
+
+      const corners = closestCorners(args);
+      const cornerColumn = corners.find((c) => columnIdSet.has(String(c.id)));
+      if (cornerColumn) {
+        return [cornerColumn];
+      }
+
+      return corners;
+    },
+    [columnIdSet]
+  );
+
   function resolveColumnId(overId: string): string | null {
     if (columnIdSet.has(overId)) return overId;
     for (const col of columns) {
@@ -94,7 +119,7 @@ export function KanbanShell<T extends KanbanShellItem>({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
@@ -137,11 +162,14 @@ function KanbanDropColumn<T extends KanbanShellItem>({
       count={items.length}
       accentClassName={column.accentClassName}
       bodyRef={setNodeRef}
-      bodyClassName={cn(isOver && "bg-primary/5 ring-1 ring-inset ring-primary/20")}
+      bodyClassName={cn(
+        "min-h-[200px] sm:min-h-[240px]",
+        isOver && "bg-primary/5 ring-1 ring-inset ring-primary/20"
+      )}
     >
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
         {items.length === 0 ? (
-          <KanbanEmptyColumn />
+          <KanbanEmptyColumn className="pointer-events-none" />
         ) : (
           items.map((item) => (
             <KanbanSortableCard key={item.id} id={item.id} renderCard={renderCard} item={item} />

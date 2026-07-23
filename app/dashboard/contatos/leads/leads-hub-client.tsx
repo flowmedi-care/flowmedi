@@ -192,6 +192,12 @@ export function LeadsHubClient({ data }: { data: LeadsHubData }) {
           initialItems={filteredPipeline}
           embedded
           viewMode={viewMode === "kanban" ? "kanban" : "list"}
+          onLifecycleMoved={(dest) => {
+            // Com aba filtrada o card some após refresh; mostra Todos ou a etapa destino.
+            if (lifecycle !== "todos" && lifecycle !== dest) {
+              setLifecycle("todos");
+            }
+          }}
         />
       )}
     </div>

@@ -60,11 +60,14 @@ export function PipelineClient({
   embedded = false,
   viewMode: controlledViewMode,
   onViewModeChange,
+  onLifecycleMoved,
 }: {
   initialItems: PipelineItem[];
   embedded?: boolean;
   viewMode?: ViewMode;
   onViewModeChange?: (mode: ViewMode) => void;
+  /** Chamado após move bem-sucedido (para o hub resetar aba filtrada). */
+  onLifecycleMoved?: (lifecycle: LifecycleStage) => void;
 }) {
   const [items, setItems] = useState<PipelineItem[]>(initialItems);
   const [internalViewMode, setInternalViewMode] = useState<ViewMode>("kanban");
@@ -142,7 +145,8 @@ export function PipelineClient({
         toast(`Erro ao mover: ${result.error}`, "error");
         return;
       }
-      toast("Etapa atualizada com sucesso", "success");
+      toast(`Movido para ${LIFECYCLE_STAGE_LABELS[newLifecycle]}`, "success");
+      onLifecycleMoved?.(newLifecycle);
       router.refresh();
     } catch (err) {
       revertLifecycle(itemId, currentLifecycle, previousLossReason);
@@ -174,7 +178,8 @@ export function PipelineClient({
         revertLifecycle(itemId, previousLifecycle, null);
         toast(`Erro ao mover: ${result.error}`, "error");
       } else {
-        toast("Lead marcado como perdido", "success");
+        toast(`Movido para ${LIFECYCLE_STAGE_LABELS.perdido}`, "success");
+        onLifecycleMoved?.("perdido");
         router.refresh();
       }
     } catch (err) {
@@ -205,7 +210,8 @@ export function PipelineClient({
         toast(`Erro ao mover: ${result.error}`, "error");
         return;
       }
-      toast("Etapa atualizada com sucesso", "success");
+      toast(`Movido para ${LIFECYCLE_STAGE_LABELS[newLifecycle]}`, "success");
+      onLifecycleMoved?.(newLifecycle);
       router.refresh();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Falha inesperada ao alterar etapa.";
