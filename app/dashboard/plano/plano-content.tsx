@@ -347,7 +347,7 @@ export function PlanoContent(props: PlanoContentProps) {
                 ) : (
                   <>
                     <CreditCard className="h-4 w-4 mr-2" />
-                    Assinar {effectiveCheckoutPlan.name}
+                    Assinar {effectiveCheckoutPlan?.name}
                   </>
                 )}
               </Button>
