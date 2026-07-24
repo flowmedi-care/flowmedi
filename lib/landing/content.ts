@@ -466,19 +466,19 @@ export const PRICING_FAQ = [
     id: "cancel",
     question: "Tem fidelidade?",
     answer:
-      "Não. Todos os planos são sem fidelidade. Você pode cancelar a assinatura a qualquer momento pelo painel.",
+      "Não. Você pode cancelar quando quiser e continuar utilizando a plataforma até o fim do período já pago.",
   },
   {
     id: "upgrade",
     question: "Posso mudar de plano?",
     answer:
-      "Sim. Você pode mudar de plano a qualquer momento. A cobrança é ajustada proporcionalmente.",
+      "Sim. Você pode fazer upgrade ou downgrade a qualquer momento. A cobrança é ajustada automaticamente.",
   },
   {
     id: "data",
     question: "O que acontece com meus dados?",
     answer:
-      "Seus dados permanecem disponíveis por um período após o cancelamento para exportação. Consulte nossa política de privacidade para detalhes.",
+      "Seus dados permanecem protegidos e podem ser exportados conforme nossa política. Após o cancelamento, eles são mantidos pelo período previsto em nossos termos antes da exclusão definitiva.",
   },
 ] as const;
 

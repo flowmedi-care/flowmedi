@@ -6,7 +6,7 @@ import { PrecosClient } from "./precos-client";
 export const metadata = {
   title: "Preços — FlowMed",
   description:
-    "Uma plataforma para organizar, atender e crescer sua clínica. Planos simples, sem fidelidade — cancele quando quiser.",
+    "Uma plataforma para organizar, atender e crescer sua clínica. Comece gratuitamente, sem fidelidade — cancele quando quiser.",
 };
 
 export default function PrecosPage() {
@@ -24,10 +24,11 @@ export default function PrecosPage() {
                   Preços
                 </p>
                 <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl md:leading-[1.15]">
-                  Uma plataforma para organizar, atender e crescer sua clínica.
+                  Uma plataforma que organiza, atende e cresce sua clínica.
                 </h1>
                 <p className="mt-4 text-lg text-muted-foreground sm:text-xl">
-                  Escolha o plano ideal para sua clínica. Sem fidelidade. Cancele quando quiser.
+                  Escolha o plano ideal para sua clínica. Comece gratuitamente, sem fidelidade e
+                  cancele quando quiser.
                 </p>
               </div>
             </div>

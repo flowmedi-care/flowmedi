@@ -33,24 +33,47 @@ export type PlanPricing = {
 type MarketingMeta = {
   displayName: string;
   idealFor: string;
+  bullets?: string[];
 };
 
 const MARKETING_BY_SLUG: Record<string, MarketingMeta> = {
   essencial: {
     displayName: "Essencial",
     idealFor: "Para profissionais autônomos.",
+    bullets: [
+      "Agenda com confirmações automáticas",
+      "Prontuário eletrônico",
+      "Histórico completo dos pacientes",
+      "Até 2 profissionais",
+      "Até 500 consultas/mês",
+    ],
   },
   profissional: {
-    displayName: "Crescimento",
+    displayName: "Profissional",
     idealFor: "Para clínicas em crescimento.",
+    bullets: [
+      "CRM de pacientes",
+      "Fluxos automatizados",
+      "Relatórios avançados",
+      "Até 6 profissionais",
+      "Até 2.000 consultas/mês",
+    ],
   },
   estrategico: {
-    displayName: "Operação",
+    displayName: "Estratégico",
     idealFor: "Para operações estruturadas.",
+    bullets: [
+      "Assistente com IA",
+      "API para integrações",
+      "Relatórios gerenciais",
+      "Até 12 profissionais",
+      "Até 5.000 consultas/mês",
+    ],
   },
   corporativo: {
     displayName: "Corporativo",
-    idealFor: "Para multiunidade e alto volume.",
+    idealFor:
+      "Ideal para redes de clínicas, multiunidade e operações com necessidades específicas.",
   },
 };
 
@@ -94,9 +117,9 @@ const QUICK_COMPARISON: ComparisonRow[] = [
 
 const ALL_PLANS_INCLUDE = [
   { icon: Shield, label: "LGPD" },
+  { icon: Cloud, label: "Hospedagem em nuvem" },
   { icon: HardDrive, label: "Backup automático" },
   { icon: RefreshCw, label: "Atualizações gratuitas" },
-  { icon: Cloud, label: "Hospedagem em nuvem" },
   { icon: Headphones, label: "Suporte" },
 ] as const;
 
@@ -197,7 +220,9 @@ export function PricingCards({ plans, billingCycle, onCycleChange }: PricingCard
           const href = canCheckout
             ? `${plan.cta_href || "/dashboard/plano"}?plan=${encodeURIComponent(plan.slug)}&cycle=${billingCycle}`
             : plan.cta_href || "/criar-conta";
-          const bullets = (plan.features || []).slice(0, 5);
+          const bullets = meta.bullets?.length
+            ? meta.bullets
+            : (plan.features || []).slice(0, 5);
 
           return (
             <Card
