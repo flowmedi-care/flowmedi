@@ -22,6 +22,8 @@
     "@langchain/openai": "^1.5.4",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-toggle": "^1.1.16",
+    "@radix-ui/react-toggle-group": "^1.1.17",
     "@react-pdf/renderer": "^4.5.1",
     "@stripe/react-stripe-js": "^5.6.0",
     "@stripe/stripe-js": "^8.7.0",

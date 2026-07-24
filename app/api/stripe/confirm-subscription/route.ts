@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
+import { parseBillingCycle, resolveStripePriceId } from "@/lib/billing-cycle";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -148,16 +149,21 @@ export async function POST(request: Request) {
       }
     }
 
-    // Usar plan_slug do metadata (enviado pelo create-payment-intent)
+    // Usar plan_slug / billing_cycle do metadata (enviado pelo create-payment-intent)
     const planSlug = (paymentIntent.metadata?.plan_slug as string) || "pro";
+    const billingCycle = parseBillingCycle(paymentIntent.metadata?.billing_cycle);
 
     const { data: targetPlan } = await supabase
       .from("plans")
-      .select("id, stripe_price_id")
+      .select("id, stripe_price_id, stripe_price_id_monthly, stripe_price_id_annually")
       .eq("slug", planSlug)
       .single();
 
-    if (!targetPlan?.stripe_price_id) {
+    const stripePriceId = targetPlan
+      ? resolveStripePriceId(targetPlan, billingCycle)
+      : null;
+
+    if (!stripePriceId || !targetPlan) {
       return NextResponse.json(
         { error: `Plano "${planSlug}" não configurado.` },
         { status: 500 }
@@ -195,8 +201,11 @@ export async function POST(request: Request) {
     // NàO confirmar o Payment Intent separadamente para evitar cobrança dupla
     const subscription = await stripe.subscriptions.create({
       customer: paymentIntent.customer,
-      items: [{ price: targetPlan.stripe_price_id }],
-      metadata: { clinic_id: paymentIntent.metadata.clinic_id },
+      items: [{ price: stripePriceId }],
+      metadata: {
+        clinic_id: paymentIntent.metadata.clinic_id,
+        billing_cycle: billingCycle,
+      },
       default_payment_method: paymentMethodId,
     });
 

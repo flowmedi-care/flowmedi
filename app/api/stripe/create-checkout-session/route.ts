@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
+import { parseBillingCycle, resolveStripePriceId } from "@/lib/billing-cycle";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -14,6 +15,7 @@ export async function POST(request: Request) {
   let taxId: string | null = null;
   let taxIdType: "cpf" | "cnpj" | null = null;
   let planSlug = "pro";
+  let billingCycle = parseBillingCycle(undefined);
   try {
     const body = await request.json().catch(() => ({}));
     taxId = body.tax_id || null;
@@ -21,6 +23,7 @@ export async function POST(request: Request) {
     if (body.plan && typeof body.plan === "string") {
       planSlug = body.plan.trim().toLowerCase();
     }
+    billingCycle = parseBillingCycle(body.billingCycle ?? body.cycle);
   } catch {
     // Body vazio ou inválido
   }
@@ -64,11 +67,15 @@ export async function POST(request: Request) {
 
   const { data: targetPlan } = await supabase
     .from("plans")
-    .select("id, stripe_price_id")
+    .select("id, stripe_price_id, stripe_price_id_monthly, stripe_price_id_annually")
     .eq("slug", planSlug)
     .single();
 
-  if (!targetPlan?.stripe_price_id) {
+  const stripePriceId = targetPlan
+    ? resolveStripePriceId(targetPlan, billingCycle)
+    : null;
+
+  if (!stripePriceId) {
     return NextResponse.json(
       { error: `Plano "${planSlug}" não configurado (stripe_price_id).` },
       { status: 500 }
@@ -185,9 +192,9 @@ export async function POST(request: Request) {
       mode: "subscription",
       ui_mode: "embedded",
       customer: customerId,
-      line_items: [{ price: targetPlan.stripe_price_id, quantity: 1 }],
+      line_items: [{ price: stripePriceId, quantity: 1 }],
       return_url: returnUrl,
-      metadata: { clinic_id: clinic.id },
+      metadata: { clinic_id: clinic.id, billing_cycle: billingCycle },
       subscription_data: {
         metadata: { clinic_id: clinic.id },
       },

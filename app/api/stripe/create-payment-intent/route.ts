@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
+import { parseBillingCycle, resolveStripePriceId } from "@/lib/billing-cycle";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -48,14 +49,16 @@ export async function POST(request: Request) {
     );
   }
 
-  // Aceitar plan slug e opcional previous_subscription_id (troca de plano)
+  // Aceitar plan slug, ciclo e opcional previous_subscription_id (troca de plano)
   let planSlug = "pro";
+  let billingCycle = parseBillingCycle(undefined);
   let previousSubscriptionId: string | null = null;
   try {
     const body = await request.json().catch(() => ({}));
     if (body.plan && typeof body.plan === "string") {
       planSlug = body.plan.trim().toLowerCase();
     }
+    billingCycle = parseBillingCycle(body.billingCycle ?? body.cycle);
     if (body.previous_subscription_id && typeof body.previous_subscription_id === "string") {
       previousSubscriptionId = body.previous_subscription_id.trim() || null;
     }
@@ -65,20 +68,26 @@ export async function POST(request: Request) {
 
   const { data: targetPlan } = await supabase
     .from("plans")
-    .select("id, stripe_price_id")
+    .select("id, stripe_price_id, stripe_price_id_monthly, stripe_price_id_annually")
     .eq("slug", planSlug)
     .single();
 
-  if (!targetPlan?.stripe_price_id) {
+  const stripePriceId = targetPlan
+    ? resolveStripePriceId(targetPlan, billingCycle)
+    : null;
+
+  if (!stripePriceId) {
     return NextResponse.json(
-      { error: `Plano "${planSlug}" não configurado (stripe_price_id). Configure no admin ou use outro plano.` },
+      {
+        error: `Plano "${planSlug}" não configurado (stripe_price_id). Configure no admin ou use outro plano.`,
+      },
       { status: 500 }
     );
   }
 
   // Buscar o preço para obter o valor
   try {
-    const price = await stripe.prices.retrieve(targetPlan.stripe_price_id);
+    const price = await stripe.prices.retrieve(stripePriceId);
     const amount = price.unit_amount ?? 0;
 
     let customerId = clinic.stripe_customer_id;
@@ -120,7 +129,11 @@ export async function POST(request: Request) {
     }
 
     // Criar Payment Intent sem confirmar (será confirmado após CPF/CNPJ)
-    const metadata: Record<string, string> = { clinic_id: clinic.id, plan_slug: planSlug };
+    const metadata: Record<string, string> = {
+      clinic_id: clinic.id,
+      plan_slug: planSlug,
+      billing_cycle: billingCycle,
+    };
     if (previousSubscriptionId) metadata.previous_subscription_id = previousSubscriptionId;
 
     const paymentIntent = await stripe.paymentIntents.create({
