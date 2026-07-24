@@ -1,18 +1,16 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, ArrowRight, Shield } from "lucide-react";
+import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase/client";
-import { resolvePostAuthRedirect } from "@/lib/auth/post-auth-redirect";
-import { needsMfaVerificationAtLogin, verifyTotpLogin } from "@/lib/compliance/mfa-service";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { AuthRecoveryHandler } from "@/components/auth/auth-recovery-handler";
+import { RecaptchaV2 } from "@/components/auth/recaptcha-v2";
 import { cn } from "@/lib/utils";
 
 interface SignInFormProps {
@@ -21,16 +19,21 @@ interface SignInFormProps {
   recoveryError?: boolean;
 }
 
-type LoginStep = "credentials" | "mfa";
+type SignInApiResponse = {
+  success: boolean;
+  message?: string;
+  redirect?: string;
+  requireCaptcha?: boolean;
+};
 
 export function SignInForm({ redirectTo, oauthError, recoveryError }: SignInFormProps) {
   const router = useRouter();
-  const [step, setStep] = useState<LoginStep>("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mfaCode, setMfaCode] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [requireCaptcha, setRequireCaptcha] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(() => {
     if (recoveryError) {
       return "O link de redefinição expirou ou já foi usado. Solicite um novo link em Esqueci minha senha.";
@@ -42,130 +45,46 @@ export function SignInForm({ redirectTo, oauthError, recoveryError }: SignInForm
   });
   const [loading, setLoading] = useState(false);
 
-  async function finishLogin(supabase: ReturnType<typeof createClient>, userId: string) {
-    const path = await resolvePostAuthRedirect(supabase, userId, redirectTo);
-    router.refresh();
-    router.push(path);
-    setLoading(false);
-  }
+  const onCaptchaToken = useCallback((token: string | null) => {
+    setCaptchaToken(token);
+  }, []);
 
   async function handleCredentialsSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const supabase = createClient();
-    const { error: err } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const res = await fetch("/api/auth/sign-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          captchaToken: captchaToken ?? undefined,
+          redirectTo,
+        }),
+      });
 
-    if (err) {
+      const data = (await res.json()) as SignInApiResponse;
+
+      if (data.requireCaptcha) {
+        setRequireCaptcha(true);
+        setCaptchaToken(null);
+      }
+
+      if (!res.ok || !data.success) {
+        setError(data.message ?? "E-mail ou senha inválidos.");
+        setLoading(false);
+        return;
+      }
+
+      router.refresh();
+      router.replace(data.redirect ?? "/dashboard");
+    } catch {
+      setError("Não foi possível entrar agora. Tente novamente em instantes.");
       setLoading(false);
-      setError(err.message);
-      return;
     }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setLoading(false);
-      setError("Erro ao obter sessão. Tente novamente.");
-      return;
-    }
-
-    const needsMfa = await needsMfaVerificationAtLogin(supabase);
-    if (needsMfa) {
-      setLoading(false);
-      setStep("mfa");
-      return;
-    }
-
-    await finishLogin(supabase, user.id);
-  }
-
-  async function handleMfaSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-
-    if (!mfaCode.trim()) {
-      setError("Informe o código de 6 dígitos do aplicativo.");
-      return;
-    }
-
-    setLoading(true);
-    const supabase = createClient();
-    const verify = await verifyTotpLogin(supabase, mfaCode.trim());
-    if (verify.error) {
-      setLoading(false);
-      setError(verify.error);
-      return;
-    }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      setError("Erro ao obter sessão. Tente novamente.");
-      return;
-    }
-
-    await finishLogin(supabase, user.id);
-  }
-
-  if (step === "mfa") {
-    return (
-      <div className="space-y-6">
-        <div className="rounded-lg border border-border bg-muted/30 p-4 flex gap-3">
-          <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-          <div className="text-sm">
-            <p className="font-medium text-foreground">Verificação em dois fatores</p>
-            <p className="text-muted-foreground mt-1">
-              Abra o Google Authenticator ou Authy e digite o código de 6 dígitos.
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={handleMfaSubmit} className="space-y-5">
-          {error && (
-            <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">{error}</p>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="mfa-code">Código do autenticador</Label>
-            <Input
-              id="mfa-code"
-              value={mfaCode}
-              onChange={(e) => setMfaCode(e.target.value)}
-              placeholder="000000"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              autoFocus
-              className="bg-muted/30 tracking-widest text-center text-lg"
-            />
-          </div>
-
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? "Verificando…" : "Verificar e entrar"}
-          </Button>
-
-          <button
-            type="button"
-            className="w-full text-sm text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setStep("credentials");
-              setMfaCode("");
-              setError(null);
-            }}
-          >
-            Voltar para senha
-          </button>
-        </form>
-      </div>
-    );
   }
 
   return (
@@ -233,6 +152,12 @@ export function SignInForm({ redirectTo, oauthError, recoveryError }: SignInForm
           </div>
         </div>
 
+        {requireCaptcha && (
+          <div className="pt-1">
+            <RecaptchaV2 onToken={onCaptchaToken} />
+          </div>
+        )}
+
         <motion.div
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
@@ -242,7 +167,7 @@ export function SignInForm({ redirectTo, oauthError, recoveryError }: SignInForm
         >
           <Button
             type="submit"
-            disabled={loading}
+            disabled={loading || (requireCaptcha && !captchaToken && Boolean(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY))}
             className={cn(
               "w-full h-10 relative overflow-hidden",
               isHovered && "shadow-lg shadow-primary/20"

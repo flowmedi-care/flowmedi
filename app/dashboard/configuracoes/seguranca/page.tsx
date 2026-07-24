@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
-export default function SegurancaRedirect() {
-  redirect("/dashboard/configuracoes/privacidade#mfa");
+/** Segurança consolidada em Privacidade (sem MFA). */
+export default function SegurancaPage() {
+  redirect("/dashboard/configuracoes/privacidade");
 }

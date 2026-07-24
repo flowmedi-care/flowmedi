@@ -76,7 +76,8 @@ export default function PoliticaPrivacidadePage() {
           e, quando habilitado, marketing com consentimento.
         </li>
         <li>
-          <strong className="text-foreground">Segurança:</strong> logs de acesso, auditoria, MFA.
+          <strong className="text-foreground">Segurança:</strong> logs de acesso, auditoria,
+          confirmação de e-mail e proteção anti-abuso no login.
         </li>
         <li>
           <strong className="text-foreground">Site institucional:</strong> cookies de sessão e dados
@@ -123,8 +124,8 @@ export default function PoliticaPrivacidadePage() {
       <LegalH2>9. Segurança (arts. 46–49)</LegalH2>
       <p>
         HTTPS, autenticação, isolamento por clínica (RLS), perfis de acesso, armazenamento privado
-        para arquivos sensíveis, auditoria e MFA obrigatório para administradores e médicos.
-        Recomendamos senhas fortes e revisão periódica de acessos.
+        para arquivos sensíveis, auditoria, confirmação de e-mail e proteções anti-abuso no login
+        (rate limit e CAPTCHA). Recomendamos senhas fortes e revisão periódica de acessos.
       </p>
 
       <LegalH2>10. Retenção (arts. 15–16)</LegalH2>

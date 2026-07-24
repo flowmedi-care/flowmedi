@@ -2,6 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { SignInForm } from "@/components/auth/sign-in-form";
+import { createClient } from "@/lib/supabase/server";
+import {
+  resolvePostAuthRedirect,
+  sanitizeRedirectPath,
+} from "@/lib/auth/post-auth-redirect";
 
 export default async function EntrarPage({
   searchParams,
@@ -22,6 +27,20 @@ export default async function EntrarPage({
     redirect(
       `/auth/callback?code=${encodeURIComponent(params.code)}&next=${encodeURIComponent(next)}`
     );
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    const path = await resolvePostAuthRedirect(
+      supabase,
+      user.id,
+      sanitizeRedirectPath(redirectTo)
+    );
+    redirect(path);
   }
 
   const oauthError = params.error === "oauth";

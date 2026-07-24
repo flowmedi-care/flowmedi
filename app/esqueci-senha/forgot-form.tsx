@@ -4,36 +4,47 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase/client";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setSuccess(false);
+    setSuccessMessage(null);
     setLoading(true);
-    const supabase = createClient();
-    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/redefinir-senha`,
-    });
-    setLoading(false);
-    if (err) {
-      setError(err.message);
-      return;
+
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = (await res.json()) as { success?: boolean; message?: string };
+
+      if (!res.ok || !data.success) {
+        setError(data.message ?? "Não foi possível enviar o link. Tente novamente.");
+        setLoading(false);
+        return;
+      }
+
+      setSuccessMessage(
+        data.message ??
+          "Se este e-mail estiver cadastrado, enviaremos um link para redefinir a senha."
+      );
+    } catch {
+      setError("Não foi possível enviar o link. Tente novamente.");
     }
-    setSuccess(true);
+    setLoading(false);
   }
 
-  if (success) {
+  if (successMessage) {
     return (
       <p className="text-sm text-foreground bg-primary/10 text-primary p-4 rounded-md">
-        Enviamos um link para <strong>{email}</strong>. Verifique sua caixa de
-        entrada e o spam.
+        {successMessage}
       </p>
     );
   }

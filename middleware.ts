@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { enforceMfaMiddleware } from "@/lib/compliance/mfa-middleware";
 import {
   CANONICAL_APEX_HOST,
   extractClinicSubdomain,
@@ -136,7 +135,7 @@ export async function middleware(request: NextRequest) {
     return pathRedirect;
   }
 
-  return await updateSession(request, enforceMfaMiddleware);
+  return await updateSession(request);
 }
 
 export const config = {

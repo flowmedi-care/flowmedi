@@ -4,14 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getClinicDpaStatus } from "@/lib/compliance/dpa-actions";
 import { getDpaDocumentUrl } from "@/lib/compliance/dpa";
-import { isMfaEnrolled, type MfaFactorsList } from "@/lib/compliance/mfa-helpers";
 import { DpaAcceptCard } from "@/app/dashboard/privacidade/dpa-accept-card";
 import { listDataSubjectRequests } from "@/app/dashboard/privacidade/dsar-actions";
 import { DsarClient } from "@/app/dashboard/privacidade/solicitacoes/dsar-client";
-import { MfaSetupClient } from "../seguranca/mfa-setup-client";
 import { EmailVerificationCard } from "@/components/compliance/email-verification-card";
-import { Suspense } from "react";
-import { SettingsPageSkeleton } from "@/components/dashboard-ui/loading/settings-page-skeleton";
 
 export default async function ConfiguracoesPrivacidadePage() {
   const supabase = await createClient();
@@ -34,13 +30,10 @@ export default async function ConfiguracoesPrivacidadePage() {
   const emailVerified = Boolean(user.email_confirmed_at);
   const userEmail = user.email ?? "";
 
-  const [dpaStatus, dsarRes, factors] = await Promise.all([
+  const [dpaStatus, dsarRes] = await Promise.all([
     isAdmin ? getClinicDpaStatus() : Promise.resolve(null),
     listDataSubjectRequests(),
-    supabase.auth.mfa.listFactors(),
   ]);
-
-  const hasVerifiedTotp = isMfaEnrolled(factors.data as MfaFactorsList);
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -54,12 +47,6 @@ export default async function ConfiguracoesPrivacidadePage() {
       {isAdmin && (
         <>
           <EmailVerificationCard email={userEmail} verified={emailVerified} />
-
-          <div id="mfa">
-            <Suspense fallback={<SettingsPageSkeleton />}>
-              <MfaSetupClient initialEnrolled={hasVerifiedTotp} />
-            </Suspense>
-          </div>
 
           {dpaStatus && (
             <DpaAcceptCard

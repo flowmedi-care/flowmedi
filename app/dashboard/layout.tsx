@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardLayoutClient } from "@/components/dashboard-layout-client";
-import { MfaReminderBanner } from "@/components/compliance/mfa-reminder-banner";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canAccessAudit, canUseWhatsApp } from "@/lib/plan-gates";
 
@@ -64,7 +63,6 @@ export default async function DashboardLayout({
       canUseWhatsApp={whatsappEnabledByPlan}
       servicesPricingMode={servicesPricingMode}
     >
-      <MfaReminderBanner />
       {children}
     </DashboardLayoutClient>
   );
