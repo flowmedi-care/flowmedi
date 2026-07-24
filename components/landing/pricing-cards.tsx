@@ -1,8 +1,7 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
-import { Check, X, Sparkles, Shield, Zap } from "lucide-react";
+import { Check, Sparkles, Shield, Cloud, RefreshCw, HardDrive, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,26 +31,26 @@ export type PlanPricing = {
 };
 
 type MarketingMeta = {
-  promise: string;
+  displayName: string;
   idealFor: string;
 };
 
 const MARKETING_BY_SLUG: Record<string, MarketingMeta> = {
   essencial: {
-    promise: "Organize sua clínica",
-    idealFor: "Ideal para profissionais autônomos.",
+    displayName: "Essencial",
+    idealFor: "Para profissionais autônomos.",
   },
   profissional: {
-    promise: "Automatize sua operação",
-    idealFor: "Ideal para clínicas em crescimento.",
+    displayName: "Crescimento",
+    idealFor: "Para clínicas em crescimento.",
   },
   estrategico: {
-    promise: "Tenha controle completo da clínica",
-    idealFor: "Ideal para operações estruturadas.",
+    displayName: "Operação",
+    idealFor: "Para operações estruturadas.",
   },
   corporativo: {
-    promise: "Solução personalizada",
-    idealFor: "Ideal para multiunidade e alto volume.",
+    displayName: "Corporativo",
+    idealFor: "Para multiunidade e alto volume.",
   },
 };
 
@@ -62,112 +61,51 @@ type ComparisonRow = {
   values: Record<string, ComparisonCell>;
 };
 
-type ComparisonSection = {
-  title: string;
-  rows: ComparisonRow[];
-};
-
-const COMPARISON_SECTIONS: ComparisonSection[] = [
+const QUICK_COMPARISON: ComparisonRow[] = [
   {
-    title: "Operação",
-    rows: [
-      {
-        name: "Agenda inteligente",
-        values: { essencial: true, profissional: true, estrategico: true },
-      },
-      {
-        name: "Prontuário e histórico do paciente",
-        values: { essencial: true, profissional: true, estrategico: true },
-      },
-      {
-        name: "Financeiro",
-        values: { essencial: true, profissional: true, estrategico: true },
-      },
-      {
-        name: "CRM de pacientes",
-        values: { essencial: false, profissional: true, estrategico: true },
-      },
-      {
-        name: "Auditoria de ações",
-        values: { essencial: false, profissional: false, estrategico: true },
-      },
-      {
-        name: "API e multi-equipe",
-        values: { essencial: false, profissional: false, estrategico: true },
-      },
-    ],
+    name: "Profissionais",
+    values: { essencial: "2", profissional: "6", estrategico: "12" },
   },
   {
-    title: "Equipe",
-    rows: [
-      {
-        name: "Profissionais",
-        values: {
-          essencial: "Até 2",
-          profissional: "Até 6",
-          estrategico: "Até 12",
-        },
-      },
-      {
-        name: "Secretárias",
-        values: {
-          essencial: "Até 2",
-          profissional: "Até 5",
-          estrategico: "Até 10",
-        },
-      },
-      {
-        name: "Gestão da equipe",
-        values: { essencial: false, profissional: true, estrategico: true },
-      },
-    ],
+    name: "CRM",
+    values: { essencial: false, profissional: true, estrategico: true },
   },
   {
-    title: "Comunicação",
-    rows: [
-      {
-        name: "WhatsApp integrado",
-        values: { essencial: true, profissional: true, estrategico: true },
-      },
-      {
-        name: "E-mail e confirmações",
-        values: { essencial: true, profissional: true, estrategico: true },
-      },
-      {
-        name: "Automação de atendimento",
-        values: { essencial: false, profissional: true, estrategico: true },
-      },
-    ],
+    name: "Automações",
+    values: {
+      essencial: "Básicas",
+      profissional: "Avançadas",
+      estrategico: "Completas",
+    },
   },
   {
-    title: "Inteligência",
-    rows: [
-      {
-        name: "IA",
-        values: {
-          essencial: "Básica (limite mensal)",
-          profissional: "Atendimento e automações",
-          estrategico: "Operacional avançada",
-        },
-      },
-      {
-        name: "Dashboards e indicadores",
-        values: { essencial: false, profissional: true, estrategico: true },
-      },
-      {
-        name: "Painel com recomendações do dia",
-        values: { essencial: false, profissional: false, estrategico: true },
-      },
-    ],
+    name: "IA",
+    values: {
+      essencial: "Básica",
+      profissional: "Atendimento",
+      estrategico: "Operacional",
+    },
+  },
+  {
+    name: "API",
+    values: { essencial: false, profissional: false, estrategico: true },
   },
 ];
+
+const ALL_PLANS_INCLUDE = [
+  { icon: Shield, label: "LGPD" },
+  { icon: HardDrive, label: "Backup automático" },
+  { icon: RefreshCw, label: "Atualizações gratuitas" },
+  { icon: Cloud, label: "Hospedagem em nuvem" },
+  { icon: Headphones, label: "Suporte" },
+] as const;
 
 const ANNUAL_DISCOUNT_PERCENT = 20;
 
 function getMarketing(plan: PlanPricing): MarketingMeta {
   return (
     MARKETING_BY_SLUG[plan.slug] ?? {
-      promise: plan.name,
+      displayName: plan.name,
       idealFor: plan.description?.split(".")[0]
         ? `${plan.description.split(".")[0]}.`
         : "Para a sua clínica.",
@@ -182,7 +120,11 @@ function ComparisonCellView({ value }: { value: ComparisonCell }) {
   if (value) {
     return <Check className="mx-auto h-5 w-5 text-primary" aria-label="Incluído" />;
   }
-  return <X className="mx-auto h-5 w-5 text-muted-foreground/50" aria-label="Não incluído" />;
+  return (
+    <span className="text-muted-foreground/50" aria-label="Não incluído">
+      —
+    </span>
+  );
 }
 
 type PricingCardsProps = {
@@ -277,8 +219,7 @@ export function PricingCards({ plans, billingCycle, onCycleChange }: PricingCard
               )}
 
               <CardHeader className={cn("pb-4", isFeatured && "pt-8")}>
-                <CardTitle className="text-xl">{plan.name}</CardTitle>
-                <p className="mt-2 text-base font-semibold text-primary">{meta.promise}</p>
+                <CardTitle className="text-xl">{meta.displayName}</CardTitle>
                 <CardDescription className="mt-1">{meta.idealFor}</CardDescription>
                 <div className="mt-4">
                   <p className="text-3xl font-bold tracking-tight text-foreground">
@@ -290,11 +231,6 @@ export function PricingCards({ plans, billingCycle, onCycleChange }: PricingCard
                       {plan.price_display ? (
                         <span className="ml-1 line-through opacity-70">{plan.price_display}</span>
                       ) : null}
-                    </p>
-                  )}
-                  {!showAnnual && plan.description && (
-                    <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
-                      {plan.description}
                     </p>
                   )}
                 </div>
@@ -313,15 +249,16 @@ export function PricingCards({ plans, billingCycle, onCycleChange }: PricingCard
                 </ul>
               </CardContent>
 
-              <CardFooter>
+              <CardFooter className="flex-col gap-2">
                 <Button
                   asChild
                   className="h-11 w-full font-medium"
                   variant={isFeatured ? "default" : "outline"}
                   size="lg"
                 >
-                  <Link href={href}>{plan.cta_text || "Começar"}</Link>
+                  <Link href={href}>Começar agora</Link>
                 </Button>
+                <p className="text-center text-xs text-muted-foreground">Sem fidelidade</p>
               </CardFooter>
             </Card>
           );
@@ -329,67 +266,58 @@ export function PricingCards({ plans, billingCycle, onCycleChange }: PricingCard
       </div>
 
       {comparePlans.length >= 2 && (
-        <section aria-label="Comparação detalhada de recursos" className="hidden md:block">
-          <h3 className="mb-6 text-center text-2xl font-bold text-foreground">
+        <section aria-label="Comparação rápida de planos">
+          <h3 className="mb-5 text-center text-xl font-bold text-foreground sm:text-2xl">
             Compare os planos
           </h3>
-          <div className="overflow-x-auto rounded-xl border border-border/60 shadow-sm">
+          <div className="mx-auto max-w-3xl overflow-x-auto rounded-xl border border-border/60 shadow-sm">
             <table className="min-w-full divide-y divide-border/80">
               <thead>
                 <tr className="bg-muted/30">
                   <th
                     scope="col"
-                    className="w-[220px] px-5 py-4 text-left text-sm font-semibold text-foreground/80"
+                    className="w-[140px] px-4 py-3 text-left text-sm font-semibold text-foreground/80 sm:w-[180px] sm:px-5"
                   >
                     Recurso
                   </th>
-                  {comparePlans.map((plan) => (
-                    <th
-                      key={`th-${plan.id}`}
-                      scope="col"
-                      className={cn(
-                        "px-5 py-4 text-center text-sm font-semibold text-foreground/80",
-                        plan.highlighted && "bg-primary/10"
-                      )}
-                    >
-                      {plan.name}
-                    </th>
-                  ))}
+                  {comparePlans.map((plan) => {
+                    const meta = getMarketing(plan);
+                    return (
+                      <th
+                        key={`th-${plan.id}`}
+                        scope="col"
+                        className={cn(
+                          "px-3 py-3 text-center text-sm font-semibold text-foreground/80 sm:px-5",
+                          plan.highlighted && "bg-primary/10"
+                        )}
+                      >
+                        {meta.displayName}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {COMPARISON_SECTIONS.map((section) => (
-                  <React.Fragment key={section.title}>
-                    <tr className="bg-muted/20">
-                      <td
-                        colSpan={comparePlans.length + 1}
-                        className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary"
-                      >
-                        {section.title}
-                      </td>
-                    </tr>
-                    {section.rows.map((row) => (
-                      <tr key={row.name} className="hover:bg-accent/10">
-                        <td className="px-5 py-3 text-left text-sm font-medium text-foreground/90">
-                          {row.name}
+                {QUICK_COMPARISON.map((row) => (
+                  <tr key={row.name} className="hover:bg-accent/10">
+                    <td className="px-4 py-3 text-left text-sm font-medium text-foreground/90 sm:px-5">
+                      {row.name}
+                    </td>
+                    {comparePlans.map((plan) => {
+                      const cell = row.values[plan.slug] ?? false;
+                      return (
+                        <td
+                          key={`${plan.id}-${row.name}`}
+                          className={cn(
+                            "px-3 py-3 text-center sm:px-5",
+                            plan.highlighted && "bg-primary/5"
+                          )}
+                        >
+                          <ComparisonCellView value={cell} />
                         </td>
-                        {comparePlans.map((plan) => {
-                          const cell = row.values[plan.slug] ?? false;
-                          return (
-                            <td
-                              key={`${plan.id}-${row.name}`}
-                              className={cn(
-                                "px-5 py-3 text-center",
-                                plan.highlighted && "bg-primary/5"
-                              )}
-                            >
-                              <ComparisonCellView value={cell} />
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </React.Fragment>
+                      );
+                    })}
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -397,40 +325,53 @@ export function PricingCards({ plans, billingCycle, onCycleChange }: PricingCard
         </section>
       )}
 
+      <section
+        aria-labelledby="all-plans-include-heading"
+        className="mx-auto max-w-3xl rounded-xl border border-border/60 bg-muted/20 px-6 py-8"
+      >
+        <h3
+          id="all-plans-include-heading"
+          className="text-center text-base font-semibold text-foreground sm:text-lg"
+        >
+          Todos os planos incluem
+        </h3>
+        <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
+          {ALL_PLANS_INCLUDE.map(({ icon: Icon, label }) => (
+            <li
+              key={label}
+              className="inline-flex items-center gap-2 text-sm font-medium text-foreground/90"
+            >
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <Icon className="h-3 w-3 text-primary" strokeWidth={2.5} aria-hidden />
+              </span>
+              {label}
+            </li>
+          ))}
+        </ul>
+        <p className="mx-auto mt-6 max-w-xl text-center text-xs text-muted-foreground">
+          Mensagens oficiais do WhatsApp são cobradas diretamente pela Meta conforme o volume
+          utilizado pela clínica.
+        </p>
+      </section>
+
       {corporativo && (
-        <div className="mx-auto max-w-3xl rounded-xl border border-border/60 bg-muted/20 px-6 py-8 text-center sm:px-10">
-          <h3 className="text-xl font-semibold text-foreground">{corporativo.name}</h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {getMarketing(corporativo).idealFor}{" "}
-            {corporativo.description || "Configuração personalizada, onboarding assistido e suporte dedicado."}
-          </p>
-          <p className="mt-3 text-2xl font-bold text-foreground">
-            {corporativo.price_display || "Sob consulta"}
-          </p>
-          <Button asChild className="mt-5" variant="outline" size="lg">
+        <div className="mx-auto max-w-3xl rounded-xl border border-border/60 px-6 py-6 text-center sm:flex sm:items-center sm:justify-between sm:gap-6 sm:px-8 sm:text-left">
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold text-foreground">
+              {getMarketing(corporativo).displayName}
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {getMarketing(corporativo).idealFor}{" "}
+              {corporativo.price_display || "Sob consulta"}.
+            </p>
+          </div>
+          <Button asChild className="mt-4 shrink-0 sm:mt-0" variant="outline">
             <Link href={corporativo.cta_href || "/criar-conta"}>
               {corporativo.cta_text || "Falar com vendas"}
             </Link>
           </Button>
         </div>
       )}
-
-      <div className="mx-auto max-w-3xl">
-        <div className="flex flex-col items-center justify-center gap-6 text-sm text-muted-foreground sm:flex-row sm:gap-10">
-          <span className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-primary/70" />
-            Sem fidelidade
-          </span>
-          <span className="flex items-center gap-2">
-            <Zap className="h-4 w-4 text-primary/70" />
-            Cancele quando quiser
-          </span>
-        </div>
-        <p className="mx-auto mt-4 max-w-xl text-center text-xs text-muted-foreground">
-          Mensagens oficiais do WhatsApp são cobradas diretamente pela Meta conforme o volume
-          utilizado pela clínica.
-        </p>
-      </div>
     </div>
   );
 }

@@ -457,34 +457,28 @@ export const INTEGRATIONS = [
 
 export const PRICING_FAQ = [
   {
-    id: "trial",
-    question: "Posso testar antes de pagar?",
+    id: "card",
+    question: "Preciso informar cartão para começar?",
     answer:
-      "Sim. Você pode criar uma conta gratuita e explorar a plataforma. Não é necessário cartão de crédito para começar.",
+      "Não. Você pode criar a conta e explorar a plataforma sem cartão. O cartão só é pedido na hora de assinar um plano.",
   },
   {
     id: "cancel",
-    question: "Tem fidelidade ou multa de cancelamento?",
+    question: "Tem fidelidade?",
     answer:
       "Não. Todos os planos são sem fidelidade. Você pode cancelar a assinatura a qualquer momento pelo painel.",
   },
   {
     id: "upgrade",
-    question: "Posso mudar de plano depois?",
+    question: "Posso mudar de plano?",
     answer:
-      "Sim. Você pode fazer upgrade ou downgrade do plano a qualquer momento. A cobrança é ajustada proporcionalmente.",
+      "Sim. Você pode mudar de plano a qualquer momento. A cobrança é ajustada proporcionalmente.",
   },
   {
     id: "data",
-    question: "O que acontece com meus dados se eu cancelar?",
+    question: "O que acontece com meus dados?",
     answer:
       "Seus dados permanecem disponíveis por um período após o cancelamento para exportação. Consulte nossa política de privacidade para detalhes.",
-  },
-  {
-    id: "support",
-    question: "Como funciona o suporte?",
-    answer:
-      "O suporte está disponível por e-mail. Planos superiores incluem suporte prioritário conforme descrito em cada plano.",
   },
 ] as const;
 
