@@ -8,7 +8,7 @@ export function IntegrationsStrip() {
         <PublicSectionHeader
           eyebrow="Integrações"
           title="Conecte com as ferramentas que você já usa"
-          description="Ecossistema integrado para comunicação, notificações e pagamentos."
+          description="Ferramentas conectadas para falar com pacientes e automatizar o atendimento."
           className="mb-12"
         />
 

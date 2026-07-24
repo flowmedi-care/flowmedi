@@ -46,7 +46,7 @@ const MENU_ITEMS: MenuItem[] = [
     id: "dashboard",
     icon: LayoutDashboard,
     title: "Dashboard",
-    description: "Visão analítica da sua clínica.",
+    description: "Visão geral da sua clínica.",
   },
   {
     id: "crm",
