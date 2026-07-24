@@ -43,8 +43,11 @@ export async function POST(request: Request) {
     const { data } = await supabase
       .from("plans")
       .select("id")
-      .eq("stripe_price_id", priceId)
-      .single();
+      .or(
+        `stripe_price_id.eq.${priceId},stripe_price_id_monthly.eq.${priceId},stripe_price_id_annually.eq.${priceId}`
+      )
+      .limit(1)
+      .maybeSingle();
     return data;
   };
 

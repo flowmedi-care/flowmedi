@@ -33,8 +33,11 @@ interface Plan {
   operational_indicators_enabled?: boolean;
   audit_log_enabled?: boolean;
   stripe_price_id: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annually?: string | null;
   is_active: boolean;
   price_display?: string | null;
+  price_display_annual?: string | null;
   features?: string[] | null;
   sort_order?: number | null;
   show_on_pricing?: boolean | null;
@@ -72,9 +75,12 @@ export function PlanoForm({ plan }: PlanoFormProps) {
     productivity_team_enabled: plan?.productivity_team_enabled ?? false,
     operational_indicators_enabled: plan?.operational_indicators_enabled ?? false,
     audit_log_enabled: plan?.audit_log_enabled ?? false,
-    stripe_price_id: plan?.stripe_price_id || "",
+    stripe_price_id: plan?.stripe_price_id || plan?.stripe_price_id_monthly || "",
+    stripe_price_id_monthly: plan?.stripe_price_id_monthly || plan?.stripe_price_id || "",
+    stripe_price_id_annually: plan?.stripe_price_id_annually || "",
     is_active: plan?.is_active ?? true,
     price_display: plan?.price_display || "",
+    price_display_annual: plan?.price_display_annual || "",
     features: Array.isArray(plan?.features)
       ? plan.features.join("\n")
       : "",
@@ -122,11 +128,22 @@ export function PlanoForm({ plan }: PlanoFormProps) {
           })()
         : null;
 
-      // Validar stripe_price_id: deve começar com "price_" ou ser vazio/null
-      const stripePriceId = formData.stripe_price_id?.trim() || null;
-      if (stripePriceId && !stripePriceId.startsWith("price_")) {
-        throw new Error('Stripe Price ID deve começar com "price_" (ex: price_1ABC123...). Você colou um número?');
-      }
+      // Validar Stripe Price IDs: devem começar com "price_" ou ser vazio/null
+      const validatePriceId = (value: string | null, label: string) => {
+        if (value && !value.startsWith("price_")) {
+          throw new Error(
+            `${label} deve começar com "price_" (ex: price_1ABC123...). Você colou um número?`
+          );
+        }
+      };
+
+      const stripePriceIdMonthly =
+        formData.stripe_price_id_monthly?.trim() ||
+        formData.stripe_price_id?.trim() ||
+        null;
+      const stripePriceIdAnnually = formData.stripe_price_id_annually?.trim() || null;
+      validatePriceId(stripePriceIdMonthly, "Stripe Price ID mensal");
+      validatePriceId(stripePriceIdAnnually, "Stripe Price ID anual");
 
       const payload: Record<string, unknown> = {
         name: formData.name,
@@ -149,9 +166,12 @@ export function PlanoForm({ plan }: PlanoFormProps) {
         productivity_team_enabled: formData.productivity_team_enabled,
         operational_indicators_enabled: formData.operational_indicators_enabled,
         audit_log_enabled: formData.audit_log_enabled,
-        stripe_price_id: stripePriceId,
+        stripe_price_id: stripePriceIdMonthly,
+        stripe_price_id_monthly: stripePriceIdMonthly,
+        stripe_price_id_annually: stripePriceIdAnnually,
         is_active: formData.is_active,
         price_display: formData.price_display?.trim() || null,
+        price_display_annual: formData.price_display_annual?.trim() || null,
         features: formData.features
           ? formData.features
               .split("\n")
@@ -473,7 +493,7 @@ export function PlanoForm({ plan }: PlanoFormProps) {
             />
           </div>
           <div>
-            <Label htmlFor="price_display">Preço exibido</Label>
+            <Label htmlFor="price_display">Preço exibido (mensal)</Label>
             <Input
               id="price_display"
               value={formData.price_display}
@@ -481,7 +501,21 @@ export function PlanoForm({ plan }: PlanoFormProps) {
               placeholder="R$89/mês ou Sob consulta"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Texto mostrado como preço. Ex: R$89/mês, R$347/mês, Sob consulta.
+              Texto mostrado como preço mensal. Ex: R$89/mês, R$347/mês, Sob consulta.
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="price_display_annual">Preço exibido (anual)</Label>
+            <Input
+              id="price_display_annual"
+              value={formData.price_display_annual}
+              onChange={(e) =>
+                setFormData({ ...formData, price_display_annual: e.target.value })
+              }
+              placeholder="R$71/mês"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Equivalente mensal com desconto anual (ex: R$71/mês). Deixe vazio se não houver anual.
             </p>
           </div>
           <div>
@@ -546,27 +580,52 @@ export function PlanoForm({ plan }: PlanoFormProps) {
       <Card>
         <CardHeader>
           <CardTitle>Integração Stripe</CardTitle>
-          <CardDescription>Configure o preço do Stripe para planos pagos</CardDescription>
+          <CardDescription>
+            Configure Prices mensal e anual no Stripe Dashboard e cole os IDs aqui.
+            Sem Price anual, o checkout anual cai no mensal (ou desabilite o toggle na /precos).
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="stripe_price_id">Stripe Price ID</Label>
+            <Label htmlFor="stripe_price_id_monthly">Stripe Price ID (mensal)</Label>
             <Input
-              id="stripe_price_id"
-              value={formData.stripe_price_id}
+              id="stripe_price_id_monthly"
+              value={formData.stripe_price_id_monthly}
               onChange={(e) => {
                 const value = e.target.value.trim();
-                // Validar formato básico: deve começar com "price_"
                 if (value && !value.startsWith("price_")) {
                   toast("Stripe Price ID deve começar com 'price_' (ex: price_1ABC123...)", "error");
                   return;
                 }
-                setFormData({ ...formData, stripe_price_id: value });
+                setFormData({
+                  ...formData,
+                  stripe_price_id_monthly: value,
+                  stripe_price_id: value,
+                });
               }}
               placeholder="price_xxxxx"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              ID do Price criado no Stripe Dashboard (ex: price_1ABC123...). Cole apenas o ID, não números grandes.
+              Price recorrente mensal (também espelhado em stripe_price_id legado).
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="stripe_price_id_annually">Stripe Price ID (anual)</Label>
+            <Input
+              id="stripe_price_id_annually"
+              value={formData.stripe_price_id_annually}
+              onChange={(e) => {
+                const value = e.target.value.trim();
+                if (value && !value.startsWith("price_")) {
+                  toast("Stripe Price ID deve começar com 'price_' (ex: price_1ABC123...)", "error");
+                  return;
+                }
+                setFormData({ ...formData, stripe_price_id_annually: value });
+              }}
+              placeholder="price_xxxxx"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Price recorrente anual (~20% off). Crie no Stripe e cole o ID.
             </p>
           </div>
         </CardContent>

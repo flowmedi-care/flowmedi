@@ -8,14 +8,20 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CreditCard, ExternalLink, Loader2, ArrowUpCircle } from "lucide-react";
+import type { BillingCycle } from "@/lib/billing-cycle";
+import { resolveStripePriceId } from "@/lib/billing-cycle";
 
 type UpgradePlan = {
   id: string;
   name: string;
   slug: string;
   stripe_price_id: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annually?: string | null;
   price_display?: string | null;
+  price_display_annual?: string | null;
 };
 
 type AddressState = {
@@ -78,6 +84,10 @@ type PlanoContentProps = {
   canceling: boolean;
   resuming: boolean;
   paymentElementRef: RefObject<HTMLDivElement>;
+  billingCycle: BillingCycle;
+  onBillingCycleChange: (cycle: BillingCycle) => void;
+  hasAnnualPrice: boolean;
+  canCheckout: boolean;
   onStartCheckout: () => void;
   onPaymentSubmit: (e: FormEvent) => void;
   onOpenPortal: () => void;
@@ -142,6 +152,10 @@ export function PlanoContent(props: PlanoContentProps) {
     canceling,
     resuming,
     paymentElementRef,
+    billingCycle,
+    onBillingCycleChange,
+    hasAnnualPrice,
+    canCheckout,
     onStartCheckout,
     onPaymentSubmit,
     onOpenPortal,
@@ -207,14 +221,21 @@ export function PlanoContent(props: PlanoContentProps) {
             </div>
           )}
 
-          {showCheckoutForm && effectiveCheckoutPlan?.stripe_price_id && (
+          {showCheckoutForm && canCheckout && (
             <form onSubmit={onPaymentSubmit} className="space-y-6">
               <div className="rounded-lg border p-4 bg-muted/50">
                 <h3 className="font-semibold mb-3">Detalhes do pedido</h3>
                 <div className="flex items-center justify-between text-sm">
-                  <span>Plano {effectiveCheckoutPlan.name}</span>
+                  <span>
+                    Plano {effectiveCheckoutPlan?.name}
+                    {billingCycle === "annually" ? " (anual)" : " (mensal)"}
+                  </span>
                   <span className="font-medium">
-                    {loadingPrice ? <Loader2 className="h-4 w-4 animate-spin inline" /> : planPrice?.formatted ?? "Carregando..."}
+                    {loadingPrice ? (
+                      <Loader2 className="h-4 w-4 animate-spin inline" />
+                    ) : (
+                      planPrice?.formatted ?? "Carregando..."
+                    )}
                   </span>
                 </div>
               </div>
@@ -313,7 +334,8 @@ export function PlanoContent(props: PlanoContentProps) {
                   onChange={(e) => setConsentAccepted(e.target.checked)}
                   className="mt-1"
                 />
-                Você concorda com a cobrança recorrente mensal até cancelar.
+                Você concorda com a cobrança recorrente{" "}
+                {billingCycle === "annually" ? "anual" : "mensal"} até cancelar.
               </label>
 
               <Button type="submit" disabled={confirmingPayment || !consentAccepted} className="w-full">
@@ -340,7 +362,11 @@ export function PlanoContent(props: PlanoContentProps) {
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => router.push(`/dashboard/plano?plan=${p.slug}`)}
+                    onClick={() =>
+                      router.push(
+                        `/dashboard/plano?plan=${p.slug}&cycle=${billingCycle}`
+                      )
+                    }
                     className={
                       effectiveCheckoutSlug === p.slug
                         ? "rounded-lg px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground"
@@ -348,11 +374,52 @@ export function PlanoContent(props: PlanoContentProps) {
                     }
                   >
                     {p.name}
-                    {p.price_display ? <span className="ml-1 opacity-90">({p.price_display})</span> : null}
+                    {p.price_display ? (
+                      <span className="ml-1 opacity-90">({p.price_display})</span>
+                    ) : null}
                   </button>
                 ))}
               </div>
-              {effectiveCheckoutPlan?.stripe_price_id ? (
+
+              {hasAnnualPrice && (
+                <div className="pt-1">
+                  <Label className="mb-2 block text-sm font-medium text-muted-foreground">
+                    Ciclo de cobrança
+                  </Label>
+                  <ToggleGroup
+                    type="single"
+                    value={billingCycle}
+                    onValueChange={(value) => {
+                      if (value === "monthly" || value === "annually") {
+                        onBillingCycleChange(value);
+                        router.push(
+                          `/dashboard/plano?plan=${effectiveCheckoutSlug}&cycle=${value}`
+                        );
+                      }
+                    }}
+                    aria-label="Ciclo de cobrança"
+                    className="inline-flex rounded-lg border border-border/60 bg-muted/40 p-1"
+                  >
+                    <ToggleGroupItem
+                      value="monthly"
+                      className="rounded-md px-4 py-1.5 text-sm data-[state=on]:bg-background data-[state=on]:shadow-sm"
+                    >
+                      Mensal
+                    </ToggleGroupItem>
+                    <ToggleGroupItem
+                      value="annually"
+                      className="rounded-md px-4 py-1.5 text-sm data-[state=on]:bg-background data-[state=on]:shadow-sm"
+                    >
+                      Anual
+                      <span className="ml-1 text-xs text-primary">-20%</span>
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+              )}
+
+              {canCheckout ||
+              (effectiveCheckoutPlan &&
+                resolveStripePriceId(effectiveCheckoutPlan, "monthly")) ? (
                 <Button onClick={onStartCheckout} disabled={loadingCheckout} className="w-full">
                   {loadingCheckout ? (
                     <>
@@ -362,7 +429,9 @@ export function PlanoContent(props: PlanoContentProps) {
                   ) : (
                     <>
                       <CreditCard className="h-4 w-4 mr-2" />
-                      Assinar {effectiveCheckoutPlan.name}
+                      Assinar {effectiveCheckoutPlan?.name}
+                      {planPrice?.formatted ? ` — ${planPrice.formatted}` : ""}
+                      {billingCycle === "annually" ? " /ano" : ""}
                     </>
                   )}
                 </Button>

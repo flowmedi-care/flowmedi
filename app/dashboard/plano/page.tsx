@@ -1,14 +1,16 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PlanoClient } from "./plano-client";
+import { parseBillingCycle } from "@/lib/billing-cycle";
 
 export default async function PlanoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ plan?: string }>;
+  searchParams: Promise<{ plan?: string; cycle?: string }>;
 }) {
   const params = await searchParams;
   const selectedPlanSlug = params.plan?.trim().toLowerCase() || null;
+  const selectedBillingCycle = parseBillingCycle(params.cycle);
   const supabase = await createClient();
   const {
     data: { user },
@@ -49,7 +51,9 @@ export default async function PlanoPage({
   // Buscar todos os planos exibidos na página de preços (para o usuário escolher)
   const { data: upgradePlans } = await supabase
     .from("plans")
-    .select("id, name, slug, stripe_price_id, price_display")
+    .select(
+      "id, name, slug, stripe_price_id, stripe_price_id_monthly, stripe_price_id_annually, price_display, price_display_annual"
+    )
     .eq("show_on_pricing", true)
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
@@ -92,6 +96,7 @@ export default async function PlanoPage({
     stripeSubscriptionId: clinic?.stripe_subscription_id ?? null,
     proStripePriceId: proPlan?.stripe_price_id ?? null,
     selectedPlanSlug,
+    selectedBillingCycle,
     upgradePlans: upgradePlans ?? [],
     messageStats: {
       sentLast30Days: messageCountRes.count ?? 0,

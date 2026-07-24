@@ -5,12 +5,18 @@ import { useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import { Card, CardContent } from "@/components/ui/card";
 import { PlanoContent } from "./plano-content";
+import type { BillingCycle } from "@/lib/billing-cycle";
+import { planHasAnnualPrice, resolveStripePriceId } from "@/lib/billing-cycle";
 
 type UpgradePlan = {
   id: string;
   name: string;
   slug: string;
-  stripe_price_id: string;
+  stripe_price_id: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annually?: string | null;
+  price_display?: string | null;
+  price_display_annual?: string | null;
 };
 
 type PlanInfo = {
@@ -20,6 +26,7 @@ type PlanInfo = {
   stripeSubscriptionId: string | null;
   proStripePriceId: string | null;
   selectedPlanSlug?: string | null;
+  selectedBillingCycle?: BillingCycle;
   upgradePlans?: UpgradePlan[];
   messageStats?: {
     sentLast30Days: number;
@@ -74,6 +81,9 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [changePlanSlug, setChangePlanSlug] = useState<string | null>(null);
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>(
+    plan?.selectedBillingCycle ?? "monthly"
+  );
 
   // Campos de endereço
   const [loadingCEP, setLoadingCEP] = useState(false);
@@ -99,9 +109,27 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       ? plan.selectedPlanSlug
       : upgradePlans[0]?.slug ?? "pro");
   const effectiveCheckoutPlan = upgradePlans.find((p) => p.slug === effectiveCheckoutSlug) ?? upgradePlans[0];
+  const effectiveHasAnnual = effectiveCheckoutPlan
+    ? planHasAnnualPrice(effectiveCheckoutPlan)
+    : false;
+  const effectiveCanCheckout = Boolean(
+    effectiveCheckoutPlan && resolveStripePriceId(effectiveCheckoutPlan, billingCycle)
+  );
   const showCheckoutForm = paymentMounted && (!isPro || !!changePlanSlug);
   const isCanceled = plan?.subscriptionStatus === "canceled";
   const isCancelScheduled = Boolean(subscriptionInfo?.cancelAtPeriodEnd);
+
+  useEffect(() => {
+    if (plan?.selectedBillingCycle) {
+      setBillingCycle(plan.selectedBillingCycle);
+    }
+  }, [plan?.selectedBillingCycle]);
+
+  useEffect(() => {
+    if (billingCycle === "annually" && !effectiveHasAnnual) {
+      setBillingCycle("monthly");
+    }
+  }, [billingCycle, effectiveHasAnnual]);
 
   useEffect(() => {
     fetch("/api/stripe/invoices")
@@ -116,7 +144,9 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
   useEffect(() => {
     if ((!isPro || changePlanSlug) && effectiveCheckoutSlug) {
       setLoadingPrice(true);
-      fetch(`/api/stripe/price?plan=${encodeURIComponent(effectiveCheckoutSlug)}`)
+      fetch(
+        `/api/stripe/price?plan=${encodeURIComponent(effectiveCheckoutSlug)}&cycle=${billingCycle}`
+      )
         .then((r) => r.json())
         .then((data) => {
           if (data.price && data.formatted) {
@@ -125,11 +155,13 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
               currency: data.price.currency,
               formatted: data.formatted,
             });
+          } else {
+            setPlanPrice(null);
           }
         })
         .finally(() => setLoadingPrice(false));
     }
-  }, [isPro, changePlanSlug, effectiveCheckoutSlug]);
+  }, [isPro, changePlanSlug, effectiveCheckoutSlug, billingCycle]);
 
   const loadSubscriptionInfo = async () => {
     try {
@@ -197,7 +229,11 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
     const slug = planSlugOverride ?? effectiveCheckoutSlug;
     setLoadingCheckout(true);
     try {
-      const body: { plan: string; previous_subscription_id?: string } = { plan: slug };
+      const body: {
+        plan: string;
+        billingCycle: BillingCycle;
+        previous_subscription_id?: string;
+      } = { plan: slug, billingCycle };
       if (previousSubscriptionId) body.previous_subscription_id = previousSubscriptionId;
       const res = await fetch("/api/stripe/create-payment-intent", {
         method: "POST",
@@ -545,6 +581,10 @@ export function PlanoClient({ plan }: { plan: PlanInfo | null }) {
       canceling={canceling}
       resuming={resuming}
       paymentElementRef={paymentElementRef}
+      billingCycle={billingCycle}
+      onBillingCycleChange={setBillingCycle}
+      hasAnnualPrice={effectiveHasAnnual}
+      canCheckout={effectiveCanCheckout}
       onStartCheckout={() => startCheckout()}
       onStartPlanChange={(slug) => {
         setChangePlanSlug(slug);
