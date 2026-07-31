@@ -23,17 +23,21 @@ export const INSTRUCTION_MODULES: InstructionModule[] = [
     id: "agenda",
     slug: "agenda",
     title: "Agenda e consultas",
-    description: "Agendar, confirmar, check-in e comparecimento.",
-    status: "coming_soon",
-    href: "/dashboard/instrucoes",
+    description:
+      "Como a Maria virou consulta: agendar, confirmar e ver a agenda funcionar.",
+    durationMin: 5,
+    status: "available",
+    href: "/dashboard/instrucoes/agenda",
   },
   {
     id: "financeiro",
     slug: "financeiro",
     title: "Financeiro e cobrança",
-    description: "Cupom, contas a receber e fluxo de caixa.",
-    status: "coming_soon",
-    href: "/dashboard/instrucoes",
+    description:
+      "Do atendimento à comanda paga — o ciclo que fecha a clínica no dia a dia.",
+    durationMin: 5,
+    status: "available",
+    href: "/dashboard/instrucoes/financeiro",
   },
   {
     id: "mensagens",

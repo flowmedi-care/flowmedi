@@ -72,12 +72,10 @@ export function OnboardingForm({ initialFullName = "" }: { initialFullName?: str
       return;
     }
 
-    // Forçar refresh completo e redirecionar
-    // Usar window.location para garantir reload completo do servidor
+    // Ativação: seed + tour (não Visão Geral vazia)
     router.refresh();
-    // Pequeno delay para garantir que o refresh seja processado
     setTimeout(() => {
-      window.location.href = "/dashboard";
+      window.location.href = "/dashboard/onboarding/tour";
     }, 100);
   }
 

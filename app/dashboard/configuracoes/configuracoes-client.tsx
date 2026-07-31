@@ -15,6 +15,8 @@ import {
 } from "./actions";
 import { NoShowFeeSettings } from "./no-show-fee-settings";
 import type { NoShowFeeMode } from "@/app/dashboard/agenda/appointment-status-change";
+import { setAdminAlsoPracticesAction } from "@/lib/onboarding/actions";
+import { PurgeDemoButton } from "@/components/onboarding/purge-demo-button";
 
 const BRAZIL_TIMEZONE_OPTIONS = [
   { value: "America/Sao_Paulo", label: "Brasilia: GMT+3" },
@@ -35,6 +37,7 @@ export function ConfiguracoesClient({
   reportGoals,
   clinicId,
   canUseWhatsApp,
+  adminAlsoPractices = true,
   noShowFee,
 }: {
   complianceConfirmationDays: number | null;
@@ -56,6 +59,7 @@ export function ConfiguracoesClient({
   };
   clinicId: string;
   canUseWhatsApp: boolean;
+  adminAlsoPractices?: boolean;
   noShowFee: {
     mode: NoShowFeeMode;
     amount: number | null;
@@ -108,6 +112,8 @@ export function ConfiguracoesClient({
   const [reportGoalsLoading, setReportGoalsLoading] = useState(false);
   const [reportGoalsError, setReportGoalsError] = useState<string | null>(null);
   const [reportGoalsSuccess, setReportGoalsSuccess] = useState(false);
+  const [alsoPractices, setAlsoPractices] = useState(adminAlsoPractices);
+  const [alsoPracticesLoading, setAlsoPracticesLoading] = useState(false);
   const searchParams = useSearchParams();
 
   // Limpar parâmetros de URL após carregar
@@ -134,6 +140,38 @@ export function ConfiguracoesClient({
           Regras operacionais, metas de relatórios e catálogos clínicos compartilhados.
         </p>
       </div>
+
+      <Card>
+        <CardHeader className="space-y-1">
+          <h2 className="text-lg font-semibold">Eu também atendo</h2>
+          <p className="text-sm text-muted-foreground">
+            Quando ativo, o administrador aparece como profissional na agenda (útil em clínicas solo).
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={alsoPractices}
+              disabled={alsoPracticesLoading}
+              onChange={async (e) => {
+                const next = e.target.checked;
+                setAlsoPractices(next);
+                setAlsoPracticesLoading(true);
+                await setAdminAlsoPracticesAction(next);
+                setAlsoPracticesLoading(false);
+              }}
+            />
+            Incluir meu usuário na lista de profissionais da agenda
+          </label>
+          <div className="border-t border-border pt-3">
+            <p className="text-xs text-muted-foreground mb-2">
+              Dados de demonstração da ativação são reversíveis.
+            </p>
+            <PurgeDemoButton />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="space-y-1">

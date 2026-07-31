@@ -119,6 +119,14 @@ export function ComandaPaymentDialog({
         window.open(`/dashboard/financeiro/recibo/${res.receiptId}`, "_blank");
       }
       onClose();
+      // Ativação: pagamento no tour → aha completo
+      if (
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("tour") === "1"
+      ) {
+        window.dispatchEvent(new CustomEvent("flowmedi:full-aha"));
+        router.push("/dashboard/financeiro?aha=1");
+      }
       router.refresh();
     }
   }

@@ -245,6 +245,8 @@ export const DASHBOARD_INSTRUCOES_GROUP: NavGroupItem = {
   children: [
     { href: "/dashboard/instrucoes", label: "Visão geral" },
     { href: "/dashboard/instrucoes/jornada-crm", label: "Atendimento e Jornada" },
+    { href: "/dashboard/instrucoes/agenda", label: "Agenda e consultas" },
+    { href: "/dashboard/instrucoes/financeiro", label: "Financeiro e cobrança" },
   ],
 };
 

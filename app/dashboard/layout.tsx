@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DashboardLayoutClient } from "@/components/dashboard-layout-client";
 import { getClinicPlanData } from "@/lib/plan-helpers";
 import { canAccessAudit, canUseWhatsApp } from "@/lib/plan-gates";
+import { ActivationAhaIfNeeded } from "@/components/onboarding/activation-coach-server";
 
 export default async function DashboardLayout({
   children,
@@ -64,6 +65,13 @@ export default async function DashboardLayout({
       servicesPricingMode={servicesPricingMode}
     >
       {children}
+      {profile?.clinic_id && profile.role ? (
+        <ActivationAhaIfNeeded
+          supabase={supabase}
+          clinicId={profile.clinic_id}
+          role={profile.role}
+        />
+      ) : null}
     </DashboardLayoutClient>
   );
 }

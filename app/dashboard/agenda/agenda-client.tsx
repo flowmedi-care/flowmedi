@@ -342,12 +342,17 @@ export function AgendaClient({
     }
   }
   
-  // Verificar se deve abrir o formulário automaticamente (ex: ?new=true ou vindo da aba Consulta)
+  // Verificar se deve abrir o formulário automaticamente (ex: ?new=true ou vindo da aba Consulta / tour)
   useEffect(() => {
     const shouldOpenForm = searchParams.get("new") === "true" || searchParams.get("novaConsulta") === "1";
     const patientIdParam = searchParams.get("patientId");
     const patientEmailParam = searchParams.get("patientEmail");
     const doctorIdParam = searchParams.get("doctorId");
+    const serviceIdParam = searchParams.get("serviceId");
+    const procedureIdParam = searchParams.get("procedureId");
+    const roomIdParam = searchParams.get("roomId");
+    const valorParam = searchParams.get("valor");
+    const tourParam = searchParams.get("tour") === "1";
     
     if (shouldOpenForm || patientIdParam || patientEmailParam || doctorIdParam) {
       const initial: Partial<import("./agenda-appointment-modal").AppointmentFormState> = {};
@@ -360,6 +365,28 @@ export function AgendaClient({
       }
       if (doctorIdParam && doctors.some((d) => d.id === doctorIdParam)) {
         initial.doctorId = doctorIdParam;
+      } else if (tourParam && doctors.length === 1) {
+        initial.doctorId = doctors[0]!.id;
+      }
+      if (procedureIdParam) {
+        initial.procedureIds = [procedureIdParam];
+      }
+      if (serviceIdParam) {
+        initial.serviceId = serviceIdParam;
+      }
+      if (roomIdParam) {
+        initial.roomId = roomIdParam;
+      }
+      if (valorParam && !Number.isNaN(Number(valorParam))) {
+        // valor é resolvido via charge preview; procedure/service bastam
+      }
+      // Horário padrão: daqui a ~1h (tour)
+      if (tourParam) {
+        const d = new Date();
+        d.setHours(d.getHours() + 1, 0, 0, 0);
+        const pad = (n: number) => String(n).padStart(2, "0");
+        initial.date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        initial.time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
       }
       openCreateModal(initial);
       
@@ -369,6 +396,11 @@ export function AgendaClient({
       newUrl.searchParams.delete("patientId");
       newUrl.searchParams.delete("patientEmail");
       newUrl.searchParams.delete("doctorId");
+      newUrl.searchParams.delete("serviceId");
+      newUrl.searchParams.delete("procedureId");
+      newUrl.searchParams.delete("roomId");
+      newUrl.searchParams.delete("valor");
+      // keep tour=1 for modal success handler
       router.replace(newUrl.pathname + newUrl.search, { scroll: false });
     }
   }, [searchParams, router, patients, doctors]);
@@ -1228,6 +1260,21 @@ export function AgendaClient({
         appointmentId={editingAppointmentId}
         onSuccess={(appointmentId) => {
           router.refresh();
+          const isTour =
+            typeof window !== "undefined" &&
+            new URLSearchParams(window.location.search).get("tour") === "1";
+          if (isTour && appointmentId) {
+            void (async () => {
+              const { completeMiniAhaAction } = await import("@/lib/onboarding/actions");
+              await completeMiniAhaAction(appointmentId);
+              window.dispatchEvent(
+                new CustomEvent("flowmedi:mini-aha", {
+                  detail: { appointmentId },
+                })
+              );
+            })();
+            return;
+          }
           if (appointmentId) openEventDetails(appointmentId);
         }}
         initialForm={modalInitialForm}

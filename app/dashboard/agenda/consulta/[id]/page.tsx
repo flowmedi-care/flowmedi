@@ -17,13 +17,18 @@ import { SchemaErrorBanner } from "../../schema-error-banner";
 import { RecurrenceSeriesButton } from "./recurrence-series-button";
 import { POLICY_LABEL } from "./check-in-payment-policy";
 import type { PaymentPolicy } from "../../encounter-actions";
+import { TourAttendanceBanner } from "@/components/onboarding/tour-attendance-banner";
 
 export default async function ConsultaDetalhePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tour?: string }>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
+  const isTour = sp.tour === "1";
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/entrar");
@@ -334,6 +339,8 @@ export default async function ConsultaDetalhePage({
         isDoctor={profile.role === "medico"}
         userRole={profile.role}
       />
+
+      {isTour && <TourAttendanceBanner appointmentId={id} />}
 
       <ConsultaTabsClient
         appointmentId={id}

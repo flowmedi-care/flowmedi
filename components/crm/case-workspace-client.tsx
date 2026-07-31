@@ -182,6 +182,24 @@ export function CaseWorkspaceClient({ data }: { data: WorkspacePayload }) {
           </div>
         </div>
 
+        {journeyCase.patient_id && !header.nextAppointmentId && (
+          <div className="rounded-lg border border-primary/25 bg-primary/[0.04] px-3 py-3">
+            <p className="text-sm font-medium">Agendar consulta</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Transforme este contato em um horário na agenda.
+            </p>
+            <Button size="sm" className="mt-2" asChild>
+              <Link
+                href={`/dashboard/agenda?novaConsulta=1&patientId=${encodeURIComponent(
+                  journeyCase.patient_id
+                )}&tour=1`}
+              >
+                Agendar consulta
+              </Link>
+            </Button>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-3 py-2">
           <span className={cn("text-sm font-medium", financeColor)}>
             Financeiro · {header.finance.label}

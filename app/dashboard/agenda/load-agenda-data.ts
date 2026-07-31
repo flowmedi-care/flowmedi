@@ -127,6 +127,8 @@ export async function loadAgendaCatalog(shell: AgendaShell) {
     { data: profileColorOverridesData },
     { data: doctorProcedures },
     scheduleBlocksResult,
+    { data: clinicFlags },
+    { data: adminProfile },
   ] = await Promise.all([
     supabase
       .from("patients")
@@ -177,9 +179,35 @@ export async function loadAgendaCatalog(shell: AgendaShell) {
       .select("doctor_id, procedure_id")
       .eq("clinic_id", clinicId),
     loadScheduleBlocks(supabase, shell),
+    supabase
+      .from("clinics")
+      .select("id, admin_also_practices")
+      .eq("id", clinicId)
+      .maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .eq("id", userId)
+      .maybeSingle(),
   ]);
 
-  let doctors = doctorsRaw ?? [];
+  let doctors = [...(doctorsRaw ?? [])];
+  const adminAlso =
+    clinicFlags && "admin_also_practices" in clinicFlags
+      ? clinicFlags.admin_also_practices !== false
+      : true;
+  // Solo-admin / admin que também atende
+  if (
+    adminAlso &&
+    adminProfile?.role === "admin" &&
+    adminProfile.id &&
+    !doctors.some((d) => d.id === adminProfile.id)
+  ) {
+    doctors.push({
+      id: adminProfile.id,
+      full_name: adminProfile.full_name ?? "Administrador",
+    });
+  }
   if (role === "secretaria" && allowedDoctorIds.length > 0) {
     doctors = doctors.filter((d) => allowedDoctorIds.includes(d.id));
   } else if (role === "medico") {

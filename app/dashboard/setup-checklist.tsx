@@ -2,8 +2,11 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Circle, Rocket } from "lucide-react";
-import { DemoAtendimentoButton } from "@/app/dashboard/demo-atendimento-button";
+import { CheckCircle2, Circle, Rocket, Sparkles } from "lucide-react";
+import { getOnboardingState } from "@/lib/onboarding/state";
+import { ANCHOR_PHRASE, POST_AHA_CTAS } from "@/lib/onboarding/copy";
+import { clinicProgressPercent } from "@/lib/onboarding/clinic-progress";
+import { PurgeDemoButton } from "@/components/onboarding/purge-demo-button";
 
 type Step = {
   id: string;
@@ -14,13 +17,68 @@ type Step = {
 
 export async function SetupChecklist({ clinicId }: { clinicId: string }) {
   const supabase = await createClient();
+  const onboarding = await getOnboardingState(supabase, clinicId);
+
+  // Pré-aha: card único de ativação
+  if (onboarding?.isActive || (onboarding && !onboarding.ahaCompletedAt && onboarding.tourStep !== "skipped")) {
+    const percent = clinicProgressPercent(onboarding.tourStep);
+    const caseHref = onboarding.bundle?.caseId
+      ? `/dashboard/crm/jornada/${onboarding.bundle.caseId}?tour=1`
+      : "/dashboard/onboarding/tour";
+
+    return (
+      <Card variant="flat" className="border-primary/25 bg-primary/[0.04]">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Ver sua clínica funcionando</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{ANCHOR_PHRASE}</p>
+              {onboarding.demoSeededAt && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Progresso da clínica: {percent}%
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" asChild>
+              <Link href={caseHref}>
+                {onboarding.demoSeededAt ? "Continuar ativação" : "Começar com a Maria"}
+              </Link>
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/dashboard/instrucoes/jornada-crm">Ver como funciona</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Skipped sem aha: permitir retomar
+  if (onboarding?.tourStep === "skipped" && !onboarding.ahaCompletedAt) {
+    return (
+      <Card variant="flat" className="border-amber-500/30 bg-amber-500/[0.04]">
+        <CardContent className="p-5 space-y-3">
+          <p className="text-sm font-semibold">Retomar ativação</p>
+          <p className="text-xs text-muted-foreground">
+            Você pulou o tour. Em poucos minutos dá para ver a clínica rodando com a Maria.
+          </p>
+          <Button size="sm" asChild>
+            <Link href="/dashboard/onboarding/tour">Ver clínica funcionando</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const [
     { count: teamCount },
     { data: waIntegration },
-    { count: roomsCount },
     { count: servicesCount },
-    { count: casesCount },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -34,15 +92,7 @@ export async function SetupChecklist({ clinicId }: { clinicId: string }) {
       .in("integration_type", ["whatsapp_meta", "whatsapp_simple"])
       .maybeSingle(),
     supabase
-      .from("rooms")
-      .select("id", { count: "exact", head: true })
-      .eq("clinic_id", clinicId),
-    supabase
       .from("services")
-      .select("id", { count: "exact", head: true })
-      .eq("clinic_id", clinicId),
-    supabase
-      .from("journey_cases")
       .select("id", { count: "exact", head: true })
       .eq("clinic_id", clinicId),
   ]);
@@ -52,39 +102,29 @@ export async function SetupChecklist({ clinicId }: { clinicId: string }) {
 
   const steps: Step[] = [
     {
-      id: "demo",
-      label: "Ver uma pendência no Workspace (demo)",
-      href: "/dashboard/hoje?focus=pendencias",
-      done: (casesCount ?? 0) > 0,
-    },
-    {
       id: "equipe",
       label: "Convidar equipe",
       href: "/dashboard/equipe",
       done: (teamCount ?? 0) > 1,
     },
     {
+      id: "servicos",
+      label: "Cadastrar serviços reais",
+      href: "/dashboard/servicos-valores/servicos",
+      done: (servicesCount ?? 0) > 1,
+    },
+    {
       id: "whatsapp",
-      label: "Conectar WhatsApp (recomendado)",
+      label: "Conectar WhatsApp",
       href: "/dashboard/configuracoes/integracoes",
       done: waConnected,
-    },
-    {
-      id: "salas",
-      label: "Cadastrar salas",
-      href: "/dashboard/configuracoes/salas",
-      done: (roomsCount ?? 0) > 0,
-    },
-    {
-      id: "servicos",
-      label: "Cadastrar serviços",
-      href: "/dashboard/servicos-valores/servicos",
-      done: (servicesCount ?? 0) > 0,
     },
   ];
 
   const remaining = steps.filter((s) => !s.done);
-  if (remaining.length === 0) return null;
+  const showPostAha = Boolean(onboarding?.ahaCompletedAt) || remaining.length > 0;
+  if (!showPostAha) return null;
+  if (remaining.length === 0 && !onboarding?.bundle) return null;
 
   return (
     <Card variant="flat" className="border-amber-500/30 bg-amber-500/[0.04]">
@@ -94,15 +134,20 @@ export async function SetupChecklist({ clinicId }: { clinicId: string }) {
             <Rocket className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-sm font-semibold">Primeiros passos</p>
+            <p className="text-sm font-semibold">
+              {onboarding?.ahaCompletedAt
+                ? "Transformar na clínica real"
+                : "Primeiros passos"}
+            </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Em minutos: crie um atendimento demo, veja a pendência e abra o Workspace — sem
-              depender do WhatsApp Meta.
+              {onboarding?.ahaCompletedAt
+                ? "Agora é sua vez. Substitua a Maria pelos seus primeiros pacientes reais."
+                : "Configure o essencial para operar no dia a dia."}
             </p>
           </div>
         </div>
         <ul className="space-y-2">
-          {steps.map((s) => (
+          {(remaining.length ? remaining : steps).map((s) => (
             <li key={s.id}>
               <Link
                 href={s.href}
@@ -121,13 +166,12 @@ export async function SetupChecklist({ clinicId }: { clinicId: string }) {
           ))}
         </ul>
         <div className="flex flex-wrap gap-2">
-          <DemoAtendimentoButton />
-          <Button size="sm" variant="outline" asChild>
-            <Link href="/dashboard/instrucoes/jornada-crm">Ver como funciona</Link>
-          </Button>
-          <Button size="sm" asChild>
-            <Link href="/dashboard/hoje?focus=pendencias">Ir para Pendências</Link>
-          </Button>
+          {POST_AHA_CTAS.slice(0, 2).map((cta) => (
+            <Button key={cta.id} size="sm" variant="outline" asChild>
+              <Link href={cta.href}>{cta.label}</Link>
+            </Button>
+          ))}
+          {onboarding?.bundle && <PurgeDemoButton />}
         </div>
       </CardContent>
     </Card>

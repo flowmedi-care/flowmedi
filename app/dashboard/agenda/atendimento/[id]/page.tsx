@@ -10,10 +10,10 @@ export default async function AtendimentoPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ finalize?: string }>;
+  searchParams: Promise<{ finalize?: string; tour?: string }>;
 }) {
   const { id } = await params;
-  const { finalize } = await searchParams;
+  const { finalize, tour } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -110,7 +110,7 @@ export default async function AtendimentoPage({
       canEdit={canEdit}
       isDoctor={isDoctor}
       currentUserId={user.id}
-      autoFinalize={finalize === "1"}
+      autoFinalize={finalize === "1" || tour === "1"}
       fichaProcedureMap={fichaProcedureMap}
       streamingMode={streamingConfig.streamingMode}
       fallbackToBatch={streamingConfig.fallbackToBatch}
