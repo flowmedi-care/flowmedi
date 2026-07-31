@@ -124,11 +124,12 @@ export async function seedClinicDemoBundle(
       name: MARIA_STORY.name,
       email: `maria.demo+${stamp}@flowmedi.local`,
       phone: null,
-      stage: "novo",
-      lifecycle_stage: "novo",
+      stage: "novo_contato",
+      lifecycle_stage: "lead_novo",
       next_action: "Qualificar e agendar avaliação",
       patient_id: patient.id,
       notes: MARIA_STORY.channelDetail,
+      source: "manual",
     })
     .select("id")
     .single();
@@ -143,9 +144,10 @@ export async function seedClinicDemoBundle(
         name: MARIA_STORY.name,
         email: `maria.demo+${stamp}@flowmedi.local`,
         phone: null,
-        stage: "novo",
-        lifecycle_stage: "novo",
+        stage: "novo_contato",
+        lifecycle_stage: "lead_novo",
         next_action: "Qualificar e agendar avaliação",
+        source: "manual",
       })
       .select("id")
       .single();
