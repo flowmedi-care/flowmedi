@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { seedClinicDemoBundle } from "@/lib/onboarding/seed";
 import { trackProductEvent } from "@/lib/onboarding/events";
-import { ACTIVATION_SPLASH } from "@/lib/onboarding/copy";
 
 export default async function OnboardingTourBootstrapPage() {
   const supabase = await createClient();
@@ -52,13 +51,4 @@ export default async function OnboardingTourBootstrapPage() {
   }
 
   redirect(`/dashboard/crm/jornada/${seeded.caseId}?tour=1`);
-}
-
-/** Splash estático — o redirect acontece no server; este export evita flash vazio em edge cases. */
-export function ActivationSplashFallback() {
-  return (
-    <div className="flex min-h-[50vh] items-center justify-center px-4">
-      <p className="max-w-sm text-center text-sm text-muted-foreground">{ACTIVATION_SPLASH}</p>
-    </div>
-  );
 }
