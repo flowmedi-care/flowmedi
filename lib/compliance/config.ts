@@ -1,6 +1,6 @@
 /** Configuração LGPD / privacidade (variáveis de ambiente). */
 
-const PRIVACY_POLICY_VERSION = "2026-07-02-v2";
+const PRIVACY_POLICY_VERSION = "2026-08-05-v3";
 
 export function getPrivacyPolicyVersion(): string {
   return PRIVACY_POLICY_VERSION;

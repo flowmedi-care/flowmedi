@@ -168,9 +168,11 @@ export default function PoliticaPrivacidadePage() {
 
       <LegalH2>13. Cookies</LegalH2>
       <p>
-        Utilizamos cookies essenciais de sessão e, no painel autenticado, cookies/localStorage
-        de analytics de produto (PostHog) para entender uso e melhorar o serviço — sem
-        publicidade e sem gravação de sessões. Detalhes em{" "}
+        Utilizamos cookies essenciais de sessão e cookies/localStorage de analytics (PostHog) no
+        site público e no painel autenticado, para entender uso, melhorar o serviço e medir o
+        engajamento em páginas de marketing — sem publicidade comportamental. Em páginas públicas
+        de marketing, podemos utilizar gravação de sessão (session replay). No painel clínico,
+        a gravação de sessão permanece desligada. Detalhes em{" "}
         <LegalLink href="/politica-de-cookies">Política de Cookies</LegalLink>.
       </p>
 

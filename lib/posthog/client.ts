@@ -13,8 +13,8 @@ export function isPostHogEnabled(): boolean {
 /**
  * Init idempotente do PostHog no browser.
  * Privacidade (SaaS clínico / LGPD):
- * - sem session replay (risco de PHI na UI)
- * - sem autocapture (nomes de pacientes aparecem no DOM)
+ * - session replay desligado por padrão; ligado só em rotas de marketing via startSessionRecording
+ * - sem autocapture (nomes de pacientes no DOM do painel)
  * - pageviews manuais via provider
  */
 export function initPostHog(): typeof posthog | null {
@@ -30,6 +30,11 @@ export function initPostHog(): typeof posthog | null {
     autocapture: false,
     disable_session_recording: true,
     persistence: "localStorage+cookie",
+    session_recording: {
+      maskAllInputs: true,
+      maskTextSelector: ".ph-mask",
+      blockSelector: ".ph-no-capture",
+    },
     loaded: (ph) => {
       if (process.env.NODE_ENV === "development") {
         ph.debug();

@@ -35,28 +35,40 @@ export default function PoliticaCookiesPage() {
             <td className="p-3">Legítimo interesse / execução de contrato</td>
           </tr>
           <tr className="border-t border-border">
-            <td className="p-3">Analytics de produto</td>
+            <td className="p-3">Analytics de produto e marketing</td>
             <td className="p-3">
-              PostHog: medir uso do painel (páginas visitadas, ativação, retenção). Sem
-              gravação de tela. Não enviamos dados clínicos de pacientes.
+              PostHog: medir uso do site e do painel (páginas visitadas, eventos de engajamento,
+              ativação e retenção). Em páginas públicas de marketing (por exemplo, a landing de
+              clínicas), podemos gravar sessões (session replay) para entender a experiência de
+              navegação — sem publicidade comportamental. No painel clínico autenticado, a
+              gravação de sessão permanece desligada; não enviamos dados clínicos de pacientes de
+              forma intencional.
             </td>
-            <td className="p-3">Legítimo interesse (melhoria do produto B2B)</td>
+            <td className="p-3">Legítimo interesse (melhoria do produto e do site B2B)</td>
           </tr>
         </tbody>
       </table>
       <p className="mt-4">
-        Analytics de produto usa cookies/localStorage do PostHog apenas quando a chave de
-        projeto está configurada. Você pode bloquear cookies de terceiros no navegador; o
-        painel continua funcionando (sessão Supabase é independente).
+        Analytics usa cookies/localStorage do PostHog apenas quando a chave de projeto está
+        configurada. Você pode bloquear cookies de terceiros no navegador; o painel continua
+        funcionando (sessão Supabase é independente).
       </p>
 
-      <LegalH2>3. Como gerenciar cookies</LegalH2>
+      <LegalH2>3. Session replay (gravação de sessão)</LegalH2>
+      <p>
+        Quando ativo, o session replay registra interações na interface (cliques, rolagem e
+        elementos da página) nas rotas públicas de marketing. Campos de formulário podem ser
+        mascarados. Essa funcionalidade <strong>não</strong> é utilizada no painel da clínica
+        (áreas autenticadas com dados de pacientes).
+      </p>
+
+      <LegalH2>4. Como gerenciar cookies</LegalH2>
       <p>
         Você pode bloquear ou excluir cookies nas configurações do navegador. Cookies essenciais de
         sessão são necessários para usar o painel da clínica após o login.
       </p>
 
-      <LegalH2>4. Mais informações</LegalH2>
+      <LegalH2>5. Mais informações</LegalH2>
       <p>
         Veja a <LegalLink href="/politica-de-privacidade">Política de Privacidade</LegalLink> e o
         contato do <LegalLink href="/encarregado-dados">Encarregado de Dados</LegalLink>.

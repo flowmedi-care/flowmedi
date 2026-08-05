@@ -5,6 +5,10 @@ import { usePathname, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
 import { PostHogProvider as PHProvider } from "@posthog/react";
 import { initPostHog, isPostHogEnabled } from "@/lib/posthog/client";
+import {
+  applyOutboundAttribution,
+  syncSessionRecording,
+} from "@/lib/outbound/attribution";
 
 function PostHogPageView() {
   const pathname = usePathname();
@@ -13,6 +17,13 @@ function PostHogPageView() {
 
   useEffect(() => {
     if (!isPostHogEnabled() || !pathname) return;
+
+    syncSessionRecording(pathname);
+
+    if (searchParams) {
+      applyOutboundAttribution(searchParams);
+    }
+
     const url =
       searchParams?.toString()
         ? `${pathname}?${searchParams.toString()}`

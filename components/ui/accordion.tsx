@@ -15,16 +15,26 @@ export function Accordion({
   children,
   className,
   defaultOpenId,
+  onOpenChange,
 }: {
   children: React.ReactNode;
   className?: string;
   defaultOpenId?: string | null;
+  /** Chamado com o id aberto, ou null quando fecha. */
+  onOpenChange?: (id: string | null) => void;
 }) {
   const [openId, setOpenId] = React.useState<string | null>(defaultOpenId ?? null);
 
-  const toggle = React.useCallback((id: string) => {
-    setOpenId((prev) => (prev === id ? null : id));
-  }, []);
+  const toggle = React.useCallback(
+    (id: string) => {
+      setOpenId((prev) => {
+        const next = prev === id ? null : id;
+        onOpenChange?.(next);
+        return next;
+      });
+    },
+    [onOpenChange]
+  );
 
   return (
     <AccordionContext.Provider value={{ openId, toggle }}>

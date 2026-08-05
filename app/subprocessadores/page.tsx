@@ -52,8 +52,8 @@ const SUBPROCESSORS = [
   {
     name: "PostHog, Inc.",
     purpose:
-      "Analytics de produto (páginas visitadas, eventos de ativação/retenção no painel)",
-    data: "IDs de usuário e clínica, papel (role), URLs do painel e eventos de produto — sem dados clínicos de pacientes",
+      "Analytics de produto e de marketing (páginas visitadas, eventos de engajamento/ativação/retenção; session replay apenas em páginas públicas de marketing)",
+    data: "IDs de usuário/lead e clínica, papel (role), URLs, parâmetros de campanha (UTM) e eventos agregados — sem dados clínicos de pacientes; sem session replay no painel clínico",
     location: "Estados Unidos (PostHog Cloud US) ou União Europeia (se configurado EU)",
   },
 ] as const;
