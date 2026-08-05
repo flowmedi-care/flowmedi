@@ -34,12 +34,20 @@ export default function PoliticaCookiesPage() {
             <td className="p-3">Autenticação Supabase (sessão HTTP-only), segurança</td>
             <td className="p-3">Legítimo interesse / execução de contrato</td>
           </tr>
+          <tr className="border-t border-border">
+            <td className="p-3">Analytics de produto</td>
+            <td className="p-3">
+              PostHog: medir uso do painel (páginas visitadas, ativação, retenção). Sem
+              gravação de tela. Não enviamos dados clínicos de pacientes.
+            </td>
+            <td className="p-3">Legítimo interesse (melhoria do produto B2B)</td>
+          </tr>
         </tbody>
       </table>
       <p className="mt-4">
-        <strong className="text-foreground">Fato observado no código:</strong> não identificamos
-        cookies de analytics, publicidade ou redes sociais no site institucional. Se isso mudar,
-        atualizaremos esta política e, quando exigido, solicitaremos consentimento prévio.
+        Analytics de produto usa cookies/localStorage do PostHog apenas quando a chave de
+        projeto está configurada. Você pode bloquear cookies de terceiros no navegador; o
+        painel continua funcionando (sessão Supabase é independente).
       </p>
 
       <LegalH2>3. Como gerenciar cookies</LegalH2>

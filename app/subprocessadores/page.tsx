@@ -49,6 +49,13 @@ const SUBPROCESSORS = [
     data: "Áudio e texto transcrito",
     location: "Conforme contrato do provedor (validar operacionalmente)",
   },
+  {
+    name: "PostHog, Inc.",
+    purpose:
+      "Analytics de produto (páginas visitadas, eventos de ativação/retenção no painel)",
+    data: "IDs de usuário e clínica, papel (role), URLs do painel e eventos de produto — sem dados clínicos de pacientes",
+    location: "Estados Unidos (PostHog Cloud US) ou União Europeia (se configurado EU)",
+  },
 ] as const;
 
 export default function SubprocessadoresPage() {

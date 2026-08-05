@@ -142,6 +142,8 @@ export function DashboardNavRail({
   const showLabels = railExpanded || mobileOpen;
 
   async function handleSignOut() {
+    const { resetPostHogIdentity } = await import("@/components/posthog-identify");
+    resetPostHogIdentity();
     const supabase = createClient();
     await supabase.auth.signOut();
     router.refresh();

@@ -11,6 +11,7 @@ import {
   DashboardNavigationProvider,
   useDashboardNavigation,
 } from "./dashboard-navigation-context";
+import { PostHogIdentify } from "./posthog-identify";
 
 type Profile = {
   id: string;
@@ -39,6 +40,11 @@ export function DashboardLayoutClient({
 }: DashboardLayoutClientProps) {
   return (
     <DashboardNavigationProvider>
+      <PostHogIdentify
+        userId={user.id}
+        role={profile?.role}
+        clinicId={profile?.clinic_id}
+      />
       <DashboardLayoutInner
         user={user}
         profile={profile}

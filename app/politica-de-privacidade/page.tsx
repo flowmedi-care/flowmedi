@@ -168,8 +168,9 @@ export default function PoliticaPrivacidadePage() {
 
       <LegalH2>13. Cookies</LegalH2>
       <p>
-        Utilizamos cookies essenciais de sessão. Não utilizamos cookies de analytics ou publicidade
-        no painel. Detalhes em{" "}
+        Utilizamos cookies essenciais de sessão e, no painel autenticado, cookies/localStorage
+        de analytics de produto (PostHog) para entender uso e melhorar o serviço — sem
+        publicidade e sem gravação de sessões. Detalhes em{" "}
         <LegalLink href="/politica-de-cookies">Política de Cookies</LegalLink>.
       </p>
 
